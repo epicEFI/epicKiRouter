@@ -1,0 +1,815 @@
+# anatomy.md
+
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-12T03:03:04.176Z
+> Files: 585 tracked | Anatomy hits: 0 | Misses: 0
+
+> Project structure index. Auto-maintained by OpenWolf hooks and daemon.
+> Run `openwolf scan` to generate, or wait for the first Claude Code session.
+> Status: Pending initial scan
+
+## ./
+
+- `.dockerignore` — Docker ignore rules (~326 tok)
+- `.editorconfig` — Editor configuration (~31 tok)
+- `.gitattributes` — Git attributes (~152 tok)
+- `.gitignore` — Git ignore rules (~228 tok)
+- `.pre-commit-config.yaml` — Pre-commit hooks for Freerouting (Java project) (~998 tok)
+- `.yamllint.yaml` — YAML linting configuration for Freerouting project (~205 tok)
+- `AGENTS.md` — Project Persona & Goal (~12382 tok)
+- `build.gradle` — Gradle build configuration (~7481 tok)
+- `CLAUDE.md` — OpenWolf (~1916 tok)
+- `Dockerfile` — Docker container definition (~510 tok)
+- `GEMINI.md` — OpenWolf (~75 tok)
+- `gradle.properties` — Gradle Configuration (~128 tok)
+- `gradlew` — you may not use this file except in compliance with the License. (~2303 tok)
+- `gradlew.bat` (~738 tok)
+- `LICENSE` — Project license (~9366 tok)
+- `pyproject.toml` — Python project configuration (~245 tok)
+- `README.md` — Project documentation (~2644 tok)
+- `rewrite.yml` — Freerouting OpenRewrite phases. (~1676 tok)
+- `settings.gradle` — Gradle settings (~32 tok)
+
+## .github/
+
+- `dependabot.yml` — To get started with Dependabot version updates, you'll need to specify which (~144 tok)
+- `FUNDING.yml` (~7 tok)
+- `PULL_REQUEST_TEMPLATE.md` — ## Description (~62 tok)
+
+## .github/ISSUE_TEMPLATE/
+
+- `bug_report.md` (~303 tok)
+- `feature_request.md` (~151 tok)
+
+## .github/workflows/
+
+- `create-release.yml` — CI: Publish a new release (~1374 tok)
+- `create-snapshot.yml` — CI: Update the snapshot build (~1362 tok)
+- `deploy-pages.yml` — CI: Deploy website to GitHub Pages (~266 tok)
+- `docker-nightly.yml` — CI: Push the Docker nightly image (~492 tok)
+- `docker-release.yml` — CI: Push a new Docker release image (~551 tok)
+- `gradle-build-on-pr.yml` — CI: Build the source on PR (~374 tok)
+- `gui-a11y.yml` — CI: GUI accessibility tests (~462 tok)
+- `pre-commit.yml` — CI: pre-commit (~466 tok)
+- `stale.yml` — This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time. (~540 tok)
+
+## .remember/
+
+- `.gitignore` — Git ignore rules (~1 tok)
+
+## .remember/logs/
+
+- `hook-errors.log` (~0 tok)
+- `memory-2026-09-11.log` (~2187 tok)
+
+## .remember/logs/autonomous/
+
+- `save-203930.log` (~0 tok)
+- `save-203946.log` (~0 tok)
+- `save-203948.log` (~0 tok)
+- `save-204000.log` (~0 tok)
+- `save-204002.log` (~0 tok)
+- `save-204004.log` (~0 tok)
+- `save-204018.log` (~0 tok)
+- `save-204019.log` (~0 tok)
+- `save-204029.log` (~0 tok)
+- `save-204030.log` (~0 tok)
+- `save-204050.log` (~0 tok)
+- `save-204116.log` (~0 tok)
+- `save-204124.log` (~0 tok)
+- `save-204125.log` (~0 tok)
+- `save-204138.log` (~0 tok)
+
+## .run/
+
+- `(Default).run.xml` (~199 tok)
+- `#006 Non-text DSN input.run.xml` (~194 tok)
+- `#015 DSN input causing StackOverflow.run.xml` (~199 tok)
+- `#022 AutoRouter interrupted.run.xml` (~214 tok)
+- `#026 Connections not found.run.xml` (~210 tok)
+- `#027-zMRETestFixture.dsn.run.xml` (~196 tok)
+- `#029 AutoRouter interrupted because of the rules file.run.xml` (~212 tok)
+- `#034 Two boards in one DSN.run.xml` (~196 tok)
+- `#035 Read place scope.run.xml` (~209 tok)
+- `#039 ArrayIndexOutOfBoundsException.run.xml` (~198 tok)
+- `#054 Autorouter aborts.run.xml` (~204 tok)
+- `#066 Project_GP8B.dsn.run.xml` (~218 tok)
+- `#070 Ignore net class from routing.run.xml` — Declares from (~207 tok)
+- `#093 Special characters in DSN - interf_u.run.xml` (~199 tok)
+- `#102 BBD Mars with _-oit 0_ in interative GUI mode.run.xml` (~209 tok)
+- `#102 BBD Mars with _-oit 0_.run.xml` (~215 tok)
+- `#102 BBD Mars with _-oit 0.00001_.run.xml` (~218 tok)
+- `#102 BBD Mars with _-oit 0.1_.run.xml` (~216 tok)
+- `#102 BBD Mars with default -oit.run.xml` (~199 tok)
+- `#107 freq_teiler_200kHz_kicad_bad.run.xml` (~202 tok)
+- `#107 freq_teiler_200kHz_kicad.run.xml` (~200 tok)
+- `#110 Special characters in DSN - bugtest.run.xml` (~206 tok)
+- `#110 Special characters in DSN - bugtest01.run.xml` (~207 tok)
+- `#110 Special characters in DSN - paja.run.xml` (~201 tok)
+- `#110 Special characters in DSN - relay module.run.xml` (~201 tok)
+- `#110 Special characters in DSN - testpcb.run.xml` (~202 tok)
+- `#110 Special characters in DSN input file name.run.xml` (~206 tok)
+- `#118 Missing Chinese translation.run.xml` (~188 tok)
+- `#127 Check Arabic translation.run.xml` (~187 tok)
+- `#127 Check Bengali translation.run.xml` (~223 tok)
+- `#127 Check Chinese translation.run.xml` (~223 tok)
+- `#127 Check French translation.run.xml` (~223 tok)
+- `#127 Check German translation.run.xml` (~215 tok)
+- `#127 Check Hindi translation.run.xml` (~204 tok)
+- `#127 Check Italian translation.run.xml` (~205 tok)
+- `#127 Check Japanese translation.run.xml` (~223 tok)
+- `#127 Check Korean translation.run.xml` (~223 tok)
+- `#127 Check Portugese translation.run.xml` (~224 tok)
+- `#127 Check Russian translation.run.xml` (~205 tok)
+- `#127 Check Spanish translation.run.xml` (~205 tok)
+- `#127 Check Traditional Chinese translation.run.xml` (~227 tok)
+- `#135 Disable logging.run.xml` (~184 tok)
+- `#143 Special characters in DSN's network pins - rpi_splitter_mod.run.xml` (~208 tok)
+- `#153 Open dsn is stuck loading.run.xml` (~196 tok)
+- `#155 Autorouter causing a lot of clearance violations with pads.run.xml` (~210 tok)
+- `#157 Package.read_rotation_ closing bracket expected.run.xml` (~205 tok)
+- `#159 Out of memory error when using with KiCAD.run.xml` (~202 tok)
+- `#178 Unable to read DSN file.run.xml` (~199 tok)
+- `#179 Autorouter_PCB1_2023-3-24.run.xml` (~201 tok)
+- `#184 motorizedopener (auto-start).run.xml` (~219 tok)
+- `#184 motorizedopener.run.xml` (~198 tok)
+- `#187 Processor Z80.run.xml` (~194 tok)
+- `#190 Processor Z80 (long running).run.xml` (~198 tok)
+- `#191 Processor Z80 KiCad project.run.xml` (~201 tok)
+- `#195 Start as headless.run.xml` (~189 tok)
+- `#199 Stack overflow.run.xml` (~199 tok)
+- `#208 Nothing happens.run.xml` (~194 tok)
+- `#209 Small boundary doesn't finish (bigger).run.xml` (~199 tok)
+- `#209 Small boundary doesn't finish (smaller).run.xml` (~200 tok)
+- `#214 DSN closing bracket expected.run.xml` (~198 tok)
+- `#217 Autorouter doesn't finish.run.xml` (~196 tok)
+- `#219 Cannot read field _net_no_arr_ because _curr_trace_ is null.run.xml` (~213 tok)
+- `#229 8-digit loaded incorrectly.run.xml` (~200 tok)
+- `#230 Inner layer should be ignored.run.xml` (~208 tok)
+- `#269 Min fr test.run.xml` (~211 tok)
+- `#269 Vias should be created on power planes.run.xml` (~233 tok)
+- `#269 Z10 module - vias should be on power layers.run.xml` (~213 tok)
+- `#270 WARN Non-ansi character '{'.run.xml` (~199 tok)
+- `#272 DSN with warning for scripting.run.xml` (~214 tok)
+- `#289 FHT-8086 (slow).run.xml` (~218 tok)
+- `#289 FHT-VGA (slow).run.xml` (~218 tok)
+- `#297 OutOfMemory exception.run.xml` (~205 tok)
+- `#313 Change log level.run.xml` (~126 tok)
+- `#326 Autostart BBD Mars with job saving enabled.run.xml` (~243 tok)
+- `Run all tests in 'freerouting.test'.run.xml` (~330 tok)
+
+## assets/icon/
+
+- `freerouting_icon_256x256_v3.icns` (~8846 tok)
+
+## config/checkstyle/
+
+- `checkstyle-suppressions.xml` (~106 tok)
+- `google_checks.xml` (~7423 tok)
+
+## config/ide/
+
+- `intellij-freerouting-style.xml` (~6325 tok)
+
+## docs/
+
+- `architecture.md` — Freerouting Architecture Map (~7129 tok)
+- `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
+- `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
+- `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
+- `CONTRIBUTING.md` — Introduction (~1542 tok)
+- `developer.md` — Information for developers (~4875 tok)
+- `integrations.md` — EDA Integrations (~2331 tok)
+- `labels.md` — Issue and Pull Request Labels (~1529 tok)
+- `ProjectSchemeCodeStyle.xml` (~519 tok)
+- `scoring.md` — Board scoring (V2) (~3175 tok)
+- `self-hosting.md` — Self-Hosting the Freerouting API (~4256 tok)
+- `settings.md` — Freerouting Settings Documentation (~5563 tok)
+- `translations.md` — Translation guide (~1771 tok)
+
+## docs/API/
+
+- `API_authentication.md` — API Authentication System Documentation (~4532 tok)
+- `API_user_welcome_email.md` — Linux / macOS (~2184 tok)
+- `API_v1.md` — Freerouting API Documentation (~5006 tok)
+- `Freerouting_API.postman_collection.json` (~120923 tok)
+- `freerouting-requests.http` (~19249 tok)
+- `MCP.md` — Freerouting Model Context Protocol (MCP) Guide (~3050 tok)
+
+## docs/gui/
+
+- `accessibility-contract.md` — GUI Accessibility Contract (~1638 tok)
+
+## docs/issues/
+
+- `i18n-english-terminology-plan.md` — English terminology implementation plan (~7300 tok)
+- `Issue152-copper-pour-plane-awareness.md` — Issue 152 — Copper Pour / Power Plane Awareness (~1559 tok)
+- `Issue383-star-ground-routing.md` — Issue 383 — Star Ground Autorouting Support (~3447 tok)
+- `Issue558-copper-to-edge-clearance.md` — Issue 558: Copper-to-Edge Clearance Not Respected (~5114 tok)
+- `Issue845-os-standard-directories.md` — Issue 845: Store Configuration, Data, Logs, and Cache in OS-Standard Directories (~706 tok)
+- `security-audit-inventory.md` — Security Audit Inventory (~3325 tok)
+- `security-audit-pass-a.md` — Security Audit Pass A — REST Authentication and Authorization (~3379 tok)
+- `security-audit-pass-b.md` — Security Audit Pass B — MCP Server and Tool Bridge (~4996 tok)
+- `security-audit-pass-c.md` — Security Audit Pass C — Design I/O and Job Files (~3513 tok)
+- `security-audit-pass-d.md` — Security Audit Pass D — Analytics and Cloud Credentials (~3569 tok)
+- `security-audit-pass-e.md` — Security Audit Pass E — Settings, Docker, and Installers (~3728 tok)
+- `security-audit-pass-f.md` — Security Audit Pass F — CI and Supply Chain (~2872 tok)
+- `security-audit-pass-g.md` — Security Audit Pass G — Java Deserialization and Board Snapshots (~2121 tok)
+- `security-audit-pass-h.md` — Security Audit Pass H — Resource Exhaustion and Rate Limits (~4494 tok)
+- `security-audit-plan.md` — Complete Codebase Security Audit Plan (~4516 tok)
+- `security-audit-remediation-log.md` — Security Audit Remediation Log (Phase 4) (~1189 tok)
+- `security-audit-risk-register.md` — Security Audit Risk Register (~11790 tok)
+- `security-audit-scanner-summary.md` — Security Audit Scanner Summary (~1406 tok)
+- `security-audit-threat-model.md` — Security Audit Threat Model (~4988 tok)
+
+## docs/reference/
+
+- `Cadence_SPECCTRA_Design_Language_Reference_v10_(2000-05).md` — SPECCTRA (~72304 tok)
+- `gradle_quick_reference.md` — Quick Reference: Gradle Commands (~953 tok)
+
+## docs/research/
+
+- `clearance_violations_reduction_plan.md` — Clearance Violations Reduction Plan (Tier B Multi-Layer Focus) (~5900 tok)
+- `escape_congestion_research.md` — Escape Congestion Zones & Fanout Redesign — Research & Plan (~5341 tok)
+- `kicad_ipc_api_research.md` — Purpose (~4527 tok)
+- `optimizer_preflight_and_threshold_plan.md` — Freerouting Optimizer Pre-Flight Guards & Threshold Optimization Plan (~3683 tok)
+- `optimizer_threshold_sweep_raw.json` (~7692 tok)
+- `optimizer_threshold_sweep_results.csv` (~2054 tok)
+- `optimizer_unification_clean_fixtures.txt` (~441 tok)
+- `optimizer_unification_clean.csv` (~916 tok)
+- `optimizer_unification_clean.json` (~237809 tok)
+- `optimizer_unification_plan.md` — Freerouting Optimizer Unification Plan (~3223 tok)
+- `optimizer_v2_weights_WL1000_WV2000_WB500.csv` (~13576 tok)
+- `optimizer_v2_weights_WL3500_WV4000_WB1000.csv` (~13606 tok)
+- `optimizer_v2_weights_WL500_WV8000_WB2000.csv` (~13489 tok)
+- `planned_experiments.md` — Freerouting Planned Experiments (~3527 tok)
+- `router_v2_weights_W1333_W2667_WC25_WD300.csv` (~16690 tok)
+- `router_v2_weights_WU1000_WC25_WD300_F50.csv` (~15730 tok)
+- `router_v2_weights_WU1000_WC25_WD300.csv` (~13918 tok)
+- `schema_v5_current_v19_pair.md` — Schema v5 current vs v1.9 pair walkthrough (~298 tok)
+- `scoring_revision_plan.md` — Freerouting Dedicated Scoring Architecture & Versioning Plan (~10165 tok)
+- `self_improving_routing_loop_plan.md` — Self-Improving Routing Optimization Loop (~8486 tok)
+- `v19_v2_replay.csv` (~4702 tok)
+
+## docs/superpowers/research/
+
+- `2026-09-11-autorouter-state-of-the-art.md` — Autorouter State of the Art (September 2026) (~3691 tok)
+- `2026-09-11-freerouting-gaps-and-user-pain-points.md` — Freerouting: Gaps, Complaints, and Feature Demand (September 2026) (~2215 tok)
+- `2026-09-11-language-and-architecture-evidence.md` — Language & Architecture Evidence for the Rust Rewrite (~2360 tok)
+
+## docs/superpowers/specs/
+
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~3729 tok)
+
+## examples/tutorial_board/
+
+- `tutorial_board.dsn` — Declares signal (~190521 tok)
+- `tutorial_board.kicad_prl` (~345 tok)
+- `tutorial_board.kicad_pro` (~2165 tok)
+- `tutorial_board.kicad_sch` (~36 tok)
+
+## experiments/
+
+- `experiments.jsonl` (~0 tok)
+- `REPORT.md` — Autopilot experiment report (~44 tok)
+
+## fixtures/
+
+- `empty_board.dsn` — Declares signal (~118 tok)
+- `Issue006-LPC18XX_43XX_SCH.dsn` (~71210 tok)
+- `Issue015-StackOverflow.dsn` — Declares signal (~39912 tok)
+- `Issue022-AutoRouter_interrupted.dsn` — Declares signal (~47592 tok)
+- `Issue026-J2_reference.dsn` — Declares signal (~2114 tok)
+- `Issue026-J2_reference.ses` (~3846 tok)
+- `Issue027-zMRETestFixture.dsn` — Declares signal (~19016 tok)
+- `Issue029-hw48na_invalid.rules` — Declares smd_to_turn_gap (~6075 tok)
+- `Issue029-hw48na_valid.rules` — Declares default (~6093 tok)
+- `Issue029-hw48na.dsn` — Declares signal (~39227 tok)
+- `Issue029-hw48na.rules` — Declares smd_to_turn_gap (~6082 tok)
+- `Issue034-Green14SegLED.dsn` — Declares signal (~8989 tok)
+- `Issue035-ReadPlaceScope.dsn` — Declares signal (~15603 tok)
+- `Issue039-bug-design.dsn` — Declares signal (~11821 tok)
+- `Issue054-tairakb.dsn` — Declares signal (~11559 tok)
+- `Issue066-Project_GP8B.dsn` — Declares signal (~29421 tok)
+- `Issue070-Autorouter_FQ101_PCB_2022-05-13.dsn` — Declares default_smd (~32506 tok)
+- `Issue093-interf_u.dsn` — Declares signal (~39667 tok)
+- `Issue102-Mars-64-revE-rot00.dsn` — Declares signal (~13277 tok)
+- `Issue103-Board-Routed.dsn` — Declares smd_to_turn_gap (~272987 tok)
+- `Issue103-Board-Unrouted.dsn` — Declares signal (~11641 tok)
+- `Issue107-freq_teiler_200kHz_kicad_bad.dsn` — Declares signal (~18704 tok)
+- `Issue107-freq_teiler_200kHz_kicad_bad.rules` — Declares smd_to_turn_gap (~1002 tok)
+- `Issue107-freq_teiler_200kHz_kicad.dsn` — Declares signal (~18482 tok)
+- `Issue107-freq_teiler_200kHz_kicad.rules` — Declares smd_to_turn_gap (~1002 tok)
+- `Issue110-Pajalnaja_stancija.dsn` — Declares signal (~7148 tok)
+- `Issue110-RelayModule.dsn` — Declares signal (~26421 tok)
+- `Issue110-testPCBSpecctraFile.dsn` — Declares signal (~16761 tok)
+- `Issue110-testProjectFromFreeroutingBugTest.dsn` — Declares signal (~2101 tok)
+- `Issue110-testProjectFromFreeroutingBugTest01.dsn` — Declares signal (~2199 tok)
+- `Issue110-Паяльная станция.dsn` — Declares signal (~7148 tok)
+- `Issue113-Protein.dsn` — Declares signal (~36524 tok)
+- `Issue143-rpi_splitter_mod.dsn` — Declares signal (~1042 tok)
+- `Issue143-rpi_splitter.dsn` — Declares signal (~1038 tok)
+- `Issue145-smoothieboard.dsn` — Declares signal (~35209 tok)
+- `Issue153-wavefolder.dsn` — Declares signal (~32949 tok)
+- `Issue155-CH376_MCP795_Module.dsn` — Declares signal (~13428 tok)
+- `Issue155-CH376_MCP795_Module.log` (~2835 tok)
+- `Issue157-TeamAdapt-LinePCB.dsn` — Declares signal (~53617 tok)
+- `Issue159-setonix_2hp-pcb.dsn` — Declares signal (~6464 tok)
+- `Issue163-pic_programmer.dsn` — Declares signal (~23023 tok)
+- `Issue178-KeebMaker_Sofle_Choc.dsn` — Declares signal (~140303 tok)
+- `Issue179-Autorouter_PCB1_2023-3-24.dsn` — Declares default_smd (~3458 tok)
+- `Issue190-processor.Z80.dsn` — Declares signal (~247367 tok)
+- `Issue208-freerouting.dsn` — Declares signal (~11169 tok)
+- `Issue209-split05.dsn` — Declares signal (~9776 tok)
+- `Issue209-split10.dsn` — Declares signal (~9776 tok)
+- `Issue214-freerouting.dsn` — Declares signal (~52090 tok)
+- `Issue217-8088sbc.dsn` — Declares signal (~22616 tok)
+- `Issue219-LogicBoard_smt.dsn` — Declares signal (~28808 tok)
+- `Issue229-display-8-digit-hc595.dsn` — Declares signal (~9584 tok)
+- `Issue230-CNH_Functional_Tester_1.dsn` — Declares signal (~43647 tok)
+- `Issue269-caniot-tiny-arm.dsn` — Declares signal (~29160 tok)
+- `Issue269-z10_module.dsn` — Declares signal (~45262 tok)
+- `Issue270-non-ansi_bracket.dsn` — Declares signal (~1038 tok)
+- `Issue289-Autorouter_PCB_FHT-8086_2024-03-08.dsn` — Declares default_smd (~42636 tok)
+- `Issue289-Autorouter_PCB_FHT-VGA_2024-03-25.dsn` — Declares default_smd (~54514 tok)
+- `Issue297-myboard.dsn` — Declares signal (~23992 tok)
+- `Issue313-FastTest.dsn` — Declares default_smd (~11263 tok)
+- `Issue313-FastTest.ses` — Declares protect (~7089 tok)
+- `Issue326-Mars-64-revE.base64` (~18082 tok)
+- `Issue326-Mars-64-revE.dsn` — Declares signal (~13277 tok)
+- `Issue367-Charger.dsn` — Declares signal (~19898 tok)
+- `Issue368-CorneyIslandWireless_input_design.dsn` — Declares signal (~840 tok)
+- `Issue368-CorneyIslandWireless_input_design.json` (~2374 tok)
+- `Issue368-CorneyIslandWireless_output_session.json` (~379 tok)
+- `Issue368-CorneyIslandWireless_output_session.ses` (~520 tok)
+- `Issue413-test.dsn` — Declares signal (~2314 tok)
+- `Issue420-contribution-board.dsn` — Declares signal (~46718 tok)
+- `Issue433-my-board.dsn` — Declares signal (~2182 tok)
+- `Issue442-clearance_type_tests.rules` — Declares smd_to_turn_gap (~3873 tok)
+- `Issue508-DAC2020_bm01.dsn` — Declares signal (~8118 tok)
+- `Issue508-DAC2020_bm02.dsn` — Declares signal (~21410 tok)
+- `Issue508-DAC2020_bm04.dsn` — Declares signal (~7178 tok)
+- `Issue508-DAC2020_bm05.dsn` — Declares signal (~4460 tok)
+- `Issue508-DAC2020_bm05.ses` (~8780 tok)
+- `Issue508-DAC2020_bm06.dsn` — Declares signal (~6102 tok)
+- `Issue508-DAC2020_bm07-current.ses` (~8942 tok)
+- `Issue508-DAC2020_bm07-v190.ses` (~8288 tok)
+- `Issue508-DAC2020_bm07.dsn` — Declares signal (~3949 tok)
+- `Issue508-DAC2020_bm08-routed.ses` (~2519 tok)
+- `Issue508-DAC2020_bm08.dsn` — Declares signal (~1467 tok)
+- `Issue508-DAC2020_bm09.dsn` — Declares signal (~6654 tok)
+- `Issue508-DAC2020_bm10.dsn` — Declares signal (~8356 tok)
+- `Issue508-DAC2020_bm11.dsn` — Declares signal (~7000 tok)
+- `Issue508-SMD-routing-issue-demo.dsn` — Declares signal (~623 tok)
+- `Issue555-BBD_Mars-64-current.ses` (~14095 tok)
+- `Issue555-BBD_Mars-64-v190.ses` (~7875 tok)
+- `Issue555-BBD_Mars-64.dsn` — Declares signal (~14552 tok)
+- `Issue555-CNH_Functional_Tester_1.dsn` — Declares signal (~43641 tok)
+- `Issue558-dev-board.dsn` — Declares signal (~7251 tok)
+- `Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations-freerouting_drc.json` (~14769 tok)
+- `Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations-kicad_drc.json` (~28272 tok)
+- `Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations.dsn` — Declares signal (~24739 tok)
+- `Issue575-drc_dev-board_4_hole_clearance_violations-freerouting_drc.json` (~5807 tok)
+- `Issue575-drc_dev-board_4_hole_clearance_violations-kicad_drc.json` (~2871 tok)
+- `Issue575-drc_dev-board_4_hole_clearance_violations.dsn` — Declares signal (~16674 tok)
+- `Issue575-drc_Natural_Tone_Preamp_7_unconnected_items-freerouting_drc.json` (~4285 tok)
+- `Issue575-drc_Natural_Tone_Preamp_7_unconnected_items-kicad_drc.json` (~22458 tok)
+- `Issue575-drc_Natural_Tone_Preamp_7_unconnected_items.dsn` — Declares signal (~65565 tok)
+- `Issue593-BBD_Mars-64.dsn` — Declares signal (~14547 tok)
+- `Issue593-BBD_Mars-64.rules` — Declares smd_to_turn_gap (~883 tok)
+- `Issue593-BBD_Mars-64.ses` (~12824 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v1.dsn` — Declares signal (~9311 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v1.json` (~4006 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v2.dsn` — Declares signal (~10719 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v2.json` (~9052 tok)
+- `Issue676-ch32v-tx118s.dsn` — Declares signal (~3847 tok)
+- `Issue684-Autorouter_PCB1_2026-5-8.dsn` — Declares default_smd (~6093 tok)
+- `Issue689-BBD_Mars-64.dsn` — Declares signal (~14547 tok)
+- `Issue690-ecc83.dsn` — Declares signal (~10711 tok)
+- `Issue690-ecc83.ses` — Declares protect (~3088 tok)
+- `Issue690-kit-dev-coldfire-xilinx_5213.dsn` — Declares signal (~109915 tok)
+- `Issue690-sonde_xilinx.dsn` — Declares signal (~13267 tok)
+- `Issue721-Autorouter_CE2632_HarryMu_2026-6-15.dsn` — Declares default_smd (~12437 tok)
+- `Issue723-CombineStackOverflow.dsn` — Declares signal (~74841 tok)
+- `Issue730-DAC2020_bm11.dsn` — Declares signal (~7000 tok)
+- `Issue732-CM5_MINIMA_3.dsn` — Declares signal (~39317 tok)
+- `Issue732-DAC2020_bm10.dsn` — Declares signal (~8356 tok)
+- `Issue732-RoyalBlue54L-Feather.dsn` — Declares signal (~27266 tok)
+- `Issue733-kicad_complex_hierarchy_input_design.dsn` — Declares power (~14241 tok)
+- `Issue733-kicad_complex_hierarchy_input_design.json` (~25665 tok)
+- `Issue733-kicad_complex_hierarchy_output_session.json` (~19552 tok)
+- `Issue733-kicad_complex_hierarchy_output_session.ses` (~9150 tok)
+- `Issue733-kicad_interf_u_input_design.dsn` — Declares signal (~36034 tok)
+- `Issue733-kicad_interf_u_input_design.json` (~109708 tok)
+- `Issue742-tastexx-pcb.dsn` — Declares signal (~9396 tok)
+- `Issue742-tastexx-pcb.ses` (~2039 tok)
+- `Issue753-CPU-85_r104.dsn` — Declares signal (~40379 tok)
+- `Issue754-avionics_hub.dsn` — Declares signal (~44332 tok)
+- `Issue756-minimal-hang.dsn` — Declares signal (~231 tok)
+- `Issue756-minimal-ok.dsn` — Declares signal (~209 tok)
+- `Issue756-tomu-fpga.dsn` — Declares signal (~33728 tok)
+- `Issue756-tomu-fpga11.dsn` — Declares signal (~34878 tok)
+- `Issue756-tomu-fpga7.dsn` — Declares signal (~92446 tok)
+- `Issue756-tomu-fpga8.dsn` — Declares signal (~92204 tok)
+- `Issue756-tomu-fpga9.dsn` — Declares signal (~93791 tok)
+- `Issue757-minimal-soe-ok.dsn` — Declares signal (~221 tok)
+- `Issue757-minimal-soe.dsn` — Declares signal (~245 tok)
+- `scoring-empty-net.dsn` — Declares signal (~279 tok)
+- `scoring-mixed-layer.dsn` — Declares signal (~324 tok)
+- `scoring-perfect-two-pin.dsn` — Declares signal (~197 tok)
+- `scoring-zero-length.dsn` — Declares signal (~286 tok)
+
+## fixtures/Issue069-TestSensel/
+
+- `fp-lib-table` — Declares KiCad (~26 tok)
+- `gui_defaults.par` (~886 tok)
+- `TestSensel-cache.lib` (~227 tok)
+- `TestSensel-KiCad6.dsn` — Declares signal (~1383 tok)
+- `TestSensel.dsn` — Declares signal (~1727 tok)
+- `TestSensel.kicad_pcb` — Declares Default (~3781 tok)
+- `TestSensel.kicad_pcb-bak` — Declares Default (~3781 tok)
+- `TestSensel.kicad_prl` (~321 tok)
+- `TestSensel.kicad_pro` (~1990 tok)
+- `TestSensel.pro` (~957 tok)
+- `TestSensel.sch` (~648 tok)
+- `TestSensel.sch-bak` (~648 tok)
+
+## fixtures/Issue069-TestSensel/MyLibs/
+
+- `PCB_Fork_10mils_5mmx5mm.kicad_mod` (~412 tok)
+- `PCB_Fork_10mils_5mmx5mm.lib` (~353 tok)
+
+## fixtures/Issue180-Test/
+
+- `fp-lib-table` (~30 tok)
+- `report.txt` (~267 tok)
+- `Test.kicad_pcb` — Declares solid (~193572 tok)
+- `Test.kicad_prl` (~318 tok)
+- `Test.kicad_pro` (~3308 tok)
+- `Test.kicad_sch` — Declares default (~36521 tok)
+
+## fixtures/Issue180-Test/Gerbers/
+
+- `Test-B_Cu.gbr` (~22021 tok)
+- `Test-B_Mask.gbr` (~13831 tok)
+- `Test-drl.rpt` (~222 tok)
+- `Test-Edge_Cuts.gbr` (~11568 tok)
+- `Test-F_Courtyard.gbr` (~12771 tok)
+- `Test-F_Cu.gbr` (~22472 tok)
+- `Test-F_Mask.gbr` (~13831 tok)
+- `Test-F_Silkscreen.gbr` (~18477 tok)
+- `Test-In1_Cu.gbr` (~56440 tok)
+- `Test-In2_Cu.gbr` (~56440 tok)
+- `Test-job.gbrjob` (~906 tok)
+- `Test-NPTH.drl` (~104 tok)
+- `Test-PTH.drl` (~3166 tok)
+
+## fixtures/Issue180-Test/Library.pretty/
+
+- `D_DO-41_SOD81_P10.16mm_Horizontal.kicad_mod` (~1169 tok)
+- `R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal.kicad_mod` (~847 tok)
+
+## fixtures/Issue184-motorizedopener/
+
+- `fp-info-cache` (~1 tok)
+- `motorizedopener.kicad_pcb` (~60039 tok)
+- `motorizedopener.kicad_prl` (~307 tok)
+- `motorizedopener.kicad_pro` (~2484 tok)
+- `motorizedopener.kicad_sch` — Declares default (~50365 tok)
+- `run_freerouting.bat` (~19 tok)
+
+## fixtures/Issue191-processor.Z80/
+
+- `buffers.kicad_sch` — Declares default (~28866 tok)
+- `bus.kicad_sch` — Declares default (~29376 tok)
+- `CPU-DATA-DIR-GAL.csv` (~3992 tok)
+- `CPU-DATA-DIR-GAL.dig` (~3138 tok)
+- `CPU-DATA-DIR-GAL.jed` (~361 tok)
+- `CPU-DATA-DIR-GAL.tru` (~811 tok)
+- `CPU-MAPPER.csv` (~9594 tok)
+- `CPU-MAPPER.dig` (~3856 tok)
+- `CPU-MAPPER.jed` (~480 tok)
+- `CPU-MAPPER.tru` (~1170 tok)
+- `CPU-WS-GAL.csv` (~1456 tok)
+- `CPU-WS-GAL.dig` (~2559 tok)
+- `CPU-WS-GAL.jed` (~137 tok)
+- `CPU-WS-GAL.tru` (~287 tok)
+- `DMA-CS-GAL.csv` (~10699 tok)
+- `DMA-CS-GAL.dig` (~5302 tok)
+- `DMA-CS-GAL.jed` (~650 tok)
+- `DMA-CS-GAL.tru` (~1516 tok)
+- `DMA-RDY-GAL.csv` (~9601 tok)
+- `DMA-RDY-GAL.dig` (~2779 tok)
+- `DMA-RDY-GAL.jed` (~342 tok)
+- `DMA-RDY-GAL.tru` (~1107 tok)
+- `DMA.kicad_sch` — Declares default (~53399 tok)
+- `fp-lib-table` — Declares KiCad (~35 tok)
+- `fpanel.kicad_sch` — Declares default (~19146 tok)
+- `GAL22V10.dcm` (~13 tok)
+- `gal22v10.kicad_sym` — Declares default (~1356 tok)
+- `GALS.kicad_sch` — Declares default (~150436 tok)
+- `IM2.kicad_sch` — Declares default (~12572 tok)
+- `mapper.kicad_sch` — Declares default (~86267 tok)
+- `power.kicad_sch` — Declares default (~28217 tok)
+- `processor.rules` — Declares smd_to_turn_gap (~2943 tok)
+- `processor.ses` (~104319 tok)
+- `processor.Z80.csv` (~2411 tok)
+- `processor.Z80.kicad_prl` (~309 tok)
+- `processor.Z80.kicad_pro` (~3030 tok)
+- `processor.Z80.kicad_sch` — Declares default (~27954 tok)
+- `processor.Z80.xml` (~73921 tok)
+- `readme.txt` (~50 tok)
+- `sym-lib-table` (~121 tok)
+- `TL16C550CFN.kicad_sym` — Declares default (~2312 tok)
+- `waitstate.kicad_sch` — Declares default (~12388 tok)
+- `Z80CPU.kicad_sch` — Declares default (~24355 tok)
+- `Zilog_Z80_Peripherals.kicad_sym` — Declares default (~92266 tok)
+- `Zilog_z80.kicad_sym` — Declares default (~24744 tok)
+
+## fixtures/Issue191-processor.Z80/CUPL_CPU-DATA-DIR-GAL/
+
+- `CUPL.PLD` (~202 tok)
+
+## fixtures/Issue191-processor.Z80/CUPL_CPU-MAPPER/
+
+- `CUPL.PLD` (~219 tok)
+
+## fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/
+
+- `CPU-WS-GAL.dig.jed` (~224 tok)
+- `CUPL.abs` (~294 tok)
+- `CUPL.PLD` (~161 tok)
+- `CUPL.sim` (~122 tok)
+- `CUPL.wo` — WAVEFORM (~3 tok)
+- `tmpcsim.im` (~238 tok)
+
+## fixtures/Issue191-processor.Z80/CUPL_DMA-CS-GAL/
+
+- `CUPL.PLD` (~282 tok)
+
+## fixtures/Issue191-processor.Z80/CUPL_DMA-RDY-GAL/
+
+- `CUPL.PLD` (~204 tok)
+
+## fixtures/Issue191-processor.Z80/data-gear_gal/
+
+- `DATAGEAR.EQN` (~118 tok)
+- `DATAGEAR.JED` (~737 tok)
+- `DATAGEAR.LOG` (~692 tok)
+- `Velesoft DMA circuit.url` (~34 tok)
+- `velesoft DMA.txt` — Declares for (~206 tok)
+
+## fixtures/Issue199-StackOverflow/
+
+- `Signale_Vor+Block.dsn` — Declares signal (~5345 tok)
+
+## fixtures/Issue230-CNH_Functional_Tester/
+
+- `CNH_Functional_Tester_1.dsn` — Declares signal (~43647 tok)
+- `CNH_Functional_Tester_1.kicad_dru` (~0 tok)
+- `CNH_Functional_Tester_1.kicad_prl` (~350 tok)
+- `CNH_Functional_Tester_1.kicad_pro` (~5181 tok)
+- `CNH_Functional_Tester_1.kicad_sch` — Declares default (~89910 tok)
+- `fp-info-cache` (~1 tok)
+- `fp-lib-table` (~34 tok)
+- `Perf_Breakout.kicad_sch` — Declares default (~42955 tok)
+
+## fixtures/Issue230-CNH_Functional_Tester/Gerbers/
+
+- `CNH_Functional_Tester_1-B_Cu.gbr` (~25405 tok)
+- `CNH_Functional_Tester_1-B_Mask.gbr` (~7304 tok)
+- `CNH_Functional_Tester_1-B_Silkscreen.gbr` (~37687 tok)
+- `CNH_Functional_Tester_1-Edge_Cuts.gbr` (~185 tok)
+- `CNH_Functional_Tester_1-F_Cu.gbr` (~24917 tok)
+- `CNH_Functional_Tester_1-F_Mask.gbr` (~7606 tok)
+- `CNH_Functional_Tester_1-F_Silkscreen.gbr` (~75128 tok)
+- `CNH_Functional_Tester_1-In1_Cu.gbr` (~201107 tok)
+- `CNH_Functional_Tester_1-In2_Cu.gbr` (~200486 tok)
+- `CNH_Functional_Tester_1-job.gbrjob` (~975 tok)
+- `CNH_Functional_Tester_1.drl` (~3516 tok)
+- `report.txt` (~417 tok)
+
+## fixtures/Issue230-CNH_Functional_Tester/Library.pretty/
+
+- `R78_9V_1A_SIP_TH.kicad_mod` — Declares solid (~896 tok)
+
+## fixtures/Issue269-NoViasOnPowerPlanes/
+
+- `Issue269-NoViasOnPowerPlanes.dsn` — Declares signal (~5168 tok)
+- `Issue269-NoViasOnPowerPlanes.kicad_pcb` — Declares solid (~11292 tok)
+- `Issue269-NoViasOnPowerPlanes.kicad_prl` (~352 tok)
+- `Issue269-NoViasOnPowerPlanes.kicad_pro` (~4227 tok)
+- `Issue269-NoViasOnPowerPlanes.ses` (~1268 tok)
+
+## fixtures/Issue269-NoWiresOnPowerLayers/
+
+- `fp-info-cache` (~5198 tok)
+- `proba.kicad_pcb` — Declares solid (~155101 tok)
+- `proba.kicad_prl` (~346 tok)
+- `proba.kicad_pro` (~4167 tok)
+- `proba.kicad_sch` — Declares default (~115204 tok)
+- `proba.rules` — Declares smd_to_turn_gap (~1166 tok)
+
+## fixtures/Issue269-min_fr_test/
+
+- `min_fr_test_no_quotes.dsn` — Declares signal (~676 tok)
+- `min_fr_test.dsn` — Declares signal (~677 tok)
+- `min_fr_test.kicad_pcb` — Declares solid (~4700 tok)
+- `min_fr_test.kicad_prl` (~339 tok)
+- `min_fr_test.kicad_pro` (~3659 tok)
+- `min_fr_test.kicad_sch` — Declares default (~2814 tok)
+
+## fixtures/Issue283-UnconnectedTracesUnderPads/
+
+- `fp-info-cache` (~1 tok)
+- `Natural_Tone_Preamp.dsn` — Declares signal (~25943 tok)
+- `Natural_Tone_Preamp.kicad_pcb` (~76687 tok)
+- `Natural_Tone_Preamp.kicad_pro` (~3740 tok)
+- `Natural_Tone_Preamp.ses` (~24650 tok)
+
+## fixtures/Issue367-UltraFlactyl/
+
+- `fabrication-toolkit-options.json` (~32 tok)
+- `UltraFlactyl` (~342 tok)
+- `UltraFlactyl.dsn` — Declares signal (~27345 tok)
+- `UltraFlactyl.kicad_prl` (~342 tok)
+- `UltraFlactyl.kicad_pro` (~3674 tok)
+- `UltraFlactyl.kicad_sch` — Declares default (~39292 tok)
+
+## fixtures/Issue368-CorneyIslandWireless/
+
+- `corney_island_wireless (GUI).ses` (~440 tok)
+- `corney_island_wireless (no-GUI).ses` (~245 tok)
+- `corney_island_wireless.dsn` — Declares signal (~1095 tok)
+- `corney_island_wireless.kicad_pcb` — Declares solid (~3247 tok)
+- `corney_island_wireless.kicad_prl` (~347 tok)
+- `corney_island_wireless.kicad_pro` (~2170 tok)
+
+## fixtures/Issue508-DAC2020/
+
+- `benchmark.sh` (~454 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/
+
+- `bm1.routed.kicad_pcb` — Declares solid (~117220 tok)
+- `bm1.unrouted.kicad_pcb` — Declares solid (~38626 tok)
+- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/
+
+- `DAC2020_bm01.log` (~1144 tok)
+- `DAC2020_bm01.ses` (~21640 tok)
+- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~15171 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/logs/
+
+- `freerouting.log` (~1144 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/
+
+- `DAC2020_bm01.log` (~76716 tok)
+- `DAC2020_bm01.ses` (~25924 tok)
+- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~16382 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/
+
+- `bm2.routed.kicad_pcb` — Declares solid (~43101 tok)
+- `bm2.unrouted.kicad_pcb` — Declares solid (~35291 tok)
+- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/
+
+- `DAC2020_bm02.log` (~206 tok)
+- `DAC2020_bm02.ses` (~3195 tok)
+- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~405 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/logs/
+
+- `freerouting.log` (~206 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/
+
+- `DAC2020_bm02.log` (~762 tok)
+- `DAC2020_bm02.ses` (~3597 tok)
+- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~406 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/
+
+- `bm4.routed.kicad_pcb` — Declares solid (~66483 tok)
+- `bm4.unrouted.kicad_pcb` — Declares solid (~35065 tok)
+- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/
+
+- `DAC2020_bm04.log` (~860 tok)
+- `DAC2020_bm04.ses` (~14537 tok)
+- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~6816 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/logs/
+
+- `freerouting.log` (~860 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/
+
+- `DAC2020_bm04.log` (~34731 tok)
+- `DAC2020_bm04.ses` (~13138 tok)
+- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~8471 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/
+
+- `bm5.routed.kicad_pcb` — Declares solid (~47114 tok)
+- `bm5.unrouted.kicad_pcb` — Declares solid (~27686 tok)
+- `DAC2020_bm05.unrouted.dsn` — Declares signal (~4460 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/
+
+- `DAC2020_bm05.log` (~200 tok)
+- `DAC2020_bm05.ses` (~5567 tok)
+- `DAC2020_bm05.unrouted.dsn` — Declares signal (~4460 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~5759 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/logs/
+
+- `freerouting.log` (~200 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/FRv2.1.0/
+
+- `DAC2020_bm05.ses` (~2996 tok)
+- `DAC2020_bm05.unrouted.dsn` — Declares signal (~4460 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~7676 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm06/
+
+- `bm6.routed.kicad_pcb` — Declares solid (~38566 tok)
+- `bm6.unrouted.kicad_pcb` — Declares solid (~22975 tok)
+- `DAC2020_bm06.unrouted.dsn` — Declares signal (~6102 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/
+
+- `DAC2020_bm06.log` (~863 tok)
+- `DAC2020_bm06.ses` (~9035 tok)
+- `DAC2020_bm06.unrouted.dsn` — Declares signal (~6102 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~7564 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/logs/
+
+- `freerouting.log` (~863 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm06/FRv2.1.0/
+
+- `DAC2020_bm06.log` (~85080 tok)
+- `DAC2020_bm06.ses` (~7104 tok)
+- `DAC2020_bm06.unrouted.dsn` — Declares signal (~6102 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~8186 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/
+
+- `bm7.routed.kicad_pcb` — Declares solid (~35341 tok)
+- `bm7.unrouted.kicad_pcb` — Declares solid (~19817 tok)
+- `DAC2020_bm07.unrouted.dsn` — Declares signal (~3949 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/
+
+- `DAC2020_bm07.log` (~206 tok)
+- `DAC2020_bm07.ses` (~7665 tok)
+- `DAC2020_bm07.unrouted.dsn` — Declares signal (~3949 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~2258 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/logs/
+
+- `freerouting.log` (~206 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/FRv2.1.0/
+
+- `DAC2020_bm07.log` (~885 tok)
+- `DAC2020_bm07.ses` (~8126 tok)
+- `DAC2020_bm07.unrouted.dsn` — Declares signal (~3949 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~2493 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/
+
+- `bm8.routed.kicad_pcb` — Declares solid (~9573 tok)
+- `bm8.unrouted.kicad_pcb` — Declares solid (~5851 tok)
+- `DAC2020_bm08.unrouted.dsn` — Declares signal (~1467 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/
+
+- `DAC2020_bm08.log` (~196 tok)
+- `DAC2020_bm08.ses` (~2356 tok)
+- `DAC2020_bm08.unrouted.dsn` — Declares signal (~1467 tok)
+- `FR_v1.9.0_KiCad_DRC.rpt` (~1604 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/logs/
+
+- `freerouting.log` (~196 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/FRv2.1.0/
+
+- `DAC2020_bm08.log` (~559 tok)
+- `DAC2020_bm08.ses` (~2519 tok)
+- `DAC2020_bm08.unrouted.dsn` — Declares signal (~1467 tok)

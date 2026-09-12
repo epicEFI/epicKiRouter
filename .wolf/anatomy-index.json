@@ -1,0 +1,5284 @@
+{
+  "version": 1,
+  "meta": {
+    "lastScanned": "2026-09-12T03:03:04.176Z",
+    "fileCount": 585,
+    "hits": 0,
+    "misses": 0,
+    "renderedHash": "f2a0c423b46168683927c3a7b63a3c26e52e4238d28903314ce2ad276a7d0b8f",
+    "storeUpdatedAt": "2026-09-12T03:03:04.184Z",
+    "rootHash": "c1ead9398300621b"
+  },
+  "files": {
+    ".dockerignore": {
+      "description": "Docker ignore rules",
+      "tokens": 326,
+      "hash": "2bf2359cfd8f8a5b",
+      "size": 1224,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.096Z",
+      "source": "scan"
+    },
+    ".editorconfig": {
+      "description": "Editor configuration",
+      "tokens": 31,
+      "hash": "d9501525a6e273ed",
+      "size": 116,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.096Z",
+      "source": "scan"
+    },
+    ".gitattributes": {
+      "description": "Git attributes",
+      "tokens": 152,
+      "hash": "33fae5be3dcd8956",
+      "size": 567,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.096Z",
+      "source": "scan"
+    },
+    ".github/dependabot.yml": {
+      "description": "To get started with Dependabot version updates, you'll need to specify which",
+      "tokens": 144,
+      "hash": "68cea0874c1cb712",
+      "size": 504,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.097Z",
+      "source": "scan"
+    },
+    ".github/FUNDING.yml": {
+      "description": "",
+      "tokens": 7,
+      "hash": "65dbebbfd1216e0e",
+      "size": 22,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.097Z",
+      "source": "scan"
+    },
+    ".github/ISSUE_TEMPLATE/bug_report.md": {
+      "description": "",
+      "tokens": 303,
+      "hash": "538f4bd13b7fdc0f",
+      "size": 1210,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.098Z",
+      "source": "scan"
+    },
+    ".github/ISSUE_TEMPLATE/feature_request.md": {
+      "description": "",
+      "tokens": 151,
+      "hash": "72a5f467b083c245",
+      "size": 604,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.098Z",
+      "source": "scan"
+    },
+    ".github/PULL_REQUEST_TEMPLATE.md": {
+      "description": "## Description",
+      "tokens": 62,
+      "hash": "3a1287b1998c1d89",
+      "size": 246,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.098Z",
+      "source": "scan"
+    },
+    ".github/workflows/create-release.yml": {
+      "description": "CI: Publish a new release",
+      "tokens": 1374,
+      "hash": "f2853269930c1ca7",
+      "size": 4806,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.098Z",
+      "source": "scan"
+    },
+    ".github/workflows/create-snapshot.yml": {
+      "description": "CI: Update the snapshot build",
+      "tokens": 1362,
+      "hash": "5a81342c5eb2546d",
+      "size": 4764,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.098Z",
+      "source": "scan"
+    },
+    ".github/workflows/deploy-pages.yml": {
+      "description": "CI: Deploy website to GitHub Pages",
+      "tokens": 266,
+      "hash": "371cc437616fb81f",
+      "size": 930,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".github/workflows/docker-nightly.yml": {
+      "description": "CI: Push the Docker nightly image",
+      "tokens": 492,
+      "hash": "3c071ebb21f8a0bc",
+      "size": 1722,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".github/workflows/docker-release.yml": {
+      "description": "CI: Push a new Docker release image",
+      "tokens": 551,
+      "hash": "8b5659b69fb5b65a",
+      "size": 1928,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".github/workflows/gradle-build-on-pr.yml": {
+      "description": "CI: Build the source on PR",
+      "tokens": 374,
+      "hash": "5ac5fe0fd80c52f1",
+      "size": 1308,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".github/workflows/gui-a11y.yml": {
+      "description": "CI: GUI accessibility tests",
+      "tokens": 462,
+      "hash": "024aecbff2caa8d8",
+      "size": 1616,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".github/workflows/pre-commit.yml": {
+      "description": "CI: pre-commit",
+      "tokens": 466,
+      "hash": "f170d4abd6299151",
+      "size": 1628,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".github/workflows/stale.yml": {
+      "description": "This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.",
+      "tokens": 540,
+      "hash": "f1f732401dfea337",
+      "size": 1893,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".gitignore": {
+      "description": "Git ignore rules",
+      "tokens": 228,
+      "hash": "26f38f9d9a911fb4",
+      "size": 855,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".pre-commit-config.yaml": {
+      "description": "Pre-commit hooks for Freerouting (Java project)",
+      "tokens": 998,
+      "hash": "e86cbf2c4cdf6b4f",
+      "size": 3493,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".remember/.gitignore": {
+      "description": "Git ignore rules",
+      "tokens": 1,
+      "hash": "cdbcae15105d6b78",
+      "size": 2,
+      "mtimeMs": 1789180311276.7666,
+      "updatedAt": "2026-09-12T02:41:44.099Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-203930.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180770915.2104,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-203946.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180786588.2363,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-203948.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180788023.2388,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204000.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180800722.26,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204002.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180802470.263,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204004.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180804376.266,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204018.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180818694.2903,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204019.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180819189.291,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204029.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180829889.309,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204030.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180830391.31,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204050.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180850776.3445,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204116.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180876991.3894,
+      "updatedAt": "2026-09-12T02:41:44.100Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204124.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180884317.402,
+      "updatedAt": "2026-09-12T02:41:44.101Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204125.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180885680.4043,
+      "updatedAt": "2026-09-12T02:41:44.101Z",
+      "source": "scan"
+    },
+    ".remember/logs/autonomous/save-204138.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180898502.4265,
+      "updatedAt": "2026-09-12T02:41:44.101Z",
+      "source": "scan"
+    },
+    ".remember/logs/hook-errors.log": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789180311276.7666,
+      "updatedAt": "2026-09-12T02:41:44.101Z",
+      "source": "scan"
+    },
+    ".remember/logs/memory-2026-09-11.log": {
+      "description": "",
+      "tokens": 2187,
+      "hash": "d43fc354ca80793e",
+      "size": 8200,
+      "mtimeMs": 1789180898572.4265,
+      "updatedAt": "2026-09-12T02:41:44.101Z",
+      "source": "scan"
+    },
+    ".run/(Default).run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "2ca6e6b04d074aea",
+      "size": 694,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.101Z",
+      "source": "scan"
+    },
+    ".run/#006 Non-text DSN input.run.xml": {
+      "description": "",
+      "tokens": 194,
+      "hash": "1dbc0d22e19cd9b5",
+      "size": 676,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#015 DSN input causing StackOverflow.run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "0665293cdead3598",
+      "size": 695,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#022 AutoRouter interrupted.run.xml": {
+      "description": "",
+      "tokens": 214,
+      "hash": "36aad7136cf13289",
+      "size": 746,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#026 Connections not found.run.xml": {
+      "description": "",
+      "tokens": 210,
+      "hash": "cdf58e68d073910e",
+      "size": 732,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#027-zMRETestFixture.dsn.run.xml": {
+      "description": "",
+      "tokens": 196,
+      "hash": "f2af6786dc38e099",
+      "size": 685,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#029 AutoRouter interrupted because of the rules file.run.xml": {
+      "description": "",
+      "tokens": 212,
+      "hash": "d9f970782e1b6159",
+      "size": 742,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#034 Two boards in one DSN.run.xml": {
+      "description": "",
+      "tokens": 196,
+      "hash": "86d714e6b200581b",
+      "size": 685,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#035 Read place scope.run.xml": {
+      "description": "",
+      "tokens": 209,
+      "hash": "15ed3e4e74cefaac",
+      "size": 731,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#039 ArrayIndexOutOfBoundsException.run.xml": {
+      "description": "",
+      "tokens": 198,
+      "hash": "63b277bd02f1f78b",
+      "size": 691,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#054 Autorouter aborts.run.xml": {
+      "description": "",
+      "tokens": 204,
+      "hash": "b4ac0c50e8f9b09b",
+      "size": 711,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#066 Project_GP8B.dsn.run.xml": {
+      "description": "",
+      "tokens": 218,
+      "hash": "4cb233a9658fcc53",
+      "size": 762,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#070 Ignore net class from routing.run.xml": {
+      "description": "Declares from",
+      "tokens": 207,
+      "hash": "c12419be6315cfb7",
+      "size": 724,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#093 Special characters in DSN - interf_u.run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "bc2c0c8da41c6750",
+      "size": 695,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#102 BBD Mars with _-oit 0_ in interative GUI mode.run.xml": {
+      "description": "",
+      "tokens": 209,
+      "hash": "478099c642177e31",
+      "size": 731,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#102 BBD Mars with _-oit 0_.run.xml": {
+      "description": "",
+      "tokens": 215,
+      "hash": "8621e7d35f8b6482",
+      "size": 751,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#102 BBD Mars with _-oit 0.00001_.run.xml": {
+      "description": "",
+      "tokens": 218,
+      "hash": "390e0c16c30a3c26",
+      "size": 763,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.102Z",
+      "source": "scan"
+    },
+    ".run/#102 BBD Mars with _-oit 0.1_.run.xml": {
+      "description": "",
+      "tokens": 216,
+      "hash": "3a57f0f92458b67b",
+      "size": 755,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#102 BBD Mars with default -oit.run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "656d8054387bdd7d",
+      "size": 695,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#107 freq_teiler_200kHz_kicad_bad.run.xml": {
+      "description": "",
+      "tokens": 202,
+      "hash": "5ebdc6d18084da5b",
+      "size": 707,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#107 freq_teiler_200kHz_kicad.run.xml": {
+      "description": "",
+      "tokens": 200,
+      "hash": "d4185a67f0da6aac",
+      "size": 699,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#110 Special characters in DSN - bugtest.run.xml": {
+      "description": "",
+      "tokens": 206,
+      "hash": "2493b92470b1d10b",
+      "size": 719,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#110 Special characters in DSN - bugtest01.run.xml": {
+      "description": "",
+      "tokens": 207,
+      "hash": "10e437bc9cf33f9e",
+      "size": 723,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#110 Special characters in DSN - paja.run.xml": {
+      "description": "",
+      "tokens": 201,
+      "hash": "2df6759679a49660",
+      "size": 701,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#110 Special characters in DSN - relay module.run.xml": {
+      "description": "",
+      "tokens": 201,
+      "hash": "f9f271e902e2913b",
+      "size": 702,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#110 Special characters in DSN - testpcb.run.xml": {
+      "description": "",
+      "tokens": 202,
+      "hash": "b58d693b64862e30",
+      "size": 705,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#110 Special characters in DSN input file name.run.xml": {
+      "description": "",
+      "tokens": 206,
+      "hash": "b362feb2227404a1",
+      "size": 735,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#118 Missing Chinese translation.run.xml": {
+      "description": "",
+      "tokens": 188,
+      "hash": "edf6ae59b7190a98",
+      "size": 655,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Arabic translation.run.xml": {
+      "description": "",
+      "tokens": 187,
+      "hash": "e7b6855e0c46b90b",
+      "size": 652,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Bengali translation.run.xml": {
+      "description": "",
+      "tokens": 223,
+      "hash": "e0c6be944dd0d73c",
+      "size": 779,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Chinese translation.run.xml": {
+      "description": "",
+      "tokens": 223,
+      "hash": "b9c14d4cc67f7703",
+      "size": 779,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check French translation.run.xml": {
+      "description": "",
+      "tokens": 223,
+      "hash": "3822f31c500072cd",
+      "size": 778,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check German translation.run.xml": {
+      "description": "",
+      "tokens": 215,
+      "hash": "94d3960576f2a10c",
+      "size": 751,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Hindi translation.run.xml": {
+      "description": "",
+      "tokens": 204,
+      "hash": "f3a54844af0ccc49",
+      "size": 713,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.103Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Italian translation.run.xml": {
+      "description": "",
+      "tokens": 205,
+      "hash": "819b280a234bded4",
+      "size": 715,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Japanese translation.run.xml": {
+      "description": "",
+      "tokens": 223,
+      "hash": "3eac3db83a6df7fc",
+      "size": 780,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Korean translation.run.xml": {
+      "description": "",
+      "tokens": 223,
+      "hash": "61fd3b506eca3232",
+      "size": 778,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Portugese translation.run.xml": {
+      "description": "",
+      "tokens": 224,
+      "hash": "98f5fa2e2d64f6c1",
+      "size": 781,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Russian translation.run.xml": {
+      "description": "",
+      "tokens": 205,
+      "hash": "31c0f529dde0f77c",
+      "size": 715,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Spanish translation.run.xml": {
+      "description": "",
+      "tokens": 205,
+      "hash": "f6e9fb1c31eade35",
+      "size": 715,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#127 Check Traditional Chinese translation.run.xml": {
+      "description": "",
+      "tokens": 227,
+      "hash": "ccc12d7044ff1f9c",
+      "size": 794,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#135 Disable logging.run.xml": {
+      "description": "",
+      "tokens": 184,
+      "hash": "41d0a6fb96ff2236",
+      "size": 641,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#143 Special characters in DSN's network pins - rpi_splitter_mod.run.xml": {
+      "description": "",
+      "tokens": 208,
+      "hash": "2f27a9e632f11793",
+      "size": 726,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#153 Open dsn is stuck loading.run.xml": {
+      "description": "",
+      "tokens": 196,
+      "hash": "667cab2c0de9bfad",
+      "size": 686,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#155 Autorouter causing a lot of clearance violations with pads.run.xml": {
+      "description": "",
+      "tokens": 210,
+      "hash": "2e70ba70d1b4676a",
+      "size": 735,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#157 Package.read_rotation_ closing bracket expected.run.xml": {
+      "description": "",
+      "tokens": 205,
+      "hash": "c0ff1217ab470275",
+      "size": 715,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#159 Out of memory error when using with KiCAD.run.xml": {
+      "description": "",
+      "tokens": 202,
+      "hash": "219067ff5f866e4e",
+      "size": 707,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#178 Unable to read DSN file.run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "bc9d9314d5c9c8c9",
+      "size": 694,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#179 Autorouter_PCB1_2023-3-24.run.xml": {
+      "description": "",
+      "tokens": 201,
+      "hash": "fdc3166a8b50cd15",
+      "size": 701,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#184 motorizedopener (auto-start).run.xml": {
+      "description": "",
+      "tokens": 219,
+      "hash": "95c1d9c23a917081",
+      "size": 766,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#184 motorizedopener.run.xml": {
+      "description": "",
+      "tokens": 198,
+      "hash": "664ec6399a08e76f",
+      "size": 693,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#187 Processor Z80.run.xml": {
+      "description": "",
+      "tokens": 194,
+      "hash": "461a9119864b5af1",
+      "size": 677,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#190 Processor Z80 (long running).run.xml": {
+      "description": "",
+      "tokens": 198,
+      "hash": "ab068bc2a14ae0ae",
+      "size": 692,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.104Z",
+      "source": "scan"
+    },
+    ".run/#191 Processor Z80 KiCad project.run.xml": {
+      "description": "",
+      "tokens": 201,
+      "hash": "04dc212650858df3",
+      "size": 703,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#195 Start as headless.run.xml": {
+      "description": "",
+      "tokens": 189,
+      "hash": "317fa90ebd935a5a",
+      "size": 659,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#199 Stack overflow.run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "2024459d90e40d9e",
+      "size": 696,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#208 Nothing happens.run.xml": {
+      "description": "",
+      "tokens": 194,
+      "hash": "b05db6cfcd43eaab",
+      "size": 677,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#209 Small boundary doesn't finish (bigger).run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "f24543ea8a196120",
+      "size": 696,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#209 Small boundary doesn't finish (smaller).run.xml": {
+      "description": "",
+      "tokens": 200,
+      "hash": "bfa6657af8b462fd",
+      "size": 697,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#214 DSN closing bracket expected.run.xml": {
+      "description": "",
+      "tokens": 198,
+      "hash": "c0d5065cb8848b35",
+      "size": 690,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#217 Autorouter doesn't finish.run.xml": {
+      "description": "",
+      "tokens": 196,
+      "hash": "cb1d48beffadc383",
+      "size": 683,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.105Z",
+      "source": "scan"
+    },
+    ".run/#219 Cannot read field _net_no_arr_ because _curr_trace_ is null.run.xml": {
+      "description": "",
+      "tokens": 213,
+      "hash": "d69418d56a649b3a",
+      "size": 744,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#229 8-digit loaded incorrectly.run.xml": {
+      "description": "",
+      "tokens": 200,
+      "hash": "89bcd62e414f012f",
+      "size": 698,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#230 Inner layer should be ignored.run.xml": {
+      "description": "",
+      "tokens": 208,
+      "hash": "25a993576a75b1b7",
+      "size": 725,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#269 Min fr test.run.xml": {
+      "description": "",
+      "tokens": 211,
+      "hash": "7b995b74093c8f31",
+      "size": 737,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#269 Vias should be created on power planes.run.xml": {
+      "description": "",
+      "tokens": 233,
+      "hash": "0dbce98511409119",
+      "size": 814,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#269 Z10 module - vias should be on power layers.run.xml": {
+      "description": "",
+      "tokens": 213,
+      "hash": "33d9c694cad02e11",
+      "size": 743,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#270 WARN Non-ansi character '{'.run.xml": {
+      "description": "",
+      "tokens": 199,
+      "hash": "3d65985fdea75e85",
+      "size": 694,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#272 DSN with warning for scripting.run.xml": {
+      "description": "",
+      "tokens": 214,
+      "hash": "3ae59d5ba602bf9d",
+      "size": 746,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#289 FHT-8086 (slow).run.xml": {
+      "description": "",
+      "tokens": 218,
+      "hash": "6ed0593b5e9189bc",
+      "size": 763,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#289 FHT-VGA (slow).run.xml": {
+      "description": "",
+      "tokens": 218,
+      "hash": "3659fdd27ab7c24a",
+      "size": 760,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#297 OutOfMemory exception.run.xml": {
+      "description": "",
+      "tokens": 205,
+      "hash": "38ec444fa7a8d633",
+      "size": 715,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#313 Change log level.run.xml": {
+      "description": "",
+      "tokens": 126,
+      "hash": "3d50da5eb9cff958",
+      "size": 438,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/#326 Autostart BBD Mars with job saving enabled.run.xml": {
+      "description": "",
+      "tokens": 243,
+      "hash": "d7c93a01c381d54f",
+      "size": 850,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".run/Run all tests in 'freerouting.test'.run.xml": {
+      "description": "",
+      "tokens": 330,
+      "hash": "aa45b8840b6e969d",
+      "size": 1155,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    ".yamllint.yaml": {
+      "description": "YAML linting configuration for Freerouting project",
+      "tokens": 205,
+      "hash": "cb5685c589ddd31a",
+      "size": 717,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    "AGENTS.md": {
+      "description": "Project Persona & Goal",
+      "tokens": 12382,
+      "hash": "4a322c4c5ed87851",
+      "size": 49647,
+      "mtimeMs": 1789180904084.436,
+      "updatedAt": "2026-09-12T02:41:44.106Z",
+      "source": "scan"
+    },
+    "assets/icon/freerouting_icon_256x256_v3.icns": {
+      "description": "",
+      "tokens": 8846,
+      "hash": "8b1aadaaf86b3184",
+      "size": 35053,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.107Z",
+      "source": "scan"
+    },
+    "build.gradle": {
+      "description": "Gradle build configuration",
+      "tokens": 7481,
+      "hash": "fa18692ed4831224",
+      "size": 28063,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.108Z",
+      "source": "scan"
+    },
+    "CLAUDE.md": {
+      "description": "OpenWolf",
+      "tokens": 1916,
+      "hash": "c9942aa1e2fb1faf",
+      "size": 7735,
+      "mtimeMs": 1789181388712.3162,
+      "updatedAt": "2026-09-12T02:49:49.831Z",
+      "source": "hook"
+    },
+    "config/checkstyle/checkstyle-suppressions.xml": {
+      "description": "",
+      "tokens": 106,
+      "hash": "5826f2ce288a2393",
+      "size": 369,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.108Z",
+      "source": "scan"
+    },
+    "config/checkstyle/google_checks.xml": {
+      "description": "",
+      "tokens": 7423,
+      "hash": "e3dbe6e929ad4691",
+      "size": 25980,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.108Z",
+      "source": "scan"
+    },
+    "config/ide/intellij-freerouting-style.xml": {
+      "description": "",
+      "tokens": 6325,
+      "hash": "2d233ec485e03b34",
+      "size": 22136,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.109Z",
+      "source": "scan"
+    },
+    "Dockerfile": {
+      "description": "Docker container definition",
+      "tokens": 510,
+      "hash": "fb7891ae5476806f",
+      "size": 1909,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.109Z",
+      "source": "scan"
+    },
+    "docs/API/API_authentication.md": {
+      "description": "API Authentication System Documentation",
+      "tokens": 4532,
+      "hash": "7eb4f9d6f560d69a",
+      "size": 18146,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.109Z",
+      "source": "scan"
+    },
+    "docs/API/API_user_welcome_email.md": {
+      "description": "Linux / macOS",
+      "tokens": 2184,
+      "hash": "1e54001ee4279e13",
+      "size": 8764,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.109Z",
+      "source": "scan"
+    },
+    "docs/API/API_v1.md": {
+      "description": "Freerouting API Documentation",
+      "tokens": 5006,
+      "hash": "19fd45009bcc82bf",
+      "size": 20025,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.109Z",
+      "source": "scan"
+    },
+    "docs/API/Freerouting_API.postman_collection.json": {
+      "description": "",
+      "tokens": 120923,
+      "hash": "4dd12d8042a1571e",
+      "size": 423230,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.111Z",
+      "source": "scan"
+    },
+    "docs/API/freerouting-requests.http": {
+      "description": "",
+      "tokens": 19249,
+      "hash": "4577fb1177003a4c",
+      "size": 72182,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.112Z",
+      "source": "scan"
+    },
+    "docs/API/MCP.md": {
+      "description": "Freerouting Model Context Protocol (MCP) Guide",
+      "tokens": 3050,
+      "hash": "015641cede2520a7",
+      "size": 12200,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.112Z",
+      "source": "scan"
+    },
+    "docs/architecture.md": {
+      "description": "Freerouting Architecture Map",
+      "tokens": 7129,
+      "hash": "cb567dfe2fc05ac8",
+      "size": 28565,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.112Z",
+      "source": "scan"
+    },
+    "docs/benchmarks.md": {
+      "description": "Freerouting Benchmarks",
+      "tokens": 1655,
+      "hash": "f48e9c621c588f67",
+      "size": 6619,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.112Z",
+      "source": "scan"
+    },
+    "docs/code_of_conduct.md": {
+      "description": "Contributor Covenant Code of Conduct",
+      "tokens": 1372,
+      "hash": "f558ee3fafa3f6f4",
+      "size": 5486,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.112Z",
+      "source": "scan"
+    },
+    "docs/command_line_arguments.md": {
+      "description": "Freerouting Command Line Interface (CLI) Documentation",
+      "tokens": 3437,
+      "hash": "c28c7678fa822e5b",
+      "size": 13766,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.112Z",
+      "source": "scan"
+    },
+    "docs/CONTRIBUTING.md": {
+      "description": "Introduction",
+      "tokens": 1542,
+      "hash": "f5e455f071859b9b",
+      "size": 6173,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.113Z",
+      "source": "scan"
+    },
+    "docs/developer.md": {
+      "description": "Information for developers",
+      "tokens": 4875,
+      "hash": "c781c1e79e096766",
+      "size": 19504,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.113Z",
+      "source": "scan"
+    },
+    "docs/gui/accessibility-contract.md": {
+      "description": "GUI Accessibility Contract",
+      "tokens": 1638,
+      "hash": "49c2853fed03b0f8",
+      "size": 6570,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.113Z",
+      "source": "scan"
+    },
+    "docs/integrations.md": {
+      "description": "EDA Integrations",
+      "tokens": 2331,
+      "hash": "553ef0a358796bc6",
+      "size": 9326,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.113Z",
+      "source": "scan"
+    },
+    "docs/issues/i18n-english-terminology-plan.md": {
+      "description": "English terminology implementation plan",
+      "tokens": 7300,
+      "hash": "45ac9343a2c3f3ec",
+      "size": 29360,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.114Z",
+      "source": "scan"
+    },
+    "docs/issues/Issue152-copper-pour-plane-awareness.md": {
+      "description": "Issue 152 — Copper Pour / Power Plane Awareness",
+      "tokens": 1559,
+      "hash": "e5dab30f4849fa12",
+      "size": 6265,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.114Z",
+      "source": "scan"
+    },
+    "docs/issues/Issue383-star-ground-routing.md": {
+      "description": "Issue 383 — Star Ground Autorouting Support",
+      "tokens": 3447,
+      "hash": "1e1c12613064f99d",
+      "size": 13969,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.114Z",
+      "source": "scan"
+    },
+    "docs/issues/Issue558-copper-to-edge-clearance.md": {
+      "description": "Issue 558: Copper-to-Edge Clearance Not Respected",
+      "tokens": 5114,
+      "hash": "7531ae109c9abfdd",
+      "size": 20551,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.114Z",
+      "source": "scan"
+    },
+    "docs/issues/Issue845-os-standard-directories.md": {
+      "description": "Issue 845: Store Configuration, Data, Logs, and Cache in OS-Standard Directories",
+      "tokens": 706,
+      "hash": "435378e2d8700a80",
+      "size": 2824,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.114Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-inventory.md": {
+      "description": "Security Audit Inventory",
+      "tokens": 3325,
+      "hash": "e744866ed90bafd2",
+      "size": 13315,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.114Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-a.md": {
+      "description": "Security Audit Pass A — REST Authentication and Authorization",
+      "tokens": 3379,
+      "hash": "d6ce3148388c0a46",
+      "size": 13537,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.115Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-b.md": {
+      "description": "Security Audit Pass B — MCP Server and Tool Bridge",
+      "tokens": 4996,
+      "hash": "54eafc2ddcf1a5a8",
+      "size": 20011,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.115Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-c.md": {
+      "description": "Security Audit Pass C — Design I/O and Job Files",
+      "tokens": 3513,
+      "hash": "67f1dd2d7adfd28e",
+      "size": 14076,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.115Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-d.md": {
+      "description": "Security Audit Pass D — Analytics and Cloud Credentials",
+      "tokens": 3569,
+      "hash": "913115cab42c7af9",
+      "size": 14304,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.115Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-e.md": {
+      "description": "Security Audit Pass E — Settings, Docker, and Installers",
+      "tokens": 3728,
+      "hash": "8122ba79c08f1235",
+      "size": 14920,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.116Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-f.md": {
+      "description": "Security Audit Pass F — CI and Supply Chain",
+      "tokens": 2872,
+      "hash": "5cfe949ed979e296",
+      "size": 11498,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.116Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-g.md": {
+      "description": "Security Audit Pass G — Java Deserialization and Board Snapshots",
+      "tokens": 2121,
+      "hash": "cf8321b6eba27da3",
+      "size": 8495,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.116Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-pass-h.md": {
+      "description": "Security Audit Pass H — Resource Exhaustion and Rate Limits",
+      "tokens": 4494,
+      "hash": "0fd74fcc79d74499",
+      "size": 18000,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.116Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-plan.md": {
+      "description": "Complete Codebase Security Audit Plan",
+      "tokens": 4516,
+      "hash": "9e3c9e9a03626560",
+      "size": 18193,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.117Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-remediation-log.md": {
+      "description": "Security Audit Remediation Log (Phase 4)",
+      "tokens": 1189,
+      "hash": "0b11033a0300e6c0",
+      "size": 4753,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.117Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-risk-register.md": {
+      "description": "Security Audit Risk Register",
+      "tokens": 11790,
+      "hash": "40a3fb40f4d260cd",
+      "size": 47344,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.118Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-scanner-summary.md": {
+      "description": "Security Audit Scanner Summary",
+      "tokens": 1406,
+      "hash": "f18bab462ed06486",
+      "size": 5625,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.118Z",
+      "source": "scan"
+    },
+    "docs/issues/security-audit-threat-model.md": {
+      "description": "Security Audit Threat Model",
+      "tokens": 4988,
+      "hash": "6bdba551868ac57a",
+      "size": 20047,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.118Z",
+      "source": "scan"
+    },
+    "docs/labels.md": {
+      "description": "Issue and Pull Request Labels",
+      "tokens": 1529,
+      "hash": "b6fde5a7e000e4aa",
+      "size": 6113,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.118Z",
+      "source": "scan"
+    },
+    "docs/ProjectSchemeCodeStyle.xml": {
+      "description": "",
+      "tokens": 519,
+      "hash": "8194b7733a31a6df",
+      "size": 1814,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.118Z",
+      "source": "scan"
+    },
+    "docs/reference/Cadence_SPECCTRA_Design_Language_Reference_v10_(2000-05).md": {
+      "description": "SPECCTRA",
+      "tokens": 72304,
+      "hash": "b563871bf45a23f8",
+      "size": 289473,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.121Z",
+      "source": "scan"
+    },
+    "docs/reference/gradle_quick_reference.md": {
+      "description": "Quick Reference: Gradle Commands",
+      "tokens": 953,
+      "hash": "c1ba582d4a46c8cc",
+      "size": 3876,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.121Z",
+      "source": "scan"
+    },
+    "docs/research/clearance_violations_reduction_plan.md": {
+      "description": "Clearance Violations Reduction Plan (Tier B Multi-Layer Focus)",
+      "tokens": 5900,
+      "hash": "0bff3f3ecbc6c16b",
+      "size": 23706,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.122Z",
+      "source": "scan"
+    },
+    "docs/research/escape_congestion_research.md": {
+      "description": "Escape Congestion Zones & Fanout Redesign — Research & Plan",
+      "tokens": 5341,
+      "hash": "ec5ff6124e0e9c3a",
+      "size": 21966,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.122Z",
+      "source": "scan"
+    },
+    "docs/research/kicad_ipc_api_research.md": {
+      "description": "Purpose",
+      "tokens": 4527,
+      "hash": "95f096af4e155a88",
+      "size": 18182,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.122Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_preflight_and_threshold_plan.md": {
+      "description": "Freerouting Optimizer Pre-Flight Guards & Threshold Optimization Plan",
+      "tokens": 3683,
+      "hash": "ee7f56c5e3c41fc4",
+      "size": 14772,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.123Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_threshold_sweep_raw.json": {
+      "description": "",
+      "tokens": 7692,
+      "hash": "e0727e9cc7b27fa9",
+      "size": 26920,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.123Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_threshold_sweep_results.csv": {
+      "description": "",
+      "tokens": 2054,
+      "hash": "ab2c652a903c9b8a",
+      "size": 7700,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.123Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_unification_clean_fixtures.txt": {
+      "description": "",
+      "tokens": 441,
+      "hash": "13b5859aaf12d8a6",
+      "size": 1762,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.123Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_unification_clean.csv": {
+      "description": "",
+      "tokens": 916,
+      "hash": "5c00c8cdd3314e23",
+      "size": 3432,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.123Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_unification_clean.json": {
+      "description": "",
+      "tokens": 237809,
+      "hash": "e8f49a80098a8a7e",
+      "size": 832330,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.126Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_unification_plan.md": {
+      "description": "Freerouting Optimizer Unification Plan",
+      "tokens": 3223,
+      "hash": "4a74518b3a4eb3c3",
+      "size": 12892,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.126Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_v2_weights_WL1000_WV2000_WB500.csv": {
+      "description": "",
+      "tokens": 13576,
+      "hash": "3a1d07b91e7913d5",
+      "size": 50909,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.127Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_v2_weights_WL3500_WV4000_WB1000.csv": {
+      "description": "",
+      "tokens": 13606,
+      "hash": "953826a5293ce4eb",
+      "size": 51020,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.127Z",
+      "source": "scan"
+    },
+    "docs/research/optimizer_v2_weights_WL500_WV8000_WB2000.csv": {
+      "description": "",
+      "tokens": 13489,
+      "hash": "ea4dc0068f88dc04",
+      "size": 50581,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.128Z",
+      "source": "scan"
+    },
+    "docs/research/planned_experiments.md": {
+      "description": "Freerouting Planned Experiments",
+      "tokens": 3527,
+      "hash": "7c606e0ec9a8bc6f",
+      "size": 14154,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.128Z",
+      "source": "scan"
+    },
+    "docs/research/router_v2_weights_W1333_W2667_WC25_WD300.csv": {
+      "description": "",
+      "tokens": 16690,
+      "hash": "6f4cb4217d87bd35",
+      "size": 62586,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.128Z",
+      "source": "scan"
+    },
+    "docs/research/router_v2_weights_WU1000_WC25_WD300_F50.csv": {
+      "description": "",
+      "tokens": 15730,
+      "hash": "520888d106ec803a",
+      "size": 58985,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.128Z",
+      "source": "scan"
+    },
+    "docs/research/router_v2_weights_WU1000_WC25_WD300.csv": {
+      "description": "",
+      "tokens": 13918,
+      "hash": "09ff389e5a4e7b5d",
+      "size": 52191,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.129Z",
+      "source": "scan"
+    },
+    "docs/research/schema_v5_current_v19_pair.md": {
+      "description": "Schema v5 current vs v1.9 pair walkthrough",
+      "tokens": 298,
+      "hash": "e6e9f1c082ec17ca",
+      "size": 1189,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.129Z",
+      "source": "scan"
+    },
+    "docs/research/scoring_revision_plan.md": {
+      "description": "Freerouting Dedicated Scoring Architecture & Versioning Plan",
+      "tokens": 10165,
+      "hash": "bb6e2f6719d25e04",
+      "size": 40822,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.130Z",
+      "source": "scan"
+    },
+    "docs/research/self_improving_routing_loop_plan.md": {
+      "description": "Self-Improving Routing Optimization Loop",
+      "tokens": 8486,
+      "hash": "2af5f06285478074",
+      "size": 34081,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.130Z",
+      "source": "scan"
+    },
+    "docs/research/v19_v2_replay.csv": {
+      "description": "",
+      "tokens": 4702,
+      "hash": "e3a86a3b97b762a8",
+      "size": 17631,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.131Z",
+      "source": "scan"
+    },
+    "docs/scoring.md": {
+      "description": "Board scoring (V2)",
+      "tokens": 3175,
+      "hash": "e63aa274dedc0da6",
+      "size": 12821,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.131Z",
+      "source": "scan"
+    },
+    "docs/self-hosting.md": {
+      "description": "Self-Hosting the Freerouting API",
+      "tokens": 4256,
+      "hash": "990fa0029cee46b9",
+      "size": 17057,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.131Z",
+      "source": "scan"
+    },
+    "docs/settings.md": {
+      "description": "Freerouting Settings Documentation",
+      "tokens": 5563,
+      "hash": "3d107bcdbee3bc78",
+      "size": 22273,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.131Z",
+      "source": "scan"
+    },
+    "docs/translations.md": {
+      "description": "Translation guide",
+      "tokens": 1771,
+      "hash": "216bd812e2cef685",
+      "size": 7086,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.132Z",
+      "source": "scan"
+    },
+    "examples/tutorial_board/tutorial_board.dsn": {
+      "description": "Declares signal",
+      "tokens": 190521,
+      "hash": "7649eed1e5b2dc17",
+      "size": 714453,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.134Z",
+      "source": "scan"
+    },
+    "examples/tutorial_board/tutorial_board.kicad_prl": {
+      "description": "",
+      "tokens": 345,
+      "hash": "c721c113b328b3a3",
+      "size": 1292,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.134Z",
+      "source": "scan"
+    },
+    "examples/tutorial_board/tutorial_board.kicad_pro": {
+      "description": "",
+      "tokens": 2165,
+      "hash": "f5bcfb149f1f0bf4",
+      "size": 8118,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.134Z",
+      "source": "scan"
+    },
+    "examples/tutorial_board/tutorial_board.kicad_sch": {
+      "description": "",
+      "tokens": 36,
+      "hash": "1b1e4546e6b0e92e",
+      "size": 133,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.134Z",
+      "source": "scan"
+    },
+    "experiments/experiments.jsonl": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.134Z",
+      "source": "scan"
+    },
+    "experiments/REPORT.md": {
+      "description": "Autopilot experiment report",
+      "tokens": 44,
+      "hash": "261906daf65e99a6",
+      "size": 173,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.134Z",
+      "source": "scan"
+    },
+    "fixtures/empty_board.dsn": {
+      "description": "Declares signal",
+      "tokens": 118,
+      "hash": "074212672893271f",
+      "size": 442,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.135Z",
+      "source": "scan"
+    },
+    "fixtures/Issue006-LPC18XX_43XX_SCH.dsn": {
+      "description": "",
+      "tokens": 71210,
+      "hash": "e1f5ba7731ca114a",
+      "size": 267264,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.136Z",
+      "source": "scan"
+    },
+    "fixtures/Issue015-StackOverflow.dsn": {
+      "description": "Declares signal",
+      "tokens": 39912,
+      "hash": "943b7fc55e8891b6",
+      "size": 149669,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.137Z",
+      "source": "scan"
+    },
+    "fixtures/Issue022-AutoRouter_interrupted.dsn": {
+      "description": "Declares signal",
+      "tokens": 47592,
+      "hash": "84bea3ffa8cb4f99",
+      "size": 178467,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.137Z",
+      "source": "scan"
+    },
+    "fixtures/Issue026-J2_reference.dsn": {
+      "description": "Declares signal",
+      "tokens": 2114,
+      "hash": "878b19e25675ac61",
+      "size": 7925,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.137Z",
+      "source": "scan"
+    },
+    "fixtures/Issue026-J2_reference.ses": {
+      "description": "",
+      "tokens": 3846,
+      "hash": "db693aa0389a3002",
+      "size": 14421,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.137Z",
+      "source": "scan"
+    },
+    "fixtures/Issue027-zMRETestFixture.dsn": {
+      "description": "Declares signal",
+      "tokens": 19016,
+      "hash": "59c692fe9468fe89",
+      "size": 71309,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.138Z",
+      "source": "scan"
+    },
+    "fixtures/Issue029-hw48na_invalid.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 6075,
+      "hash": "3d41d11d72c6ac5e",
+      "size": 22781,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.138Z",
+      "source": "scan"
+    },
+    "fixtures/Issue029-hw48na_valid.rules": {
+      "description": "Declares default",
+      "tokens": 6093,
+      "hash": "8d3c9cbb426aefde",
+      "size": 22847,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.138Z",
+      "source": "scan"
+    },
+    "fixtures/Issue029-hw48na.dsn": {
+      "description": "Declares signal",
+      "tokens": 39227,
+      "hash": "ce62cb9fe64253cc",
+      "size": 147099,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.138Z",
+      "source": "scan"
+    },
+    "fixtures/Issue029-hw48na.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 6082,
+      "hash": "2f36d17b7bc46c74",
+      "size": 22807,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.138Z",
+      "source": "scan"
+    },
+    "fixtures/Issue034-Green14SegLED.dsn": {
+      "description": "Declares signal",
+      "tokens": 8989,
+      "hash": "17bf07ff18a668fa",
+      "size": 33706,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.138Z",
+      "source": "scan"
+    },
+    "fixtures/Issue035-ReadPlaceScope.dsn": {
+      "description": "Declares signal",
+      "tokens": 15603,
+      "hash": "69300e8bca77accc",
+      "size": 58509,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue039-bug-design.dsn": {
+      "description": "Declares signal",
+      "tokens": 11821,
+      "hash": "94763bd157266c55",
+      "size": 44328,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue054-tairakb.dsn": {
+      "description": "Declares signal",
+      "tokens": 11559,
+      "hash": "965f7154d19bec67",
+      "size": 43344,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue066-Project_GP8B.dsn": {
+      "description": "Declares signal",
+      "tokens": 29421,
+      "hash": "c340433dbdb86c7b",
+      "size": 110326,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/fp-lib-table": {
+      "description": "Declares KiCad",
+      "tokens": 26,
+      "hash": "c439a309b5ca83b1",
+      "size": 96,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/gui_defaults.par": {
+      "description": "",
+      "tokens": 886,
+      "hash": "61d71aaea225b6b2",
+      "size": 3320,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/MyLibs/PCB_Fork_10mils_5mmx5mm.kicad_mod": {
+      "description": "",
+      "tokens": 412,
+      "hash": "58a14b6f96141f44",
+      "size": 1545,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/MyLibs/PCB_Fork_10mils_5mmx5mm.lib": {
+      "description": "",
+      "tokens": 353,
+      "hash": "59ec759808491da7",
+      "size": 1321,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.139Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel-cache.lib": {
+      "description": "",
+      "tokens": 227,
+      "hash": "1faea4ee74ae97e2",
+      "size": 850,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel-KiCad6.dsn": {
+      "description": "Declares signal",
+      "tokens": 1383,
+      "hash": "c33f63d6e643bc34",
+      "size": 5183,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.dsn": {
+      "description": "Declares signal",
+      "tokens": 1727,
+      "hash": "0a0ededfca40c52d",
+      "size": 6475,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.kicad_pcb": {
+      "description": "Declares Default",
+      "tokens": 3781,
+      "hash": "af038915c5035637",
+      "size": 14178,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.kicad_pcb-bak": {
+      "description": "Declares Default",
+      "tokens": 3781,
+      "hash": "b3208145870a3ea1",
+      "size": 14178,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.kicad_prl": {
+      "description": "",
+      "tokens": 321,
+      "hash": "7cf47f2aba17567f",
+      "size": 1201,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.kicad_pro": {
+      "description": "",
+      "tokens": 1990,
+      "hash": "6d423292225d1ff8",
+      "size": 7462,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.pro": {
+      "description": "",
+      "tokens": 957,
+      "hash": "88a68b2ee8574d1b",
+      "size": 3587,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.sch": {
+      "description": "",
+      "tokens": 648,
+      "hash": "7c698cbf7b8aa420",
+      "size": 2428,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue069-TestSensel/TestSensel.sch-bak": {
+      "description": "",
+      "tokens": 648,
+      "hash": "5ab745272d877429",
+      "size": 2428,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue070-Autorouter_FQ101_PCB_2022-05-13.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 32506,
+      "hash": "363c687e7bba3fe8",
+      "size": 121895,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.140Z",
+      "source": "scan"
+    },
+    "fixtures/Issue093-interf_u.dsn": {
+      "description": "Declares signal",
+      "tokens": 39667,
+      "hash": "73a6eb52f27fa331",
+      "size": 148760,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.141Z",
+      "source": "scan"
+    },
+    "fixtures/Issue102-Mars-64-revE-rot00.dsn": {
+      "description": "Declares signal",
+      "tokens": 13277,
+      "hash": "3a7066d3ff441d49",
+      "size": 49787,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.141Z",
+      "source": "scan"
+    },
+    "fixtures/Issue103-Board-Routed.dsn": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 272987,
+      "hash": "b6538befc24d52af",
+      "size": 1023701,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.143Z",
+      "source": "scan"
+    },
+    "fixtures/Issue103-Board-Unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 11641,
+      "hash": "16c8024d73d34599",
+      "size": 43651,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.144Z",
+      "source": "scan"
+    },
+    "fixtures/Issue107-freq_teiler_200kHz_kicad_bad.dsn": {
+      "description": "Declares signal",
+      "tokens": 18704,
+      "hash": "942a03c41d304226",
+      "size": 70139,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.144Z",
+      "source": "scan"
+    },
+    "fixtures/Issue107-freq_teiler_200kHz_kicad_bad.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 1002,
+      "hash": "b83522dde58a99b5",
+      "size": 3754,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.144Z",
+      "source": "scan"
+    },
+    "fixtures/Issue107-freq_teiler_200kHz_kicad.dsn": {
+      "description": "Declares signal",
+      "tokens": 18482,
+      "hash": "77f1103cc099c31b",
+      "size": 69307,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.144Z",
+      "source": "scan"
+    },
+    "fixtures/Issue107-freq_teiler_200kHz_kicad.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 1002,
+      "hash": "b83522dde58a99b5",
+      "size": 3754,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.144Z",
+      "source": "scan"
+    },
+    "fixtures/Issue110-Pajalnaja_stancija.dsn": {
+      "description": "Declares signal",
+      "tokens": 7148,
+      "hash": "46e0bf62c0872e93",
+      "size": 27461,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.144Z",
+      "source": "scan"
+    },
+    "fixtures/Issue110-RelayModule.dsn": {
+      "description": "Declares signal",
+      "tokens": 26421,
+      "hash": "ccb9f1038e5140a2",
+      "size": 99405,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.145Z",
+      "source": "scan"
+    },
+    "fixtures/Issue110-testPCBSpecctraFile.dsn": {
+      "description": "Declares signal",
+      "tokens": 16761,
+      "hash": "af211b9c04d91f77",
+      "size": 62940,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.145Z",
+      "source": "scan"
+    },
+    "fixtures/Issue110-testProjectFromFreeroutingBugTest.dsn": {
+      "description": "Declares signal",
+      "tokens": 2101,
+      "hash": "1b47e91d92fc9ce5",
+      "size": 7912,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.145Z",
+      "source": "scan"
+    },
+    "fixtures/Issue110-testProjectFromFreeroutingBugTest01.dsn": {
+      "description": "Declares signal",
+      "tokens": 2199,
+      "hash": "47ad5bae641fda8a",
+      "size": 8703,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.145Z",
+      "source": "scan"
+    },
+    "fixtures/Issue110-Паяльная станция.dsn": {
+      "description": "Declares signal",
+      "tokens": 7148,
+      "hash": "46e0bf62c0872e93",
+      "size": 27461,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.146Z",
+      "source": "scan"
+    },
+    "fixtures/Issue113-Protein.dsn": {
+      "description": "Declares signal",
+      "tokens": 36524,
+      "hash": "c400fb8dd163e2b4",
+      "size": 136962,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.146Z",
+      "source": "scan"
+    },
+    "fixtures/Issue143-rpi_splitter_mod.dsn": {
+      "description": "Declares signal",
+      "tokens": 1042,
+      "hash": "1d6595756c0c7575",
+      "size": 3907,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.146Z",
+      "source": "scan"
+    },
+    "fixtures/Issue143-rpi_splitter.dsn": {
+      "description": "Declares signal",
+      "tokens": 1038,
+      "hash": "d079367aee3e3bf8",
+      "size": 3891,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.146Z",
+      "source": "scan"
+    },
+    "fixtures/Issue145-smoothieboard.dsn": {
+      "description": "Declares signal",
+      "tokens": 35209,
+      "hash": "064db6b93501e404",
+      "size": 132032,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.147Z",
+      "source": "scan"
+    },
+    "fixtures/Issue153-wavefolder.dsn": {
+      "description": "Declares signal",
+      "tokens": 32949,
+      "hash": "f92d8ce074cdc423",
+      "size": 123558,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.147Z",
+      "source": "scan"
+    },
+    "fixtures/Issue155-CH376_MCP795_Module.dsn": {
+      "description": "Declares signal",
+      "tokens": 13428,
+      "hash": "3080de09e60d0a71",
+      "size": 50353,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.147Z",
+      "source": "scan"
+    },
+    "fixtures/Issue155-CH376_MCP795_Module.log": {
+      "description": "",
+      "tokens": 2835,
+      "hash": "e5f0a272d45e029c",
+      "size": 10628,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.147Z",
+      "source": "scan"
+    },
+    "fixtures/Issue157-TeamAdapt-LinePCB.dsn": {
+      "description": "Declares signal",
+      "tokens": 53617,
+      "hash": "04bf5debdeb4423a",
+      "size": 201061,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.148Z",
+      "source": "scan"
+    },
+    "fixtures/Issue159-setonix_2hp-pcb.dsn": {
+      "description": "Declares signal",
+      "tokens": 6464,
+      "hash": "50a8f2b4fe6e2246",
+      "size": 24238,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.148Z",
+      "source": "scan"
+    },
+    "fixtures/Issue163-pic_programmer.dsn": {
+      "description": "Declares signal",
+      "tokens": 23023,
+      "hash": "1759e93b1c7ae5ad",
+      "size": 86334,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.148Z",
+      "source": "scan"
+    },
+    "fixtures/Issue178-KeebMaker_Sofle_Choc.dsn": {
+      "description": "Declares signal",
+      "tokens": 140303,
+      "hash": "c6b3cac46857bb8e",
+      "size": 526135,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.149Z",
+      "source": "scan"
+    },
+    "fixtures/Issue179-Autorouter_PCB1_2023-3-24.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 3458,
+      "hash": "b949c97ed32df383",
+      "size": 12967,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.149Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/fp-lib-table": {
+      "description": "",
+      "tokens": 30,
+      "hash": "120b0521add419c4",
+      "size": 111,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.150Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-B_Cu.gbr": {
+      "description": "",
+      "tokens": 22021,
+      "hash": "51b4aff7c7dadae1",
+      "size": 82578,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.150Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-B_Mask.gbr": {
+      "description": "",
+      "tokens": 13831,
+      "hash": "7f3ba47320d1ead3",
+      "size": 51864,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.150Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-drl.rpt": {
+      "description": "",
+      "tokens": 222,
+      "hash": "5ea72a84feba9992",
+      "size": 831,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.150Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-Edge_Cuts.gbr": {
+      "description": "",
+      "tokens": 11568,
+      "hash": "ec20cce5136b4444",
+      "size": 43379,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.150Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-F_Courtyard.gbr": {
+      "description": "",
+      "tokens": 12771,
+      "hash": "e0a86a49546dcd72",
+      "size": 47891,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.150Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-F_Cu.gbr": {
+      "description": "",
+      "tokens": 22472,
+      "hash": "ad4a5810d8afaac3",
+      "size": 84270,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.151Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-F_Mask.gbr": {
+      "description": "",
+      "tokens": 13831,
+      "hash": "f858fa3a493f4237",
+      "size": 51864,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.151Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-F_Silkscreen.gbr": {
+      "description": "",
+      "tokens": 18477,
+      "hash": "be460a8af00194ef",
+      "size": 69286,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.151Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-In1_Cu.gbr": {
+      "description": "",
+      "tokens": 56440,
+      "hash": "576811814f8c5ed2",
+      "size": 211650,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.151Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-In2_Cu.gbr": {
+      "description": "",
+      "tokens": 56440,
+      "hash": "0df37f327fab8c65",
+      "size": 211650,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.152Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-job.gbrjob": {
+      "description": "",
+      "tokens": 906,
+      "hash": "88df5aaee77f0065",
+      "size": 3397,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.152Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-NPTH.drl": {
+      "description": "",
+      "tokens": 104,
+      "hash": "5206366022c16c6e",
+      "size": 389,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.152Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Gerbers/Test-PTH.drl": {
+      "description": "",
+      "tokens": 3166,
+      "hash": "b71dd47695eafc50",
+      "size": 11872,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.152Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Library.pretty/D_DO-41_SOD81_P10.16mm_Horizontal.kicad_mod": {
+      "description": "",
+      "tokens": 1169,
+      "hash": "0e879a6b603a1304",
+      "size": 4381,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.152Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Library.pretty/R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal.kicad_mod": {
+      "description": "",
+      "tokens": 847,
+      "hash": "a20ffba335f5d1d2",
+      "size": 3175,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.152Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/report.txt": {
+      "description": "",
+      "tokens": 267,
+      "hash": "29a7cb17d3fa8647",
+      "size": 1065,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.153Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Test.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 193572,
+      "hash": "f25d023df1c503ec",
+      "size": 725894,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.154Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Test.kicad_prl": {
+      "description": "",
+      "tokens": 318,
+      "hash": "c854922b2bc3c95b",
+      "size": 1189,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.154Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Test.kicad_pro": {
+      "description": "",
+      "tokens": 3308,
+      "hash": "d7bf6f1e8da960e2",
+      "size": 12404,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.154Z",
+      "source": "scan"
+    },
+    "fixtures/Issue180-Test/Test.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 36521,
+      "hash": "85257c2ce10b4302",
+      "size": 136953,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.155Z",
+      "source": "scan"
+    },
+    "fixtures/Issue184-motorizedopener/fp-info-cache": {
+      "description": "",
+      "tokens": 1,
+      "hash": "9a271f2a916b0b6e",
+      "size": 2,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.155Z",
+      "source": "scan"
+    },
+    "fixtures/Issue184-motorizedopener/motorizedopener.kicad_pcb": {
+      "description": "",
+      "tokens": 60039,
+      "hash": "62e0d43670370a48",
+      "size": 225145,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.155Z",
+      "source": "scan"
+    },
+    "fixtures/Issue184-motorizedopener/motorizedopener.kicad_prl": {
+      "description": "",
+      "tokens": 307,
+      "hash": "c48623d581f53d6a",
+      "size": 1149,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.155Z",
+      "source": "scan"
+    },
+    "fixtures/Issue184-motorizedopener/motorizedopener.kicad_pro": {
+      "description": "",
+      "tokens": 2484,
+      "hash": "7744761d8381fbef",
+      "size": 9315,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.155Z",
+      "source": "scan"
+    },
+    "fixtures/Issue184-motorizedopener/motorizedopener.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 50365,
+      "hash": "61c1e426b34995f3",
+      "size": 188868,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.156Z",
+      "source": "scan"
+    },
+    "fixtures/Issue184-motorizedopener/run_freerouting.bat": {
+      "description": "",
+      "tokens": 19,
+      "hash": "506ac31a1f2d2e40",
+      "size": 71,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.156Z",
+      "source": "scan"
+    },
+    "fixtures/Issue190-processor.Z80.dsn": {
+      "description": "Declares signal",
+      "tokens": 247367,
+      "hash": "ec0ee00600bf51f5",
+      "size": 927624,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.158Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/buffers.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 28866,
+      "hash": "6bf3208e1b8136d3",
+      "size": 108247,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.158Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/bus.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 29376,
+      "hash": "425dfacae16471de",
+      "size": 110159,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.158Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-DATA-DIR-GAL.csv": {
+      "description": "",
+      "tokens": 3992,
+      "hash": "5d1b46c2d754ac7d",
+      "size": 14968,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.158Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-DATA-DIR-GAL.dig": {
+      "description": "",
+      "tokens": 3138,
+      "hash": "238a84c9ce645918",
+      "size": 11764,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.158Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-DATA-DIR-GAL.jed": {
+      "description": "",
+      "tokens": 361,
+      "hash": "c001bae736a8dda9",
+      "size": 1352,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-DATA-DIR-GAL.tru": {
+      "description": "",
+      "tokens": 811,
+      "hash": "92fc69ea6018dd5d",
+      "size": 3039,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-MAPPER.csv": {
+      "description": "",
+      "tokens": 9594,
+      "hash": "69daaa3a7a814636",
+      "size": 35977,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-MAPPER.dig": {
+      "description": "",
+      "tokens": 3856,
+      "hash": "75bfff0ba43fcdea",
+      "size": 14459,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-MAPPER.jed": {
+      "description": "",
+      "tokens": 480,
+      "hash": "a7c1e5d84f166c5e",
+      "size": 1799,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-MAPPER.tru": {
+      "description": "",
+      "tokens": 1170,
+      "hash": "b88e22e77003052b",
+      "size": 4387,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-WS-GAL.csv": {
+      "description": "",
+      "tokens": 1456,
+      "hash": "9602e46c83847ade",
+      "size": 5459,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-WS-GAL.dig": {
+      "description": "",
+      "tokens": 2559,
+      "hash": "255373bad5cf789c",
+      "size": 9593,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-WS-GAL.jed": {
+      "description": "",
+      "tokens": 137,
+      "hash": "746a2ad60f6fb94d",
+      "size": 511,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CPU-WS-GAL.tru": {
+      "description": "",
+      "tokens": 287,
+      "hash": "2f0fb73d0e92ed12",
+      "size": 1073,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-DATA-DIR-GAL/CUPL.PLD": {
+      "description": "",
+      "tokens": 202,
+      "hash": "453edde9832c20f0",
+      "size": 755,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.159Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-MAPPER/CUPL.PLD": {
+      "description": "",
+      "tokens": 219,
+      "hash": "8acce78fcceb3786",
+      "size": 821,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/CPU-WS-GAL.dig.jed": {
+      "description": "",
+      "tokens": 224,
+      "hash": "58700158b6a86c3b",
+      "size": 840,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/CUPL.abs": {
+      "description": "",
+      "tokens": 294,
+      "hash": "220dc96882b896ae",
+      "size": 1099,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/CUPL.PLD": {
+      "description": "",
+      "tokens": 161,
+      "hash": "c98bc752de1b624c",
+      "size": 602,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/CUPL.sim": {
+      "description": "",
+      "tokens": 122,
+      "hash": "f9b14a0f85c2e456",
+      "size": 456,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/CUPL.wo": {
+      "description": "WAVEFORM",
+      "tokens": 3,
+      "hash": "a8fbc108b457816d",
+      "size": 10,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/tmpcsim.im": {
+      "description": "",
+      "tokens": 238,
+      "hash": "30e6845e4be655bb",
+      "size": 889,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_DMA-CS-GAL/CUPL.PLD": {
+      "description": "",
+      "tokens": 282,
+      "hash": "d541cd9e8a63afda",
+      "size": 1057,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/CUPL_DMA-RDY-GAL/CUPL.PLD": {
+      "description": "",
+      "tokens": 204,
+      "hash": "bf646f45eda890ed",
+      "size": 763,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/data-gear_gal/DATAGEAR.EQN": {
+      "description": "",
+      "tokens": 118,
+      "hash": "9b2f95bcd0504654",
+      "size": 440,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/data-gear_gal/DATAGEAR.JED": {
+      "description": "",
+      "tokens": 737,
+      "hash": "1c7c8d0fe2d1330b",
+      "size": 2762,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.160Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/data-gear_gal/DATAGEAR.LOG": {
+      "description": "",
+      "tokens": 692,
+      "hash": "71988944cb2589bc",
+      "size": 2595,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/data-gear_gal/Velesoft DMA circuit.url": {
+      "description": "",
+      "tokens": 34,
+      "hash": "15f771e61f526e37",
+      "size": 125,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/data-gear_gal/velesoft DMA.txt": {
+      "description": "Declares for",
+      "tokens": 206,
+      "hash": "af5f83120e2c853f",
+      "size": 823,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-CS-GAL.csv": {
+      "description": "",
+      "tokens": 10699,
+      "hash": "822eca9cfb801b19",
+      "size": 40118,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-CS-GAL.dig": {
+      "description": "",
+      "tokens": 5302,
+      "hash": "3f3c6d1b0e3ff318",
+      "size": 19882,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-CS-GAL.jed": {
+      "description": "",
+      "tokens": 650,
+      "hash": "9b1a5bb92a1f60bb",
+      "size": 2437,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-CS-GAL.tru": {
+      "description": "",
+      "tokens": 1516,
+      "hash": "e26663a622729230",
+      "size": 5683,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-RDY-GAL.csv": {
+      "description": "",
+      "tokens": 9601,
+      "hash": "8758a1df56997a70",
+      "size": 36001,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-RDY-GAL.dig": {
+      "description": "",
+      "tokens": 2779,
+      "hash": "cb406921c43ebd93",
+      "size": 10420,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-RDY-GAL.jed": {
+      "description": "",
+      "tokens": 342,
+      "hash": "82362a3fd8ee3705",
+      "size": 1280,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA-RDY-GAL.tru": {
+      "description": "",
+      "tokens": 1107,
+      "hash": "d2a7a839061d75dc",
+      "size": 4150,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.161Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/DMA.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 53399,
+      "hash": "a65e757a9c400a15",
+      "size": 200245,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.162Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/fp-lib-table": {
+      "description": "Declares KiCad",
+      "tokens": 35,
+      "hash": "ff6fce3528b72ddc",
+      "size": 131,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.162Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/fpanel.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 19146,
+      "hash": "38980b4a32e0d1b6",
+      "size": 71797,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.162Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/GAL22V10.dcm": {
+      "description": "",
+      "tokens": 13,
+      "hash": "3edaf78b25030c04",
+      "size": 48,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.162Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/gal22v10.kicad_sym": {
+      "description": "Declares default",
+      "tokens": 1356,
+      "hash": "cf69897c4ded599b",
+      "size": 5082,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.162Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/GALS.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 150436,
+      "hash": "194cf7cf38319175",
+      "size": 564135,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.163Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/IM2.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 12572,
+      "hash": "3e1deda27aa971d2",
+      "size": 47142,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.163Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/mapper.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 86267,
+      "hash": "998e66b42c2433a5",
+      "size": 323501,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.164Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/power.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 28217,
+      "hash": "0e9f49c56356d919",
+      "size": 105813,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.166Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 2943,
+      "hash": "ed645be15dba90cc",
+      "size": 11034,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.166Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.ses": {
+      "description": "",
+      "tokens": 104319,
+      "hash": "05630de55716b168",
+      "size": 391196,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.167Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.Z80.csv": {
+      "description": "",
+      "tokens": 2411,
+      "hash": "b5c56c1cca18bbd6",
+      "size": 9038,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.167Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.Z80.kicad_prl": {
+      "description": "",
+      "tokens": 309,
+      "hash": "653e6ec30d650c9d",
+      "size": 1157,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.168Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.Z80.kicad_pro": {
+      "description": "",
+      "tokens": 3030,
+      "hash": "f11e6e15ee09a7f5",
+      "size": 11362,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.168Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.Z80.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 27954,
+      "hash": "e9b4840ea0732cbb",
+      "size": 104827,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.168Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/processor.Z80.xml": {
+      "description": "",
+      "tokens": 73921,
+      "hash": "be68a4d59ecbe26f",
+      "size": 258721,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.169Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/readme.txt": {
+      "description": "",
+      "tokens": 50,
+      "hash": "845dbaf94eaa467b",
+      "size": 197,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.169Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/sym-lib-table": {
+      "description": "",
+      "tokens": 121,
+      "hash": "bbccf709295267fe",
+      "size": 451,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.169Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/TL16C550CFN.kicad_sym": {
+      "description": "Declares default",
+      "tokens": 2312,
+      "hash": "f047b2b84a68180b",
+      "size": 8668,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.169Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/waitstate.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 12388,
+      "hash": "768a6d2e8f801ec4",
+      "size": 46452,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.170Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/Z80CPU.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 24355,
+      "hash": "9e64b1f92adc42b7",
+      "size": 91330,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.170Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/Zilog_Z80_Peripherals.kicad_sym": {
+      "description": "Declares default",
+      "tokens": 92266,
+      "hash": "93b43832afa5ac8c",
+      "size": 346002,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.172Z",
+      "source": "scan"
+    },
+    "fixtures/Issue191-processor.Z80/Zilog_z80.kicad_sym": {
+      "description": "Declares default",
+      "tokens": 24744,
+      "hash": "ac0b0c820ead5906",
+      "size": 92787,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.172Z",
+      "source": "scan"
+    },
+    "fixtures/Issue199-StackOverflow/Signale_Vor+Block.dsn": {
+      "description": "Declares signal",
+      "tokens": 5345,
+      "hash": "055dce0c59edb58a",
+      "size": 20043,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.172Z",
+      "source": "scan"
+    },
+    "fixtures/Issue208-freerouting.dsn": {
+      "description": "Declares signal",
+      "tokens": 11169,
+      "hash": "a552e42e23d3748c",
+      "size": 41882,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.172Z",
+      "source": "scan"
+    },
+    "fixtures/Issue209-split05.dsn": {
+      "description": "Declares signal",
+      "tokens": 9776,
+      "hash": "51c5687a83141776",
+      "size": 36658,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.172Z",
+      "source": "scan"
+    },
+    "fixtures/Issue209-split10.dsn": {
+      "description": "Declares signal",
+      "tokens": 9776,
+      "hash": "f008f0dcfe89b7ef",
+      "size": 36658,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.173Z",
+      "source": "scan"
+    },
+    "fixtures/Issue214-freerouting.dsn": {
+      "description": "Declares signal",
+      "tokens": 52090,
+      "hash": "4410e5c410c32df2",
+      "size": 195335,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.173Z",
+      "source": "scan"
+    },
+    "fixtures/Issue217-8088sbc.dsn": {
+      "description": "Declares signal",
+      "tokens": 22616,
+      "hash": "d7caa5a23e834c86",
+      "size": 84808,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.173Z",
+      "source": "scan"
+    },
+    "fixtures/Issue219-LogicBoard_smt.dsn": {
+      "description": "Declares signal",
+      "tokens": 28808,
+      "hash": "bffe922b51a45ea7",
+      "size": 108029,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.173Z",
+      "source": "scan"
+    },
+    "fixtures/Issue229-display-8-digit-hc595.dsn": {
+      "description": "Declares signal",
+      "tokens": 9584,
+      "hash": "09535be5d729c79f",
+      "size": 35940,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.173Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/CNH_Functional_Tester_1.dsn": {
+      "description": "Declares signal",
+      "tokens": 43647,
+      "hash": "794d7465cc42a4ba",
+      "size": 163673,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.174Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/CNH_Functional_Tester_1.kicad_dru": {
+      "description": "",
+      "tokens": 0,
+      "hash": "e3b0c44298fc1c14",
+      "size": 0,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.174Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/CNH_Functional_Tester_1.kicad_prl": {
+      "description": "",
+      "tokens": 350,
+      "hash": "c02d3ce44b21892c",
+      "size": 1312,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.174Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/CNH_Functional_Tester_1.kicad_pro": {
+      "description": "",
+      "tokens": 5181,
+      "hash": "cb41d089d86a8351",
+      "size": 19427,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.174Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/CNH_Functional_Tester_1.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 89910,
+      "hash": "d4d8394b7341e367",
+      "size": 337164,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.175Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/fp-info-cache": {
+      "description": "",
+      "tokens": 1,
+      "hash": "9a271f2a916b0b6e",
+      "size": 2,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.175Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/fp-lib-table": {
+      "description": "",
+      "tokens": 34,
+      "hash": "e7bb875eeaa8e1f2",
+      "size": 125,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.175Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-B_Cu.gbr": {
+      "description": "",
+      "tokens": 25405,
+      "hash": "f3fed9405ce75dbb",
+      "size": 95266,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.175Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-B_Mask.gbr": {
+      "description": "",
+      "tokens": 7304,
+      "hash": "914b7bf31f7e0d08",
+      "size": 27387,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.176Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-B_Silkscreen.gbr": {
+      "description": "",
+      "tokens": 37687,
+      "hash": "efe592fdbd69c087",
+      "size": 141325,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.176Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-Edge_Cuts.gbr": {
+      "description": "",
+      "tokens": 185,
+      "hash": "b6de9534afd9cccd",
+      "size": 693,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.176Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-F_Cu.gbr": {
+      "description": "",
+      "tokens": 24917,
+      "hash": "0c23f285c38ad72e",
+      "size": 93438,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.176Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-F_Mask.gbr": {
+      "description": "",
+      "tokens": 7606,
+      "hash": "0ce7182a462c06e5",
+      "size": 28521,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.176Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-F_Silkscreen.gbr": {
+      "description": "",
+      "tokens": 75128,
+      "hash": "12821c6b8d4304d3",
+      "size": 281729,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.177Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-In1_Cu.gbr": {
+      "description": "",
+      "tokens": 201107,
+      "hash": "d7a4c2c33b35225b",
+      "size": 754149,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.178Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-In2_Cu.gbr": {
+      "description": "",
+      "tokens": 200486,
+      "hash": "cc18f129bc79e07a",
+      "size": 751820,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.179Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1-job.gbrjob": {
+      "description": "",
+      "tokens": 975,
+      "hash": "1fb9add370e751a9",
+      "size": 3654,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.180Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/CNH_Functional_Tester_1.drl": {
+      "description": "",
+      "tokens": 3516,
+      "hash": "41c837a24aa20b35",
+      "size": 13185,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.180Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Gerbers/report.txt": {
+      "description": "",
+      "tokens": 417,
+      "hash": "f2310852ab7e06ef",
+      "size": 1666,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.180Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Library.pretty/R78_9V_1A_SIP_TH.kicad_mod": {
+      "description": "Declares solid",
+      "tokens": 896,
+      "hash": "a3fd117ba17e93bd",
+      "size": 3357,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.180Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester/Perf_Breakout.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 42955,
+      "hash": "6abde95ef1b25398",
+      "size": 161078,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.180Z",
+      "source": "scan"
+    },
+    "fixtures/Issue230-CNH_Functional_Tester_1.dsn": {
+      "description": "Declares signal",
+      "tokens": 43647,
+      "hash": "794d7465cc42a4ba",
+      "size": 163673,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-caniot-tiny-arm.dsn": {
+      "description": "Declares signal",
+      "tokens": 29160,
+      "hash": "6598412e0b524520",
+      "size": 109348,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-min_fr_test/min_fr_test_no_quotes.dsn": {
+      "description": "Declares signal",
+      "tokens": 676,
+      "hash": "62e523077f7060c0",
+      "size": 2533,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-min_fr_test/min_fr_test.dsn": {
+      "description": "Declares signal",
+      "tokens": 677,
+      "hash": "cc07a8d523ae8b72",
+      "size": 2536,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-min_fr_test/min_fr_test.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 4700,
+      "hash": "6646ba4191e658ad",
+      "size": 17623,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-min_fr_test/min_fr_test.kicad_prl": {
+      "description": "",
+      "tokens": 339,
+      "hash": "d81fbeabe5f782d0",
+      "size": 1270,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-min_fr_test/min_fr_test.kicad_pro": {
+      "description": "",
+      "tokens": 3659,
+      "hash": "22f9c7dfd49323f2",
+      "size": 13719,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-min_fr_test/min_fr_test.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 2814,
+      "hash": "1398319fc94e4438",
+      "size": 10550,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.181Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoViasOnPowerPlanes/Issue269-NoViasOnPowerPlanes.dsn": {
+      "description": "Declares signal",
+      "tokens": 5168,
+      "hash": "62bd6b994ce98ece",
+      "size": 19380,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.182Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoViasOnPowerPlanes/Issue269-NoViasOnPowerPlanes.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 11292,
+      "hash": "693f2d12f609a8f4",
+      "size": 42342,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.182Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoViasOnPowerPlanes/Issue269-NoViasOnPowerPlanes.kicad_prl": {
+      "description": "",
+      "tokens": 352,
+      "hash": "13862f2e6c021aca",
+      "size": 1318,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.182Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoViasOnPowerPlanes/Issue269-NoViasOnPowerPlanes.kicad_pro": {
+      "description": "",
+      "tokens": 4227,
+      "hash": "f6290511fbec24a7",
+      "size": 15848,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.182Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoViasOnPowerPlanes/Issue269-NoViasOnPowerPlanes.ses": {
+      "description": "",
+      "tokens": 1268,
+      "hash": "2af926630cd18ca4",
+      "size": 4754,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.182Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoWiresOnPowerLayers/fp-info-cache": {
+      "description": "",
+      "tokens": 5198,
+      "hash": "ca86c5b2ba8bb821",
+      "size": 19492,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.182Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoWiresOnPowerLayers/proba.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 155101,
+      "hash": "7c0a5c43c312821c",
+      "size": 581629,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.184Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoWiresOnPowerLayers/proba.kicad_prl": {
+      "description": "",
+      "tokens": 346,
+      "hash": "006a879f5cb066b0",
+      "size": 1294,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.184Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoWiresOnPowerLayers/proba.kicad_pro": {
+      "description": "",
+      "tokens": 4167,
+      "hash": "45180db5fa97119f",
+      "size": 15626,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.184Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoWiresOnPowerLayers/proba.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 115204,
+      "hash": "ba2ee100c14ab562",
+      "size": 432014,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.186Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-NoWiresOnPowerLayers/proba.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 1166,
+      "hash": "5b1c71667b6fdb8c",
+      "size": 4372,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.186Z",
+      "source": "scan"
+    },
+    "fixtures/Issue269-z10_module.dsn": {
+      "description": "Declares signal",
+      "tokens": 45262,
+      "hash": "b38deab1bc28760c",
+      "size": 169729,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.186Z",
+      "source": "scan"
+    },
+    "fixtures/Issue270-non-ansi_bracket.dsn": {
+      "description": "Declares signal",
+      "tokens": 1038,
+      "hash": "6961cee39265d7b6",
+      "size": 3892,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.186Z",
+      "source": "scan"
+    },
+    "fixtures/Issue283-UnconnectedTracesUnderPads/fp-info-cache": {
+      "description": "",
+      "tokens": 1,
+      "hash": "9a271f2a916b0b6e",
+      "size": 2,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.187Z",
+      "source": "scan"
+    },
+    "fixtures/Issue283-UnconnectedTracesUnderPads/Natural_Tone_Preamp.dsn": {
+      "description": "Declares signal",
+      "tokens": 25943,
+      "hash": "0a0e1e5fae07b82d",
+      "size": 97283,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.187Z",
+      "source": "scan"
+    },
+    "fixtures/Issue283-UnconnectedTracesUnderPads/Natural_Tone_Preamp.kicad_pcb": {
+      "description": "",
+      "tokens": 76687,
+      "hash": "e496873035cadc72",
+      "size": 287573,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.187Z",
+      "source": "scan"
+    },
+    "fixtures/Issue283-UnconnectedTracesUnderPads/Natural_Tone_Preamp.kicad_pro": {
+      "description": "",
+      "tokens": 3740,
+      "hash": "921f2a29c1259cf2",
+      "size": 14022,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.187Z",
+      "source": "scan"
+    },
+    "fixtures/Issue283-UnconnectedTracesUnderPads/Natural_Tone_Preamp.ses": {
+      "description": "",
+      "tokens": 24650,
+      "hash": "d45bc01021a73b24",
+      "size": 92436,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.188Z",
+      "source": "scan"
+    },
+    "fixtures/Issue289-Autorouter_PCB_FHT-8086_2024-03-08.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 42636,
+      "hash": "f0bdc5e0cab75410",
+      "size": 159885,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.188Z",
+      "source": "scan"
+    },
+    "fixtures/Issue289-Autorouter_PCB_FHT-VGA_2024-03-25.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 54514,
+      "hash": "861190af9e63267b",
+      "size": 204425,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.188Z",
+      "source": "scan"
+    },
+    "fixtures/Issue297-myboard.dsn": {
+      "description": "Declares signal",
+      "tokens": 23992,
+      "hash": "715856338eb6412c",
+      "size": 89969,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.189Z",
+      "source": "scan"
+    },
+    "fixtures/Issue313-FastTest.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 11263,
+      "hash": "95b92720ead8c3de",
+      "size": 42235,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.189Z",
+      "source": "scan"
+    },
+    "fixtures/Issue313-FastTest.ses": {
+      "description": "Declares protect",
+      "tokens": 7089,
+      "hash": "70da0497cb507a39",
+      "size": 26583,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.189Z",
+      "source": "scan"
+    },
+    "fixtures/Issue326-Mars-64-revE.base64": {
+      "description": "",
+      "tokens": 18082,
+      "hash": "f1ed4df2c4aa2c7d",
+      "size": 67804,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.189Z",
+      "source": "scan"
+    },
+    "fixtures/Issue326-Mars-64-revE.dsn": {
+      "description": "Declares signal",
+      "tokens": 13277,
+      "hash": "3a7066d3ff441d49",
+      "size": 49787,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.189Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-Charger.dsn": {
+      "description": "Declares signal",
+      "tokens": 19898,
+      "hash": "7ce9353ef668555d",
+      "size": 74628,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.189Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-UltraFlactyl/fabrication-toolkit-options.json": {
+      "description": "",
+      "tokens": 32,
+      "hash": "f125d4a7a69faba4",
+      "size": 111,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.190Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-UltraFlactyl/UltraFlactyl": {
+      "description": "",
+      "tokens": 342,
+      "hash": "e11e26ba13a36cad",
+      "size": 1282,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.190Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-UltraFlactyl/UltraFlactyl.dsn": {
+      "description": "Declares signal",
+      "tokens": 27345,
+      "hash": "2187c009d45f16d4",
+      "size": 102541,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.190Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-UltraFlactyl/UltraFlactyl.kicad_prl": {
+      "description": "",
+      "tokens": 342,
+      "hash": "f9165f80de6f085b",
+      "size": 1281,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.190Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-UltraFlactyl/UltraFlactyl.kicad_pro": {
+      "description": "",
+      "tokens": 3674,
+      "hash": "42514716ec1342ac",
+      "size": 13779,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.190Z",
+      "source": "scan"
+    },
+    "fixtures/Issue367-UltraFlactyl/UltraFlactyl.kicad_sch": {
+      "description": "Declares default",
+      "tokens": 39292,
+      "hash": "7a10a58e25538ceb",
+      "size": 147378,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless/corney_island_wireless (GUI).ses": {
+      "description": "",
+      "tokens": 440,
+      "hash": "9e3a1d2ddb7a782f",
+      "size": 1650,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless/corney_island_wireless (no-GUI).ses": {
+      "description": "",
+      "tokens": 245,
+      "hash": "09cd42a8d5393672",
+      "size": 916,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless/corney_island_wireless.dsn": {
+      "description": "Declares signal",
+      "tokens": 1095,
+      "hash": "e49f9df5b86e62d1",
+      "size": 4103,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless/corney_island_wireless.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 3247,
+      "hash": "9cf1561fbc7e0362",
+      "size": 12176,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless/corney_island_wireless.kicad_prl": {
+      "description": "",
+      "tokens": 347,
+      "hash": "8b84fd93652f7bc7",
+      "size": 1300,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless/corney_island_wireless.kicad_pro": {
+      "description": "",
+      "tokens": 2170,
+      "hash": "2845d173c6557adc",
+      "size": 8134,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless_input_design.dsn": {
+      "description": "Declares signal",
+      "tokens": 840,
+      "hash": "287b6952a9098790",
+      "size": 3147,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless_input_design.json": {
+      "description": "",
+      "tokens": 2374,
+      "hash": "594fe8751f27a416",
+      "size": 8308,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless_output_session.json": {
+      "description": "",
+      "tokens": 379,
+      "hash": "e55606b4b8b79bb5",
+      "size": 1325,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue368-CorneyIslandWireless_output_session.ses": {
+      "description": "",
+      "tokens": 520,
+      "hash": "36a6fc12c281beef",
+      "size": 1949,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue413-test.dsn": {
+      "description": "Declares signal",
+      "tokens": 2314,
+      "hash": "04bc0654d2614a16",
+      "size": 8674,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.191Z",
+      "source": "scan"
+    },
+    "fixtures/Issue420-contribution-board.dsn": {
+      "description": "Declares signal",
+      "tokens": 46718,
+      "hash": "2b062515781ff587",
+      "size": 175191,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.192Z",
+      "source": "scan"
+    },
+    "fixtures/Issue433-my-board.dsn": {
+      "description": "Declares signal",
+      "tokens": 2182,
+      "hash": "36ce022caadc2e37",
+      "size": 8182,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.192Z",
+      "source": "scan"
+    },
+    "fixtures/Issue442-clearance_type_tests.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 3873,
+      "hash": "ed60109b1804437a",
+      "size": 14523,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.192Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/benchmark.sh": {
+      "description": "",
+      "tokens": 454,
+      "hash": "c63ef9dd1f5d3564",
+      "size": 1588,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.192Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/bm1.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 117220,
+      "hash": "d2babfee4ce1cd1a",
+      "size": 439572,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.193Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/bm1.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 38626,
+      "hash": "ee4c7d2eb0f2c7ac",
+      "size": 144844,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.193Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/DAC2020_bm01.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 8118,
+      "hash": "8ec7bea5e6f2637f",
+      "size": 30442,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.193Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/DAC2020_bm01.log": {
+      "description": "",
+      "tokens": 1144,
+      "hash": "0fcbe4b067909cee",
+      "size": 4290,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.194Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/DAC2020_bm01.ses": {
+      "description": "",
+      "tokens": 21640,
+      "hash": "34a9c4680d3718cb",
+      "size": 81148,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.194Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/DAC2020_bm01.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 8118,
+      "hash": "8ec7bea5e6f2637f",
+      "size": 30442,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.194Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/FRv1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 15171,
+      "hash": "d28f43c37472eee0",
+      "size": 56888,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.194Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 1144,
+      "hash": "0fcbe4b067909cee",
+      "size": 4290,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.194Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/DAC2020_bm01.log": {
+      "description": "",
+      "tokens": 76716,
+      "hash": "d8edf6f18eee9d85",
+      "size": 287684,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.195Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/DAC2020_bm01.ses": {
+      "description": "",
+      "tokens": 25924,
+      "hash": "f796a0140ea6d7d9",
+      "size": 97214,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.195Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/DAC2020_bm01.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 8118,
+      "hash": "8ec7bea5e6f2637f",
+      "size": 30442,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.195Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/FRv2.1.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 16382,
+      "hash": "029b8598fb3938a3",
+      "size": 61432,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.195Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/bm2.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 43101,
+      "hash": "b862fc09333389e2",
+      "size": 161628,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.196Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/bm2.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 35291,
+      "hash": "0033ca22863eaf6a",
+      "size": 132339,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.196Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/DAC2020_bm02.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 21410,
+      "hash": "45697050375579e5",
+      "size": 80285,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.196Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/DAC2020_bm02.log": {
+      "description": "",
+      "tokens": 206,
+      "hash": "049e11ba8a4ec9bb",
+      "size": 771,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.196Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/DAC2020_bm02.ses": {
+      "description": "",
+      "tokens": 3195,
+      "hash": "b20c7f75fa9d65c4",
+      "size": 11978,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.196Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/DAC2020_bm02.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 21410,
+      "hash": "45697050375579e5",
+      "size": 80285,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/FRv1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 405,
+      "hash": "a70d561662b4bfde",
+      "size": 1518,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 206,
+      "hash": "049e11ba8a4ec9bb",
+      "size": 771,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/DAC2020_bm02.log": {
+      "description": "",
+      "tokens": 762,
+      "hash": "e39d4f69444b1c0e",
+      "size": 2855,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/DAC2020_bm02.ses": {
+      "description": "",
+      "tokens": 3597,
+      "hash": "9b7fc829b8eac70f",
+      "size": 13488,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/DAC2020_bm02.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 21410,
+      "hash": "45697050375579e5",
+      "size": 80285,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/FRv2.1.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 406,
+      "hash": "598b689718a37267",
+      "size": 1520,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.197Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/bm4.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 66483,
+      "hash": "8a12b312e70ef9d1",
+      "size": 249308,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.198Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/bm4.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 35065,
+      "hash": "a867780c22396dce",
+      "size": 131493,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.198Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/DAC2020_bm04.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 7178,
+      "hash": "a21a373b8c23600a",
+      "size": 26915,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.198Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/DAC2020_bm04.log": {
+      "description": "",
+      "tokens": 860,
+      "hash": "33ed8e96744c258a",
+      "size": 3224,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.198Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/DAC2020_bm04.ses": {
+      "description": "",
+      "tokens": 14537,
+      "hash": "6a30a4474546cb4e",
+      "size": 54512,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/DAC2020_bm04.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 7178,
+      "hash": "a21a373b8c23600a",
+      "size": 26915,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/FRv1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 6816,
+      "hash": "4bffc12233d0b85a",
+      "size": 25560,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 860,
+      "hash": "33ed8e96744c258a",
+      "size": 3224,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/DAC2020_bm04.log": {
+      "description": "",
+      "tokens": 34731,
+      "hash": "f6452e724244e2a1",
+      "size": 130239,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/DAC2020_bm04.ses": {
+      "description": "",
+      "tokens": 13138,
+      "hash": "f4a56e6b8be16ae5",
+      "size": 49264,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/DAC2020_bm04.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 7178,
+      "hash": "a21a373b8c23600a",
+      "size": 26915,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.199Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/FRv2.1.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 8471,
+      "hash": "3829bd37a219b4b4",
+      "size": 31763,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.200Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/bm5.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 47114,
+      "hash": "1ff65be5db67a7f6",
+      "size": 176675,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.200Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/bm5.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 27686,
+      "hash": "e0d76da7bddd509a",
+      "size": 103822,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.200Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/DAC2020_bm05.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 4460,
+      "hash": "9378e9d022e28b72",
+      "size": 16723,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.200Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/DAC2020_bm05.log": {
+      "description": "",
+      "tokens": 200,
+      "hash": "20b02f8450960988",
+      "size": 747,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.200Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/DAC2020_bm05.ses": {
+      "description": "",
+      "tokens": 5567,
+      "hash": "d1c59d7ade30124f",
+      "size": 20875,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/DAC2020_bm05.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 4460,
+      "hash": "9378e9d022e28b72",
+      "size": 16723,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/FRv1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 5759,
+      "hash": "dd1314c4b030bb8f",
+      "size": 21596,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 200,
+      "hash": "20b02f8450960988",
+      "size": 747,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv2.1.0/DAC2020_bm05.ses": {
+      "description": "",
+      "tokens": 2996,
+      "hash": "a5dbc82c70a976b6",
+      "size": 11233,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv2.1.0/DAC2020_bm05.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 4460,
+      "hash": "9378e9d022e28b72",
+      "size": 16723,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm05/FRv2.1.0/FRv2.1.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 7676,
+      "hash": "4e0544065ad36d7d",
+      "size": 28783,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.201Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/bm6.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 38566,
+      "hash": "7a1215a0064fc869",
+      "size": 144623,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.202Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/bm6.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 22975,
+      "hash": "e5099cbbc2a384e6",
+      "size": 86159,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.202Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/DAC2020_bm06.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 6102,
+      "hash": "31f38102d90a1bb4",
+      "size": 22879,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.203Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/DAC2020_bm06.log": {
+      "description": "",
+      "tokens": 863,
+      "hash": "86d728f42c0c412a",
+      "size": 3235,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.203Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/DAC2020_bm06.ses": {
+      "description": "",
+      "tokens": 9035,
+      "hash": "79bab5c22e66e5a8",
+      "size": 33878,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.203Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/DAC2020_bm06.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 6102,
+      "hash": "31f38102d90a1bb4",
+      "size": 22879,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.203Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/FRv1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 7564,
+      "hash": "1132592d68b0f96e",
+      "size": 28363,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.203Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 863,
+      "hash": "86d728f42c0c412a",
+      "size": 3235,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.203Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv2.1.0/DAC2020_bm06.log": {
+      "description": "",
+      "tokens": 85080,
+      "hash": "4883008e96952439",
+      "size": 319047,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.204Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv2.1.0/DAC2020_bm06.ses": {
+      "description": "",
+      "tokens": 7104,
+      "hash": "a6ad1b472b864684",
+      "size": 26637,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.204Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv2.1.0/DAC2020_bm06.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 6102,
+      "hash": "31f38102d90a1bb4",
+      "size": 22879,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.204Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm06/FRv2.1.0/FRv2.1.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 8186,
+      "hash": "90e409ecd13a754e",
+      "size": 30696,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.204Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/bm7.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 35341,
+      "hash": "84883a593f23514a",
+      "size": 132527,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/bm7.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 19817,
+      "hash": "42ccf6ba2436968b",
+      "size": 74311,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/DAC2020_bm07.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 3949,
+      "hash": "39d85afa3133caae",
+      "size": 14807,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/DAC2020_bm07.log": {
+      "description": "",
+      "tokens": 206,
+      "hash": "b0a486ca5acdea2c",
+      "size": 771,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/DAC2020_bm07.ses": {
+      "description": "",
+      "tokens": 7665,
+      "hash": "d425ff5258738d71",
+      "size": 28741,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/DAC2020_bm07.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 3949,
+      "hash": "39d85afa3133caae",
+      "size": 14807,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/FRv1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 2258,
+      "hash": "280ed866ed512b20",
+      "size": 8464,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 206,
+      "hash": "b0a486ca5acdea2c",
+      "size": 771,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.205Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv2.1.0/DAC2020_bm07.log": {
+      "description": "",
+      "tokens": 885,
+      "hash": "0d75908d7b06263a",
+      "size": 3317,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv2.1.0/DAC2020_bm07.ses": {
+      "description": "",
+      "tokens": 8126,
+      "hash": "df4dc868efa5ded5",
+      "size": 30472,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv2.1.0/DAC2020_bm07.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 3949,
+      "hash": "39d85afa3133caae",
+      "size": 14807,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm07/FRv2.1.0/FRv2.1.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 2493,
+      "hash": "db82daea2735548e",
+      "size": 9346,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/bm8.routed.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 9573,
+      "hash": "8ad5a0d9d1a41e03",
+      "size": 35896,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/bm8.unrouted.kicad_pcb": {
+      "description": "Declares solid",
+      "tokens": 5851,
+      "hash": "d8d212a997eac2c3",
+      "size": 21938,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/DAC2020_bm08.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 1467,
+      "hash": "5d3acaaac47c1851",
+      "size": 5501,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/DAC2020_bm08.log": {
+      "description": "",
+      "tokens": 196,
+      "hash": "9da50471a619225d",
+      "size": 733,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/DAC2020_bm08.ses": {
+      "description": "",
+      "tokens": 2356,
+      "hash": "8706dd8fabcdba6e",
+      "size": 8834,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.206Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/DAC2020_bm08.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 1467,
+      "hash": "5d3acaaac47c1851",
+      "size": 5501,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/FR_v1.9.0_KiCad_DRC.rpt": {
+      "description": "",
+      "tokens": 1604,
+      "hash": "01f6bd718438e228",
+      "size": 6012,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/logs/freerouting.log": {
+      "description": "",
+      "tokens": 196,
+      "hash": "9da50471a619225d",
+      "size": 733,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv2.1.0/DAC2020_bm08.log": {
+      "description": "",
+      "tokens": 559,
+      "hash": "378a7b2da66a12ac",
+      "size": 2096,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv2.1.0/DAC2020_bm08.ses": {
+      "description": "",
+      "tokens": 2519,
+      "hash": "8c0c3b726f4765d5",
+      "size": 9445,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020/DAC2020_bm08/FRv2.1.0/DAC2020_bm08.unrouted.dsn": {
+      "description": "Declares signal",
+      "tokens": 1467,
+      "hash": "5d3acaaac47c1851",
+      "size": 5501,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm01.dsn": {
+      "description": "Declares signal",
+      "tokens": 8118,
+      "hash": "8ec7bea5e6f2637f",
+      "size": 30442,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm02.dsn": {
+      "description": "Declares signal",
+      "tokens": 21410,
+      "hash": "45697050375579e5",
+      "size": 80285,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.207Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm04.dsn": {
+      "description": "Declares signal",
+      "tokens": 7178,
+      "hash": "a21a373b8c23600a",
+      "size": 26915,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm05.dsn": {
+      "description": "Declares signal",
+      "tokens": 4460,
+      "hash": "9378e9d022e28b72",
+      "size": 16723,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm05.ses": {
+      "description": "",
+      "tokens": 8780,
+      "hash": "c6d2405b054db5fb",
+      "size": 32922,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm06.dsn": {
+      "description": "Declares signal",
+      "tokens": 6102,
+      "hash": "31f38102d90a1bb4",
+      "size": 22879,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm07-current.ses": {
+      "description": "",
+      "tokens": 8942,
+      "hash": "a2c49aa5e0d17dfb",
+      "size": 33532,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm07-v190.ses": {
+      "description": "",
+      "tokens": 8288,
+      "hash": "decb10308e1f5b70",
+      "size": 31079,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm07.dsn": {
+      "description": "Declares signal",
+      "tokens": 3949,
+      "hash": "39d85afa3133caae",
+      "size": 14807,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm08-routed.ses": {
+      "description": "",
+      "tokens": 2519,
+      "hash": "8c0c3b726f4765d5",
+      "size": 9445,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm08.dsn": {
+      "description": "Declares signal",
+      "tokens": 1467,
+      "hash": "5d3acaaac47c1851",
+      "size": 5501,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.208Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm09.dsn": {
+      "description": "Declares signal",
+      "tokens": 6654,
+      "hash": "30e5710b95e66a0c",
+      "size": 24952,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.209Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm10.dsn": {
+      "description": "Declares signal",
+      "tokens": 8356,
+      "hash": "80ce94e3e10d176e",
+      "size": 31332,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.209Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-DAC2020_bm11.dsn": {
+      "description": "Declares signal",
+      "tokens": 7000,
+      "hash": "33d1e43b16feb1be",
+      "size": 26248,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.209Z",
+      "source": "scan"
+    },
+    "fixtures/Issue508-SMD-routing-issue-demo.dsn": {
+      "description": "Declares signal",
+      "tokens": 623,
+      "hash": "86168e5c7c697033",
+      "size": 2335,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.209Z",
+      "source": "scan"
+    },
+    "fixtures/Issue555-BBD_Mars-64-current.ses": {
+      "description": "",
+      "tokens": 14095,
+      "hash": "e3dcdbb79e27b731",
+      "size": 52855,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.209Z",
+      "source": "scan"
+    },
+    "fixtures/Issue555-BBD_Mars-64-v190.ses": {
+      "description": "",
+      "tokens": 7875,
+      "hash": "49da5964879f9d06",
+      "size": 29530,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.210Z",
+      "source": "scan"
+    },
+    "fixtures/Issue555-BBD_Mars-64.dsn": {
+      "description": "Declares signal",
+      "tokens": 14552,
+      "hash": "c497069a57055b17",
+      "size": 54568,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.210Z",
+      "source": "scan"
+    },
+    "fixtures/Issue555-CNH_Functional_Tester_1.dsn": {
+      "description": "Declares signal",
+      "tokens": 43641,
+      "hash": "4ba02ac7147bbef2",
+      "size": 163651,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.210Z",
+      "source": "scan"
+    },
+    "fixtures/Issue558-dev-board.dsn": {
+      "description": "Declares signal",
+      "tokens": 7251,
+      "hash": "f1d70cb705bd0ee4",
+      "size": 27190,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.211Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations-freerouting_drc.json": {
+      "description": "",
+      "tokens": 14769,
+      "hash": "585a9d8ffddaf1ce",
+      "size": 51689,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.211Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations-kicad_drc.json": {
+      "description": "",
+      "tokens": 28272,
+      "hash": "15aa35b6d5c463bd",
+      "size": 98951,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.211Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations.dsn": {
+      "description": "Declares signal",
+      "tokens": 24739,
+      "hash": "92700f8d9cd84c00",
+      "size": 92769,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.211Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_dev-board_4_hole_clearance_violations-freerouting_drc.json": {
+      "description": "",
+      "tokens": 5807,
+      "hash": "4d88e65857ab0860",
+      "size": 20324,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.211Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_dev-board_4_hole_clearance_violations-kicad_drc.json": {
+      "description": "",
+      "tokens": 2871,
+      "hash": "40be696cbde0b62f",
+      "size": 10046,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.211Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_dev-board_4_hole_clearance_violations.dsn": {
+      "description": "Declares signal",
+      "tokens": 16674,
+      "hash": "c2d90bb79d23eba9",
+      "size": 62524,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.212Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_Natural_Tone_Preamp_7_unconnected_items-freerouting_drc.json": {
+      "description": "",
+      "tokens": 4285,
+      "hash": "7f1ad6ed5275d676",
+      "size": 14997,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.212Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_Natural_Tone_Preamp_7_unconnected_items-kicad_drc.json": {
+      "description": "",
+      "tokens": 22458,
+      "hash": "563184d29315e445",
+      "size": 78603,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.212Z",
+      "source": "scan"
+    },
+    "fixtures/Issue575-drc_Natural_Tone_Preamp_7_unconnected_items.dsn": {
+      "description": "Declares signal",
+      "tokens": 65565,
+      "hash": "d42b22ee890e731b",
+      "size": 245870,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.213Z",
+      "source": "scan"
+    },
+    "fixtures/Issue593-BBD_Mars-64.dsn": {
+      "description": "Declares signal",
+      "tokens": 14547,
+      "hash": "ff8cf056554cea90",
+      "size": 54549,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.213Z",
+      "source": "scan"
+    },
+    "fixtures/Issue593-BBD_Mars-64.rules": {
+      "description": "Declares smd_to_turn_gap",
+      "tokens": 883,
+      "hash": "d6d6d11814739790",
+      "size": 3310,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.213Z",
+      "source": "scan"
+    },
+    "fixtures/Issue593-BBD_Mars-64.ses": {
+      "description": "",
+      "tokens": 12824,
+      "hash": "9fdd878a6d28d5dc",
+      "size": 48090,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.213Z",
+      "source": "scan"
+    },
+    "fixtures/Issue649-kicad_ecc83-pp_input_board_v1.dsn": {
+      "description": "Declares signal",
+      "tokens": 9311,
+      "hash": "e7af5da592bd5c5d",
+      "size": 34916,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.213Z",
+      "source": "scan"
+    },
+    "fixtures/Issue649-kicad_ecc83-pp_input_board_v1.json": {
+      "description": "",
+      "tokens": 4006,
+      "hash": "0919e31fcc2d4f88",
+      "size": 14020,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.213Z",
+      "source": "scan"
+    },
+    "fixtures/Issue649-kicad_ecc83-pp_input_board_v2.dsn": {
+      "description": "Declares signal",
+      "tokens": 10719,
+      "hash": "ec673bb58e444551",
+      "size": 40194,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue649-kicad_ecc83-pp_input_board_v2.json": {
+      "description": "",
+      "tokens": 9052,
+      "hash": "4d6f10c5f12649d1",
+      "size": 31682,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue676-ch32v-tx118s.dsn": {
+      "description": "Declares signal",
+      "tokens": 3847,
+      "hash": "7270f70a8d196480",
+      "size": 14441,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue684-Autorouter_PCB1_2026-5-8.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 6093,
+      "hash": "83cf89ee07dc3adb",
+      "size": 22846,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue689-BBD_Mars-64.dsn": {
+      "description": "Declares signal",
+      "tokens": 14547,
+      "hash": "a89e2d6c7b905c32",
+      "size": 54549,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue690-ecc83.dsn": {
+      "description": "Declares signal",
+      "tokens": 10711,
+      "hash": "6190bf5dd1137466",
+      "size": 40165,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue690-ecc83.ses": {
+      "description": "Declares protect",
+      "tokens": 3088,
+      "hash": "43435e3733bb5e05",
+      "size": 11577,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.214Z",
+      "source": "scan"
+    },
+    "fixtures/Issue690-kit-dev-coldfire-xilinx_5213.dsn": {
+      "description": "Declares signal",
+      "tokens": 109915,
+      "hash": "2c48bf5b21e8ee5c",
+      "size": 412181,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.215Z",
+      "source": "scan"
+    },
+    "fixtures/Issue690-sonde_xilinx.dsn": {
+      "description": "Declares signal",
+      "tokens": 13267,
+      "hash": "633bd6bba64d23dc",
+      "size": 49750,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.215Z",
+      "source": "scan"
+    },
+    "fixtures/Issue721-Autorouter_CE2632_HarryMu_2026-6-15.dsn": {
+      "description": "Declares default_smd",
+      "tokens": 12437,
+      "hash": "fb77a13c290a2b63",
+      "size": 46638,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.216Z",
+      "source": "scan"
+    },
+    "fixtures/Issue723-CombineStackOverflow.dsn": {
+      "description": "Declares signal",
+      "tokens": 74841,
+      "hash": "32034d33e143b667",
+      "size": 280651,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.216Z",
+      "source": "scan"
+    },
+    "fixtures/Issue730-DAC2020_bm11.dsn": {
+      "description": "Declares signal",
+      "tokens": 7000,
+      "hash": "33d1e43b16feb1be",
+      "size": 26248,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.216Z",
+      "source": "scan"
+    },
+    "fixtures/Issue732-CM5_MINIMA_3.dsn": {
+      "description": "Declares signal",
+      "tokens": 39317,
+      "hash": "5e7acada18efb87e",
+      "size": 147437,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.217Z",
+      "source": "scan"
+    },
+    "fixtures/Issue732-DAC2020_bm10.dsn": {
+      "description": "Declares signal",
+      "tokens": 8356,
+      "hash": "80ce94e3e10d176e",
+      "size": 31332,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.217Z",
+      "source": "scan"
+    },
+    "fixtures/Issue732-RoyalBlue54L-Feather.dsn": {
+      "description": "Declares signal",
+      "tokens": 27266,
+      "hash": "1e9780d13b58ebbc",
+      "size": 102246,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.217Z",
+      "source": "scan"
+    },
+    "fixtures/Issue733-kicad_complex_hierarchy_input_design.dsn": {
+      "description": "Declares power",
+      "tokens": 14241,
+      "hash": "9bb6980a557e0cbc",
+      "size": 53403,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.217Z",
+      "source": "scan"
+    },
+    "fixtures/Issue733-kicad_complex_hierarchy_input_design.json": {
+      "description": "",
+      "tokens": 25665,
+      "hash": "6599a62d49ad122d",
+      "size": 89827,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.217Z",
+      "source": "scan"
+    },
+    "fixtures/Issue733-kicad_complex_hierarchy_output_session.json": {
+      "description": "",
+      "tokens": 19552,
+      "hash": "0e2b964652dba32c",
+      "size": 68430,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.218Z",
+      "source": "scan"
+    },
+    "fixtures/Issue733-kicad_complex_hierarchy_output_session.ses": {
+      "description": "",
+      "tokens": 9150,
+      "hash": "da46e51cfdb2fff6",
+      "size": 34309,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.218Z",
+      "source": "scan"
+    },
+    "fixtures/Issue733-kicad_interf_u_input_design.dsn": {
+      "description": "Declares signal",
+      "tokens": 36034,
+      "hash": "28e33426471abc4a",
+      "size": 135126,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.218Z",
+      "source": "scan"
+    },
+    "fixtures/Issue733-kicad_interf_u_input_design.json": {
+      "description": "",
+      "tokens": 109708,
+      "hash": "22843d05a9e7d834",
+      "size": 383977,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.219Z",
+      "source": "scan"
+    },
+    "fixtures/Issue742-tastexx-pcb.dsn": {
+      "description": "Declares signal",
+      "tokens": 9396,
+      "hash": "44ba4c05a65b92b3",
+      "size": 35242,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.219Z",
+      "source": "scan"
+    },
+    "fixtures/Issue742-tastexx-pcb.ses": {
+      "description": "",
+      "tokens": 2039,
+      "hash": "2cd0cb4fcb39b7b1",
+      "size": 7645,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.219Z",
+      "source": "scan"
+    },
+    "fixtures/Issue753-CPU-85_r104.dsn": {
+      "description": "Declares signal",
+      "tokens": 40379,
+      "hash": "608d28bc5380b385",
+      "size": 151418,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.219Z",
+      "source": "scan"
+    },
+    "fixtures/Issue754-avionics_hub.dsn": {
+      "description": "Declares signal",
+      "tokens": 44332,
+      "hash": "c31613660d0bc393",
+      "size": 166245,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.220Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-minimal-hang.dsn": {
+      "description": "Declares signal",
+      "tokens": 231,
+      "hash": "9c6803bc98c7bcc4",
+      "size": 864,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.220Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-minimal-ok.dsn": {
+      "description": "Declares signal",
+      "tokens": 209,
+      "hash": "6b3eb9184240d6e2",
+      "size": 781,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.220Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-tomu-fpga.dsn": {
+      "description": "Declares signal",
+      "tokens": 33728,
+      "hash": "c5279c56697b86e9",
+      "size": 126478,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.220Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-tomu-fpga11.dsn": {
+      "description": "Declares signal",
+      "tokens": 34878,
+      "hash": "fa9eebe7abc4af42",
+      "size": 130791,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.220Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-tomu-fpga7.dsn": {
+      "description": "Declares signal",
+      "tokens": 92446,
+      "hash": "3ad706e7cbf1ba08",
+      "size": 346670,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.221Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-tomu-fpga8.dsn": {
+      "description": "Declares signal",
+      "tokens": 92204,
+      "hash": "074003db4dfd7834",
+      "size": 345765,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.221Z",
+      "source": "scan"
+    },
+    "fixtures/Issue756-tomu-fpga9.dsn": {
+      "description": "Declares signal",
+      "tokens": 93791,
+      "hash": "ee19a6acdba2d104",
+      "size": 351713,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "fixtures/Issue757-minimal-soe-ok.dsn": {
+      "description": "Declares signal",
+      "tokens": 221,
+      "hash": "6c56b64a70a106c2",
+      "size": 828,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "fixtures/Issue757-minimal-soe.dsn": {
+      "description": "Declares signal",
+      "tokens": 245,
+      "hash": "dd4b032becc28fb1",
+      "size": 917,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "fixtures/scoring-empty-net.dsn": {
+      "description": "Declares signal",
+      "tokens": 279,
+      "hash": "f5df4f076b0deb84",
+      "size": 1045,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "fixtures/scoring-mixed-layer.dsn": {
+      "description": "Declares signal",
+      "tokens": 324,
+      "hash": "b554e5c6c9e35f67",
+      "size": 1214,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "fixtures/scoring-perfect-two-pin.dsn": {
+      "description": "Declares signal",
+      "tokens": 197,
+      "hash": "0a225b09194be4be",
+      "size": 736,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "fixtures/scoring-zero-length.dsn": {
+      "description": "Declares signal",
+      "tokens": 286,
+      "hash": "37e05d7e2abd9f43",
+      "size": 1071,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "GEMINI.md": {
+      "description": "OpenWolf",
+      "tokens": 75,
+      "hash": "e401f79554a8d796",
+      "size": 297,
+      "mtimeMs": 1789180904083.436,
+      "updatedAt": "2026-09-12T02:41:44.222Z",
+      "source": "scan"
+    },
+    "gradle.properties": {
+      "description": "Gradle Configuration",
+      "tokens": 128,
+      "hash": "91bc9c2d3c00bdce",
+      "size": 479,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "gradlew": {
+      "description": "you may not use this file except in compliance with the License.",
+      "tokens": 2303,
+      "hash": "a5a5c199ba02189a",
+      "size": 8656,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "gradlew.bat": {
+      "description": "",
+      "tokens": 738,
+      "hash": "59328c7a17f673b1",
+      "size": 2766,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "LICENSE": {
+      "description": "Project license",
+      "tokens": 9366,
+      "hash": "e1c0ad728983d8a5",
+      "size": 35121,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "pyproject.toml": {
+      "description": "Python project configuration",
+      "tokens": 245,
+      "hash": "fa9081a9ad1a0476",
+      "size": 856,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "README.md": {
+      "description": "Project documentation",
+      "tokens": 2644,
+      "hash": "cd3af508a980bdd5",
+      "size": 10598,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "rewrite.yml": {
+      "description": "Freerouting OpenRewrite phases.",
+      "tokens": 1676,
+      "hash": "1c4c7bc60c6ab8db",
+      "size": 5879,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "settings.gradle": {
+      "description": "Gradle settings",
+      "tokens": 32,
+      "hash": "36270cd104effda6",
+      "size": 120,
+      "mtimeMs": 1789139295000,
+      "updatedAt": "2026-09-12T02:41:44.223Z",
+      "source": "scan"
+    },
+    "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md": {
+      "description": "EpicRouter: Rust Rewrite Design",
+      "tokens": 3729,
+      "hash": "89005d705f38aa9b",
+      "size": 15138,
+      "mtimeMs": 1789182184058.4097,
+      "updatedAt": "2026-09-12T03:03:04.176Z",
+      "source": "hook"
+    },
+    "docs/superpowers/research/2026-09-11-autorouter-state-of-the-art.md": {
+      "description": "Autorouter State of the Art (September 2026)",
+      "tokens": 3691,
+      "hash": "ca55881734700a83",
+      "size": 14846,
+      "mtimeMs": 1789182097498.027,
+      "updatedAt": "2026-09-12T03:01:37.605Z",
+      "source": "hook"
+    },
+    "docs/superpowers/research/2026-09-11-freerouting-gaps-and-user-pain-points.md": {
+      "description": "Freerouting: Gaps, Complaints, and Feature Demand (September 2026)",
+      "tokens": 2215,
+      "hash": "28a6d918e551b8e5",
+      "size": 8932,
+      "mtimeMs": 1789182127127.9265,
+      "updatedAt": "2026-09-12T03:02:07.233Z",
+      "source": "hook"
+    },
+    "docs/superpowers/research/2026-09-11-language-and-architecture-evidence.md": {
+      "description": "Language & Architecture Evidence for the Rust Rewrite",
+      "tokens": 2360,
+      "hash": "cfbf1e8f92a3e8a1",
+      "size": 9532,
+      "mtimeMs": 1789182160000.9812,
+      "updatedAt": "2026-09-12T03:02:40.113Z",
+      "source": "hook"
+    }
+  },
+  "preamble": [
+    "> Project structure index. Auto-maintained by OpenWolf hooks and daemon.",
+    "> Run `openwolf scan` to generate, or wait for the first Claude Code session.",
+    "> Status: Pending initial scan"
+  ]
+}

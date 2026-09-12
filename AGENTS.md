@@ -474,3 +474,9 @@ v1.9 maintained an `already_checked_board_hashes` set. Between passes it compute
 | `NullPointerException` in `merge_entries_at_end` | Trace missing search-tree entries, `combine_at_end` chose optimised path | `PolylineTrace.combine_at_end()` — null guard before path 2 |
 | Score always 0 | `getNormalizedScore()` divided by 0 when board fully routed | `BoardStatistics.getNormalizedScore()` — `<= 0` guard |
 | Router loops endlessly on same board | No board-hash stagnation detection | `BatchAutorouter.runBatchLoop()` — `alreadyRoutedBoardHashes` set |
+
+<!-- openwolf:begin -->
+# OpenWolf
+
+This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md at session start. Check .wolf/cerebrum.md before generating code. Grep .wolf/anatomy.md for a file's path before reading it (never read the whole index).
+<!-- openwolf:end -->
