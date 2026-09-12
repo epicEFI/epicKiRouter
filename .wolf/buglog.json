@@ -1085,6 +1085,148 @@
    ],
    "occurrences": 1,
    "last_seen": "2026-09-12T21:12:09.000Z"
+  },
+  {
+   "id": "bug-069",
+   "timestamp": "2026-09-12T21:27:16.110Z",
+   "error_message": "Significant refactor of polyline.rs",
+   "file": "rust/crates/epic-geometry/src/polyline.rs",
+   "root_cause": "3 lines replaced/restructured",
+   "fix": "Rewrote 7→11 lines (3 removed)",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T21:27:16.110Z"
+  },
+  {
+   "id": "bug-070",
+   "timestamp": "2026-09-12T21:31:55.021Z",
+   "error_message": "Significant refactor of polygon_shape.rs",
+   "file": "rust/crates/epic-geometry/src/polygon_shape.rs",
+   "root_cause": "6 lines replaced/restructured",
+   "fix": "Rewrote 14→7 lines (6 removed) | Also: let mut current_polygon = polygon;; if polygon.winding_number_after_closing() < 0 { | Also: if piece.intersects(&TileShape::RegularTileShape(; match circle.bounding_tile() {",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 3,
+   "last_seen": "2026-09-12T21:32:04.773Z"
+  },
+  {
+   "id": "bug-071",
+   "timestamp": "2026-09-12T21:35:15.948Z",
+   "error_message": "Significant refactor of shape.rs",
+   "file": "rust/crates/epic-geometry/src/shape.rs",
+   "root_cause": "8 lines replaced/restructured",
+   "fix": "Rewrote 12→18 lines (8 removed) | Also: /// Clones the referenced shape into an owned [`Ti; /// The no-th border line of the referenced shape.",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 2,
+   "last_seen": "2026-09-12T21:35:39.834Z"
+  },
+  {
+   "id": "bug-072",
+   "timestamp": "2026-09-12T21:42:12.072Z",
+   "error_message": "Significant refactor of tile_shape.rs",
+   "file": "rust/crates/epic-geometry/src/tile_shape.rs",
+   "root_cause": "10 lines replaced/restructured",
+   "fix": "Rewrote 10→13 lines (10 removed)",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T21:42:12.072Z"
+  },
+  {
+   "id": "bug-073",
+   "timestamp": "2026-09-12T22:01:04.578Z",
+   "error_message": "Significant refactor of circle.rs",
+   "file": "rust/crates/epic-geometry/src/circle.rs",
+   "root_cause": "4 lines replaced/restructured",
+   "fix": "Rewrote 7→7 lines (4 removed)",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T22:01:04.578Z"
+  },
+  {
+   "id": "bug-074",
+   "timestamp": "2026-09-12T22:06:42.316Z",
+   "error_message": "Significant refactor of tile_shape.rs",
+   "file": "rust/crates/epic-geometry/src/tile_shape.rs",
+   "root_cause": "4 lines replaced/restructured",
+   "fix": "Rewrote 4→3 lines (4 removed)",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T22:06:42.316Z"
+  },
+  {
+   "id": "bug-075",
+   "date": "2026-09-12",
+   "error_message": "PENT pin failed: TileShape.entrance_points returned [] instead of [(1,6),(1,2)] for the 3-line cross polyline; PCUT consequently produced 1 piece instead of 2.",
+   "root_cause": "Port misremembered the Java loop bound as lineCount()-1 (=> lines.length-2) during a deferred-ledger closure, emulating an off-by-one that does not exist. Java TileShape.entrancePoints (TileShape.java:872) bounds on the RAW line array: lineIndex < polyline.lines.length - 1 (=> lines.length-1). For a 3-line polyline the only segment line (index 1) was never scanned, so no intersections were found.",
+   "fix": "Changed the Rust bound from wrapping_sub(2) to wrapping_sub(1) with the Java line citation in the comment; pins PENT/PCUT now pass against the jshell-captured oracle. Note the dedup predicate (pair != prev pair) is logically equivalent to Java's (lineNo != prevLineNo || edgeNo != prevEdgeNo), so only the bound was wrong.",
+   "tags": [
+    "m1a",
+    "task8",
+    "port-bug",
+    "off-by-one",
+    "oracle-pin-caught",
+    "tile_shape.rs"
+   ]
+  },
+  {
+   "id": "bug-076",
+   "date": "2026-09-12",
+   "error_message": "Task 8 mutation test: swapping Polyline::new's filter/removeOverlaps order survived every existing pin (POVL1 included) — the T10 ctor-order branch had no observing test.",
+   "root_cause": "Pin-failure mode: branch never executes. POVL1's 5-line input has no consecutive-parallel pair, so under the swapped order removeOverlaps produced the same output as the true order and the mutation was invisible.",
+   "fix": "Added jshell-pinned POVL2 on A=(0,0)-(10,0), P=(2,3)-(12,3), A'=A, C=(0,0)-(7,7), D=(0,0)-(0,10): the filter drops P and A' before removeOverlaps (oracle [A,C,D]); the swapped order yields [P,C,D]. Mutant applied -> povl2_filter_before_overlap_order_pin failed with first line (2,3)-(12,3) -> reverted -> green.",
+   "tags": [
+    "m1a/task8",
+    "pin-gap",
+    "branch-never-executes",
+    "trap-t10",
+    "polyline.rs",
+    "mutation-verified"
+   ]
+  },
+  {
+   "id": "bug-077",
+   "date": "2026-09-12",
+   "error_message": "Task 8 mutation test: Random(99) -> Random(100) in PolygonShape::split_to_convex survived PSP1 — the ear-split seed had no observing test.",
+   "root_cause": "Pin-failure mode: degenerate input where the seeded term can't influence the outcome. PSP1's L-shape has a single concave corner, so any nextIntBound draw scans to the same split and every seed is equivalent.",
+   "fix": "Kept PSP1 as a result pin (comment reworded) and added jshell-pinned PSP2 on a 13-corner chamfered plus (4 concavities, ambiguous decomposition): seed 99 draw 1 vs seed 100 draw 12 select different concavities. Mutant SEED 99->100 -> psp2_split_to_convex_seed_pin failed (IntBox (10,0)-(30,10) vs oracle octagon) -> reverted -> green.",
+   "tags": [
+    "m1a/task8",
+    "pin-gap",
+    "degenerate-input",
+    "trap-d6",
+    "trap-d7",
+    "polygon_shape.rs",
+    "mutation-verified"
+   ]
   }
  ]
 }
