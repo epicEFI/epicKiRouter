@@ -50,6 +50,8 @@
 | T13 | `Point.getInstance(BigInt,BigInt,BigInt)` | down-converts to IntPoint only when both divide evenly and fit CRIT_INT_BIG; else RationalPoint — port the same test |
 | T14 | Lazy memoization (`Line.dir`, `IntOctagon.precalculatedToSimplex`, `Simplex.intersectionSides`, `Polyline.precalculatedCorners`…) | performance-only in Java; Rust uses plain `OnceLock`/recompute — results identical because sort order (not caches) determines outcomes. Do NOT introduce caching that changes evaluation order |
 | T15 | f64→i32 `as` cast semantics (added Task 4 review) | **JLS 5.1.3 double→int narrowing SATURATES** (NaN→0, ±Inf/out-of-range→clamp ±MAX) — Rust `f64 as i32` is bit-identical at every magnitude (empirically verified JDK 25 vs rustc during the Task 4 quality review). Only **long→int** keeps low 32 bits, and Rust `i64 as i32` wraps identically. Do NOT add a `java_int_cast(f64)` helper — it would encode a divergence that does not exist |
+| T16 | `RationalPoint.perpendicularProjection` vs `IntPoint.perpendicularProjection` (added Task 6) | Upstream defect, bug-compatible port: for the SAME affine input the RationalPoint variant's projY numerator ADDS `det*vx*z` where the IntPoint variant SUBTRACTS `det*vx` — projections of (3,5) onto y=1 come out Int(3,1) vs Int(3,−1) (pins PP1/PP2r). RationalPoint projX uses `det*vy*z` (the correct term); do NOT "fix" either sign |
+| T17 | `LineSegment.stairApproximation45` (added Task 6) | Upstream defect at LineSegment.java:432: the function-of-y branch calls `functionValueApprox(currentY)` (x-function fed a y!) instead of `functionInYValueApprox`. Reproduce verbatim; pin ST2 (45-degree stairs of a slope-½ segment) is sensitive to it |
 
 ### Java classes → Rust modules (the port map)
 

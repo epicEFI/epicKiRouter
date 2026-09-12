@@ -13,14 +13,14 @@
 //! tasks; the deferrals are documented on each module. The Task 4
 //! deferrals (`surroundingBox` / `boundingBox` / `isContainedIn`) landed
 //! with IntBox, the Task 5 deferrals (`surroundingOctagon` /
-//! `boundingOctagon`) with IntOctagon.
-//! - `sideOf(Line)` / `perpendicularProjection` /
-//!   `perpendicularDirection` / `projectionApprox` -> Task 6 (Line /
-//!   FloatLine)
+//! `boundingOctagon`) with IntOctagon, and the Task 6 deferrals
+//! (`sideOf(Line)` / `perpendicularProjection` /
+//! `perpendicularDirection` / `projectionApprox`) with the Line family.
 
 pub mod big_int_aux;
 pub mod big_int_direction;
 pub mod direction;
+pub mod float_line;
 pub mod float_point;
 pub mod fortyfive_degree_direction;
 pub mod int_box;
@@ -30,6 +30,8 @@ pub mod int_point;
 pub mod int_vector;
 pub mod java_random;
 pub mod limits;
+pub mod line;
+pub mod line_segment;
 pub mod point;
 pub mod rational_point;
 pub mod rational_vector;
