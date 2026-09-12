@@ -2,6 +2,7 @@
 //! (design §5). M0 scope: drive the Java oracle engine and capture golden
 //! baselines.
 
+mod manifest;
 mod tiers;
 
 fn main() {
