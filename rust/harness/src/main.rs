@@ -2,6 +2,8 @@
 //! (design §5). M0 scope: drive the Java oracle engine and capture golden
 //! baselines.
 
+mod tiers;
+
 fn main() {
-    println!("epic-harness: not yet implemented (see plan Task 2)");
+    println!("epic-harness: tiers module loaded");
 }
