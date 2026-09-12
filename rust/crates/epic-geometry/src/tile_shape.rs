@@ -43,18 +43,22 @@
 //! [`TileShape::from_4_ints`] (return the normalized `IntOctagon`, like
 //! Java), [`TileShape::surrounding_point`].
 //!
-//! Deferral ledger (Task 8 re-ledgers — all need Polyline / Polygon /
-//! Circle / Ellipse types): `rotateApprox` (Polygon), `cutout(Polyline)` /
-//! `entrancePoints` (Polyline), `divideIntoSections` (TileShape[]
-//! sections; body not fully captured), `touchingSides`,
-//! `distanceToTheLeft`, `nearestRelativeOutsideLocations`,
-//! `diagonalCornerSegment` (FloatLine construction),
-//! `isIntersectedInteriorBy`, and `indexOfNearestCorner` (whose Java body
-//! seeds `Double.MIN_VALUE` — the positive 4.9e-324 — as a "distance"
-//! minimum, an oracle bug that pins the result to index 0; ported only
-//! together with a pin proving the bug).
+//! Deferral ledger — CLOSED in Task 8: `rotateApprox` ([`Self::rotate_approx`]
+//! with the Polygon rebuild), `cutout(Polyline)` / `entrancePoints`
+//! ([`Self::cutout_polyline`] / [`Self::entrance_points`]),
+//! `divideIntoSections` ([`Self::divide_into_sections`]), `touchingSides`
+//! ([`Self::touching_sides`]), `distanceToTheLeft`
+//! ([`Self::distance_to_the_left`]), `nearestRelativeOutsideLocations`
+//! ([`Self::nearest_relative_outside_locations`]),
+//! `diagonalCornerSegment` ([`Self::diagonal_corner_segment`]),
+//! `isIntersectedInteriorBy` ([`Self::is_intersected_interior_by`]), and
+//! `indexOfNearestCorner` ([`Self::index_of_nearest_corner`]; whose Java
+//! body seeds `Double.MIN_VALUE` — the positive 4.9e-324 — as a
+//! "distance" minimum, an oracle bug that pins the result to index 0;
+//! ported bug-compat as trap T21 with a pin proving the bug).
 
 use crate::direction::Direction;
+use crate::float_line::FloatLine;
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
 use crate::int_octagon::IntOctagon;
@@ -938,6 +942,476 @@ impl TileShape {
     pub fn cutout(&self, shape: &TileShape) -> Vec<TileShape> {
         shape.cutout_from(self)
     }
+
+    // -------------------------------------------------------------------
+    // Task 8 ledger closures (TileShape.java methods that needed the
+    // Polyline / Polygon / FloatLine family from Tasks 2-8).
+    // -------------------------------------------------------------------
+
+    /// Returns the number of the nearest corner of the shape to from_point
+    /// (Java `indexOfNearestCorner`).
+    ///
+    /// Trap T21 (oracle bug kept for parity): Java seeds the running
+    /// minimum with `Double.MIN_VALUE` — the smallest POSITIVE double
+    /// (4.9e-324), not the most negative one. A distance can only beat
+    /// that seed when it is exactly 0, so for any from_point that does not
+    /// coincide with a corner the result is pinned to index 0. The port
+    /// reproduces the seed with `f64::from_bits(1)`.
+    pub fn index_of_nearest_corner(&self, from_point: &Point) -> i32 {
+        let from_point_f = from_point.to_float();
+        let mut result = 0;
+        let corner_count = self.border_line_count();
+        let mut min_dist = f64::from_bits(1); // Java Double.MIN_VALUE bug-compat
+        for i in 0..corner_count as i32 {
+            let current_distance = self
+                .corner_approx(i)
+                .expect("corner loop of a non-empty shape")
+                .distance(&from_point_f);
+            if current_distance < min_dist {
+                min_dist = current_distance;
+                result = i;
+            }
+        }
+        result
+    }
+
+    /// Returns a line segment consisting of approximations of the corners
+    /// with index 0 and cornerCount / 2 (Java `diagonalCornerSegment`);
+    /// `None` where Java returns null (empty shape).
+    pub fn diagonal_corner_segment(&self) -> Option<FloatLine> {
+        if self.is_empty() {
+            return None;
+        }
+        let first_corner = self.corner_approx(0)?;
+        let last_corner = self.corner_approx(self.border_line_count() as i32 / 2)?;
+        Some(FloatLine::new(first_corner, last_corner))
+    }
+
+    /// Returns an approximation of the count nearest relative outside
+    /// locations of shape in the direction of different border lines of
+    /// this shape, sorted ascending (Java
+    /// `nearestRelativeOutsideLocations`).
+    pub fn nearest_relative_outside_locations(
+        &self,
+        shape: &TileShape,
+        count: i32,
+    ) -> Vec<FloatPoint> {
+        let line_count = self.border_line_count() as i32;
+        if count <= 0 || line_count < 3 || !self.intersects(shape) {
+            return Vec::new();
+        }
+        let result_count = count.min(line_count) as usize;
+        let mut translate_coors = vec![FloatPoint::ZERO; result_count];
+        let mut min_dists = vec![f64::MAX; result_count];
+
+        let mut current_ind = line_count - 1;
+        let other_line_count = shape.border_line_count() as i32;
+
+        for next_ind in 0..line_count {
+            let mut current_max_dist = 0.0f64;
+            let mut current_translate_coor = FloatPoint::ZERO;
+            for corner_index in 0..other_line_count {
+                let current_corner = shape
+                    .corner_approx(corner_index)
+                    .expect("non-empty other shape");
+                if self
+                    .border_line(current_ind)
+                    .side_of_float_zero(&current_corner)
+                    == Side::Negative
+                {
+                    let projection =
+                        current_corner.projection_approx(&self.border_line(current_ind));
+                    let current_distance = projection.distance_square(&current_corner);
+                    if current_distance > current_max_dist {
+                        current_max_dist = current_distance;
+                        current_translate_coor = projection.subtract(&current_corner);
+                    }
+                }
+            }
+            for j in 0..result_count {
+                if current_max_dist < min_dists[j] {
+                    let mut k = j + 1;
+                    while k < result_count {
+                        min_dists[k] = min_dists[k - 1];
+                        translate_coors[k] = translate_coors[k - 1];
+                        k += 1;
+                    }
+                    min_dists[j] = current_max_dist;
+                    translate_coors[j] = current_translate_coor;
+                    break;
+                }
+            }
+            current_ind = next_ind;
+        }
+        translate_coors
+    }
+
+    /// Calculates whether this shape and other have a common border piece
+    /// and returns the indices of the touching edge lines (Java
+    /// `touchingSides`); empty when they do not touch.
+    pub fn touching_sides(&self, other: &TileShape) -> Vec<i32> {
+        use std::cmp::Ordering as Ord;
+        // search the first edge line of other with reverse direction >= right
+        let mut side_no2: i32 = -1;
+        let mut dir2: Option<Direction> = None;
+        for i in 0..other.border_line_count() as i32 {
+            let current_direction = other.border_line(i).direction().clone();
+            if current_direction.compare_to(&Direction::LEFT) != Ord::Less {
+                side_no2 = i;
+                dir2 = Some(current_direction.opposite());
+                break;
+            }
+        }
+        let mut dir2 = match dir2 {
+            Some(d) => d,
+            // Java: FRLogger.warn("touching_side : dir2 not found")
+            None => return Vec::new(),
+        };
+        let mut side_no1: i32 = 0;
+        let mut dir1 = self.border_line(0).direction().clone();
+        let max_ind = self.border_line_count() as i32 + other.border_line_count() as i32;
+
+        for _ in 0..max_ind {
+            let compare = dir2.compare_to(&dir1);
+            if compare == Ord::Equal
+                && self
+                    .border_line(side_no1)
+                    .is_equal_or_opposite(&other.border_line(side_no2))
+            {
+                return vec![side_no1, side_no2];
+            }
+            if compare != Ord::Less {
+                // dir2 is bigger than dir1
+                side_no1 = (side_no1 + 1) % self.border_line_count() as i32;
+                dir1 = self.border_line(side_no1).direction().clone();
+            } else {
+                // dir1 is bigger than dir2
+                side_no2 = (side_no2 + 1) % other.border_line_count() as i32;
+                dir2 = other.border_line(side_no2).direction().opposite();
+            }
+        }
+        Vec::new()
+    }
+
+    /// Calculates the minimal distance of line to this shape, assuming
+    /// that line is on the left of this shape. Returns -1 if line is on
+    /// the right of this shape or intersects with its interior (Java
+    /// `distanceToTheLeft`).
+    pub fn distance_to_the_left(&self, line: &Line) -> f64 {
+        let mut result = 2147483647.0f64; // Java Integer.MAX_VALUE
+        for i in 0..self.border_line_count() as i32 {
+            let current_corner = self
+                .corner_approx(i)
+                .expect("corner loop of a non-empty shape");
+            let mut line_side = line.side_of_float(&current_corner, 1.0);
+            if line_side == Side::Collinear {
+                line_side = line.side_of(&self.corner(i));
+            }
+            if line_side == Side::Negative {
+                // currentPoint would be outside the result shape
+                return -1.0;
+            }
+            result = result.min(line.signed_distance(&current_corner));
+        }
+        result
+    }
+
+    /// Returns an approximation of this shape rotated around pole (Java
+    /// `TileShape.rotateApprox`): the rounded corners rebuild a polygon
+    /// whose instance shape depends on the remaining corner count.
+    pub fn rotate_approx(&self, angle: f64, pole: &FloatPoint) -> TileShape {
+        if angle == 0.0 {
+            return self.clone();
+        }
+        let new_corners: Vec<Point> = (0..self.border_line_count() as i32)
+            .map(|i| {
+                Point::Int(
+                    self.corner_approx(i)
+                        .expect("corner loop of a non-empty shape")
+                        .rotate(angle, pole)
+                        .round(),
+                )
+            })
+            .collect();
+        let corner_polygon = crate::polygon::Polygon::new(&new_corners);
+        let polygon_corners = corner_polygon.corner_array();
+        if polygon_corners.len() >= 3 {
+            TileShape::from_points(polygon_corners)
+        } else if polygon_corners.len() == 2 {
+            let current_polyline = crate::polyline::Polyline::from_points(polygon_corners);
+            let current_segment =
+                crate::line_segment::LineSegment::from_polyline(&current_polyline, 0);
+            TileShape::Simplex(Box::new(current_segment.to_simplex()))
+        } else if polygon_corners.len() == 1 {
+            TileShape::RegularTileShape(RegularTileShape::IntBox(TileShape::surrounding_point(
+                &polygon_corners[0],
+            )))
+        } else {
+            TileShape::Simplex(Box::new(Simplex::empty()))
+        }
+    }
+
+    /// Returns tuples (polyline line no, border line no) of the points
+    /// where polyline enters or leaves the interior of this shape (Java
+    /// `entrancePoints`).
+    pub fn entrance_points(&self, polyline: &crate::polyline::Polyline) -> Vec<(i32, i32)> {
+        let mut result: Vec<(i32, i32)> = Vec::new();
+        let mut prev_intersection: Option<(i32, i32)> = None;
+        // Java TileShape.java:872:
+        // lineIndex < polyline.lines.length - 1.
+        for line_index in 1..(polyline.lines.len() as i32).wrapping_sub(1) {
+            let current_line_seg =
+                crate::line_segment::LineSegment::from_polyline(polyline, line_index);
+            let current_intersections = current_line_seg.border_intersections(self);
+            for edge_index in current_intersections {
+                if prev_intersection != Some((line_index, edge_index)) {
+                    result.push((line_index, edge_index));
+                    prev_intersection = Some((line_index, edge_index));
+                }
+            }
+        }
+        result
+    }
+
+    /// Cuts out the parts of polyline in the interior of this shape and
+    /// returns the remaining pieces of polyline (Java
+    /// `TileShape.cutout(Polyline)`). Pieces completely contained in the
+    /// border are not returned.
+    pub fn cutout_polyline(
+        &self,
+        polyline: &crate::polyline::Polyline,
+    ) -> Vec<crate::polyline::Polyline> {
+        let intersection_no = self.entrance_points(polyline);
+        let first_corner = polyline
+            .first_corner()
+            .expect("Java NPE: polyline without corners");
+        let first_corner_is_inside = self.contains_inside(&first_corner);
+        let mut pieces: Vec<crate::polyline::Polyline> = Vec::new();
+        if intersection_no.is_empty() {
+            // no intersections
+            if first_corner_is_inside {
+                // polyline is contained completely in this shape
+                return pieces;
+            }
+            // polyline is completely outside
+            pieces.push(polyline.clone());
+            return pieces;
+        }
+        let mut current_intersection_no: usize = 0;
+        let current_intersection_tuple = intersection_no[current_intersection_no];
+        let first_intersection = polyline.lines[current_intersection_tuple.0 as usize]
+            .intersection(&self.border_line(current_intersection_tuple.1))
+            .expect("entrance lines intersect");
+        if !first_corner_is_inside {
+            // calculate outside piece at start
+            if first_corner != first_intersection {
+                // otherwise skip 1 point outside polyline at the start
+                let current_polyline_intersection_no = current_intersection_tuple.0;
+                let mut current_lines: Vec<Line> =
+                    polyline.lines[0..=(current_polyline_intersection_no) as usize].to_vec();
+                // close the polyline piece with the intersected edge line.
+                current_lines.push(self.border_line(current_intersection_tuple.1));
+                let current_piece = crate::polyline::Polyline::new(current_lines);
+                if !current_piece.is_empty() {
+                    pieces.push(current_piece);
+                }
+            }
+            current_intersection_no += 1;
+        }
+        while current_intersection_no < intersection_no.len().wrapping_sub(1) {
+            // calculate the next outside polyline piece
+            let current_intersection_tuple = intersection_no[current_intersection_no];
+            let next_intersection_tuple = intersection_no[current_intersection_no + 1];
+            let current_intersection_no_of_polyline = current_intersection_tuple.0;
+            let next_intersection_no_of_polyline = next_intersection_tuple.0;
+            // check that at least 1 corner of polyline with number between
+            // the two intersections is not contained in this shape.
+            // Otherwise the part between the intersections is completely
+            // contained in the border and can be ignored
+            let mut insert_piece = false;
+            for i in current_intersection_no_of_polyline + 1..next_intersection_no_of_polyline {
+                if self.is_outside(&polyline.corner(i).expect("corner between intersections")) {
+                    insert_piece = true;
+                    break;
+                }
+            }
+            if insert_piece {
+                let mut current_lines: Vec<Line> = Vec::with_capacity(
+                    (next_intersection_no_of_polyline - current_intersection_no_of_polyline + 3)
+                        as usize,
+                );
+                current_lines.push(self.border_line(current_intersection_tuple.1));
+                current_lines.extend(
+                    polyline.lines[current_intersection_no_of_polyline as usize
+                        ..(current_intersection_no_of_polyline + next_intersection_no_of_polyline
+                            - current_intersection_no_of_polyline
+                            + 1) as usize]
+                        .iter()
+                        .cloned(),
+                );
+                current_lines.push(self.border_line(next_intersection_tuple.1));
+                let current_piece = crate::polyline::Polyline::new(current_lines);
+                if !current_piece.is_empty() {
+                    pieces.push(current_piece);
+                }
+            }
+            current_intersection_no += 2;
+        }
+        if current_intersection_no <= intersection_no.len().wrapping_sub(1) {
+            // calculate outside piece at end
+            let current_intersection_tuple = intersection_no[current_intersection_no];
+            let current_polyline_intersection_no = current_intersection_tuple.0;
+            let mut current_lines: Vec<Line> = Vec::with_capacity(
+                (polyline.lines.len() as i32 - current_polyline_intersection_no + 1) as usize,
+            );
+            current_lines.push(self.border_line(current_intersection_tuple.1));
+            current_lines.extend(
+                polyline.lines[current_polyline_intersection_no as usize..]
+                    .iter()
+                    .cloned(),
+            );
+            let current_piece = crate::polyline::Polyline::new(current_lines);
+            if !current_piece.is_empty() {
+                pieces.push(current_piece);
+            }
+        }
+        pieces
+    }
+
+    /// Divides this shape into sections with width and height at most
+    /// max_section_width of about equal size (Java `divideIntoSections`).
+    pub fn divide_into_sections(&self, max_section_width: f64) -> Vec<TileShape> {
+        if self.is_empty() {
+            return vec![self.clone()];
+        }
+        let section_boxes = self.bounding_box().divide_into_sections(max_section_width);
+        let mut section_list: Vec<TileShape> = Vec::new();
+        for section_box in section_boxes {
+            let current_section = self.intersection_with_simplify(&TileShape::RegularTileShape(
+                RegularTileShape::IntBox(section_box),
+            ));
+            if current_section.dimension() == 2 {
+                section_list.push(current_section);
+            }
+        }
+        section_list
+    }
+
+    /// Checks if line_segment has a common point with the interior of this
+    /// shape (Java `isIntersectedInteriorBy(LineSegment)`).
+    pub fn is_intersected_interior_by(
+        &self,
+        line_segment: &crate::line_segment::LineSegment,
+    ) -> bool {
+        self.is_intersected_interior_by_points(
+            &line_segment.start_point(),
+            &line_segment.end_point(),
+            line_segment.get_line(),
+        )
+    }
+
+    /// Checks if the line segment defined by start_point, end_point and
+    /// line has a common point with the interior of this shape (Java
+    /// `isIntersectedInteriorBy(Point, Point, Line)`).
+    pub fn is_intersected_interior_by_points(
+        &self,
+        start_point: &Point,
+        end_point: &Point,
+        line: &Line,
+    ) -> bool {
+        let float_start_point = start_point.to_float();
+        let float_end_point = end_point.to_float();
+
+        let border_line_count = self.border_line_count() as i32;
+        let mut border_line_side_of_start_point_arr: Vec<Side> =
+            Vec::with_capacity(border_line_count as usize);
+        let mut border_line_side_of_end_point_arr: Vec<Side> =
+            Vec::with_capacity(border_line_count as usize);
+        for i in 0..border_line_count {
+            let current_border_line = self.border_line(i);
+            let mut border_line_side_of_start_point =
+                current_border_line.side_of_float(&float_start_point, 1.0);
+            if border_line_side_of_start_point == Side::Collinear {
+                border_line_side_of_start_point = current_border_line.side_of(start_point);
+            }
+            let mut border_line_side_of_end_point =
+                current_border_line.side_of_float(&float_end_point, 1.0);
+            if border_line_side_of_end_point == Side::Collinear {
+                border_line_side_of_end_point = current_border_line.side_of(end_point);
+            }
+            if border_line_side_of_start_point != Side::Negative
+                && border_line_side_of_end_point != Side::Negative
+            {
+                // both endpoints are outside the borderLine,
+                // no intersection possible
+                return false;
+            }
+            border_line_side_of_start_point_arr.push(border_line_side_of_start_point);
+            border_line_side_of_end_point_arr.push(border_line_side_of_end_point);
+        }
+        let mut start_point_is_inside = true;
+        for &side in &border_line_side_of_start_point_arr {
+            if side != Side::Negative {
+                start_point_is_inside = false;
+                break;
+            }
+        }
+        if start_point_is_inside {
+            return true;
+        }
+        let mut end_point_is_inside = true;
+        for &side in &border_line_side_of_end_point_arr {
+            if side != Side::Negative {
+                end_point_is_inside = false;
+                break;
+            }
+        }
+        if end_point_is_inside {
+            return true;
+        }
+        let segment_line = line;
+        // Check, if this line segment intersects a border line of shape.
+        for i in 0..border_line_count {
+            let border_line_side_of_start_point = border_line_side_of_start_point_arr[i as usize];
+            let border_line_side_of_end_point = border_line_side_of_end_point_arr[i as usize];
+            if border_line_side_of_start_point != border_line_side_of_end_point {
+                if (border_line_side_of_start_point == Side::Collinear
+                    && border_line_side_of_end_point == Side::Positive)
+                    || (border_line_side_of_end_point == Side::Collinear
+                        && border_line_side_of_start_point == Side::Positive)
+                {
+                    // the interior of shape is not intersected.
+                    continue;
+                }
+                let mut prev_corner_side = segment_line.side_of_float(
+                    &self
+                        .corner_approx(i)
+                        .expect("corner loop of a non-empty shape"),
+                    1.0,
+                );
+                if prev_corner_side == Side::Collinear {
+                    prev_corner_side = segment_line.side_of(&self.corner(i));
+                }
+                let next_corner_index = if i == border_line_count - 1 { 0 } else { i + 1 };
+                let mut next_corner_side = segment_line.side_of_float(
+                    &self
+                        .corner_approx(next_corner_index)
+                        .expect("corner loop of a non-empty shape"),
+                    1.0,
+                );
+                if next_corner_side == Side::Collinear {
+                    next_corner_side = segment_line.side_of(&self.corner(next_corner_index));
+                }
+                if (prev_corner_side == Side::Positive && next_corner_side == Side::Negative)
+                    || (prev_corner_side == Side::Negative && next_corner_side == Side::Positive)
+                {
+                    // this line segment crosses a border line of shape
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -1383,6 +1857,159 @@ mod tests {
         assert_eq!(
             sq.bounding_octagon(),
             Some(IntOctagon::new(0, -5, 6, 6, -6, 11, -5, 12))
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // Task 8 oracle pins (all jshell-captured from the frozen jar).
+    // -------------------------------------------------------------------
+
+    /// Java helpers for the Task 8 pins:
+    /// `boxOct = TileShape.getInstance(0, 0, 10, 10)`,
+    /// `right = TileShape.getInstance(10, 0, 20, 10)`,
+    /// `cross = new Polyline(new Point[]{(-5,5), (15,5)})`.
+    fn task8_box_oct() -> TileShape {
+        oct_tile(TileShape::from_4_ints(0, 0, 10, 10))
+    }
+
+    fn task8_right_oct() -> TileShape {
+        oct_tile(TileShape::from_4_ints(10, 0, 20, 10))
+    }
+
+    fn task8_cross() -> crate::polyline::Polyline {
+        crate::polyline::Polyline::from_points(&[p(-5, 5), p(15, 5)])
+    }
+
+    /// jshell pins `PINC1`/`PINC2` (trap T21, oracle bug kept for parity):
+    /// `boxOct.indexOfNearestCorner((3,7))` is 0 — no corner coincides
+    /// with the query point so the `Double.MIN_VALUE` seed is never beaten
+    /// and the result is pinned to index 0 even though corner 5 at (0,10)
+    /// is strictly nearer. When the query point IS a corner the exact 0
+    /// distance wins: `indexOfNearestCorner((10,10))` is 3.
+    #[test]
+    fn pinc_index_of_nearest_corner_bug_compat() {
+        assert_eq!(task8_box_oct().index_of_nearest_corner(&p(3, 7)), 0);
+        assert_eq!(task8_box_oct().index_of_nearest_corner(&p(10, 10)), 3);
+    }
+
+    /// jshell pin `PENT`: `boxOct.entrancePoints(cross)` is
+    /// [(1,6), (1,2)] — the polyline enters through border line 6 (left)
+    /// and leaves through border line 2 (right), in that order.
+    #[test]
+    fn pent_entrance_points_pin() {
+        assert_eq!(
+            task8_box_oct().entrance_points(&task8_cross()),
+            vec![(1, 6), (1, 2)]
+        );
+    }
+
+    /// jshell pin `PCUT`: `boxOct.cutout(cross)` yields 2 pieces of 3
+    /// lines each; piece 0 spans (-5,5)..(0,5), piece 1 (10,5)..(15,5).
+    #[test]
+    fn pcut_cutout_polyline_pin() {
+        let pieces = task8_box_oct().cutout_polyline(&task8_cross());
+        assert_eq!(pieces.len(), 2);
+        let expected_corners = [
+            [fl(-5.0, 5.0), fl(0.0, 5.0)],
+            [fl(10.0, 5.0), fl(15.0, 5.0)],
+        ];
+        for (piece, corners) in pieces.iter().zip(expected_corners.iter()) {
+            assert_eq!(piece.lines.len(), 3);
+            let approx = piece.corner_approx_arr();
+            for (c, e) in approx.iter().zip(corners.iter()) {
+                assert_eq!((c.x, c.y), (e.x, e.y));
+            }
+        }
+    }
+
+    /// jshell pin `PTS1`: `boxOct.touchingSides(right)` is [2, 6] —
+    /// side 2 of this octagon lies on side 6 of the neighbour.
+    #[test]
+    fn pts1_touching_sides_pin() {
+        assert_eq!(
+            task8_box_oct().touching_sides(&task8_right_oct()),
+            vec![2, 6]
+        );
+    }
+
+    /// jshell pin `PROT1`: `boxOct.rotateApprox(PI/2, (0,0))` is the box
+    /// (-10,0)-(0,10).
+    #[test]
+    fn prot1_rotate_approx_pin() {
+        let rotated = task8_box_oct().rotate_approx(std::f64::consts::FRAC_PI_2, &FloatPoint::ZERO);
+        assert_eq!(
+            rotated,
+            TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+                IntPoint::new(-10, 0),
+                IntPoint::new(0, 10)
+            )))
+        );
+    }
+
+    /// jshell pin `PDIV1`: `boxOct.divideIntoSections(8)` is 4 boxes in
+    /// the order (0,0)-(5,5), (5,0)-(10,5), (0,5)-(5,10), (5,5)-(10,10).
+    #[test]
+    fn pdiv1_divide_into_sections_pin() {
+        let sections = task8_box_oct().divide_into_sections(8.0);
+        let expected = [(0, 0, 5, 5), (5, 0, 10, 5), (0, 5, 5, 10), (5, 5, 10, 10)];
+        assert_eq!(sections.len(), 4);
+        for (section, (llx, lly, urx, ury)) in sections.iter().zip(expected.iter()) {
+            match section {
+                TileShape::RegularTileShape(RegularTileShape::IntBox(b)) => {
+                    assert_eq!((b.ll.x, b.ll.y, b.ur.x, b.ur.y), (*llx, *lly, *urx, *ury));
+                }
+                other => panic!("expected IntBox section, got {:?}", other),
+            }
+        }
+    }
+
+    /// jshell pins `PDL1`..`PDL3`: `distanceToTheLeft` is -1.0 for the
+    /// line x=15 (right of the shape), 5.0 for x=-5 (left) and -1.0 for
+    /// the cutting line x=5.
+    #[test]
+    fn pdl_distance_to_the_left_pins() {
+        assert_eq!(
+            task8_box_oct().distance_to_the_left(&Line::new(p(15, 0), p(15, 5))),
+            -1.0
+        );
+        assert_eq!(
+            task8_box_oct().distance_to_the_left(&Line::new(p(-5, 0), p(-5, 5))),
+            5.0
+        );
+        assert_eq!(
+            task8_box_oct().distance_to_the_left(&Line::new(p(5, 0), p(5, 5))),
+            -1.0
+        );
+    }
+
+    /// jshell pins `PIIB1`/`PIIB2`: the interior-crossing segment of
+    /// `cross` intersects the interior; the segment of the outside
+    /// polyline (15,5)-(25,5) does not.
+    #[test]
+    fn piib_is_intersected_interior_by_pins() {
+        let crossing = crate::line_segment::LineSegment::from_polyline(&task8_cross(), 1);
+        assert!(task8_box_oct().is_intersected_interior_by(&crossing));
+        let outside = crate::polyline::Polyline::from_points(&[p(15, 5), p(25, 5)]);
+        let outside_segment = crate::line_segment::LineSegment::from_polyline(&outside, 1);
+        assert!(!task8_box_oct().is_intersected_interior_by(&outside_segment));
+    }
+
+    /// jshell pin `PDCS1`: `boxOct.diagonalCornerSegment()` runs from
+    /// (0,0) to (10,10).
+    #[test]
+    fn pdcs1_diagonal_corner_segment_pin() {
+        let diagonal = task8_box_oct().diagonal_corner_segment().expect("bounded");
+        assert_eq!((diagonal.a.x, diagonal.a.y), (0.0, 0.0));
+        assert_eq!((diagonal.b.x, diagonal.b.y), (10.0, 10.0));
+    }
+
+    /// jshell pin `PNRL1`: `boxOct.nearestRelativeOutsideLocations(right, 2)`
+    /// is [(0,0), (5,-5)].
+    #[test]
+    fn pnrl1_nearest_relative_outside_locations_pin() {
+        assert_eq!(
+            task8_box_oct().nearest_relative_outside_locations(&task8_right_oct(), 2),
+            vec![fl(0.0, 0.0), fl(5.0, -5.0)]
         );
     }
 }

@@ -16,8 +16,9 @@
 //! infinite RationalPoint and corrupt every downstream result; the class
 //! contract requires non-parallel closing lines.
 //!
-//! Deferral ledger:
-//! - `LineSegment(Polyline, int)` and `toPolyline()` -> Task 8 (Polyline).
+//! Deferral ledger — CLOSED in Task 8:
+//! - `LineSegment(Polyline, int)` landed as [`LineSegment::from_polyline`]
+//!   and `toPolyline()` as [`LineSegment::to_polyline`].
 //! - Landed with Task 7: `LineSegment(PolylineShape, int)` (via
 //!   `TileShape::border_line`), `toSimplex()` and
 //!   `borderIntersections(TileShape)`. The oracle pin `PB3` covers the
@@ -32,6 +33,7 @@ use crate::int_point::IntPoint;
 use crate::int_vector::IntVector;
 use crate::line::Line;
 use crate::point::Point;
+use crate::polyline::Polyline;
 use crate::rounding::java_round;
 use crate::side::Side;
 use crate::simplex::Simplex;
@@ -637,6 +639,35 @@ impl LineSegment {
         // Java warns when intersectionCount != 1 here; the observable
         // result is the first entry.
         vec![result[0]]
+    }
+
+    /// Creates a line segment from `polyline`, which starts at the line
+    /// with number `no - 1`, continues along the line with number `no`
+    /// and ends at the line with number `no + 1` (Java
+    /// `LineSegment(Polyline, int)`). Java indexes the array directly;
+    /// an out-of-range `no` leaves null fields that NPE at first use, so
+    /// the port panics eagerly with the same meaning.
+    pub fn from_polyline(polyline: &Polyline, no: i32) -> LineSegment {
+        if no < 1 || no + 1 >= polyline.lines.len() as i32 {
+            panic!("LineSegment(Polyline, int): line no out of range (Java null-field NPE)");
+        }
+        LineSegment::new(
+            polyline.lines[(no - 1) as usize].clone(),
+            polyline.lines[no as usize].clone(),
+            polyline.lines[(no + 1) as usize].clone(),
+        )
+    }
+
+    /// Returns this segment as a `Polyline` of the 3 lines
+    /// `[start, middle, end]` through the normalizing Java constructor
+    /// (`Polyline(Line[])`; dog-ear / overlap / direction-flip
+    /// normalization applies, trap T10).
+    pub fn to_polyline(&self) -> Polyline {
+        Polyline::new(vec![
+            self.start.clone(),
+            self.middle.clone(),
+            self.end.clone(),
+        ])
     }
 }
 

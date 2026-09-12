@@ -47,8 +47,10 @@
 //! `cutout(TileShape)`) lives on the `RegularTileShape` / `TileShape`
 //! enums. `intersection(Simplex)` is the IntOctagon.java:373 mirror
 //! `other.intersection(this)`.
-//! - Deferred to Task 8: `boolean intersects(Circle)`.
+//! - Closed in Task 8: `boolean intersects(Circle)` == `intersects_circle`
+//!   (concrete `TileShape.distance` centre check against the radius).
 
+use crate::circle::Circle;
 use crate::float_point::FloatPoint;
 use crate::fortyfive_degree_direction::FortyfiveDegreeDirection;
 use crate::int_box::IntBox;
@@ -1944,6 +1946,16 @@ impl IntOctagon {
     /// simplex.
     pub fn cutout_from_simplex(&self, simplex: &Simplex) -> Vec<Simplex> {
         self.to_simplex().cutout_from_simplex(simplex)
+    }
+
+    /// Returns true, if this octagon and the circle have a nonempty
+    /// intersection (Java `IntOctagon.intersects(Circle)`): the centre
+    /// distance of the concrete `TileShape.distance` must not exceed the
+    /// radius. Touching the border counts (pin IC1).
+    pub fn intersects_circle(&self, circle: &Circle) -> bool {
+        TileShape::RegularTileShape(RegularTileShape::IntOctagon(*self))
+            .distance(&circle.center.to_float())
+            <= circle.radius as f64
     }
 }
 

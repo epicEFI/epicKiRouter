@@ -19,7 +19,10 @@
 
 pub mod big_int_aux;
 pub mod big_int_direction;
+pub mod bounding;
+pub mod circle;
 pub mod direction;
+pub mod ellipse;
 pub mod float_line;
 pub mod float_point;
 pub mod fortyfive_degree_direction;
@@ -33,6 +36,11 @@ pub mod limits;
 pub mod line;
 pub mod line_segment;
 pub mod point;
+pub mod polygon;
+pub mod polygon_shape;
+pub mod polyline;
+pub mod polyline_area;
+pub mod polyline_shape;
 pub mod rational_point;
 pub mod rational_vector;
 pub mod regular_tile_shape;

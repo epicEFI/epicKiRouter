@@ -14,16 +14,23 @@
 //! Where a Java method returns the covariant `Area` / `Shape` /
 //! `ConvexShape` types, the traits return the concrete
 //! [`crate::tile_shape::TileShape`] (the closed set of line-bounded
-//! convex shapes; Circle joins in Task 8 and will widen the enum then).
+//! convex shapes). The non-line-bounded [`crate::circle::Circle`] joins
+//! the cross-shape dispatch as a [`ShapeRef::Circle`] variant (Task 8);
+//! [`crate::polygon_shape::PolygonShape`] and
+//! [`crate::polyline_area::PolylineArea`] keep standalone surfaces
+//! because their Java methods return their own types.
 //!
-//! Deferral ledger:
-//! - `Area.getBorder` / `Area.getHoles` -> Task 8 (return `Shape`;
-//!   meaningful only once the non-convex `Shape` family exists).
-//! - `Area.rotateApprox` -> Task 8 (needs `Polygon`).
-//! - `Shape.intersects(Circle)` / `Shape.cutout(Polyline)` -> Task 8
-//!   (needs `Circle` / `Polyline`).
-//! - `Shape.getBounds`-style members taking `Polygon` -> Task 8.
+//! Ledger closure (Task 8):
+//! - `Area.getBorder` / `Area.getHoles` landed: [`Area::get_border`]
+//!   (the leaf shapes are their own border, Java `return this`) and
+//!   [`Area::get_holes`] (always empty, default body).
+//! - `Shape.intersects(Circle)` landed as [`ShapeRef::intersects_circle`]
+//!   plus the inherent `intersects_circle` on the leaves.
+//! - `Area.rotateApprox` / `Shape.getBounds(Polygon)` landed on the
+//!   leaves (see `tile_shape.rs` / `polygon_shape.rs`); `cutout(Polyline)`
+//!   landed as `TileShape::cutout_polyline`.
 
+use crate::circle::Circle;
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
 use crate::int_octagon::IntOctagon;
@@ -73,6 +80,14 @@ pub trait Area {
     fn corner_approx_arr(&self) -> Vec<FloatPoint>;
     /// Splits this area into convex pieces.
     fn split_to_convex(&self) -> Vec<TileShape>;
+    /// Java `Area.getBorder()`: for the line-bounded leaves the border is
+    /// the shape itself (Java `return this`).
+    fn get_border(&self) -> TileShape;
+    /// Java `Area.getHoles()`: every Java implementor except
+    /// `PolylineArea` returns an empty array.
+    fn get_holes(&self) -> Vec<TileShape> {
+        Vec::new()
+    }
 }
 
 /// Java `Shape`: functionality of a shape. Adds the geometric measures
@@ -205,13 +220,14 @@ impl ShapeBoundingDirections {
 // ---------------------------------------------------------------------------
 
 /// A borrowed view of one of the Task 7 leaf shapes, mirroring Java code
-/// that hands around `Shape` / `Area` references. `Circle` (and the other
-/// non-line-bounded shapes) join in Task 8 as further variants.
+/// that hands around `Shape` / `Area` references. The non-line-bounded
+/// [`Circle`] joined in Task 8.
 #[derive(Debug, Clone, Copy)]
 pub enum ShapeRef<'a> {
     IntBox(&'a IntBox),
     IntOctagon(&'a IntOctagon),
     Simplex(&'a Simplex),
+    Circle(&'a Circle),
 }
 
 impl<'a> From<&'a TileShape> for ShapeRef<'a> {
@@ -225,7 +241,8 @@ impl<'a> From<&'a TileShape> for ShapeRef<'a> {
 }
 
 impl<'a> ShapeRef<'a> {
-    /// Clones the referenced shape into an owned [`TileShape`].
+    /// Clones the referenced shape into an owned [`TileShape`]. The circle
+    /// maps to its bounding tile (Java `Circle.boundingTile()`).
     pub fn to_tile(&self) -> TileShape {
         match self {
             // `b` / `o` are `&&IntBox` / `&&IntOctagon` (ShapeRef stores
@@ -235,24 +252,29 @@ impl<'a> ShapeRef<'a> {
                 TileShape::RegularTileShape(RegularTileShape::IntOctagon(**o))
             }
             ShapeRef::Simplex(s) => TileShape::Simplex(Box::new((*s).clone())),
+            ShapeRef::Circle(c) => c.bounding_tile(),
         }
     }
 
-    /// The no-th border line of the referenced shape.
+    /// The no-th border line of the referenced shape. Circles have no
+    /// border lines (Java has no such method on `Circle`).
     pub fn border_line(&self, no: i32) -> Line {
         match self {
             ShapeRef::IntBox(b) => b.border_line(no),
             ShapeRef::IntOctagon(o) => o.border_line(no),
             ShapeRef::Simplex(s) => s.border_line(no),
+            ShapeRef::Circle(_) => panic!("Circle has no border lines"),
         }
     }
 
-    /// The number of border lines of the referenced shape.
+    /// The number of border lines of the referenced shape (0 for circles,
+    /// mirroring `Circle.cornerApproxArr()` being empty).
     pub fn border_line_count(&self) -> usize {
         match self {
             ShapeRef::IntBox(_) => 4,
             ShapeRef::IntOctagon(_) => 8,
             ShapeRef::Simplex(s) => s.border_line_count(),
+            ShapeRef::Circle(_) => 0,
         }
     }
 
@@ -262,26 +284,41 @@ impl<'a> ShapeRef<'a> {
             ShapeRef::IntBox(b) => Point::int(b.corner(no)),
             ShapeRef::IntOctagon(o) => Point::int(o.corner(no)),
             ShapeRef::Simplex(s) => s.corner(no),
+            ShapeRef::Circle(_) => panic!("Circle has no corners"),
         }
     }
 
     /// An approximation of the no-th corner of the referenced shape.
-    /// `None` for the empty simplex (Java null).
+    /// `None` for the empty simplex and for circles (Java null).
     pub fn corner_approx(&self, no: i32) -> Option<FloatPoint> {
         match self {
             ShapeRef::IntBox(b) => Some(b.corner(no).to_float()),
             ShapeRef::IntOctagon(o) => Some(o.corner(no).to_float()),
             ShapeRef::Simplex(s) => s.corner_approx(no),
+            ShapeRef::Circle(_) => None,
         }
     }
 
     /// True if the referenced shape is a `Simplex` with a dimension below
-    /// 2, or an empty regular shape.
+    /// 2, or an empty regular shape. Circles are never empty.
     pub fn is_empty(&self) -> bool {
         match self {
             ShapeRef::IntBox(b) => b.is_empty(),
             ShapeRef::IntOctagon(o) => o.is_empty(),
             ShapeRef::Simplex(s) => s.is_empty(),
+            ShapeRef::Circle(_) => false,
+        }
+    }
+
+    /// Java `Shape.intersects(Circle)` double dispatch: each leaf's
+    /// `intersects(Circle)` delegates back to the circle's matching
+    /// `intersects` overload; the port mirrors that table here.
+    pub fn intersects_circle(&self, circle: &Circle) -> bool {
+        match self {
+            ShapeRef::IntBox(b) => circle.intersects_box(b),
+            ShapeRef::IntOctagon(o) => circle.intersects_octagon(o),
+            ShapeRef::Simplex(s) => circle.intersects_simplex(s),
+            ShapeRef::Circle(c) => circle.intersects_circle(c),
         }
     }
 }
@@ -399,6 +436,9 @@ impl Area for IntBox {
     fn split_to_convex(&self) -> Vec<TileShape> {
         vec![TileShape::RegularTileShape(RegularTileShape::IntBox(*self))]
     }
+    fn get_border(&self) -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntBox(*self))
+    }
 }
 
 impl Shape for IntBox {
@@ -507,6 +547,9 @@ impl Area for IntOctagon {
         vec![TileShape::RegularTileShape(RegularTileShape::IntOctagon(
             *self,
         ))]
+    }
+    fn get_border(&self) -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntOctagon(*self))
     }
 }
 
@@ -636,6 +679,9 @@ impl Area for Simplex {
     }
     fn split_to_convex(&self) -> Vec<TileShape> {
         vec![TileShape::Simplex(Box::new(self.clone()))]
+    }
+    fn get_border(&self) -> TileShape {
+        TileShape::Simplex(Box::new(self.clone()))
     }
 }
 
@@ -811,20 +857,22 @@ pub(crate) fn tile_area(shape: &ShapeRef) -> f64 {
     0.5 * result.abs()
 }
 
-/// `isBounded` on the ShapeRef view (regular shapes are always bounded).
+/// `isBounded` on the ShapeRef view (regular shapes and circles are
+/// always bounded).
 fn shape_is_bounded(shape: &ShapeRef) -> bool {
     match shape {
-        ShapeRef::IntBox(_) | ShapeRef::IntOctagon(_) => true,
+        ShapeRef::IntBox(_) | ShapeRef::IntOctagon(_) | ShapeRef::Circle(_) => true,
         ShapeRef::Simplex(s) => s.is_bounded(),
     }
 }
 
-/// `dimension` on the ShapeRef view.
+/// `dimension` on the ShapeRef view (circles are always 2-dimensional).
 pub(crate) fn tile_dimension(shape: &ShapeRef) -> i32 {
     match shape {
         ShapeRef::IntBox(b) => b.dimension(),
         ShapeRef::IntOctagon(o) => o.dimension(),
         ShapeRef::Simplex(s) => s.dimension(),
+        ShapeRef::Circle(_) => 2,
     }
 }
 
@@ -934,11 +982,12 @@ pub(crate) fn shape_nearest_border_points_approx(
     nearest_points
 }
 
-/// `cornerIsBounded` on the ShapeRef view.
+/// `cornerIsBounded` on the ShapeRef view (circles have no corners).
 fn shape_corner_is_bounded(shape: &ShapeRef, no: i32) -> bool {
     match shape {
         ShapeRef::IntBox(_) | ShapeRef::IntOctagon(_) => true,
         ShapeRef::Simplex(s) => s.corner_is_bounded(no),
+        ShapeRef::Circle(_) => false,
     }
 }
 
@@ -989,7 +1038,10 @@ pub(crate) fn tile_shrink(shape: &ShapeRef, offset: f64) -> TileShape {
     )
 }
 
-/// Java `offset` dispatch on the ShapeRef view.
+/// Java `offset` dispatch on the ShapeRef view. The circle arm is
+/// unreachable from the TileShape generic code (a `ShapeRef::Circle` can
+/// only arise from an explicit `&Circle`), and the Java circle offset
+/// returns a `Circle`, not a line-bounded tile.
 pub(crate) fn tile_offset(shape: &ShapeRef, width: f64) -> TileShape {
     match shape {
         ShapeRef::IntBox(b) => {
@@ -999,6 +1051,7 @@ pub(crate) fn tile_offset(shape: &ShapeRef, width: f64) -> TileShape {
             TileShape::RegularTileShape(RegularTileShape::IntOctagon(IntOctagon::offset(o, width)))
         }
         ShapeRef::Simplex(s) => TileShape::Simplex(Box::new(Simplex::offset(s, width))),
+        ShapeRef::Circle(_) => panic!("circle offset returns a Circle, not a TileShape"),
     }
 }
 
