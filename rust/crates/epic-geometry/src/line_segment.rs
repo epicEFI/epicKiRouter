@@ -635,4 +635,47 @@ mod tests {
         let zero = seg((0, 0, 1, 0), (0, 0, 0, 1), (0, 0, -1, 0));
         assert!(zero.stair_approximation(3.0, true).is_empty());
     }
+
+    /// jshell pins `S45`/`SOR` on the vertical-ish segment
+    /// vst = LineSegment(Line(-1,0,1,0), Line(0,0,10,20), Line(9,20,11,20))
+    /// (corners (0,0)-(10,20), |dy| = 20 > |dx| = 10, so BOTH
+    /// function-of-y branches execute — pin ST2 never reaches them):
+    /// S45 freezes the LineSegment.java:432 defect (trap T17), where y is
+    /// fed into functionValueApprox and produces the garbage x columns
+    /// 12/24/36 and the overshooting (10, 44); SOR pins the orthogonal
+    /// stair's function-of-y path (stair width 6, risers at y = 6/12/18).
+    #[test]
+    fn stair_function_of_y_branches() {
+        let vst = seg((-1, 0, 1, 0), (0, 0, 10, 20), (9, 20, 11, 20));
+        let expected45: Vec<IntPoint> = [
+            (0, 0),
+            (12, 12),
+            (12, 6),
+            (24, 18),
+            (24, 12),
+            (36, 24),
+            (36, 18),
+            (10, 44),
+            (10, 20),
+        ]
+        .iter()
+        .map(|(x, y)| IntPoint::new(*x, *y))
+        .collect();
+        assert_eq!(vst.stair_approximation_45(3.0, true), expected45); // S45
+        let expected_orth: Vec<IntPoint> = [
+            (0, 0),
+            (3, 0),
+            (3, 6),
+            (6, 6),
+            (6, 12),
+            (9, 12),
+            (9, 18),
+            (10, 18),
+            (10, 20),
+        ]
+        .iter()
+        .map(|(x, y)| IntPoint::new(*x, *y))
+        .collect();
+        assert_eq!(vst.stair_approximation(3.0, true), expected_orth); // SOR
+    }
 }

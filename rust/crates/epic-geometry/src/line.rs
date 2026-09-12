@@ -10,10 +10,10 @@
 //!   i32-wrapped delta components; products of coordinates near ±2^31
 //!   round, so two lines whose exact cross product is ±2 can compare
 //!   equal (pinned in tests, pin `F4`).
-//! - `intersection` resolves 16 orientation pairs (delta1 × delta2 for
-//!   the four 45-degree orientations) in int arithmetic before the
-//!   BigInteger general formula; the full table is on
-//!   [`Line::intersection`].
+//! - `intersection` classifies 16 orientation pairs (delta1 × delta2
+//!   for the four 45-degree orientations) in int arithmetic — 10 of
+//!   them resolve there, 6 fall through to the BigInteger general
+//!   formula (T6); the full table is on [`Line::intersection`].
 //! - `equals` (the [`PartialEq`] impl) requires a POSITIVE projection,
 //!   so opposite directions are UNEQUAL; `is_equal_or_opposite` only
 //!   requires collinearity (T9 asymmetry).
@@ -53,8 +53,12 @@ use crate::vector::Vector;
 #[derive(Debug, Clone)]
 pub struct Line {
     /// The first point of the directed line (Java public final field).
+    /// Do not reassign after construction: `dir` caches the direction
+    /// (mirrors the Java `final` modifier).
     pub a: Point,
     /// The second point of the directed line (Java public final field).
+    /// Do not reassign after construction: `dir` caches the direction
+    /// (mirrors the Java `final` modifier).
     pub b: Point,
     dir: OnceLock<Direction>,
 }
@@ -231,9 +235,10 @@ impl Line {
     /// lines are parallel (Java returns an infinite RationalPoint).
     ///
     /// The 16 fast paths cover every pair of 45-degree orientations
-    /// (delta1 = b - a of this, delta2 = b - a of other), resolved in
-    /// Java's exact branch order (Line.java:225-275) BEFORE the
-    /// BigInteger general formula (T6):
+    /// (delta1 = b - a of this, delta2 = b - a of other), classified in
+    /// Java's exact branch order (Line.java:225-275): 10 pairs resolve
+    /// in int arithmetic, 6 fall through to the BigInteger general
+    /// formula (T6):
     ///
     /// | #  | delta1      | delta2      | result                              |
     /// |----|-------------|-------------|-------------------------------------|
@@ -365,6 +370,7 @@ impl Line {
         tmp1 = &det1 * BigInt::from(delta2.y);
         tmp2 = &det2 * BigInt::from(delta1.y);
         let mut is_y = tmp1 - tmp2;
+        // always true (early return above); Java shape kept for diffing
         if det.sign() != Sign::NoSign {
             if det.sign() == Sign::Minus {
                 det = -det;
@@ -793,10 +799,11 @@ mod tests {
         ))
     }
 
-    /// jshell pins `L1`-`L9`, `L11`, `L13`: every int-arithmetic fast path
-    /// of `intersection` (see the table on [`Line::intersection`]) plus
-    /// the general-formula integral and rational outcomes, captured from
-    /// the oracle jar.
+    /// jshell pins `L1`-`L9`, `L11`, `L13`, `P3`/`P9`: every int-arithmetic
+    /// fast path of `intersection` (see the table on
+    /// [`Line::intersection`]) plus the general-formula integral and
+    /// rational outcomes, captured from the oracle jar. P3/P9 exercise
+    /// paths 3/9 with a.x != oa.x so the coordinate terms cannot cancel.
     #[test]
     fn intersection_fast_paths_and_general_formula() {
         let lv = line(0, 0, 0, 10); // vertical x = 0
@@ -823,6 +830,13 @@ mod tests {
         assert_eq!(ll.intersection(&lv), Some(int(0, 4))); // L7
         // Path 10 left diagonal x horizontal.
         assert_eq!(ll.intersection(&lh), Some(int(-1, 5))); // L9
+        // Paths 3/9 NON-degenerate (a.x = 5 != oa.x = 0, so the
+        // +-oa.x / +-a.x terms matter): pins P3/P9. The degenerate
+        // lv x ll cases above cancel those terms; a sign-swapped
+        // add/sub there would still give (5, 9) here.
+        let lv5 = line(5, 0, 5, 10);
+        assert_eq!(lv5.intersection(&ll), Some(int(5, -1))); // P3
+        assert_eq!(ll.intersection(&lv5), Some(int(5, -1))); // P9
         // Paths 13/14 fall through to the general formula: 45 x 45.
         assert_eq!(lr.intersection(&ll), Some(int(3, 1))); // L11 (integral)
         // General formula with a non-integral intersection.
