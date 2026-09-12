@@ -38,7 +38,7 @@
    "error_message": "Wrong reference: tiers should be manifest",
    "file": "rust/harness/src/main.rs",
    "root_cause": "Used \"tiers\" instead of \"manifest\"",
-   "fix": "Changed tiers \u2192 manifest",
+   "fix": "Changed tiers → manifest",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -54,7 +54,7 @@
    "error_message": "Significant refactor of manifest.rs",
    "file": "rust/harness/src/manifest.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 6\u21923 lines (4 removed)",
+   "fix": "Rewrote 6→3 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -70,7 +70,7 @@
    "error_message": "Wrong reference: tiers should be oracle",
    "file": "rust/harness/src/main.rs",
    "root_cause": "Used \"tiers\" instead of \"oracle\"",
-   "fix": "Changed tiers \u2192 oracle",
+   "fix": "Changed tiers → oracle",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -94,7 +94,7 @@
    "error_message": "Significant refactor of tiers.rs",
    "file": "rust/harness/src/tiers.rs",
    "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 30\u219247 lines (5 removed)",
+   "fix": "Rewrote 30→47 lines (5 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -110,7 +110,7 @@
    "error_message": "Wrong reference: manifest should be baseline",
    "file": "rust/harness/src/main.rs",
    "root_cause": "Used \"manifest\" instead of \"baseline\"",
-   "fix": "Changed manifest \u2192 baseline",
+   "fix": "Changed manifest → baseline",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -126,7 +126,7 @@
    "error_message": "Wrong reference: Result should be Context",
    "file": "rust/harness/src/baseline.rs",
    "root_cause": "Used \"Result\" instead of \"Context\"",
-   "fix": "Changed Result \u2192 Context",
+   "fix": "Changed Result → Context",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -142,7 +142,7 @@
    "error_message": "Significant refactor of baseline.rs",
    "file": "rust/harness/src/baseline.rs",
    "root_cause": "17 lines replaced/restructured",
-   "fix": "Rewrote 19\u21923 lines (17 removed)",
+   "fix": "Rewrote 19→3 lines (17 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -158,7 +158,7 @@
    "error_message": "Significant refactor of main.rs",
    "file": "rust/harness/src/main.rs",
    "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 54\u219294 lines (8 removed) | Also: let mut captured = 0usize;; for fixture in &tier.fixtures {",
+   "fix": "Rewrote 54→94 lines (8 removed) | Also: let mut captured = 0usize;; for fixture in &tier.fixtures {",
    "tags": [
     "auto-detected",
     "refactor",
@@ -174,7 +174,7 @@
    "error_message": "Significant refactor of main.rs",
    "file": "rust/harness/src/main.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 3\u219272 lines (2 removed)",
+   "fix": "Rewrote 3→72 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -190,7 +190,7 @@
    "error_message": "Significant refactor of baseline.rs",
    "file": "rust/harness/src/baseline.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 15\u219217 lines (4 removed)",
+   "fix": "Rewrote 15→17 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -206,7 +206,7 @@
    "error_message": "Wrong operator: != should be ==",
    "file": "rust/harness/src/main.rs",
    "root_cause": "Used \"!=\" instead of \"==\"",
-   "fix": "Changed operator != \u2192 ==",
+   "fix": "Changed operator != → ==",
    "tags": [
     "auto-detected",
     "operator-fix",
@@ -222,7 +222,7 @@
    "error_message": "Wrong reference: List should be exits",
    "file": "rust/harness/src/main.rs",
    "root_cause": "Used \"List\" instead of \"exits\"",
-   "fix": "Changed List \u2192 exits",
+   "fix": "Changed List → exits",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -238,7 +238,7 @@
    "error_message": "Significant refactor of main.rs",
    "file": "rust/harness/src/main.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 20\u219230 lines (3 removed)",
+   "fix": "Rewrote 20→30 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -254,7 +254,7 @@
    "error_message": "Significant refactor of lib.rs",
    "file": "rust/crates/epic-geometry/src/lib.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 16\u219224 lines (4 removed)",
+   "fix": "Rewrote 16→24 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -270,7 +270,7 @@
    "error_message": "Significant refactor of rounding.rs",
    "file": "rust/crates/epic-geometry/src/rounding.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 11\u219215 lines (4 removed)",
+   "fix": "Rewrote 11→15 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -286,7 +286,7 @@
    "error_message": "Significant refactor of side.rs",
    "file": "rust/crates/epic-geometry/src/side.rs",
    "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 28\u219246 lines (5 removed)",
+   "fix": "Rewrote 28→46 lines (5 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -302,7 +302,7 @@
    "error_message": "Significant refactor of big_int_aux.rs",
    "file": "rust/crates/epic-geometry/src/big_int_aux.rs",
    "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 23\u219267 lines (10 removed)",
+   "fix": "Rewrote 23→67 lines (10 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -318,7 +318,7 @@
    "error_message": "Significant refactor of java_random.rs",
    "file": "rust/crates/epic-geometry/src/java_random.rs",
    "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 28\u219241 lines (8 removed) | Also: fn seed_scramble_matches_public_spec() {; // new Random(0): (0 ^ 0x5DEECE66D) & (2^48 - 1) =",
+   "fix": "Rewrote 28→41 lines (8 removed) | Also: fn seed_scramble_matches_public_spec() {; // new Random(0): (0 ^ 0x5DEECE66D) & (2^48 - 1) =",
    "tags": [
     "auto-detected",
     "refactor",
@@ -334,7 +334,7 @@
    "error_message": "Significant refactor of rounding.rs",
    "file": "rust/crates/epic-geometry/src/rounding.rs",
    "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 10\u219217 lines (8 removed)",
+   "fix": "Rewrote 10→17 lines (8 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -368,7 +368,7 @@
    "error_message": "Significant refactor of big_int_aux.rs",
    "file": "rust/crates/epic-geometry/src/big_int_aux.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 5\u21924 lines (4 removed)",
+   "fix": "Rewrote 5→4 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -384,7 +384,7 @@
    "error_message": "Significant refactor of int_vector.rs",
    "file": "rust/crates/epic-geometry/src/int_vector.rs",
    "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 11\u21924 lines (5 removed)",
+   "fix": "Rewrote 11→4 lines (5 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -400,7 +400,7 @@
    "error_message": "Wrong operator: <= should be !=",
    "file": "rust/crates/epic-geometry/src/vector.rs",
    "root_cause": "Used \"<=\" instead of \"!=\"",
-   "fix": "Changed operator <= \u2192 !=",
+   "fix": "Changed operator <= → !=",
    "tags": [
     "auto-detected",
     "operator-fix",
@@ -416,7 +416,7 @@
    "error_message": "Significant refactor of vector.rs",
    "file": "rust/crates/epic-geometry/src/vector.rs",
    "root_cause": "16 lines replaced/restructured",
-   "fix": "Rewrote 44\u219224 lines (16 removed)",
+   "fix": "Rewrote 44→24 lines (16 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -432,7 +432,7 @@
    "error_message": "Significant refactor of lib.rs",
    "file": "rust/crates/epic-geometry/src/lib.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 14\u219233 lines (2 removed)",
+   "fix": "Rewrote 14→33 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -448,7 +448,7 @@
    "error_message": "Wrong reference: big_integer_double_value should be big_integer_int_value",
    "file": "rust/crates/epic-geometry/src/vector.rs",
    "root_cause": "Used \"big_integer_double_value\" instead of \"big_integer_int_value\"",
-   "fix": "Changed big_integer_double_value \u2192 big_integer_int_value",
+   "fix": "Changed big_integer_double_value → big_integer_int_value",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -464,7 +464,7 @@
    "error_message": "Significant refactor of point.rs",
    "file": "rust/crates/epic-geometry/src/point.rs",
    "root_cause": "6 lines replaced/restructured",
-   "fix": "Rewrote 9\u219210 lines (6 removed) | Also: /// `translateBy(Vector)` double dispatch).; match (self, vector) {",
+   "fix": "Rewrote 9→10 lines (6 removed) | Also: /// `translateBy(Vector)` double dispatch).; match (self, vector) {",
    "tags": [
     "auto-detected",
     "refactor",
@@ -480,7 +480,7 @@
    "error_message": "Significant refactor of rational_point.rs",
    "file": "rust/crates/epic-geometry/src/rational_point.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 15\u219210 lines (3 removed)",
+   "fix": "Rewrote 15→10 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -496,7 +496,7 @@
    "error_message": "Significant refactor of vector.rs",
    "file": "rust/crates/epic-geometry/src/vector.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 12\u219220 lines (4 removed)",
+   "fix": "Rewrote 12→20 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -512,7 +512,7 @@
    "error_message": "Significant refactor of rational_point.rs",
    "file": "rust/crates/epic-geometry/src/rational_point.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 4\u21925 lines (2 removed)",
+   "fix": "Rewrote 4→5 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -528,7 +528,7 @@
    "error_message": "Significant refactor of float_point.rs",
    "file": "rust/crates/epic-geometry/src/float_point.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 4\u21926 lines (3 removed)",
+   "fix": "Rewrote 4→6 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -544,7 +544,7 @@
    "error_message": "Significant refactor of rational_vector.rs",
    "file": "rust/crates/epic-geometry/src/rational_vector.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 8\u219213 lines (3 removed)",
+   "fix": "Rewrote 8→13 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -560,7 +560,7 @@
    "error_message": "Significant refactor of int_direction.rs",
    "file": "rust/crates/epic-geometry/src/int_direction.rs",
    "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 26\u219236 lines (10 removed)",
+   "fix": "Rewrote 26→36 lines (10 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -592,7 +592,7 @@
    "error_message": "Significant refactor of int_box.rs",
    "file": "rust/crates/epic-geometry/src/int_box.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 14\u219221 lines (3 removed)",
+   "fix": "Rewrote 14→21 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -641,7 +641,7 @@
    "error_message": "Significant refactor of int_octagon.rs",
    "file": "rust/crates/epic-geometry/src/int_octagon.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 4\u21923 lines (2 removed)",
+   "fix": "Rewrote 4→3 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -706,7 +706,7 @@
    "error_message": "Wrong reference: ceil should be floor",
    "file": "rust/crates/epic-geometry/src/int_octagon.rs",
    "root_cause": "Used \"ceil\" instead of \"floor\"",
-   "fix": "Changed ceil \u2192 floor",
+   "fix": "Changed ceil → floor",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -722,7 +722,7 @@
    "error_message": "Wrong reference: big_integer_int_value should be big_abs",
    "file": "rust/crates/epic-geometry/src/line.rs",
    "root_cause": "Used \"big_integer_int_value\" instead of \"big_abs\"",
-   "fix": "Changed big_integer_int_value \u2192 big_abs",
+   "fix": "Changed big_integer_int_value → big_abs",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -738,7 +738,7 @@
    "error_message": "Significant refactor of line_segment.rs",
    "file": "rust/crates/epic-geometry/src/line_segment.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 6\u21928 lines (2 removed)",
+   "fix": "Rewrote 6→8 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -754,7 +754,7 @@
    "error_message": "Significant refactor of float_line.rs",
    "file": "rust/crates/epic-geometry/src/float_line.rs",
    "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 7\u21926 lines (5 removed)",
+   "fix": "Rewrote 7→6 lines (5 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -770,7 +770,7 @@
    "error_message": "Wrong reference: tmp1 should be tmp2",
    "file": "rust/crates/epic-geometry/src/line.rs",
    "root_cause": "Used \"tmp1\" instead of \"tmp2\"",
-   "fix": "Changed tmp1 \u2192 tmp2",
+   "fix": "Changed tmp1 → tmp2",
    "tags": [
     "auto-detected",
     "wrong-reference",
@@ -825,7 +825,7 @@
    "error_message": "Significant refactor of line.rs",
    "file": "rust/crates/epic-geometry/src/line.rs",
    "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 4\u21925 lines (4 removed)",
+   "fix": "Rewrote 4→5 lines (4 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -841,7 +841,7 @@
    "error_message": "Significant refactor of simplex.rs",
    "file": "rust/crates/epic-geometry/src/simplex.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 3\u21924 lines (2 removed)",
+   "fix": "Rewrote 3→4 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -873,7 +873,7 @@
    "error_message": "Significant refactor of shape.rs",
    "file": "rust/crates/epic-geometry/src/shape.rs",
    "root_cause": "7 lines replaced/restructured",
-   "fix": "Rewrote 15\u219234 lines (7 removed)",
+   "fix": "Rewrote 15→34 lines (7 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -889,7 +889,7 @@
    "error_message": "Significant refactor of line.rs",
    "file": "rust/crates/epic-geometry/src/line.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 4\u21923 lines (3 removed)",
+   "fix": "Rewrote 4→3 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -921,7 +921,7 @@
    "error_message": "Significant refactor of point.rs",
    "file": "rust/crates/epic-geometry/src/point.rs",
    "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 3\u21925 lines (2 removed)",
+   "fix": "Rewrote 3→5 lines (2 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -937,7 +937,7 @@
    "error_message": "Significant refactor of line_segment.rs",
    "file": "rust/crates/epic-geometry/src/line_segment.rs",
    "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 5\u21928 lines (3 removed)",
+   "fix": "Rewrote 5→8 lines (3 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -953,7 +953,7 @@
    "error_message": "Significant refactor of float_point.rs",
    "file": "rust/crates/epic-geometry/src/float_point.rs",
    "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 15\u21926 lines (8 removed)",
+   "fix": "Rewrote 15→6 lines (8 removed)",
    "tags": [
     "auto-detected",
     "refactor",
@@ -985,7 +985,7 @@
    "error_message": "P12 cutout pin diverged: Rust Simplex.cutout_from_simplex produced 7 pieces vs oracle 5 (corners 1/2 got 2 zero-length division lines instead of 1)",
    "file": "rust/crates/epic-geometry/src/simplex.rs",
    "root_cause": [
-    "Simplex.calcDivisionLines mixes TWO Java Direction-comparison flavors, and the port initially conflated them. (1) The NULL guards use reference equality: currentProjectionDir == Direction.NULL is true only for the shared constant that Point.perpendicularDirection returns in its collinear branch; translating that as == on IntDirection failed because IntDirection PartialEq mirrors Java .equals (collinear side + positive projection) under which distinct NULL instances are UNEQUAL \u2014 so the zero direction never matched and the guards never fired (the original 7-vs-5 piece divergence). (2) The final comparison Simplex.java:1137 is firstProjectionDir.equals(secondProjectionDir) \u2014 VALUE equality, NOT reference ==; an interim fix translated it as an object-identity flag, which was a misreading (caught in the Task 7 spec review): an identity flag diverges from .equals whenever the two directions are value-equal but distinct objects, which is reachable with raw parallel same-direction outer line pairs."
+    "Simplex.calcDivisionLines mixes TWO Java Direction-comparison flavors, and the port initially conflated them. (1) The NULL guards use reference equality: currentProjectionDir == Direction.NULL is true only for the shared constant that Point.perpendicularDirection returns in its collinear branch; translating that as == on IntDirection failed because IntDirection PartialEq mirrors Java .equals (collinear side + positive projection) under which distinct NULL instances are UNEQUAL — so the zero direction never matched and the guards never fired (the original 7-vs-5 piece divergence). (2) The final comparison Simplex.java:1137 is firstProjectionDir.equals(secondProjectionDir) — VALUE equality, NOT reference ==; an interim fix translated it as an object-identity flag, which was a misreading (caught in the Task 7 spec review): an identity flag diverges from .equals whenever the two directions are value-equal but distinct objects, which is reachable with raw parallel same-direction outer line pairs."
    ],
    "fix": [
     "NULL guards now use IntDirection::is_null() (zero-vector check; sound because the shared constant is the only zero direction those call sites can produce). The final comparison is plain Rust first_projection_dir == second_projection_dir, which IS Java .equals (T9 contract). Oracle pin PB9 (raw outer simplex with a duplicated same-direction bottom line, sharp inner triangle corner (4,0)) drives the second-division scan through the value-equal twin and pins the 2-division-line outcome."
@@ -1007,7 +1007,7 @@
    "error_message": "Significant refactor of simplex.rs",
    "file": "rust/crates/epic-geometry/src/simplex.rs",
    "root_cause": "9 lines replaced/restructured",
-   "fix": "Rewrote 12\u21923 lines (9 removed) | Also: // true while currentSecondProjectionDir is the sa; // as currentProjectionDir (Java identity, see abo",
+   "fix": "Rewrote 12→3 lines (9 removed) | Also: // true while currentSecondProjectionDir is the sa; // as currentProjectionDir (Java identity, see abo",
    "tags": [
     "auto-detected",
     "refactor",
@@ -1016,6 +1016,75 @@
    "related_bugs": [],
    "occurrences": 2,
    "last_seen": "2026-09-12T20:00:56.270Z"
+  },
+  {
+   "id": "bug-065",
+   "timestamp": "2026-09-12T20:59:45.591Z",
+   "error_message": "Significant refactor of shape.rs",
+   "file": "rust/crates/epic-geometry/src/shape.rs",
+   "root_cause": "9 lines replaced/restructured",
+   "fix": "Rewrote 15→6 lines (9 removed) | Also: let mut x = 0.0f64;; let mut y = 0.0f64; | Also: let corner_count = self.border_line_count();; let mut x = 0.0f64; | Also: let corner_count = shape.border_line_count();; let current = shape",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 4,
+   "last_seen": "2026-09-12T21:00:03.467Z"
+  },
+  {
+   "id": "bug-066",
+   "timestamp": "2026-09-12T21:00:10.216Z",
+   "error_message": "Significant refactor of regular_tile_shape.rs",
+   "file": "rust/crates/epic-geometry/src/regular_tile_shape.rs",
+   "root_cause": "10 lines replaced/restructured",
+   "fix": "Rewrote 14→4 lines (10 removed)",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T21:00:10.216Z"
+  },
+  {
+   "id": "bug-067",
+   "timestamp": "2026-09-12T21:00:30.618Z",
+   "error_message": "Significant refactor of simplex.rs",
+   "file": "rust/crates/epic-geometry/src/simplex.rs",
+   "root_cause": "10 lines replaced/restructured",
+   "fix": "Rewrote 14→6 lines (10 removed)",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T21:00:30.618Z"
+  },
+  {
+   "id": "bug-068",
+   "timestamp": "2026-09-12T21:12:09.000Z",
+   "error_message": "P12 cutout pin passed with wrong wall-anchor literals: right-wall lines pinned as (6,-5)->(6,6)/(6,6)->(6,-5) while the oracle produces (6,0)->(6,6)/(6,6)->(6,0)",
+   "file": "rust/crates/epic-geometry/src/simplex.rs",
+   "root_cause": "Two stacked defects, both in the TEST not the port. (1) The pin literals were mis-transcribed (memory-reconstructed, failure mode 1 of the cerebrum rule) — stage-by-stage instrumentation (throwaway tests/p12_debug.rs) plus a live jar re-capture (P12b) proved the Rust cutout pipeline carries original border-line anchors EXACTLY like Java: IntOctagon.cutoutFrom(Simplex) = toSimplex().cutoutFrom(simplex) passes the simplex param through verbatim, and IntOctagon.toSimplex/borderLine rebuild fresh unit-anchored lines in BOTH languages. (2) The wrong literals were invisible because Line equality is ANCHOR-BLIND in both languages (Java Line.equals compares supporting line + direction, Rust == mirrors it), so assert_eq! on Line values cannot detect an anchor divergence — a new trap class, ledgered as T20 (anchor identity is observable parity only through endpoint pairs, which is what the differential corpus serializes).",
+   "fix": "Re-pinned P12 with the true P12b jar values (pieces 0/1/2 right-wall anchors (6,0)); converted the P12 and PB9 piece loops to anchor-strict assertions comparing (&line.a, &line.b) endpoint pairs; documented the correction in the pin docs and appended trap T20 to the M1a plan.",
+   "tags": [
+    "oracle-pin",
+    "parity",
+    "epic-geometry",
+    "T20",
+    "anchor-identity"
+   ],
+   "related_bugs": [
+    "bug-045",
+    "bug-063"
+   ],
+   "occurrences": 1,
+   "last_seen": "2026-09-12T21:12:09.000Z"
   }
  ]
 }

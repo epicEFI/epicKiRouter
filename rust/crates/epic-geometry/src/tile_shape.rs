@@ -346,9 +346,10 @@ impl TileShape {
         }
     }
 
-    /// Returns the circumference divided by 2 for unbounded shapes (Java
-    /// `PolylineShape.circumference`: `Integer.MAX_VALUE` =
-    /// `2147483647.0` when unbounded).
+    /// Returns the circumference of the shape border (Java
+    /// `PolylineShape.circumference`): `Integer.MAX_VALUE` =
+    /// `2147483647.0` when the shape is unbounded, otherwise the sum of
+    /// the corner-to-corner edge lengths.
     pub fn circumference(&self) -> f64 {
         match self {
             TileShape::RegularTileShape(rs) => rs.circumference(),
@@ -1223,11 +1224,48 @@ mod tests {
     /// jshell pin `PW6b`: `outer.nearestBorderPointsApprox((5,5), 2)`
     /// returns the bottom and the left border points.
     #[test]
-    fn p6_nearest_border_points_approx_pin() {
+    fn pw6b_nearest_border_points_approx_pin() {
         let outer = box_tile(0, 0, 20, 20);
         assert_eq!(
             outer.nearest_border_points_approx(&fl(5.0, 5.0), 2),
             vec![fl(5.0, 0.0), fl(0.0, 5.0)]
+        );
+    }
+
+    /// jshell pin `PW6c` (jar-captured on a genuine 4-line `IntBox`, both
+    /// top-k loops in tie territory): from (1,1) all four corners tie and
+    /// all four edge projections tie nearer, so the result order pins the
+    /// strict-`<` projection insertion (a `<=` mutant flips the first two
+    /// entries). From (3,3) every projection fails the segment-visibility
+    /// check, so only CORNERS compete: (2,0) and (0,2) tie at squared
+    /// distance 10 and strict `<` keeps the first-encountered (2,0) — a
+    /// `<=` corner mutant displaces it with (0,2) and would fail this pin.
+    /// The n3 duplicate (2,0) is oracle truth: the shift loop copies
+    /// `minDists[k] = minDists[k - 1]` sequentially, so the MAX seeds die
+    /// at the first insertion and equal distances propagate duplicates.
+    #[test]
+    fn pw6c_nearest_border_points_tie_order_pin() {
+        let int_box = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+            IntPoint::new(0, 0),
+            IntPoint::new(2, 2),
+        )));
+        // CTIE/PW6b-tie capture: from (1,1).
+        assert_eq!(
+            int_box.nearest_border_points_approx(&fl(1.0, 1.0), 2),
+            vec![fl(0.0, 1.0), fl(1.0, 0.0)]
+        );
+        assert_eq!(
+            int_box.nearest_border_points_approx(&fl(1.0, 1.0), 3),
+            vec![fl(0.0, 1.0), fl(1.0, 0.0), fl(2.0, 1.0)]
+        );
+        // CTIE capture: from (3,3), corners only.
+        assert_eq!(
+            int_box.nearest_border_points_approx(&fl(3.0, 3.0), 2),
+            vec![fl(2.0, 2.0), fl(2.0, 0.0)]
+        );
+        assert_eq!(
+            int_box.nearest_border_points_approx(&fl(3.0, 3.0), 3),
+            vec![fl(2.0, 2.0), fl(2.0, 0.0), fl(2.0, 0.0)]
         );
     }
 

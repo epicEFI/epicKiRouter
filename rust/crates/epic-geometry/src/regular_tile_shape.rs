@@ -188,17 +188,7 @@ impl RegularTileShape {
 
     /// Returns the arithmetic middle of the corners (PolylineShape).
     pub fn centre_of_gravity(&self) -> FloatPoint {
-        let corner_count = self.border_line_count();
-        let mut x = 0.0f64;
-        let mut y = 0.0f64;
-        for i in 0..corner_count as i32 {
-            let current = self.corner_approx(i);
-            x += current.x;
-            y += current.y;
-        }
-        x /= corner_count as f64;
-        y /= corner_count as f64;
-        FloatPoint::new(x, y)
+        crate::shape::corner_average(self.border_line_count(), |i| self.corner_approx(i))
     }
 
     /// Returns the maximum diameter of the shape.

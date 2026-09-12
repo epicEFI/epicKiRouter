@@ -9,7 +9,7 @@
 //! [`crate::tile_shape::TileShape`] and
 //! [`crate::regular_tile_shape::RegularTileShape`] carry that dispatch;
 //! the traits below exist to mirror the Java interface surfaces and are
-//! implemented by the three Task 7 leaves and by [`ShapeRef`].
+//! implemented by the three Task 7 leaves.
 //!
 //! Where a Java method returns the covariant `Area` / `Shape` /
 //! `ConvexShape` types, the traits return the concrete
@@ -37,7 +37,7 @@ use crate::tile_shape::TileShape;
 use crate::vector::Vector;
 
 /// Java `Area`: functionality of an area. Implemented by [`IntBox`],
-/// [`IntOctagon`], [`Simplex`] and [`ShapeRef`].
+/// [`IntOctagon`] and [`Simplex`].
 pub trait Area {
     /// Returns true, if this area is empty.
     fn is_empty(&self) -> bool;
@@ -409,16 +409,7 @@ impl Shape for IntBox {
         IntBox::area(self)
     }
     fn centre_of_gravity(&self) -> FloatPoint {
-        let mut x = 0.0f64;
-        let mut y = 0.0f64;
-        for i in 0..4 {
-            let current = self.corner(i).to_float();
-            x += current.x;
-            y += current.y;
-        }
-        x /= 4.0;
-        y /= 4.0;
-        FloatPoint::new(x, y)
+        corner_average(4, |i| self.corner(i).to_float())
     }
     fn is_outside(&self, point: &Point) -> bool {
         tile_is_outside(&ShapeRef::IntBox(self), point)
@@ -527,16 +518,7 @@ impl Shape for IntOctagon {
         IntOctagon::area(self)
     }
     fn centre_of_gravity(&self) -> FloatPoint {
-        let mut x = 0.0f64;
-        let mut y = 0.0f64;
-        for i in 0..8 {
-            let current = self.corner(i).to_float();
-            x += current.x;
-            y += current.y;
-        }
-        x /= 8.0;
-        y /= 8.0;
-        FloatPoint::new(x, y)
+        corner_average(8, |i| self.corner(i).to_float())
     }
     fn is_outside(&self, point: &Point) -> bool {
         tile_is_outside(&ShapeRef::IntOctagon(self), point)
@@ -672,17 +654,9 @@ impl Shape for Simplex {
     fn centre_of_gravity(&self) -> FloatPoint {
         // The corner-average formula; garbage (NaN) on the empty simplex
         // exactly like Java.
-        let corner_count = self.border_line_count();
-        let mut x = 0.0f64;
-        let mut y = 0.0f64;
-        for i in 0..corner_count as i32 {
-            let current = self.corner_approx(i).expect("non-empty in loop");
-            x += current.x;
-            y += current.y;
-        }
-        x /= corner_count as f64;
-        y /= corner_count as f64;
-        FloatPoint::new(x, y)
+        corner_average(self.border_line_count(), |i| {
+            self.corner_approx(i).expect("non-empty in loop")
+        })
     }
     fn is_outside(&self, point: &Point) -> bool {
         tile_is_outside(&ShapeRef::Simplex(self), point)
@@ -968,23 +942,35 @@ fn shape_corner_is_bounded(shape: &ShapeRef, no: i32) -> bool {
     }
 }
 
-/// The arithmetic middle of the corner approximations (Java
-/// `PolylineShape.centreOfGravity`, shared by all TileShapes). On an empty
-/// shape this divides 0 by 0 — Java produces the same NaN garbage.
-pub(crate) fn shape_centre_of_gravity(shape: &ShapeRef) -> FloatPoint {
-    let corner_count = shape.border_line_count();
+/// The shared corner-average loop (Java `PolylineShape.centreOfGravity`):
+/// sums `corner(i)` over `0..corner_count` and divides each coordinate by
+/// the count. On `corner_count == 0` this divides 0 by 0 — Java produces
+/// the same NaN garbage.
+pub(crate) fn corner_average(
+    corner_count: usize,
+    mut corner: impl FnMut(i32) -> FloatPoint,
+) -> FloatPoint {
     let mut x = 0.0f64;
     let mut y = 0.0f64;
     for i in 0..corner_count as i32 {
-        let current = shape
-            .corner_approx(i)
-            .expect("loop is empty for count == 0");
+        let current = corner(i);
         x += current.x;
         y += current.y;
     }
     x /= corner_count as f64;
     y /= corner_count as f64;
     FloatPoint::new(x, y)
+}
+
+/// The arithmetic middle of the corner approximations (Java
+/// `PolylineShape.centreOfGravity`, shared by all TileShapes). On an empty
+/// shape this divides 0 by 0 — Java produces the same NaN garbage.
+pub(crate) fn shape_centre_of_gravity(shape: &ShapeRef) -> FloatPoint {
+    corner_average(shape.border_line_count(), |i| {
+        shape
+            .corner_approx(i)
+            .expect("loop is empty for count == 0")
+    })
 }
 
 /// Java `TileShape.shrink(double)`.

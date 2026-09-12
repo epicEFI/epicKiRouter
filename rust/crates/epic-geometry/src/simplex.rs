@@ -841,9 +841,10 @@ impl Simplex {
     /// (Java package-private; public here for the sibling ports.)
     ///
     /// The Java `intersectionSides` cache is kept verbatim: same
-    /// `Option<Side>` slots, same lazy fill on first use, same 3-entry
-    /// invalidation after a line removal (T14-compliant: the cache
-    /// preserves the oracle's evaluation order instead of changing it).
+    /// `Option<Side>` slots, same lazy fill on first use, same two
+    /// `= None` resets after a line removal (Java Simplex.java:971-978;
+    /// T14-compliant: the cache preserves the oracle's evaluation order
+    /// instead of changing it).
     pub fn remove_redundant_lines(&self) -> Simplex {
         assert!(
             !self.lines.is_empty(),
@@ -1149,18 +1150,10 @@ impl Simplex {
     /// On the empty simplex this divides 0 by 0 — Java produces the same
     /// NaN garbage through its own corner-average loop.
     fn centre_of_gravity(&self) -> FloatPoint {
-        let corner_count = self.lines.len();
-        let mut x = 0.0f64;
-        let mut y = 0.0f64;
-        for i in 0..corner_count as i32 {
+        crate::shape::corner_average(self.lines.len(), |i| {
             // the loop is empty for count == 0, so corner_approx is Some
-            let current = self.corner_approx(i).expect("non-empty in loop");
-            x += current.x;
-            y += current.y;
-        }
-        x /= corner_count as f64;
-        y /= corner_count as f64;
-        FloatPoint::new(x, y)
+            self.corner_approx(i).expect("non-empty in loop")
+        })
     }
 }
 
@@ -1249,7 +1242,12 @@ mod tests {
 
     /// jshell pin `P12`: `sqx.cutout(octT)` yields 5 simplex pieces with
     /// these exact border lines (piece 3 has 5 lines; the merge branches
-    /// of `cutout_from_simplex` stay dead there, T18).
+    /// of `cutout_from_simplex` stay dead there, T18). Values re-captured
+    /// live from the jar (P12b) and compared ANCHOR-STRICT (T20): `Line`
+    /// equality cannot see wall anchors, and the right-wall lines here
+    /// were previously mis-pinned as (6,-5)/(6,-5) anchors instead of the
+    /// oracle's (6,0)/(6,0) — the square's original border-line anchors,
+    /// carried through verbatim by both pipelines.
     #[test]
     fn p12_cutout_octagon_pieces_pin() {
         let sqx = Simplex::get_instance(&square_lines());
@@ -1261,18 +1259,18 @@ mod tests {
         let expected: [Vec<Line>; 5] = [
             vec![
                 line(0, -5, 6, -5),
-                line(6, -5, 6, 6),
+                line(6, 0, 6, 6),
                 line(1, -1, 0, -1),
                 line(0, 6, 0, -5),
             ],
             vec![
                 line(0, -5, 6, -5),
-                line(6, -5, 6, 6),
+                line(6, 0, 6, 6),
                 line(6, 6, 0, 6),
-                line(6, 6, 6, -5),
+                line(6, 6, 6, 0),
             ],
             vec![
-                line(6, -5, 6, 6),
+                line(6, 0, 6, 6),
                 line(6, 6, 0, 6),
                 line(5, 4, 5, 3),
                 line(7, 1, 8, 0),
@@ -1292,14 +1290,18 @@ mod tests {
             ],
         ];
         for (piece, expected_lines) in pieces.iter().zip(expected.iter()) {
-            match piece {
-                TileShape::Simplex(s) => {
-                    assert_eq!(s.border_line_count(), expected_lines.len());
-                    for (i, expected_line) in expected_lines.iter().enumerate() {
-                        assert_eq!(s.border_line(i as i32), *expected_line);
-                    }
-                }
+            let s = match piece {
+                TileShape::Simplex(s) => s,
                 TileShape::RegularTileShape(_) => panic!("expected a simplex piece"),
+            };
+            assert_eq!(s.border_line_count(), expected_lines.len());
+            for (i, expected_line) in expected_lines.iter().enumerate() {
+                let actual = s.border_line(i as i32);
+                // T20: anchor-strict — `Line` equality (in both languages)
+                // ignores where a line starts and ends on its supporting
+                // line, so anchor identity is only observable through the
+                // endpoint pair.
+                assert_eq!((&actual.a, &actual.b), (&expected_line.a, &expected_line.b));
             }
         }
     }
@@ -1369,14 +1371,15 @@ mod tests {
             ],
         ];
         for (piece, expected_lines) in pieces.iter().zip(expected.iter()) {
-            match piece {
-                TileShape::Simplex(s) => {
-                    assert_eq!(s.border_line_count(), expected_lines.len());
-                    for (i, expected_line) in expected_lines.iter().enumerate() {
-                        assert_eq!(s.border_line(i as i32), *expected_line);
-                    }
-                }
+            let s = match piece {
+                TileShape::Simplex(s) => s,
                 TileShape::RegularTileShape(_) => panic!("expected a simplex piece"),
+            };
+            assert_eq!(s.border_line_count(), expected_lines.len());
+            for (i, expected_line) in expected_lines.iter().enumerate() {
+                let actual = s.border_line(i as i32);
+                // T20: anchor-strict, as in the P12 pin.
+                assert_eq!((&actual.a, &actual.b), (&expected_line.a, &expected_line.b));
             }
         }
     }
