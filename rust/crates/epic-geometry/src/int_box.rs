@@ -15,7 +15,11 @@
 //! after the int arithmetic, exactly like the Java casts. The offset
 //! methods round via [`java_round`] (JDK 7+ ties toward +infinity) and
 //! narrow to `i32` with `as` (Java's `(int)` long cast — both truncate
-//! mod 2^32, they do not saturate).
+//! mod 2^32, they do not saturate). Direct `f64`→`i32` `as` sites (the
+//! `floor`/`ceil` casts in [`IntBox::divide_into_sections`] and the
+//! point-family bounding methods) likewise match Java: JLS 5.1.3
+//! double→int narrowing saturates (NaN→0), as does Rust `as`; only the
+//! i64→i32 narrowing sites wrap mod 2^32, identically to Java.
 //!
 //! Deferrals (methods whose parameter/return types belong to later M1a
 //! tasks; signatures as in the Java original):
@@ -32,6 +36,7 @@
 //!   `TileShape simplify()`, `TileShape intersection(TileShape)`,
 //!   `Simplex intersection(Simplex)`, `boolean intersects(Shape)`
 //!   (trait dispatch), `boolean contains(RegularTileShape)`,
+//!   `RegularTileShape union(RegularTileShape)`,
 //!   `RegularTileShape boundingShape(ShapeBoundingDirections)`,
 //!   `Side compare(RegularTileShape, int)` dispatch, `Simplex toSimplex()`,
 //!   `TileShape[] cutout(TileShape)`, `Simplex[] cutoutFrom(Simplex)`.
@@ -243,6 +248,9 @@ impl IntBox {
             second_nearest_projection_x = point.x;
             second_nearest_projection_y = self.ll.y;
         }
+        // Java's final minDiff/secondMinDiff updates in the following
+        // block (IntBox.java:191-202) are dead stores — nothing reads
+        // them afterwards — and are omitted here; behavior is identical.
         if upper_vertical_difference < min_diff {
             second_nearest_projection_x = nearest_projection_x;
             second_nearest_projection_y = nearest_projection_y;
@@ -610,6 +618,14 @@ impl IntBox {
         let height = f64::from(self.ur.y.wrapping_sub(self.ll.y));
         let xcount = (length / max_section_width).ceil() as i32;
         let ycount = (height / max_section_width).ceil() as i32;
+        // A wrapped (negative) extension makes Java throw
+        // NegativeArraySizeException at `new IntBox[xcount * ycount]`
+        // (IntBox.java:660); mirror that failure instead of silently
+        // returning an empty/partial result.
+        assert!(
+            xcount >= 0 && ycount >= 0,
+            "IntBox.divideIntoSections: negative section count"
+        );
         let section_length_x = (length / f64::from(xcount)).ceil() as i32;
         let section_length_y = (height / f64::from(ycount)).ceil() as i32;
         let mut result = Vec::new();
@@ -1029,6 +1045,16 @@ mod tests {
             b(0, 0, 10, 10).divide_into_sections(100.0),
             vec![b(0, 0, 10, 10)]
         );
+    }
+
+    /// A wrapped (negative) extension makes Java throw
+    /// NegativeArraySizeException at `new IntBox[xcount * ycount]`
+    /// (IntBox.java:660); the port asserts instead of silently
+    /// returning an empty/partial result.
+    #[test]
+    #[should_panic(expected = "IntBox.divideIntoSections: negative section count")]
+    fn divide_into_sections_panics_on_wrapped_extension() {
+        let _ = b(-2_000_000_000, 0, 2_000_000_000, 10).divide_into_sections(100.0);
     }
 
     /// jshell pins via the public `cutout` path (all pieces IntBox):
