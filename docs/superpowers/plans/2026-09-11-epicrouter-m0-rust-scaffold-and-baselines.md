@@ -1099,12 +1099,21 @@ pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
         Some(m) => (m, None),
         None => (
             // A missing manifest is itself a recordable outcome (harness
-            // timeout, JVM crash). Synthesize the shell of a manifest.
+            // timeout, JVM crash). Synthesize the shell of a manifest; the
+            // note distinguishes absent from present-but-unparseable
+            // (oracle.rs `manifest_error`: schema drift or a truncated
+            // mid-kill write must not read as "never produced").
             &UNPARSED,
-            Some(format!(
-                "no manifest produced (timed_out={}, exit_code={:?})",
-                run.timed_out, run.exit_code
-            )),
+            Some(match &run.manifest_error {
+                Some(err) => format!(
+                    "manifest unparseable: {err} (timed_out={}, exit_code={:?})",
+                    run.timed_out, run.exit_code
+                ),
+                None => format!(
+                    "no manifest produced (timed_out={}, exit_code={:?})",
+                    run.timed_out, run.exit_code
+                ),
+            }),
         ),
     };
     let stats = manifest.board_statistics.as_ref();
@@ -1214,6 +1223,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir");
         OracleRun {
             manifest,
+            manifest_error: None,
             exit_code: if timed_out { None } else { Some(0) },
             timed_out,
             wall_seconds: 42.0,
@@ -1250,6 +1260,17 @@ mod tests {
     }
 
     #[test]
+    fn records_manifest_parse_failure_honestly() {
+        let mut run = synthetic_run(None, false);
+        run.manifest_error = Some("expected value at line 1 column 1".into());
+        let b = distill("fixtures/x.dsn", &run);
+        let note = b.notes.as_deref().expect("note present");
+        assert!(note.contains("manifest unparseable"));
+        assert!(note.contains("expected value"));
+        assert!(!note.contains("no manifest produced"));
+    }
+
+    #[test]
     fn sha256_of_known_bytes_is_stable() {
         let dir = std::env::temp_dir().join("epic-harness-baseline-test");
         std::fs::create_dir_all(&dir).expect("temp dir");
@@ -1272,7 +1293,7 @@ mod tests {
 cd rust && cargo test -p epic-harness baseline
 ```
 
-Expected initially: compile error (`UNPARSED` static requires `String::new()` in const context — `String::new()` IS const-stable since Rust 1.39, so this compiles; if the compiler rejects the static for another reason, replace `static UNPARSED` with a `fn unparsed() -> RoutingResultManifest` constructor and call it in `distill`). Then run again: 3 passed.
+Expected initially: compile error (`UNPARSED` static requires `String::new()` in const context — `String::new()` IS const-stable since Rust 1.39, so this compiles; if the compiler rejects the static for another reason, replace `static UNPARSED` with a `fn unparsed() -> RoutingResultManifest` constructor and call it in `distill`). Then run again: 4 passed.
 
 - [ ] **Step 3: Wire the CLI (`main.rs` full replacement)**
 
