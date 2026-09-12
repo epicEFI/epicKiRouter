@@ -3,6 +3,7 @@
 //! baselines.
 
 mod manifest;
+mod oracle;
 mod tiers;
 
 fn main() {
