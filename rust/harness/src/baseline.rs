@@ -5,7 +5,7 @@
 
 use crate::manifest::RoutingResultManifest;
 use crate::oracle::OracleRun;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -39,14 +39,15 @@ pub struct BaselineRecord {
 }
 
 pub fn sha256_file(path: &Path) -> Result<String> {
-    let bytes = std::fs::read(path)?;
+    let bytes =
+        std::fs::read(path).with_context(|| format!("reading {} for hashing", path.display()))?;
     let digest = Sha256::digest(&bytes);
     Ok(format!("{digest:x}"))
 }
 
 /// Reduces one oracle run to the committed baseline record.
 pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
-    let (manifest, note): (&RoutingResultManifest, Option<String>) = match &run.manifest {
+    let (manifest, mut note): (&RoutingResultManifest, Option<String>) = match &run.manifest {
         Some(m) => (m, None),
         None => (
             // A missing manifest is itself a recordable outcome (harness
@@ -68,6 +69,23 @@ pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
         ),
     };
     let stats = manifest.board_statistics.as_ref();
+    let ses_sha256 = if run.ses_path.is_file() {
+        match sha256_file(&run.ses_path) {
+            Ok(hash) => Some(hash),
+            // An unreadable ses file must not silently read as "no ses
+            // produced"; fold the failure into the note instead.
+            Err(err) => {
+                let msg = format!("ses hash unavailable: {err:#}");
+                note = match note {
+                    Some(existing) => Some(format!("{existing}; {msg}")),
+                    None => Some(msg),
+                };
+                None
+            }
+        }
+    } else {
+        None
+    };
     BaselineRecord {
         schema_version: BASELINE_SCHEMA_VERSION,
         engine: "java".into(),
@@ -95,11 +113,7 @@ pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
             .and_then(|c| c.router_introduced_count),
         normalized_score: manifest.normalized_score,
         optimizer_score: manifest.optimizer_score,
-        ses_sha256: if run.ses_path.is_file() {
-            sha256_file(&run.ses_path).ok()
-        } else {
-            None
-        },
+        ses_sha256,
         autorouter_seconds: manifest.phases.autorouter.duration_seconds,
         optimizer_seconds: manifest.phases.optimizer.duration_seconds,
         passes_completed: manifest.phases.autorouter.passes_completed,
@@ -224,6 +238,21 @@ mod tests {
         assert!(note.contains("manifest unparseable"));
         assert!(note.contains("expected value"));
         assert!(!note.contains("no manifest produced"));
+    }
+
+    #[test]
+    fn baseline_record_round_trips_through_json() {
+        let m: RoutingResultManifest =
+            serde_json::from_str(&sample_manifest_json()).expect("manifest parses");
+        let run = synthetic_run(Some(m), false);
+        let mut record = distill("fixtures/x.dsn", &run);
+        // Make the round trip non-trivial: populate a field distill left
+        // None-ish and clear another, so Some/None survive JSON equally.
+        record.notes = Some("captured on CI runner".into());
+        record.optimizer_score = None;
+        let json = serde_json::to_string(&record).expect("serialize");
+        let back: BaselineRecord = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(record, back);
     }
 
     #[test]
