@@ -197,26 +197,36 @@ pub(crate) fn compare_int_int(a: &IntDirection, b: &IntDirection) -> Ordering {
 mod tests {
     use super::*;
 
-    /// jshell pins `B`/`C`/`D`/`I`: the raw turn table keeps unnormalized
-    /// results — turning DOWN45 by 45 degrees yields `(2, 0)`.
+    /// jshell pins `G0`-`G7`/`H`/`I`: the exhaustive 8-factor turn table
+    /// for RIGHT, plus unnormalized results on diagonals — turning DOWN45
+    /// by 45 degrees yields the raw `(2, 0)`, `UP45` by factor 5 the raw
+    /// `(2, 0)` (arm 5), and `DOWN45` by factor 6 the raw `(-1, -1)`
+    /// (arm 6).
     #[test]
     fn turn_45_degree_is_unnormalized() {
-        assert_eq!(
-            IntDirection::RIGHT.turn_45_degree(1),
-            Direction::Int(IntDirection::RIGHT45)
-        );
-        assert_eq!(
-            IntDirection::RIGHT.turn_45_degree(2),
-            Direction::Int(IntDirection::UP)
-        );
-        assert_eq!(
-            IntDirection::new(1, -1).turn_45_degree(1),
-            Direction::Int(IntDirection::new(2, 0))
-        );
-        assert_eq!(
-            IntDirection::RIGHT.turn_45_degree(7),
-            Direction::Int(IntDirection::new(1, -1))
-        );
+        let xy = |d: &Direction| match d {
+            Direction::Int(dir) => (dir.x, dir.y),
+            Direction::BigInt(_) => panic!("expected an int direction"),
+        };
+        let expected = [
+            (1, 0),   // 0 degrees
+            (1, 1),   // 45 degrees
+            (0, 1),   // 90 degrees
+            (-1, 1),  // 135 degrees
+            (-1, 0),  // 180 degrees
+            (-1, -1), // 225 degrees
+            (0, -1),  // 270 degrees
+            (1, -1),  // 315 degrees
+        ];
+        for (factor, want) in expected.iter().enumerate() {
+            assert_eq!(
+                xy(&IntDirection::RIGHT.turn_45_degree(factor as i32)),
+                *want
+            );
+        }
+        assert_eq!(xy(&IntDirection::new(1, -1).turn_45_degree(1)), (2, 0));
+        assert_eq!(xy(&IntDirection::UP45.turn_45_degree(5)), (2, 0));
+        assert_eq!(xy(&IntDirection::DOWN45.turn_45_degree(6)), (-1, -1));
         // 180 degrees from UP equals the opposite direction (pin `h`).
         assert_eq!(
             IntDirection::UP.turn_45_degree(4),

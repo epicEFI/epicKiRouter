@@ -670,4 +670,41 @@ mod tests {
         assert_eq!(f, FloatPoint::new(3.0, -4.0));
         assert_eq!(FloatPoint::new(1.5, 2.0).to_string(), "(1.5,2)");
     }
+
+    /// jshell pins `A`-`F`: the roundToTheRight/Left arm selection — UP
+    /// covers `dir.y > 0` (ceil x) plus `dir.x == 0` (round y), LEFT45
+    /// covers the negative arms of both branches (`dir.y < 0` and
+    /// `dir.x < 0`), and the NULL direction (zero direction vector) falls
+    /// back to `Math.round` on both coordinates (ties toward +infinity:
+    /// -1.5 -> -1, 2.5 -> 3).
+    #[test]
+    fn round_to_the_right_and_left_arms() {
+        // A/B: UP.
+        assert_eq!(
+            FloatPoint::new(1.2, 3.7).round_to_the_right(&Direction::UP),
+            IntPoint::new(2, 4)
+        );
+        assert_eq!(
+            FloatPoint::new(1.2, 3.7).round_to_the_left(&Direction::UP),
+            IntPoint::new(1, 4)
+        );
+        // C/D: LEFT45.
+        assert_eq!(
+            FloatPoint::new(1.2, 3.7).round_to_the_right(&Direction::LEFT45),
+            IntPoint::new(1, 4)
+        );
+        assert_eq!(
+            FloatPoint::new(1.2, 3.7).round_to_the_left(&Direction::LEFT45),
+            IntPoint::new(2, 3)
+        );
+        // E/F: NULL direction.
+        assert_eq!(
+            FloatPoint::new(-1.5, 2.5).round_to_the_right(&Direction::NULL),
+            IntPoint::new(-1, 3)
+        );
+        assert_eq!(
+            FloatPoint::new(-1.5, 2.5).round_to_the_left(&Direction::NULL),
+            IntPoint::new(-1, 3)
+        );
+    }
 }

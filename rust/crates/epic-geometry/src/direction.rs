@@ -506,4 +506,23 @@ mod tests {
         assert_eq!(Direction::RIGHT.opposite(), Direction::LEFT);
         assert_eq!(Direction::UP.turn_45_degree(4), Direction::UP.opposite());
     }
+
+    /// Freezes the documented Ord/PartialEq divergence, confined to the
+    /// NULL direction (jshell pins `L`/`M`): compareTo identifies NULL
+    /// with the negative x axis (Equal), while equals does not (the zero
+    /// projection is not POSITIVE). Reproduced Java behavior — do not
+    /// "fix" one side to match the other.
+    #[test]
+    fn null_direction_ord_and_partial_eq_diverge() {
+        assert_eq!(
+            std::cmp::Ord::cmp(&Direction::NULL, &Direction::LEFT),
+            Ordering::Equal
+        );
+        assert_eq!(
+            Direction::NULL.compare_to(&Direction::LEFT),
+            Ordering::Equal
+        );
+        assert_ne!(Direction::NULL, Direction::LEFT);
+        assert_ne!(Direction::LEFT, Direction::NULL);
+    }
 }

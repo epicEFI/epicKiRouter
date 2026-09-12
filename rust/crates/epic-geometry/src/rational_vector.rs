@@ -191,4 +191,23 @@ mod tests {
         assert_eq!(f.x, 0.25);
         assert_eq!(f.y, 0.5);
     }
+
+    /// jshell pins `J`/`K`: a coprime pair beyond CRIT_INT_BIG promotes to
+    /// a BigIntDirection — gcd(2^40, 2^40+1) = 1 (consecutive integers),
+    /// so nothing reduces, and both numerators exceed the 2^25
+    /// down-conversion bound.
+    #[test]
+    fn to_normalized_direction_promotes_to_big_int_direction() {
+        let huge = BigInt::from(1u32) << 40u32;
+        let expected_y = huge.clone() + b(1);
+        let d =
+            RationalVector::new(huge.clone(), expected_y.clone(), b(1)).to_normalized_direction();
+        match d {
+            Direction::BigInt(dir) => {
+                assert_eq!(dir.x, huge);
+                assert_eq!(dir.y, expected_y);
+            }
+            Direction::Int(_) => panic!("expected promotion to a BigIntDirection"),
+        }
+    }
 }
