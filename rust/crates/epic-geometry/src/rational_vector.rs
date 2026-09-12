@@ -5,12 +5,18 @@
 //! Like the Java original, `RationalVector` overrides `equals` (cross
 //! multiplication) but NOT `hashCode`, so there is no `Hash` impl, and it
 //! has no `toString`, so there is no `Display` impl.
-//!
-//! Deferred to Task 3 (Directions): `toNormalizedDirection()`.
 
-use crate::big_int_aux::{big_integer_double_value, determinant};
+use std::cmp::Ordering;
+
+use crate::big_int_aux::{
+    big_abs, big_gcd, big_integer_double_value, big_integer_int_value, determinant,
+};
+use crate::big_int_direction::BigIntDirection;
+use crate::direction::Direction;
 use crate::float_point::FloatPoint;
+use crate::int_direction::IntDirection;
 use crate::int_vector::IntVector;
+use crate::limits::CRIT_INT_BIG;
 use num_bigint::{BigInt, Sign};
 
 /// Analog RationalPoint, but implementing the functionality of a Vector
@@ -64,6 +70,29 @@ impl RationalVector {
         let yd = big_integer_double_value(&self.y);
         let zd = big_integer_double_value(&self.z);
         FloatPoint::new(xd / zd, yd / zd)
+    }
+
+    /// Java package-private `toNormalizedDirection()`: gcd-reduces the raw
+    /// numerators (Java `dx.gcd(y)`), down-converts to an IntDirection
+    /// when both reduced numerators fit within CRIT_INT_BIG, and otherwise
+    /// builds a BigIntDirection. Dividing by the zero gcd (both numerators
+    /// zero) panics exactly like Java's `BigInteger.divide(0)`
+    /// ArithmeticException.
+    pub fn to_normalized_direction(&self) -> Direction {
+        let dx = self.x.clone();
+        let gcd = big_gcd(&dx, &self.y);
+        let dx = dx / &gcd;
+        let dy = &self.y / &gcd;
+        if big_abs(&dx).cmp(&*CRIT_INT_BIG) != Ordering::Greater
+            && big_abs(&dy).cmp(&*CRIT_INT_BIG) != Ordering::Greater
+        {
+            Direction::Int(IntDirection::new(
+                big_integer_int_value(&dx),
+                big_integer_int_value(&dy),
+            ))
+        } else {
+            Direction::BigInt(Box::new(BigIntDirection::new(dx, dy)))
+        }
     }
 
     /// Java package-private `add(IntVector)`: wraps the IntVector, then

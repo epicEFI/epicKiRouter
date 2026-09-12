@@ -17,12 +17,11 @@
 //! Like the Java originals, the concrete vector classes override `equals`
 //! but not `hashCode` (identity hash in Java), so the enum implements no
 //! `Hash`.
-//!
-//! Deferred to Task 3 (Directions): `toNormalizedDirection()`.
 
 use std::cmp::Ordering;
 
 use crate::big_int_aux::{big_abs, big_integer_int_value, determinant};
+use crate::direction::Direction;
 use crate::float_point::FloatPoint;
 use crate::int_point::IntPoint;
 use crate::int_vector::IntVector;
@@ -329,6 +328,15 @@ impl Vector {
                     .difference_by(&IntPoint::ZERO),
             ),
             Vector::Rational(_) => self.clone(),
+        }
+    }
+
+    /// Java abstract `toNormalizedDirection()`: the gcd-reduced direction
+    /// of this vector (double dispatch to the concrete vector classes).
+    pub fn to_normalized_direction(&self) -> Direction {
+        match self {
+            Vector::Int(v) => v.to_normalized_direction(),
+            Vector::Rational(v) => v.to_normalized_direction(),
         }
     }
 

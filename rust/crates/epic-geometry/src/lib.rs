@@ -13,14 +13,16 @@
 //! tasks; the deferrals are documented on each module:
 //! - `surroundingBox` / `boundingBox` / `isContainedIn` -> Task 4 (IntBox)
 //! - `surroundingOctagon` / `boundingOctagon` -> Task 5 (IntOctagon)
-//! - `toNormalizedDirection` / `roundToTheRight` / `roundToTheLeft`
-//!   -> Task 3 (Direction)
 //! - `sideOf(Line)` / `perpendicularProjection` /
 //!   `perpendicularDirection` / `projectionApprox` -> Task 6 (Line /
 //!   FloatLine)
 
 pub mod big_int_aux;
+pub mod big_int_direction;
+pub mod direction;
 pub mod float_point;
+pub mod fortyfive_degree_direction;
+pub mod int_direction;
 pub mod int_point;
 pub mod int_vector;
 pub mod java_random;

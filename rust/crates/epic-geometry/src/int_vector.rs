@@ -6,10 +6,11 @@
 //! `public static final IntVector ZERO = new IntVector(0, 0)` on `Vector`;
 //! it is [`IntVector::ZERO`] here. `IntVector` overrides neither
 //! `hashCode()` nor `toString()` in Java, so no `Hash`/`Display` impls.
-//!
-//! Deferred to Task 3 (Directions): `toNormalizedDirection()`.
 
+use crate::big_int_aux::binary_gcd;
+use crate::direction::Direction;
 use crate::float_point::FloatPoint;
+use crate::int_direction::IntDirection;
 
 /// Implementation of the interface Vector via a tuple of integers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +57,24 @@ impl IntVector {
     /// Converts this vector to a FloatPoint.
     pub fn to_float(&self) -> FloatPoint {
         FloatPoint::new(self.x as f64, self.y as f64)
+    }
+
+    /// Java package-private `toNormalizedDirection()`: gcd-reduced copy of
+    /// the coordinates as an IntDirection — no sign normalization and no
+    /// promotion. The gcd runs through `BigIntAux.binaryGcd` on the
+    /// `Math.abs` bit patterns, and Java's `gcd > 1` check compares the
+    /// result as a Java `int`: `Math.abs(i32::MIN)` wraps to 0x80000000
+    /// (negative as int), so `IntVector(i32::MIN, 0)` is returned
+    /// unnormalized (jshell pins `R`/`S`).
+    pub fn to_normalized_direction(&self) -> Direction {
+        let mut dx = self.x;
+        let mut dy = self.y;
+        let gcd = binary_gcd(dx.wrapping_abs() as u32, dy.wrapping_abs() as u32) as i32;
+        if gcd > 1 {
+            dx /= gcd;
+            dy /= gcd;
+        }
+        Direction::Int(IntDirection::new(dx, dy))
     }
 }
 

@@ -15,13 +15,14 @@
 //! — see [`crate::rounding`].
 //!
 //! Deferred: `boundingBox` (Task 4, IntBox), `boundingOctagon` (Task 5,
-//! IntOctagon), `projectionApprox` (Task 6, FloatLine),
-//! `roundToTheRight`/`roundToTheLeft` (Task 3, Direction) and the
+//! IntOctagon), `projectionApprox` (Task 6, FloatLine) and the
 //! locale-dependent `toString(Locale, ...)` variants (locale formatting
-//! is out of scope for the geometry kernel).
+//! is out of scope for the geometry kernel). `roundToTheRight` /
+//! `roundToTheLeft` landed with Task 3 (Direction).
 
 use std::fmt;
 
+use crate::direction::Direction;
 use crate::int_point::IntPoint;
 use crate::rounding::{java_rint, java_round};
 use crate::side::Side;
@@ -86,6 +87,55 @@ impl FloatPoint {
     /// low 32 bits of the long result.
     pub fn round(&self) -> IntPoint {
         IntPoint::new(java_round(self.x) as i32, java_round(self.y) as i32)
+    }
+
+    /// Rounds this point, so that if this point is on the right side of
+    /// any directed line with direction dir, the result point will also be
+    /// on the right side. The coordinate opposite to the direction is
+    /// rounded outward (ceil/floor), the coordinate along it is rounded
+    /// inward (floor/ceil), and zero direction components fall back to
+    /// `Math.round`.
+    pub fn round_to_the_right(&self, dir: &Direction) -> IntPoint {
+        let direction_vector = dir.get_vector().to_float();
+        let rounded_x = if direction_vector.y > 0.0 {
+            self.x.ceil() as i32
+        } else if direction_vector.y < 0.0 {
+            self.x.floor() as i32
+        } else {
+            java_round(self.x) as i32
+        };
+
+        let rounded_y = if direction_vector.x > 0.0 {
+            self.y.floor() as i32
+        } else if direction_vector.x < 0.0 {
+            self.y.ceil() as i32
+        } else {
+            java_round(self.y) as i32
+        };
+        IntPoint::new(rounded_x, rounded_y)
+    }
+
+    /// Rounds this point, so that if this point is on the left side of any
+    /// directed line with direction dir, the result point will also be on
+    /// the left side.
+    pub fn round_to_the_left(&self, dir: &Direction) -> IntPoint {
+        let direction_vector = dir.get_vector().to_float();
+        let rounded_x = if direction_vector.y > 0.0 {
+            self.x.floor() as i32
+        } else if direction_vector.y < 0.0 {
+            self.x.ceil() as i32
+        } else {
+            java_round(self.x) as i32
+        };
+
+        let rounded_y = if direction_vector.x > 0.0 {
+            self.y.ceil() as i32
+        } else if direction_vector.x < 0.0 {
+            self.y.floor() as i32
+        } else {
+            java_round(self.y) as i32
+        };
+        IntPoint::new(rounded_x, rounded_y)
     }
 
     /// Rounds this point, so that the x coordinate of the result is a
