@@ -123,3 +123,4 @@ description: chronological action log per session, consolidated weekly
 | 23:30 | Edited rust/harness/src/baseline.rs | modified wall_time_and_ses_hash_are_never_gated() | ~337 |
 | 01:47 | Created .github/workflows/rust-check.yml | — | ~190 |
 | 01:52 | Created rust/README.md | — | ~546 |
+| 02:01 | M0 complete: rust/ workspace (9 crates + epic-harness), Tier A/B/C golden baselines (23 fixtures) captured+verified, CI workflow | rust/**, .github/workflows/rust-check.yml, CLAUDE.md | committed | d13c22c3→705aab04 |
