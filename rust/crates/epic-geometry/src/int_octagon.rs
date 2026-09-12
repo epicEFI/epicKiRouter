@@ -2212,9 +2212,9 @@ mod tests {
     }
 
     /// jshell pins (sliver): normalize((0,0,10,10,3,9,5,7)) tightens
-    //  step 2 (lx 0->3), step 3 (rx 10->7), step 7 (uy 10->4), the
-    //  upper diag merge (uy 4->2) and the lower-left diag merge
-    //  (lx 3->4) => (4,0,7,2,3,7,5,7).
+    /// step 2 (lx 0->3), step 3 (rx 10->7), step 7 (uy 10->4), the
+    /// upper diag merge (uy 4->2) and the lower-left diag merge
+    /// (lx 3->4) => (4,0,7,2,3,7,5,7).
     #[test]
     fn normalize_sliver_pin() {
         assert_eq!(
