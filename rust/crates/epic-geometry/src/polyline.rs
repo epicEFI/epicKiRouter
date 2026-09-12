@@ -819,10 +819,12 @@ mod tests {
     /// jshell pin `PFL2` (trap T10): deliberately constructed input where
     /// the FLOAT side-of of the corner approximation disagrees with the
     /// exact one. Lines: L0 through the origin with direction
-    /// (2^27, 2^27-1); the corner approximation of L1 and L2 is
-    /// (2^27+1, 2^27) (Java intersectionApprox), where the float cross
-    /// dx*(py-ay) - dy*(px-ax) rounds to 0. The oracle output flips the
-    /// middle line — the pin freezes the observed ctor result.
+    /// (2^27, 2^27-1); the EXACT corner of L1 and L2 is (2^27+1, 2^27),
+    /// whose exact sideOf on L0 is collinear (no flip), but Java's
+    /// `intersectionApprox` returns (2^27, 2^27) at this magnitude — a
+    /// DIFFERENT point whose sideOf on L0 is onTheRight. The approximation
+    /// manufactures a side; the oracle output flips the middle line — the
+    /// pin freezes the observed ctor result.
     #[test]
     fn pfl2_ctor_corner_flip_float_vs_exact() {
         let big = 134217728i32; // 2^27
