@@ -35,7 +35,7 @@
 
 | # | Trap | Java behavior to reproduce |
 |---|---|---|
-| T1 | `Math.round(double)` | `floor(x + 0.5)` — rounds halves toward +∞ (-2.5 → -2). Rust `f64::round` differs (-3). Affects `IntOctagon.offset` (:299-303), `IntBox.offset` (:447), `FloatPoint.round` (:103). `Math.rint` (half-to-even) ONLY in `FloatPoint.roundToGrid` (:141,147) |
+| T1 | `Math.round(double)` | Closest long with ties toward +∞ (-2.5 → -2), **implemented bit-exactly per JDK 7+ (JDK-6430675)** — NOT the naive `floor(x + 0.5)`, which mis-rounds values 1 ulp below a half (`Math.round(0.49999999999999994) == 0`). Rust `f64::round` also differs (rounds halves away from zero). Affects `IntOctagon.offset` (:299-303), `IntBox.offset` (:447), `FloatPoint.round` (:103). `Math.rint` (half-to-even) ONLY in `FloatPoint.roundToGrid` (:141,147) |
 | T2 | `IntOctagon.isEmpty()` | **Reference identity** `this == EMPTY` (IntOctagon.java:92-94) — not field comparison. Rust: value-compare against the sentinel field tuple; equivalent on all canonical outputs (EMPTY is only produced by ops that return the constant), and the corpus only tests emptiness through those ops |
 | T3 | `IntBox.isEmpty()` | Value-based (`ll.x>ur.x ‖ ll.y>ur.y`); `EMPTY` = inverted sentinel box. Asymmetric with octagon — keep both behaviors |
 | T4 | `IntDirection.turn45Degree(negative)` | Java `%` keeps sign → negative `n` hits default case → returns `IntDirection(0,0)` (NULL). `turn90Degree` normalizes negatives by while-loops. Asymmetry is load-bearing |
@@ -112,8 +112,17 @@ Rules: ints decimal; doubles ALWAYS as `bits: i64` (`doubleToRawLongBits` / `f64
 
 ```rust
 // rounding.rs
-/// Java `Math.round(d)`: floor(d + 0.5) — halves go toward +infinity.
-pub fn java_round(d: f64) -> i64 { (d + 0.5).floor() as i64 }
+/// Java 7+ `Math.round(double)` (JDK-6430675): closest integer with ties
+/// toward +infinity, computed without the double-rounding artifact of the
+/// naive `floor(d + 0.5)` formula (which mis-rounds values 1 ulp below a
+/// half, e.g. 0.49999999999999994). `d - d.floor()` is exact for finite
+/// doubles, so `frac >= 0.5` is the exact tie test. NaN -> 0, ±Inf and
+/// out-of-range saturate (same as Java's `(long)` cast).
+pub fn java_round(d: f64) -> i64 {
+    let floor = d.floor();
+    let frac = d - floor;
+    if frac >= 0.5 { (floor + 1.0) as i64 } else { floor as i64 }
+}
 /// Java `Math.rint`: half-to-even.
 pub fn java_rint(d: f64) -> f64 { /* nearest, ties to even */ }
 
@@ -126,6 +135,7 @@ mod tests {
         assert_eq!(java_round(-2.5), -2);    // NOT Rust round()'s -3
         assert_eq!(java_round(-2.6), -3);
         assert_eq!(java_round(2.4), 2);
+        assert_eq!(java_round(0.49999999999999994), 0); // JDK-6430675
     }
     #[test]
     fn java_rint_rounds_halves_to_even() {
