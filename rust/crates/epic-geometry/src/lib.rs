@@ -1,6 +1,6 @@
 //! Exact 45-degree integer geometry kernel: Point/Vector families
 //! (IntPoint, RationalPoint, FloatPoint, IntVector, RationalVector),
-//! later IntBox, IntOctagon, TileShape, Polyline.
+//! IntBox; later IntOctagon, TileShape, Polyline.
 //!
 //! Port discipline (design doc §9, decision D1): bit-parity port of Java
 //! `geometry/planar` — i32 with Java wraparound (`wrapping_*`), double-for-
@@ -10,8 +10,9 @@
 //!
 //! Task 2 (point + vector families) ported every public Java method
 //! except those whose parameter or return types belong to later M1a
-//! tasks; the deferrals are documented on each module:
-//! - `surroundingBox` / `boundingBox` / `isContainedIn` -> Task 4 (IntBox)
+//! tasks; the deferrals are documented on each module. The Task 4
+//! deferrals (`surroundingBox` / `boundingBox` / `isContainedIn`)
+//! landed with IntBox.
 //! - `surroundingOctagon` / `boundingOctagon` -> Task 5 (IntOctagon)
 //! - `sideOf(Line)` / `perpendicularProjection` /
 //!   `perpendicularDirection` / `projectionApprox` -> Task 6 (Line /
@@ -22,6 +23,7 @@ pub mod big_int_direction;
 pub mod direction;
 pub mod float_point;
 pub mod fortyfive_degree_direction;
+pub mod int_box;
 pub mod int_direction;
 pub mod int_point;
 pub mod int_vector;

@@ -19,17 +19,18 @@
 //! Java `Point.ZERO` is an IntPoint; it is available both as
 //! [`IntPoint::ZERO`] and [`Point::ZERO`].
 //!
-//! Deferred: `surroundingBox`/`isContainedIn` (Task 4, IntBox),
-//! `surroundingOctagon` (Task 5, IntOctagon),
+//! Deferred: `surroundingOctagon` (Task 5, IntOctagon),
 //! `sideOf(Line)`/`perpendicularProjection`/`perpendicularDirection`
-//! (Task 6, Line/Direction), `roundToTheRight`/`roundToTheLeft` (Task 3,
-//! Direction).
+//! (Task 6, Line/Direction). `roundToTheRight`/`roundToTheLeft` landed
+//! with Task 3 (Direction); `surroundingBox`/`isContainedIn` with
+//! Task 4 (IntBox).
 
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
 use crate::big_int_aux::{big_abs, big_integer_int_value};
 use crate::float_point::FloatPoint;
+use crate::int_box::IntBox;
 use crate::int_point::IntPoint;
 use crate::limits::{CRIT_INT, CRIT_INT_BIG};
 use crate::rational_point::{RationalPoint, ordering_to_int};
@@ -102,6 +103,24 @@ impl Point {
             ));
         }
         Point::rational(RationalPoint::new(x, y, z))
+    }
+
+    /// Returns the smallest IntBox containing only this point (Java
+    /// `surroundingBox`, landed with Task 4).
+    pub fn surrounding_box(&self) -> IntBox {
+        match self {
+            Point::Int(p) => p.surrounding_box(),
+            Point::Rational(p) => p.surrounding_box(),
+        }
+    }
+
+    /// Returns true if this point lies inside `int_box` or on its border
+    /// (Java `isContainedIn(IntBox)` double dispatch, landed with Task 4).
+    pub fn is_contained_in(&self, int_box: &IntBox) -> bool {
+        match self {
+            Point::Int(p) => p.is_contained_in(int_box),
+            Point::Rational(p) => p.is_contained_in(int_box),
+        }
     }
 
     /// Returns the translation of this point by vector (Java

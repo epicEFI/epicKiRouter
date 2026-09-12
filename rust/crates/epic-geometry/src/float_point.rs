@@ -14,15 +14,16 @@
 //! then the `(int)` cast), `roundToGrid` uses `Math.rint` (ties to even)
 //! — see [`crate::rounding`].
 //!
-//! Deferred: `boundingBox` (Task 4, IntBox), `boundingOctagon` (Task 5,
-//! IntOctagon), `projectionApprox` (Task 6, FloatLine) and the
-//! locale-dependent `toString(Locale, ...)` variants (locale formatting
-//! is out of scope for the geometry kernel). `roundToTheRight` /
-//! `roundToTheLeft` landed with Task 3 (Direction).
+//! Deferred: `boundingOctagon` (Task 5, IntOctagon), `projectionApprox`
+//! (Task 6, FloatLine) and the locale-dependent `toString(Locale, ...)`
+//! variants (locale formatting is out of scope for the geometry kernel).
+//! `roundToTheRight` / `roundToTheLeft` landed with Task 3 (Direction);
+//! `boundingBox` landed with Task 4 (IntBox).
 
 use std::fmt;
 
 use crate::direction::Direction;
+use crate::int_box::IntBox;
 use crate::int_point::IntPoint;
 use crate::rounding::{java_rint, java_round};
 use crate::side::Side;
@@ -43,6 +44,14 @@ impl FloatPoint {
     /// Creates an instance of FloatPoint from two doubles.
     pub const fn new(x: f64, y: f64) -> FloatPoint {
         FloatPoint { x, y }
+    }
+
+    /// Creates the smallest IntBox containing this point (Java
+    /// `boundingBox`, landed with Task 4).
+    pub fn bounding_box(&self) -> IntBox {
+        let lower_left = IntPoint::new(self.x.floor() as i32, self.y.floor() as i32);
+        let upper_right = IntPoint::new(self.x.ceil() as i32, self.y.ceil() as i32);
+        IntBox::new(lower_left, upper_right)
     }
 
     /// Returns the square of the distance from this point to the zero

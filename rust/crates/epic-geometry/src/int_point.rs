@@ -16,14 +16,15 @@
 //! wraps it in a RationalPoint afterwards). The Java bodies never read the
 //! log, so dropping the message preserves observable behavior.
 //!
-//! Deferred: `surroundingBox`/`isContainedIn` (Task 4, IntBox),
-//! `surroundingOctagon` (Task 5, IntOctagon), `sideOf(Line)` and
-//! `perpendicularProjection(Line)` (Task 6, Line).
+//! Deferred: `surroundingOctagon` (Task 5, IntOctagon), `sideOf(Line)` and
+//! `perpendicularProjection(Line)` (Task 6, Line). `surroundingBox` /
+//! `isContainedIn` landed with Task 4 (IntBox).
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::float_point::FloatPoint;
+use crate::int_box::IntBox;
 use crate::int_vector::IntVector;
 
 /// Implementation of the abstract class Point as a tuple of integers.
@@ -43,6 +44,21 @@ impl IntPoint {
     /// docs for the out-of-range soft-guard parity note.
     pub const fn new(x: i32, y: i32) -> IntPoint {
         IntPoint { x, y }
+    }
+
+    /// Returns the smallest IntBox containing only this point (Java
+    /// `surroundingBox`, landed with Task 4).
+    pub fn surrounding_box(&self) -> IntBox {
+        IntBox::new(*self, *self)
+    }
+
+    /// Returns true if this point lies inside `int_box` or on its border
+    /// (Java `isContainedIn(IntBox)`, landed with Task 4).
+    pub fn is_contained_in(&self, int_box: &IntBox) -> bool {
+        self.x >= int_box.ll.x
+            && self.y >= int_box.ll.y
+            && self.x <= int_box.ur.x
+            && self.y <= int_box.ur.y
     }
 
     /// Returns true — IntPoints are never infinite.

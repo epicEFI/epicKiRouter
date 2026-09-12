@@ -15,9 +15,9 @@
 //! `compareX`, `compareY`) live on the [`crate::point::Point`] enum as
 //! `pub(crate)` methods here.
 //!
-//! Deferred: `surroundingBox`/`isContainedIn` (Task 4, IntBox),
-//! `surroundingOctagon` (Task 5, IntOctagon), `sideOf(Line)` and
-//! `perpendicularProjection(Line)` (Task 6, Line).
+//! Deferred: `surroundingOctagon` (Task 5, IntOctagon), `sideOf(Line)` and
+//! `perpendicularProjection(Line)` (Task 6, Line). `surroundingBox` /
+//! `isContainedIn` landed with Task 4 (IntBox).
 
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
@@ -26,6 +26,7 @@ use crate::big_int_aux::{
     add_rational_coordinates, big_abs, big_gcd, big_integer_hash_code, determinant,
 };
 use crate::float_point::FloatPoint;
+use crate::int_box::IntBox;
 use crate::int_point::IntPoint;
 use crate::int_vector::IntVector;
 use crate::point::Point;
@@ -88,6 +89,42 @@ impl RationalPoint {
         } else {
             FloatPoint::new(xd / zd, yd / zd)
         }
+    }
+
+    /// Returns the smallest IntBox containing only this point (Java
+    /// `surroundingBox`, landed with Task 4): floors/ceils the float
+    /// approximation.
+    pub fn surrounding_box(&self) -> IntBox {
+        let fp = self.to_float();
+        let llx = fp.x.floor() as i32;
+        let lly = fp.y.floor() as i32;
+        let urx = fp.x.ceil() as i32;
+        let ury = fp.y.ceil() as i32;
+        IntBox::from_corners(llx, lly, urx, ury)
+    }
+
+    /// Returns true if this exact rational point lies inside `int_box`
+    /// or on its border (Java `isContainedIn(IntBox)`, landed with
+    /// Task 4): compares each numerator against `corner * z` with
+    /// BigIntegers.
+    pub fn is_contained_in(&self, int_box: &IntBox) -> bool {
+        let mut tmp = BigInt::from(int_box.ll.x) * &self.z;
+        if self.x < tmp {
+            return false;
+        }
+        tmp = BigInt::from(int_box.ll.y) * &self.z;
+        if self.y < tmp {
+            return false;
+        }
+        tmp = BigInt::from(int_box.ur.x) * &self.z;
+        if self.x > tmp {
+            return false;
+        }
+        tmp = BigInt::from(int_box.ur.y) * &self.z;
+        if self.y > tmp {
+            return false;
+        }
+        true
     }
 
     /// Returns a unique ID for deterministic tie-breaking (the raw,
