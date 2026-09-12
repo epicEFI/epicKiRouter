@@ -114,17 +114,7 @@ impl PolylineArea {
     /// Java `nearestPointApprox(FloatPoint)`; panics where Java would NPE
     /// (no pieces / failed split).
     pub fn nearest_point_approx(&self, from_point: &FloatPoint) -> FloatPoint {
-        let mut min_dist = f64::MAX;
-        let mut result: Option<FloatPoint> = None;
-        for piece in self.expect_split_pieces() {
-            let current_nearest_point = piece.nearest_point_approx(from_point);
-            let current_distance = current_nearest_point.distance_square(from_point);
-            if current_distance < min_dist {
-                min_dist = current_distance;
-                result = Some(current_nearest_point);
-            }
-        }
-        result.expect("Java NPE: no convex pieces")
+        crate::shape::nearest_point_approx_over_pieces(&self.expect_split_pieces(), from_point)
     }
 
     /// Java `translateBy(Vector)`.
@@ -192,8 +182,7 @@ impl PolylineArea {
 
     /// The split pieces or the Java NPE at the dereference site.
     fn expect_split_pieces(&self) -> Vec<TileShape> {
-        self.split_to_convex()
-            .expect("Java NullPointerException: splitToConvex returned null")
+        crate::shape::expect_pieces(self.split_to_convex())
     }
 
     /// Java `turn90Degree(int, IntPoint)`.

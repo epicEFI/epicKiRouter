@@ -1022,6 +1022,33 @@ pub(crate) fn shape_centre_of_gravity(shape: &ShapeRef) -> FloatPoint {
     })
 }
 
+/// Shared body of Java `PolygonShape.nearestPointApprox(FloatPoint)` /
+/// `PolylineArea.nearestPointApprox(FloatPoint)`: the nearest point over
+/// the convex split pieces, strict `<` keeping the first minimum. The
+/// final unwrap panics where Java dereferences a null result (no pieces).
+pub(crate) fn nearest_point_approx_over_pieces(
+    pieces: &[TileShape],
+    from_point: &FloatPoint,
+) -> FloatPoint {
+    let mut min_dist = f64::MAX;
+    let mut result: Option<FloatPoint> = None;
+    for piece in pieces {
+        let current_nearest_point = piece.nearest_point_approx(from_point);
+        let current_distance = current_nearest_point.distance_square(from_point);
+        if current_distance < min_dist {
+            min_dist = current_distance;
+            result = Some(current_nearest_point);
+        }
+    }
+    result.expect("Java NPE: no convex pieces")
+}
+
+/// Shared unwrap of a `splitToConvex()` result: `None` is where Java
+/// dereferences the null result and throws a NullPointerException.
+pub(crate) fn expect_pieces(split: Option<Vec<TileShape>>) -> Vec<TileShape> {
+    split.expect("Java NullPointerException: splitToConvex returned null")
+}
+
 /// Java `TileShape.shrink(double)`.
 pub(crate) fn tile_shrink(shape: &ShapeRef, offset: f64) -> TileShape {
     // Java passes the NEGATED argument to offset: this.offset(-offset).

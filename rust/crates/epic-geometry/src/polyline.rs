@@ -145,7 +145,9 @@ impl Polyline {
         }
     }
 
-    /// Returns the number of lines minus 1 (Java `cornerCount()`).
+    /// Returns the number of lines minus 1 (Java `cornerCount()`); the
+    /// empty polyline wraps to `usize::MAX` via `wrapping_sub`, mirroring
+    /// Java's int result of -1.
     pub fn corner_count(&self) -> usize {
         self.lines.len().wrapping_sub(1)
     }
@@ -697,9 +699,15 @@ fn remove_overlaps(lines: Vec<Line>) -> Vec<Line> {
     }
     tmp_arr[new_length] = lines[lines.len() - 2].clone();
     new_length += 1;
-    // Guard: newLength must be >= 2 before accessing tmpArr[newLength - 2].
-    // If the loop decremented newLength all the way to 0 the index is -1.
-    if new_length >= 2 && !lines[lines.len() - 1].is_equal_or_opposite(&tmp_arr[new_length - 2]) {
+    // Java dereferences tmpArr[newLength - 2] unconditionally here; when
+    // the loop above decremented newLength below 2 the index is negative
+    // and Java crashes with ArrayIndexOutOfBoundsException (POVL3).
+    if new_length < 2 {
+        panic!(
+            "Polyline.removeOverlaps: tmpArr[newLength - 2] with newLength = {new_length} (Java ArrayIndexOutOfBoundsException)"
+        );
+    }
+    if !lines[lines.len() - 1].is_equal_or_opposite(&tmp_arr[new_length - 2]) {
         tmp_arr[new_length] = lines[lines.len() - 1].clone();
         new_length += 1;
     }
@@ -817,13 +825,18 @@ mod tests {
     }
 
     /// jshell pin `PFL2` (trap T10): deliberately constructed input where
-    /// the FLOAT side-of of the corner approximation disagrees with the
-    /// exact one. Lines: L0 through the origin with direction
-    /// (2^27, 2^27-1); the EXACT corner of L1 and L2 is (2^27+1, 2^27),
-    /// whose exact sideOf on L0 is collinear (no flip), but Java's
-    /// `intersectionApprox` returns (2^27, 2^27) at this magnitude — a
-    /// DIFFERENT point whose sideOf on L0 is onTheRight. The approximation
-    /// manufactures a side; the oracle output flips the middle line — the
+    /// the corner APPROXIMATION changes the ctor outcome. Lines: L0
+    /// through the origin with direction (2^27, 2^27-1). The exact corner
+    /// of L1 and L2 is (2^27+1, 2^27); geometrically it lies a hair's
+    /// breadth off L0 (det = +-1), but every Java side predicate for int
+    /// points multiplies in f64 (Line.sideOf -> IntVector.sideOf computes
+    /// `(double) other.x * y - (double) other.y * x`, IntVector.java:136),
+    /// where (2^27-1)(2^27+1) = 2^54-1 tie-rounds to 2^54 and cancels —
+    /// jar capture: `L0.sideOf(new IntPoint(134217729, 134217728))`
+    /// prints collinear. So at the EXACT corner no flip decision would be
+    /// taken. Java's `intersectionApprox` instead returns (2^27, 2^27) at
+    /// this magnitude — a DIFFERENT point whose float side on L0 is
+    /// onTheRight — and that manufactured side flips the middle line. The
     /// pin freezes the observed ctor result.
     #[test]
     fn pfl2_ctor_corner_flip_float_vs_exact() {
@@ -872,6 +885,65 @@ mod tests {
             end_points,
             vec![(p(0, 0), p(0, 10)), (p(5, 0), p(15, 0)), (p(0, 0), p(7, 7)),]
         );
+    }
+
+    /// jshell pin `POVL2` (trap T10 ORDER — the filter/overlap swap
+    /// mutant): the input contains a consecutive-parallel pair (A, P), so
+    /// the parallel filter — which runs FIRST — drops both P and the
+    /// repeated A' before removeOverlaps ever runs; the overlap scan then
+    /// sees only [A, C, D] and is a no-op. Under the swapped order,
+    /// removeOverlaps sees all 5 lines, anchor-blind Line equality
+    /// matches A == A' and skips the first line, yielding [P, A', C, D];
+    /// the filter then drops A' (parallel to P), leaving [P, C, D] — a
+    /// DIFFERENT first line. Jar transcript:
+    /// ```text
+    /// jshell> new Polyline(new Line[]{A, P, A2, C, D}) with
+    ///     A=(0,0)-(10,0), P=(2,3)-(12,3), A2=(0,0)-(10,0),
+    ///     C=(0,0)-(7,7), D=(0,0)-(0,10)
+    /// surviving lines: 3
+    /// (0,0) -> (10,0)
+    /// (0,0) -> (7,7)
+    /// (0,0) -> (0,10)
+    /// ```
+    #[test]
+    fn povl2_filter_before_overlap_order_pin() {
+        let pl = Polyline::new(vec![
+            Line::new(p(0, 0), p(10, 0)),
+            Line::new(p(2, 3), p(12, 3)),
+            Line::new(p(0, 0), p(10, 0)),
+            Line::new(p(0, 0), p(7, 7)),
+            Line::new(p(0, 0), p(0, 10)),
+        ]);
+        let end_points: Vec<(Point, Point)> = pl
+            .lines
+            .iter()
+            .map(|l| (l.a.clone(), l.b.clone()))
+            .collect();
+        assert_eq!(
+            end_points,
+            vec![(p(0, 0), p(10, 0)), (p(0, 0), p(7, 7)), (p(0, 0), p(0, 10)),]
+        );
+    }
+
+    /// Pairwise cancellation drives `newLength` down to 1 before the final
+    /// `tmpArr[newLength - 2]` dereference: the index is negative and Java
+    /// throws ArrayIndexOutOfBoundsException; the port panics with the
+    /// same meaning (POVL3). Trace: the filter keeps all 5 lines (no
+    /// consecutive parallels); removeOverlaps skips the first line
+    /// (lines[0] and lines[2] share supporting line y = 0), tmp[0] =
+    /// lines[1]; the loop then sees tmp[0] == lines[3] (same x = 0 line)
+    /// and skips 2 (newLength = 0), then tmp[0] = lines[3] (newLength =
+    /// 1) — the guard fires.
+    #[test]
+    #[should_panic(expected = "ArrayIndexOutOfBoundsException")]
+    fn povl3_remove_overlaps_index_underflow_is_a_java_crash() {
+        let _ = Polyline::new(vec![
+            Line::new(p(0, 0), p(10, 0)),
+            Line::new(p(0, 0), p(0, 10)),
+            Line::new(p(5, 0), p(15, 0)),
+            Line::new(p(0, 5), p(0, 20)),
+            Line::new(p(1, 1), p(5, 5)),
+        ]);
     }
 
     /// Reversing the L-shape keeps the same exact corners in reverse order.

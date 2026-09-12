@@ -432,17 +432,7 @@ impl PolygonShape {
     /// Java `nearestPointApprox(FloatPoint)`; panics where Java would NPE
     /// (empty shape or failed split).
     pub fn nearest_point_approx(&self, from_point: &FloatPoint) -> FloatPoint {
-        let mut min_dist = f64::MAX;
-        let mut result: Option<FloatPoint> = None;
-        for piece in self.expect_split_pieces() {
-            let current_nearest_point = piece.nearest_point_approx(from_point);
-            let current_distance = current_nearest_point.distance_square(from_point);
-            if current_distance < min_dist {
-                min_dist = current_distance;
-                result = Some(current_nearest_point);
-            }
-        }
-        result.expect("Java NPE: no convex pieces")
+        crate::shape::nearest_point_approx_over_pieces(&self.expect_split_pieces(), from_point)
     }
 
     /// Java `turn90Degree(int, IntPoint)`.
@@ -514,8 +504,7 @@ impl PolygonShape {
 
     /// The split pieces or the Java NPE at the dereference site.
     fn expect_split_pieces(&self) -> Vec<TileShape> {
-        self.split_to_convex()
-            .expect("Java NullPointerException: splitToConvex returned null")
+        crate::shape::expect_pieces(self.split_to_convex())
     }
 
     /// Private recursive part of split_to_convex (Java
@@ -755,6 +744,7 @@ impl DivisionPoint {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::int_octagon::IntOctagon;
     use crate::int_point::IntPoint;
     use crate::regular_tile_shape::RegularTileShape;
 
@@ -766,7 +756,13 @@ mod tests {
     /// `new Random(99)` at every top-level call): the L-shape polygon
     /// (0,0),(20,0),(20,10),(10,10),(10,20),(0,20) splits into exactly 2
     /// pieces, both IntBoxes, in the order (0,10)-(10,20) then
-    /// (0,0)-(20,10). The piece ORDER pins the seeded ear-split sequence.
+    /// (0,0)-(20,10). NOTE: this is deliberately only a RESULT pin — the
+    /// L-shape has a single concave corner, so the hashed start corner
+    /// cannot influence which concavity splits first and a 99 -> 100 seed
+    /// mutant survives here (pin-failure mode: degenerate input where the
+    /// seeded term cannot influence the outcome). The seed itself is
+    /// pinned by `PSP2` below, whose >= 2-concavity polygon IS
+    /// seed-sensitive.
     #[test]
     fn psp1_split_to_convex_l_shape_pin() {
         let l_shape =
@@ -783,5 +779,64 @@ mod tests {
                 &TileShape::RegularTileShape(RegularTileShape::IntBox(*e))
             );
         }
+    }
+
+    /// jshell pin `PSP2` (trap D6/D7 — the seed is OBSERVABLE): the
+    /// chamfered plus has 13 corners and 4 concave corners, and its
+    /// ambiguous convex decomposition makes the hashed start corner
+    /// (`nextIntBound(13)`: draw 1 for seed 99, draw 12 for seed 100)
+    /// select a different concavity, changing the whole split tree.
+    /// Jar transcript (seed 99):
+    /// ```text
+    /// pieces: 3
+    /// piece 0 class=IntOctagon corners: (30,10)(40,10)(40,27)(37,30)(30,30)
+    ///   leftX=30 rightX=40 bottomY=10 topY=30
+    ///   lowerLeftDiagonalX=40 upperRightDiagonalX=67
+    ///   upperLeftDiagonalX=0 lowerRightDiagonalX=30
+    /// piece 1 class=IntBox corners: (0,10)(10,10)(10,30)(0,30)
+    /// piece 2 class=IntBox corners: (10,0)(30,0)(30,40)(10,40)
+    /// ```
+    /// A 99 -> 100 seed mutant produces the different partition
+    /// (bottom arm | top arm | horizontal bar) and fails here — proved by
+    /// temporarily mutating the `SEED` constant.
+    #[test]
+    fn psp2_split_to_convex_seed_pin() {
+        let shape = PolygonShape::new(&[
+            p(10, 0),
+            p(30, 0),
+            p(30, 10),
+            p(40, 10),
+            p(40, 27),
+            p(37, 30),
+            p(30, 30),
+            p(30, 40),
+            p(10, 40),
+            p(10, 30),
+            p(0, 30),
+            p(0, 10),
+            p(10, 10),
+        ]);
+        let pieces = shape.expect_split_pieces();
+        assert_eq!(pieces.len(), 3);
+        assert_eq!(
+            pieces[0],
+            TileShape::RegularTileShape(RegularTileShape::IntOctagon(IntOctagon::new(
+                30, 10, 40, 30, 0, 30, 40, 67
+            )))
+        );
+        assert_eq!(
+            pieces[1],
+            TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+                IntPoint::new(0, 10),
+                IntPoint::new(10, 30)
+            )))
+        );
+        assert_eq!(
+            pieces[2],
+            TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+                IntPoint::new(10, 0),
+                IntPoint::new(30, 40)
+            )))
+        );
     }
 }

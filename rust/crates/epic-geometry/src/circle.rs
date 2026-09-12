@@ -517,8 +517,15 @@ mod tests {
         let moved = circle.translate_by(&Vector::Int(IntVector::new(1, 1)));
         assert_eq!(moved.center, IntPoint::new(6, 1));
         assert_eq!(moved.radius, 3);
-        // non-int vectors return this (Java warns)
-        let rational = circle.translate_by(&Vector::ZERO);
+        // non-int vectors return this (Java warns) — a RationalVector
+        // exercises the warn arm (Vector::ZERO would early-return above).
+        let rational = circle.translate_by(&Vector::Rational(Box::new(
+            crate::rational_vector::RationalVector::new(
+                num_bigint::BigInt::from(1),
+                num_bigint::BigInt::from(2),
+                num_bigint::BigInt::from(3),
+            ),
+        )));
         assert_eq!(rational, circle);
     }
 
