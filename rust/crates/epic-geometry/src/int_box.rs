@@ -752,10 +752,13 @@ impl IntBox {
         self.to_int_octagon().compare(other, edge_index)
     }
 
-    /// Java `isContainedIn(IntOctagon)`: delegates to the octagon
-    /// containment with this box as an octagon.
+    /// Java `isContainedIn(IntOctagon)`: true if this box is contained in
+    /// `other`. The Java dispatch is a round trip —
+    /// `other.contains(toIntOctagon())` forwards back to
+    /// `toIntOctagon().isContainedIn(other)` — so the net semantics is
+    /// box ⊆ other; the delegation below is that final call directly.
     pub fn is_contained_in_octagon(&self, other: &IntOctagon) -> bool {
-        other.is_contained_in(&self.to_int_octagon())
+        self.to_int_octagon().is_contained_in(other)
     }
 
     /// Java package-private `cutoutFrom(IntOctagon)`: delegates to the
@@ -1334,7 +1337,10 @@ mod tests {
         assert!(!b(20, 20, 30, 30).intersects_octagon(&oct));
         assert_eq!(b(0, 0, 10, 10).compare_octagon(&inner, 0), Side::Negative);
         assert_eq!(b(0, 0, 10, 10).compare_octagon(&inner, 4), Side::Negative);
-        assert!(b(0, 0, 10, 10).is_contained_in_octagon(&oct));
+        // jshell pins: containment is box ⊆ other; both directions on
+        // identical shapes would hide a receiver inversion
+        assert!(b(0, 0, 5, 5).is_contained_in_octagon(&oct));
+        assert!(!b(0, 0, 10, 10).is_contained_in_octagon(&o8(0, 0, 5, 5, -5, 5, 0, 10)));
         assert!(!oct.is_contained_in(&inner));
     }
 

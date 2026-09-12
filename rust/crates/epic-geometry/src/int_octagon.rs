@@ -1027,6 +1027,104 @@ impl IntOctagon {
         result
     }
 
+    /// Java package-private `borderLineSideOf(FloatPoint, int, double)`
+    /// (IntOctagon.java:942): the side of `point` relative to border line
+    /// `line_index` with a tolerance. Dead code in Java (no call sites)
+    /// but self-contained, so ported rather than deferred. An out-of-range
+    /// index yields [`Side::Collinear`] — the Java original logs a warning
+    /// first.
+    pub fn border_line_side_of(&self, point: &FloatPoint, line_index: i32, tolerance: f64) -> Side {
+        match line_index {
+            0 => {
+                if point.y > f64::from(self.bottom_y) + tolerance {
+                    Side::Negative
+                } else if point.y < f64::from(self.bottom_y) - tolerance {
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            2 => {
+                if point.x < f64::from(self.right_x) - tolerance {
+                    Side::Negative
+                } else if point.x > f64::from(self.right_x) + tolerance {
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            4 => {
+                if point.y < f64::from(self.top_y) - tolerance {
+                    Side::Negative
+                } else if point.y > f64::from(self.top_y) + tolerance {
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            6 => {
+                if point.x > f64::from(self.left_x) + tolerance {
+                    Side::Negative
+                } else if point.x < f64::from(self.left_x) - tolerance {
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            1 => {
+                let tmp = point.y - point.x + f64::from(self.lower_right_diagonal_x);
+                if tmp > tolerance {
+                    // the point is above the lower right border line of this octagon
+                    Side::Negative
+                } else if tmp < -tolerance {
+                    // the point is below the lower right border line of this octagon
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            3 => {
+                let tmp = point.x + point.y - f64::from(self.upper_right_diagonal_x);
+                if tmp < -tolerance {
+                    // the point is below the upper right border line of this octagon
+                    Side::Negative
+                } else if tmp > tolerance {
+                    // the point is above the upper right border line of this octagon
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            5 => {
+                let tmp = point.y - point.x + f64::from(self.upper_left_diagonal_x);
+                if tmp < -tolerance {
+                    // the point is below the upper left border line of this octagon
+                    Side::Negative
+                } else if tmp > tolerance {
+                    // the point is above the upper left border line of this octagon
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            7 => {
+                let tmp = point.x + point.y - f64::from(self.lower_left_diagonal_x);
+                if tmp > tolerance {
+                    // the point is above the lower left border line of this octagon
+                    Side::Negative
+                } else if tmp < -tolerance {
+                    // the point is below the lower left border line of this octagon
+                    Side::Positive
+                } else {
+                    Side::Collinear
+                }
+            }
+            // FRLogger.warn dropped: the observable value (Collinear) is
+            // preserved.
+            _ => Side::Collinear,
+        }
+    }
+
     /// Checks, if this octagon can be converted to an [`IntBox`] (Java
     /// `isIntBox`).
     pub const fn is_int_box(&self) -> bool {
@@ -1961,6 +2059,41 @@ mod tests {
         // on-border points are collinear
         assert_eq!(oct().side_of_border_line(5, 0, 0), Side::Collinear);
         assert_eq!(oct().side_of_border_line(10, 5, 2), Side::Collinear);
+    }
+
+    /// jshell pins (borderLineSideOf via reflection on the package-private
+    /// method): interior point (5,4) is onTheRight on all 8 border lines;
+    /// the outside point (11,12) flips to onTheLeft on the right,
+    /// upper-right and upper borders; tolerance and the out-of-range index
+    /// are collinear.
+    #[test]
+    fn border_line_side_of_pins() {
+        let a = oct();
+        for i in 0..8 {
+            assert_eq!(
+                a.border_line_side_of(&FloatPoint::new(5.0, 4.0), i, 1e-6),
+                Side::Negative
+            );
+        }
+        let outside = FloatPoint::new(11.0, 12.0);
+        assert_eq!(a.border_line_side_of(&outside, 0, 1e-6), Side::Negative);
+        assert_eq!(a.border_line_side_of(&outside, 1, 1e-6), Side::Negative);
+        assert_eq!(a.border_line_side_of(&outside, 2, 1e-6), Side::Positive);
+        assert_eq!(a.border_line_side_of(&outside, 3, 1e-6), Side::Positive);
+        assert_eq!(a.border_line_side_of(&outside, 4, 1e-6), Side::Positive);
+        assert_eq!(a.border_line_side_of(&outside, 5, 1e-6), Side::Negative);
+        assert_eq!(a.border_line_side_of(&outside, 6, 1e-6), Side::Negative);
+        assert_eq!(a.border_line_side_of(&outside, 7, 1e-6), Side::Negative);
+        // tolerance turns a near-border point collinear
+        assert_eq!(
+            a.border_line_side_of(&FloatPoint::new(10.5, 5.0), 2, 1.0),
+            Side::Collinear
+        );
+        // out-of-range index falls back to Collinear (Java logs a warning)
+        assert_eq!(
+            a.border_line_side_of(&FloatPoint::new(5.0, 4.0), 9, 1e-6),
+            Side::Collinear
+        );
     }
 
     /// jshell pin (cmp lines): `oct.compare(inner, i)` is onTheRight for all

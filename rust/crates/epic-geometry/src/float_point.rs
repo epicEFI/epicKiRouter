@@ -57,18 +57,19 @@ impl FloatPoint {
 
     /// Creates the smallest IntOctagon containing all points of `points`
     /// (Java static `boundingOctagon`, landed with Task 5). The minima
-    /// start at `Integer.MAX_VALUE` and the maxima at `-Integer.MAX_VALUE`
-    /// (i.e. -2147483647, not `i32::MIN`); for an empty slice the result
-    /// degenerates to those seeds after the floor/ceil casts.
+    /// start at `Integer.MAX_VALUE` (+2147483647.0) and the maxima at
+    /// `Integer.MIN_VALUE` (-2147483648.0), exactly as seeded in
+    /// FloatPoint.java:38-45; for an empty slice the result degenerates to
+    /// those seeds after the floor/ceil casts.
     pub fn bounding_octagon(points: &[FloatPoint]) -> IntOctagon {
         let mut min_x = f64::from(i32::MAX);
         let mut min_y = f64::from(i32::MAX);
-        let mut max_x = -f64::from(i32::MAX);
-        let mut max_y = -f64::from(i32::MAX);
+        let mut max_x = f64::from(i32::MIN);
+        let mut max_y = f64::from(i32::MIN);
         let mut min_ulx = f64::from(i32::MAX);
-        let mut max_lrx = -f64::from(i32::MAX);
+        let mut max_lrx = f64::from(i32::MIN);
         let mut min_llx = f64::from(i32::MAX);
-        let mut max_urx = -f64::from(i32::MAX);
+        let mut max_urx = f64::from(i32::MIN);
         for point in points {
             min_x = min_x.min(point.x);
             min_y = min_y.min(point.y);
@@ -764,19 +765,20 @@ mod tests {
             ),
             IntOctagon::new(-1, -4, 3, 1, -1, 6, -1, 0)
         );
-        // empty slice: the Integer.MAX_VALUE / -Integer.MAX_VALUE seeds
-        // survive the floor/ceil casts unchanged
+        // jshell pin: empty slice — the minima keep the Integer.MAX_VALUE
+        // seeds and the maxima keep the Integer.MIN_VALUE seeds
+        // (-2147483648, not -2147483647) after the floor/ceil casts
         assert_eq!(
             FloatPoint::bounding_octagon(&[]),
             IntOctagon::new(
                 i32::MAX,
                 i32::MAX,
-                -i32::MAX,
-                -i32::MAX,
+                i32::MIN,
+                i32::MIN,
                 i32::MAX,
-                -i32::MAX,
+                i32::MIN,
                 i32::MAX,
-                -i32::MAX,
+                i32::MIN,
             )
         );
     }
