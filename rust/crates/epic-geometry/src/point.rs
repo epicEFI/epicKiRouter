@@ -20,7 +20,7 @@
 //! [`IntPoint::ZERO`] and [`Point::ZERO`].
 //!
 //! Deferred: `surroundingBox`/`isContainedIn` (Task 4, IntBox),
-//! `surroundingOctagon`/`boundingBox` (Task 5, IntOctagon),
+//! `surroundingOctagon` (Task 5, IntOctagon),
 //! `sideOf(Line)`/`perpendicularProjection`/`perpendicularDirection`
 //! (Task 6, Line/Direction), `roundToTheRight`/`roundToTheLeft` (Task 3,
 //! Direction).
@@ -406,6 +406,13 @@ mod tests {
         let rp2 = Point::get_instance_big(b(6), b(10), b(4));
         assert_eq!(rp2.compare_x(&rp), 0);
         assert_eq!(rp2.compare_y(&rp), 1);
+        // jshell pins `I1a`-`I1d`: the (Int, Rational) dispatch arms NEGATE
+        // the rational comparison; dropping the negation would flip all
+        // four of these (mutation trap).
+        assert_eq!(int(2, 4).compare_x(&rp), 1); // 2 > 1.5 (un-negated: -1)
+        assert_eq!(int(1, 0).compare_x(&rp), -1); // 1 < 1.5 (un-negated: 1)
+        assert_eq!(int(0, 9).compare_y(&rp), 1); // 9 > 2 (un-negated: -1)
+        assert_eq!(int(0, 1).compare_y(&rp), -1); // 1 < 2 (un-negated: 1)
         // Int-int compares.
         assert_eq!(int(3, 1).compare_x(&int(5, 1)), -1);
         assert_eq!(int(3, 1).compare_y(&int(3, 1)), 0);

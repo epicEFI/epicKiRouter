@@ -12,7 +12,7 @@
 //! fails. Faithfully porting that log-and-continue means the Rust
 //! constructor performs no check at all (a `debug_assert!` would panic in
 //! debug builds on exactly the parity path that requires out-of-range
-//! values: `Point::get_int_instance` constructs the IntPoint first and
+//! values: `Point::get_instance` constructs the IntPoint first and
 //! wraps it in a RationalPoint afterwards). The Java bodies never read the
 //! log, so dropping the message preserves observable behavior.
 //!
@@ -191,13 +191,13 @@ impl IntPoint {
             } else {
                 IntPoint::new(self.x, to_point.y.wrapping_sub(dx))
             })
-        } else if dx < 0 && dy > -dx {
+        } else if dx < 0 && dy > dx.wrapping_neg() {
             Some(if left_turn {
                 IntPoint::new(self.x, to_point.y.wrapping_add(dx))
             } else {
                 IntPoint::new(to_point.x, self.y.wrapping_sub(dx))
             })
-        } else if dy > 0 && dy < -dx {
+        } else if dy > 0 && dy < dx.wrapping_neg() {
             Some(if left_turn {
                 IntPoint::new(self.x.wrapping_sub(dy), to_point.y)
             } else {
@@ -215,13 +215,13 @@ impl IntPoint {
             } else {
                 IntPoint::new(self.x, to_point.y.wrapping_sub(dx))
             })
-        } else if dx > 0 && dy < -dx {
+        } else if dx > 0 && dy < dx.wrapping_neg() {
             Some(if left_turn {
                 IntPoint::new(self.x, to_point.y.wrapping_add(dx))
             } else {
                 IntPoint::new(to_point.x, self.y.wrapping_sub(dx))
             })
-        } else if dy < 0 && dy > -dx {
+        } else if dy < 0 && dy > dx.wrapping_neg() {
             Some(if left_turn {
                 IntPoint::new(self.x.wrapping_sub(dy), to_point.y)
             } else {
@@ -387,6 +387,92 @@ mod tests {
             IntPoint::ZERO.ninety_degree_corner(&IntPoint::new(0, 5), true),
             None
         );
+    }
+
+    /// jshell pins `C1`-`C8` (both turns each): the 8 direction sections
+    /// of `fortyfiveDegreeCorner`, taken from ZERO so dx/dy are the
+    /// toPoint coordinates themselves.
+    #[test]
+    fn fortyfive_degree_corner_all_eight_sections() {
+        let o = IntPoint::ZERO;
+        let cases = [
+            ((8, 3), ((5, 0), (3, 3))),      // 0-45 degrees
+            ((3, 8), ((3, 3), (0, 5))),      // 45-90 degrees
+            ((-3, 8), ((0, 5), (-3, 3))),    // 90-135 degrees
+            ((-8, 3), ((-3, 3), (-5, 0))),   // 135-180 degrees
+            ((-8, -3), ((-5, 0), (-3, -3))), // 180-225 degrees
+            ((-3, -8), ((-3, -3), (0, -5))), // 225-270 degrees
+            ((3, -8), ((0, -5), (3, -3))),   // 270-315 degrees
+            ((8, -3), ((3, -3), (5, 0))),    // 315-360 degrees
+        ];
+        for ((tx, ty), (left, right)) in cases {
+            assert_eq!(
+                o.fortyfive_degree_corner(&IntPoint::new(tx, ty), true),
+                Some(IntPoint::new(left.0, left.1))
+            );
+            assert_eq!(
+                o.fortyfive_degree_corner(&IntPoint::new(tx, ty), false),
+                Some(IntPoint::new(right.0, right.1))
+            );
+        }
+    }
+
+    /// jshell pins `F*`: `fortyfiveDegreeProjection` branch battery. The
+    /// dist3 branch consumes `diagonal1` — including negative diagonals,
+    /// where `(int)` truncates TOWARD zero ((int) -2.5 = -2; a floor-based
+    /// port would give -3). The dist2 branch consumes `diagonal2` and its
+    /// result lands on the other diagonal (the Java comments name the
+    /// diagonals, not the landing lines; the formulas are the parity).
+    #[test]
+    fn fortyfive_degree_projection_branch_battery() {
+        let o = IntPoint::ZERO;
+        let cases = [
+            ((3, -2), (2, -2)),   // dist3: (int) -2.5 = -2
+            ((-2, 1), (-1, 1)),   // dist3: (int) 1.5 = 1
+            ((-4, 2), (-3, 3)),   // dist3: diagonal1 = 3 exact
+            ((4, -2), (3, -3)),   // dist3: diagonal1 = -3 exact
+            ((2, -3), (2, -2)),   // dist3: (int) -2.5 = -2
+            ((5, -2), (3, -3)),   // dist3: (int) -3.5 = -3
+            ((5, 3), (4, 4)),     // dist2: diagonal2 = 4 exact
+            ((3, 5), (4, 4)),     // dist2: diagonal2 = 4 exact
+            ((-3, -2), (-2, -2)), // dist2: (int) -2.5 = -2
+        ];
+        for ((x, y), (ex, ey)) in cases {
+            assert_eq!(
+                IntPoint::new(x, y).fortyfive_degree_projection(&o),
+                IntPoint::new(ex, ey)
+            );
+        }
+    }
+
+    /// jshell pin `N2`: `ninetyDegreeCorner` second quadrant
+    /// (dx < 0, dy > 0), both turns.
+    #[test]
+    fn ninety_degree_corner_second_quadrant() {
+        let o = IntPoint::ZERO;
+        assert_eq!(
+            o.ninety_degree_corner(&IntPoint::new(-3, 5), true),
+            Some(IntPoint::new(0, 5))
+        );
+        assert_eq!(
+            o.ninety_degree_corner(&IntPoint::new(-3, 5), false),
+            Some(IntPoint::new(-3, 0))
+        );
+    }
+
+    /// jshell pins `D1`/`D2`: distanceSquare widens AFTER the int
+    /// subtraction wraps (`double dx = toPoint.x - this.x` is int
+    /// arithmetic in Java): 0 - MIN wraps to MIN, MIN - 1 wraps to MAX,
+    /// and the squares are those of the wrapped values.
+    #[test]
+    fn distance_square_wraps_before_widening() {
+        let d1 = IntPoint::ZERO.distance_square(&IntPoint::new(i32::MIN, i32::MIN));
+        // 0x1.0p63 = 9.223372036854776e18; the unwrapped 2^64 would be
+        // 1.8446744073709552e19.
+        assert_eq!(d1, 9.223_372_036_854_776e18);
+        let d2 = IntPoint::new(1, 0).distance_square(&IntPoint::new(i32::MIN, 0));
+        // 0x1.fffffff8p61 = (double) 2147483647^2 rounded.
+        assert_eq!(d2, 4.611_686_014_132_420_6e18);
     }
 
     /// jshell pin `P75`.

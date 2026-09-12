@@ -57,8 +57,9 @@ pub struct RationalPoint {
 impl RationalPoint {
     /// Creates a RationalPoint from 3 BigIntegers x, y and z. Panics
     /// (Java: `IllegalArgumentException`) if the denominator z is
-    /// negative. The triple is not normalized.
-    pub fn new(x: BigInt, y: BigInt, z: BigInt) -> RationalPoint {
+    /// negative. The triple is not normalized. `pub(crate)` because the
+    /// Java constructor is package-private.
+    pub(crate) fn new(x: BigInt, y: BigInt, z: BigInt) -> RationalPoint {
         assert!(
             z.sign() != Sign::Minus,
             "RationalPoint: z is expected to be >= 0"
@@ -202,7 +203,11 @@ impl Eq for RationalPoint {}
 
 /// Java `hashCode` (RationalPoint.java:93-109): 0 for points at infinity,
 /// otherwise the triple reduced by the gcd of the absolute values, then the
-/// JDK `BigInteger.hashCode` composition with int wraparound.
+/// JDK `BigInteger.hashCode` composition with int wraparound. The gcd
+/// reduction never flips a sign, and cross multiplication ignores one, but
+/// the composition itself negates for a sign-flipped triple: (1,2,3) and
+/// (-1,-2,-3) are equal yet hash to 1026 and -1026 (states the constructor
+/// rejects; pinned on a synthetic field state below).
 impl Hash for RationalPoint {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let mut code = 0;
@@ -417,5 +422,35 @@ mod tests {
         let p = RationalPoint::new(b(6), b(10), b(4));
         assert_eq!(p.get_id(), 6080);
         assert_eq!((p.x.clone(), p.y.clone(), p.z.clone()), (b(6), b(10), b(4)));
+    }
+
+    /// jshell pin `I8`: (-4,6,2) and (-2,3,1) are cross-mult equal and
+    /// share the gcd-reduced hash -1828 (the reduction divides by 2 while
+    /// keeping the numerator signs, and both then fold identically).
+    #[test]
+    fn negative_numerators_share_the_reduced_hash() {
+        let p1 = RationalPoint::new(b(-4), b(6), b(2));
+        let p2 = RationalPoint::new(b(-2), b(3), b(1));
+        assert_eq!(p1, p2);
+        assert_eq!(hash_code_of(&p1), -1828);
+        assert_eq!(hash_code_of(&p2), -1828);
+    }
+
+    /// Sign-flip asymmetry of the hash contract: (1,2,3) and (-1,-2,-3)
+    /// are cross-mult equal but hash to 1026 and -1026 (jshell pin `I3`
+    /// composition; Java cannot construct the negative-z point — the
+    /// constructor throws even via reflection — so the flipped state is
+    /// built directly from the `pub(crate)` fields to pin the formula).
+    #[test]
+    fn sign_flip_negates_the_hash_composition() {
+        let p = RationalPoint::new(b(1), b(2), b(3));
+        assert_eq!(hash_code_of(&p), 1026);
+        let flipped = RationalPoint {
+            x: b(-1),
+            y: b(-2),
+            z: b(-3),
+        };
+        assert_eq!(p, flipped);
+        assert_eq!(hash_code_of(&flipped), -1026);
     }
 }

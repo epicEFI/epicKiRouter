@@ -498,6 +498,12 @@ mod tests {
         );
         // R13: zero projection.
         assert_eq!(rat(0, 0, 1).projection(&int(0, 0)), Side::Collinear);
+        // jshell pins `I2a`/`I2b`: the (Rational, Rational) arm multiplies
+        // the RAW numerators (1*3 + 2*4 = 11 > 0), no z division anywhere;
+        // deleting the BigInt arms previously passed the suite (mutation
+        // trap).
+        assert_eq!(rat(1, 2, 3).projection(&rat(3, 4, 5)), Side::Positive);
+        assert_eq!(rat(-1, -2, 3).projection(&rat(3, 4, 5)), Side::Negative);
         // Negative projection.
         assert_eq!(int(1, 0).projection(&int(-3, 0)), Side::Negative);
     }

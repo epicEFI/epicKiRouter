@@ -364,9 +364,11 @@ impl From<IntPoint> for FloatPoint {
     }
 }
 
-/// Java `toString()`: `"(" + x + " , " + y + ")"` with at most 4 fraction
-/// digits (English locale). Documented deviation: the kernel formats with
-/// full precision instead of locale-aware rounding.
+/// Java `toString()`: `"(" + nf.format(x) + " , " + nf.format(y) + ")"`
+/// (FloatPoint.java:469-473) with at most 4 fraction digits (English
+/// locale). Documented deviations: this Display prints the coordinates
+/// comma-separated (Java uses `" , "`) with full precision instead of
+/// locale-aware rounding.
 impl fmt::Display for FloatPoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({},{})", self.x, self.y)
