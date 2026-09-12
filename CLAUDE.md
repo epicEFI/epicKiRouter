@@ -40,6 +40,22 @@ Java 25, Gradle 9 (use `./gradlew`):
 
 Test-task timeout budget is 30 minutes. Bound long routing tests with `TestingSettings.setMaxPasses(n)` / `setMaxItems(m)`; use `setJobTimeoutString("HH:MM:SS")` only as a supplement — the timeout fires after a pass completes.
 
+## Rust rewrite (EpicRouter)
+
+The approved design lives at
+`docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`; the M0
+plan at `docs/superpowers/plans/2026-09-11-epicrouter-m0-rust-scaffold-and-baselines.md`.
+The Rust workspace is `rust/` (run cargo from there). Rules:
+
+- NEVER modify Java sources under `src/` — the Java engine is the parity
+  oracle frozen at `e7f9bdf1` until M10.
+- Golden baselines in `rust/harness/baselines/` are committed artifacts;
+  regenerate only via `epic-harness capture` and explain why in the commit.
+- The oracle jar needs JDK 25 (`~/.jdks/jdk-25.0.4.1+1/bin/java`), not the
+  system Java 21; `epic-harness` resolves this automatically.
+- CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests on any
+  commit touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
+
 ## Quality Gate Rules (do not violate)
 
 - **Never** run `spotlessApply` as automatic cleanup — it rewrites hundreds of files. Use `spotlessCheck`.
