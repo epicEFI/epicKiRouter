@@ -1010,6 +1010,27 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 **Files:**
 - Create: `rust/harness/src/baseline.rs`
 - Modify: `rust/harness/src/main.rs` (wire subcommands)
+- Modify: `rust/harness/src/tiers.rs`, `rust/harness/config/tiers.yaml` (Step 0 hardening)
+
+- [ ] **Step 0: Harden tiers.rs (Task 2 quality-review findings) — separate commit first**
+
+Apply in `rust/harness/src/tiers.rs`:
+1. In `validate()`: reject duplicate tier names and duplicate fixture paths (HashSet, ~5 lines), reject absolute fixture paths (`Path::new(&fixture.path).is_relative()` must hold), and include the tier index in the "empty name" bail message; in `load()`, wrap `file.validate()` with `.with_context(|| format!("validating tier file {}", path.display()))?`.
+2. Add `assert!(file.tier("a").is_some());` to the lookup test (doc comment claims case-insensitivity; test it).
+3. Import `Path` and use it instead of the fully-qualified `&std::path::Path` in `load`'s signature.
+
+In `rust/harness/config/tiers.yaml`, name the four excluded `.dsn_disabled` demos explicitly in the header comment (kit-dev-coldfire-xilinx_5213, RoyalBlue54L-Feather, video, vme-wren).
+
+Run `cargo test -p epic-harness && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` from `rust/`, then commit:
+
+```bash
+git add rust/harness/src/tiers.rs rust/harness/config/tiers.yaml
+git commit -m "refactor(m0): harden tier-file validation (duplicates, absolute paths, error context)
+
+Co-Authored-By: Claude Code <noreply@anthropic.com>"
+```
+
+Note for Step 3: when `main.rs`'s `run()` starts calling `TierFile::load`, DELETE the `#![allow(dead_code)]` at the top of `tiers.rs` — every item becomes live and the allow must not silently mask future dead code.
 
 - [ ] **Step 1: Write the failing tests for `distill` and `sha256_file`**
 
