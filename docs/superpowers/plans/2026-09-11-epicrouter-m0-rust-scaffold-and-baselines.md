@@ -1491,7 +1491,7 @@ fn capture_tier(
 }
 ```
 
-Note: `distill`'s `fixture` field stores the **tier-relative** fixture path (e.g. `DAC2020_boards/DAC2020_bm08.dsn`); the baseline file's position under `baselines/java/<tier>/` carries the tier — together they are lossless.
+Note (amended after Task 5 quality review): `distill`'s `fixture` field stores the **repo-relative** fixture path — the raw yaml `fixtures_root` (from `tier_file`, NOT main.rs's absolute joined variable) joined with the tier entry, e.g. `scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn` — matching the `BaselineRecord.fixture` doc, so a baseline file is self-describing against the repo root. The baseline file's position under `baselines/java/<tier>/` still carries the tier. Additionally (same review): `capture` validates tier names BEFORE `build_jar`; the baselines/runs path fallbacks anchor to the tier file's directory (not cwd); and `capture` tallies infra-signature runs (`manifest.is_none() && !timed_out && exit_code != Some(0)`) — after the tier loop it prints a WARNING and returns Err (exit 1). The record file is still written (honesty preserved); routing outcomes (timeout, incomplete, violations) remain data, never errors. `sha256_file` errors fold into the record's `notes` when the SES exists but hashing fails.
 
 - [ ] **Step 4: Run tests + smoke the CLI**
 
@@ -1656,6 +1656,8 @@ Add `use baseline::BaselineRecord;` to the top of `main.rs` (next to the existin
 
 ```rust
         Command::Verify { tier } => {
+            // Validate the tier name before paying for the gradle build.
+            let selected = select_tiers(&tier_file, tier.as_deref())?;
             oracle::build_jar(&repo_root)?;
             let harness_root = tiers_path
                 .parent()
@@ -1664,7 +1666,7 @@ Add `use baseline::BaselineRecord;` to the top of `main.rs` (next to the existin
                 .unwrap_or_else(|| PathBuf::from("."));
             let baselines_root = harness_root.join("baselines").join("java");
             let run_root = harness_root.join("runs").join("verify");
-            let selected = select_tiers(&tier_file, tier.as_deref())?;
+            let fixtures_rel = &tier_file.fixtures_root;
             let mut total_failures = 0usize;
             for tier in selected {
                 for fixture in &tier.fixtures {
@@ -1690,7 +1692,10 @@ Add `use baseline::BaselineRecord;` to the top of `main.rs` (next to the existin
                         Duration::from_secs(fixture.timeout_seconds),
                         &cli.jvm_xmx,
                     )?;
-                    let actual = baseline::distill(&fixture.path, &run);
+                    let actual = baseline::distill(
+                        &fixtures_rel.join(&fixture.path).to_string_lossy(),
+                        &run,
+                    );
                     let failures = baseline::compare(&expected, &actual);
                     if failures.is_empty() {
                         println!(
@@ -1716,11 +1721,7 @@ Add `use baseline::BaselineRecord;` to the top of `main.rs` (next to the existin
         }
 ```
 
-- [ ] **Step 4: Run all tests + clippy**
-
-```bash
-cd rust && cargo test -p epic-harness && cargo clippy --workspace --all-targets -- -D warnings
-```
+Note (from Task 5 quality review, folded forward): when loading committed baselines, check `record.schema_version == baseline::BASELINE_SCHEMA_VERSION` and bail with the file path otherwise; and add `#[serde(deny_unknown_fields)]` to `BaselineRecord` — unlike `manifest.rs` (which must tolerate Gson extras), the baseline format is written and read by this harness alone, so a strict reader makes format drift fail loudly instead of silently defaulting. The strict-reader/default-writer asymmetry is intentional.
 
 Expected: all pass; clippy clean.
 
