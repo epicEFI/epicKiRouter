@@ -840,11 +840,10 @@ impl Simplex {
     /// this simplex. Assumes that the lines of this simplex are sorted.
     /// (Java package-private; public here for the sibling ports.)
     ///
-    /// The `intersection_sides` cache of the oracle is recomputed from
-    /// scratch in this port's loop (T14: the Java cache is a micro-optim
-    /// ization, not a result-changing one — the port keeps the exact
-    /// algorithmic order of re-computation and invalidation though, by
-    /// mirroring the Java array bookkeeping verbatim).
+    /// The Java `intersectionSides` cache is kept verbatim: same
+    /// `Option<Side>` slots, same lazy fill on first use, same 3-entry
+    /// invalidation after a line removal (T14-compliant: the cache
+    /// preserves the oracle's evaluation order instead of changing it).
     pub fn remove_redundant_lines(&self) -> Simplex {
         assert!(
             !self.lines.is_empty(),
@@ -1012,9 +1011,10 @@ impl Simplex {
         }
         let inner_corner = intersection.round();
         let ctolerance = 0.0001;
-        // Java: isExact = !(abs > tolerance) for both coordinates.
-        let is_exact = (f64::from(inner_corner.x) - intersection.x).abs() <= ctolerance
-            && (f64::from(inner_corner.y) - intersection.y).abs() <= ctolerance;
+        // Java: isExact = abs(...) < tolerance for both coordinates
+        // (Simplex.java:1043-1045, strict <).
+        let is_exact = (f64::from(inner_corner.x) - intersection.x).abs() < ctolerance
+            && (f64::from(inner_corner.y) - intersection.y).abs() < ctolerance;
 
         if !is_exact {
             // it is assumed, that the corners of the original inner simplex
@@ -1026,15 +1026,6 @@ impl Simplex {
         }
         let mut first_projection_dir = IntDirection::NULL;
         let mut second_projection_dir = IntDirection::NULL;
-        // Java's final `firstProjectionDir == secondProjectionDir` compares
-        // OBJECT IDENTITY: currentSecondProjectionDir starts as the very
-        // same local as currentProjectionDir and is only ever replaced by a
-        // fresh `turn45Degree` result, so identity holds exactly when the
-        // winning candidate needed no second division. IntDirection's `==`
-        // (Java equals: collinearity plus positive projection) cannot model
-        // this — it would merge two same-angle fresh directions — so the
-        // identity is tracked with a flag.
-        let mut winner_is_single_projection = true;
         let prev_inner_dir = int_dir(prev_inner_line.direction()).opposite();
         let next_inner_dir = int_dir(current_inner_line.direction());
         let mut outer_line_no: usize = 0;
@@ -1070,12 +1061,8 @@ impl Simplex {
                     current_projection_dir.determinant(&next_inner_dir) < 0.0;
                 // may occur at a sharp angle
                 let mut current_second_projection_dir = current_projection_dir;
-                // true while currentSecondProjectionDir is the same object
-                // as currentProjectionDir (Java identity, see above).
-                let mut current_is_single_projection = true;
 
                 if second_division_necessary {
-                    current_is_single_projection = false;
                     // search the first projection dir between
                     // currentProjectionDir and nextInnerDir that is visible
                     // from next_inner_line
@@ -1125,7 +1112,6 @@ impl Simplex {
                     min_distance = current_distance;
                     first_projection_dir = current_projection_dir;
                     second_projection_dir = current_second_projection_dir;
-                    winner_is_single_projection = current_is_single_projection;
                 }
             }
             outer_line_no = if outer_line_no == outer_simplex.lines.len() - 1 {
@@ -1138,7 +1124,12 @@ impl Simplex {
             // Java: warning "division not found" + null
             return None;
         }
-        if winner_is_single_projection {
+        // Java (Simplex.java:1137): `firstProjectionDir.equals(
+        // secondProjectionDir)` — VALUE equality (collinear side plus
+        // positive projection, the T9 contract). Rust `==` on
+        // IntDirection IS that contract; the `==`/reference flavor of
+        // Java appears only at the NULL guards above.
+        if first_projection_dir == second_projection_dir {
             Some(vec![Line::get_instance(
                 corner_point.clone(),
                 Direction::Int(first_projection_dir),
@@ -1298,6 +1289,83 @@ mod tests {
                 line(2, -1, 2, 0),
                 line(2, 0, 1, 0),
                 line(0, 6, 0, -5),
+            ],
+        ];
+        for (piece, expected_lines) in pieces.iter().zip(expected.iter()) {
+            match piece {
+                TileShape::Simplex(s) => {
+                    assert_eq!(s.border_line_count(), expected_lines.len());
+                    for (i, expected_line) in expected_lines.iter().enumerate() {
+                        assert_eq!(s.border_line(i as i32), *expected_line);
+                    }
+                }
+                TileShape::RegularTileShape(_) => panic!("expected a simplex piece"),
+            }
+        }
+    }
+
+    /// jshell pin `PB9` (the T19 two-flavors pin): a RAW outer simplex built
+    /// with the public constructor keeps a duplicated same-direction bottom
+    /// line (indices 0 and 4) — Java `==` on directions would still treat
+    /// the twin perps as distinct objects. At the sharp inner corner (4,0)
+    /// the bottom perpendicular DOWN is a necessary+visible first candidate
+    /// whose second-division scan exits on the NW45 border (perp NE45), so
+    /// `calcDivisionLines` returns TWO lines there: the
+    /// `firstProjectionDir.equals(secondProjectionDir)` branch of
+    /// Simplex.java:1137 runs and takes the else arm (the directions are
+    /// value-unequal, so Rust `==` matches the oracle). Oracle values
+    /// captured verbatim from the jar (per-corner results via reflection).
+    #[test]
+    fn pb9_raw_parallel_pair_second_division_pin() {
+        let outer = Simplex::new(vec![
+            line(0, -4, 9, -4), // e1, duplicated at index 4 below
+            line(9, -4, 3, 2),  // NW45 border
+            line(3, 2, 0, 2),   // top
+            line(0, 2, 0, -4),  // left wall
+            line(0, -4, 9, -4), // e1 again — the parallel same-direction pair
+        ]);
+        let inner =
+            Simplex::get_instance(&[line(2, -1, 4, 0), line(4, 0, 2, 1), line(2, 1, 2, -1)]);
+        assert_eq!(inner.border_line_count(), 3);
+        assert_eq!(inner.border_line(0), line(2, -1, 4, 0));
+        assert_eq!(inner.dimension(), 2);
+
+        // Per-corner calcDivisionLines (package-private in Java, driven via
+        // reflection there; the tests module reaches it through super::*).
+        assert_eq!(
+            inner.calc_division_lines(0, &outer),
+            Some(vec![line(2, -1, 2, -2)])
+        );
+        assert_eq!(
+            inner.calc_division_lines(1, &outer),
+            Some(vec![line(4, 0, 4, -1), line(4, 0, 5, 1)])
+        );
+        assert_eq!(
+            inner.calc_division_lines(2, &outer),
+            Some(vec![line(2, 1, 2, 2)])
+        );
+
+        // The enclosing cutout: 3 pieces with these exact borders.
+        let pieces = inner.cutout(&TileShape::Simplex(Box::new(outer)));
+        assert_eq!(pieces.len(), 3);
+        let expected: [Vec<Line>; 3] = [
+            vec![
+                line(2, -1, 4, 0),
+                line(4, 0, 2, 1),
+                line(4, 0, 2, -1),
+                line(2, 1, 2, -1),
+            ],
+            vec![
+                line(2, -1, 4, 0),
+                line(4, 0, 2, 1),
+                line(2, 1, 2, -1),
+                line(2, 1, 4, 0),
+            ],
+            vec![
+                line(2, -1, 4, 0),
+                line(2, -1, 2, 1),
+                line(4, 0, 2, 1),
+                line(2, 1, 2, -1),
             ],
         ];
         for (piece, expected_lines) in pieces.iter().zip(expected.iter()) {

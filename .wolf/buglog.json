@@ -984,8 +984,12 @@
    "timestamp": "2026-09-12T19:37:13.000Z",
    "error_message": "P12 cutout pin diverged: Rust Simplex.cutout_from_simplex produced 7 pieces vs oracle 5 (corners 1/2 got 2 zero-length division lines instead of 1)",
    "file": "rust/crates/epic-geometry/src/simplex.rs",
-   "root_cause": "Java calcDivisionLines compares directions with REFERENCE equality: currentProjectionDir == Direction.NULL is true only for the shared constant returned by Point.perpendicularDirection in the collinear branch. The port translated it as current_projection_dir == IntDirection::NULL, but IntDirection PartialEq mirrors Java .equals (collinear side + positive projection) under which distinct NULL instances are UNEQUAL \u2014 so the zero direction from perpendicular_direction never matched, the NULL early exit never fired, and the zero direction won the min-distance scan producing a second spurious zero-length division line. The final firstProjectionDir == secondProjectionDir is also object identity (turn45Degree returns a fresh IntDirection per call), not value equality.",
-   "fix": "Added IntDirection::is_null() (zero-vector check = Java reference == vs the shared NULL constant; non-zero directions never turn45Degree to zero) for both NULL guards, and replaced the final equality with a winner_is_single_projection flag that models object identity (holds exactly when the winning candidate never entered the second-division scan). P12 now pins 5 pieces.",
+   "root_cause": [
+    "Simplex.calcDivisionLines mixes TWO Java Direction-comparison flavors, and the port initially conflated them. (1) The NULL guards use reference equality: currentProjectionDir == Direction.NULL is true only for the shared constant that Point.perpendicularDirection returns in its collinear branch; translating that as == on IntDirection failed because IntDirection PartialEq mirrors Java .equals (collinear side + positive projection) under which distinct NULL instances are UNEQUAL \u2014 so the zero direction never matched and the guards never fired (the original 7-vs-5 piece divergence). (2) The final comparison Simplex.java:1137 is firstProjectionDir.equals(secondProjectionDir) \u2014 VALUE equality, NOT reference ==; an interim fix translated it as an object-identity flag, which was a misreading (caught in the Task 7 spec review): an identity flag diverges from .equals whenever the two directions are value-equal but distinct objects, which is reachable with raw parallel same-direction outer line pairs."
+   ],
+   "fix": [
+    "NULL guards now use IntDirection::is_null() (zero-vector check; sound because the shared constant is the only zero direction those call sites can produce). The final comparison is plain Rust first_projection_dir == second_projection_dir, which IS Java .equals (T9 contract). Oracle pin PB9 (raw outer simplex with a duplicated same-direction bottom line, sharp inner triangle corner (4,0)) drives the second-division scan through the value-equal twin and pins the 2-division-line outcome."
+   ],
    "tags": [
     "parity",
     "direction",
@@ -996,6 +1000,22 @@
    "related_bugs": [],
    "occurrences": 1,
    "last_seen": "2026-09-12T19:37:13.000Z"
+  },
+  {
+   "id": "bug-064",
+   "timestamp": "2026-09-12T20:00:53.396Z",
+   "error_message": "Significant refactor of simplex.rs",
+   "file": "rust/crates/epic-geometry/src/simplex.rs",
+   "root_cause": "9 lines replaced/restructured",
+   "fix": "Rewrote 12\u21923 lines (9 removed) | Also: // true while currentSecondProjectionDir is the sa; // as currentProjectionDir (Java identity, see abo",
+   "tags": [
+    "auto-detected",
+    "refactor",
+    "rs"
+   ],
+   "related_bugs": [],
+   "occurrences": 2,
+   "last_seen": "2026-09-12T20:00:56.270Z"
   }
  ]
 }
