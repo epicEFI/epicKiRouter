@@ -6,7 +6,7 @@
 
 **Architecture:** The Java engine (unmodified, at baseline `e7f9bdf1`) is run headless via its existing CLI (`-de <dsn> -do <ses> --router.result_json=<json>`) which already emits a structured `RoutingResultManifest` (schema v1). A new Rust binary, `epic-harness`, orchestrates: build jar → run per fixture → distill manifest + SES hash into a committed `baseline.json` per fixture → later re-run and diff (verify) to prove oracle stability and (from M3) Rust-vs-Java parity. The 9 library crates are scaffolded now with their architectural responsibility documented, so the workspace layout from the design doc is locked in from day one.
 
-**Tech Stack:** Rust 1.93 (edition 2024, pinned via `rust-toolchain.toml`), serde/serde_json/serde_yaml, sha2, clap 4, anyhow. Java side: `./gradlew executableJar` → `build/libs/freerouting-current-executable.jar`, run with `~/.jdks/jdk-25.0.4.1+1/bin/java` (**system java is 21 and cannot run the jar** — class file version 69).
+**Tech Stack:** Rust 1.93 (edition 2024, pinned via `rust-toolchain.toml`), serde/serde_json/serde_norway (fork of serde_yaml), sha2, clap 4, anyhow. Java side: `./gradlew executableJar` → `build/libs/freerouting-current-executable.jar`, run with `~/.jdks/jdk-25.0.4.1+1/bin/java` (**system java is 21 and cannot run the jar** — class file version 69).
 
 **Design doc:** `docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md` (M0 = §6 row 1; harness = §5; workspace = §4.1)
 
@@ -296,7 +296,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde_yaml = "0.9"
+serde_norway = "0.9" # maintained drop-in fork of the archived serde_yaml (RUSTSEC-2024-0320); API-identical
 sha2 = "0.10"
 
 [lints]
@@ -407,7 +407,7 @@ tiers:
 
     #[test]
     fn parses_tiers_and_preserves_spaces_in_paths() {
-        let file: TierFile = serde_yaml::from_str(SAMPLE).expect("sample must parse");
+        let file: TierFile = serde_norway::from_str(SAMPLE).expect("sample must parse");
         assert_eq!(file.fixtures_root, PathBuf::from("scripts/benchmark/fixtures"));
         assert_eq!(file.tiers.len(), 2);
         let a = file.tier("A").expect("tier A");
@@ -420,11 +420,11 @@ tiers:
     #[test]
     fn validation_rejects_zero_timeout_and_empty_tier() {
         let bad: TierFile =
-            serde_yaml::from_str("fixtures_root: x\ntiers:\n  - name: A\n    fixtures:\n      - path: a.dsn\n        timeout_seconds: 0\n")
+            serde_norway::from_str("fixtures_root: x\ntiers:\n  - name: A\n    fixtures:\n      - path: a.dsn\n        timeout_seconds: 0\n")
                 .expect("structurally valid");
         assert!(bad.validate().is_err());
 
-        let empty: TierFile = serde_yaml::from_str(
+        let empty: TierFile = serde_norway::from_str(
             "fixtures_root: x\ntiers:\n  - name: A\n    fixtures: []\n",
         )
         .expect("structurally valid");
@@ -461,7 +461,7 @@ impl TierFile {
     pub fn load(path: &std::path::Path) -> Result<Self> {
         let raw = std::fs::read_to_string(path)
             .with_context(|| format!("reading tier file {}", path.display()))?;
-        let file: TierFile = serde_yaml::from_str(&raw)
+        let file: TierFile = serde_norway::from_str(&raw)
             .with_context(|| format!("parsing tier file {}", path.display()))?;
         file.validate()?;
         Ok(file)
