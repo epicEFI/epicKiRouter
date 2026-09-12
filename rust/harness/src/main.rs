@@ -12,6 +12,7 @@ mod manifest;
 mod oracle;
 mod tiers;
 
+use baseline::BaselineRecord;
 use oracle::OracleRun;
 use tiers::TierFile;
 
@@ -103,8 +104,76 @@ fn run() -> Result<()> {
             }
             Ok(())
         }
-        Command::Verify { .. } => {
-            bail!("verify is implemented in Task 6");
+        Command::Verify { tier } => {
+            // Validate the tier name before paying for the gradle build.
+            let selected = select_tiers(&tier_file, tier.as_deref())?;
+            oracle::build_jar(&repo_root)?;
+            let harness_root = tiers_path
+                .parent()
+                .and_then(Path::parent)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| repo_root.join("rust/harness"));
+            let baselines_root = harness_root.join("baselines").join("java");
+            let run_root = harness_root.join("runs").join("verify");
+            let fixtures_rel = &tier_file.fixtures_root;
+            let mut total_failures = 0usize;
+            for tier in selected {
+                for fixture in &tier.fixtures {
+                    let baseline_path = baselines_root
+                        .join(&tier.name)
+                        .join(format!("{}.baseline.json", fixture.path));
+                    if !baseline_path.is_file() {
+                        bail!("missing baseline for {} — run capture first", fixture.path);
+                    }
+                    let expected: BaselineRecord =
+                        serde_json::from_str(&std::fs::read_to_string(&baseline_path)?)
+                            .with_context(|| format!("parsing {}", baseline_path.display()))?;
+                    if expected.schema_version != baseline::BASELINE_SCHEMA_VERSION {
+                        bail!(
+                            "baseline {} has schema version {} (harness expects {}) — recapture needed",
+                            baseline_path.display(),
+                            expected.schema_version,
+                            baseline::BASELINE_SCHEMA_VERSION
+                        );
+                    }
+
+                    let dsn = fixtures_root.join(&fixture.path);
+                    let work_dir = run_root.join(&tier.name).join(&fixture.path);
+                    println!("[tier {}] verifying {}…", tier.name, fixture.path);
+                    let run = oracle::run_oracle(
+                        &java,
+                        &jar,
+                        &dsn,
+                        &work_dir,
+                        Duration::from_secs(fixture.timeout_seconds),
+                        &cli.jvm_xmx,
+                    )?;
+                    let actual = baseline::distill(
+                        &fixtures_rel.join(&fixture.path).to_string_lossy(),
+                        &run,
+                    );
+                    let failures = baseline::compare(&expected, &actual);
+                    if failures.is_empty() {
+                        println!(
+                            "  PASS ({:.1}s vs baseline {:.1}s)",
+                            run.wall_seconds,
+                            expected.autorouter_seconds.unwrap_or(0.0)
+                                + expected.optimizer_seconds.unwrap_or(0.0)
+                        );
+                    } else {
+                        total_failures += failures.len();
+                        for f in &failures {
+                            println!("  FAIL {f:?}");
+                        }
+                    }
+                }
+            }
+            if total_failures == 0 {
+                println!("verify: all gates passed");
+                Ok(())
+            } else {
+                bail!("verify: {total_failures} gate failure(s)");
+            }
         }
     }
 }

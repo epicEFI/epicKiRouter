@@ -12,7 +12,11 @@ use std::path::Path;
 
 pub const BASELINE_SCHEMA_VERSION: u32 = 1;
 
+// Unlike manifest.rs (which must tolerate Gson's extra fields), the baseline
+// format is written AND read by this harness alone — a strict reader makes
+// format drift fail loudly instead of silently defaulting.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct BaselineRecord {
     pub schema_version: u32,
     /// "java" in M0; "rust" records appear from M3.
@@ -123,6 +127,80 @@ pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
             .unwrap_or(0),
         notes: note,
     }
+}
+
+/// A single gate failure. Wall time and SES hash are deliberately absent —
+/// time is a trend metric and SES is compared semantically from M1.
+#[derive(Debug, PartialEq)]
+pub enum GateFailure {
+    FinalState {
+        expected: String,
+        actual: String,
+    },
+    ExitCode {
+        expected: Option<i32>,
+        actual: Option<i32>,
+    },
+    IncompleteCount {
+        expected: Option<i64>,
+        actual: Option<i64>,
+    },
+    ClearanceViolations {
+        expected: Option<i64>,
+        actual: Option<i64>,
+    },
+    NormalizedScore {
+        expected: f64,
+        actual: f64,
+    },
+}
+
+/// Compares a fresh run against a committed baseline. Counts/state/exit are
+/// exact; normalized_score uses a relative epsilon (same engine, same seed
+/// should be bit-identical, but JSON round-trips make a tiny epsilon the
+/// honest bound).
+pub fn compare(expected: &BaselineRecord, actual: &BaselineRecord) -> Vec<GateFailure> {
+    let mut failures = Vec::new();
+    if expected.final_state != actual.final_state {
+        failures.push(GateFailure::FinalState {
+            expected: expected.final_state.clone(),
+            actual: actual.final_state.clone(),
+        });
+    }
+    if expected.exit_code != actual.exit_code {
+        failures.push(GateFailure::ExitCode {
+            expected: expected.exit_code,
+            actual: actual.exit_code,
+        });
+    }
+    if expected.incomplete_count != actual.incomplete_count {
+        failures.push(GateFailure::IncompleteCount {
+            expected: expected.incomplete_count,
+            actual: actual.incomplete_count,
+        });
+    }
+    if expected.clearance_violations_total != actual.clearance_violations_total {
+        failures.push(GateFailure::ClearanceViolations {
+            expected: expected.clearance_violations_total,
+            actual: actual.clearance_violations_total,
+        });
+    }
+    if let (Some(e), Some(a)) = (expected.normalized_score, actual.normalized_score) {
+        let epsilon = 1e-6 * e.abs().max(1.0);
+        let diff = (e - a).abs();
+        if diff > epsilon {
+            failures.push(GateFailure::NormalizedScore {
+                expected: e,
+                actual: a,
+            });
+        }
+    } else if expected.normalized_score.is_some() != actual.normalized_score.is_some() {
+        failures.push(GateFailure::NormalizedScore {
+            expected: expected.normalized_score.unwrap_or(0.0),
+            actual: actual.normalized_score.unwrap_or(0.0),
+        });
+    }
+    failures
 }
 
 static UNPARSED: RoutingResultManifest = RoutingResultManifest {
@@ -270,5 +348,72 @@ mod tests {
                 .chars()
                 .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
         );
+    }
+}
+
+#[cfg(test)]
+mod compare_tests {
+    use super::*;
+
+    fn record(
+        state: &str,
+        incomplete: Option<i64>,
+        violations: Option<i64>,
+        score: Option<f64>,
+    ) -> BaselineRecord {
+        BaselineRecord {
+            schema_version: 1,
+            engine: "java".into(),
+            app_version: Some("2.5.0".into()),
+            git_sha: Some("e7f9bdf1".into()),
+            fixture: "x.dsn".into(),
+            fixture_sha256: None,
+            final_state: state.into(),
+            exit_code: Some(0),
+            incomplete_count: incomplete,
+            maximum_count: Some(50),
+            clearance_violations_total: violations,
+            clearance_router_introduced: violations,
+            normalized_score: score,
+            optimizer_score: None,
+            ses_sha256: None,
+            autorouter_seconds: Some(10.0),
+            optimizer_seconds: None,
+            passes_completed: Some(20),
+            captured_at_unix: 0,
+            notes: None,
+        }
+    }
+
+    #[test]
+    fn identical_records_pass_with_zero_failures() {
+        let a = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        let b = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        assert_eq!(compare(&a, &b), Vec::new());
+    }
+
+    #[test]
+    fn score_within_relative_epsilon_passes() {
+        let a = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        let b = record("COMPLETED", Some(0), Some(0), Some(990.0 + 1e-9));
+        assert_eq!(compare(&a, &b), Vec::new());
+    }
+
+    #[test]
+    fn count_and_state_regressions_fail() {
+        let a = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        let b = record("TIMED_OUT", Some(3), Some(1), Some(950.0));
+        assert_eq!(compare(&a, &b).len(), 4);
+    }
+
+    #[test]
+    fn wall_time_and_ses_hash_are_never_gated() {
+        let mut a = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        a.autorouter_seconds = Some(10.0);
+        a.ses_sha256 = Some("aaa".into());
+        let mut b = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        b.autorouter_seconds = Some(999.0);
+        b.ses_sha256 = Some("bbb".into());
+        assert_eq!(compare(&a, &b), Vec::new());
     }
 }
