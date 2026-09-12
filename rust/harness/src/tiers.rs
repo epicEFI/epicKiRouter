@@ -1,7 +1,3 @@
-// Consumed only by tests until the capture/verify CLI commands (M0 Tasks 4-7)
-// start calling `TierFile::load`.
-#![allow(dead_code)]
-
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::HashSet;
