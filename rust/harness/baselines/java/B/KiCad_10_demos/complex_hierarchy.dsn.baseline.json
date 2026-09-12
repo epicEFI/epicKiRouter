@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/KiCad_10_demos/complex_hierarchy.dsn",
+  "fixture_sha256": "aacd33f689c7173544d80a3771af1f499c606cfd554bcb10598172cc9747baf4",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 10,
+  "maximum_count": 113,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 882.01,
+  "optimizer_score": 800.0,
+  "ses_sha256": "247bd3c08cd77b83ebe8c42b4005475d68143245829a8731fea9eb44294491ab",
+  "autorouter_seconds": 11.79,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 18,
+  "captured_at_unix": 1789194183,
+  "notes": null
+}

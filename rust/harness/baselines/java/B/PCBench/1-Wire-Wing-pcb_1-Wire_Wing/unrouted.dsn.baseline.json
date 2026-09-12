@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/PCBench/1-Wire-Wing-pcb_1-Wire_Wing/unrouted.dsn",
+  "fixture_sha256": "af11f072c4e5538b90b190ef0bcb36bcc886c74b4776f903087546f4b60a2ac1",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 1,
+  "maximum_count": 48,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 972.22,
+  "optimizer_score": 714.95,
+  "ses_sha256": "a6cdaa634f111232dbe41c1d3e68dbd416d989f5515dd42358eea4b989436751",
+  "autorouter_seconds": 5.41,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 20,
+  "captured_at_unix": 1789194777,
+  "notes": null
+}

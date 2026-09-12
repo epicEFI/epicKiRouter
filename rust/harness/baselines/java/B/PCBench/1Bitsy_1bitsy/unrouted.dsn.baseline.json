@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/PCBench/1Bitsy_1bitsy/unrouted.dsn",
+  "fixture_sha256": "d7f1ce4ade8aa939e98736bf257ad1d881d4aef32799159674f1a7266b4e7745",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 1,
+  "maximum_count": 160,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 991.67,
+  "optimizer_score": 546.13,
+  "ses_sha256": "8a36dc3f8228097861a6830137dc2393d1948c7c50ff4ba668663d823a5e8512",
+  "autorouter_seconds": 70.37,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 24,
+  "captured_at_unix": 1789194860,
+  "notes": null
+}
