@@ -59,8 +59,12 @@ mod tests {
         // Fractional part 0.9999999990686774: rounds up in both formulas.
         assert_eq!(java_round(8388607.999999999), 8388608);
         assert_eq!(java_round(-0.5), 0);
-        // Saturation and NaN match Java's `(long)` cast semantics.
+        // Saturation and NaN match Java's `(long)` cast semantics
+        // (jshell: Math.round(-Inf) == Math.round(-Double.MAX_VALUE) ==
+        // Long.MIN_VALUE).
         assert_eq!(java_round(9.223372036854776e18), i64::MAX);
+        assert_eq!(java_round(f64::NEG_INFINITY), i64::MIN);
+        assert_eq!(java_round(f64::MIN), i64::MIN);
         assert_eq!(java_round(f64::NAN), 0);
     }
 

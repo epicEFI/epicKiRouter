@@ -17,6 +17,9 @@ pub enum Side {
 impl Side {
     /// Java `Side.of(double)` / `Signum.of(double)`. NaN falls through both
     /// comparisons to the zero variant, exactly as in Java.
+    ///
+    /// Java's javadoc on `Side.of` states the inverse mapping; the
+    /// implementation is ground truth.
     pub fn of(value: f64) -> Side {
         if value > 0.0 {
             Side::Positive
