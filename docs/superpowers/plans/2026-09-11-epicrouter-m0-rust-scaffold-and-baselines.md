@@ -23,6 +23,7 @@
 - **Oracle invocation** (verified in `src/main/java/app/freerouting/Freerouting.java:85-168` and `settings/GlobalSettings.java:608-770`): CLI mode triggers when both `-de <in.dsn>` and `-do <out.ses>` are present; it runs fanout → autoroute → optimizer, writes the SES, and exits. `--router.result_json=<path>` (serialized name `result_json`, `RouterSettings.java:94`) writes the manifest. `--usage_and_diagnostic_data.disable_analytics=true` opts out of telemetry.
 - **Manifest schema** (`core/results/RoutingResultManifest.java`, Gson, snake_case): `schema_version`, `app_version`, `git_sha`, `fixture{filename,sha256}`, `phases{fanout,autorouter,optimizer}`, `board_statistics{connections{incomplete_count,maximum_count},clearance_violations{total_count,router_introduced_count},…}`, `normalized_score`, `optimizer_score`, `final_state`, `exit_code`, `output_written`. Gson emits fields we do not model — the Rust mirror must **not** use `deny_unknown_fields`.
 - **Java version**: jar requires Java 25; system default is 21. Use `~/.jdks/jdk-25.0.4.1+1/bin/java` (exists, verified).
+- **GUI interception trap** (discovered executing Task 4): with a display present and GUI enabled in `~/.freerouting/freerouting.json`, `-de/-do` batch runs are intercepted by the GUI auto-start flow — `initializeCli`, the only reader of `routerSettings.resultJsonPath` (`Freerouting.java:352-375`), never executes, and the run "succeeds" (exit 0, SES written) with NO manifest. The oracle argv therefore carries `--gui.enabled=false --api_server.enabled=false`, mirroring the repo's own baseline producer `scripts/benchmark/lib/BenchmarkRunner.ps1` (~lines 112-116). These flags are load-bearing on any machine with a display.
 - **Fixture corpus**: `scripts/benchmark/fixtures/metadata.yaml` (27 fixtures with size/layer/net/timeout/tags). Four KiCad demos are disabled on disk (`.dsn_disabled` suffix, renamed by upstream `39c0f633` "Disable the benchmark fixtures that are timing out"): `kit-dev-coldfire-xilinx_5213`, `RoyalBlue54L-Feather`, `video`, `vme-wren` — **all excluded** from M0 tiers (`metadata.yaml` is stale on the last two). One fixture has a space in its name (`sonde xilinx.dsn`) — spawn processes with argv arrays, never shell strings.
 - **Machine**: 16 cores, 31 GB RAM (~17 GB in use by other work). Capture runs sequentially (clean timing; other instances are running).
 
@@ -845,6 +846,12 @@ pub fn oracle_argv(
         ses_out.to_string_lossy().into_owned(),
         format!("--router.result_json={}", manifest_out.to_string_lossy()),
         "--usage_and_diagnostic_data.disable_analytics=true".into(),
+        // Only the headless CLI path (`initializeCli`) honors
+        // `--router.result_json`; with a display present, the GUI auto-start
+        // batch flow would intercept `-de/-do` and never write the manifest.
+        // Mirror scripts/benchmark/lib/BenchmarkRunner.ps1.
+        "--gui.enabled=false".into(),
+        "--api_server.enabled=false".into(),
     ]
 }
 
@@ -947,7 +954,9 @@ mod tests {
             argv[9],
             "--usage_and_diagnostic_data.disable_analytics=true"
         );
-        assert_eq!(argv.len(), 10);
+        assert_eq!(argv[10], "--gui.enabled=false");
+        assert_eq!(argv[11], "--api_server.enabled=false");
+        assert_eq!(argv.len(), 12);
     }
 
     /// End-to-end smoke on the tiniest fixture. Requires the jar + JDK 25;
