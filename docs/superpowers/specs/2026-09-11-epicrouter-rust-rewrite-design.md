@@ -56,7 +56,7 @@ rust/
 │   │                    semantics as Java SettingsMerger), progress/cancel, seed control
 │   ├── epic-cli/        `epicrouter -de board.dsn -do out.ses` drop-in CLI
 │   └── epic-gui/        egui frontend, GPU board canvas
-└── harness/             differential parity + benchmark harness (Rust binary + Python orchestration;
+└── harness/             differential parity + benchmark harness (Rust binary orchestration;
                         replaces the Windows-only PowerShell scripts)
 ```
 

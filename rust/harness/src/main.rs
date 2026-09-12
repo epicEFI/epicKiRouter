@@ -33,7 +33,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Print the tier matrix and verify every fixture resolves on disk.
+    /// Print the tier matrix and verify every fixture resolves on disk
+    /// (exits nonzero, listing offenders, if any fixture is missing).
     List,
     /// Run the Java oracle on fixtures and write golden baselines.
     Capture {
@@ -67,15 +68,16 @@ fn run() -> Result<()> {
 
     match cli.command {
         Command::List => {
-            for tier in &tier_file.tiers {
-                println!("tier {} ({} fixtures):", tier.name, tier.fixtures.len());
-                for f in &tier.fixtures {
-                    let p = fixtures_root.join(&f.path);
-                    let status = if p.is_file() { "ok" } else { "MISSING" };
-                    println!("  [{status}] {} (timeout {}s)", f.path, f.timeout_seconds);
-                }
+            let missing = list_tiers(&tier_file, &fixtures_root);
+            if missing.is_empty() {
+                Ok(())
+            } else {
+                bail!(
+                    "{} fixture(s) missing on disk:\n  {}",
+                    missing.len(),
+                    missing.join("\n  ")
+                );
             }
-            Ok(())
         }
         Command::Capture { tier } => {
             // Validate the selection before paying for a gradle build.
@@ -190,6 +192,27 @@ fn run() -> Result<()> {
     }
 }
 
+/// Prints the tier matrix (one `[ok]`/`[MISSING]` line per fixture) and
+/// returns every fixture that does not resolve on disk, as `tier/path`
+/// entries, so the caller can bail — the `list` doc promises verification,
+/// not just reporting.
+fn list_tiers(tier_file: &TierFile, fixtures_root: &Path) -> Vec<String> {
+    let mut missing = Vec::new();
+    for tier in &tier_file.tiers {
+        println!("tier {} ({} fixtures):", tier.name, tier.fixtures.len());
+        for f in &tier.fixtures {
+            let p = fixtures_root.join(&f.path);
+            let present = p.is_file();
+            let status = if present { "ok" } else { "MISSING" };
+            println!("  [{status}] {} (timeout {}s)", f.path, f.timeout_seconds);
+            if !present {
+                missing.push(format!("{}/{}", tier.name, f.path));
+            }
+        }
+    }
+    missing
+}
+
 fn resolve_tiers_path(repo_root: &Path, given: &Path) -> PathBuf {
     if given.is_absolute() {
         given.into()
@@ -219,9 +242,10 @@ fn select_tiers<'a>(file: &'a TierFile, filter: Option<&str>) -> Result<Vec<&'a 
 }
 
 /// Loads and validates one committed baseline for verify's pre-flight pass:
-/// exists, parses strictly (unknown fields rejected), schema version current.
-/// The error is a plain `String` (not anyhow) so the caller can tally every
-/// offender across tiers into a single bail listing all of them.
+/// exists, parses strictly (unknown fields rejected), schema version current,
+/// engine is `java`. The error is a plain `String` (not anyhow) so the caller
+/// can tally every offender across tiers into a single bail listing all of
+/// them.
 fn load_baseline_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
     if !path.is_file() {
         return Err("missing baseline — run capture first".into());
@@ -234,6 +258,15 @@ fn load_baseline_record(path: &Path) -> std::result::Result<BaselineRecord, Stri
             "schema version {} (harness expects {}) — recapture needed",
             record.schema_version,
             baseline::BASELINE_SCHEMA_VERSION
+        ));
+    }
+    // Verify re-runs the Java oracle; gating an M3+ rust record against a
+    // java run (or any future engine mismatch) must fail pre-flight, not
+    // produce misleading parity verdicts.
+    if record.engine != "java" {
+        return Err(format!(
+            "engine {} — verify re-runs the Java oracle; expected \"java\" records",
+            record.engine
         ));
     }
     Ok(record)
@@ -251,6 +284,7 @@ fn capture_tier(
     jvm_xmx: &str,
 ) -> Result<()> {
     let mut infra_suspects: Vec<String> = Vec::new();
+    let mut degraded: Vec<String> = Vec::new();
     // `captured` = fixtures whose records were written before this one; the
     // mid-loop bail contexts report it so a failure never loses progress.
     for (captured, fixture) in tier.fixtures.iter().enumerate() {
@@ -312,24 +346,118 @@ fn capture_tier(
             record.normalized_score,
             run.wall_seconds
         );
-        // No manifest without a timeout or a zero exit smells like a broken
-        // environment (wrong JDK, bad -Xmx), not a routing outcome. The
-        // record is still written — honesty preserved — but capture must not
-        // quietly succeed, or Task 6 could verify against a consistently
-        // broken environment.
-        if run.manifest.is_none() && !run.timed_out && run.exit_code != Some(0) {
+        // No manifest without a timeout is never a legitimate baseline
+        // producer: exit-0-no-manifest is the GUI-interception / flag-drift
+        // signature (SES written, clean exit, nothing distilled), and
+        // nonzero-no-manifest smells like a broken environment (wrong JDK,
+        // bad -Xmx). The record is still written — honesty preserved — but
+        // capture must not quietly succeed, or Task 6 could verify against a
+        // consistently broken or intercepted environment.
+        if run.manifest.is_none() && !run.timed_out {
             infra_suspects.push(fixture.path.clone());
+        }
+        // A timeout or any note means a degraded run. The baseline is still
+        // written (a timeout IS valid data), but a HARNESS_TIMED_OUT record
+        // committed unacknowledged makes verify near-gate-free: None==None
+        // passes compare.
+        if record.final_state == "HARNESS_TIMED_OUT" || record.notes.is_some() {
+            degraded.push(fixture.path.clone());
         }
     }
     if !infra_suspects.is_empty() {
-        let msg = format!(
-            "{} fixture(s) in tier {} produced no manifest without timing out — infra failure suspected; see runs/<tier>/<fixture>/stderr.log (affected: {})",
+        eprintln!(
+            "WARNING: {} fixture(s) in tier {} produced no manifest without timing out — infra failure suspected; see runs/<tier>/<fixture>/stderr.log (affected: {})",
             infra_suspects.len(),
             tier.name,
             infra_suspects.join(", ")
         );
-        eprintln!("WARNING: {msg}");
-        bail!("{msg}");
+    }
+    if !degraded.is_empty() {
+        eprintln!(
+            "WARNING: {} fixture(s) in tier {} timed out or carry notes — records were written, but committing them unacknowledged would make verify near-gate-free (affected: {})",
+            degraded.len(),
+            tier.name,
+            degraded.join(", ")
+        );
+    }
+    if !infra_suspects.is_empty() || !degraded.is_empty() {
+        bail!(
+            "tier {} capture requires acknowledgement before commit — infra-suspect (no manifest, no timeout): [{}]; timed-out or noted: [{}]",
+            tier.name,
+            infra_suspects.join(", "),
+            degraded.join(", ")
+        );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tiers::{FixtureRef, Tier};
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(name);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    #[test]
+    fn list_tiers_returns_missing_fixtures_after_printing_all_rows() {
+        let root = temp_dir("epic-harness-list-test");
+        let dir = root.join("real");
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        std::fs::write(dir.join("good.dsn"), b"").expect("fixture file");
+        let tier_file = TierFile {
+            fixtures_root: PathBuf::new(), // unused by list_tiers
+            tiers: vec![
+                Tier {
+                    name: "A".into(),
+                    fixtures: vec![FixtureRef {
+                        path: "real/good.dsn".into(),
+                        timeout_seconds: 60,
+                    }],
+                },
+                Tier {
+                    name: "B".into(),
+                    fixtures: vec![FixtureRef {
+                        path: "real/gone.dsn".into(),
+                        timeout_seconds: 60,
+                    }],
+                },
+            ],
+        };
+        assert_eq!(list_tiers(&tier_file, &root), vec!["B/real/gone.dsn"]);
+    }
+
+    #[test]
+    fn baseline_pre_flight_rejects_missing_non_java_and_accepts_java() {
+        let dir = temp_dir("epic-harness-preflight-test");
+
+        let err = load_baseline_record(&dir.join("nope.json"))
+            .expect_err("missing baseline must fail pre-flight");
+        assert!(err.contains("missing baseline"), "unexpected error: {err}");
+
+        let rust_path = dir.join("rust.baseline.json");
+        std::fs::write(
+            &rust_path,
+            r#"{"schema_version":1,"engine":"rust","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
+        )
+        .expect("write baseline");
+        let err = load_baseline_record(&rust_path)
+            .expect_err("rust record must not be gated against a java run");
+        assert!(
+            err.contains("engine rust") && err.contains("Java oracle"),
+            "unexpected error: {err}"
+        );
+
+        let java_path = dir.join("java.baseline.json");
+        std::fs::write(
+            &java_path,
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
+        )
+        .expect("write baseline");
+        let record = load_baseline_record(&java_path).expect("java record passes pre-flight");
+        assert_eq!(record.engine, "java");
+    }
 }
