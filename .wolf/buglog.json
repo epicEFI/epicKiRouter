@@ -1,4 +1,21 @@
 {
   "version": 1,
-  "bugs": []
+  "bugs": [
+    {
+      "id": "design-001",
+      "ts": "2026-09-11T21:05:00",
+      "file": "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md",
+      "kind": "design-correction",
+      "summary": "M3 exit criterion was absolute (Tier A 100%/0 viol) but Java baseline itself hits 97.8% clean on Tier A; changed to relative gates (completion >= Java, violations <= Java per fixture).",
+      "status": "fixed"
+    },
+    {
+      "id": "design-002",
+      "ts": "2026-09-11T21:05:00",
+      "file": "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md",
+      "kind": "design-correction",
+      "summary": "Parity oracle pinned to Java engine built from this tree at baseline commit e7f9bdf1 (was ambiguous 'the Java engine').",
+      "status": "fixed"
+    }
+  ]
 }
