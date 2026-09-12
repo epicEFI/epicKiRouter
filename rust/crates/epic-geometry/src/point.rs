@@ -19,8 +19,10 @@
 //! Java `Point.ZERO` is an IntPoint; it is available both as
 //! [`IntPoint::ZERO`] and [`Point::ZERO`].
 //!
-//! Deferred: `sideOf(Line)`/`perpendicularProjection`/
-//! `perpendicularDirection` (Task 6, Line/Direction). `roundToTheRight`/
+//! Landed with Task 7: `sideOf(Line)` / `perpendicularDirection`
+//! (`sideOf(Line)` is consumed by `LineSegment::to_simplex`);
+//! `perpendicularProjection` landed with Task 6 on the `Line` side (the
+//! single-sided dispatch port). `roundToTheRight`/
 //! `roundToTheLeft` landed with Task 3 (Direction);
 //! `surroundingBox`/`isContainedIn` with Task 4 (IntBox);
 //! `surroundingOctagon` with Task 5 (IntOctagon).
@@ -29,11 +31,13 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
 use crate::big_int_aux::{big_abs, big_integer_int_value};
+use crate::direction::Direction;
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
 use crate::int_octagon::IntOctagon;
 use crate::int_point::IntPoint;
 use crate::limits::{CRIT_INT, CRIT_INT_BIG};
+use crate::line::Line;
 use crate::rational_point::{RationalPoint, ordering_to_int};
 use crate::side::Side;
 use crate::vector::Vector;
@@ -266,6 +270,36 @@ impl Hash for Point {
         match self {
             Point::Int(p) => p.hash(state),
             Point::Rational(p) => p.hash(state),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Task 7 closures (Line family)
+// ---------------------------------------------------------------------------
+
+impl Point {
+    /// Returns on which side of the line this point is (Java
+    /// `Point.sideOf(Line)` == `sideOf(line.a, line.b)`).
+    pub fn side_of_line(&self, line: &Line) -> Side {
+        self.side_of(&line.a, &line.b)
+    }
+
+    /// Returns the direction which leads from this point to the line in
+    /// an angle of 90 degree (Java `Point.perpendicularDirection`):
+    /// collinear points yield the null direction, points on the right
+    /// side of the line yield the line direction turned by 2 x 45
+    /// degrees, points on the left side the direction turned by
+    /// 6 x 45 degrees.
+    pub fn perpendicular_direction(&self, line: &Line) -> Direction {
+        let side = self.side_of_line(line);
+        if side == Side::Collinear {
+            return Direction::NULL;
+        }
+        if side == Side::Negative {
+            line.direction().turn_45_degree(2)
+        } else {
+            line.direction().turn_45_degree(6)
         }
     }
 }

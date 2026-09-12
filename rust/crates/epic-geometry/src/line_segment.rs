@@ -18,9 +18,12 @@
 //!
 //! Deferral ledger:
 //! - `LineSegment(Polyline, int)` and `toPolyline()` -> Task 8 (Polyline).
-//! - `LineSegment(PolylineShape, int)` -> Task 7 (TileShape borderLine).
-//! - `toSimplex()` -> Task 7 (Simplex.getInstance).
-//! - `borderIntersections(TileShape)` -> Task 7 (corners/borderLine).
+//! - Landed with Task 7: `LineSegment(PolylineShape, int)` (via
+//!   `TileShape::border_line`), `toSimplex()` and
+//!   `borderIntersections(TileShape)`. The oracle pin `PB3` covers the
+//!   0/1-entry outcomes of `borderIntersections`; a 2-entry pin (the
+//!   result reordering branch) is still open — noted for the M1a
+//!   differential corpus.
 
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
@@ -31,6 +34,8 @@ use crate::line::Line;
 use crate::point::Point;
 use crate::rounding::java_round;
 use crate::side::Side;
+use crate::simplex::Simplex;
+use crate::tile_shape::TileShape;
 use crate::vector::Vector;
 
 /// Implements functionality for line segments: a Line is infinite, a
@@ -456,11 +461,189 @@ impl LineSegment {
             self.clone()
         }
     }
+
+    /// Converts this line segment to a simplex (Java `toSimplex`): the
+    /// (possibly flipped) start line, the middle line and its opposite,
+    /// and the (possibly flipped) end line. The flips put the segment
+    /// interior on the left of every border line (jshell pin `PB4`).
+    pub fn to_simplex(&self) -> Simplex {
+        let first_line = if self.end_point().side_of_line(&self.start) == Side::Negative {
+            self.start.opposite()
+        } else {
+            self.start.clone()
+        };
+        let third_line = self.middle.opposite();
+        let last_line = if self.start_point().side_of_line(&self.end) == Side::Negative {
+            self.end.opposite()
+        } else {
+            self.end.clone()
+        };
+        Simplex::get_instance(&[first_line, self.middle.clone(), third_line, last_line])
+    }
+
+    /// Returns the numbers of the border lines of `shape` intersected by
+    /// this line segment, at most 2 entries ordered by distance from the
+    /// segment start (Java `borderIntersections(TileShape)`; jshell pins
+    /// `PB3`).
+    ///
+    /// Divergence note (Task 6): a parallel pair among `middle` and a
+    /// border line has no candidate intersection here — Java produces an
+    /// infinite RationalPoint — so the port skips that edge (keeping the
+    /// prev/current rotation) instead of propagating infinities. For
+    /// non-parallel inputs the results are identical.
+    pub fn border_intersections(&self, shape: &TileShape) -> Vec<i32> {
+        if !self.bounding_box().intersects(&shape.bounding_box()) {
+            return Vec::new();
+        }
+
+        let edge_count = shape.border_line_count() as i32;
+        let line_start = self.start_point();
+        let line_end = self.end_point();
+
+        let mut prev_line = shape.border_line(edge_count - 1);
+        let mut current_line = shape.border_line(0);
+        let mut result = [0i32; 2];
+        let mut intersection: Vec<Point> = Vec::with_capacity(2);
+
+        for edge_line_no in 0..edge_count {
+            let next_line = if edge_line_no == edge_count - 1 {
+                shape.border_line(0)
+            } else {
+                shape.border_line(edge_line_no + 1)
+            };
+
+            let start_point_side = current_line.side_of(&line_start);
+            let end_point_side = current_line.side_of(&line_end);
+            if start_point_side == Side::Positive && end_point_side == Side::Positive {
+                // both endpoints are outside the border line,
+                // no intersection possible
+                return Vec::new();
+            }
+
+            if start_point_side == Side::Collinear && end_point_side != Side::Negative {
+                // the start is on current_line; touches count only if the
+                // interior is entered
+                return Vec::new();
+            }
+
+            if end_point_side == Side::Collinear && start_point_side != Side::Negative {
+                // the end is on current_line; touches count only if the
+                // interior is entered
+                return Vec::new();
+            }
+
+            if start_point_side != Side::Negative || end_point_side != Side::Negative {
+                // not both points are inside the halfplane defined by
+                // current_line
+                let Some(is) = self.middle.intersection(&current_line) else {
+                    // Java returns an infinite RationalPoint for the
+                    // parallel pair; the port skips the candidate (see the
+                    // divergence note above).
+                    prev_line = current_line.clone();
+                    current_line = next_line;
+                    continue;
+                };
+                let prev_line_side_of_is = prev_line.side_of(&is);
+                let next_line_side_of_is = next_line.side_of(&is);
+                if prev_line_side_of_is != Side::Positive && next_line_side_of_is != Side::Positive
+                {
+                    // this line segment intersects current_line between
+                    // the previous and the next corner of the shape
+
+                    if prev_line_side_of_is == Side::Collinear {
+                        // this line segment goes through the previous corner
+                        // of the shape; check that the intersection is not
+                        // merely a touch.
+                        let prev_prev_corner = if edge_line_no == 0 {
+                            shape.corner(edge_count - 1)
+                        } else {
+                            shape.corner(edge_line_no - 1)
+                        };
+                        let next_corner = if edge_line_no == edge_count - 1 {
+                            shape.corner(0)
+                        } else {
+                            shape.corner(edge_line_no + 1)
+                        };
+                        // check that prev_prev_corner and next_corner are on
+                        // different sides of this line segment.
+                        let prev_prev_corner_side = self.middle.side_of(&prev_prev_corner);
+                        let next_corner_side = self.middle.side_of(&next_corner);
+                        if prev_prev_corner_side == Side::Collinear
+                            || next_corner_side == Side::Collinear
+                            || prev_prev_corner_side == next_corner_side
+                        {
+                            return Vec::new();
+                        }
+                    }
+                    if next_line_side_of_is == Side::Collinear {
+                        // this line segment goes through the next corner of
+                        // the shape; check that the intersection is not
+                        // merely a touch.
+                        let prev_corner = shape.corner(edge_line_no);
+                        let next_next_corner = if edge_line_no == edge_count - 2 {
+                            shape.corner(0)
+                        } else if edge_line_no == edge_count - 1 {
+                            shape.corner(1)
+                        } else {
+                            shape.corner(edge_line_no + 2)
+                        };
+                        // check that prev_corner and next_next_corner are on
+                        // different sides of this line segment.
+                        let prev_corner_side = self.middle.side_of(&prev_corner);
+                        let next_next_corner_side = self.middle.side_of(&next_next_corner);
+                        if prev_corner_side == Side::Collinear
+                            || next_next_corner_side == Side::Collinear
+                            || prev_corner_side == next_next_corner_side
+                        {
+                            return Vec::new();
+                        }
+                    }
+                    let mut intersection_already_handled = false;
+                    for found in &intersection {
+                        if *found == is {
+                            intersection_already_handled = true;
+                            break;
+                        }
+                    }
+                    if !intersection_already_handled && intersection.len() < 2 {
+                        // a new intersection is found; else Java logs
+                        // "intersection_count too big" and keeps the first
+                        // two intersections.
+                        result[intersection.len()] = edge_line_no;
+                        intersection.push(is);
+                    }
+                }
+            }
+
+            prev_line = current_line.clone();
+            current_line = next_line;
+        }
+
+        if intersection.is_empty() {
+            return Vec::new();
+        }
+
+        if intersection.len() == 2 {
+            // assure the correct order
+            let current_start = line_start.to_float();
+            if current_start.distance_square(&intersection[1].to_float())
+                < current_start.distance_square(&intersection[0].to_float())
+            {
+                result.swap(0, 1);
+            }
+            return result.to_vec();
+        }
+
+        // Java warns when intersectionCount != 1 here; the observable
+        // result is the first entry.
+        vec![result[0]]
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::regular_tile_shape::RegularTileShape;
 
     fn line(ax: i32, ay: i32, bx: i32, by: i32) -> Line {
         Line::from_int_coords(ax, ay, bx, by)
@@ -677,5 +860,50 @@ mod tests {
         .map(|(x, y)| IntPoint::new(*x, *y))
         .collect();
         assert_eq!(vst.stair_approximation(3.0, true), expected_orth); // SOR
+    }
+
+    /// jshell pin `PB4`: `seg1.toSimplex()` — border lines in the
+    /// Simplex's canonical direction-sorted order (E, UP, W, DOWN); the
+    /// flips put the segment interior on the left of every border line.
+    #[test]
+    fn pb4_to_simplex_pin() {
+        let seg1 = seg((3, -7, 4, -7), (3, -7, 3, -6), (3, 8, 4, 8));
+        let simplex = seg1.to_simplex();
+        assert_eq!(simplex.border_line_count(), 4);
+        assert_eq!(simplex.border_line(0), line(3, -7, 4, -7));
+        assert_eq!(simplex.border_line(1), line(3, -7, 3, -6));
+        assert_eq!(simplex.border_line(2), line(4, 8, 3, 8));
+        assert_eq!(simplex.border_line(3), line(3, -6, 3, -7));
+    }
+
+    /// jshell pins `PB3`: `borderIntersections` against the box
+    /// (0,0,10,10): seg1 crosses the bottom border -> [0]; seg2 (fully
+    /// inside) finds nothing (both endpoints on the left of the bottom
+    /// border line). The oracle's seg3 is degenerate — all three lines
+    /// horizontal, so Java's `startPoint()` is an infinite RationalPoint —
+    /// and cannot be built here (`start_point` panics on parallels, the
+    /// documented Task-6 divergence); two non-degenerate substitutes hit
+    /// the same branches: seg3a below the box (parallel middle line, the
+    /// candidate rejected by the next-line check) and seg3b with its end
+    /// point exactly on the bottom border (the collinear early return).
+    #[test]
+    fn pb3_border_intersections_pins() {
+        let box_tile = TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            TileShape::from_4_ints(0, 0, 10, 10),
+        ));
+        let seg1 = seg((3, -7, 4, -7), (3, -7, 3, -6), (3, 8, 4, 8));
+        assert_eq!(seg1.border_intersections(&box_tile), vec![0]);
+        let seg2 = seg((3, 1, 4, 1), (3, 1, 3, 2), (3, 9, 4, 9));
+        assert!(seg2.border_intersections(&box_tile).is_empty());
+        // seg3a: fully below the box; the middle line is parallel to the
+        // bottom border line (the skip branch) and the right-wall
+        // candidate is rejected by the next-line check.
+        let seg3a = seg((3, -5, 3, -6), (3, -5, 4, -5), (5, -5, 5, -4));
+        assert!(seg3a.border_intersections(&box_tile).is_empty());
+        // seg3b: the end point lies exactly on the bottom border line
+        // while the start is outside the halfplane: collinear early
+        // return.
+        let seg3b = seg((3, 1, 3, 0), (3, 1, 4, 1), (5, 0, 5, -1));
+        assert!(seg3b.border_intersections(&box_tile).is_empty());
     }
 }

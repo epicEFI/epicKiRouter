@@ -25,9 +25,8 @@
 //! this port keeps the warning-free surface and panics deliberately at
 //! the cast sites.
 //!
-//! Deferral ledger (Task 7 = TileShape/Simplex, Task 8 = Polyline):
-//! - `isOnTheLeft` / `isOnTheRight(TileShape)` -> Task 7 (iterates
-//!   `tile.borderLineCount()` / `tile.corner(i)`).
+//! Deferral ledger (Task 8 = Polyline):
+//! - `isOnTheLeft` / `isOnTheRight(TileShape)` landed with Task 7.
 //! - `middleApprox` / `changeLengthApprox` are **not present** on
 //!   `Line.java` at the baseline; `changeLengthApprox` is a LineSegment
 //!   method and is ported there.
@@ -47,6 +46,7 @@ use crate::point::Point;
 use crate::rational_point::RationalPoint;
 use crate::rounding::java_round;
 use crate::side::Side;
+use crate::tile_shape::TileShape;
 use crate::vector::Vector;
 
 /// Implements functionality for lines in the plane.
@@ -776,6 +776,34 @@ impl PartialEq for Line {
 }
 
 impl Eq for Line {}
+
+// ---------------------------------------------------------------------------
+// Task 7 closures (TileShape family)
+// ---------------------------------------------------------------------------
+
+impl Line {
+    /// Returns true if all interior points of the tile are on the left
+    /// side of this line (Java `Line.isOnTheLeft(TileShape)`).
+    pub fn is_on_the_left(&self, tile: &TileShape) -> bool {
+        for i in 0..tile.border_line_count() as i32 {
+            if self.side_of(&tile.corner(i)) == Side::Negative {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Returns true if all interior points of the tile are on the right
+    /// side of this line (Java `Line.isOnTheRight(TileShape)`).
+    pub fn is_on_the_right(&self, tile: &TileShape) -> bool {
+        for i in 0..tile.border_line_count() as i32 {
+            if self.side_of(&tile.corner(i)) == Side::Positive {
+                return false;
+            }
+        }
+        true
+    }
+}
 
 #[cfg(test)]
 mod tests {

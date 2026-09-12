@@ -27,25 +27,29 @@
 //!   `enlarge`, `union(IntOctagon)`, `intersection(IntOctagon)`,
 //!   `intersects(IntOctagon)`, `compare(IntOctagon, int)`,
 //!   `isContainedIn(IntOctagon)`, `cutoutFrom(IntOctagon)`.
-//! - Deferred to Task 6 (Line / FloatLine): `Line borderLine(int)`,
-//!   `int borderLineIndex(Line)`.
-//! - Deferred to Task 7 (TileShape / Simplex / RegularTileShape trait):
-//!   `TileShape simplify()`, `TileShape intersection(TileShape)`,
-//!   `Simplex intersection(Simplex)`, `boolean intersects(Shape)`
-//!   (trait dispatch), `boolean contains(RegularTileShape)`,
-//!   `RegularTileShape union(RegularTileShape)`,
-//!   `RegularTileShape boundingShape(ShapeBoundingDirections)`,
-//!   `Side compare(RegularTileShape, int)` dispatch, `Simplex toSimplex()`,
-//!   `TileShape[] cutout(TileShape)`, `Simplex[] cutoutFrom(Simplex)`.
-//! - Deferred to a later shape task: `boolean intersects(Circle)`.
+//! - Landed with Task 7 (TileShape/Simplex): `borderLine`,
+//!   `borderLineIndex` (warn-and-(-1)), `toSimplex` (raw 4-line
+//!   constructor, no redundant-line removal — pin PB1),
+//!   `intersection(Simplex)`, `intersects(Simplex)`,
+//!   `cutoutFrom(Simplex)`. The TileShape/trait-dispatch surface
+//!   (`simplify`, `intersection(TileShape)`, `intersects(Shape)`,
+//!   `contains(RegularTileShape)`, `union(RegularTileShape)`,
+//!   `boundingShape`, `compare(RegularTileShape, int)`,
+//!   `cutout(TileShape)`) lives on the `RegularTileShape` / `TileShape`
+//!   enums.
+//! - Deferred to Task 8: `boolean intersects(Circle)`.
 
+use crate::direction::Direction;
 use crate::float_point::FloatPoint;
+use crate::int_direction::IntDirection;
 use crate::int_octagon::IntOctagon;
 use crate::int_point::IntPoint;
 use crate::limits::CRIT_INT;
+use crate::line::Line;
 use crate::point::Point;
 use crate::rounding::java_round;
 use crate::side::Side;
+use crate::simplex::Simplex;
 use crate::vector::Vector;
 
 /// Implementation of functionality of orthogonal rectangles in the plane
@@ -768,6 +772,82 @@ impl IntBox {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Task 7 closures (TileShape/Simplex family)
+// ---------------------------------------------------------------------------
+
+impl IntBox {
+    /// Converts this box to a Simplex. Faithful to `IntBox.toSimplex()`: the
+    /// four boundary lines go to the `Simplex` constructor **without**
+    /// sorting or redundant-line removal (empty box -> zero lines); the
+    /// construction order is already cyclically direction-sorted (jshell
+    /// pin `PB1`).
+    pub fn to_simplex(&self) -> Simplex {
+        if self.is_empty() {
+            return Simplex::empty();
+        }
+        Simplex::new(vec![
+            Line::get_instance(Point::int(self.ll), Direction::Int(IntDirection::RIGHT)),
+            Line::get_instance(Point::int(self.ur), Direction::Int(IntDirection::UP)),
+            Line::get_instance(Point::int(self.ur), Direction::Int(IntDirection::LEFT)),
+            Line::get_instance(Point::int(self.ll), Direction::Int(IntDirection::DOWN)),
+        ])
+    }
+
+    /// The no-th boundary line as an infinite supporting line (Java
+    /// `IntBox.borderLine`): 0 lower, 1 right, 2 upper, 3 left. Panics out
+    /// of range (Java throws IllegalArgumentException).
+    pub fn border_line(&self, no: i32) -> Line {
+        match no {
+            0 => Line::new(
+                Point::int(IntPoint::new(0, self.ll.y)),
+                Point::int(IntPoint::new(1, self.ll.y)),
+            ),
+            1 => Line::new(
+                Point::int(IntPoint::new(self.ur.x, 0)),
+                Point::int(IntPoint::new(self.ur.x, 1)),
+            ),
+            2 => Line::new(
+                Point::int(IntPoint::new(0, self.ur.y)),
+                Point::int(IntPoint::new(-1, self.ur.y)),
+            ),
+            3 => Line::new(
+                Point::int(IntPoint::new(self.ll.x, 0)),
+                Point::int(IntPoint::new(self.ll.x, -1)),
+            ),
+            _ => panic!("IntBox.borderLine: no out of range"),
+        }
+    }
+
+    /// Returns -1: Java logs a warning ("not yet implemented for IntBoxes")
+    /// because the regular shapes would have to test line IDENTITY instead
+    /// of geometry. Bug-compatible with the oracle.
+    pub fn border_line_index(&self, _line: &Line) -> i32 {
+        -1
+    }
+
+    /// Returns the intersection of this box with the simplex (Java
+    /// `IntBox.intersection(Simplex)` ==
+    /// `other.intersection(this.toSimplex())`).
+    pub fn intersection_simplex(&self, other: &Simplex) -> Simplex {
+        other.intersection_simplex(&self.to_simplex())
+    }
+
+    /// Returns true if this box and the simplex have a nonempty
+    /// intersection (Java `IntBox.intersects(Simplex)` ==
+    /// `other.intersects(this.toSimplex())`).
+    pub fn intersects_simplex(&self, other: &Simplex) -> bool {
+        other.intersects_simplex(&self.to_simplex())
+    }
+
+    /// Cuts this box out of the simplex (Java `IntBox.cutoutFrom(Simplex)`
+    /// == `this.toSimplex().cutoutFrom(simplex)`); the pieces belong to the
+    /// simplex (the argument is the outer shape).
+    pub fn cutout_from_simplex(&self, simplex: &Simplex) -> Vec<Simplex> {
+        self.to_simplex().cutout_from_simplex(simplex)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1361,5 +1441,23 @@ mod tests {
             b(0, 0, 10, 10).cutout_from_octagon(&IntOctagon::EMPTY),
             vec![IntOctagon::EMPTY]
         );
+    }
+
+    /// jshell pin `PB1`: `IntBox(0,0,10,10).toSimplex()` has the 4 border
+    /// lines in box-edge order (bottom E, right N, top W, left S).
+    #[test]
+    fn pb1_to_simplex_border_lines_pin() {
+        let l = |ax: i32, ay: i32, bx: i32, by: i32| {
+            crate::line::Line::new(
+                crate::point::Point::int(crate::int_point::IntPoint::new(ax, ay)),
+                crate::point::Point::int(crate::int_point::IntPoint::new(bx, by)),
+            )
+        };
+        let simplex = b(0, 0, 10, 10).to_simplex();
+        assert_eq!(simplex.border_line_count(), 4);
+        assert_eq!(simplex.border_line(0), l(0, 0, 1, 0));
+        assert_eq!(simplex.border_line(1), l(10, 10, 10, 11));
+        assert_eq!(simplex.border_line(2), l(10, 10, 9, 10));
+        assert_eq!(simplex.border_line(3), l(0, 0, 0, -1));
     }
 }

@@ -35,32 +35,32 @@
 //! `java_round(...) as i32` sites are i64→i32 narrowings and wrap mod 2^32
 //! like Java's `(int)` long cast.
 //!
-//! Deferrals (methods whose parameter/return types belong to later M1a
-//! tasks; signatures as in the Java original):
-//! - Deferred to Task 6 (Line / FloatLine / Simplex): `Line borderLine(int)`,
-//!   `int borderLineIndex(Line)`, `Simplex toSimplex()` (Java memoizes the
-//!   result in `precalculatedToSimplex`; per plan D4/T14 the port will
-//!   compute it fresh), `Simplex intersection(Simplex)`,
-//!   `boolean intersects(Simplex)`, `Simplex[] cutoutFrom(Simplex)`, and
-//!   `TileShape turn90Degree(int, IntPoint)` — `turn90Degree` is inherited
-//!   from `TileShape` and rotates each `borderLine(i)` via
-//!   `Line.turn90Degree` + `TileShape.getInstance`, so it needs Line.
-//! - Deferred to Task 7 (TileShape / Simplex / trait dispatch):
-//!   `TileShape intersection(TileShape)`, `boolean intersects(Shape)`,
-//!   `boolean intersects(Circle)`, `boolean contains(RegularTileShape)`,
-//!   `RegularTileShape union(RegularTileShape)`,
-//!   `RegularTileShape boundingShape(ShapeBoundingDirections)`,
-//!   `Side compare(RegularTileShape, int)`, `TileShape simplify()`,
-//!   `TileShape[] cutout(TileShape)`; the `Shape`/`ConvexShape` trait impls
-//!   land there too (all methods below are inherent impls until then).
+//! Deferral ledger closure (Task 7): `borderLine`, `borderLineIndex`
+//! (warn-and-(-1)), `toSimplex` (fresh computation, T14 — Java memoizes
+//! `precalculatedToSimplex`; pin PB2), `intersects(Simplex)` ==
+//! `other.intersects(this)`, `cutoutFrom(Simplex)` ==
+//! `toSimplex().cutoutFrom(simplex)`, `simplify`, and `turn90Degree`
+//! (inherited TileShape.java:669 border-line rotation) all landed. The
+//! TileShape/trait-dispatch surface (`intersection(TileShape)`,
+//! `intersects(Shape)`, `contains(RegularTileShape)`, `union`,
+//! `boundingShape`, `compare(RegularTileShape, int)`,
+//! `cutout(TileShape)`) lives on the `RegularTileShape` / `TileShape`
+//! enums. `intersection(Simplex)` is the IntOctagon.java:373 mirror
+//! `other.intersection(this)`.
+//! - Deferred to Task 8: `boolean intersects(Circle)`.
 
 use crate::float_point::FloatPoint;
 use crate::fortyfive_degree_direction::FortyfiveDegreeDirection;
 use crate::int_box::IntBox;
 use crate::int_point::IntPoint;
 use crate::limits::{CRIT_INT, SQRT2};
+use crate::line::Line;
+use crate::point::Point;
+use crate::regular_tile_shape::RegularTileShape;
 use crate::rounding::java_round;
 use crate::side::Side;
+use crate::simplex::Simplex;
+use crate::tile_shape::TileShape;
 use crate::vector::Vector;
 
 /// Implementation of an octagon in the plane with 45 degree angle
@@ -1834,6 +1834,119 @@ impl core::fmt::Display for IntOctagon {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Task 7 closures (TileShape/Simplex family)
+// ---------------------------------------------------------------------------
+
+impl IntOctagon {
+    /// The no-th boundary line as an infinite supporting line through the
+    /// axis intercepts (Java `IntOctagon.borderLine`): 0 lower, 1
+    /// lower-right diagonal, 2 right, 3 upper-right diagonal, 4 upper, 5
+    /// upper-left diagonal, 6 left, 7 lower-left diagonal. Panics out of
+    /// range (Java throws IllegalArgumentException).
+    pub fn border_line(&self, no: i32) -> Line {
+        match no {
+            0 => Line::new(
+                Point::int(IntPoint::new(0, self.bottom_y)),
+                Point::int(IntPoint::new(1, self.bottom_y)),
+            ),
+            1 => Line::new(
+                Point::int(IntPoint::new(self.lower_right_diagonal_x, 0)),
+                Point::int(IntPoint::new(
+                    self.lower_right_diagonal_x.wrapping_add(1),
+                    1,
+                )),
+            ),
+            2 => Line::new(
+                Point::int(IntPoint::new(self.right_x, 0)),
+                Point::int(IntPoint::new(self.right_x, 1)),
+            ),
+            3 => Line::new(
+                Point::int(IntPoint::new(self.upper_right_diagonal_x, 0)),
+                Point::int(IntPoint::new(
+                    self.upper_right_diagonal_x.wrapping_sub(1),
+                    1,
+                )),
+            ),
+            4 => Line::new(
+                Point::int(IntPoint::new(0, self.top_y)),
+                Point::int(IntPoint::new(-1, self.top_y)),
+            ),
+            5 => Line::new(
+                Point::int(IntPoint::new(self.upper_left_diagonal_x, 0)),
+                Point::int(IntPoint::new(
+                    self.upper_left_diagonal_x.wrapping_sub(1),
+                    -1,
+                )),
+            ),
+            6 => Line::new(
+                Point::int(IntPoint::new(self.left_x, 0)),
+                Point::int(IntPoint::new(self.left_x, -1)),
+            ),
+            7 => Line::new(
+                Point::int(IntPoint::new(self.lower_left_diagonal_x, 0)),
+                Point::int(IntPoint::new(
+                    self.lower_left_diagonal_x.wrapping_add(1),
+                    -1,
+                )),
+            ),
+            _ => panic!("IntOctagon.borderLine: no out of range"),
+        }
+    }
+
+    /// Returns -1: Java logs "edge_index_of_line not yet implemented for
+    /// octagons" (identity comparison deliberately unimplemented,
+    /// bug-compatible with the oracle).
+    pub fn border_line_index(&self, _line: &Line) -> i32 {
+        -1
+    }
+
+    /// Converts this octagon to a Simplex: the eight border lines with the
+    /// redundant ones removed. Java memoizes the result in
+    /// `precalculatedToSimplex`; per T14 the port computes it fresh on
+    /// every call. The border-line directions are cyclically sorted, as
+    /// `remove_redundant_lines` requires (jshell pin `PB2`).
+    pub fn to_simplex(&self) -> Simplex {
+        if self.is_empty() {
+            return Simplex::empty();
+        }
+        let lines: Vec<Line> = (0..8).map(|i| self.border_line(i)).collect();
+        Simplex::new(lines).remove_redundant_lines()
+    }
+
+    /// Converts the physical instance of this shape to a simpler physical
+    /// instance: a box-like octagon to its `IntBox`, identity otherwise
+    /// (Java `IntOctagon.simplify`).
+    pub fn simplify(&self) -> TileShape {
+        if self.is_int_box() {
+            TileShape::RegularTileShape(RegularTileShape::IntBox(self.bounding_box()))
+        } else {
+            TileShape::RegularTileShape(RegularTileShape::IntOctagon(*self))
+        }
+    }
+
+    /// Returns the intersection of this octagon with the simplex (Java
+    /// `IntOctagon.intersection(Simplex)` == `other.intersection(this)`).
+    pub fn intersection_simplex(&self, other: &Simplex) -> Simplex {
+        other.intersection_octagon(self)
+    }
+
+    /// Returns true if this octagon and the simplex have a nonempty
+    /// intersection (Java `IntOctagon.intersects(Simplex)` ==
+    /// `other.intersects(this)`).
+    pub fn intersects_simplex(&self, other: &Simplex) -> bool {
+        other.intersects_octagon(self)
+    }
+
+    /// Cuts this octagon out of the simplex (Java
+    /// `IntOctagon.cutoutFrom(Simplex)` ==
+    /// `this.toSimplex().cutoutFrom(simplex)`); the pieces belong to the
+    /// simplex.
+    pub fn cutout_from_simplex(&self, simplex: &Simplex) -> Vec<Simplex> {
+        self.to_simplex().cutout_from_simplex(simplex)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2626,5 +2739,24 @@ mod tests {
                 i32::MAX.wrapping_add(i32::MIN),
             )
         );
+    }
+
+    /// jshell pin `PB2`: `octT.toSimplex()` — the 4 surviving border
+    /// lines in direction order (E, NE, W, DOWN); the normalize-dropped
+    /// edges and the collinear duplicate diagonals disappear.
+    #[test]
+    fn pb2_to_simplex_border_lines_pin() {
+        let l = |ax: i32, ay: i32, bx: i32, by: i32| {
+            crate::line::Line::new(
+                crate::point::Point::int(crate::int_point::IntPoint::new(ax, ay)),
+                crate::point::Point::int(crate::int_point::IntPoint::new(bx, by)),
+            )
+        };
+        let simplex = TileShape::from_8_ints(2, -1, 12, 8, 2, 12, 0, 8).to_simplex();
+        assert_eq!(simplex.border_line_count(), 4);
+        assert_eq!(simplex.border_line(0), l(0, -1, 1, -1));
+        assert_eq!(simplex.border_line(1), l(8, 0, 7, 1));
+        assert_eq!(simplex.border_line(2), l(2, 0, 1, -1));
+        assert_eq!(simplex.border_line(3), l(2, 0, 2, -1));
     }
 }

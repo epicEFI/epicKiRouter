@@ -35,8 +35,12 @@ pub mod line_segment;
 pub mod point;
 pub mod rational_point;
 pub mod rational_vector;
+pub mod regular_tile_shape;
 pub mod rounding;
+pub mod shape;
 pub mod side;
+pub mod simplex;
+pub mod tile_shape;
 pub mod vector;
 
 #[cfg(test)]

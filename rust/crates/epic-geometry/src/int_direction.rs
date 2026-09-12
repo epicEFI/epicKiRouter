@@ -63,6 +63,19 @@ impl IntDirection {
         IntDirection::new(vector.x, vector.y)
     }
 
+    /// Java `dir == Direction.NULL` — **reference** equality against the
+    /// shared constant, true exactly for the zero vector: the only
+    /// producers of zero directions are the collinear branch of
+    /// `Point.perpendicularDirection` (which hands back the shared
+    /// `Direction.NULL` itself) and `turn45Degree` of an already-zero
+    /// direction; a non-zero direction never turns to zero. Deliberately
+    /// NOT [`PartialEq`], which mirrors Java's inherited `equals()`
+    /// (collinearity plus positive projection) — under that contract two
+    /// distinct zero directions are unequal.
+    pub fn is_null(&self) -> bool {
+        self.x == 0 && self.y == 0
+    }
+
     /// Returns true, if the direction is horizontal or vertical.
     pub fn is_orthogonal(&self) -> bool {
         self.x == 0 || self.y == 0

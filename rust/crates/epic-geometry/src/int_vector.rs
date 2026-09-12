@@ -76,6 +76,13 @@ impl IntVector {
         }
         Direction::Int(IntDirection::new(dx, dy))
     }
+
+    /// Calculates the scalar product of this vector and other in double
+    /// precision (Java `IntVector.scalarProduct(IntVector)`: the int
+    /// coordinates are widened to double before the multiplication).
+    pub fn scalar_product(&self, other: &IntVector) -> f64 {
+        f64::from(self.x) * f64::from(other.x) + f64::from(self.y) * f64::from(other.y)
+    }
 }
 
 #[cfg(test)]

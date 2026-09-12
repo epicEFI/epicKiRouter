@@ -14,9 +14,9 @@
 //! then the `(int)` cast), `roundToGrid` uses `Math.rint` (ties to even)
 //! — see [`crate::rounding`].
 //!
-//! Deferred: `projectionApprox` (Task 6, FloatLine) and the
-//! locale-dependent `toString(Locale, ...)` variants (locale formatting is
-//! out of scope for the geometry kernel). `roundToTheRight` /
+//! `projectionApprox` landed with Task 7 (it only needs `FloatLine`).
+//! Deferred: the locale-dependent `toString(Locale, ...)` variants (locale
+//! formatting is out of scope for the geometry kernel). `roundToTheRight` /
 //! `roundToTheLeft` landed with Task 3 (Direction); `boundingBox` with
 //! Task 4 (IntBox); static `boundingOctagon` with Task 5 (IntOctagon).
 
@@ -471,6 +471,10 @@ impl fmt::Display for FloatPoint {
         write!(f, "({},{})", self.x, self.y)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Task 7 closures (Line family)
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
