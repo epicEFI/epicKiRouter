@@ -23,7 +23,7 @@
 - **Oracle invocation** (verified in `src/main/java/app/freerouting/Freerouting.java:85-168` and `settings/GlobalSettings.java:608-770`): CLI mode triggers when both `-de <in.dsn>` and `-do <out.ses>` are present; it runs fanout → autoroute → optimizer, writes the SES, and exits. `--router.result_json=<path>` (serialized name `result_json`, `RouterSettings.java:94`) writes the manifest. `--usage_and_diagnostic_data.disable_analytics=true` opts out of telemetry.
 - **Manifest schema** (`core/results/RoutingResultManifest.java`, Gson, snake_case): `schema_version`, `app_version`, `git_sha`, `fixture{filename,sha256}`, `phases{fanout,autorouter,optimizer}`, `board_statistics{connections{incomplete_count,maximum_count},clearance_violations{total_count,router_introduced_count},…}`, `normalized_score`, `optimizer_score`, `final_state`, `exit_code`, `output_written`. Gson emits fields we do not model — the Rust mirror must **not** use `deny_unknown_fields`.
 - **Java version**: jar requires Java 25; system default is 21. Use `~/.jdks/jdk-25.0.4.1+1/bin/java` (exists, verified).
-- **Fixture corpus**: `scripts/benchmark/fixtures/metadata.yaml` (27 fixtures with size/layer/net/timeout/tags). Two KiCad demos are disabled on disk (`kit-dev-coldfire-xilinx_5213.dsn_disabled`, `RoyalBlue54L-Feather.dsn_disabled`) — **excluded** from M0 tiers. One fixture has a space in its name (`sonde xilinx.dsn`) — spawn processes with argv arrays, never shell strings.
+- **Fixture corpus**: `scripts/benchmark/fixtures/metadata.yaml` (27 fixtures with size/layer/net/timeout/tags). Four KiCad demos are disabled on disk (`.dsn_disabled` suffix, renamed by upstream `39c0f633` "Disable the benchmark fixtures that are timing out"): `kit-dev-coldfire-xilinx_5213`, `RoyalBlue54L-Feather`, `video`, `vme-wren` — **all excluded** from M0 tiers (`metadata.yaml` is stale on the last two). One fixture has a space in its name (`sonde xilinx.dsn`) — spawn processes with argv arrays, never shell strings.
 - **Machine**: 16 cores, 31 GB RAM (~17 GB in use by other work). Capture runs sequentially (clean timing; other instances are running).
 
 ---
@@ -505,7 +505,7 @@ Expected: 2 passed.
 
 - [ ] **Step 5: Write the curated tier matrix**
 
-`rust/harness/config/tiers.yaml` — 25 fixtures drawn from `scripts/benchmark/fixtures` per its own `metadata.yaml` tags (canary → A; routine 2-layer → B; multi-layer/large → C). The two `.dsn_disabled` KiCad demos are excluded. Timeout budgets come straight from `metadata.yaml`:
+`rust/harness/config/tiers.yaml` — 23 fixtures drawn from `scripts/benchmark/fixtures` per its own `metadata.yaml` tags (canary → A; routine 2-layer → B; multi-layer/large → C). The four `.dsn_disabled` KiCad demos are excluded (kit-dev-coldfire, RoyalBlue54L, video, vme-wren — the last two despite stale metadata.yaml entries). Timeout budgets come straight from `metadata.yaml`:
 
 ```yaml
 # EpicRouter parity fixture matrix (M0).
@@ -513,6 +513,8 @@ Expected: 2 passed.
 # Tier A: canary gate — fast boards, must stay clean (design §5).
 # Tier B: routine 2-4 layer boards.
 # Tier C: complex / multi-layer / large boards.
+# Excluded: the four .dsn_disabled KiCad demos (kit-dev-coldfire-xilinx_5213,
+# RoyalBlue54L-Feather, video, vme-wren — disabled upstream for timing out).
 fixtures_root: scripts/benchmark/fixtures
 tiers:
   - name: A
@@ -543,8 +545,6 @@ tiers:
     fixtures:
       - { path: DAC2020_boards/DAC2020_bm04.dsn, timeout_seconds: 2700 }
       - { path: KiCad_10_demos/CM5_MINIMA_3.dsn, timeout_seconds: 1800 }
-      - { path: KiCad_10_demos/video.dsn, timeout_seconds: 1800 }
-      - { path: KiCad_10_demos/vme-wren.dsn, timeout_seconds: 1800 }
       - { path: PCBench/front-end-modules_LimeSDR_Sony/unrouted.dsn, timeout_seconds: 900 }
 ```
 
@@ -573,7 +573,7 @@ Expected: `missing: none`. (If a path with a space fails here, fix the YAML quot
 
 ```bash
 git add rust/harness/config/tiers.yaml rust/harness/src/
-git commit -m "feat(m0): tier-file model + curated 25-fixture parity matrix
+git commit -m "feat(m0): tier-file model + curated parity fixture matrix
 
 Tiers mirror scripts/benchmark/fixtures/metadata.yaml tags (canary->A,
 routine->B, multilayer/large->C); the two .dsn_disabled demos are excluded.
@@ -1448,7 +1448,7 @@ Note: `distill`'s `fixture` field stores the **tier-relative** fixture path (e.g
 cd rust && cargo test -p epic-harness && cargo run -p epic-harness -- list
 ```
 
-Expected: all unit tests pass; `list` prints 3 tiers, every line `[ok]` (Tier A: 11, B: 9, C: 5).
+Expected: all unit tests pass; `list` prints 3 tiers, every line `[ok]` (Tier A: 11, B: 9, C: 3; 23 total).
 
 - [ ] **Step 5: Commit**
 
@@ -1689,7 +1689,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 **Files:**
 - Create: `rust/harness/baselines/java/A/**/*.baseline.json` (11 files)
 - Create: `rust/harness/baselines/java/B/**/*.baseline.json` (9 files)
-- Create: `rust/harness/baselines/java/C/**/*.baseline.json` (5 files)
+- Create: `rust/harness/baselines/java/C/**/*.baseline.json` (3 files)
 - Generated (not committed): `rust/harness/runs/**`
 
 - [ ] **Step 1: Build the jar once, cleanly**
@@ -1725,12 +1725,12 @@ cd rust && EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- capture --t
 cd rust && EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- capture --tier C && EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- verify --tier C
 ```
 
-Expected: 9 then 5 fixtures. `vme-wren` (1800 nets, 12 layers) is the long pole — budget 30 min. If the total session is time-boxed, Tier C may run while doing Task 8 in parallel **only if** CPU contention isn't degrading its timing trend note — capture timings are informational, so parallel light editing work is acceptable, but do not start another routing job concurrently.
+Expected: 9 then 3 fixtures (23 baselines total). Tier C's long pole is `bm04` (16 layers, 45-min budget; typically far faster). Capture timings are informational, so light parallel editing work is acceptable, but do not start another routing job concurrently.
 
 - [ ] **Step 5: Confirm the baseline tree and no run artifacts leak into git**
 
 ```bash
-find rust/harness/baselines -name '*.baseline.json' | wc -l   # expect 25
+find rust/harness/baselines -name '*.baseline.json' | wc -l   # expect 23
 git status --short rust/ | head                                # only baselines/ staged-able
 ```
 
@@ -1738,7 +1738,7 @@ git status --short rust/ | head                                # only baselines/
 
 ```bash
 git add rust/harness/baselines/
-git commit -m "feat(m0): golden baselines from Java oracle @ e7f9bdf1 (Tier A/B/C, 25 fixtures)
+git commit -m "feat(m0): golden baselines from Java oracle @ e7f9bdf1 (Tier A/B/C, 23 fixtures)
 
 Oracle: build/libs/freerouting-current-executable.jar, default settings,
 JDK 25. Gates proven stable by verify (counts/state/score identical across
@@ -1899,14 +1899,14 @@ cd rust && cargo test --workspace && cargo clippy --workspace --all-targets -- -
 find rust/harness/baselines -name '*.baseline.json' | wc -l
 ```
 
-Expected: all cargo/gradle green (gradle ~6 min, 558 tests — rerun solo if a timing-sensitive fixture fails under load); 25 baseline files.
+Expected: all cargo/gradle green (gradle ~6 min, 558 tests — rerun solo if a timing-sensitive fixture fails under load); 23 baseline files.
 
 - [ ] **Step 4: Update OpenWolf session memory**
 
 Append to `.wolf/memory.md`:
 
 ```
-| HH:MM | M0 complete: rust/ workspace (9 crates + epic-harness), Tier A/B/C golden baselines (25 fixtures) captured+verified, CI workflow | rust/**, .github/workflows/rust-check.yml, CLAUDE.md | committed | ~NN |
+| HH:MM | M0 complete: rust/ workspace (9 crates + epic-harness), Tier A/B/C golden baselines (23 fixtures) captured+verified, CI workflow | rust/**, .github/workflows/rust-check.yml, CLAUDE.md | committed | ~NN |
 ```
 
 - [ ] **Step 5: Final commit**
