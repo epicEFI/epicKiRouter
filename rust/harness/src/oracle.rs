@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 #[derive(Debug)]
 pub struct OracleRun {
     pub manifest: Option<RoutingResultManifest>,
+    /// Some(serde error) when a manifest file existed but failed to parse.
+    pub manifest_error: Option<String>,
     pub exit_code: Option<i32>,
     pub timed_out: bool,
     pub wall_seconds: f64,
@@ -22,6 +24,8 @@ pub struct OracleRun {
     pub manifest_path: PathBuf,
 }
 
+/// Locates the repository root by walking up from the current directory
+/// until a directory containing both `.git` and `build.gradle` is found.
 pub fn find_repo_root() -> Result<PathBuf> {
     let mut dir = std::env::current_dir().context("getting current directory")?;
     loop {
@@ -37,7 +41,8 @@ pub fn find_repo_root() -> Result<PathBuf> {
 /// The jar requires Java 25; the system default may be older, so prefer an
 /// explicit override, then `~/.jdks/jdk-25*`, then PATH `java`.
 pub fn resolve_java() -> Result<PathBuf> {
-    if let Ok(explicit) = std::env::var("EPIC_ORACLE_JAVA") {
+    let explicit = std::env::var("EPIC_ORACLE_JAVA").unwrap_or_default();
+    if !explicit.is_empty() {
         return Ok(PathBuf::from(explicit));
     }
     if let Some(home) = std::env::var_os("HOME") {
@@ -54,16 +59,18 @@ pub fn resolve_java() -> Result<PathBuf> {
             Err(_) => Vec::new(),
         };
         candidates.sort();
-        if let Some(jdk) = candidates.first() {
+        let java = candidates.iter().find_map(|jdk| {
             let java = jdk.join("bin").join("java");
-            if java.is_file() {
-                return Ok(java);
-            }
+            java.is_file().then_some(java)
+        });
+        if let Some(java) = java {
+            return Ok(java);
         }
     }
     Ok(PathBuf::from("java"))
 }
 
+/// Path of the oracle executable jar the gradle `executableJar` task produces.
 pub fn jar_path(repo_root: &Path) -> PathBuf {
     repo_root.join("build/libs/freerouting-current-executable.jar")
 }
@@ -126,12 +133,16 @@ pub fn run_oracle(
     timeout: Duration,
     jvm_xmx: &str,
 ) -> Result<OracleRun> {
-    std::fs::create_dir_all(work_dir)
-        .with_context(|| format!("creating work dir {}", work_dir.display()))?;
     let ses_path = work_dir.join("out.ses");
     let manifest_path = work_dir.join("manifest.json");
     let stdout_path = work_dir.join("stdout.log");
     let stderr_path = work_dir.join("stderr.log");
+    std::fs::create_dir_all(work_dir)
+        .with_context(|| format!("creating work dir {}", work_dir.display()))?;
+    // A reused work_dir may hold a previous run's outputs; a run that dies
+    // before writing must never have them read back as its own.
+    let _ = std::fs::remove_file(&manifest_path);
+    let _ = std::fs::remove_file(&ses_path);
 
     let argv = oracle_argv(java, jar, jvm_xmx, dsn, &ses_path, &manifest_path);
     let (java_bin, rest) = argv.split_first().expect("argv is never empty");
@@ -151,14 +162,11 @@ pub fn run_oracle(
     let (exit_code, timed_out) = wait_with_timeout(&mut child, timeout);
     let wall_seconds = started.elapsed().as_secs_f64();
 
-    let manifest = if manifest_path.is_file() {
-        serde_json::from_str(&std::fs::read_to_string(&manifest_path)?).ok()
-    } else {
-        None
-    };
+    let (manifest, manifest_error) = parse_manifest_file(&manifest_path);
 
     Ok(OracleRun {
         manifest,
+        manifest_error,
         exit_code,
         timed_out,
         wall_seconds,
@@ -167,13 +175,37 @@ pub fn run_oracle(
     })
 }
 
+/// Reads and parses a run's manifest. A missing file means the engine never
+/// wrote one (both `None`). A present-but-unparseable file — Gson-vs-mirror
+/// schema drift, or a write truncated by our own timeout kill — must not
+/// masquerade as "no manifest produced", so the error is surfaced separately.
+fn parse_manifest_file(path: &Path) -> (Option<RoutingResultManifest>, Option<String>) {
+    if !path.is_file() {
+        return (None, None);
+    }
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("reading manifest {}", path.display()));
+    match raw {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(m) => (Some(m), None),
+            Err(e) => (None, Some(e.to_string())),
+        },
+        Err(e) => (None, Some(format!("{e:#}"))),
+    }
+}
+
 fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> (Option<i32>, bool) {
     let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => return (status.code(), false),
             Ok(None) => {}
-            Err(_) => return (None, false),
+            Err(_) => {
+                // Near-impossible on Unix; downstream gates fail loudly on
+                // exit_code None, and a child left unreaped is negligible
+                // for a short-lived CLI process.
+                return (None, false);
+            }
         }
         if Instant::now() >= deadline {
             let _ = child.kill();
@@ -187,6 +219,89 @@ fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> (Opt
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Minimal manifest JSON every manifest-related test can rely on.
+    const VALID_MANIFEST: &str = r#"{
+  "schema_version": 1,
+  "app_version": "test",
+  "git_sha": "abc123",
+  "fixture": {},
+  "phases": {},
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "output_written": true
+}"#;
+
+    #[test]
+    fn parse_manifest_file_valid_and_absent() {
+        // (a) valid file → (Some, None)
+        let good = std::env::temp_dir().join(format!(
+            "epic-harness-parse-good-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(&good, VALID_MANIFEST).expect("writing manifest fixture");
+        let (m, err) = parse_manifest_file(&good);
+        let _ = std::fs::remove_file(&good);
+        assert!(err.is_none());
+        let m = m.expect("valid manifest must parse");
+        assert_eq!(m.final_state, "COMPLETED");
+
+        // (c) nonexistent path → (None, None): the engine never wrote one
+        let (m, err) = parse_manifest_file(Path::new("/nonexistent/epic-harness/manifest.json"));
+        assert!(m.is_none());
+        assert!(err.is_none());
+    }
+
+    #[test]
+    fn parse_manifest_file_garbage_reports_error() {
+        // (b) present but unparseable → (None, Some(serde error))
+        let bad = std::env::temp_dir().join(format!(
+            "epic-harness-parse-bad-{}.json",
+            std::process::id()
+        ));
+        std::fs::write(&bad, "not json").expect("writing garbage fixture");
+        let (m, err) = parse_manifest_file(&bad);
+        let _ = std::fs::remove_file(&bad);
+        assert!(m.is_none());
+        let err = err.expect("garbage must yield a parse error");
+        // serde_json always appends its source position — a stable marker
+        // that the error came from the JSON parser itself.
+        assert!(err.contains("at line 1 column"), "unexpected error: {err}");
+    }
+
+    /// Regression: a reused work_dir holding a previous run's outputs must
+    /// not have them read back when the new run dies before writing anything.
+    /// `/bin/true` stands in for the JVM: exits 0 immediately, writes nothing.
+    #[test]
+    fn stale_outputs_removed_and_reported_honestly() {
+        let work = std::env::temp_dir().join("epic-harness-stale-outputs-test");
+        std::fs::create_dir_all(&work).expect("creating work dir");
+        let stale_manifest = work.join("manifest.json");
+        let stale_ses = work.join("out.ses");
+        std::fs::write(&stale_manifest, VALID_MANIFEST).expect("seeding stale manifest");
+        std::fs::write(&stale_ses, b"stale ses").expect("seeding stale ses");
+
+        let run = run_oracle(
+            Path::new("/bin/true"),
+            Path::new("/repo/no-such-jar.jar"),
+            Path::new("/repo/no-such-design.dsn"),
+            &work,
+            Duration::from_secs(10),
+            "4g",
+        )
+        .expect("oracle run");
+
+        assert_eq!(run.exit_code, Some(0));
+        assert!(!run.timed_out);
+        assert!(
+            run.manifest.is_none(),
+            "stale manifest must be removed, not parsed"
+        );
+        assert!(run.manifest_error.is_none());
+        assert!(!run.manifest_path.is_file());
+        let _ = std::fs::remove_file(&stale_manifest);
+        let _ = std::fs::remove_file(&stale_ses);
+    }
 
     #[test]
     fn argv_order_matches_java_cli_contract() {
