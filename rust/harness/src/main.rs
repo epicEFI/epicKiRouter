@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod baseline;
+mod corpus;
 mod manifest;
 mod oracle;
 mod tiers;
@@ -48,6 +49,12 @@ enum Command {
         #[arg(long)]
         tier: Option<String>,
     },
+    /// Geometry differential corpus (M1a): generate cases, capture Java
+    /// goldens, compare epic-geometry against them.
+    Corpus {
+        #[command(subcommand)]
+        cmd: corpus::CorpusCommand,
+    },
 }
 
 fn main() {
@@ -59,6 +66,10 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+    if let Command::Corpus { cmd } = cli.command {
+        // The corpus pipeline needs no tier file or eager JVM resolution.
+        return corpus::run(cmd);
+    }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
     let tier_file = TierFile::load(&tiers_path)?;
@@ -189,6 +200,8 @@ fn run() -> Result<()> {
                 bail!("verify: {total_failures} gate failure(s)");
             }
         }
+        // Handled before tier loading; unreachable here.
+        Command::Corpus { .. } => unreachable!("corpus command handled before tier loading"),
     }
 }
 
