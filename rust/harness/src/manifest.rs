@@ -3,7 +3,8 @@
 
 //! Serde mirror of the Java `RoutingResultManifest` (schema v1) — the subset
 //! the parity gates read. Field names MUST match the `@SerializedName`
-//! values in `src/main/java/app/freerouting/core/results/RoutingResultManifest.java`.
+//! values in `src/main/java/app/freerouting/core/results/RoutingResultManifest.java`,
+//! with the nested board-statistics names in `core/scoring/BoardStatistics*.java`.
 //! Gson emits additional fields (bounds, resource_usage, settings_snapshot…)
 //! that we deliberately ignore: do NOT add `deny_unknown_fields`.
 
@@ -34,7 +35,9 @@ pub struct FixtureInfo {
 pub struct PhaseMetrics {
     #[serde(default)]
     pub fanout: PhaseDetail,
+    #[serde(default)]
     pub autorouter: PhaseDetail,
+    #[serde(default)]
     pub optimizer: PhaseDetail,
 }
 
@@ -113,5 +116,30 @@ mod tests {
         assert_eq!(m.final_state, "COMPLETED");
         assert_eq!(m.exit_code, 0);
         assert!(m.output_written);
+    }
+
+    /// A failed run: `fromJob` leaves `board_statistics` null (Gson omits
+    /// nulls) and phase details may be absent — everything still parses.
+    #[test]
+    fn parses_minimal_manifest_with_absent_optionals() {
+        let minimal: &str = r#"{
+  "schema_version": 1,
+  "app_version": "2.5.0",
+  "git_sha": "e7f9bdf1",
+  "fixture": { "filename": "DAC2020_bm08.dsn" },
+  "phases": {},
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "output_written": true
+}"#;
+        let m: RoutingResultManifest =
+            serde_json::from_str(minimal).expect("minimal manifest must parse");
+        assert!(m.phases.fanout.duration_seconds.is_none());
+        assert!(m.phases.fanout.passes_completed.is_none());
+        assert!(m.phases.autorouter.duration_seconds.is_none());
+        assert!(m.phases.optimizer.passes_completed.is_none());
+        assert!(m.board_statistics.is_none());
+        assert!(m.normalized_score.is_none());
+        assert!(m.optimizer_score.is_none());
     }
 }
