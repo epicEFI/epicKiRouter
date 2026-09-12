@@ -1,6 +1,13 @@
 //! Port of Java `app.freerouting.datastructures.BigIntAux`.
+//!
+//! Also carries three JDK `BigInteger` shims (`big_integer_hash_code`,
+//! `big_integer_int_value`, `big_integer_double_value`) that have no Java
+//! `BigIntAux` counterpart but are needed for bit-parity of the point/vector
+//! factories and hashes, plus `big_abs`/`big_gcd` stand-ins for the
+//! `num-traits`/`num-integer` trait methods (which are deliberately not
+//! direct dependencies of this crate).
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 
 /// Calculates the determinant of the vectors (x1, y1) and (x2, y2):
 /// `x1*y2 - x2*y1`, in Java's operand order (`tmp1 = x1*y2; tmp2 = x2*y1;
@@ -70,6 +77,76 @@ pub fn binary_gcd(mut a: u32, mut b: u32) -> u32 {
     a << shift
 }
 
+/// Java `BigInteger.abs()` (always non-negative). Stand-in for the
+/// `num_traits::Signed::abs` trait method, which would require a direct
+/// `num-traits` dependency.
+pub(crate) fn big_abs(v: &BigInt) -> BigInt {
+    if v.sign() == Sign::Minus {
+        -v
+    } else {
+        v.clone()
+    }
+}
+
+/// Java `BigInteger.gcd(other)`: gcd of the absolute values, always
+/// non-negative, with gcd(0, 0) = 0. Value-equal to the JDK's binary gcd
+/// (the algorithm differs, the result does not). Stand-in for the
+/// `num_integer::Integer::gcd` trait method.
+pub(crate) fn big_gcd(a: &BigInt, b: &BigInt) -> BigInt {
+    let mut a = big_abs(a);
+    let mut b = big_abs(b);
+    while b.sign() != Sign::NoSign {
+        let r = &a % &b;
+        a = b;
+        b = r;
+    }
+    a
+}
+
+/// JDK `BigInteger.hashCode()`: folds the big-endian 32-bit magnitude words
+/// with `h = 31*h + word` (int wraparound) and multiplies the result by the
+/// signum, so `hashCode(-x) == -hashCode(x)`. Bit-exact with the JDK, which
+/// the `RationalPoint` hash pins rely on.
+pub(crate) fn big_integer_hash_code(v: &BigInt) -> i32 {
+    let mut h: i32 = 0;
+    for word in v.magnitude().to_u32_digits().iter().rev() {
+        h = h.wrapping_mul(31).wrapping_add(*word as i32);
+    }
+    let sign = match v.sign() {
+        Sign::Plus => 1,
+        Sign::NoSign => 0,
+        Sign::Minus => -1,
+    };
+    h.wrapping_mul(sign)
+}
+
+/// Java `BigInteger.intValue()`: the low 32 bits of the value with
+/// wraparound (sign * low magnitude word, modulo 2^32 — identical to the
+/// JDK two's-complement truncation).
+pub(crate) fn big_integer_int_value(v: &BigInt) -> i32 {
+    let digits = v.magnitude().to_u32_digits();
+    let low = match digits.first() {
+        Some(&word) => word as i32,
+        None => 0,
+    };
+    match v.sign() {
+        Sign::Plus => low,
+        Sign::Minus => low.wrapping_neg(),
+        Sign::NoSign => 0,
+    }
+}
+
+/// Java `BigInteger.doubleValue()`: the closest double (correctly rounded);
+/// magnitudes beyond the double range saturate to ±infinity.
+/// `str::parse::<f64>` is correctly rounded exactly like the JDK conversion,
+/// so this is bit-exact. (The `num-traits::ToPrimitive` route would need a
+/// new direct dependency, which the port rules forbid.)
+pub(crate) fn big_integer_double_value(v: &BigInt) -> f64 {
+    v.to_string()
+        .parse::<f64>()
+        .expect("decimal BigInt string always parses as f64")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +213,68 @@ mod tests {
         assert_eq!(binary_gcd(0x8000_0000, 0xC000_0000), 0x4000_0000);
         assert_eq!(binary_gcd(0x8000_0000, 0x8000_0000), 0x8000_0000);
         assert_eq!(binary_gcd(0xFFFF_FFFF, 0x0000_FFFF), 0x0000_FFFF);
+    }
+
+    #[test]
+    fn big_abs_is_non_negative() {
+        assert_eq!(big_abs(&b(-7)), b(7));
+        assert_eq!(big_abs(&b(7)), b(7));
+        assert_eq!(big_abs(&b(0)), b(0));
+    }
+
+    #[test]
+    fn big_gcd_matches_java_gcd_contract() {
+        // Always non-negative, gcd of absolute values, gcd(0, 0) = 0.
+        assert_eq!(big_gcd(&b(-4), &b(6)), b(2));
+        assert_eq!(big_gcd(&b(0), &b(0)), b(0));
+        assert_eq!(big_gcd(&b(0), &b(7)), b(7));
+        // Beyond u64: gcd(2^70, 2^40) = 2^40.
+        let big = BigInt::from(2u32).pow(70);
+        let small = BigInt::from(2u32).pow(40);
+        assert_eq!(big_gcd(&big, &small), small);
+    }
+
+    /// Pinned against JDK 25 jshell: `new BigInteger("2").hashCode() == 2`,
+    /// `new BigInteger("-2").hashCode() == -2`, and multi-word values fold
+    /// `31*h + word` over big-endian magnitude words times the sign.
+    #[test]
+    fn big_integer_hash_code_matches_jdk() {
+        assert_eq!(big_integer_hash_code(&b(0)), 0);
+        assert_eq!(big_integer_hash_code(&b(2)), 2);
+        assert_eq!(big_integer_hash_code(&b(-2)), -2);
+        // 2^40 + 5: words big-endian [2^8, 5] -> h = 31*256 + 5 = 7941.
+        let v = (BigInt::from(1u32) << 40u32) + b(5);
+        assert_eq!(big_integer_hash_code(&v), 31 * 256 + 5);
+        assert_eq!(big_integer_hash_code(&-v), -(31 * 256 + 5));
+    }
+
+    /// Java `BigInteger.intValue()` truncates to the low 32 bits of the
+    /// two's-complement value with wraparound. -(2^32+1) mod 2^32 is
+    /// 0xFFFFFFFF = -1, and the low word of 2^32 is 0.
+    #[test]
+    fn big_integer_int_value_truncates_to_low_32_bits() {
+        assert_eq!(big_integer_int_value(&b(0)), 0);
+        assert_eq!(big_integer_int_value(&b(33_554_432)), 33_554_432);
+        assert_eq!(big_integer_int_value(&b(-2)), -2);
+        // -(2^32 + 1): low 32 bits of two's complement are 0xFFFFFFFF.
+        let v = -(BigInt::from(1u32) << 32u32) - b(1);
+        assert_eq!(big_integer_int_value(&v), -1);
+        // 2^32: low word is 0.
+        let v = BigInt::from(1u32) << 32u32;
+        assert_eq!(big_integer_int_value(&v), 0);
+    }
+
+    #[test]
+    fn big_integer_double_value_is_correctly_rounded_and_saturates() {
+        assert_eq!(big_integer_double_value(&b(0)), 0.0);
+        assert_eq!(big_integer_double_value(&b(-3)), -3.0);
+        assert_eq!(
+            big_integer_double_value(&b(1_000_000_000_000_000_000)),
+            1e18
+        );
+        // Beyond the double range: saturates to infinity like the JDK.
+        let huge = BigInt::from(10u32).pow(400);
+        assert_eq!(big_integer_double_value(&huge), f64::INFINITY);
+        assert_eq!(big_integer_double_value(&-huge), f64::NEG_INFINITY);
     }
 }
