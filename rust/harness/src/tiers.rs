@@ -4,7 +4,8 @@
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 /// The curated fixture matrix (design §5). `fixtures_root` is resolved
 /// against the repository root (the harness locates it by walking up from the
@@ -31,28 +32,45 @@ pub struct FixtureRef {
 
 impl TierFile {
     /// Loads and validates the tier file at `path`.
-    pub fn load(path: &std::path::Path) -> Result<Self> {
+    pub fn load(path: &Path) -> Result<Self> {
         let raw = std::fs::read_to_string(path)
             .with_context(|| format!("reading tier file {}", path.display()))?;
         let file: TierFile = serde_norway::from_str(&raw)
             .with_context(|| format!("parsing tier file {}", path.display()))?;
-        file.validate()?;
+        file.validate()
+            .with_context(|| format!("validating tier file {}", path.display()))?;
         Ok(file)
     }
 
-    /// Structural sanity: non-empty everywhere, positive timeouts.
+    /// Structural sanity: non-empty everywhere, positive timeouts, no
+    /// duplicate tier names or fixture paths, fixture paths relative to
+    /// `fixtures_root`.
     pub fn validate(&self) -> Result<()> {
         if self.tiers.is_empty() {
             bail!("tier file contains no tiers");
         }
-        for tier in &self.tiers {
+        let mut tier_names = HashSet::new();
+        let mut fixture_paths = HashSet::new();
+        for (index, tier) in self.tiers.iter().enumerate() {
             if tier.name.is_empty() {
-                bail!("tier with empty name");
+                bail!("tier {index} has an empty name");
+            }
+            if !tier_names.insert(tier.name.as_str()) {
+                bail!("duplicate tier name {}", tier.name);
             }
             if tier.fixtures.is_empty() {
                 bail!("tier {} has no fixtures", tier.name);
             }
             for fixture in &tier.fixtures {
+                if !Path::new(&fixture.path).is_relative() {
+                    bail!(
+                        "fixture path {} must be relative to fixtures_root",
+                        fixture.path
+                    );
+                }
+                if !fixture_paths.insert(fixture.path.as_str()) {
+                    bail!("duplicate fixture path {}", fixture.path);
+                }
                 if fixture.timeout_seconds == 0 {
                     bail!("fixture {} has timeout_seconds 0", fixture.path);
                 }
@@ -101,6 +119,8 @@ tiers:
         assert_eq!(a.fixtures[1].path, "KiCad_10_demos/sonde xilinx.dsn");
         assert_eq!(a.fixtures[1].timeout_seconds, 300);
         assert!(file.tier("B").is_none());
+        // Lookup is case-insensitive.
+        assert!(file.tier("a").is_some());
     }
 
     #[test]
@@ -114,5 +134,23 @@ tiers:
             serde_norway::from_str("fixtures_root: x\ntiers:\n  - name: A\n    fixtures: []\n")
                 .expect("structurally valid");
         assert!(empty.validate().is_err());
+    }
+
+    #[test]
+    fn validation_rejects_duplicate_fixture_path() {
+        let dup: TierFile = serde_norway::from_str(
+            "fixtures_root: x\ntiers:\n  - name: A\n    fixtures:\n      - path: a.dsn\n        timeout_seconds: 1\n      - path: a.dsn\n        timeout_seconds: 2\n",
+        )
+        .expect("structurally valid");
+        assert!(dup.validate().is_err());
+    }
+
+    #[test]
+    fn validation_rejects_absolute_fixture_path() {
+        let abs: TierFile = serde_norway::from_str(
+            "fixtures_root: x\ntiers:\n  - name: A\n    fixtures:\n      - path: /etc/passwd\n        timeout_seconds: 1\n",
+        )
+        .expect("structurally valid");
+        assert!(abs.validate().is_err());
     }
 }

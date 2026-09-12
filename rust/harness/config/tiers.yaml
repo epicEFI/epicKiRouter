@@ -4,7 +4,8 @@
 # Tier B: routine 2-4 layer boards.
 # Tier C: complex / multi-layer / large boards.
 # All four KiCad demos disabled upstream as *.dsn_disabled (timing out) are
-# excluded, so they are absent here even where metadata.yaml still lists them.
+# excluded, so they are absent here even where metadata.yaml still lists them:
+#   kit-dev-coldfire-xilinx_5213, RoyalBlue54L-Feather, video, vme-wren.
 fixtures_root: scripts/benchmark/fixtures
 tiers:
   - name: A
