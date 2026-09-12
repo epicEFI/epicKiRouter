@@ -150,8 +150,8 @@ pub enum GateFailure {
         actual: Option<i64>,
     },
     NormalizedScore {
-        expected: f64,
-        actual: f64,
+        expected: Option<f64>,
+        actual: Option<f64>,
     },
 }
 
@@ -186,18 +186,20 @@ pub fn compare(expected: &BaselineRecord, actual: &BaselineRecord) -> Vec<GateFa
         });
     }
     if let (Some(e), Some(a)) = (expected.normalized_score, actual.normalized_score) {
+        // serde_json cannot produce non-finite f64s (it rejects NaN/Infinity literals and errors serializing them), so the epsilon path only ever sees finite values.
         let epsilon = 1e-6 * e.abs().max(1.0);
         let diff = (e - a).abs();
         if diff > epsilon {
             failures.push(GateFailure::NormalizedScore {
-                expected: e,
-                actual: a,
+                expected: Some(e),
+                actual: Some(a),
             });
         }
     } else if expected.normalized_score.is_some() != actual.normalized_score.is_some() {
+        // Some-vs-None: report the true absence instead of a fake 0.0.
         failures.push(GateFailure::NormalizedScore {
-            expected: expected.normalized_score.unwrap_or(0.0),
-            actual: actual.normalized_score.unwrap_or(0.0),
+            expected: expected.normalized_score,
+            actual: actual.normalized_score,
         });
     }
     failures
@@ -333,6 +335,30 @@ mod tests {
         assert_eq!(record, back);
     }
 
+    /// Contrast with manifest.rs's `parses_manifest_ignoring_unknown_fields`:
+    /// the harness both writes and reads baselines, so `deny_unknown_fields`
+    /// makes format drift fail loudly — one extra top-level field must not
+    /// parse.
+    #[test]
+    fn parses_baseline_rejecting_unknown_fields() {
+        let m: RoutingResultManifest =
+            serde_json::from_str(&sample_manifest_json()).expect("manifest parses");
+        let run = synthetic_run(Some(m), false);
+        let record = distill("fixtures/x.dsn", &run);
+        let mut value = serde_json::to_value(&record).expect("serialize");
+        value
+            .as_object_mut()
+            .expect("record serializes to an object")
+            .insert("surprise".into(), serde_json::json!(1));
+        let raw = serde_json::to_string(&value).expect("reserialize");
+        let err = serde_json::from_str::<BaselineRecord>(&raw)
+            .expect_err("unknown top-level field must fail the strict reader");
+        assert!(
+            err.to_string().contains("unknown field"),
+            "unexpected error: {err}"
+        );
+    }
+
     #[test]
     fn sha256_of_known_bytes_is_stable() {
         let dir = std::env::temp_dir().join("epic-harness-baseline-test");
@@ -415,5 +441,25 @@ mod compare_tests {
         b.autorouter_seconds = Some(999.0);
         b.ses_sha256 = Some("bbb".into());
         assert_eq!(compare(&a, &b), Vec::new());
+    }
+
+    /// Some-vs-None on the score must surface the true Option payloads (no
+    /// fake 0.0), and both-absent must pass — nothing to compare.
+    #[test]
+    fn score_option_mismatch_reports_absence_honestly() {
+        let a = record("COMPLETED", Some(0), Some(0), Some(990.0));
+        let b = record("COMPLETED", Some(0), Some(0), None);
+        let failures = compare(&a, &b);
+        assert_eq!(failures.len(), 1);
+        assert_eq!(
+            failures[0],
+            GateFailure::NormalizedScore {
+                expected: Some(990.0),
+                actual: None
+            }
+        );
+        let both_absent_a = record("COMPLETED", Some(0), Some(0), None);
+        let both_absent_b = record("COMPLETED", Some(0), Some(0), None);
+        assert_eq!(compare(&both_absent_a, &both_absent_b), Vec::new());
     }
 }

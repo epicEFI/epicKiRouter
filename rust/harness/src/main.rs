@@ -107,7 +107,6 @@ fn run() -> Result<()> {
         Command::Verify { tier } => {
             // Validate the tier name before paying for the gradle build.
             let selected = select_tiers(&tier_file, tier.as_deref())?;
-            oracle::build_jar(&repo_root)?;
             let harness_root = tiers_path
                 .parent()
                 .and_then(Path::parent)
@@ -116,27 +115,34 @@ fn run() -> Result<()> {
             let baselines_root = harness_root.join("baselines").join("java");
             let run_root = harness_root.join("runs").join("verify");
             let fixtures_rel = &tier_file.fixtures_root;
-            let mut total_failures = 0usize;
-            for tier in selected {
+            // Pre-flight: every selected fixture's baseline must exist, parse
+            // strictly, and carry the current schema version — checked for all
+            // tiers BEFORE the gradle build, with every offender tallied into
+            // a single bail so one bad file doesn't hide the rest.
+            let mut offenders: Vec<String> = Vec::new();
+            let mut preflight: Vec<(&tiers::Tier, Vec<BaselineRecord>)> = Vec::new();
+            for tier in &selected {
+                let mut records = Vec::with_capacity(tier.fixtures.len());
                 for fixture in &tier.fixtures {
                     let baseline_path = baselines_root
                         .join(&tier.name)
                         .join(format!("{}.baseline.json", fixture.path));
-                    if !baseline_path.is_file() {
-                        bail!("missing baseline for {} — run capture first", fixture.path);
+                    match load_baseline_record(&baseline_path) {
+                        Ok(record) => records.push(record),
+                        Err(reason) => {
+                            offenders.push(format!("  {}/{}: {}", tier.name, fixture.path, reason))
+                        }
                     }
-                    let expected: BaselineRecord =
-                        serde_json::from_str(&std::fs::read_to_string(&baseline_path)?)
-                            .with_context(|| format!("parsing {}", baseline_path.display()))?;
-                    if expected.schema_version != baseline::BASELINE_SCHEMA_VERSION {
-                        bail!(
-                            "baseline {} has schema version {} (harness expects {}) — recapture needed",
-                            baseline_path.display(),
-                            expected.schema_version,
-                            baseline::BASELINE_SCHEMA_VERSION
-                        );
-                    }
-
+                }
+                preflight.push((*tier, records));
+            }
+            if !offenders.is_empty() {
+                bail!("missing or invalid baselines:\n{}", offenders.join("\n"));
+            }
+            oracle::build_jar(&repo_root)?;
+            let mut total_failures = 0usize;
+            for (tier, records) in &preflight {
+                for (fixture, expected) in tier.fixtures.iter().zip(records) {
                     let dsn = fixtures_root.join(&fixture.path);
                     let work_dir = run_root.join(&tier.name).join(&fixture.path);
                     println!("[tier {}] verifying {}…", tier.name, fixture.path);
@@ -147,15 +153,21 @@ fn run() -> Result<()> {
                         &work_dir,
                         Duration::from_secs(fixture.timeout_seconds),
                         &cli.jvm_xmx,
-                    )?;
+                    )
+                    .with_context(|| {
+                        format!(
+                            "oracle run failed while verifying {} (tier {})",
+                            fixture.path, tier.name
+                        )
+                    })?;
                     let actual = baseline::distill(
                         &fixtures_rel.join(&fixture.path).to_string_lossy(),
                         &run,
                     );
-                    let failures = baseline::compare(&expected, &actual);
+                    let failures = baseline::compare(expected, &actual);
                     if failures.is_empty() {
                         println!(
-                            "  PASS ({:.1}s vs baseline {:.1}s)",
+                            "  PASS (wall {:.1}s; baseline routing phases {:.1}s)",
                             run.wall_seconds,
                             expected.autorouter_seconds.unwrap_or(0.0)
                                 + expected.optimizer_seconds.unwrap_or(0.0)
@@ -204,6 +216,27 @@ fn select_tiers<'a>(file: &'a TierFile, filter: Option<&str>) -> Result<Vec<&'a 
         }
         None => Ok(file.tiers.iter().collect()),
     }
+}
+
+/// Loads and validates one committed baseline for verify's pre-flight pass:
+/// exists, parses strictly (unknown fields rejected), schema version current.
+/// The error is a plain `String` (not anyhow) so the caller can tally every
+/// offender across tiers into a single bail listing all of them.
+fn load_baseline_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
+    if !path.is_file() {
+        return Err("missing baseline — run capture first".into());
+    }
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("unreadable: {e}"))?;
+    let record: BaselineRecord =
+        serde_json::from_str(&raw).map_err(|e| format!("invalid baseline JSON: {e}"))?;
+    if record.schema_version != baseline::BASELINE_SCHEMA_VERSION {
+        return Err(format!(
+            "schema version {} (harness expects {}) — recapture needed",
+            record.schema_version,
+            baseline::BASELINE_SCHEMA_VERSION
+        ));
+    }
+    Ok(record)
 }
 
 #[allow(clippy::too_many_arguments)]
