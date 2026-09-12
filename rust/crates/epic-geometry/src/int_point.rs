@@ -16,15 +16,16 @@
 //! wraps it in a RationalPoint afterwards). The Java bodies never read the
 //! log, so dropping the message preserves observable behavior.
 //!
-//! Deferred: `surroundingOctagon` (Task 5, IntOctagon), `sideOf(Line)` and
-//! `perpendicularProjection(Line)` (Task 6, Line). `surroundingBox` /
-//! `isContainedIn` landed with Task 4 (IntBox).
+//! Deferred: `sideOf(Line)` and `perpendicularProjection(Line)` (Task 6,
+//! Line). `surroundingBox` / `isContainedIn` landed with Task 4 (IntBox);
+//! `surroundingOctagon` with Task 5 (IntOctagon).
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
+use crate::int_octagon::IntOctagon;
 use crate::int_vector::IntVector;
 
 /// Implementation of the abstract class Point as a tuple of integers.
@@ -50,6 +51,15 @@ impl IntPoint {
     /// `surroundingBox`, landed with Task 4).
     pub fn surrounding_box(&self) -> IntBox {
         IntBox::new(*self, *self)
+    }
+
+    /// Returns the smallest IntOctagon containing only this point (Java
+    /// `surroundingOctagon`, landed with Task 5): the four diagonal
+    /// intercepts run through the point itself (int sums wrap like Java).
+    pub fn surrounding_octagon(&self) -> IntOctagon {
+        let tmp1 = self.x.wrapping_sub(self.y);
+        let tmp2 = self.x.wrapping_add(self.y);
+        IntOctagon::new(self.x, self.y, self.x, self.y, tmp1, tmp1, tmp2, tmp2)
     }
 
     /// Returns true if this point lies inside `int_box` or on its border
@@ -502,5 +512,17 @@ mod tests {
     #[test]
     fn is_infinite_is_always_false() {
         assert!(!IntPoint::new(-7, 9).is_infinite());
+    }
+
+    /// jshell pin: IntPoint(3,-4).surroundingOctagon() has the diagonals
+    /// through the point (tmp1 = 3 - (-4) = 7, tmp2 = 3 + (-4) = -1).
+    #[test]
+    fn surrounding_octagon_pin() {
+        let o = IntPoint::new(3, -4).surrounding_octagon();
+        assert_eq!((o.left_x, o.bottom_y, o.right_x, o.top_y), (3, -4, 3, -4));
+        assert_eq!(o.upper_left_diagonal_x, 7);
+        assert_eq!(o.lower_right_diagonal_x, 7);
+        assert_eq!(o.lower_left_diagonal_x, -1);
+        assert_eq!(o.upper_right_diagonal_x, -1);
     }
 }

@@ -15,9 +15,9 @@
 //! `compareX`, `compareY`) live on the [`crate::point::Point`] enum as
 //! `pub(crate)` methods here.
 //!
-//! Deferred: `surroundingOctagon` (Task 5, IntOctagon), `sideOf(Line)` and
-//! `perpendicularProjection(Line)` (Task 6, Line). `surroundingBox` /
-//! `isContainedIn` landed with Task 4 (IntBox).
+//! Deferred: `sideOf(Line)` and `perpendicularProjection(Line)` (Task 6,
+//! Line). `surroundingBox` / `isContainedIn` landed with Task 4 (IntBox);
+//! `surroundingOctagon` with Task 5 (IntOctagon).
 
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
@@ -27,6 +27,7 @@ use crate::big_int_aux::{
 };
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
+use crate::int_octagon::IntOctagon;
 use crate::int_point::IntPoint;
 use crate::int_vector::IntVector;
 use crate::point::Point;
@@ -101,6 +102,25 @@ impl RationalPoint {
         let urx = fp.x.ceil() as i32;
         let ury = fp.y.ceil() as i32;
         IntBox::from_corners(llx, lly, urx, ury)
+    }
+
+    /// Returns the smallest IntOctagon containing only this point (Java
+    /// `surroundingOctagon`, landed with Task 5): floors/ceils the float
+    /// approximation and the two diagonal coordinates separately. The
+    /// result is NOT normalized, like the Java original.
+    pub fn surrounding_octagon(&self) -> IntOctagon {
+        let fp = self.to_float();
+        let lx = fp.x.floor() as i32;
+        let ly = fp.y.floor() as i32;
+        let rx = fp.x.ceil() as i32;
+        let uy = fp.y.ceil() as i32;
+        let diag1 = fp.x - fp.y;
+        let diag2 = fp.x + fp.y;
+        let ulx = diag1.floor() as i32;
+        let lrx = diag1.ceil() as i32;
+        let llx = diag2.floor() as i32;
+        let urx = diag2.ceil() as i32;
+        IntOctagon::new(lx, ly, rx, uy, ulx, lrx, llx, urx)
     }
 
     /// Returns true if this exact rational point lies inside `int_box`
@@ -489,5 +509,17 @@ mod tests {
         };
         assert_eq!(p, flipped);
         assert_eq!(hash_code_of(&flipped), -1026);
+    }
+
+    /// Hand-derived pin: RationalPoint(1,1,2).toFloat() = (0.5, 0.5)
+    /// (pinned in the Task 2 jshell battery), so surroundingOctagon
+    /// floors/ceils to (0,0,1,1) with both diagonals through (0.5, 0.5).
+    #[test]
+    fn surrounding_octagon_pin() {
+        let half = RationalPoint::new(b(1), b(1), b(2));
+        assert_eq!(
+            half.surrounding_octagon(),
+            IntOctagon::new(0, 0, 1, 1, 0, 0, 1, 1)
+        );
     }
 }

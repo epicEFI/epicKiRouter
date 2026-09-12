@@ -19,11 +19,11 @@
 //! Java `Point.ZERO` is an IntPoint; it is available both as
 //! [`IntPoint::ZERO`] and [`Point::ZERO`].
 //!
-//! Deferred: `surroundingOctagon` (Task 5, IntOctagon),
-//! `sideOf(Line)`/`perpendicularProjection`/`perpendicularDirection`
-//! (Task 6, Line/Direction). `roundToTheRight`/`roundToTheLeft` landed
-//! with Task 3 (Direction); `surroundingBox`/`isContainedIn` with
-//! Task 4 (IntBox).
+//! Deferred: `sideOf(Line)`/`perpendicularProjection`/
+//! `perpendicularDirection` (Task 6, Line/Direction). `roundToTheRight`/
+//! `roundToTheLeft` landed with Task 3 (Direction);
+//! `surroundingBox`/`isContainedIn` with Task 4 (IntBox);
+//! `surroundingOctagon` with Task 5 (IntOctagon).
 
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
@@ -31,6 +31,7 @@ use std::hash::{Hash, Hasher};
 use crate::big_int_aux::{big_abs, big_integer_int_value};
 use crate::float_point::FloatPoint;
 use crate::int_box::IntBox;
+use crate::int_octagon::IntOctagon;
 use crate::int_point::IntPoint;
 use crate::limits::{CRIT_INT, CRIT_INT_BIG};
 use crate::rational_point::{RationalPoint, ordering_to_int};
@@ -111,6 +112,15 @@ impl Point {
         match self {
             Point::Int(p) => p.surrounding_box(),
             Point::Rational(p) => p.surrounding_box(),
+        }
+    }
+
+    /// Returns the smallest IntOctagon containing only this point (Java
+    /// `surroundingOctagon` double dispatch, landed with Task 5).
+    pub fn surrounding_octagon(&self) -> IntOctagon {
+        match self {
+            Point::Int(p) => p.surrounding_octagon(),
+            Point::Rational(p) => p.surrounding_octagon(),
         }
     }
 
@@ -466,5 +476,19 @@ mod tests {
         assert!(rat(10, 20, 0).is_infinite());
         assert_eq!(rat(3, 4, 2).to_float(), FloatPoint::new(1.5, 2.0));
         assert_eq!(int(2, 3).to_float(), FloatPoint::new(2.0, 3.0));
+    }
+
+    /// jshell pin: Point dispatch of surroundingOctagon matches the
+    /// concrete implementations (int point (3,-4) and the rational half).
+    #[test]
+    fn surrounding_octagon_dispatches() {
+        assert_eq!(
+            int(3, -4).surrounding_octagon(),
+            IntOctagon::new(3, -4, 3, -4, 7, 7, -1, -1)
+        );
+        assert_eq!(
+            rat(1, 1, 2).surrounding_octagon(),
+            IntOctagon::new(0, 0, 1, 1, 0, 0, 1, 1)
+        );
     }
 }

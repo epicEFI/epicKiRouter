@@ -25,6 +25,19 @@ pub enum FortyfiveDegreeDirection {
 }
 
 impl FortyfiveDegreeDirection {
+    /// All eight constants in Java `values()` declaration order (the
+    /// iteration order of `IntOctagon.nearestBorderProjections`).
+    pub const VALUES: [FortyfiveDegreeDirection; 8] = [
+        Self::RIGHT,
+        Self::RIGHT45,
+        Self::UP,
+        Self::UP45,
+        Self::LEFT,
+        Self::LEFT45,
+        Self::DOWN,
+        Self::DOWN45,
+    ];
+
     /// Returns the matching direction constant (Java `getDirection()`).
     pub fn get_direction(self) -> IntDirection {
         match self {

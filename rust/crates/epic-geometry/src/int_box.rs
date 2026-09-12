@@ -23,13 +23,10 @@
 //!
 //! Deferrals (methods whose parameter/return types belong to later M1a
 //! tasks; signatures as in the Java original):
-//! - Deferred to Task 5 (IntOctagon): `IntOctagon boundingOctagon()`,
-//!   `IntOctagon toIntOctagon()`, `IntOctagon enlarge(double)`,
-//!   `IntOctagon union(IntOctagon)`, `IntOctagon intersection(IntOctagon)`,
-//!   `boolean intersects(IntOctagon)`,
-//!   `Side compare(IntOctagon, int)`,
-//!   `boolean isContainedIn(IntOctagon)`,
-//!   `IntOctagon[] cutoutFrom(IntOctagon)`.
+//! - Landed with Task 5 (IntOctagon): `boundingOctagon`, `toIntOctagon`,
+//!   `enlarge`, `union(IntOctagon)`, `intersection(IntOctagon)`,
+//!   `intersects(IntOctagon)`, `compare(IntOctagon, int)`,
+//!   `isContainedIn(IntOctagon)`, `cutoutFrom(IntOctagon)`.
 //! - Deferred to Task 6 (Line / FloatLine): `Line borderLine(int)`,
 //!   `int borderLineIndex(Line)`.
 //! - Deferred to Task 7 (TileShape / Simplex / RegularTileShape trait):
@@ -43,6 +40,7 @@
 //! - Deferred to a later shape task: `boolean intersects(Circle)`.
 
 use crate::float_point::FloatPoint;
+use crate::int_octagon::IntOctagon;
 use crate::int_point::IntPoint;
 use crate::limits::CRIT_INT;
 use crate::point::Point;
@@ -704,6 +702,67 @@ impl IntBox {
         }
         result.to_vec()
     }
+
+    // --- Task 5 closures (IntOctagon) ---
+
+    /// Java `toIntOctagon`: the four axis bounds plus the four diagonal
+    /// intercepts through the corners (the int sums wrap like Java).
+    pub const fn to_int_octagon(&self) -> IntOctagon {
+        IntOctagon::new(
+            self.ll.x,
+            self.ll.y,
+            self.ur.x,
+            self.ur.y,
+            self.ll.x.wrapping_sub(self.ur.y),
+            self.ur.x.wrapping_sub(self.ll.y),
+            self.ll.x.wrapping_add(self.ll.y),
+            self.ur.x.wrapping_add(self.ur.y),
+        )
+    }
+
+    /// Java `boundingOctagon`: the box converted to an octagon.
+    pub const fn bounding_octagon(&self) -> IntOctagon {
+        self.to_int_octagon()
+    }
+
+    /// Java `enlarge(double)`: the bounding octagon offsetted by `offset`.
+    pub fn enlarge(&self, offset: f64) -> IntOctagon {
+        self.bounding_octagon().offset(offset)
+    }
+
+    /// Java `union(IntOctagon)`: delegates to the octagon union with this
+    /// box as an octagon.
+    pub fn union_octagon(&self, other: &IntOctagon) -> IntOctagon {
+        other.union(&self.to_int_octagon())
+    }
+
+    /// Java package-private `intersection(IntOctagon)`: delegates to the
+    /// octagon intersection with this box as an octagon.
+    pub fn intersection_octagon(&self, other: &IntOctagon) -> IntOctagon {
+        other.intersection(&self.to_int_octagon())
+    }
+
+    /// Java `intersects(IntOctagon)`.
+    pub fn intersects_octagon(&self, other: &IntOctagon) -> bool {
+        other.intersects(&self.to_int_octagon())
+    }
+
+    /// Java `compare(IntOctagon, int)`.
+    pub fn compare_octagon(&self, other: &IntOctagon, edge_index: i32) -> Side {
+        self.to_int_octagon().compare(other, edge_index)
+    }
+
+    /// Java `isContainedIn(IntOctagon)`: delegates to the octagon
+    /// containment with this box as an octagon.
+    pub fn is_contained_in_octagon(&self, other: &IntOctagon) -> bool {
+        other.is_contained_in(&self.to_int_octagon())
+    }
+
+    /// Java package-private `cutoutFrom(IntOctagon)`: delegates to the
+    /// octagon cutout with this box as an octagon.
+    pub fn cutout_from_octagon(&self, other: &IntOctagon) -> Vec<IntOctagon> {
+        self.to_int_octagon().cutout_from(other)
+    }
 }
 
 #[cfg(test)]
@@ -1203,5 +1262,98 @@ mod tests {
         assert!(int_point.is_contained_in(&box_a));
         assert!(rational_inside.is_contained_in(&box_a)); // (1/2, 1/2)
         assert!(!rational_outside.is_contained_in(&box_a)); // (15, 15)
+    }
+
+    // --- Task 5 closures (IntOctagon) ---
+
+    /// Constructor-order shorthand for the octagon tests.
+    #[allow(clippy::too_many_arguments)]
+    fn o8(
+        lx: i32,
+        ly: i32,
+        rx: i32,
+        uy: i32,
+        ulx: i32,
+        lrx: i32,
+        llx: i32,
+        urx: i32,
+    ) -> IntOctagon {
+        IntOctagon::new(lx, ly, rx, uy, ulx, lrx, llx, urx)
+    }
+
+    /// jshell pin: IntBox(0,0,10,10).toIntOctagon() = (0,0,10,10,-10,10,0,20);
+    /// the wrapped box keeps exact diagonal intercepts.
+    #[test]
+    fn to_int_octagon_fields_pin() {
+        assert_eq!(
+            b(0, 0, 10, 10).to_int_octagon(),
+            o8(0, 0, 10, 10, -10, 10, 0, 20)
+        );
+        let w = b(-2_000_000_000, -5, 2_000_000_000, 5);
+        assert_eq!(
+            w.to_int_octagon(),
+            o8(
+                -2_000_000_000,
+                -5,
+                2_000_000_000,
+                5,
+                -2_000_000_005,
+                2_000_000_005,
+                -2_000_000_005,
+                2_000_000_005
+            )
+        );
+        assert_eq!(w.to_int_octagon().area(), 4.0e10); // jshell pin wrapArea
+    }
+
+    /// jshell pin: IntBox(0,0,10,10).enlarge(2.5) = (-3,-3,13,13,-14,14,-4,24).
+    #[test]
+    fn enlarge_delegates_to_octagon_offset() {
+        assert_eq!(
+            b(0, 0, 10, 10).enlarge(2.5),
+            o8(-3, -3, 13, 13, -14, 14, -4, 24)
+        );
+        assert_eq!(
+            b(0, 0, 10, 10).bounding_octagon(),
+            b(0, 0, 10, 10).to_int_octagon()
+        );
+    }
+
+    /// jshell pins: bx.union(inner) = (0,0,10,10,-10,10,0,20);
+    /// compare edges 0/4 onTheRight; isContainedIn(oct) true; intersects.
+    #[test]
+    fn octagon_delegation_pins() {
+        let inner = o8(2, 1, 8, 7, 1, 9, 3, 15);
+        let oct = b(0, 0, 10, 10).to_int_octagon();
+        assert_eq!(b(0, 0, 10, 10).union_octagon(&inner), oct);
+        assert_eq!(
+            b(0, 0, 10, 10).intersection_octagon(&inner),
+            inner.normalize()
+        );
+        assert!(b(0, 0, 10, 10).intersects_octagon(&inner));
+        assert!(!b(20, 20, 30, 30).intersects_octagon(&oct));
+        assert_eq!(b(0, 0, 10, 10).compare_octagon(&inner, 0), Side::Negative);
+        assert_eq!(b(0, 0, 10, 10).compare_octagon(&inner, 4), Side::Negative);
+        assert!(b(0, 0, 10, 10).is_contained_in_octagon(&oct));
+        assert!(!oct.is_contained_in(&inner));
+    }
+
+    /// jshell pin (cutO): bx.cutoutFrom(oct) equals oct.cutoutFrom(inner)
+    /// here, because the box's octagon conversion IS `oct` itself; 8
+    /// pieces, last one (2,1,8,7,1,1,3,15).
+    #[test]
+    fn cutout_from_octagon_delegates() {
+        let inner = o8(2, 1, 8, 7, 1, 9, 3, 15);
+        let oct = b(0, 0, 10, 10).to_int_octagon();
+        let pieces = b(0, 0, 10, 10).cutout_from_octagon(&inner);
+        assert_eq!(pieces, oct.cutout_from(&inner));
+        assert_eq!(pieces.len(), 8);
+        assert_eq!(pieces[7], o8(2, 1, 8, 7, 1, 1, 3, 15));
+        // jshell pin: an EMPTY argument is returned as the single piece —
+        // cutoutFrom returns pieces OF d, so here [d] = [EMPTY]
+        assert_eq!(
+            b(0, 0, 10, 10).cutout_from_octagon(&IntOctagon::EMPTY),
+            vec![IntOctagon::EMPTY]
+        );
     }
 }

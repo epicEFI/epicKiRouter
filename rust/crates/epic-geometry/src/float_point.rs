@@ -14,16 +14,17 @@
 //! then the `(int)` cast), `roundToGrid` uses `Math.rint` (ties to even)
 //! — see [`crate::rounding`].
 //!
-//! Deferred: `boundingOctagon` (Task 5, IntOctagon), `projectionApprox`
-//! (Task 6, FloatLine) and the locale-dependent `toString(Locale, ...)`
-//! variants (locale formatting is out of scope for the geometry kernel).
-//! `roundToTheRight` / `roundToTheLeft` landed with Task 3 (Direction);
-//! `boundingBox` landed with Task 4 (IntBox).
+//! Deferred: `projectionApprox` (Task 6, FloatLine) and the
+//! locale-dependent `toString(Locale, ...)` variants (locale formatting is
+//! out of scope for the geometry kernel). `roundToTheRight` /
+//! `roundToTheLeft` landed with Task 3 (Direction); `boundingBox` with
+//! Task 4 (IntBox); static `boundingOctagon` with Task 5 (IntOctagon).
 
 use std::fmt;
 
 use crate::direction::Direction;
 use crate::int_box::IntBox;
+use crate::int_octagon::IntOctagon;
 use crate::int_point::IntPoint;
 use crate::rounding::{java_rint, java_round};
 use crate::side::Side;
@@ -52,6 +53,42 @@ impl FloatPoint {
         let lower_left = IntPoint::new(self.x.floor() as i32, self.y.floor() as i32);
         let upper_right = IntPoint::new(self.x.ceil() as i32, self.y.ceil() as i32);
         IntBox::new(lower_left, upper_right)
+    }
+
+    /// Creates the smallest IntOctagon containing all points of `points`
+    /// (Java static `boundingOctagon`, landed with Task 5). The minima
+    /// start at `Integer.MAX_VALUE` and the maxima at `-Integer.MAX_VALUE`
+    /// (i.e. -2147483647, not `i32::MIN`); for an empty slice the result
+    /// degenerates to those seeds after the floor/ceil casts.
+    pub fn bounding_octagon(points: &[FloatPoint]) -> IntOctagon {
+        let mut min_x = f64::from(i32::MAX);
+        let mut min_y = f64::from(i32::MAX);
+        let mut max_x = -f64::from(i32::MAX);
+        let mut max_y = -f64::from(i32::MAX);
+        let mut min_ulx = f64::from(i32::MAX);
+        let mut max_lrx = -f64::from(i32::MAX);
+        let mut min_llx = f64::from(i32::MAX);
+        let mut max_urx = -f64::from(i32::MAX);
+        for point in points {
+            min_x = min_x.min(point.x);
+            min_y = min_y.min(point.y);
+            max_x = max_x.max(point.x);
+            max_y = max_y.max(point.y);
+            min_ulx = min_ulx.min(point.x - point.y);
+            max_lrx = max_lrx.max(point.x - point.y);
+            min_llx = min_llx.min(point.x + point.y);
+            max_urx = max_urx.max(point.x + point.y);
+        }
+        IntOctagon::new(
+            min_x.floor() as i32,
+            min_y.floor() as i32,
+            max_x.ceil() as i32,
+            max_y.ceil() as i32,
+            min_ulx.floor() as i32,
+            max_lrx.ceil() as i32,
+            min_llx.floor() as i32,
+            max_urx.ceil() as i32,
+        )
     }
 
     /// Returns the square of the distance from this point to the zero
@@ -714,6 +751,33 @@ mod tests {
         assert_eq!(
             FloatPoint::new(-1.5, 2.5).round_to_the_left(&Direction::NULL),
             IntPoint::new(-1, 3)
+        );
+    }
+
+    /// jshell pin: boundingOctagon([(2.5,-3.5),(-0.5,0.5)]) = (lx,ly,rx,uy,
+    /// ulx,lrx,llx,urx) = (-1,-4,3,1,-1,6,-1,0).
+    #[test]
+    fn bounding_octagon_pin() {
+        assert_eq!(
+            FloatPoint::bounding_octagon(
+                &[FloatPoint::new(2.5, -3.5), FloatPoint::new(-0.5, 0.5),]
+            ),
+            IntOctagon::new(-1, -4, 3, 1, -1, 6, -1, 0)
+        );
+        // empty slice: the Integer.MAX_VALUE / -Integer.MAX_VALUE seeds
+        // survive the floor/ceil casts unchanged
+        assert_eq!(
+            FloatPoint::bounding_octagon(&[]),
+            IntOctagon::new(
+                i32::MAX,
+                i32::MAX,
+                -i32::MAX,
+                -i32::MAX,
+                i32::MAX,
+                -i32::MAX,
+                i32::MAX,
+                -i32::MAX,
+            )
         );
     }
 }
