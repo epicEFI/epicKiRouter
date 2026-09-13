@@ -545,3 +545,93 @@ description: chronological action log per session, consolidated weekly
 | 16:30 | Edited rust/crates/epic-geometry/src/polyline.rs | 2→2 lines | ~37 |
 | 16:31 | Edited rust/crates/epic-geometry/src/polyline.rs | modified temp_order_differential() | ~192 |
 | 16:34 | Edited rust/crates/epic-geometry/src/polyline.rs | modified temp_pfl2_probe() | ~244 |
+| 17:24 | Created rust/harness/oracle/GeometryCorpusOracle.java | — | ~5910 |
+| 17:24 | Edited rust/harness/oracle/GeometryCorpusOracle.java | added 1 import(s) | ~34 |
+| 17:24 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 2→1 lines | ~8 |
+| 17:24 | Edited rust/harness/oracle/GeometryCorpusOracle.java | modified signumOut() | ~72 |
+| 17:24 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 7→3 lines | ~30 |
+| 17:24 | Edited rust/harness/oracle/GeometryCorpusOracle.java | reduced (-8 lines) | ~121 |
+| 17:24 | Edited rust/harness/oracle/GeometryCorpusOracle.java | reduced (-8 lines) | ~73 |
+| 17:25 | Edited rust/harness/oracle/GeometryCorpusOracle.java | modified lines() | ~141 |
+| 17:26 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 3→2 lines | ~25 |
+| 17:26 | Edited rust/harness/oracle/GeometryCorpusOracle.java | signum() → isInfinite() | ~19 |
+| 17:26 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 8→8 lines | ~58 |
+| 17:26 | Edited rust/harness/oracle/GeometryCorpusOracle.java | modified tileOut() | ~61 |
+| 17:26 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 7→4 lines | ~42 |
+| 17:26 | Edited rust/harness/oracle/GeometryCorpusOracle.java | inline fix | ~10 |
+| 17:33 | Created rust/harness/src/corpus.rs | — | ~14076 |
+| 17:34 | Edited rust/harness/src/corpus.rs | reduced (-8 lines) | ~145 |
+| 17:34 | Edited rust/harness/src/corpus.rs | modified rand_pt() | ~25 |
+| 17:34 | Edited rust/harness/src/corpus.rs | modified args_box() | ~91 |
+| 17:34 | Edited rust/harness/src/corpus.rs | min() → report() | ~517 |
+| 17:34 | Edited rust/harness/Cargo.toml | 4→5 lines | ~48 |
+| 17:34 | Edited rust/harness/src/main.rs | 4→5 lines | ~17 |
+| 17:34 | Edited rust/harness/src/main.rs | modified corpus() | ~107 |
+| 17:34 | Edited rust/harness/src/main.rs | modified run() | ~71 |
+| 17:35 | Edited rust/harness/src/corpus.rs | modified rand_fpt() | ~110 |
+| 17:35 | Edited rust/harness/src/corpus.rs | 1→4 lines | ~36 |
+| 17:35 | Edited rust/harness/src/corpus.rs | 4→5 lines | ~74 |
+| 17:35 | Edited rust/harness/src/corpus.rs | 3→4 lines | ~47 |
+| 17:36 | Edited rust/harness/src/corpus.rs | 1→4 lines | ~37 |
+| 17:36 | Edited rust/harness/src/corpus.rs | 17→19 lines | ~227 |
+| 17:36 | Edited rust/harness/src/corpus.rs | 9→9 lines | ~82 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified edge_case() | ~32 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified args_i64() | ~63 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified args_fpt() | ~71 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified pt_out() | ~153 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified v_out() | ~22 |
+| 17:36 | Edited rust/harness/src/corpus.rs | 2→2 lines | ~46 |
+| 17:36 | Edited rust/harness/src/corpus.rs | inline fix | ~23 |
+| 17:36 | Edited rust/harness/src/corpus.rs | inline fix | ~22 |
+| 17:36 | Edited rust/harness/src/corpus.rs | 3→3 lines | ~39 |
+| 17:36 | Edited rust/harness/src/corpus.rs | 3→3 lines | ~39 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified get() | ~194 |
+| 17:36 | Edited rust/harness/src/main.rs | 9→11 lines | ~103 |
+| 17:36 | Edited rust/harness/src/corpus.rs | modified v_out() | ~19 |
+| 17:37 | Edited rust/harness/src/corpus.rs | modified i32_in() | ~68 |
+| 17:37 | Edited rust/harness/src/corpus.rs | 2→7 lines | ~99 |
+| 17:38 | Edited rust/harness/src/corpus.rs | modified mismatch() | ~116 |
+| 17:39 | Edited rust/harness/src/corpus.rs | from() → starts_with() | ~471 |
+| 17:42 | Edited rust/harness/src/corpus.rs | 8→3 lines | ~53 |
+| 17:46 | Edited rust/harness/oracle/GeometryCorpusOracle.java | modified boxIsEmpty() | ~446 |
+| 17:47 | Edited rust/harness/src/corpus.rs | modified side_value() | ~228 |
+| 17:47 | Edited rust/harness/src/corpus.rs | 2→2 lines | ~39 |
+| 17:47 | Edited rust/harness/src/corpus.rs | 8→11 lines | ~139 |
+| 17:47 | Edited rust/harness/src/corpus.rs | inline fix | ~19 |
+| 17:47 | Edited rust/harness/src/corpus.rs | v_out() → floatToRawIntBits() | ~41 |
+| 17:47 | Edited rust/harness/src/corpus.rs | 3→3 lines | ~36 |
+| 17:47 | Edited rust/harness/src/corpus.rs | 3→3 lines | ~35 |
+| 17:51 | Edited rust/harness/src/corpus.rs | 3→3 lines | ~34 |
+| 17:51 | Edited rust/harness/src/corpus.rs | 3→2 lines | ~39 |
+| 17:51 | Edited rust/harness/src/corpus.rs | 3→4 lines | ~56 |
+| 17:51 | Edited rust/harness/src/corpus.rs | 9→7 lines | ~107 |
+| 17:51 | Edited rust/harness/src/corpus.rs | 7→5 lines | ~67 |
+| 18:05 | Edited rust/harness/src/corpus.rs | 9 → 8 | ~11 |
+| 18:10 | Edited rust/harness/src/corpus.rs | 1→5 lines | ~99 |
+| 18:10 | Edited rust/harness/src/corpus.rs | modified is_infinite() | ~160 |
+| 18:10 | Edited rust/harness/src/corpus.rs | modified box_out() | ~93 |
+| 18:10 | Edited rust/harness/src/corpus.rs | modified oct_out() | ~31 |
+| 18:10 | Edited rust/harness/src/corpus.rs | modified take() | ~124 |
+| 18:11 | Edited rust/harness/src/corpus.rs | modified drop() | ~229 |
+| 18:11 | Edited rust/harness/src/corpus.rs | 2→2 lines | ~30 |
+| 18:11 | Edited rust/harness/src/corpus.rs | modified len() | ~31 |
+| 18:11 | Edited rust/harness/src/corpus.rs | modified generate_matches_committed_corpus() | ~366 |
+| 18:11 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 1→4 lines | ~66 |
+| 18:11 | Edited rust/harness/oracle/GeometryCorpusOracle.java | 1→5 lines | ~81 |
+| 18:11 | Edited rust/harness/oracle/GeometryCorpusOracle.java | modified catch() | ~45 |
+| 18:12 | Edited rust/harness/src/corpus.rs | 7→7 lines | ~112 |
+| 18:31 | Edited rust/crates/epic-geometry/src/line.rs | modified side_of_intersection() | ~290 |
+| 18:33 | Created rust/new_intersection.rs | — | ~1785 |
+| 18:41 | Edited rust/crates/epic-geometry/src/line_segment.rs | modified exactly() | ~142 |
+| 18:41 | Edited rust/crates/epic-geometry/src/line_segment.rs | modified start_point() | ~167 |
+| 18:41 | Edited rust/crates/epic-geometry/src/line_segment.rs | 10→7 lines | ~134 |
+| 18:41 | Edited rust/crates/epic-geometry/src/line_segment.rs | 8→5 lines | ~87 |
+| 18:41 | Edited rust/crates/epic-geometry/src/line_segment.rs | 10→10 lines | ~186 |
+| 18:42 | Edited rust/crates/epic-geometry/src/line_segment.rs | modified rat() | ~1241 |
+| 18:42 | Edited rust/crates/epic-geometry/src/line.rs | modified parallel_and_collinear_intersections_are_none() | ~375 |
+| 18:43 | Edited rust/harness/src/corpus.rs | modified args_point() | ~86 |
+| 18:43 | Edited rust/harness/src/corpus.rs | 13→15 lines | ~181 |
+| 18:48 | Edited rust/harness/oracle/GeometryCorpusOracle.java | expanded (+6 lines) | ~111 |
+| 19:05 | Edited rust/crates/epic-geometry/src/simplex.rs | modified Invariant() | ~289 |
+| 19:08 | Edited rust/crates/epic-geometry/src/simplex.rs | modified enumerate() | ~402 |
+| 19:08 | Edited rust/crates/epic-geometry/src/vector.rs | modified Invariant() | ~92 |

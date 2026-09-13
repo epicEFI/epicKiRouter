@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-12T22:34:40.566Z
-> Files: 600 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-13T01:08:55.397Z
+> Files: 588 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -56,48 +56,14 @@
 ## .remember/
 
 - `.gitignore` — Git ignore rules (~1 tok)
-- `now.md` — 15:53 | epic/main (~138 tok)
-- `today-2026-09-12.md` — 03:00 | master (~2184 tok)
+- `now.md` (~0 tok)
+- `today-2026-09-12.md` — 03:00 | master (~2707 tok)
 
 ## .remember/logs/
 
 - `hook-errors.log` (~0 tok)
 - `memory-2026-09-11.log` (~77423 tok)
-- `memory-2026-09-12.log` (~121326 tok)
-
-## .remember/logs/autonomous/
-
-- `save-093722.log` (~0 tok)
-- `save-093742.log` (~0 tok)
-- `save-093801.log` (~0 tok)
-- `save-093818.log` (~0 tok)
-- `save-093953.log` (~0 tok)
-- `save-093954.log` (~0 tok)
-- `save-094259.log` (~0 tok)
-- `save-094304.log` (~0 tok)
-- `save-094318.log` (~0 tok)
-- `save-094319.log` (~0 tok)
-- `save-094333.log` (~0 tok)
-- `save-094344.log` (~0 tok)
-- `save-094432.log` (~0 tok)
-- `save-094451.log` (~0 tok)
-- `save-094657.log` (~0 tok)
-- `save-094708.log` (~0 tok)
-- `save-094717.log` (~0 tok)
-- `save-094756.log` (~0 tok)
-- `save-094821.log` (~0 tok)
-- `save-094826.log` (~0 tok)
-- `save-094832.log` (~0 tok)
-- `save-094841.log` (~0 tok)
-- `save-094848.log` (~0 tok)
-- `save-095131.log` (~0 tok)
-- `save-095204.log` (~0 tok)
-- `save-095211.log` (~0 tok)
-- `save-095227.log` (~0 tok)
-- `save-095233.log` (~0 tok)
-- `save-095250.log` (~0 tok)
-- `save-095316.log` (~0 tok)
-- `save-095345.log` (~0 tok)
+- `memory-2026-09-12.log` (~176855 tok)
 
 ## .run/
 
@@ -788,25 +754,83 @@
 ## fixtures/Issue508-DAC2020/DAC2020_bm06/FRv2.1.0/
 
 - `DAC2020_bm06.log` (~85080 tok)
+- `DAC2020_bm06.ses` (~7104 tok)
+- `DAC2020_bm06.unrouted.dsn` — Declares signal (~6102 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~8186 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/
+
+- `bm7.routed.kicad_pcb` — Declares solid (~35341 tok)
+- `bm7.unrouted.kicad_pcb` — Declares solid (~19817 tok)
+- `DAC2020_bm07.unrouted.dsn` — Declares signal (~3949 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/
+
+- `DAC2020_bm07.log` (~206 tok)
+- `DAC2020_bm07.ses` (~7665 tok)
+- `DAC2020_bm07.unrouted.dsn` — Declares signal (~3949 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~2258 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/FRv1.9.0/logs/
+
+- `freerouting.log` (~206 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm07/FRv2.1.0/
+
+- `DAC2020_bm07.log` (~885 tok)
+- `DAC2020_bm07.ses` (~8126 tok)
+- `DAC2020_bm07.unrouted.dsn` — Declares signal (~3949 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~2493 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/
+
+- `bm8.routed.kicad_pcb` — Declares solid (~9573 tok)
+- `bm8.unrouted.kicad_pcb` — Declares solid (~5851 tok)
+- `DAC2020_bm08.unrouted.dsn` — Declares signal (~1467 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/
+
+- `DAC2020_bm08.log` (~196 tok)
+- `DAC2020_bm08.ses` (~2356 tok)
+- `DAC2020_bm08.unrouted.dsn` — Declares signal (~1467 tok)
+- `FR_v1.9.0_KiCad_DRC.rpt` (~1604 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/FRv1.9.0/logs/
+
+- `freerouting.log` (~196 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm08/FRv2.1.0/
+
+- `DAC2020_bm08.log` (~559 tok)
+- `DAC2020_bm08.ses` (~2519 tok)
+- `DAC2020_bm08.unrouted.dsn` — Declares signal (~1467 tok)
+- `FR_v2.1.0_KiCad_DRC.rpt` (~1604 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm09/
+
+- `bm9.routed.kicad_pcb` — Declares P (~44584 tok)
+- `bm9.unrouted.kicad_pcb` — Declares P (~26913 tok)
+- `DAC2020_bm09.unrouted.dsn` — Declares signal (~6654 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm09/FRv1.9.0/
+
+- `DAC2020_bm09.log` (~196 tok)
+
+## rust/
+
+- `new_intersection.rs` — Returns the intersection point of the 2 lines, or `None` if the (~1785 tok)
 
 ## rust/crates/epic-geometry/src/
 
-- `bounding.rs` — Port of the Java `ShapeBoundingDirections` family: (~1034 tok)
-- `circle.rs` — Port of Java `app.freerouting.geometry.planar.Circle` — a circle shape (~6080 tok)
-- `ellipse.rs` — Port of Java `app.freerouting.geometry.planar.Ellipse` — describes an (~772 tok)
-- `float_point.rs` — Port of Java `app.freerouting.geometry.planar.FloatPoint`. (~7970 tok)
-- `int_box.rs` — Port of Java `app.freerouting.geometry.planar.IntBox`. (~14999 tok)
-- `int_direction.rs` — Port of Java `app.freerouting.geometry.planar.IntDirection`. (~3484 tok)
-- `int_octagon.rs` — Port of Java `app.freerouting.geometry.planar.IntOctagon` — the router's (~28679 tok)
-- `lib.rs` — Exact 45-degree integer geometry kernel: Point/Vector families (~515 tok)
-- `line_segment.rs` — Port of Java `app.freerouting.geometry.planar.LineSegment`. (~10996 tok)
-- `point.rs` — Port of Java `app.freerouting.geometry.planar.Point`. (~5573 tok)
-- `polygon_shape.rs` — Port of Java `app.freerouting.geometry.planar.PolygonShape` — a shape (~7827 tok)
-- `polygon.rs` — Port of Java `app.freerouting.geometry.planar.Polygon` — a list of (~1574 tok)
-- `polyline_area.rs` — Port of Java `app.freerouting.geometry.planar.PolylineArea` — an Area (~3065 tok)
-- `polyline_shape.rs` — Java abstract class `app.freerouting.geometry.planar.PolylineShape` — (~2597 tok)
-- `polyline.rs` — Port of Java `app.freerouting.geometry.planar.Polyline` — a sequence of (~10000 tok)
-- `regular_tile_shape.rs` — Port of Java `app.freerouting.geometry.planar.RegularTileShape` — the (~4563 tok)
-- `shape.rs` — Ports of the Java shape *interfaces* `app.freerouting.geometry.planar. (~10484 tok)
-- `simplex.rs` — Port of Java `app.freerouting.geometry.planar.Simplex` — a convex shape (~15463 tok)
-- `tile_shape.rs` — Port of Java `app.freerouting.geometry.planar.TileShape` — the sealed (~22541 tok)
+- `line_segment.rs` — Port of Java `app.freerouting.geometry.planar.LineSegment`. (~12222 tok)
+- `line.rs` — Port of Java `app.freerouting.geometry.planar.Line`. (~12768 tok)
+- `simplex.rs` — Port of Java `app.freerouting.geometry.planar.Simplex` — a convex shape (~16855 tok)
+- `vector.rs` — Port of Java `app.freerouting.geometry.planar.Vector`. (~7340 tok)
+
+## rust/harness/oracle/
+
+- `GeometryCorpusOracle.java` — Unknown op id — fatal (nonzero exit), unlike per-case eval failures. (~6330 tok)
+
+## rust/harness/src/
+
+- `corpus.rs` — Differential geometry corpus (M1a Task 9): seeded case generation, (~15442 tok)
