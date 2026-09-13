@@ -169,6 +169,9 @@ version = "0.1.0"
 [[package]]
 name = "epic-dsn"
 version = "0.1.0"
+dependencies = [
+ "epic-geometry",
+]
 
 [[package]]
 name = "epic-engine"
