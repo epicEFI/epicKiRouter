@@ -1,6 +1,7 @@
 //! Exact 45-degree integer geometry kernel: Point/Vector families
 //! (IntPoint, RationalPoint, FloatPoint, IntVector, RationalVector),
-//! IntBox, IntOctagon; later TileShape, Polyline.
+//! IntBox, IntOctagon, Line/LineSegment, TileShape/Simplex, Polygon/
+//! PolygonShape/Polyline.
 //!
 //! Port discipline (design doc §9, decision D1): bit-parity port of Java
 //! `geometry/planar` — i32 with Java wraparound (`wrapping_*`), double-for-
@@ -20,6 +21,11 @@
 //! M1a complete: bit-parity port of all 34 `geometry.planar` classes
 //! (incl. TileShape, Polyline), green against the committed 5000-case
 //! differential corpus (`cargo run -p epic-harness -- corpus compare`).
+//!
+//! The port is transliteration-complete, not consumer-complete: a handful
+//! of pub items (e.g. `RegularTileShape::as_int_box`, `Simplex::
+//! remove_border_line`) have no callers yet — they are ported Java API
+//! surface awaiting M2+ consumers (board/searchtree), not dead code.
 
 pub mod big_int_aux;
 pub mod big_int_direction;
