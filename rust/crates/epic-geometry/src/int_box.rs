@@ -864,6 +864,44 @@ mod tests {
         IntPoint::new(x, y)
     }
 
+    /// Invariant (Task 10): IntBox.intersection is commutative — the
+    /// result is the per-axis max(ll) / min(ur) construction plus the
+    /// shared emptiness handling, both symmetric in the operands. 10k
+    /// seeded pairs, mostly small-band boxes with every 8th pair at
+    /// full-range coordinates (so the boundary arithmetic cannot
+    /// silently cancel).
+    #[test]
+    fn intersection_is_commutative_on_random_boxes() {
+        use crate::java_random::JavaRandom;
+        let mut rng = JavaRandom::new(0x5EED_C0DE_1234_567A);
+        let coord = |rng: &mut JavaRandom| {
+            if rng.next_int_bound(8) == 0 {
+                rng.next_int()
+            } else {
+                rng.next_int_bound(4001) - 2000
+            }
+        };
+        for _ in 0..10_000 {
+            let a = b(
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+            );
+            let c = b(
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+            );
+            assert_eq!(
+                a.intersection(&c),
+                c.intersection(&a),
+                "intersection not commutative for {a:?} x {c:?}"
+            );
+        }
+    }
+
     /// jshell pin: `IntBox.EMPTY` field values.
     #[test]
     fn empty_sentinel_fields_exact() {

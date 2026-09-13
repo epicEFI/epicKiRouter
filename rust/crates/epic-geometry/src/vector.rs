@@ -423,6 +423,41 @@ mod tests {
         Vector::Int(IntVector::new(x, y))
     }
 
+    /// Invariant (Task 10): the Int-Int `sideOf` is EXACTLY antisymmetric
+    /// under operand swap even though it computes in doubles. Confirmed
+    /// against the oracle jar (seed 20260912, 100k full-range
+    /// i32 pairs: zero asymmetric pairs; rounding-magnitude and
+    /// signed-zero probes included). Why it is no accident: the two
+    /// products fl(oy*x) / fl(ox*y) are IEEE round-to-nearest and
+    /// commutative, so both swap directions round the SAME two doubles,
+    /// and fl(q - p) == -fl(p - q) holds for every finite double pair
+    /// (RN negation symmetry; the signed-zero corners -0.0 - 0.0 vs
+    /// 0.0 - -0.0 both classify as zero). The Rational-Rational and
+    /// mixed branches use exact BigInteger arithmetic — antisymmetric
+    /// trivially. This test asserts WHAT JAVA DOES; do not "fix" the
+    /// double rounding to exact arithmetic here.
+    #[test]
+    fn side_of_is_antisymmetric_under_swap() {
+        use crate::java_random::JavaRandom;
+        let mut rng = JavaRandom::new(0x5EED_C0DE_1234_567B);
+        let coord = |rng: &mut JavaRandom| {
+            if rng.next_int_bound(4) == 0 {
+                rng.next_int()
+            } else {
+                rng.next_int_bound(20001) - 10_000
+            }
+        };
+        for _ in 0..10_000 {
+            let va = int(coord(&mut rng), coord(&mut rng));
+            let vb = int(coord(&mut rng), coord(&mut rng));
+            assert_eq!(
+                va.side_of(&vb),
+                vb.side_of(&va).negate(),
+                "sideOf not antisymmetric for {va:?} x {vb:?}"
+            );
+        }
+    }
+
     /// jshell pins `P54`/`P55`: getInstance(4,3,2) down-converts to the
     /// IntVector (2, 1) — x divisible by z, and y divided anyway (3/2
     /// truncates to 1), the Java T13 quirk.

@@ -751,6 +751,50 @@ mod tests {
         assert!(pl.is_multiple_of_45_degree());
     }
 
+    /// Invariant (Task 10): the normalizing Polyline constructor is
+    /// IDEMPOTENT — re-wrapping a constructed polyline's lines reproduces
+    /// the same polyline (the ctor output is a fixed point of the
+    /// dog-ear/flip normalization). Fans mirror the corpus generator:
+    /// 2-4 lines mixing 45-degree continuations and free general-slope
+    /// lines at full-range magnitudes (wrapping bands included).
+    #[test]
+    fn ctor_is_idempotent_on_random_fans() {
+        use crate::java_random::JavaRandom;
+        let mut rng = JavaRandom::new(0x5EED_C0DE_1234_567C);
+        let line_of = |ax: i32, ay: i32, bx: i32, by: i32| {
+            Line::new(
+                Point::int(IntPoint::new(ax, ay)),
+                Point::int(IntPoint::new(bx, by)),
+            )
+        };
+        for _ in 0..10_000 {
+            let n = 2 + rng.next_int_bound(3) as usize;
+            let mut lines = Vec::with_capacity(n);
+            let mut ax = rng.next_int();
+            let mut ay = rng.next_int();
+            for _ in 0..n {
+                let (bx, by) = if rng.next_int_bound(2) == 0 {
+                    // 45-degree continuation from the previous anchor
+                    let k = rng.next_int_bound(4000) + 1;
+                    match rng.next_int_bound(4) {
+                        0 => (ax.wrapping_add(k), ay),
+                        1 => (ax, ay.wrapping_add(k)),
+                        2 => (ax.wrapping_add(k), ay.wrapping_add(k)),
+                        _ => (ax.wrapping_sub(k), ay.wrapping_add(k)),
+                    }
+                } else {
+                    (rng.next_int(), rng.next_int())
+                };
+                lines.push(line_of(ax, ay, bx, by));
+                ax = bx;
+                ay = by;
+            }
+            let pl = Polyline::new(lines);
+            let rewrapped = Polyline::new(pl.lines.clone());
+            assert_eq!(rewrapped.lines, pl.lines, "ctor not idempotent for {pl:?}");
+        }
+    }
+
     /// Equal endpoints collapse to the empty polyline (Java ctor: at least
     /// 2 DIFFERENT points; duplicates are removed by `Polygon` first).
     #[test]

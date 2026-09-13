@@ -2569,7 +2569,7 @@ mod tests {
     #[test]
     fn normalize_is_idempotent_on_random_octagons() {
         let mut rng = JavaRandom::new(0x5EED_C0DE_1234_5678);
-        for _ in 0..2000 {
+        for _ in 0..10_000 {
             let a = o(
                 rng.next_int() % 64,
                 rng.next_int() % 64,
@@ -2584,7 +2584,7 @@ mod tests {
             assert_eq!(once.normalize(), once, "not idempotent for {a:?}");
         }
         // also with huge wrapping-prone coordinates
-        for _ in 0..2000 {
+        for _ in 0..10_000 {
             let a = o(
                 rng.next_int(),
                 rng.next_int(),
@@ -2597,6 +2597,53 @@ mod tests {
             );
             let once = a.normalize();
             assert_eq!(once.normalize(), once, "not idempotent for {a:?}");
+        }
+    }
+
+    /// Invariant (Task 10): IntOctagon.intersection is commutative — both
+    /// operand orders run the same per-field min/max construction on
+    /// normalized octagons, so the results are field-equal. 10k seeded
+    /// pairs; every 4th pair uses full-range coordinates where the
+    /// i32-wrapping field updates actually bite (small bands would let
+    /// the interesting cases cancel — cerebrum pin rule 2).
+    #[test]
+    fn intersection_is_commutative_on_random_octagons() {
+        let mut rng = JavaRandom::new(0x5EED_C0DE_1234_5679);
+        let coord = |rng: &mut JavaRandom| {
+            if rng.next_int_bound(4) == 0 {
+                rng.next_int()
+            } else {
+                rng.next_int_bound(256) - 128
+            }
+        };
+        for _ in 0..10_000 {
+            let a = o(
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+            )
+            .normalize();
+            let b = o(
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+                coord(&mut rng),
+            )
+            .normalize();
+            assert_eq!(
+                a.intersection(&b),
+                b.intersection(&a),
+                "intersection not commutative for {a:?} x {b:?}"
+            );
         }
     }
 

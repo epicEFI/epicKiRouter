@@ -1184,6 +1184,126 @@ mod tests {
         ]
     }
 
+    /// Invariant (Task 10): the direction sort inside
+    /// `Simplex.getInstance` is STABLE for compareTo == 0 lines (Java
+    /// `Arrays.sort` on objects is TimSort and Java's spec guarantees
+    /// stability; the port uses the stable `slice::sort_by`). Checked on
+    /// deliberately duplicate-direction fans:
+    /// (a) the output is non-decreasing by `compareTo`;
+    /// (b) every surviving border line IS one of the input lines,
+    /// endpoint-exact (T20 rule — `Line` equality is anchor-blind, so
+    /// anchors are compared pairwise): `getInstance` (Simplex.java:46-51)
+    /// copies references, and `removeRedundantLines` (:884) only skips
+    /// and shifts references — it never derives new lines;
+    /// (c) STABILITY: survivors whose `compareTo` ties keep their INPUT
+    /// relative order. The input fans are deliberately NOT sorted (the
+    /// stride set wraps mod 8), so survivors do NOT appear in input
+    /// order in general — stability is a property of ties only, and it
+    /// survives pruning because that only deletes.
+    /// 10k seeded fans.
+    #[test]
+    fn get_instance_sort_is_stable_for_equal_compare_to() {
+        use std::cmp::Ordering;
+
+        use crate::java_random::JavaRandom;
+
+        /// The 8 canonical 45-degree unit vectors.
+        const TEST_DIRS: [(i32, i32); 8] = [
+            (1, 0),
+            (1, 1),
+            (0, 1),
+            (-1, 1),
+            (-1, 0),
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+        ];
+        let mut rng = JavaRandom::new(0x5EED_C0DE_1234_567D);
+        for _ in 0..10_000 {
+            let base_no = 3 + rng.next_int_bound(2) as usize;
+            let dup_no = 1 + rng.next_int_bound(3) as usize;
+            let mut input: Vec<Line> = Vec::with_capacity(base_no + dup_no);
+            // Base fan with pairwise different directions (stride set
+            // from the corpus generator).
+            let start = rng.next_int_bound(8) as usize;
+            let strides = [0usize, 1, 3, 2];
+            for i in 0..base_no {
+                let (dx, dy) = TEST_DIRS[(start + strides[i % strides.len()]) % 8];
+                let ax = rng.next_int();
+                let ay = rng.next_int();
+                let k = rng.next_int_bound(4000) + 1;
+                input.push(line(
+                    ax,
+                    ay,
+                    ax.wrapping_add(dx * k),
+                    ay.wrapping_add(dy * k),
+                ));
+            }
+            // Deliberate duplicates: re-emit an existing direction from a
+            // fresh anchor (compareTo == 0 class with different corners).
+            for _ in 0..dup_no {
+                let src = input[rng.next_int_bound(input.len() as u32) as usize].clone();
+                let (sa, sb) = match (&src.a, &src.b) {
+                    (Point::Int(sa), Point::Int(sb)) => (*sa, *sb),
+                    _ => unreachable!("fans are IntPoint-only"),
+                };
+                let ax = rng.next_int();
+                let ay = rng.next_int();
+                input.push(line(
+                    ax,
+                    ay,
+                    ax.wrapping_add(sb.x.wrapping_sub(sa.x)),
+                    ay.wrapping_add(sb.y.wrapping_sub(sa.y)),
+                ));
+            }
+            let simplex = Simplex::get_instance(&input);
+            // (a) non-decreasing by compareTo.
+            for w in 1..simplex.border_line_count() as i32 {
+                assert_ne!(
+                    simplex
+                        .border_line(w - 1)
+                        .compare_to(&simplex.border_line(w)),
+                    Ordering::Greater,
+                    "output not sorted at {w}"
+                );
+            }
+            // (b) survivors ARE input lines, endpoint-exact.
+            // (c) tie stability: compareTo == Equal survivors keep their
+            // input relative order (TimSort stability; pruning only
+            // deletes). Debug dump of the input fires on mismatch.
+            let mut first_pos: Vec<usize> = Vec::new();
+            for w in 0..simplex.border_line_count() as i32 {
+                let border = simplex.border_line(w);
+                let pos = input
+                    .iter()
+                    .position(|l| l.a == border.a && l.b == border.b)
+                    .unwrap_or_else(|| {
+                        for (idx, l) in input.iter().enumerate() {
+                            eprintln!("input[{idx}] = {:?}", l);
+                        }
+                        panic!("survivor {w} not found in input: {border:?}")
+                    });
+                first_pos.push(pos);
+            }
+            for j in 0..first_pos.len() {
+                for i in 0..j {
+                    if simplex
+                        .border_line(i as i32)
+                        .compare_to(&simplex.border_line(j as i32))
+                        == Ordering::Equal
+                    {
+                        assert!(
+                            first_pos[i] < first_pos[j],
+                            "tie order inverted: survivors {i},{j} at input positions {},{}",
+                            first_pos[i],
+                            first_pos[j]
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// jshell pin `P1`: two equal-direction lines on the same supporting
     /// line dedup to one and the FIRST one survives.
     #[test]
