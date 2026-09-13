@@ -290,7 +290,8 @@ mod tests {
                 Layer::new("B.Cu", 1, true),
             ]),
             outline_shapes: Vec::new(),
-            outline_clearance_class: "default".to_string(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: epic_dsn::sink::BoardRulesIr::new(2),
             transform: CoordinateTransform::new(10.0, 0.0, 0.0),
         });
         board.append_padstack(PadstackIr {
@@ -478,7 +479,8 @@ mod tests {
             bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(1000, 1000)),
             layer_structure: LayerStructure::new(vec![Layer::new("Top", 0, true)]),
             outline_shapes: Vec::new(),
-            outline_clearance_class: "default".to_string(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: epic_dsn::sink::BoardRulesIr::new(1),
             transform: CoordinateTransform::new(1.0, 0.0, 0.0),
         });
 

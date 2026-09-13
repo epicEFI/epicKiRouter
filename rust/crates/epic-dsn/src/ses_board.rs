@@ -87,11 +87,12 @@
 use crate::coordinate_transform::CoordinateTransform;
 use crate::layer_structure::LayerStructure;
 use crate::sink::{
-    BoardOutlineIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr, CreateBoardIr,
-    FixedStateIr, ImageIr, KeepoutIr, MetadataIr, NetClassIr, NetIr, PadstackIr, PinIr,
-    PlacementIr, TraceIr, ViaInfoIr, ViaIr,
+    BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr,
+    CreateBoardIr, FixedStateIr, ImageIr, KeepoutIr, MetadataIr, NetClassIr, NetIr, PadstackIr,
+    PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr,
 };
 use crate::state::AngleRestriction;
+use epic_geometry::int_box::IntBox;
 
 /// A parse-time board item with its Java `Item.getId()` board id
 /// (`board/model/items/Item.java:87` — the sink assigns the id on
@@ -168,29 +169,6 @@ impl ItemIr {
     }
 }
 
-/// Java `ClearanceMatrix` parse skeleton: class names in matrix order and
-/// the `values[i][j]` clearance between classes `i` and `j` (board units).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ClearanceIr {
-    /// Java `ClearanceMatrix` class names, matrix column/row order.
-    pub names: Vec<String>,
-    /// The clearance values; `values.len() == names.len()` and every row
-    /// matches.
-    pub values: Vec<Vec<i32>>,
-}
-
-impl ClearanceIr {
-    /// Java `ClearanceMatrix.getDefaultInstance(layerStructure, 0)`
-    /// (`Structure.java:1236`): the two built-in classes `"null"` and
-    /// `"default"`, zero matrix.
-    pub fn default_instance() -> Self {
-        Self {
-            names: vec!["null".to_string(), "default".to_string()],
-            values: vec![vec![0, 0], vec![0, 0]],
-        }
-    }
-}
-
 /// The parse-derivable board model (module docs).
 #[derive(Clone, Debug, PartialEq)]
 pub struct SesBoard {
@@ -200,6 +178,10 @@ pub struct SesBoard {
     pub transform: Option<CoordinateTransform>,
     /// The layer structure (`None` before create_board).
     pub layers: Option<LayerStructure>,
+    /// Java `Board.boundingBox` — the createBoard bounds INCLUDING the
+    /// offset(1000) (T43, `Structure.java:1207-1208`); `None` before
+    /// create_board.
+    pub bounding_box: Option<IntBox>,
     /// The net table in NUMBER order (net no = position + 1).
     pub nets: Vec<NetIr>,
     /// The placement table in insertion (file) order.
@@ -225,8 +207,9 @@ pub struct SesBoard {
     pub net_classes: Vec<NetClassIr>,
     /// Via infos (net-class via rules, Task 8).
     pub via_infos: Vec<ViaInfoIr>,
-    /// The clearance class table + matrix.
-    pub clearance: ClearanceIr,
+    /// The board rules (default trace widths, clearance matrix, item
+    /// classes); built by the reader and handed over at `create_board`.
+    pub rules: BoardRulesIr,
     /// The items in ASCENDING id (parse) order; descending-id consumers
     /// walk `.iter().rev()` (T39).
     pub items: Vec<ItemIr>,
@@ -306,6 +289,7 @@ impl SesBoard {
             metadata: MetadataIr::default(),
             transform: None,
             layers: None,
+            bounding_box: None,
             nets: Vec::new(),
             placements: Vec::new(),
             padstacks: Vec::new(),
@@ -314,10 +298,7 @@ impl SesBoard {
             components: Vec::new(),
             net_classes: Vec::new(),
             via_infos: Vec::new(),
-            clearance: ClearanceIr {
-                names: Vec::new(),
-                values: Vec::new(),
-            },
+            rules: BoardRulesIr::new(0),
             items: Vec::new(),
             warnings: Vec::new(),
             next_item_id: 1,
@@ -350,27 +331,39 @@ impl SesBoard {
 }
 
 impl BoardSink for SesBoard {
+    fn has_board(&self) -> bool {
+        // `getRoutingBoard() == null` mirror: `transform` is only ever set
+        // by `create_board`, so it is the board-exists flag (module docs).
+        self.transform.is_some()
+    }
+
     fn create_board(&mut self, board: CreateBoardIr) {
         // Java's structure reader only builds the board when none exists
         // (`if (getRoutingBoard() == null)`, `Structure.java:1034-1036`):
         // a second `(structure ...)` scope re-parses but does NOT
         // recreate — jar `/tmp/epic-t4c-twostruct.out` (two structure
         // scopes: one outline, items dense 1..5, second boundary
-        // ignored). `transform` is only ever set here, so it is the
-        // board-exists flag.
+        // ignored).
         if self.transform.is_some() {
             return;
         }
         self.transform = Some(board.transform);
         self.layers = Some(board.layer_structure);
-        self.clearance = ClearanceIr::default_instance();
-        // The outline class name resolves against the fresh default table;
-        // the miss behavior (unresolvable name) is pinned by the Task 5
-        // boundary pins (Issue558 context) — skeleton falls back to the
-        // "default" index 1.
-        let outline_class = self
-            .clearance_class_no(&board.outline_clearance_class)
-            .unwrap_or(1);
+        self.bounding_box = Some(board.bounding_box);
+        self.rules = board.rules;
+        // MinimalBoardManager.createBoard (ReadScopeParameter.java:139-166):
+        // `outlineClearanceNo = 0`; with a class NAME present the number is
+        // `max(0, clearanceMatrix.getNo(name))` — a MISS resolves to 0, the
+        // `null` class (jar /tmp/epic-t5-probe.out OUTLINE_CLASS 0 for a
+        // nonexistent name); without a name it is the AREA item class of
+        // the default net class (jar: 1 rule-less, 7 after the `wire` rule
+        // appended `area`).
+        let outline_class = match board.outline_clearance_class.as_deref() {
+            Some(name) => self.rules.clearance.get_no(name).max(0),
+            None => {
+                self.rules.default_item_clearance_classes[crate::sink::ItemClassIr::Area as usize]
+            }
+        };
         let id = self.alloc_item_id();
         self.items.push(ItemIr::BoardOutline {
             id,
@@ -399,24 +392,15 @@ impl BoardSink for SesBoard {
     }
 
     fn append_clearance_class(&mut self, name: &str) {
-        if self.clearance_class_no(name).is_some() {
-            return;
-        }
-        for row in &mut self.clearance.values {
-            row.push(0);
-        }
-        self.clearance
-            .values
-            .push(vec![0; self.clearance.names.len() + 1]);
-        self.clearance.names.push(name.to_string());
+        // Java CleararanceMatrix.append_class: case-insensitive dedup, the
+        // new row/column copies class 1 ("default") per layer — the
+        // full port lives on the IR (sink::ClearanceIr::append_class).
+        self.rules.clearance.append_class(name);
     }
 
     fn clearance_class_no(&self, name: &str) -> Option<i32> {
-        self.clearance
-            .names
-            .iter()
-            .position(|existing| eq_ignore_case(existing, name))
-            .map(|index| index as i32)
+        let no = self.rules.clearance.get_no(name);
+        if no < 0 { None } else { Some(no) }
     }
 
     fn append_padstack(&mut self, padstack: PadstackIr) -> i32 {
@@ -586,7 +570,7 @@ impl BoardSink for SesBoard {
 mod tests {
     use super::*;
     use crate::shape::BoardShape;
-    use crate::sink::{AreaIr, ImagePinIr, KeepoutKindIr};
+    use crate::sink::{AreaIr, ClearanceIr, ImagePinIr, KeepoutKindIr};
     use epic_geometry::int_box::IntBox;
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::point::Point;
@@ -611,7 +595,8 @@ mod tests {
             bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(100_000, 100_000)),
             layer_structure: spike_layers(),
             outline_shapes: Vec::new(),
-            outline_clearance_class: "default".to_string(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: BoardRulesIr::new(2),
             transform: crate::coordinate_transform::CoordinateTransform::new(10.0, 0.0, 0.0),
         });
         board.append_padstack(PadstackIr {
@@ -782,9 +767,14 @@ mod tests {
     fn create_board_default_clearance_and_outline_class() {
         let board = spike_board();
         assert_eq!(
-            board.clearance,
-            ClearanceIr::default_instance(),
-            "default instance is [null, default] with a zero matrix"
+            board.rules.clearance,
+            ClearanceIr::default_instance(2),
+            "default instance is [null, default] with a zero matrix per layer"
+        );
+        assert_eq!(
+            board.rules.default_trace_half_widths,
+            vec![1500, 1500],
+            "lazy default net class materialized with widths 1500"
         );
         match &board.items[0] {
             ItemIr::BoardOutline { outline, .. } => {
@@ -907,18 +897,36 @@ mod tests {
         assert_eq!(board.padstack_no("circlepad_f_800_um"), Some(2));
     }
 
-    /// Clearance class append: unknown names append (matrix grows with
-    /// zeros), known names (case-insensitive, like `get_no`) are no-ops.
+    /// Clearance class append: unknown names append (the new row/column
+    /// copies class 1, `ClearanceMatrix.appendClass`), known names
+    /// (case-insensitive, like `get_no`) are no-ops.
     #[test]
     fn clearance_class_append_dedups() {
         let mut board = spike_board();
         board.append_clearance_class("power");
         assert_eq!(board.clearance_class_no("POWER"), Some(2));
-        assert_eq!(board.clearance.names, vec!["null", "default", "power"]);
-        assert_eq!(board.clearance.values.len(), 3);
-        assert!(board.clearance.values.iter().all(|row| row.len() == 3));
+        assert_eq!(
+            board.rules.clearance.names,
+            vec!["null", "default", "power"]
+        );
+        assert_eq!(board.rules.clearance.values.len(), 2, "per layer");
+        assert!(
+            board
+                .rules
+                .clearance
+                .values
+                .iter()
+                .all(|per_layer| per_layer.len() == 3)
+        );
+        // class-1 copy: the appended entries read the "default" values (0)
+        assert_eq!(board.rules.clearance.get_value(1, 2, 0), 0);
+        assert_eq!(board.rules.clearance.get_value(2, 2, 0), 0);
         board.append_clearance_class("default");
-        assert_eq!(board.clearance.names.len(), 3, "dedup: no second default");
+        assert_eq!(
+            board.rules.clearance.names.len(),
+            3,
+            "dedup: no second default"
+        );
         // Case variant: the dedup match rule is the same case-insensitive
         // rule as get_no (`ClearanceMatrix.getNo`, ClearanceMatrix.java:
         // 58-65, via append_class) — "DEFAULT" is a no-op too.
@@ -929,7 +937,7 @@ mod tests {
             "case variant resolves to the existing class"
         );
         assert_eq!(
-            board.clearance.names.len(),
+            board.rules.clearance.names.len(),
             3,
             "case-variant append is a no-op"
         );
@@ -1205,7 +1213,8 @@ mod tests {
             bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(100_000, 100_000)),
             layer_structure: spike_layers(),
             outline_shapes: Vec::new(),
-            outline_clearance_class: "default".to_string(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: BoardRulesIr::new(2),
             transform: crate::coordinate_transform::CoordinateTransform::new(10.0, 0.0, 0.0),
         };
         board.create_board(first.clone());
@@ -1213,7 +1222,8 @@ mod tests {
             bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(200_000, 100_000)),
             layer_structure: spike_layers(),
             outline_shapes: Vec::new(),
-            outline_clearance_class: "default".to_string(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: BoardRulesIr::new(2),
             transform: crate::coordinate_transform::CoordinateTransform::new(10.0, 0.0, 0.0),
         });
         assert_eq!(
@@ -1227,7 +1237,7 @@ mod tests {
             "one BoardOutline, not one per create_board"
         );
         assert_eq!(board.last_assigned_item_id(), 1);
-        assert_eq!(board.clearance, ClearanceIr::default_instance());
+        assert_eq!(board.rules.clearance, ClearanceIr::default_instance(2));
     }
 
     /// The via-padstack list is a REPLACED-then-appended second index

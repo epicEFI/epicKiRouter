@@ -466,11 +466,275 @@ pub struct BoardOutlineIr {
     /// of this — they come back as separate keepout insertions,
     /// `Structure.java:1279-1283`).
     pub shapes: Vec<BoardShape>,
-    /// Java `outlineClearanceClassName` from `createBoard`, resolved to
-    /// its class index by the reader (Task 5).
+    /// Java `outlineClearanceNo` — resolved by the SINK at `create_board`
+    /// from `outlineClearanceClassName` (`MinimalBoardManager.createBoard`,
+    /// `ReadScopeParameter.java:139-166`; the three-way resolution is
+    /// pinned by the Task 5 boundary pins).
     pub clearance_class: i32,
     /// SYSTEM_FIXED (spike).
     pub fixed: FixedStateIr,
+}
+
+/// Java `String.equalsIgnoreCase` over the ASCII identifier space (shared
+/// by `ClearanceMatrix.getNo` and the board-side registry lookups): both
+/// sides lowercased and compared. A full UTF-16 per-char port lands only
+/// if a fixture ever diverges (same simplification as `ses_board`).
+pub(crate) fn eq_ignore_case(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
+}
+
+/// Java `ClearanceMatrix` parse subset (`rules/ClearanceMatrix.java`):
+/// class names in matrix order and the per-layer clearance values.
+///
+/// Storage is `values[layer][i][j]` — Java stores `row[j].column[i]
+/// .layer[layer]`, i.e. the SAME `[layer][i][j]` indexing with `i` the
+/// first class argument (`ClearanceMatrix.java:107`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClearanceIr {
+    /// Java `ClearanceMatrix` class names, matrix column/row order.
+    pub names: Vec<String>,
+    /// `values[layer][i][j]`: clearance between classes `i` and `j` on
+    /// `layer` (board units, always even). Outer = layer.
+    pub values: Vec<Vec<Vec<i32>>>,
+}
+
+impl ClearanceIr {
+    /// The pre-`create_board` empty instance ([`SesBoard::new`] default).
+    pub fn empty() -> Self {
+        Self {
+            names: Vec::new(),
+            values: Vec::new(),
+        }
+    }
+
+    /// Java `ClearanceMatrix.getDefaultInstance(layerStructure, 0)`
+    /// (`Structure.java:1236`): the two built-in classes `"null"` and
+    /// `"default"`, zero matrix, one slot per layer.
+    pub fn default_instance(layer_count: usize) -> Self {
+        Self {
+            names: vec!["null".to_string(), "default".to_string()],
+            values: vec![vec![vec![0, 0], vec![0, 0]]; layer_count],
+        }
+    }
+
+    /// Java `getClassCount()`.
+    pub fn class_count(&self) -> i32 {
+        self.names.len() as i32
+    }
+
+    /// Java `getNo(name)` (`ClearanceMatrix.java:60-68`): first
+    /// case-INSENSITIVE name match, `-1` on a miss.
+    pub fn get_no(&self, name: &str) -> i32 {
+        self.names
+            .iter()
+            .position(|existing| eq_ignore_case(existing, name))
+            .map(|index| index as i32)
+            .unwrap_or(-1)
+    }
+
+    /// Java `getValue(i, j, layer, addSafetyMargin=false)`
+    /// (`ClearanceMatrix.java:126-160`): out-of-bounds requests log a
+    /// trace and return 0; the safety margin variant is never used at
+    /// parse time (margin 0 would make it an identity anyway).
+    pub fn get_value(&self, class_i: i32, class_j: i32, layer: i32) -> i32 {
+        let Ok(layer_index) = usize::try_from(layer) else {
+            return 0;
+        };
+        let Some(per_layer) = self.values.get(layer_index) else {
+            return 0;
+        };
+        let (Ok(i), Ok(j)) = (usize::try_from(class_i), usize::try_from(class_j)) else {
+            return 0;
+        };
+        let Some(row) = per_layer.get(j) else {
+            return 0;
+        };
+        row.get(i).copied().unwrap_or(0)
+    }
+
+    /// Java `setValue(classI, classJ, layer, value)` (`:107-124`): the
+    /// value is clamped to `max(value, 0)` and rounded UP to even
+    /// (`Integer.MAX_VALUE` rounds DOWN — unreachable at parse time), then
+    /// stored. The row/layer max bookkeeping is not parse-observable.
+    pub fn set_value(&mut self, class_i: i32, class_j: i32, layer: i32, value: i32) {
+        let mut value = value.max(0);
+        if value % 2 != 0 {
+            if value == i32::MAX {
+                value -= 1;
+            } else {
+                value += 1;
+            }
+        }
+        let Some(per_layer) = self
+            .values
+            .get_mut(usize::try_from(layer).unwrap_or(usize::MAX))
+        else {
+            return;
+        };
+        let (Ok(i), Ok(j)) = (usize::try_from(class_i), usize::try_from(class_j)) else {
+            return;
+        };
+        if let Some(row) = per_layer.get_mut(j)
+            && let Some(entry) = row.get_mut(i)
+        {
+            *entry = value;
+        }
+    }
+
+    /// Java `setValue(classI, classJ, value)` (`:102-105`): same entry on
+    /// every layer.
+    pub fn set_value_all_layers(&mut self, class_i: i32, class_j: i32, value: i32) {
+        for layer in 0..self.values.len() as i32 {
+            self.set_value(class_i, class_j, layer, value);
+        }
+    }
+
+    /// Java `setDefaultValue(layer, value)` (`:90-94`): sets every entry
+    /// with class number >= 1 on the given layer (the `null` row/column 0
+    /// stays 0).
+    pub fn set_default_value(&mut self, layer: i32, value: i32) {
+        for i in 1..self.class_count() {
+            for j in 1..self.class_count() {
+                self.set_value(i, j, layer, value);
+            }
+        }
+    }
+
+    /// Java `setDefaultValue(value)` (`:84-88`): every layer.
+    pub fn set_default_value_all_layers(&mut self, value: i32) {
+        for layer in 0..self.values.len() as i32 {
+            self.set_default_value(layer, value);
+        }
+    }
+
+    /// Java `appendClass(name)` (`:283-325`): case-insensitive dedup
+    /// (`getNo(name) >= 0` -> `false`, no change); otherwise the class
+    /// count grows by one and EVERY new entry on EVERY layer is
+    /// initialized from class 1 (`"default"`): `(new, i)` and `(i, new)`
+    /// from `getValue(1, i, layer)`, the diagonal `(new, new)` from
+    /// `getValue(1, 1, layer)` (jar `/tmp/epic-t5-probe.out`: the appended
+    /// `power`/`ground` rows read 5000 — the default value set earlier by
+    /// `(clearance 500)`).
+    pub fn append_class(&mut self, name: &str) -> bool {
+        if self.get_no(name) >= 0 {
+            return false;
+        }
+        let old_class_count = self.names.len();
+        let layer_count = self.values.len();
+        let new_class_count = old_class_count + 1;
+        self.names.push(name.to_string());
+        for per_layer in &mut self.values {
+            // grow every existing row and add the new row (zeros first,
+            // then the class-1 copy below matches the Java two-phase init)
+            for row in per_layer.iter_mut() {
+                row.resize(new_class_count, 0);
+            }
+            per_layer.resize(new_class_count, vec![0; new_class_count]);
+        }
+        let new_index = old_class_count as i32;
+        for i in 0..old_class_count {
+            for layer in 0..layer_count as i32 {
+                let default_value = self.get_value(1, i as i32, layer);
+                self.set_value(new_index, i as i32, layer, default_value);
+                self.set_value(i as i32, new_index, layer, default_value);
+            }
+        }
+        for layer in 0..layer_count as i32 {
+            let default_value = self.get_value(1, 1, layer);
+            self.set_value(new_index, new_index, layer, default_value);
+        }
+        true
+    }
+}
+
+/// Java `BoardRules` parse subset (`rules/BoardRules.java:52-63` ctor +
+/// the lazy `createDefaultNetClass` (`:206-213`) flattened: the parser
+/// touches the default net class only through the fields below, so its
+/// lazy materialization collapses into eager initialization).
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoardRulesIr {
+    /// Java `getDefaultNetClass().getTraceHalfWidth(layer)` — the default
+    /// trace half width per layer; `createDefaultNetClass` fills 1500 on
+    /// every layer (`BoardRules.java:206-208`, jar
+    /// `/tmp/epic-t5-probe.out`: rule-less layers read DEFAULT_HW 1500).
+    pub default_trace_half_widths: Vec<i32>,
+    /// Java `minTraceHalfWidth` (`:37`, ctor 100000): monotonically
+    /// lowered by the width setters; feeds the pin-edge fallback.
+    pub min_trace_half_width: i32,
+    /// Java `maxTraceHalfWidth` (`:38`, ctor 100): monotonically raised by
+    /// the width setters.
+    pub max_trace_half_width: i32,
+    /// Java `pinEdgeToTurnDist` (`:46`, ctor 0.0); `updateBoardRules`
+    /// always leaves this at `getMinTraceHalfWidth()` when no
+    /// `smd_to_turn_gap` rule fired (`Structure.java:667-669` — jar:
+    /// 100000.0 for rule-less boards).
+    pub pin_edge_to_turn_dist: f64,
+    /// Java `traceAngleRestriction` (`:31`, ctor FORTYFIVE_DEGREE);
+    /// `createBoard` overwrites it from the parse state
+    /// (`Structure.java:1267`).
+    pub trace_angle_restriction: AngleRestriction,
+    /// Java `getDefaultNetClass().defaultItemClearanceClasses` — indexed
+    /// by [`ItemClassIr`] declaration order (NONE, TRACE, VIA, PIN, SMD,
+    /// AREA), all 1 (`DefaultItemClearanceClasses` ctor; jar:
+    /// OUTLINE_CLASS 1 for rule-less boards, 7 after the `wire` rule
+    /// appends `area`).
+    pub default_item_clearance_classes: [i32; 6],
+    /// Java `clearanceMatrix` (final field).
+    pub clearance: ClearanceIr,
+}
+
+impl BoardRulesIr {
+    /// The `new BoardRules(layerStructure, ClearanceMatrix
+    /// .getDefaultInstance(...))` + lazy default-net-class state as the
+    /// structure reader sees it (`Structure.java:1236-1237`).
+    pub fn new(layer_count: usize) -> Self {
+        Self {
+            default_trace_half_widths: vec![1500; layer_count],
+            min_trace_half_width: 100_000,
+            max_trace_half_width: 100,
+            pin_edge_to_turn_dist: 0.0,
+            trace_angle_restriction: AngleRestriction::FortyfiveDegree,
+            default_item_clearance_classes: [1; 6],
+            clearance: ClearanceIr::default_instance(layer_count),
+        }
+    }
+
+    /// Java `setDefaultTraceHalfWidth(layer, value)` (`:122-127`): stores
+    /// the width and lowers `minTraceHalfWidth` / raises
+    /// `maxTraceHalfWidth`. No range guard on this per-layer overload.
+    pub fn set_default_trace_half_width(&mut self, layer: i32, value: i32) {
+        if let Some(slot) = self
+            .default_trace_half_widths
+            .get_mut(usize::try_from(layer).unwrap_or(usize::MAX))
+        {
+            *slot = value;
+        }
+        self.min_trace_half_width = self.min_trace_half_width.min(value);
+        self.max_trace_half_width = self.max_trace_half_width.max(value);
+    }
+
+    /// Java `setDefaultTraceHalfWidths(value)` (`:137-147`): `value <= 0`
+    /// logs a warning and is a NO-OP (jar-pinned semantics; the warning is
+    /// FRLogger-only, not a parity-warnings surface), otherwise the width
+    /// lands on every layer with the min/max updates.
+    pub fn set_default_trace_half_widths(&mut self, value: i32) {
+        if value <= 0 {
+            return;
+        }
+        for layer in 0..self.default_trace_half_widths.len() as i32 {
+            self.set_default_trace_half_width(layer, value);
+        }
+    }
+
+    /// Java `setPinEdgeToTurnDist(value)` (`:364-367`): plain assignment.
+    pub fn set_pin_edge_to_turn_dist(&mut self, value: f64) {
+        self.pin_edge_to_turn_dist = value;
+    }
+
+    /// Java `getMinTraceHalfWidth()` (`:94-96`).
+    pub fn get_min_trace_half_width(&self) -> i32 {
+        self.min_trace_half_width
+    }
 }
 
 /// Parse-time metadata snapshot (the `Communication`/parser-info fields
@@ -511,22 +775,27 @@ impl Default for MetadataIr {
 
 /// The `createBoard` argument IR (`BoardParserCallback.java:29-36` with
 /// `BoardRules`/`Communication` reduced to their parse-derivable parts:
-/// the rules IR arrives through the class/padstack setters as Tasks 5-8
-/// land; the clearance matrix default instance is created sink-side,
-/// `Structure.java:1236`).
+/// the rules arrive fully built in [`BoardRulesIr`] — the reader applies
+/// `updateBoardRules` (`Structure.java:1266`) before the callback — and
+/// the sink resolves the outline clearance class against it,
+/// `ReadScopeParameter.java:139-166`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct CreateBoardIr {
     /// Java `boundingBox` — the transformed boundary bounds INCLUDING the
-    /// offset(1000) (T43, `Structure.java:1207-1208`, Task 5).
+    /// offset(1000) (T43, `Structure.java:1207-1208`).
     pub bounding_box: IntBox,
     /// Java `layerStructure`.
     pub layer_structure: LayerStructure,
     /// Java `outlineShapes` — the transformed boundary shapes (board
     /// coordinates; becomes the id-1 [`BoardOutlineIr`] item).
     pub outline_shapes: Vec<BoardShape>,
-    /// Java `outlineClearanceClassName` (Issue558 context: the name
-    /// resolves against the clearance table; the resolution is Task 5).
-    pub outline_clearance_class: String,
+    /// Java `outlineClearanceClassName` — `None` when no
+    /// `(clearance_class ...)` scope appeared in any boundary (the sink
+    /// then falls back to the AREA item class, Issue558 context).
+    pub outline_clearance_class: Option<String>,
+    /// Java `BoardRules` after `updateBoardRules` + the trace-angle
+    /// restriction (`Structure.java:1266-1267`).
+    pub rules: BoardRulesIr,
     /// The finalized `CoordinateTransform` (T25 loop already applied).
     pub transform: CoordinateTransform,
 }
@@ -534,12 +803,19 @@ pub struct CreateBoardIr {
 /// The seam the scope readers emit through (module docs for the Java
 /// mapping and the id-assignment contract).
 pub trait BoardSink {
+    /// Java `getRoutingBoard() == null` (`BoardParserCallback.java:23`,
+    /// consumed at `Structure.java:1034`): true once `create_board`
+    /// succeeded, false before. The structure reader builds the board only
+    /// on the first `(structure ...)` scope; a second scope re-parses
+    /// layers/rules but does NOT recreate (jar `/tmp/epic-t4c-twostruct.out`).
+    fn has_board(&self) -> bool;
+
     /// Java `createBoard` (`BoardParserCallback.java:29-36`, called from
     /// `Structure.java:1268-1274`): constructs the board from the parsed
     /// structure scope. Implementations insert the id-1 `BoardOutline`
-    /// item (`BasicBoard.java:136`) and initialize the clearance table
-    /// with the default instance `["null", "default"]`
-    /// (`Structure.java:1236`).
+    /// item (`BasicBoard.java:136`) and resolve the outline clearance
+    /// class against the incoming rules
+    /// (`ReadScopeParameter.java:139-166`).
     fn create_board(&mut self, board: CreateBoardIr);
 
     // ---- tables: nets, clearance classes, padstacks ---------------------

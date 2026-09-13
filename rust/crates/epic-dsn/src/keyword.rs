@@ -197,6 +197,11 @@ impl Keyword {
             b"placement" => Keyword::Placement,
             b"plane" => Keyword::Plane,
             b"plane_via_costs" => Keyword::PlaneViaCosts,
+            // jar session /tmp/epic-t5-rect2.jsh: the scanner ALSO accepts
+            // the Specctra abbreviations `poly` and `rect` for
+            // polygon/rectangle (both spellings produce the same Keyword
+            // object); `polyline` and `polygon_path` are NOT keywords
+            b"poly" => Keyword::Polygon,
             b"polygon" => Keyword::Polygon,
             // the Specctra wire-shape alias; `polygon_path` itself is NOT a
             // scanner keyword (sweep NOT-KW!)
@@ -208,6 +213,7 @@ impl Keyword {
             b"preferred_direction" => Keyword::PreferredDirection,
             b"preferred_direction_trace_costs" => Keyword::PreferredDirectionTraceCosts,
             b"pull_tight" => Keyword::PullTight,
+            b"rect" => Keyword::Rectangle,
             b"rectangle" => Keyword::Rectangle,
             b"resolution" => Keyword::Resolution,
             b"rotate" => Keyword::Rotate,
