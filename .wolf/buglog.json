@@ -1227,6 +1227,20 @@
     "polygon_shape.rs",
     "mutation-verified"
    ]
+  },
+  {
+   "id": "bug-078",
+   "date": "2026-09-12",
+   "error_message": "Task 9 review mutation test: corpus.rs edge-case stride `i % 9 == 0` -> `i % 8 == 0` rewrote the committed corpus definition and passed the ENTIRE test suite + CI — the central deliverable (corpus artifacts) had no automated pin.",
+   "root_cause": "Mutation-survivor class: deliverable artifact with no automated pin. generate_is_deterministic_per_seed only checked self-consistency (two runs, same seed), which holds under any deterministic generator change; nothing asserted generate(seed 20260912, 200) against the committed rust/harness/corpus/geometry-cases.jsonl.",
+   "fix": "Added corpus::tests::generate_matches_committed_corpus pinning generate output byte-identical to the committed artifact via env!(CARGO_MANIFEST_DIR) (cwd-independent); mutant re-applied -> test FAILED; reverted -> green. Task 10 will add the compare-vs-committed-golden pin once the 5 known port divergences are fixed.",
+   "tags": [
+    "m1a",
+    "corpus",
+    "mutation-survivor",
+    "pin",
+    "test-gap"
+   ]
   }
  ]
 }

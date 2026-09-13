@@ -147,6 +147,10 @@ public class GeometryCorpusOracle {
       o.addProperty("kind", "Infinity");
       return o;
     }
+    // toFloat() is exact for this op table only because every emitted
+    // RationalPoint arises from 45-degree cross products whose denominators
+    // divide 2; arbitrary-slope inputs would need exact-rational
+    // serialization (the fields are package-private).
     FloatPoint f = rp.toFloat();
     o.addProperty("kind", "RationalPoint");
     o.addProperty("x_bits", Double.doubleToRawLongBits(f.x));
@@ -537,6 +541,9 @@ public class GeometryCorpusOracle {
       case "tileshape.from_points" -> {
         return tileOut(TileShape.getInstance(points(args, "points")));
       }
+      // No `simplex.remove_redundant` op: removeRedundantLines() is
+      // package-private (Simplex.java:884); pruning is covered transitively
+      // by Simplex.getInstance (:46) and intersection (:629).
       case "simplex.get_instance" -> {
         return simplexOut(Simplex.getInstance(lines(args, "lines")));
       }
@@ -630,6 +637,7 @@ public class GeometryCorpusOracle {
       try {
         result.add("out", evaluateOp(op, caseObj.getAsJsonObject("args")));
       } catch (UnknownOpException e) {
+        out.flush();
         System.err.println("unknown op for case id " + id + ": " + e.getMessage());
         System.exit(3);
       } catch (RuntimeException e) {

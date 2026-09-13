@@ -355,6 +355,10 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
         ],
         2,
     ),
+    // No `simplex.remove_redundant` op: Java `removeRedundantLines()` is
+    // package-private (Simplex.java:884); pruning is covered transitively by
+    // `Simplex.getInstance` (:46) and `intersection` (:629). Task 10 adds
+    // deliberately-redundant `simplex.get_instance` cases to exercise it.
     ("spx", &["simplex.get_instance", "simplex.intersection"], 2),
     (
         "ply",
@@ -755,6 +759,9 @@ fn golden(cases: &Path, out: &Path) -> Result<()> {
             kept += 1;
         }
     }
+    // Draining stderr only after the stdout loop is safe: the evaluator
+    // serializes per-case exceptions into the result JSON and never prints
+    // them, so its stderr cannot fill up and deadlock a healthy run.
     let mut stderr = String::new();
     if let Some(mut pipe) = child.stderr.take() {
         use std::io::Read;
@@ -883,6 +890,12 @@ fn pt_out(p: &Point) -> Value {
             if rp.is_infinite() {
                 json!({"kind": "Infinity"})
             } else {
+                // to_float() is exact for this op table ONLY because every
+                // emitted RationalPoint arises from 45-degree-direction cross
+                // products whose denominators divide 2. If arbitrary-slope
+                // lines ever feed these ops, switch to exact-rational
+                // serialization (fields are package-private Java / pub(crate)
+                // Rust today) — mirrored at ptOut in GeometryCorpusOracle.java.
                 let f = rp.to_float();
                 json!({"kind": "RationalPoint", "x_bits": f.x.to_bits() as i64, "y_bits": f.y.to_bits() as i64})
             }
@@ -948,6 +961,10 @@ fn dir_out(d: &Direction) -> Value {
 }
 
 fn box_out(b: &IntBox) -> Value {
+    // Emptiness is FIELD equality against the sentinel on BOTH sides — see
+    // boxIsEmpty/octIsEmpty in GeometryCorpusOracle.java: a union of empties
+    // returns a fresh sentinel-valued object, breaking Java reference
+    // identity (the T2 port contract replaced identity with field equality).
     json!({
         "kind": "IntBox",
         "ll": [b.ll.x, b.ll.y],
@@ -957,6 +974,7 @@ fn box_out(b: &IntBox) -> Value {
 }
 
 fn oct_out(o: &IntOctagon) -> Value {
+    // Same field-equality emptiness contract as box_out above.
     json!({
         "kind": "IntOctagon",
         "v": [
@@ -1275,6 +1293,22 @@ fn read_jsonl(path: &Path) -> Result<Vec<Value>> {
     Ok(out)
 }
 
+/// RAII guard: reinstalls the previous panic hook on drop. An early `?` in
+/// `compare` (malformed input — exactly when diagnostics matter) must not
+/// leave the silenced hook installed for the rest of the process, including
+/// unrelated panics under cargo's multithreaded test runner.
+type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+struct PanicHookGuard(Option<PanicHook>);
+
+impl Drop for PanicHookGuard {
+    fn drop(&mut self) {
+        if let Some(hook) = self.0.take() {
+            std::panic::set_hook(hook);
+        }
+    }
+}
+
 /// Evaluates all cases with epic-geometry and diffs against the Java goldens.
 /// Prints the first 20 mismatches; exits nonzero on any mismatch or count
 /// divergence. Per-case Rust panics are reported as mismatches, never crash.
@@ -1295,7 +1329,7 @@ pub fn compare(cases_path: &Path, golden_path: &Path) -> Result<()> {
         golden.insert(id, out);
     }
 
-    let prev_hook = std::panic::take_hook();
+    let _hook_guard = PanicHookGuard(Some(std::panic::take_hook()));
     std::panic::set_hook(Box::new(|_| {}));
     let mut mismatches: Vec<String> = Vec::new();
     let mut total_mismatches = 0usize;
@@ -1321,7 +1355,7 @@ pub fn compare(cases_path: &Path, golden_path: &Path) -> Result<()> {
             }
         }
     }
-    std::panic::set_hook(prev_hook);
+    // The RAII guard restores the hook on every exit path from here on.
 
     if golden.len() != cases.len() {
         bail!(
@@ -1376,6 +1410,30 @@ mod tests {
         let _ = std::fs::remove_file(&a);
         let _ = std::fs::remove_file(&b);
         assert_eq!(da, db, "same seed must produce byte-identical corpora");
+    }
+
+    /// The committed corpus artifact is pinned: any change to the corpus
+    /// definition (family weights, edge-case stride, RNG) must regenerate
+    /// `corpus/geometry-cases.jsonl` in the same commit. Mutation-proven
+    /// necessity: `i % 9 == 0` -> `i % 8 == 0` rewrote the corpus and passed
+    /// the old self-consistency-only suite. Task 10 adds the matching
+    /// compare-vs-committed-golden pin once the 5 known port divergences are
+    /// fixed; until then the golden cannot be pinned this way.
+    #[test]
+    fn generate_matches_committed_corpus() {
+        let committed =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("corpus/geometry-cases.jsonl");
+        let expected =
+            std::fs::read(&committed).expect("committed corpus/geometry-cases.jsonl must exist");
+        let tmp = temp_path("committed-pin");
+        generate(20260912, 200, &tmp).expect("generate the committed corpus");
+        let actual = std::fs::read(&tmp).expect("read generated corpus");
+        let _ = std::fs::remove_file(&tmp);
+        assert_eq!(
+            actual, expected,
+            "generate(seed 20260912, 200 cases) diverged from the committed corpus — \
+             regenerate the artifact in the same commit as the generator change"
+        );
     }
 
     /// Rust-side pins captured live from the Java oracle smoke (GeometryCorpus
