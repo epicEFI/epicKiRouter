@@ -53,3 +53,22 @@
 5. **No cleanup of first-pass greed + no gloss** — "spends ages trying to fix those early placed traces"; no shove+gloss means no smooth 45° flow.
 
 **Strategic summary:** fix correctness foundations first (DRC), then planes (#152) and high-speed features (#133/#716) — the two most-demanded and both paywalled at the only GPU competitor; performance is architectural (single-threaded, greedy-first-fix-late); the deepest differentiation is objective-function design (intent/physics scoring vs completion rate). Credibility comes from reproducible benchmarks (the PCBench corpus upstream already integrates).
+
+---
+
+## Cross-check addendum (2026-09-13): external Copilot analysis
+
+User ran GitHub Copilot's repo analysis (top feature requests by engagement + code-level perf concerns) against ours. Reconciliation:
+
+**Already covered (no action):**
+- #152 copper pour / #133+#716 diff pairs & length tuning / #558 edge clearance — pain points #1/#7 above; M6/M7 milestones; #558 pinned in M1b Task 5.
+- Performance items (TreeSet maze PQ, ShapeTree pointer-chasing, precalculatedTreeShapes churn, memory retention #684/PR#887) — §13 of the design doc names these classes with evidence and folds them into the arena/SoA + parallelism targets (3–10× + 2–6×). GC pauses moot in Rust.
+
+**One overstated claim:** Copilot's "`getTreeEntries` O(n²) per routing pass" — the `LinkedList<SearchTreeInfo>` iterates search *trees* (a per-board small constant, one per clearance-class group), not items. Constant-factor fix, not a complexity-class one.
+
+**Genuinely new items (banked):**
+- **#718 net-ties / overlapping pads DRC** (6 comments) — DRC false-positive class; candidate scope add for M6 (epic-drc), alongside plane-aware checks.
+- **#383 star-ground routing** (8 comments) — routing-topology constraint (dedicated net topology enforcement); M3+ router backlog, after the core maze engine parity lands.
+- **#726 ETA / progress display** (6 comments) — M9 GUI (egui) backlog; trivial, good UX win.
+
+None change the M0–M10 ordering; all three are post-parity improvements, exactly where the rewrite's headroom lives.
