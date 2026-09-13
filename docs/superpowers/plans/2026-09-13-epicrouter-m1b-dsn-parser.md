@@ -67,6 +67,7 @@ Key entries: `DsnReader.readBoard(InputStream, BoardObservers, IdGenerator[, des
 | T45 | TreeMaps reorder pin/keepout infos | `Component.java:190-194` — name-sorted, not file order; observable in pin insertion order. |
 | T46 | KiCad-header stress | quoted names with spaces (`sonde xilinx`), apostrophes in host_cad (`Parser.readQuoteChar`, `Parser.java:147-168`), um/10 resolution, `(property (index N))` skipped generically (`Structure.java:394-395`). |
 | T47 | `(class ...)` before `(wiring ...)` discards all wires | Jar-verified in Task 1 (commit `502b88f8`): a `(class ...)` scope appearing before `(wiring ...)` makes the Java reader silently drop every wire (0 traces, NO warning); with wiring first, insertion works. Pin in Task 8 with a crafted pair fixture; keep bug-compatible in M1b. |
+| T48 | Plane/keepout hole failures are ORDER-SENSITIVE (first failure wins) | Jar-verified in Task 6 fix round (`a5d77902`, `/tmp/epic-t6-nullhole.out`): `transformAreaToBoard` hole loop — a Circle/null-transform hole at i=0 returns null (plane skipped, parse SURVIVES via `BasicBoard.insert_conduction_area` log-warn) BEFORE a null hole ENTRY at i=1 is ever reached; null entry first → NPE, parse dies. Same two windows, opposite order, opposite outcomes. Port models this as three-state `TransformedArea` (`Area`/`Null`/`Threw`) with first-failure-wins order; both flavors fatal at keepout site. |
 
 ### Port map (Java → `epic-dsn/src/`)
 
