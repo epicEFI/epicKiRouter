@@ -16,6 +16,10 @@
 //! `boundingOctagon`) with IntOctagon, and the Task 6 deferrals
 //! (`sideOf(Line)` / `perpendicularProjection` /
 //! `perpendicularDirection` / `projectionApprox`) with the Line family.
+//!
+//! M1a complete: bit-parity port of all 34 `geometry.planar` classes
+//! (incl. TileShape, Polyline), green against the committed 5000-case
+//! differential corpus (`cargo run -p epic-harness -- corpus compare`).
 
 pub mod big_int_aux;
 pub mod big_int_direction;

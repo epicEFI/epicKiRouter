@@ -6,7 +6,8 @@ The Java tree under `src/` stays untouched as the parity oracle.
 
 ## Layout
 
-- `crates/epic-geometry` — exact 45° integer geometry kernel (M1)
+- `crates/epic-geometry` — exact 45° integer geometry kernel (M1a done:
+  bit-parity port + 5k-case differential corpus vs the Java oracle)
 - `crates/epic-dsn` — Specctra DSN/SES I/O (M1)
 - `crates/epic-board` — arena board model (M2)
 - `crates/epic-index` — incremental spatial index (M2)
@@ -29,6 +30,16 @@ cargo test -p epic-harness -- --ignored   # harness e2e tests (needs jar + JDK 2
 EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- list
 EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- capture --tier A
 EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- verify  --tier A
+```
+
+### Corpus
+
+```bash
+# Differential geometry corpus (committed goldens — no Java needed)
+cargo run -q -p epic-harness -- corpus compare   # PASS 5000/5000
+# Regenerating (requires the oracle jar + JDK 25; explain WHY in the commit)
+cargo run -q -p epic-harness -- corpus generate
+EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java cargo run -q -p epic-harness -- corpus golden
 ```
 
 ## Oracle prerequisites

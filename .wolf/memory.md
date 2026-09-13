@@ -647,3 +647,4 @@ description: chronological action log per session, consolidated weekly
 | 19:31 | Edited rust/crates/epic-geometry/src/polyline.rs | modified is_empty() | ~158 |
 | 19:31 | Edited rust/crates/epic-geometry/src/polyline.rs | modified comparison() | ~48 |
 | 19:31 | Edited rust/crates/epic-geometry/src/polyline.rs | modified Invariant() | ~193 |
+| 19:37 | M1a complete: epic-geometry bit-parity port (34 classes) + differential corpus (5000 cases) green vs Java oracle + algebraic invariants; corpus compare wired into CI | rust/crates/epic-geometry/**, rust/harness/**, .github/workflows/rust-check.yml | committed | 55129848→ff4a627b |
