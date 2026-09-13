@@ -1,7 +1,9 @@
 //! The `(structure ...)` scope reader: the port of
-//! `io/specctra/parser/Structure.java` (the layer/boundary/rules/clearance
-//! halves — keepout, plane and control scopes are Task 6) plus the
-//! `Rule.java` scope readers it drives.
+//! `io/specctra/parser/Structure.java` — the layer/boundary/rules/
+//! clearance halves, the `createBoard` construction, and the keepout,
+//! plane and control scopes (`insertKeepout`, the `insertConductionArea`
+//! loop, `insertMissingPowerPlanes`, the `adjustPlaneAutorouteSettings`
+//! heuristic) — plus the `Rule.java` scope readers it drives.
 //!
 //! ## Java call shape
 //!
@@ -55,7 +57,8 @@ use crate::keyword::{Keyword, skip_scope};
 use crate::layer_structure::{Layer, LayerStructure};
 use crate::lexer::{LexicalState, Scanner, Token};
 use crate::shape::{
-    BoardShape, PolygonPath, Shape, box_shape, read_area_scope, transform_area_to_board,
+    BoardShape, PolygonPath, Shape, TransformedArea, box_shape, read_area_scope,
+    transform_area_to_board,
 };
 use crate::sink::{
     AreaIr, BoardRulesIr, BoardSink, ConductionAreaIr, CreateBoardIr, FixedStateIr, ItemClassIr,
@@ -151,7 +154,8 @@ fn read_boundary_scope(scanner: &mut Scanner, info: &mut BoardConstructionInfo) 
 /// Java `DsnFile.readStringScope` (`DsnFile.java:190-214`): the value of a
 /// one-string scope such as `(clearance_class <name>)`, tolerant of a
 /// missing closing bracket (drains to the bracket; a null string scans as
-/// `""`, which the only Task 5 caller stores verbatim).
+/// `""`, which both callers — the rule-scope readers and `read_area_scope`'s
+/// `(clearance_class ...)` arm — store verbatim).
 pub(crate) fn read_string_scope(scanner: &mut Scanner) -> String {
     let result = scanner.next_string_with(true, b' ');
     let mut next_token = scanner.next_token();
@@ -637,8 +641,13 @@ fn insert_keepout(
         // Java NPE inside transformToBoard — unreachable post-create_board
         return false;
     };
-    let Some(keepout_area) = transform_area_to_board(&area.shapes, coordinate_transform) else {
-        return false; // Java NPE at `keepoutArea.dimension()` (`:864`)
+    let keepout_area = match transform_area_to_board(&area.shapes, coordinate_transform) {
+        TransformedArea::Area(area) => area,
+        // BOTH Java failure flavors kill the parse at the keepout site:
+        // the null return NPEs at `keepoutArea.dimension()` (`:864`, jar
+        // t6-keep-circle-hole) and the null hole ENTRY throws inside
+        // transformAreaToBoard (jar t6-keep-nullhole)
+        TransformedArea::Null | TransformedArea::Threw => return false,
     };
     if keepout_area.border.dimension() < 2 {
         // Java `:864-876`: FRLogger.warn "Keepout zone '<name>' was
@@ -747,10 +756,13 @@ fn add_plane_net(state: &mut ParseState, sink: &mut dyn BoardSink, name: &str) {
 /// is transformed, and the layer check comes last — a plane on an
 /// unknown layer still added its net before the parse fails
 /// (`:1115-1120`, jar t6-plane-signal). `plane_info.area == None` is the
-/// `Structure.java:1084` NPE (a failed area read stored unchecked);
-/// a null AREA SHAPE (circle border + window) does NOT fail —
-/// `BasicBoard.insertConductionArea` rejects it with a log-only warning
-/// BEFORE burning an id (jar t6-plane-circwin: Success, no item).
+/// `Structure.java:1084` NPE (a failed area read stored unchecked).
+/// The transform's failure flavors split here (`Shape.java:543-548`):
+/// a null hole ENTRY throws inside `transformAreaToBoard` — parse-fatal
+/// (jar t6-plane-nullhole) — while the null-RETURN flavor (circle or
+/// failed-transform hole) only skips the plane, `BasicBoard` rejecting
+/// the null area with a log-only warning BEFORE burning an id
+/// (`BasicBoard.java:553-556`; jar t6-plane-circwin, t6-plane-mixed-holes).
 fn insert_plane(plane_info: &PlaneInfo, state: &mut ParseState, sink: &mut dyn BoardSink) -> bool {
     add_plane_net(state, sink, &plane_info.net_name);
     let Some(current_net_no) = sink.net_no_subnet(&plane_info.net_name, 1) else {
@@ -764,7 +776,16 @@ fn insert_plane(plane_info: &PlaneInfo, state: &mut ParseState, sink: &mut dyn B
         // unreachable post-create_board (Java NPE inside transformToBoard)
         return false;
     };
-    let plane_area = transform_area_to_board(&area.shapes, coordinate_transform);
+    let plane_area = match transform_area_to_board(&area.shapes, coordinate_transform) {
+        TransformedArea::Area(area) => Some(area),
+        // Java null return: BasicBoard.insertConductionArea warns
+        // (log-only) and the parse CONTINUES without the plane
+        TransformedArea::Null => None,
+        // Java THREW in the hole loop — `it.next().transformToBoard` NPEs
+        // on the null hole ENTRY (`Shape.java:544-545`, jar
+        // t6-plane-nullhole THROWN) — uncaught, parse-fatal
+        TransformedArea::Threw => return false,
+    };
     let Some(current_layer) = area_first_layer(area) else {
         // Java `currentLayer.no` NPE at `:1086-1087` — reachable ONLY via
         // a PolylinePath first shape with a null layer (unknown layer
@@ -795,9 +816,10 @@ fn insert_plane(plane_info: &PlaneInfo, state: &mut ParseState, sink: &mut dyn B
                 fixed: FixedStateIr::SystemFixed,
             });
         }
-        // else: BasicBoard.insert_conduction_area rejects the null area
-        // with a log-only warning BEFORE inserting (`BasicBoard.java:546`)
-        // — no item, no id burned, parse continues.
+        // else (the Null flavor): BasicBoard.insert_conduction_area
+        // rejects the null area with a log-only warning BEFORE inserting
+        // (`BasicBoard.java:553-556`) — no item, no id burned, parse
+        // continues.
         true
     } else {
         // Java `:1115-1120`: "Plane.read_scope: unexpected layer name" —
@@ -2352,6 +2374,75 @@ mod tests {
         assert_eq!(board.nets.len(), 1);
         assert_eq!(board.nets[0].name, "GND");
         assert!(board.nets[0].contains_plane);
+    }
+
+    /// Jar `/tmp/epic-t6-nullhole.out` (`t6-plane-nullhole.dsn`): a
+    /// FAILED window shape is appended as a null hole ENTRY
+    /// (`Shape.java:222-223`) and THROWS at
+    /// `it.next().transformToBoard` (`:544-545`) — parse-fatal at the
+    /// plane site too, unlike the circle/null-transform flavor that only
+    /// skips the plane.
+    #[test]
+    fn plane_failed_window_hole_is_a_parse_failure() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (plane GND (rect F.Cu 1000 1000 3000 3000)\
+                (window (nosuchshape x)))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-nullhole.out` (`t6-keep-nullhole.dsn`): the same
+    /// null hole ENTRY at the keepout site — THROWN NPE
+    /// (`Shape.java:544-545`), parse-fatal parity.
+    #[test]
+    fn keepout_failed_window_hole_is_a_parse_failure() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (poly signal 0 500 5000 1500 5000 1500 6000 500 6000)\
+                      (window (nosuchshape x)))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-nullhole.out` (`t6-plane-mixed-holes.dsn` vs
+    /// `-mixed2-holes.dsn`): the hole loop stops at the FIRST failing
+    /// hole, so the flavors are ORDER-SENSITIVE — circle-then-bad
+    /// survives (the null-return flavor: Success, ITEM_COUNT 1, NET 1 GND
+    /// contains_plane=true) while bad-then-circle THROWS the NPE. A port
+    /// folding the flavors — or scanning the holes order-blindly —
+    /// diverges on exactly one of the two.
+    #[test]
+    fn plane_hole_flavors_are_order_sensitive() {
+        let layers = "(layer F.Cu (type signal))\
+                      (layer B.Cu (type signal))\
+                      (boundary (rect pcb 0 0 10000 8000))";
+        // circle hole first: instanceof fails at hole 0, null return,
+        // BasicBoard skips the plane — parse continues
+        let (ok, _state, board) = run_structure(&format!(
+            "{layers}\
+             (plane GND (rect F.Cu 1000 1000 5000 5000)\
+                (window (circle F.Cu 100 2000 2000))\
+                (window (nosuchshape x)))"
+        ));
+        assert!(ok, "circle-first must survive");
+        assert_eq!(board.items.len(), 1, "outline only — plane skipped");
+        assert_eq!(board.nets.len(), 1);
+        assert_eq!(board.nets[0].name, "GND");
+        assert!(board.nets[0].contains_plane);
+
+        // null entry first: the NPE at hole 0 wins — parse dies
+        let (ok, _state, _board) = run_structure(&format!(
+            "{layers}\
+             (plane GND (rect F.Cu 1000 1000 5000 5000)\
+                (window (nosuchshape x))\
+                (window (circle F.Cu 100 2000 2000)))"
+        ));
+        assert!(!ok, "null-entry-first must die");
     }
 
     /// Jar `/tmp/epic-t6-probe3.out` (`t6-ctrl-garbage.dsn`): the

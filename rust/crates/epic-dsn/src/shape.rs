@@ -947,53 +947,90 @@ pub(crate) fn read_area_scope(
     })
 }
 
-/// Java `Shape.transformAreaToBoard` (`Shape.java:522-557`): transforms the
-/// area's shape list to board coordinates. With no holes the transformed
-/// border IS the area; with holes the border must be a Java
-/// `PolylineShape` (tiles and `PolygonShape` — NOT a `Circle` and not a
-/// null hole, where Java throws inside the iterator loop) and the result
-/// is a `PolylineArea` ([`AreaIr`]). `None` mirrors BOTH the Java null
-/// return and the in-loop NPE — at every keepout/plane call site both are
-/// parse-fatal (`keepoutArea.dimension()` / `planeInfo.area.shapeList`
-/// NPEs, jar `/tmp/epic-t6-board.out` THROWN lines).
+/// The three ways Java `Shape.transformAreaToBoard` (`Shape.java:522-555`)
+/// can fail. The keepout and plane call sites treat the null-return and
+/// the in-loop throw DIFFERENTLY, so they must not be folded into one
+/// `None`:
 ///
-/// The empty-list arm (`holeCount <= -1`) is unreachable through the two
-/// Java call sites (`readAreaScope` always appends the first shape), kept
-/// for signature totality.
+/// - [`TransformedArea::Area`]: success — including the uncast
+///   single-shape `Circle` (`Circle.dimension()` is 2, `Circle.java:36-42`;
+///   jar t6-keep-circle inserts it).
+/// - [`TransformedArea::Null`]: Java returned null — the empty list
+///   (`:527`), a non-`PolylineShape` boundary (`:538-541`), or a hole
+///   failing the `instanceof PolylineShape` check (a `Circle` or a null
+///   transform, `:546-548`). Keepout site: the null NPEs at
+///   `Structure.java:864` — parse dies (jar t6-keep-circle-hole). Plane
+///   site: `insertConductionArea(null)` warns log-only and the parse
+///   CONTINUES without the plane (`BasicBoard.java:553-556`, jar
+///   t6-plane-circwin / t6-plane-mixed-holes).
+/// - [`TransformedArea::Threw`]: Java THREW, uncaught, parse-fatal at
+///   BOTH call sites — a null hole ENTRY dereferenced at
+///   `it.next().transformToBoard` (`:544-545`, jar t6-plane-nullhole /
+///   t6-keep-nullhole / t6-plane-mixed2-holes THROWN lines) or a null
+///   boundary entry at `boundary.transformToBoard` (`:530-532`).
+///
+/// The hole loop stops at the FIRST failing hole, so the flavors are
+/// ORDER-SENSITIVE: `[circle, null-entry]` is [`TransformedArea::Null`]
+/// (jar t6-plane-mixed-holes: Success, plane skipped) while
+/// `[null-entry, circle]` throws (jar t6-plane-mixed2-holes) — an
+/// order-blind scan cannot replace this walk.
+pub(crate) enum TransformedArea {
+    Area(AreaIr),
+    Null,
+    Threw,
+}
+
+/// Java `Shape.transformAreaToBoard` (`Shape.java:522-555`): transforms
+/// the area's shape list to board coordinates. With no holes the
+/// transformed border IS the area; with holes the border must be a Java
+/// `PolylineShape` (tiles and `PolygonShape` — NOT a `Circle`) and the
+/// result is a `PolylineArea` ([`AreaIr`]). See [`TransformedArea`] for
+/// the failure-flavor contract.
 pub(crate) fn transform_area_to_board(
     shapes: &[Option<Shape>],
     coordinate_transform: &CoordinateTransform,
-) -> Option<AreaIr> {
+) -> TransformedArea {
     if shapes.is_empty() {
         // Java: warn "area.size() > 0 expected" + null
-        return None;
+        return TransformedArea::Null;
     }
     let Some(boundary) = shapes[0].as_ref() else {
         // Java: null boundary -> NPE in boundary.transformToBoard
-        return None;
+        return TransformedArea::Threw;
     };
-    let boundary_shape = boundary.transform_to_board(coordinate_transform)?;
+    let Some(boundary_shape) = boundary.transform_to_board(coordinate_transform) else {
+        // Java: a null boundary TRANSFORM (PolylinePath stub) makes the
+        // result null — the null-return flavor, not a throw
+        return TransformedArea::Null;
+    };
     if shapes.len() == 1 {
-        return Some(AreaIr::simple(boundary_shape));
+        return TransformedArea::Area(AreaIr::simple(boundary_shape));
     }
     // area with holes: the border must be a PolylineShape — a Circle
     // triggers the "PolylineShape expected" warn + null (jar:
     // t6-keep-circle-hole THROWN "keepoutArea is null")
     if matches!(boundary_shape, BoardShape::Circle(_)) {
-        return None;
+        return TransformedArea::Null;
     }
     let mut holes = Vec::with_capacity(shapes.len() - 1);
     for hole in &shapes[1..] {
-        let hole_shape = hole
-            .as_ref()
-            .and_then(|shape| shape.transform_to_board(coordinate_transform))?;
+        let Some(shape) = hole else {
+            // Java: NPE at `it.next().transformToBoard` (`:544-545`,
+            // jar t6-plane-nullhole / t6-keep-nullhole THROWN)
+            return TransformedArea::Threw;
+        };
+        let Some(hole_shape) = shape.transform_to_board(coordinate_transform) else {
+            // Java: null transform -> the instanceof check fails
+            // ("PolylineShape expected" warn + null)
+            return TransformedArea::Null;
+        };
         if matches!(hole_shape, BoardShape::Circle(_)) {
             // Java: warn "PolylineShape expected" + null
-            return None;
+            return TransformedArea::Null;
         }
         holes.push(hole_shape);
     }
-    Some(AreaIr {
+    TransformedArea::Area(AreaIr {
         border: boundary_shape,
         holes,
     })
@@ -1651,32 +1688,82 @@ mod tests {
         assert_eq!(area.area_name, None);
     }
 
-    /// `transform_area_to_board` (`Shape.java:522-557`): the empty-list
-    /// arm, the null first shape, the single-shape passthrough (a Circle
-    /// survives — no PolylineArea constructor involved) and the
-    /// circle-border + window rejection.
+    /// `transform_area_to_board` (`Shape.java:522-555`): the empty-list
+    /// arm, the flavor split between null-return and in-loop throw, the
+    /// single-shape passthrough (a Circle survives — no PolylineArea
+    /// constructor involved) and the order-sensitivity of the hole loop.
     #[test]
     fn transform_area_to_board_null_and_circle_arms() {
-        assert!(transform_area_to_board(&[], &ct()).is_none());
+        use TransformedArea::{Area, Null, Threw};
 
-        // null boundary -> None (the Java iterator NPE)
-        assert!(transform_area_to_board(&[None], &ct()).is_none());
+        // empty list: the holeCount <= -1 warn-null arm
+        assert!(matches!(transform_area_to_board(&[], &ct()), Null));
+
+        // null boundary ENTRY -> the iterator NPE flavor, not a null
+        // return (Shape.java:530-532)
+        assert!(matches!(transform_area_to_board(&[None], &ct()), Threw));
 
         // single circle passes through untouched
         let circle = Shape::Circle(Circle {
             layer: Layer::signal(),
             coor: [300.0, 5000.0, 4000.0],
         });
-        let area = transform_area_to_board(&[Some(circle.clone())], &ct()).expect("single shape");
+        let Area(area) = transform_area_to_board(&[Some(circle.clone())], &ct()) else {
+            panic!("single shape must pass through");
+        };
         assert!(area.holes.is_empty());
         assert!(matches!(area.border, BoardShape::Circle(_)));
 
-        // circle border + window: PolylineArea rejects (warn-null, jar
-        // t6-keep-circle-hole / t6-plane-circwin "PolylineShape expected")
+        // circle border + window: the instanceof check fails -> null
+        // return (jar t6-keep-circle-hole / t6-plane-circwin
+        // "PolylineShape expected")
         let window = Shape::Rectangle(Rectangle {
             layer: Layer::signal(),
             coor: [4900.0, 3900.0, 5100.0, 4100.0],
         });
-        assert!(transform_area_to_board(&[Some(circle), Some(window)], &ct()).is_none());
+        assert!(matches!(
+            transform_area_to_board(&[Some(circle), Some(window)], &ct()),
+            Null
+        ));
+    }
+
+    /// The hole flavors split on ENTRY null vs transform failure, and the
+    /// loop stops at the FIRST failing hole (jar `/tmp/epic-t6-nullhole.
+    /// out`: circle-then-bad survives as the null-return flavor while
+    /// bad-then-circle NPEs — Shape.java:543-548).
+    #[test]
+    fn transform_area_to_board_hole_flavors_are_order_sensitive() {
+        use TransformedArea::{Null, Threw};
+
+        let border = Shape::Rectangle(Rectangle {
+            layer: Layer::signal(),
+            coor: [1000.0, 1000.0, 5000.0, 5000.0],
+        });
+        let circle_hole = Shape::Circle(Circle {
+            layer: Layer::signal(),
+            coor: [100.0, 2000.0, 2000.0],
+        });
+
+        // null hole ENTRY -> the NPE flavor at it.next().transformToBoard
+        assert!(matches!(
+            transform_area_to_board(&[Some(border.clone()), None], &ct()),
+            Threw
+        ));
+
+        // circle hole BEFORE the null entry: the instanceof failure at
+        // hole 0 returns null first — the null-entry hole is never reached
+        assert!(matches!(
+            transform_area_to_board(
+                &[Some(border.clone()), Some(circle_hole.clone()), None],
+                &ct()
+            ),
+            Null
+        ));
+
+        // null entry BEFORE the circle hole: the NPE at hole 0 wins
+        assert!(matches!(
+            transform_area_to_board(&[Some(border), None, Some(circle_hole)], &ct()),
+            Threw
+        ));
     }
 }
