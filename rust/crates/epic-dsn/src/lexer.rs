@@ -285,7 +285,9 @@ impl<'a> Scanner<'a> {
         match self.state {
             LexicalState::YyInitial => {
                 if let Some(kw) = Keyword::from_bytes(text) {
-                    self.state = kw.lexical_state_after();
+                    // the post-state is keyed by the SPELLING (JFlex
+                    // actions): the `wire_keepout` alias keeps YYINITIAL
+                    self.state = Keyword::scanned_lexical_state(text, kw);
                     return Token::Keyword(kw);
                 }
             }
@@ -293,7 +295,7 @@ impl<'a> Scanner<'a> {
                 if let Some(kw) = Keyword::from_bytes(text)
                     && matches!(kw, Keyword::Pcb | Keyword::Signal)
                 {
-                    self.state = kw.lexical_state_after();
+                    self.state = Keyword::scanned_lexical_state(text, kw);
                     return Token::Keyword(kw);
                 }
             }

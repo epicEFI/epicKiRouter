@@ -7,7 +7,7 @@
 //!
 //! `Structure.readScope` (`:936-1137`) loops over the scope body,
 //! dispatching `(layer ...)`, `(boundary ...)`, `(rule ...)`, `(via ...)`
-//! into [`BoardConstructionInfo`] (the Java private class, `:1299-1310`)
+//! into [`BoardConstructionInfo`] (the Java private class, `:1294-1303`)
 //! and the parse state; after the loop it builds the board once —
 //! `if (getRoutingBoard() == null)` (`:1034-1036`, mirrored by
 //! [`BoardSink::has_board`]) — via `createBoard` (`:1139-1286`): the T25
@@ -38,7 +38,15 @@
 //!   `ClassCastException` — parse dies.
 //! - Everything else (bad layer type, missing outline, degenerate shapes)
 //!   is a logged skip or a `false` return, never a throw.
+//!
+//! ## Documented divergences
+//!
+//! - EOF or a null token INSIDE the `(boundary` scope makes Java loop
+//!   FOREVER (`readBoundaryScope` only breaks on `CLOSED_BRACKET`;
+//!   empirically verified — the only `false` exit is the IOException
+//!   handler `:294-296`). The port returns `false` instead of hanging.
 
+use super::rule::{Rule, read_rule_scope};
 use crate::coordinate_transform::{
     CoordinateTransform, calc_scale_factor, max_abs_scaled_coordinate,
 };
@@ -52,33 +60,11 @@ use crate::sink::{
 };
 use crate::state::ParseState;
 use epic_geometry::int_box::IntBox;
-use epic_geometry::int_point::IntPoint;
-use epic_geometry::point::Point;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::rounding::java_round;
 use epic_geometry::tile_shape::TileShape;
 
-/// Java `Rule` (`parser/Rule.java:313-331`): the two rule kinds the
-/// structure reader consumes (`WidthRule(value)`,
-/// `ClearanceRule(value, clearanceClassPairs)`).
-#[derive(Clone, Debug, PartialEq)]
-enum Rule {
-    /// Java `WidthRule`.
-    Width {
-        /// Java `value` (DSN units).
-        value: f64,
-    },
-    /// Java `ClearanceRule`.
-    Clearance {
-        /// Java `value` (DSN units).
-        value: f64,
-        /// Java `clearanceClassPairs` — the `(type ...)` string list, empty
-        /// when the rule has no type scope.
-        pairs: Vec<String>,
-    },
-}
-
-/// Java `Structure.LayerRule` (`:1312-1321`): the rules of one
+/// Java `Structure.LayerRule` (`:1305-1314`): the rules of one
 /// `(layer <name> (rule ...))` scope, remembered until the layers are
 /// fully known.
 #[derive(Clone, Debug, PartialEq)]
@@ -89,7 +75,7 @@ struct LayerRule {
     rules: Vec<Rule>,
 }
 
-/// Java `Structure.BoardConstructionInfo` (`:1299-1310`): the structure
+/// Java `Structure.BoardConstructionInfo` (`:1294-1303`): the structure
 /// scope content, accumulated while the scope body is read and consumed
 /// by `createBoard` afterwards.
 #[derive(Default)]
@@ -113,105 +99,6 @@ struct BoardConstructionInfo {
     layer_dependent_rules: Vec<LayerRule>,
 }
 
-/// The outcome of reading ONE rule inside [`read_rule_scope`].
-enum RuleOutcome {
-    /// A rule was parsed.
-    Parsed(Rule),
-    /// Java produced a `null` rule (`readWidthRule`/`readClearanceRule`
-    /// `return null`): the rule is dropped, the scope loop continues.
-    Skipped,
-    /// Java THREW (the `nextDouble` null-unboxing NPE): the whole parse
-    /// dies.
-    Fatal,
-}
-
-/// Java `Rule.readScope` (`Rule.java:24-64`). Returns `None` exactly when
-/// Java returns `null` (EOF/error token inside the scope) — the caller
-/// `Structure.java:982` NPEs on that (`addAll(null)`), so [`read_scope`]
-/// turns it into a parse failure.
-fn read_rule_scope(scanner: &mut Scanner) -> Option<Vec<Rule>> {
-    let mut result = Vec::new();
-    let mut prev_token: Option<Token> = None;
-    loop {
-        let current_token = scanner.next_token();
-        if matches!(current_token, Token::Eof | Token::Error(_)) {
-            // Java: null nextToken -> warn + `return null` (the
-            // IOException family behaves the same); the caller
-            // addAll(null) NPEs.
-            return None;
-        }
-        if current_token == Token::Close {
-            break;
-        }
-        if prev_token == Some(Token::Open) {
-            let outcome = match current_token {
-                Token::Keyword(Keyword::Width) => read_width_rule(scanner),
-                Token::Keyword(Keyword::Clearance) => read_clearance_rule(scanner),
-                _ => {
-                    skip_scope(scanner);
-                    RuleOutcome::Skipped
-                }
-            };
-            match outcome {
-                RuleOutcome::Parsed(rule) => result.push(rule),
-                RuleOutcome::Skipped => {}
-                RuleOutcome::Fatal => return None,
-            }
-        }
-        prev_token = Some(current_token);
-    }
-    Some(result)
-}
-
-/// Java `Rule.readWidthRule` (`Rule.java:109-117`): `(width <double>)`.
-/// A `nextDouble` null (unparsable number; Java unboxing NPE) is
-/// [`RuleOutcome::Fatal`]; a missing closing bracket makes the Java method
-/// return `null` ([`RuleOutcome::Skipped`]).
-fn read_width_rule(scanner: &mut Scanner) -> RuleOutcome {
-    let Some(value) = scanner.next_double() else {
-        return RuleOutcome::Fatal;
-    };
-    if !scanner.next_closing_bracket() {
-        return RuleOutcome::Skipped;
-    }
-    RuleOutcome::Parsed(Rule::Width { value })
-}
-
-/// Java `Rule.readClearanceRule` (`Rule.java:257-303`):
-/// `(clearance <double> [(type <pair list>)])`. The pair list is
-/// `nextStringList(CLASS_CLEARANCE_SEPARATOR = '-')`
-/// (`DsnFile.java:20`), so `power-ground` splits at the dash while
-/// `c__d` arrives as one element. Both `nextClosingBracket` failures and
-/// the `( expected`/`type expected` exits make Java return `null`
-/// ([`RuleOutcome::Skipped`]); only a `nextDouble` null is a Java throw
-/// ([`RuleOutcome::Fatal`]).
-fn read_clearance_rule(scanner: &mut Scanner) -> RuleOutcome {
-    let Some(value) = scanner.next_double() else {
-        return RuleOutcome::Fatal;
-    };
-    let mut pairs = Vec::new();
-    let next_token = scanner.next_token();
-    if next_token != Token::Close {
-        // look for "(type" (`Rule.java:263-275`)
-        if next_token != Token::Open {
-            return RuleOutcome::Skipped;
-        }
-        if scanner.next_token() != Token::Keyword(Keyword::Type) {
-            return RuleOutcome::Skipped;
-        }
-        pairs = scanner.next_string_list_with(b'-');
-        // the closing ")" of "(type" (`Rule.java:280-286`)
-        if !scanner.next_closing_bracket() {
-            return RuleOutcome::Skipped;
-        }
-        // the closing ")" of "(clearance" (`Rule.java:289-295`)
-        if !scanner.next_closing_bracket() {
-            return RuleOutcome::Skipped;
-        }
-    }
-    RuleOutcome::Parsed(Rule::Clearance { value, pairs })
-}
-
 /// Java `Structure.readBoundaryScope` (`:273-304`). The FIRST shape is
 /// read with a NULL layer structure (boundary shapes only understand
 /// pcb/signal layers; `Shape.readScope(scanner, null)`); further shape
@@ -225,8 +112,10 @@ fn read_boundary_scope(scanner: &mut Scanner, info: &mut BoardConstructionInfo) 
     loop {
         let next_token = scanner.next_token();
         if matches!(next_token, Token::Eof | Token::Error(_)) {
-            // Java: the null-token/IOException exits both return false
-            // (`:294-296`).
+            // Java INFINITE-LOOPS here (only CLOSED_BRACKET breaks; the
+            // sole false exit is the IOException handler `:294-296`) —
+            // documented divergence, the port returns false (module
+            // docs, "Documented divergences").
             return false;
         }
         if next_token == Token::Close {
@@ -656,7 +545,7 @@ fn create_board(
             // ClassCastException — parse-fatal parity.
             Some(BoardShape::Circle(_)) => return false,
             Some(board_shape) => {
-                if board_shape_dimension(&board_shape) > 0 {
+                if board_shape.dimension() > 0 {
                     board_outline_shapes.push(board_shape);
                 }
             }
@@ -838,7 +727,7 @@ fn set_clearance_rule(
         create_default_clearance_classes(rules);
     }
     for current_string in pairs {
-        if current_string.eq_ignore_ascii_case("smd_to_turn_gap") {
+        if crate::sink::eq_ignore_case(current_string, "smd_to_turn_gap") {
             rules.set_pin_edge_to_turn_dist(f64::from(current_clearance));
             result = true;
             continue;
@@ -1003,7 +892,7 @@ fn separate_holes(outline_shapes: &mut Vec<BoardShape>) -> Vec<BoardShape> {
     hole_list
 }
 
-/// Java `Structure.OutlineShape` (`:1318-1353`): a transformed outline
+/// Java `Structure.OutlineShape` (`:1317-1352`): a transformed outline
 /// shape (always a `PolylineShape` — the createBoard casts reject
 /// circles) with its bounding box, convex decomposition and hole flag.
 struct OutlineShape {
@@ -1015,8 +904,8 @@ struct OutlineShape {
 
 impl OutlineShape {
     fn new(shape: BoardShape) -> Self {
-        let bounding_box = board_shape_bounding_box(&shape);
-        let convex_shapes = board_shape_split_to_convex(&shape);
+        let bounding_box = shape.bounding_box();
+        let convex_shapes = shape.split_to_convex();
         Self {
             shape,
             bounding_box,
@@ -1032,8 +921,8 @@ impl OutlineShape {
         let Some(convex_shapes) = &self.convex_shapes else {
             return false;
         };
-        for i in 0..board_shape_border_line_count(&other.shape) {
-            let current_corner = board_shape_corner(&other.shape, i);
+        for i in 0..other.shape.border_line_count() {
+            let current_corner = other.shape.corner(i);
             if !convex_shapes
                 .iter()
                 .any(|tile| tile.contains_point(&current_corner))
@@ -1042,60 +931,6 @@ impl OutlineShape {
             }
         }
         true
-    }
-}
-
-/// Java `PolylineShape.dimension()`: 0 for degenerate shapes, 2 for real
-/// areas (the Circle arm is unreachable — create_board rejects circles
-/// with ClassCastException parity before this runs).
-fn board_shape_dimension(shape: &BoardShape) -> i32 {
-    match shape {
-        BoardShape::Tile(tile) => tile.dimension(),
-        BoardShape::PolygonShape(polygon) => polygon.dimension(),
-        BoardShape::Circle(_) => 0,
-    }
-}
-
-/// Java `PolylineShape.boundingBox()`.
-fn board_shape_bounding_box(shape: &BoardShape) -> IntBox {
-    match shape {
-        BoardShape::Tile(tile) => tile.bounding_box(),
-        BoardShape::PolygonShape(polygon) => polygon.bounding_box(),
-        BoardShape::Circle(_) => {
-            // unreachable (see board_shape_dimension)
-            IntBox::new(IntPoint::new(0, 0), IntPoint::new(0, 0))
-        }
-    }
-}
-
-/// Java `PolylineShape.splitToConvex()`: tiles decompose to themselves
-/// (`TileShape.java:890-894`); the polygon split can fail (Java null).
-fn board_shape_split_to_convex(shape: &BoardShape) -> Option<Vec<TileShape>> {
-    match shape {
-        BoardShape::Tile(tile) => Some(vec![tile.clone()]),
-        BoardShape::PolygonShape(polygon) => polygon.split_to_convex(),
-        BoardShape::Circle(_) => None, // unreachable (see board_shape_dimension)
-    }
-}
-
-/// Java `PolylineShape.borderLineCount()`.
-fn board_shape_border_line_count(shape: &BoardShape) -> i32 {
-    match shape {
-        BoardShape::Tile(tile) => tile.border_line_count() as i32,
-        BoardShape::PolygonShape(polygon) => polygon.border_line_count() as i32,
-        BoardShape::Circle(_) => 0, // unreachable (see board_shape_dimension)
-    }
-}
-
-/// Java `PolylineShape.corner(i)`.
-fn board_shape_corner(shape: &BoardShape, no: i32) -> Point {
-    match shape {
-        BoardShape::Tile(tile) => tile.corner(no),
-        BoardShape::PolygonShape(polygon) => polygon.corner(no),
-        BoardShape::Circle(_) => {
-            // unreachable (see board_shape_dimension)
-            Point::Int(IntPoint::new(0, 0))
-        }
     }
 }
 
@@ -1206,7 +1041,7 @@ mod tests {
             crate::ses_board::ItemIr::BoardOutline { id, outline } => {
                 assert_eq!(*id, 1);
                 assert_eq!(outline.shapes.len(), 1);
-                let bbox = board_shape_bounding_box(&outline.shapes[0]);
+                let bbox = outline.shapes[0].bounding_box();
                 assert_eq!(
                     [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y],
                     [0, 0, 50_000, 40_000]
@@ -1312,7 +1147,7 @@ mod tests {
             assert_eq!(keepout.layer_no, index as i32);
             assert_eq!(keepout.clearance_class, 0);
             assert_eq!(keepout.fixed, FixedStateIr::SystemFixed);
-            let bbox = board_shape_bounding_box(&keepout.area.border);
+            let bbox = keepout.area.border.bounding_box();
             assert_eq!(
                 [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y],
                 [12_000, 12_000, 18_000, 18_000]
@@ -1322,7 +1157,7 @@ mod tests {
             crate::ses_board::ItemIr::BoardOutline { outline, .. } => {
                 assert_eq!(outline.clearance_class, 2);
                 assert_eq!(outline.shapes.len(), 1);
-                let bbox = board_shape_bounding_box(&outline.shapes[0]);
+                let bbox = outline.shapes[0].bounding_box();
                 assert_eq!(
                     [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y],
                     [10_000, 10_000, 20_000, 20_000]
@@ -1377,7 +1212,7 @@ mod tests {
             crate::ses_board::ItemIr::BoardOutline { outline, .. } => {
                 assert_eq!(outline.clearance_class, 1);
                 assert_eq!(outline.shapes.len(), 1);
-                let bbox = board_shape_bounding_box(&outline.shapes[0]);
+                let bbox = outline.shapes[0].bounding_box();
                 assert_eq!(
                     [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y],
                     [10_000, 10_000, 40_000, 40_000]
@@ -1390,7 +1225,7 @@ mod tests {
             let crate::ses_board::ItemIr::Keepout { keepout, .. } = item else {
                 panic!("expected keepouts after the outline, got {item:?}");
             };
-            let bbox = board_shape_bounding_box(&keepout.area.border);
+            let bbox = keepout.area.border.bounding_box();
             assert_eq!(
                 [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y],
                 [36_000, 20_000, 39_000, 30_000]
@@ -1449,7 +1284,7 @@ mod tests {
         match &board.items[0] {
             crate::ses_board::ItemIr::BoardOutline { outline, .. } => {
                 assert_eq!(outline.shapes.len(), 1);
-                let bbox = board_shape_bounding_box(&outline.shapes[0]);
+                let bbox = outline.shapes[0].bounding_box();
                 assert_eq!(
                     [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y],
                     [0, 0, 50_000, 40_000]

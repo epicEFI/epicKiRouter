@@ -475,10 +475,12 @@ pub struct BoardOutlineIr {
     pub fixed: FixedStateIr,
 }
 
-/// Java `String.equalsIgnoreCase` over the ASCII identifier space (shared
-/// by `ClearanceMatrix.getNo` and the board-side registry lookups): both
-/// sides lowercased and compared. A full UTF-16 per-char port lands only
-/// if a fixture ever diverges (same simplification as `ses_board`).
+/// Java `String.equalsIgnoreCase` over the ASCII identifier space (the ONE
+/// shared helper: `ClearanceMatrix.getNo`, the board-side registry lookups
+/// in `ses_board` (`rules/Nets.java:39,51`, `Padstacks.get`) and the
+/// structure-reader `smd_to_turn_gap` check): both sides lowercased and
+/// compared. A full UTF-16 per-char port lands only if a fixture ever
+/// diverges.
 pub(crate) fn eq_ignore_case(a: &str, b: &str) -> bool {
     a.to_lowercase() == b.to_lowercase()
 }
@@ -486,15 +488,17 @@ pub(crate) fn eq_ignore_case(a: &str, b: &str) -> bool {
 /// Java `ClearanceMatrix` parse subset (`rules/ClearanceMatrix.java`):
 /// class names in matrix order and the per-layer clearance values.
 ///
-/// Storage is `values[layer][i][j]` — Java stores `row[j].column[i]
-/// .layer[layer]`, i.e. the SAME `[layer][i][j]` indexing with `i` the
-/// first class argument (`ClearanceMatrix.java:107`).
+/// Storage is `values[layer][j][i]` — Java stores `row[j].column[i]
+/// .layer[layer]`, i.e. the outer index is the layer, the middle index is
+/// the SECOND class argument `j` (the row) and the inner index the FIRST
+/// class argument `i` (the column); `get_value` mirrors that order
+/// (`ClearanceMatrix.java:107`, `:126-160`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClearanceIr {
     /// Java `ClearanceMatrix` class names, matrix column/row order.
     pub names: Vec<String>,
-    /// `values[layer][i][j]`: clearance between classes `i` and `j` on
-    /// `layer` (board units, always even). Outer = layer.
+    /// `values[layer][j][i]`: clearance between classes `i` and `j` on
+    /// `layer` (board units, always even). Outer = layer, middle = `j`.
     pub values: Vec<Vec<Vec<i32>>>,
 }
 
@@ -701,14 +705,21 @@ impl BoardRulesIr {
 
     /// Java `setDefaultTraceHalfWidth(layer, value)` (`:122-127`): stores
     /// the width and lowers `minTraceHalfWidth` / raises
-    /// `maxTraceHalfWidth`. No range guard on this per-layer overload.
+    /// `maxTraceHalfWidth`. An out-of-range layer is ALL-OR-NOTHING: the
+    /// store AND the min/max bookkeeping are both skipped. (Java's
+    /// `NetClass.setTraceHalfWidth` would throw
+    /// `ArrayIndexOutOfBoundsException` there — unreachable at parse time
+    /// because the only caller pre-filters with `getNo(layer) >= 0`
+    /// (`Structure.java:641-660`); the guard is Rust-side hygiene, not an
+    /// observable parity surface.)
     pub fn set_default_trace_half_width(&mut self, layer: i32, value: i32) {
-        if let Some(slot) = self
-            .default_trace_half_widths
-            .get_mut(usize::try_from(layer).unwrap_or(usize::MAX))
-        {
-            *slot = value;
-        }
+        let Ok(layer_index) = usize::try_from(layer) else {
+            return;
+        };
+        let Some(slot) = self.default_trace_half_widths.get_mut(layer_index) else {
+            return;
+        };
+        *slot = value;
         self.min_trace_half_width = self.min_trace_half_width.min(value);
         self.max_trace_half_width = self.max_trace_half_width.max(value);
     }
@@ -784,7 +795,11 @@ pub struct CreateBoardIr {
     /// Java `boundingBox` — the transformed boundary bounds INCLUDING the
     /// offset(1000) (T43, `Structure.java:1207-1208`).
     pub bounding_box: IntBox,
-    /// Java `layerStructure`.
+    /// Java `layerStructure`. Carries the PARSER layers verbatim —
+    /// including any `(net ...)` names a `(layer ...)` scope declared:
+    /// Java rebuilds the BOARD layers as `new Layer(name, isSignal)`
+    /// from the parser list (`Structure.java:1180-1185`), dropping the
+    /// net names; only `name`/`no`/`is_signal` are board-observable.
     pub layer_structure: LayerStructure,
     /// Java `outlineShapes` — the transformed boundary shapes (board
     /// coordinates; becomes the id-1 [`BoardOutlineIr`] item).

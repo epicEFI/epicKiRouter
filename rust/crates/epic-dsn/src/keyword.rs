@@ -9,15 +9,29 @@
 //! `/tmp/epic-keyword-sweep.jsh` against
 //! `build/libs/freerouting-current-executable.jar`): for each constant the
 //! input `(<name> 42)` was scanned and the produced token + post-scan lexical
-//! state recorded. Four Java constants exist but are *not* recognized by the
+//! state recorded. Three Java constants are *not* recognized by the
 //! scanner's DFA and scan as plain `String` tokens: `PN`, `jumper`,
-//! `generated_by_freerouting`, `polygon_path`. They therefore have no enum
-//! variant here (the SES writer emits those names as literal text, so the
-//! writer side does not need them either). Conversely the word `path` is
-//! recognized as the [`Keyword::PolygonPath`] keyword — the classic
-//! Specctra wire-shape alias (jar: `(path F.Cu ...)` scans
-//! `KW:polygon_path`, and `(wire (path ...))` traces insert through
+//! `polygon_path` (no enum variant here — the SES writer emits those names
+//! as literal text). The fourth, `generated_by_freerouting`, is also
+//! unrecognizable under its canonical spelling but IS reached through the
+//! flex alias `generated_by_freeroute` (jar `/tmp/epic-t6-alias.out`), so
+//! it exists as [`Keyword::GeneratedByFreerouting`] — the only variant
+//! whose `name()` does not round-trip through [`Keyword::from_bytes`].
+//! Conversely the word `path` is recognized as the [`Keyword::PolygonPath`]
+//! keyword — the classic Specctra wire-shape alias (jar: `(path F.Cu ...)`
+//! scans `KW:polygon_path`, and `(wire (path ...))` traces insert through
 //! `read_wire_scope`'s polygon-path branch).
+//!
+//! Recognition is CASE-INSENSITIVE and abbreviation-friendly (jar
+//! `/tmp/epic-t6-alias.out`: `PCB`, `Circle`, `KEEPOUT`, `Structure`,
+//! `ROTATE_FIRST`, `On` all fold; the Specctra abbreviations `circ`,
+//! `clear`, `comp`, `prefered_direction[-_trace_costs]`,
+//! `against_prefered_direction_trace_costs`, `wire_keepout` and
+//! `generated_by_freeroute` produce their canonical keywords), in the
+//! YYINITIAL and LAYER_NAME states alike (`/tmp/epic-t6-alias2.out`).
+//! The NAME state has NO keyword table at all (even `keepout` scans as a
+//! string there). See [`Keyword::scanned_lexical_state`] for the
+//! spelling-vs-keyword post-state split.
 
 use crate::lexer::{LexicalState, Scanner, Token};
 
@@ -46,6 +60,7 @@ pub enum Keyword {
     Fanout,
     Fix,
     FlipStyle,
+    GeneratedByFreerouting,
     FortyfiveDegree,
     Fromto,
     Front,
@@ -129,17 +144,21 @@ pub enum Keyword {
 }
 
 impl Keyword {
-    /// The scanner recognition table (jar-captured; see module docs).
+    /// The scanner recognition table for one already-lowercase word
+    /// (jar-captured; see module docs). Includes the flex ABBREVIATION
+    /// spellings, which produce the same Keyword flyweights as the
+    /// canonical names (jar `/tmp/epic-t6-alias.out`).
     ///
     /// Only [`LexicalState::YyInitial`] consults the full table; the
     /// [`LexicalState::LayerName`] state recognizes only `pcb` and `signal`
     /// (jar: `(path signal 42)` scans `KW:signal`, `(path via 42)` scans
     /// `STR:"via"`) — see [`Scanner::next_token`].
-    pub fn from_bytes(name: &[u8]) -> Option<Keyword> {
-        let keyword = match name {
+    fn match_table(word: &[u8]) -> Option<Keyword> {
+        let keyword = match word {
             b"absolute" => Keyword::Absolute,
             b"active" => Keyword::Active,
-            b"against_preferred_direction_trace_costs" => {
+            b"against_prefered_direction_trace_costs"
+            | b"against_preferred_direction_trace_costs" => {
                 Keyword::AgainstPreferredDirectionTraceCosts
             }
             b"attach" => Keyword::Attach,
@@ -147,14 +166,21 @@ impl Keyword {
             b"autoroute_settings" => Keyword::AutorouteSettings,
             b"back" => Keyword::Back,
             b"boundary" => Keyword::Boundary,
-            b"circle" => Keyword::Circle,
+            // the Specctra circle abbreviation (jar alias sweep: `KW circ
+            // -> KW:circle(st4)`)
+            b"circ" | b"circle" => Keyword::Circle,
             b"circuit" => Keyword::Circuit,
             b"class" => Keyword::Class,
             b"class_class" => Keyword::ClassClass,
             b"classes" => Keyword::Classes,
-            b"clearance" => Keyword::Clearance,
+            // the Specctra clearance abbreviation (jar: `KW clear ->
+            // KW:clearance(st0)`); `Rule.readScope` dispatches on the
+            // keyword, so `(rule (clear 600))` reads a clearance rule
+            b"clear" | b"clearance" => Keyword::Clearance,
             b"clearance_class" => Keyword::ClearanceClass,
-            b"component" => Keyword::Component,
+            // the Specctra component abbreviation (jar: `KW comp ->
+            // KW:component(st3)`)
+            b"comp" | b"component" => Keyword::Component,
             b"constant" => Keyword::Constant,
             b"control" => Keyword::Control,
             b"fanout" => Keyword::Fanout,
@@ -210,8 +236,13 @@ impl Keyword {
             b"position" => Keyword::Position,
             b"postroute" => Keyword::Postroute,
             b"power" => Keyword::Power,
-            b"preferred_direction" => Keyword::PreferredDirection,
-            b"preferred_direction_trace_costs" => Keyword::PreferredDirectionTraceCosts,
+            // the one-token `r`-less spellings (jar alias sweep: `KW
+            // prefered_direction -> KW:preferred_direction(st0)` and the
+            // two `_trace_costs` variants)
+            b"prefered_direction" | b"preferred_direction" => Keyword::PreferredDirection,
+            b"prefered_direction_trace_costs" | b"preferred_direction_trace_costs" => {
+                Keyword::PreferredDirectionTraceCosts
+            }
             b"pull_tight" => Keyword::PullTight,
             b"rect" => Keyword::Rectangle,
             b"rectangle" => Keyword::Rectangle,
@@ -248,9 +279,54 @@ impl Keyword {
             b"wire" => Keyword::Wire,
             b"wiring" => Keyword::Wiring,
             b"write_resolution" => Keyword::WriteResolution,
+            // the keepout alias: same KEYWORD as `keepout` but a DIFFERENT
+            // post-scan state — see [`Keyword::scanned_lexical_state`]
+            b"wire_keepout" => Keyword::Keepout,
+            // the `generated_by_freerouting` alias — the canonical spelling
+            // is NOT a scanner keyword (sweep NOT-KW!), only this
+            // abbreviated form is (jar alias sweep)
+            b"generated_by_freeroute" => Keyword::GeneratedByFreerouting,
             _ => return None,
         };
         Some(keyword)
+    }
+
+    /// The scanner recognition table (jar-captured; see module docs).
+    ///
+    /// Recognition is ASCII case-insensitive (jar `/tmp/epic-t6-alias.out`:
+    /// `PCB`, `Circle`, `KEEPOUT`, `Structure`, `ROTATE_FIRST`, `On` all
+    /// fold to their keywords) — the word is lowercased before the table
+    /// lookup; non-ASCII or oversized words are never keywords.
+    pub fn from_bytes(name: &[u8]) -> Option<Keyword> {
+        if let Some(keyword) = Self::match_table(name) {
+            return Some(keyword);
+        }
+        if name.len() > 64 || !name.is_ascii() {
+            return None;
+        }
+        let mut folded = [0u8; 64];
+        for (slot, byte) in folded.iter_mut().zip(name) {
+            *slot = byte.to_ascii_lowercase();
+        }
+        Self::match_table(&folded[..name.len()])
+    }
+
+    /// The lexical state the scanner switches to after scanning the word
+    /// `spelling` as `keyword`. In the JFlex grammar the post-scan state
+    /// lives on the ACTION (one per spelling), not on the shared Keyword
+    /// flyweight — so an alias can share the keyword but keep a different
+    /// state. The one divergent alias: `wire_keepout` produces
+    /// [`Keyword::Keepout`] but stays in [`LexicalState::YyInitial`]
+    /// (jar `/tmp/epic-t6-alias.out`: `(wire_keepout 42)` scans
+    /// `KW:keepout(st0)` while `(keepout 42)` scans `KW:keepout(st3)`).
+    /// Semantic effect: after `(wire_keepout `, a keyword-lookalike area
+    /// NAME (e.g. `circle`) is recognized as a keyword instead of a
+    /// string, so the keepout reads as unnamed — parse-level observable.
+    pub fn scanned_lexical_state(spelling: &[u8], keyword: Keyword) -> LexicalState {
+        if spelling.eq_ignore_ascii_case(b"wire_keepout") {
+            return LexicalState::YyInitial;
+        }
+        keyword.lexical_state_after()
     }
 
     /// The scanner-visible name of this keyword (Java `getName()`); used for
@@ -283,6 +359,9 @@ impl Keyword {
             Keyword::Fanout => "fanout",
             Keyword::Fix => "fix",
             Keyword::FlipStyle => "flip_style",
+            // the Java constant's name; the scanner spelling is the
+            // `generated_by_freeroute` alias (see [`Keyword::from_bytes`])
+            Keyword::GeneratedByFreerouting => "generated_by_freerouting",
             Keyword::FortyfiveDegree => "fortyfive_degree",
             Keyword::Fromto => "fromto",
             Keyword::Front => "front",
@@ -516,8 +595,11 @@ mod tests {
         assert_eq!(Keyword::from_bytes(b""), None);
     }
 
-    /// Jar sweep: four Java `Keyword` constants are NOT scanner keywords and
-    /// scan as `String` from the initial state ("NOT-KW!" sweep lines).
+    /// Jar sweep: four Java `Keyword` constants are NOT scanner keywords
+    /// under their canonical spellings and scan as `String` from the
+    /// initial state ("NOT-KW!" sweep lines). `generated_by_freerouting`
+    /// is nonetheless reachable through its `generated_by_freeroute`
+    /// alias — see [`abbreviation_aliases`].
     #[test]
     fn unrecognizable_java_constants() {
         assert_eq!(Keyword::from_bytes(b"PN"), None);
@@ -527,6 +609,83 @@ mod tests {
         // `polygon_path` is not a keyword; the keyword variant is reached
         // through the `path` alias instead.
         assert_eq!(Keyword::from_bytes(b"polygon_path"), None);
+    }
+
+    /// The flex ABBREVIATION spellings (jar session
+    /// `/tmp/epic-t6-alias.out`, `KW <spelling> ...` lines): each produces
+    /// the SAME Keyword flyweight as the canonical spelling. The
+    /// wire_keepout line also pins the post-state divergence
+    /// (`KW:keepout(st0)` vs canonical `(keepout 42)` -> `KW:keepout(st3)`).
+    #[test]
+    fn abbreviation_aliases() {
+        // "KW circ -> OPEN(st0) KW:circle(st4) STR:"42"(st0)"
+        assert_eq!(Keyword::from_bytes(b"circ"), Some(Keyword::Circle));
+        // "KW clear -> OPEN(st0) KW:clearance(st0) INT:42(st0)"
+        assert_eq!(Keyword::from_bytes(b"clear"), Some(Keyword::Clearance));
+        // "KW comp -> OPEN(st0) KW:component(st3) STR:"42"(st0)"
+        assert_eq!(Keyword::from_bytes(b"comp"), Some(Keyword::Component));
+        // "KW prefered_direction -> ... KW:preferred_direction(st0)"
+        assert_eq!(
+            Keyword::from_bytes(b"prefered_direction"),
+            Some(Keyword::PreferredDirection)
+        );
+        assert_eq!(
+            Keyword::from_bytes(b"prefered_direction_trace_costs"),
+            Some(Keyword::PreferredDirectionTraceCosts)
+        );
+        assert_eq!(
+            Keyword::from_bytes(b"against_prefered_direction_trace_costs"),
+            Some(Keyword::AgainstPreferredDirectionTraceCosts)
+        );
+        // "KW wire_keepout -> OPEN(st0) KW:keepout(st0) INT:42(st0)" —
+        // the keyword is Keepout but the post-state stays YYINITIAL.
+        assert_eq!(Keyword::from_bytes(b"wire_keepout"), Some(Keyword::Keepout));
+        assert_eq!(
+            Keyword::scanned_lexical_state(b"wire_keepout", Keyword::Keepout),
+            LexicalState::YyInitial
+        );
+        // canonical keepout for contrast: NAME state (st3)
+        assert_eq!(
+            Keyword::scanned_lexical_state(b"keepout", Keyword::Keepout),
+            LexicalState::Name
+        );
+        // "KW generated_by_freeroute -> ... KW:generated_by_freerouting(st0)"
+        assert_eq!(
+            Keyword::from_bytes(b"generated_by_freeroute"),
+            Some(Keyword::GeneratedByFreerouting)
+        );
+        // ... while the canonical spelling scans as a string
+        assert_eq!(Keyword::from_bytes(b"generated_by_freerouting"), None);
+        // readBoard-level pins: jar `/tmp/epic-t6-board.out` —
+        // `/tmp/epic-t6-alias.dsn` parses `(rule (clear 600))` into
+        // clearance matrix M11 = 6000 on every layer (an unrecognized
+        // abbreviation would leave 0), and `/tmp/epic-t6-t37-comp.dsn`
+        // (alias `comp` inside `(placement ...)`) inserts the same board
+        // as the canonical `(component ...)` fixture `t6-t37-fire.dsn`
+        // (COMPONENT_COUNT 1, ITEMS 11 both).
+    }
+
+    /// Recognition is case-insensitive (jar `/tmp/epic-t6-alias.out`:
+    /// `PCB`, `Circle`, `KEEPOUT`, `Structure`, `ROTATE_FIRST`, `On`; jar
+    /// `/tmp/epic-t6-alias2.out`: `SIGNAL` folds inside the LAYER_NAME
+    /// state too). Non-keywords stay non-keywords under folding.
+    #[test]
+    fn recognition_folds_ascii_case() {
+        assert_eq!(Keyword::from_bytes(b"PCB"), Some(Keyword::Pcb));
+        assert_eq!(Keyword::from_bytes(b"Circle"), Some(Keyword::Circle));
+        assert_eq!(Keyword::from_bytes(b"KEEPOUT"), Some(Keyword::Keepout));
+        assert_eq!(Keyword::from_bytes(b"Structure"), Some(Keyword::Structure));
+        assert_eq!(
+            Keyword::from_bytes(b"ROTATE_FIRST"),
+            Some(Keyword::RotateFirst)
+        );
+        assert_eq!(Keyword::from_bytes(b"On"), Some(Keyword::On));
+        assert_eq!(Keyword::from_bytes(b"SIGNAL"), Some(Keyword::Signal));
+        // folded non-keywords are still no keywords (jar: `STR:"F.Cu"`)
+        assert_eq!(Keyword::from_bytes(b"F.CU"), None);
+        assert_eq!(Keyword::from_bytes(b"CIRCLE42"), None);
+        // non-ASCII never folds into a keyword
+        assert_eq!(Keyword::from_bytes(b"KEEPO\xc3\x9cT"), None);
     }
 
     /// Jar: `path` scans as the POLYGON_PATH keyword with LAYER_NAME
@@ -618,6 +777,12 @@ mod tests {
 
     /// Every keyword's `name()` must round-trip through `from_bytes` (the
     /// table and the names are two views of the same jar-captured data).
+    ///
+    /// [`Keyword::GeneratedByFreerouting`] is deliberately ABSENT from
+    /// `ALL`: its canonical name is not a scanner spelling (its variant
+    /// is reached only through the `generated_by_freeroute` alias — see
+    /// [`abbreviation_aliases`]), so the round-trip property does not
+    /// hold for it. Count stays at the jar-swept 101.
     #[test]
     fn names_round_trip() {
         const ALL: &[Keyword] = &[

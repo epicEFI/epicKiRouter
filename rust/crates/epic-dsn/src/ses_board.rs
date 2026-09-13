@@ -89,7 +89,7 @@ use crate::layer_structure::LayerStructure;
 use crate::sink::{
     BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr,
     CreateBoardIr, FixedStateIr, ImageIr, KeepoutIr, MetadataIr, NetClassIr, NetIr, PadstackIr,
-    PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr,
+    PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr, eq_ignore_case,
 };
 use crate::state::AngleRestriction;
 use epic_geometry::int_box::IntBox;
@@ -224,15 +224,6 @@ impl Default for SesBoard {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Java `String.equalsIgnoreCase` for the board-side lookups
-/// (`rules/Nets.java:39,51`, `Padstacks.get`, `ClearanceMatrix.get_no`):
-/// simple lowercase folding on both sides agrees with Java's per-char
-/// loop for the corpus name space (ASCII identifiers; a full UTF-16
-/// per-char port lands only if a fixture ever diverges).
-fn eq_ignore_case(a: &str, b: &str) -> bool {
-    a.to_lowercase() == b.to_lowercase()
 }
 
 /// Java `replaceAll("\\.\\d+", "")` (T32): removes EVERY dot followed by

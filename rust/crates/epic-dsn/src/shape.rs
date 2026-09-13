@@ -172,6 +172,61 @@ pub enum BoardShape {
     Circle(BoardCircle),
 }
 
+impl BoardShape {
+    /// Java `PolylineShape.dimension()`: 0 for degenerate shapes, 2 for
+    /// real areas. The Circle arm is unreachable in the readers — Java
+    /// casts every board shape here to `PolylineShape` and a Circle
+    /// throws `ClassCastException` first (create_board / insertKeepout).
+    pub(crate) fn dimension(&self) -> i32 {
+        match self {
+            BoardShape::Tile(tile) => tile.dimension(),
+            BoardShape::PolygonShape(polygon) => polygon.dimension(),
+            BoardShape::Circle(_) => 0,
+        }
+    }
+
+    /// Java `PolylineShape.boundingBox()`. The Circle arm is unreachable
+    /// (see [`BoardShape::dimension`]); it returns a zero box.
+    pub(crate) fn bounding_box(&self) -> IntBox {
+        match self {
+            BoardShape::Tile(tile) => tile.bounding_box(),
+            BoardShape::PolygonShape(polygon) => polygon.bounding_box(),
+            BoardShape::Circle(_) => IntBox::new(IntPoint::new(0, 0), IntPoint::new(0, 0)),
+        }
+    }
+
+    /// Java `PolylineShape.splitToConvex()`: tiles decompose to themselves
+    /// (`TileShape.java:890-894`); the polygon split can fail (Java null).
+    /// The Circle arm is unreachable (see [`BoardShape::dimension`]).
+    pub(crate) fn split_to_convex(&self) -> Option<Vec<TileShape>> {
+        match self {
+            BoardShape::Tile(tile) => Some(vec![tile.clone()]),
+            BoardShape::PolygonShape(polygon) => polygon.split_to_convex(),
+            BoardShape::Circle(_) => None,
+        }
+    }
+
+    /// Java `PolylineShape.borderLineCount()`. The Circle arm is
+    /// unreachable (see [`BoardShape::dimension`]).
+    pub(crate) fn border_line_count(&self) -> i32 {
+        match self {
+            BoardShape::Tile(tile) => tile.border_line_count() as i32,
+            BoardShape::PolygonShape(polygon) => polygon.border_line_count() as i32,
+            BoardShape::Circle(_) => 0,
+        }
+    }
+
+    /// Java `PolylineShape.corner(i)`. The Circle arm is unreachable (see
+    /// [`BoardShape::dimension`]).
+    pub(crate) fn corner(&self, no: i32) -> Point {
+        match self {
+            BoardShape::Tile(tile) => tile.corner(no),
+            BoardShape::PolygonShape(polygon) => polygon.corner(no),
+            BoardShape::Circle(_) => Point::Int(IntPoint::new(0, 0)),
+        }
+    }
+}
+
 fn box_shape(r#box: IntBox) -> BoardShape {
     BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(r#box)))
 }
