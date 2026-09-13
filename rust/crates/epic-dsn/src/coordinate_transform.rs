@@ -142,6 +142,13 @@ impl CoordinateTransform {
     /// existing `geometry.planar.Shape` class is an IntBox, PolylineShape or
     /// Circle — so the Rust match is exhaustive and `None` is unreachable
     /// for the current [`BoardShape`] set (kept for signature parity).
+    ///
+    /// Call-site idiom (shared with [`board_to_dsn_rel_shape`]): because
+    /// `None` is unreachable for the current [`BoardShape`] set, call sites
+    /// unwrap with `.expect("board_to_dsn_shape: unreachable None arm")`
+    /// (or a same-shaped message) rather than propagating an `Option` — the
+    /// expect documents the invariant AND names the failure site should a
+    /// future BoardShape variant ever revive the dead Java branch.
     pub fn board_to_dsn_shape(&self, board_shape: &BoardShape, layer: &Layer) -> Option<Shape> {
         let result = match board_shape {
             BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(r#box))) => {
@@ -206,7 +213,9 @@ impl CoordinateTransform {
     /// approximations, Circle keeps the same diameter scaling
     /// (`2 * boardToDsn(radius)`, `:147`) with only the CENTER going through
     /// the base-free rel transform (`:148`). Same dead warn-null branch as
-    /// there.
+    /// there — and the same call-site idiom: always `Some` for the current
+    /// [`BoardShape`] set, so call sites `.expect(...)` the unreachable arm
+    /// (see [`CoordinateTransform::board_to_dsn_shape`]).
     pub fn board_to_dsn_rel_shape(&self, board_shape: &BoardShape, layer: &Layer) -> Option<Shape> {
         let result = match board_shape {
             BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(r#box))) => {

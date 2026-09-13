@@ -252,7 +252,11 @@ impl Shape {
 
 impl Rectangle {
     /// Java `boundingBox` (`Rectangle.java:24-27`) returns `this`; the port
-    /// clones (value-equal).
+    /// clones (value-equal). The clone is cheap (a `Layer` String plus four
+    /// doubles) and cannot be avoided without handing out `&self`, so the
+    /// hot loops of later M1b tasks (Task 4 board model, Task 13 SES writer)
+    /// should hoist the call out of inner loops instead of reaching for a
+    /// borrowing variant.
     pub fn bounding_box(&self) -> Rectangle {
         self.clone()
     }
@@ -317,6 +321,19 @@ impl Polygon {
     /// Java `transformToBoard` (`Polygon.java:25-36`): each corner through
     /// `dsnToBoard(double[]).round()`, then `PolygonShape` (which normalizes
     /// clockwise input away).
+    ///
+    /// CRASH PARITY (Task 3 review): `(polygon signal 0)` parses to an
+    /// EMPTY `coor: []` and the transform then panics indexing corner 0 —
+    /// exactly Java, where the same input reaches
+    /// `geometry.planar.PolygonShape.<init>` and throws
+    /// `ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0`
+    /// at `PolygonShape.java:72` (jar session `/tmp/epic-t3-part-b.jsh`,
+    /// output `/tmp/epic-t3-part-b.out`, EMPTY case: reader coorLen=0, then
+    /// the AIOOBE). The port panics the same way through
+    /// [`epic_geometry::polygon_shape::PolygonShape::new`]; whatever feeds
+    /// reader output into `transformAreaToBoard` (M1b Task 6) must treat
+    /// this as a parse failure BEFORE calling the transform, mirroring how
+    /// the Java parse dies on the same input.
     pub fn transform_to_board(&self, coordinate_transform: &CoordinateTransform) -> BoardShape {
         let mut points: Vec<Point> = Vec::with_capacity(self.coor.len() / 2);
         for i in 0..self.coor.len() / 2 {
@@ -1177,6 +1194,45 @@ mod tests {
         let rel_shape = c1.transform_to_board_rel(&ct());
         let rel = as_board_circle(&rel_shape);
         assert_eq!((rel.center.x, rel.center.y, rel.radius), (42, 20, 50));
+    }
+
+    /// T5b (Task 3 review carryover): ODD diameter 15 at scale 10 — the
+    /// halving ORDER becomes observable. Java halves AFTER scaling:
+    /// `(int) Math.round(dsnToBoard(15) / 2)` = round(150 / 2) = 75. A port
+    /// that halves (with rounding) in DSN space first computes
+    /// `Math.round(15 / 2)` = 8 and yields 80 — the T5 diameter-10 pin
+    /// cannot see that swap (both orders give 50). Jar session
+    /// `/tmp/epic-t3-part-b.jsh`, output `/tmp/epic-t3-part-b.out`:
+    /// "T5b circ15.toBoard=Circle: center (7,42)radius 75" and
+    /// "T5b circ15.toBoardRel=Circle: center (42,20)radius 75" (and the
+    /// named-layer form "T5b circ15Top.toBoard=... radius 75" — the base
+    /// plays no role in the radius). T5c: non-integer odd diameter 1.5 →
+    /// "T5c circ1p5.toBoard=... radius 8" — round(dsnToBoard(1.5)/2) =
+    /// round(7.5) = 8, the Math.round half-up boundary on the radius path.
+    #[test]
+    fn circle_radius_halves_after_scaling_odd_diameter() {
+        let c15 = Circle {
+            layer: Layer::signal(),
+            coor: [15.0, 4.2, 1.95],
+        };
+        let board_shape = c15.transform_to_board(&ct());
+        let board = as_board_circle(&board_shape);
+        assert_eq!((board.center.x, board.center.y, board.radius), (7, 42, 75));
+
+        let rel_shape = c15.transform_to_board_rel(&ct());
+        let rel = as_board_circle(&rel_shape);
+        assert_eq!((rel.center.x, rel.center.y, rel.radius), (42, 20, 75));
+
+        // The halve-in-DSN-space wrong form differs exactly here: 80, not 75.
+        assert_ne!(75, 10 * java_round(15.0 / 2.0) as i32);
+
+        let c1p5 = Circle {
+            layer: Layer::signal(),
+            coor: [1.5, 0.0, 0.0],
+        };
+        let board_shape = c1p5.transform_to_board(&ct());
+        let board = as_board_circle(&board_shape);
+        assert_eq!(board.radius, 8);
     }
 
     // ---- transforms: polygon path ---------------------------------------
