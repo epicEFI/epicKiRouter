@@ -50,7 +50,7 @@ Key entries: `DsnReader.readBoard(InputStream, BoardObservers, IdGenerator[, des
 | T28 | `nextStringList` swallows empty first element | KiCad 8 netlist workaround (`SpecctraDsnStreamReader.java:1805-1812`). |
 | T29 | Lexical-state name/keyword ambiguity | 8 lexical states (`:29-37`); `via` → Keyword only from initial-ish states; names force NAME state (`:948-951`); `skipScope` forces NAME (`ScopeKeyword.java:24`); a keyword-looking layer name is a String in NAME state. |
 | T30 | warn-vs-error asymmetry | Missing via padstack `Wiring.java:661-671`, unknown-layer wire dropped `:459-470`, degenerate keepout `Structure.java:862-876` → warn+continue; others fatal. Warnings list is parity-observable (`DsnReader.java:137-146`). |
-| T31 | Degenerate-input skips | zero-area keepouts (`Structure.java:862-876`), zero-length traces (`Wiring.java:516-545`), duplicate vias (`:699-703`), wires-outside-bbox dropped (`:498-510`), `(path)` with <5 tokens → null (`Shape.java:470-478`). |
+| T31 | Degenerate-input skips | zero-area keepouts (`Structure.java:862-876`), zero-length traces (`Wiring.java:516-545`), duplicate vias (`:699-703`), wires-outside-bbox dropped (`:498-510`), `(path)` with <5 tokens → null (`Shape.java:470-478`). Task 6 jar corrections: the zero-area-keepout warning is **FRLogger log-only** — it does NOT enter the D12 digest warnings list (that list is fed only by `Wiring.java`'s `warnings.add` sites via `ReadScopeParameter.warnings`); and nonzero-radius **circle keepouts INSERT** (`Circle.dimension()==2` for radius>0, `Circle.java:36-42`) — only radius-0 circles are degenerate. |
 | T32 | Padstack-name `.N` suffix strip | `replaceAll("\\.\\d+","")` at `Wiring.java:659` and `Network.java:1289-1291`; ALSO at `Library.java:113` (strip happens BEFORE the dedup `get` at `:158`, so library dedup is effectively strip-match — jar-probed Task 4). Subnet number is a bare positional int after the net name (`Network.java:1336-1345`), not a scope. Task 4 fix-round correction: the network-TAIL via-name clean is this same `.N`-strip (`Network.java:1292-1294`); the via-INFO path's registry get (`:275`) does NOT strip. |
 | T33 | Clearance-class pair 3-way syntax | 2-element list, quote-split, underscore-split + `smd_to_turn_gap` special (`Structure.java:712-747`); `wire`→class 1 (`:750-763`). |
 | T34 | Electra Top/Bottom fallback | `LayerStructure.getNo`: any name containing "Top" → 0, "Bottom" → last (`LayerStructure.java:33-40`). |
@@ -193,7 +193,7 @@ Writer has NO timestamps/RNG/UUID; ordering fully determined (placement by id as
 
 **Files:** Modify `src/scope/structure.rs`.
 
-- [ ] Keepout/place-keepout/via-keepout scopes with degenerate skips (T31: zero-area dropped with warning `Structure.java:862-876` — the warning string is parity surface D12).
+- [ ] Keepout/place-keepout/via-keepout scopes with degenerate skips (T31: zero-area dropped with warning `Structure.java:862-876` — warning is FRLogger log-only, NOT D12 digest surface; see T31 row. NONZERO-RADIUS CIRCLE KEEPOUTS INSERT — `Circle.dimension()` is 2, jar-refuted in Task 6).
 - [ ] Plane scopes → conduction areas (`Structure.java:1068-1122`) + `insertMissingPowerPlanes` (`:526-571`). IR decision (Task 3 quality review): represent `PolylineArea` as a dedicated `BoardArea { border, holes }`-style IR — `BoardShape` alone cannot carry holes; design it in here, not bolted on.
 - [ ] `adjust_plane_autoroute_settings` heuristic (T37, `DsnFile.java:32-114`): >50% area, middle signal layer, no traces → plane + USER_FIXED; runs only when no `(autoroute ...)` scope. Pin on a crafted fixture where the heuristic fires AND one where it doesn't (both jar-captured via digest warnings/fixed states).
 - [ ] Flip_style + snap angle.
@@ -223,7 +223,7 @@ Writer has NO timestamps/RNG/UUID; ordering fully determined (placement by id as
 
 **Files:** Create `src/scope/wiring.rs`, `src/scope/autoroute_settings.rs`, `src/scope/parser_scope.rs`; modify `reader.rs`.
 
-- [ ] `(wiring ...)`: wires/vias/conduction areas in file order (`Wiring.java` 715 LOC): unknown-layer drop, outside-bbox drop, zero-length skip, duplicate via skip, missing-padstack drop (T30/T31 — each with its digit-normalized warning pinned), `calcFixed` incl. verified T36 behavior, `.N` strip.
+- [ ] `(wiring ...)`: wires/vias/conduction areas in file order (`Wiring.java` 715 LOC): unknown-layer drop, outside-bbox drop, zero-length skip, duplicate via skip, missing-padstack drop (T30/T31 — each with its digit-normalized warning pinned), `calcFixed` incl. verified T36 behavior, `.N` strip. **Wiring.java's `warnings.add` sites are the ONLY feed of the D12 digest warnings list** (via `ReadScopeParameter.warnings`) — wire `push_warning` there (Task 6 left the channel in place, unwired). Also: capture + pin the T37 no-fire fixture (`/tmp/epic-t6-t37-nonet.dsn` pattern — wire veto; left unjar-captured by Task 6) and own the heuristic call site (`DsnReader.java:134-135`, gate `autorouteSettings == null`, not "no `(autoroute ...)` scope").
 - [ ] `normalize_all_traces` is NOT called — document at the wiring scope exit (D11 divergence class).
 - [ ] `(autoroute_settings ...)` → raw IR (D15, `AutorouteSettings.java` 243 LOC).
 - [ ] `(parser ...)` scope: string_quote (default `"`), space_in_quoted_tokens, host_cad/version, constants, reserved cascades (`Parser.java:92-168`).
