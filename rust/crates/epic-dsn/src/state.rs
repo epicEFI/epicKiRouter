@@ -256,6 +256,13 @@ impl NetList {
         self.nets.get(id)
     }
 
+    /// Mutable view for `Net.setPins` (`Network.java:1425`): REPLACES the
+    /// pin collection even on a duplicate net id (`getNet` never returns
+    /// null right after the contains/add dance above).
+    pub fn get_mut(&mut self, id: &NetId) -> Option<&mut Net> {
+        self.nets.get_mut(id)
+    }
+
     /// Java `getNets(component, pin)` (`NetList.java:44-55`): every net
     /// whose pin set contains `(component_name, pin_name)`, in netlist
     /// (TreeMap key) order.

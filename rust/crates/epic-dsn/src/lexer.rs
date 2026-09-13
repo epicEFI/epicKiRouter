@@ -76,8 +76,15 @@ pub enum LexicalState {
     /// JFlex `COMPONENT_NAME` (5) — no scanner rule enters this state (no
     /// keyword action selects it in the jar); kept for state-number parity.
     ComponentName,
-    /// JFlex `SPEC_CHAR` (6) — no scanner rule enters this state (no
-    /// keyword action selects it in the jar); kept for state-number parity.
+    /// JFlex `SPEC_CHAR` (6) — no keyword ACTION selects it, but
+    /// `Network.readNetPins` enters it by hand (`yybegin(SPEC_CHAR)`) to
+    /// overread the `-` between the component and pin halves of a
+    /// `R1-1` pin token (`Network.java:219`). In this state only one
+    /// scanner rule exists: a lone `-` scans as the one-char String `-`
+    /// and the state STAYS `SPEC_CHAR`; every other non-whitespace byte
+    /// (brackets included) logs "Non-ansi character ..." (FRLogger-only)
+    /// and scans as `null` — the byte is consumed and the state stays
+    /// (jar /tmp/epic-t8-scanner captures).
     SpecChar,
     /// JFlex `IGNORE_QUOTE` (7) — entered by the `string_quote` keyword.
     /// There the configured quote character is an ordinary word character:
@@ -164,6 +171,20 @@ impl<'a> Scanner<'a> {
             let Some(&b) = self.input.get(self.cursor) else {
                 return Token::Eof;
             };
+
+            // SPEC_CHAR has no keyword table: one byte per call — the `-`
+            // scans as the String "-", anything else as Java `null` (the
+            // "Non-ansi character" warn is FRLogger-only). Brackets are NOT
+            // special here (the jar eats them, state unchanged) — so this
+            // arm MUST sit before the bracket check.
+            if self.state == LexicalState::SpecChar {
+                self.cursor += 1;
+                return if b == b'-' {
+                    Token::Str("-".into())
+                } else {
+                    Token::Eof
+                };
+            }
 
             // Brackets are recognized in every lexical state and reset to
             // the initial state (jar: `(net (x))` -> `OPEN(st0)`).
@@ -818,6 +839,53 @@ mod tests {
         let mut scanner = scanner_after("()", 1);
         assert_eq!(scanner.next_string(), "");
         assert_eq!(scanner.next_token(), Token::Close);
+    }
+
+    // ------------------------------------------------------------------
+    // SPEC_CHAR (Network.readNetPins overread state)
+    // ------------------------------------------------------------------
+
+    /// Jar `/tmp/epic-t8-scanner` (probe `two-pins`, input `(R1-1))`):
+    /// after `nextString(true, '-')` reads "R1", `yybegin(SPEC_CHAR)` +
+    /// `nextToken` yields the one-char String "-" and the state STAYS
+    /// SPEC_CHAR; the following `nextString(true)` reads the pin "1" and
+    /// resets to YYINITIAL, so the scope's closing bracket still scans as
+    /// CLOSE. The empty-pin form `(R1-))` diverges: the empty pin read
+    /// leaves SPEC_CHAR active (Java resets the state only for `i > 0`),
+    /// the post-loop `nextToken` eats the first `)` as Non-ansi/null, and
+    /// readNetPins reports the missing end of file (`null`) — the pin
+    /// entry `(R1, "")` is still added (jar probe `empty-pin`).
+    #[test]
+    fn spec_char_hyphen_overread_and_pin_scan() {
+        let mut scanner = scanner_after("(R1-1))", 1); // '(' consumed
+        assert_eq!(scanner.next_string_with(true, b'-'), "R1");
+        scanner.set_lexical_state(LexicalState::SpecChar);
+        assert_eq!(scanner.next_token(), str_token("-"));
+        assert_eq!(scanner.lexical_state(), LexicalState::SpecChar);
+        assert_eq!(scanner.next_string_with(true, b' '), "1");
+        assert_eq!(scanner.lexical_state(), LexicalState::YyInitial);
+        assert_eq!(scanner.next_token(), Token::Close);
+    }
+
+    /// Jar probe `empty-pin` continuation: in SPEC_CHAR a `)` is NOT a
+    /// bracket — it is consumed as Non-ansi and scans `null` (Java), the
+    /// state stays SPEC_CHAR, and EOF scans `null` too. This is the arm
+    /// that must sit BEFORE the bracket check (the discriminating form:
+    /// a bracket-first check would return CLOSE and "resynchronize" the
+    /// scope walk where Java desynchronizes).
+    #[test]
+    fn spec_char_brackets_and_letters_scan_null_and_stay() {
+        let mut scanner = scanner_after("x)a", 0);
+        scanner.set_lexical_state(LexicalState::SpecChar);
+        assert_eq!(scanner.next_token(), Token::Eof);
+        assert_eq!(scanner.lexical_state(), LexicalState::SpecChar);
+        assert_eq!(scanner.next_token(), Token::Eof);
+        assert_eq!(scanner.lexical_state(), LexicalState::SpecChar);
+        assert_eq!(scanner.next_token(), Token::Eof);
+        // and the input is fully consumed: after resetting the state the
+        // scanner is at end of input.
+        scanner.set_lexical_state(LexicalState::YyInitial);
+        assert_eq!(scanner.next_token(), Token::Eof);
     }
 
     // ------------------------------------------------------------------

@@ -289,6 +289,12 @@ pub struct NetIr {
     /// (`DsnFile.adjustPlaneAutorouteSettings`, `:87-89`). Network-scope
     /// nets (Task 8) insert with `false`.
     pub contains_plane: bool,
+    /// Java `Net.netClass` — the 0-based index into the net-class table
+    /// (`Net` ctor takes `rules.getDefaultNetClass()`, `rules/Net.java:22`
+    /// — the eagerly materialized class 0, see [`NetClassIr`]). Mutated by
+    /// the class membership lists and the wiring-scope `(net ...)` rules
+    /// (Task 8/9).
+    pub net_class: i32,
 }
 
 /// Java `ComponentPlacement` group + one placed instance, stored in
@@ -304,32 +310,113 @@ pub struct PlacementIr {
 }
 
 /// Java `Component` parse subset (`Network.java:957-966`
-/// `components.add(name, placement)`): id = `components.size() + 1`.
+/// `components.add(name, location, rotation, isFront, frontPackage,
+/// backPackage, positionFixed, partNumber)`): id = `components.size() + 1`.
+/// Both package numbers are resolved by the READER (`insertComponent`
+/// requires `packages.get(key, true)` AND `get(key, false)` non-null,
+/// `Network.java:936-943`); the location keeps Java's Option shape — a
+/// null coor still ADDS the component (unplaced) and only skips the board
+/// insertion half (`:969-971`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComponentIr {
     /// Java `Component.name` (the placed instance name, e.g. `U1`).
     pub name: String,
-    /// 0-based index into the placements table (Java stores the
-    /// `ComponentLocation` reference).
-    pub placement: usize,
+    /// Java `Component.packageNo(true)` — the front-side package id
+    /// (1-based; `Packages.get(key, true)`).
+    pub package_front: i32,
+    /// Java `Component.packageNo(false)` — the back-side package id.
+    pub package_back: i32,
+    /// Java `Component.location` — board coordinates (reader transforms
+    /// `dsnToBoard(coor).round()` per axis, `Network.java:945-950`);
+    /// `None` (Java null Point) for an unplaced component.
+    pub location: Option<IntPoint>,
+    /// Java `Component.rotation` — the NORMALIZED rotation in degrees
+    /// (the `Component` ctor normalizes with while loops: `>= 360`
+    /// subtracts, `< 0` adds — `Component.java:54-79`, NOT a `%` op:
+    /// -45.5 -> 314.5, 720.5 -> 0.5).
+    pub rotation: f64,
+    /// Java `Component.isFront`.
+    pub is_front: bool,
+    /// Java `Component.fixedState` (position -> SYSTEM_FIXED else
+    /// UNFIXED, `Network.java:974-976`).
+    pub fixed: FixedStateIr,
+    /// Java `Component.partNumber` (`(pn ...)` of the place scope).
+    pub part_number: Option<String>,
+    /// Java `Component.logicalPart` — set later by `insertLogicalParts`
+    /// (`Network.java:895`); `None` until then (kept on the IR so the SES
+    /// writer / digest see the final state).
+    pub logical_part: Option<String>,
 }
 
-/// Java `rules.NetClass` parse subset (`Network.java:436-543`
-/// `insertNetClass`); extended field-for-field by the Task 8 reader.
+/// Java `rules.NetClass` parse subset, field-for-field (`rules/NetClass.
+/// java`): identity is the 0-based POSITION in the net-class table —
+/// class 0 is the default class, eagerly materialized by `create_board`
+/// (Java's laziness in `BoardRules.getDefaultNetClass` is
+/// observationally equivalent because the structure reader runs
+/// `updateBoardRules` before the callback; with eager materialization the
+/// empty-table AIOOBE edge of `appendNetClass` is unreachable).
+///
+/// Write-through invariant: mutations of class 0's
+/// [`NetClassIr::default_item_clearance_classes`] /
+/// [`NetClassIr::trace_clearance_class`] /
+/// [`NetClassIr::trace_half_widths`] mirror into
+/// [`BoardRulesIr::default_item_clearance_classes`] /
+/// [`BoardRulesIr::default_trace_half_widths`] (the structure-era mirror
+/// consumed by `default_item_clearance_class` and the create_board
+/// outline-class resolution) — WITHOUT the min/max bookkeeping, which
+/// Java updates only via `BoardRules.setDefaultTraceHalfWidth*`
+/// (`NetClass.setTraceHalfWidth` touches nothing else).
 #[derive(Clone, Debug, PartialEq)]
 pub struct NetClassIr {
     /// Java `NetClass.name`.
     pub name: String,
-    /// Java `NetClass.clearance_class` — the clearance-class INDEX.
-    pub clearance_class: i32,
-    /// Java `NetClass.items` — the contained net numbers.
+    /// Java `NetClass.traceClearanceClass` (`rules/NetClass.java:26`):
+    /// ctor 0; `createDefaultNetClass` sets 1; `appendNetClass` copies the
+    /// default's; `getNewNetClass` copies the default's.
+    pub trace_clearance_class: i32,
+    /// Java `NetClass.traceHalfWidthArr` (`new int[layerCount]`, ctor
+    /// zeros; default class gets 1500 on every layer via the ALL-LAYERS
+    /// `setTraceHalfWidth(int)` fill, `BoardRules.java:206-208`;
+    /// `appendNetClass`/`getNewNetClass` fill EVERY layer with the
+    /// default's `traceHalfWidth(0)`, `BoardRules.java:148-158`/`:236`).
+    pub trace_half_widths: Vec<i32>,
+    /// Java `NetClass.activeRoutingLayerArr` — ctor-initializes EVERY
+    /// layer to `layer.isSignal` (`rules/NetClass.java:34-42`);
+    /// `createActiveTraceLayers` flips entries (`Network.java:711-728`).
+    /// Indexed by 0-based layer.
+    pub active_routing_layers: Vec<bool>,
+    /// Java `NetClass.defaultItemClearanceClasses` — a FRESH
+    /// `DefaultItemClearanceClasses` per class (`[0,1,1,1,1,1]`; the
+    /// Java-true value incl. the never-read NONE slot 0), CLONED from the
+    /// default class by `appendNetClass` (`BoardRules.java:234-235`),
+    /// FRESH (not cloned) by `getNewNetClass` (`:212-222`).
+    pub default_item_clearance_classes: [i32; 6],
+    /// Java `NetClass.viaRule` (null in the ctor; set by the via-rule
+    /// passes) — the identity id of [`ViaRuleIr`], `None` = Java null.
+    pub via_rule: Option<u32>,
+    /// Java `NetClass.pullTight` (ctor true).
+    pub pull_tight: bool,
+    /// Java `NetClass.shoveFixed` (ctor false).
+    pub shove_fixed: bool,
+    /// Java `NetClass.minTraceLength` (ctor 0.0; `(circuit (length ...))`).
+    pub min_trace_length: f64,
+    /// Java `NetClass.maxTraceLength` (ctor 0.0).
+    pub max_trace_length: f64,
+    /// Java `NetClass.items` — ctor empty and it STAYS EMPTY at parse
+    /// time: `Net.setClass` only assigns the net's back-pointer
+    /// (`rules/Net.java`); nothing appends to the class-side list during
+    /// the DSN read (an earlier "setClass appends" note here was wrong —
+    /// the membership is derivable from [`NetIr::net_class`]).
     pub nets: Vec<i32>,
 }
 
 /// Java `ViaInfo` (`rules/ViaInfo.java` fields: name, padstack,
 /// clearanceClassIndex, attachSmdAllowed) — one `(via ...)` rule of a net
-/// class (Task 8, `Network.java:1286-1318` resolves the padstack through
-/// the T32 query strip before this lands).
+/// class (Task 8, `Network.java:255-322`): the padstack is resolved by
+/// the case-SENSITIVE via-list probe first, falling back to the RAW-name
+/// case-insensitive registry query — NO `.N` strip on either path
+/// (`Network.java:275`; the strip happens only on the network TAIL
+/// replace, `:1292-1294`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ViaInfoIr {
     /// Java `ViaInfo.name`.
@@ -342,9 +429,64 @@ pub struct ViaInfoIr {
     pub attach_smd_allowed: bool,
 }
 
+/// Java `ViaRule` (`rules/ViaRule.java`): a named ordered list of via
+/// infos. Identity is the `id`, NOT a table position — Java stores
+/// object references in `BoardRules.viaRules` and on every net class;
+/// `addViaRule` REMOVES the same-named rule and re-adds, which under a
+/// position-identity scheme would shift every later index and silently
+/// re-point the net classes that held them. The sink assigns ids
+/// monotonically via [`BoardSink::append_via_rule`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ViaRuleIr {
+    /// The identity (sink-assigned, monotonic from 1).
+    pub id: u32,
+    /// Java `ViaRule.name`.
+    pub name: String,
+    /// Java `ViaRule.viaInfos` — the 0-based indexes into the via-info
+    /// table in rule order (Java holds the ViaInfo objects; that table is
+    /// append-only, so indexes are stable).
+    pub via_infos: Vec<i32>,
+}
+
+/// Java `LogicalPart.PartPin` board-side parse subset (`core/library/
+/// LogicalPart.java` fields `pinIndex`, `pinName`, `gateName`,
+/// `gateSwapCode`, `gatePinName`, `gatePinSwapCode`): the parsed
+/// [`crate::state::PartPin`] with the package pin INDEX resolved (the
+/// case-sensitive `Package.getPinIndex` lookup, `Network.java:855`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct LogicalPartPinIr {
+    /// Java `PartPin.pinIndex`.
+    pub pin_index: i32,
+    /// Java `PartPin.pinName`.
+    pub pin_name: String,
+    /// Java `PartPin.gateName`.
+    pub gate_name: String,
+    /// Java `PartPin.gateSwapCode`.
+    pub gate_swap_code: i32,
+    /// Java `PartPin.gatePinName`.
+    pub gate_pin_name: String,
+    /// Java `PartPin.gatePinSwapCode`.
+    pub gate_pin_swap_code: i32,
+}
+
+/// Java `LogicalPart` board-side (`core/library/LogicalPart.java`): the
+/// logical part as stored by `LogicalParts.add` — the pin array SORTED by
+/// pin index (`Arrays.sort` before construction). The SES writer and the
+/// board inventory walk this shape (the parse-state
+/// [`crate::state::LogicalPart`] keeps FILE order).
+#[derive(Clone, Debug, PartialEq)]
+pub struct LogicalPartIr {
+    /// Java `LogicalPart.name`.
+    pub name: String,
+    /// The sorted part pins.
+    pub pins: Vec<LogicalPartPinIr>,
+}
+
 /// Java `Pin` parse subset (`Network.java:1035` `insertPin(newComponent.id,
-/// i, netNumberArray, clearanceClass, fixedState)`): a component pin,
-/// placed at the transformed package-pin location.
+/// i, netNumberArray, clearanceClass, fixedState)`): a component pin; the
+/// center is DERIVED, not stored (`Pin` ctor takes the padstack and the
+/// component location; the placement lands in the sink's item list via
+/// [`ItemIr::Pin`] with no digest line).
 #[derive(Clone, Debug, PartialEq)]
 pub struct PinIr {
     /// Java `Pin.component_no`.
@@ -353,9 +495,6 @@ pub struct PinIr {
     pub pin_index: i32,
     /// The resolved padstack number (1-based).
     pub padstack_no: i32,
-    /// Java `Pin.getCenter()` — board coordinates (spike:
-    /// `place U1 2000 5000` at scale 10 -> `(20000, 50000)`).
-    pub center: IntPoint,
     /// Java `Pin.netNumbers`.
     pub nets: Vec<i32>,
     /// Java clearance class index — SMD (same-layer padstack) vs PIN
@@ -423,7 +562,10 @@ pub enum KeepoutKindIr {
 /// Java `ObstacleArea` keepout parse subset (structure keepouts
 /// `Structure.java:862-876` + outline holes `:1279-1283` + package
 /// keepouts `Network.java:1039-1124`). Parse-time keepouts never carry
-/// nets (the digest `K` line therefore has no net list).
+/// nets (the digest `K` line therefore has no net list). The component
+/// fields are the package-keepout context (`insertComponent` passes
+/// translation/rotation/side/component id/name); structure keepouts pass
+/// the identity defaults.
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeepoutIr {
     /// Which of the three keepout item classes.
@@ -434,8 +576,23 @@ pub struct KeepoutIr {
     pub area: AreaIr,
     /// Java clearance class index.
     pub clearance_class: i32,
-    /// Structure keepouts are SYSTEM_FIXED (spike item 2).
+    /// Structure keepouts are SYSTEM_FIXED (spike item 2); package
+    /// keepouts take the component's fixed state.
     pub fixed: FixedStateIr,
+    /// Java `ObstacleArea.component_no` — 0 for structure keepouts (Java
+    /// passes component 0, `Structure.java:862-876`).
+    pub component_id: i32,
+    /// Java `ObstacleArea.translation` — `Point.ZERO` for structure
+    /// keepouts.
+    pub translation: IntPoint,
+    /// Java `ObstacleArea.rotation` — 0.0 for structure keepouts.
+    pub rotation: f64,
+    /// Java `ObstacleArea.side_changed` — false except back-side package
+    /// keepouts (`!isFront`, `Network.java:1110`).
+    pub side_changed: bool,
+    /// Java `ObstacleArea.name` — `Some` only for package keepouts whose
+    /// image keepout carried a name (the placement info map key).
+    pub name: Option<String>,
 }
 
 /// Java `ConductionArea` parse subset: plane scopes (`Structure.java:
@@ -460,20 +617,49 @@ pub struct ConductionAreaIr {
 /// Java `ComponentOutline` parse subset (`Network.java:1192`, inserted
 /// when a package outline has more than one shape): burns an item id but
 /// emits NO digest line (the digest schema covers T/V/K/A only).
+/// `area: None` (Java null — a PolylinePath-stub outline slot or an
+/// untransformed shape) mirrors `BasicBoard.insertComponentOutline`'s
+/// null guard: NO item, NO id burned (the id is consumed only when the
+/// outline actually inserts).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComponentOutlineIr {
     /// Java `ComponentOutline.component_no`.
     pub component_id: i32,
     /// 0-based layer number.
     pub layer_no: i32,
-    /// The border + window holes.
-    pub area: AreaIr,
+    /// The border + window holes; `None` = the BasicBoard null guard
+    /// dropped the insertion.
+    pub area: Option<AreaIr>,
     /// Java `ComponentOutline.netNumbers` (empty at parse time).
     pub nets: Vec<i32>,
     /// Java clearance class index.
     pub clearance_class: i32,
     /// Java fixed state.
     pub fixed: FixedStateIr,
+    /// Java `ComponentOutline.isFront` — false for back-side components
+    /// (the shape is mirrored at geometry level, Task 9+).
+    pub is_front: bool,
+    /// Java `ComponentOutline.translation` — the component location
+    /// minus the origin (`Point.ZERO` translated, `Network.java:1158`).
+    /// Unplaced components never reach the outline loop (`insertComponent`
+    /// bails at `Network.java:969-971` before pins/keepouts/outlines).
+    pub translation: IntPoint,
+    /// Java `ComponentOutline.rotation` — the RAW placement rotation
+    /// (`insertComponentOutline` passes `rotationInDegree` UN-normalized,
+    /// `Network.java:1196`; the `Component` object normalizes its own
+    /// copy, the outline item keeps the raw value and mirrors it about
+    /// ZERO only for back-side components at geometry time, Task 9+).
+    pub rotation: f64,
+    /// Java `ComponentOutline.isCourtyard` — the largest-area outline of
+    /// the package, or every outline when the package has no widths
+    /// (`Network.java:1164-1186`).
+    pub is_courtyard: bool,
+    /// Java `ComponentOutline.isFabrication` — `!courtyard && width <=
+    /// 110.0` (`:1176-1180`).
+    pub is_fabrication: bool,
+    /// Java `ComponentOutline.isClosed` — the `outlineIsClosed[i]` flag,
+    /// FALSE beyond the array (`:1187-1190`).
+    pub is_closed: bool,
 }
 
 /// Java `BoardOutline` parse subset: created by the `BasicBoard`
@@ -889,6 +1075,14 @@ pub trait BoardSink {
     /// B.Cu conduction areas carry nets=[1].
     fn net_no_subnet(&self, name: &str, subnet_number: i32) -> Option<i32>;
 
+    /// Java `Nets.get(String)` — the ONE-argument overload
+    /// (`rules/Nets.java:54-62`): EVERY table entry whose name equals the
+    /// query case-INSENSITIVELY, in table (number) order. Consumed by
+    /// `Network.insertNetClass`'s net-list pass (`Network.java:472-477`,
+    /// which setClasses ALL matching subnets — the T35 case-variant
+    /// discriminator: class list `GND` reclasses both `GND` and `gnd`).
+    fn net_nos(&self, name: &str) -> Vec<i32>;
+
     /// Java `ClearanceMatrix.append_class`: appends a class unless a class
     /// with the name is already present (the dedup match rule is pinned by
     /// the Task 5 clearance pins; the two initial classes are `"null"` and
@@ -972,13 +1166,112 @@ pub trait BoardSink {
     /// comparison — the same outcome by a shorter route).
     fn package_pins(&self, package_no: i32) -> &[ImagePinIr];
 
-    // ---- rules ----------------------------------------------------------
+    /// The stored package with the given 1-based number — the full
+    /// [`ImageIr`] (pins, keepouts, outlines). `None` (Java null +
+    /// FRLogger warning) out of range. Consumed by `insertComponent`'s
+    /// keepout/outline expansion (`Network.java:1039-1204`), which needs
+    /// more than the pin slice.
+    fn package(&self, package_no: i32) -> Option<&ImageIr>;
 
-    /// Java `insertNetClass` (`Network.java:436-543`, Task 8).
-    fn insert_net_class(&mut self, net_class: NetClassIr);
+    /// Java `components.get(name).getPackage()` (`Network.java:926`, the
+    /// `searchLibPackage` tail): the first component whose name equals the
+    /// query CASE-SENSITIVELY, mapped through `Component.getPackage`
+    /// (`board/model/structure/Component.java:238-245`) = the FRONT package
+    /// number when the component is on the front side, the BACK one
+    /// otherwise. `None` (Java null -> the caller's log-only warning) on a
+    /// component-name miss.
+    fn component_package_no(&self, name: &str) -> Option<i32>;
 
-    /// Java via-info insertion (net-class via rules, Task 8).
+    // ---- rules: net classes / via infos / via rules (Task 8) ------------
+
+    /// Java `board.rules.netClasses` (`rules/NetClasses.java:22-27`, a
+    /// `Vector<NetClass>`): class 0 is the default class (eagerly
+    /// materialized by `create_board`, see [`NetClassIr`]). `None`-like
+    /// emptiness before `create_board` mirrors Java's null-board NPE —
+    /// the network reader treats an empty table as fatal.
+    fn net_classes(&self) -> &[NetClassIr];
+
+    /// Mutable view for the reader-side mutations (`setClass`,
+    /// `setTraceHalfWidth`, item-class writes, ...). Class-0 write-through
+    /// into [`BoardRulesIr`] is the READER's job (see the
+    /// [`NetClassIr`] docs).
+    fn net_classes_mut(&mut self) -> &mut Vec<NetClassIr>;
+
+    /// Mutable rules view for the class-0 write-through mirror: the
+    /// network reader copies default-class half-width writes into
+    /// [`BoardRulesIr::default_trace_half_widths`] and item-class writes
+    /// into [`BoardRulesIr::default_item_clearance_classes`] — WITHOUT
+    /// touching `min/max_trace_half_width` (Java's
+    /// `NetClass.setTraceHalfWidth` mutates nothing outside the class;
+    /// only `BoardRules.setDefaultTraceHalfWidth*` updates the bookkeeping,
+    /// and those setters never run after the structure scope).
+    fn board_rules_mut(&mut self) -> &mut BoardRulesIr;
+
+    /// Java `BoardRules.appendNetClass(String)` (`BoardRules.java:225-239`):
+    /// case-SENSITIVE `get(name)` hit returns it unchanged; otherwise
+    /// append a class that CLONES the default's item classes, copies the
+    /// default's `viaRule`, `traceClearanceClass` and `traceHalfWidth(0)`
+    /// (ONLY layer 0 — the rest stay 0). Returns the 0-based class index.
+    fn append_net_class(&mut self, name: &str) -> i32;
+
+    /// Java `BoardRules.getNewNetClass()` (`:210-223`): append a class
+    /// named `class<k>` (k from 1, advancing while the CASE-SENSITIVE
+    /// `get` hits, `NetClasses.java:55-64`) with FRESH item classes (NOT
+    /// cloned), the default's `traceClearanceClass`, the default via rule
+    /// ([`BoardSink::default_via_rule_id`]) and the default's
+    /// `traceHalfWidth(0)`. Returns the 0-based class index.
+    fn append_generated_net_class(&mut self) -> i32;
+
+    /// Java `board.rules.viaInfos` (`rules/ViaInfos.java`, a `Vector`).
+    fn via_infos(&self) -> &[ViaInfoIr];
+
+    /// Java `ViaInfos.get(String)` (`:43-50`): the 0-based index of the
+    /// FIRST info whose name equals the query (CASE-SENSITIVE
+    /// `String.equals`); `None` (Java null) on a miss.
+    fn via_info_no(&self, name: &str) -> Option<i32>;
+
+    /// Java `ViaInfos.add` (`:28-38`): silently DEDUPED — a no-op when an
+    /// info with the same name (case-sensitive) already exists; appends
+    /// otherwise. The boolean return is discarded at the call sites.
     fn append_via_info(&mut self, via_info: ViaInfoIr);
+
+    /// Java `board.rules.viaRules` (`rules/ViaRules.java`, a `Vector`).
+    fn via_rules(&self) -> &[ViaRuleIr];
+
+    /// Java `viaRules.add(new ViaRule(name))` — appends and returns the
+    /// identity id ([`ViaRuleIr::id`]). The member list arrives filled:
+    /// all three Task 8 call sites (`addViaRule` after member resolution,
+    /// `createViaRule`, `BoardRules.createDefaultViaRule`) append their
+    /// members WITH the rule — the members are the 0-based via-info
+    /// indexes in rule order.
+    fn append_via_rule(&mut self, name: String, via_infos: Vec<i32>) -> u32;
+
+    /// Java `ViaRules.get(String)` (`:21-28`): the id of the FIRST rule
+    /// whose name equals the query (case-sensitive); `None` (Java null).
+    fn via_rule_no(&self, name: &str) -> Option<u32>;
+
+    /// Java `viaRules.remove(existing)` (Vector identity removal): drops
+    /// the rule with the given id; a no-op when absent.
+    fn remove_via_rule(&mut self, id: u32);
+
+    /// Java `BoardRules.getDefaultViaRule()` (`:143-149`): the FIRST
+    /// rule's id, `None` (Java null) when the table is empty.
+    fn default_via_rule_id(&self) -> Option<u32>;
+
+    /// Java `Padstacks.get(int)` (`core/library/Padstacks.java:15-22`):
+    /// the 1-based registry entry; `None` (Java null + FRLogger warning)
+    /// out of range. The read-only padstack data (shapes for the
+    /// from/to-layer derivation, `attachAllowed` for the via-info
+    /// defaults) drives `insertComponent`'s pin expansion and the
+    /// default-via-infos pass.
+    fn padstack(&self, padstack_no: i32) -> Option<&PadstackIr>;
+
+    /// Java `board.rules.nets` (the net table in NUMBER order; net no =
+    /// position + 1).
+    fn nets(&self) -> &[NetIr];
+
+    /// Mutable view for `Net.setClass` and the logical-part writes.
+    fn nets_mut(&mut self) -> &mut Vec<NetIr>;
 
     /// Java `BoardLibrary.setViaPadstacks` (`core/library/BoardLibrary.java:81-84`):
     /// REPLACES the whole via-padstack list (the routing-eligible subset
@@ -1030,6 +1323,13 @@ pub trait BoardSink {
     /// never collide (registry dedup), so this matches Java 1:1.
     fn append_via_padstack(&mut self, padstack_no: i32);
 
+    /// The via-padstack list as registry numbers, in LIST order (the
+    /// 0-based via indexes of `BoardLibrary.getViaPadstack(int)` ARE the
+    /// positions). Read by the network scope: `(via ...)` scope reads
+    /// resolve padstacks against it FIRST (`Network.java:272`), and the
+    /// default-via-infos pass walks it (`:364-376`).
+    fn via_padstacks(&self) -> &[i32];
+
     /// Structure `(flip_style ...)` raw value (Task 6).
     fn set_flip_style(&mut self, flip_style: String);
 
@@ -1046,6 +1346,26 @@ pub trait BoardSink {
     /// `insertComponents` in parse order `:832-837`): appends and returns
     /// the 1-based component id.
     fn insert_component(&mut self, component: ComponentIr) -> i32;
+
+    /// Java `LogicalParts.add(name, pins)` (`core/library/LogicalParts.java`):
+    /// appends a board logical part; the pin array is SORTED by pin index
+    /// before construction (`Arrays.sort`, `LogicalParts.add`). The
+    /// parsed-order [`crate::state::LogicalPart`] entries convert to this
+    /// board shape in `Network.insertLogicalParts` after the package pin
+    /// indexes resolve.
+    fn append_logical_part(&mut self, part: LogicalPartIr);
+
+    /// Java `LogicalParts.get(String)` (`:33-38`): the canonical name of
+    /// the FIRST part whose name equals the query case-INSENSITIVELY;
+    /// `None` (Java null) on a miss.
+    fn logical_part_name(&self, name: &str) -> Option<String>;
+
+    /// Java `components.get(name).setLogicalPart(part)`
+    /// (`Network.java:884-895`): the case-SENSITIVE first component name
+    /// match gets the logical part name; a miss (component or part)
+    /// warns log-only. LATER mappings OVERWRITE — including an overwrite
+    /// to `None` (jar logical2: R1 mapped LPA then LPB ends `lp=LPB`).
+    fn set_component_logical_part(&mut self, component_name: &str, logical_part: Option<String>);
 
     /// Java `insertPin` (`Network.java:1035`): appends the pin item and
     /// returns its board id.
@@ -1102,6 +1422,16 @@ pub trait BoardSink {
     /// by `create_board` (T43, including the offset(1000)); `None` before.
     /// The power-plane fallback covers this box with a conduction area.
     fn board_bounding_box(&self) -> Option<IntBox>;
+
+    /// Java `board.layerStructure` (`Structure.java:387`) — the BOARD
+    /// layer structure, distinct from the PARSER one on
+    /// [`crate::state::ParseState::layer_structure`]. Task 8 needs it for
+    /// `board.layerStructure.getNo(...)` in the net-class layer rules
+    /// (`Network.java:502`, `:599`) and the all-signal keepout scan
+    /// (`Network.java:1131-1132`). `None` only before `create_board`
+    /// (Java's field is never null there; the network reader cannot run
+    /// without a board, so callers treat `None` as the NPE parity path).
+    fn board_layer_structure(&self) -> Option<&LayerStructure>;
 
     // ---- diagnostics + metadata -----------------------------------------
 

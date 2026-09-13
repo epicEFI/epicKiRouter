@@ -300,8 +300,10 @@ fn read_layer_scope(scanner: &mut Scanner, info: &mut BoardConstructionInfo) -> 
 /// scope; `(spare ...)` recurses and its list REPLACES then APPENDS at the
 /// end (`:437-443`). `None` mirrors the Java `null` return (EOF/error
 /// token, non-string entry) — the dispatch assigns it verbatim (`:980`),
-/// so a failed read clears any earlier list.
-fn read_via_padstacks(scanner: &mut Scanner) -> Option<Vec<String>> {
+/// so a failed read clears any earlier list. `pub(crate)`: the network
+/// scope's `(circuit (use_via ...))` reader (`Circuit.java:44-50` via
+/// `NetClass.java`) calls the SAME method.
+pub(crate) fn read_via_padstacks(scanner: &mut Scanner) -> Option<Vec<String>> {
     let mut normal_vias = Vec::new();
     let mut spare_vias = Vec::new();
     loop {
@@ -730,6 +732,11 @@ fn insert_keepout_item(
         area: area.clone(),
         clearance_class: clearance_class_index,
         fixed,
+        component_id: 0,
+        translation: epic_geometry::int_point::IntPoint::new(0, 0),
+        rotation: 0.0,
+        side_changed: false,
+        name: None,
     });
 }
 
@@ -747,6 +754,7 @@ fn add_plane_net(state: &mut ParseState, sink: &mut dyn BoardSink, name: &str) {
             name: name.to_string(),
             subnet_number: 1,
             contains_plane: true,
+            net_class: 0,
         });
     }
 }
@@ -1025,6 +1033,11 @@ fn create_board(
                 area: AreaIr::simple(hole.clone()),
                 clearance_class: 0,
                 fixed: FixedStateIr::SystemFixed,
+                component_id: 0,
+                translation: epic_geometry::int_point::IntPoint::new(0, 0),
+                rotation: 0.0,
+                side_changed: false,
+                name: None,
             });
         }
     }
@@ -1234,8 +1247,9 @@ fn set_clearance_rule(
 
 /// Java `Structure.containsWireClearancePair` (`:810-817`): the RAW
 /// strings, before any splitting — a `wire_` prefix or `_wire` suffix
-/// triggers the default class creation.
-fn contains_wire_clearance_pair(pairs: &[String]) -> bool {
+/// triggers the default class creation. Shared with the network reader
+/// (`Network.addClearanceRule`, Task 8).
+pub(crate) fn contains_wire_clearance_pair(pairs: &[String]) -> bool {
     pairs
         .iter()
         .any(|pair| pair.starts_with("wire_") || pair.ends_with("_wire"))
@@ -2547,6 +2561,7 @@ mod tests {
                 name: name.to_string(),
                 subnet_number: 1,
                 contains_plane: false,
+                net_class: 0,
             });
         }
         let big = AreaIr::simple(box_shape(IntBox::new(

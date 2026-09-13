@@ -6,6 +6,7 @@
 //! the `PartLibrary.java` half of [`library`].
 
 pub mod library;
+pub mod network;
 pub mod placement;
 pub mod plane;
 pub mod rule;

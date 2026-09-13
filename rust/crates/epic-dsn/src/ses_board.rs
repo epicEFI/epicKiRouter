@@ -88,8 +88,9 @@ use crate::coordinate_transform::CoordinateTransform;
 use crate::layer_structure::LayerStructure;
 use crate::sink::{
     BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr,
-    CreateBoardIr, FixedStateIr, ImageIr, ImagePinIr, ItemClassIr, KeepoutIr, MetadataIr,
-    NetClassIr, NetIr, PadstackIr, PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr, eq_ignore_case,
+    CreateBoardIr, FixedStateIr, ImageIr, ImagePinIr, ItemClassIr, KeepoutIr, LogicalPartIr,
+    MetadataIr, NetClassIr, NetIr, PadstackIr, PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr,
+    ViaRuleIr, eq_ignore_case,
 };
 use crate::state::AngleRestriction;
 use epic_geometry::int_box::IntBox;
@@ -203,10 +204,22 @@ pub struct SesBoard {
     pub via_padstacks: Vec<i32>,
     /// The component table (id = position + 1).
     pub components: Vec<ComponentIr>,
-    /// Net classes (Task 8 fills field-for-field).
+    /// Net classes (Task 8 fills field-for-field); class 0 is the default
+    /// class, eagerly materialized by `create_board`.
     pub net_classes: Vec<NetClassIr>,
     /// Via infos (net-class via rules, Task 8).
     pub via_infos: Vec<ViaInfoIr>,
+    /// Java `BoardRules.viaRules` — identity is [`ViaRuleIr::id`], not a
+    /// position (module docs on the struct: `addViaRule` removes and
+    /// re-adds, which would shift positions).
+    pub via_rules: Vec<ViaRuleIr>,
+    /// The id the NEXT appended via rule gets (monotonic from 1).
+    next_via_rule_id: u32,
+    /// Java `BoardLibrary.logicalParts` (`core/library/LogicalParts.java`):
+    /// board logical parts in insertion order; pins sorted by pin index
+    /// (`LogicalParts.add`). Filled by the network scope
+    /// (`insertLogicalParts`, Task 8).
+    pub logical_parts: Vec<LogicalPartIr>,
     /// The board rules (default trace widths, clearance matrix, item
     /// classes); built by the reader and handed over at `create_board`.
     pub rules: BoardRulesIr,
@@ -289,6 +302,9 @@ impl SesBoard {
             components: Vec::new(),
             net_classes: Vec::new(),
             via_infos: Vec::new(),
+            via_rules: Vec::new(),
+            next_via_rule_id: 1,
+            logical_parts: Vec::new(),
             rules: BoardRulesIr::new(0),
             items: Vec::new(),
             warnings: Vec::new(),
@@ -318,6 +334,17 @@ impl SesBoard {
         let id = self.next_item_id;
         self.next_item_id += 1;
         id
+    }
+
+    /// The `NetClass`-ctor initial `activeRoutingLayerArr`: per-layer
+    /// `isSignal` (`rules/NetClass.java:34-42`). The `None`-layers
+    /// fallback is unreachable through the readers (net classes are only
+    /// appended after `create_board`).
+    fn fresh_active_routing_layers(&self, layer_count: usize) -> Vec<bool> {
+        match &self.layers {
+            Some(layers) => layers.layers.iter().map(|layer| layer.is_signal).collect(),
+            None => vec![true; layer_count],
+        }
     }
 
     /// Java `DsnFile.adjustPlaneAutorouteSettings` (`DsnFile.java:32-114`),
@@ -482,6 +509,40 @@ impl BoardSink for SesBoard {
         self.layers = Some(board.layer_structure);
         self.bounding_box = Some(board.bounding_box);
         self.rules = board.rules;
+        // The default net class, eagerly materialized (Java's
+        // `BoardRules.getDefaultNetClass` creates it lazily on first
+        // touch, `BoardRules.java:136-143`; every consumer — structure
+        // keepouts through the rules mirror, network/wiring scope readers
+        // — observes the same end state because nothing between
+        // createBoard and the first touch can differ). Field-by-field:
+        // `createDefaultNetClass` (`:202-209`) sets hw 1500 all layers +
+        // traceClearanceClass 1, but the structure width rules already
+        // WROTE the same class's hw array (setDefaultTraceHalfWidth =
+        // getDefaultNetClass().setTraceHalfWidth + min/max, `:122-127`),
+        // so the final hw is the rules mirror verbatim; the item classes
+        // are the same array the rule retargets wrote
+        // (rules.default_item_clearance_classes). activeRoutingLayerArr
+        // starts per-layer isSignal (NetClass ctor, `rules/NetClass.java:
+        // 34-42`), viaRule stays null (createDefaultNetClass sets none),
+        // pullTight true, shoveFixed false, min/max 0.
+        let layer_structure = self.layers.as_ref().expect("just set above");
+        self.net_classes.push(NetClassIr {
+            name: "default".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: self.rules.default_trace_half_widths.clone(),
+            active_routing_layers: layer_structure
+                .layers
+                .iter()
+                .map(|layer| layer.is_signal)
+                .collect(),
+            default_item_clearance_classes: self.rules.default_item_clearance_classes,
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            nets: Vec::new(),
+        });
         // MinimalBoardManager.createBoard (ReadScopeParameter.java:139-166):
         // `outlineClearanceNo = 0`; with a class NAME present the number is
         // `max(0, clearanceMatrix.getNo(name))` — a MISS resolves to 0, the
@@ -609,12 +670,175 @@ impl BoardSink for SesBoard {
         }
     }
 
-    fn insert_net_class(&mut self, net_class: NetClassIr) {
-        self.net_classes.push(net_class);
+    fn package(&self, package_no: i32) -> Option<&ImageIr> {
+        let index = usize::try_from(package_no.checked_sub(1)?).ok()?;
+        self.packages.get(index)
+    }
+
+    fn component_package_no(&self, name: &str) -> Option<i32> {
+        let component = self
+            .components
+            .iter()
+            .find(|component| component.name == name)?;
+        Some(if component.is_front {
+            component.package_front
+        } else {
+            component.package_back
+        })
+    }
+
+    fn net_classes(&self) -> &[NetClassIr] {
+        &self.net_classes
+    }
+
+    fn net_classes_mut(&mut self) -> &mut Vec<NetClassIr> {
+        &mut self.net_classes
+    }
+
+    fn board_rules_mut(&mut self) -> &mut BoardRulesIr {
+        &mut self.rules
+    }
+
+    fn append_net_class(&mut self, name: &str) -> i32 {
+        // BoardRules.appendNetClass(String) (BoardRules.java:225-239):
+        // case-SENSITIVE get hit returns the stored class; otherwise
+        // append one that CLONES the default's item classes and copies
+        // viaRule + traceClearanceClass, filling EVERY hw layer with the
+        // default's hw[0] (the all-layers setTraceHalfWidth(int) fill).
+        if let Some(index) = self.net_classes.iter().position(|c| c.name == name) {
+            return index as i32;
+        }
+        let default = &self.net_classes[0];
+        let hw0 = default.trace_half_widths.first().copied().unwrap_or(0);
+        let layer_count = default.trace_half_widths.len();
+        let new_class = NetClassIr {
+            name: name.to_string(),
+            trace_clearance_class: default.trace_clearance_class,
+            trace_half_widths: vec![hw0; layer_count],
+            active_routing_layers: self.fresh_active_routing_layers(layer_count),
+            default_item_clearance_classes: default.default_item_clearance_classes,
+            via_rule: default.via_rule,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            nets: Vec::new(),
+        };
+        self.net_classes.push(new_class);
+        (self.net_classes.len() - 1) as i32
+    }
+
+    fn append_generated_net_class(&mut self) -> i32 {
+        // BoardRules.getNewNetClass() (BoardRules.java:145-151) over
+        // NetClasses.append(layerStructure, clearanceMatrix)
+        // (NetClasses.java:55-64): the generated name loop `do { ++index;
+        // "class" + index } while get != null` (case-SENSITIVE), FRESH
+        // item classes (NOT cloned), default traceClearanceClass, default
+        // via rule, and EVERY hw layer = default hw[0].
+        let mut index: u32 = 0;
+        let name = loop {
+            index += 1;
+            let candidate = format!("class{}", index);
+            if !self.net_classes.iter().any(|c| c.name == candidate) {
+                break candidate;
+            }
+        };
+        let default = &self.net_classes[0];
+        let hw0 = default.trace_half_widths.first().copied().unwrap_or(0);
+        let layer_count = default.trace_half_widths.len();
+        let new_class = NetClassIr {
+            name,
+            trace_clearance_class: default.trace_clearance_class,
+            trace_half_widths: vec![hw0; layer_count],
+            active_routing_layers: self.fresh_active_routing_layers(layer_count),
+            // Fresh DefaultItemClearanceClasses() = new int[6] + setAll(1)
+            // with setAll starting at i=1 -> [0,1,1,1,1,1] (the never-read
+            // NONE slot stays 0).
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: self.default_via_rule_id(),
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            nets: Vec::new(),
+        };
+        self.net_classes.push(new_class);
+        (self.net_classes.len() - 1) as i32
+    }
+
+    fn via_infos(&self) -> &[ViaInfoIr] {
+        &self.via_infos
+    }
+
+    fn via_info_no(&self, name: &str) -> Option<i32> {
+        // ViaInfos.get(String) (ViaInfos.java:43-50): first CASE-SENSITIVE
+        // name match, 0-based index.
+        self.via_infos
+            .iter()
+            .position(|info| info.name == name)
+            .map(|index| index as i32)
     }
 
     fn append_via_info(&mut self, via_info: ViaInfoIr) {
+        // ViaInfos.add (ViaInfos.java:28-38): silently deduped by
+        // case-sensitive name (the boolean return is discarded at the
+        // call sites).
+        if self.via_info_no(&via_info.name).is_some() {
+            return;
+        }
         self.via_infos.push(via_info);
+    }
+
+    fn via_rules(&self) -> &[ViaRuleIr] {
+        &self.via_rules
+    }
+
+    fn append_via_rule(&mut self, name: String, via_infos: Vec<i32>) -> u32 {
+        // viaRules.add(new ViaRule(name)): append under a fresh identity
+        // (ViaRuleIr::id is monotonic; positions are NOT identity). The
+        // members arrive resolved (Task 8 readers pass them filled).
+        let id = self.next_via_rule_id;
+        self.next_via_rule_id += 1;
+        self.via_rules.push(ViaRuleIr {
+            id,
+            name,
+            via_infos,
+        });
+        id
+    }
+
+    fn via_rule_no(&self, name: &str) -> Option<u32> {
+        // ViaRules.get(String): first CASE-SENSITIVE name match.
+        self.via_rules
+            .iter()
+            .find(|rule| rule.name == name)
+            .map(|rule| rule.id)
+    }
+
+    fn remove_via_rule(&mut self, id: u32) {
+        // viaRules.remove(existing): Vector identity removal.
+        self.via_rules.retain(|rule| rule.id != id);
+    }
+
+    fn default_via_rule_id(&self) -> Option<u32> {
+        // BoardRules.getDefaultViaRule() (BoardRules.java:243-249): first
+        // rule or null.
+        self.via_rules.first().map(|rule| rule.id)
+    }
+
+    fn padstack(&self, padstack_no: i32) -> Option<&PadstackIr> {
+        // Padstacks.get(int) (core/library/Padstacks.java:15-22): 1-based;
+        // out of range warns + null (the FRLogger warn is log-only here).
+        let index = usize::try_from(padstack_no.checked_sub(1)?).ok()?;
+        self.padstacks.get(index)
+    }
+
+    fn nets(&self) -> &[NetIr] {
+        &self.nets
+    }
+
+    fn nets_mut(&mut self) -> &mut Vec<NetIr> {
+        &mut self.nets
     }
 
     fn set_via_padstacks(&mut self, padstack_nos: Vec<i32>) {
@@ -651,6 +875,10 @@ impl BoardSink for SesBoard {
         self.via_padstacks.push(padstack_no);
     }
 
+    fn via_padstacks(&self) -> &[i32] {
+        &self.via_padstacks
+    }
+
     fn set_flip_style(&mut self, flip_style: String) {
         self.metadata.flip_style = Some(flip_style);
     }
@@ -668,6 +896,33 @@ impl BoardSink for SesBoard {
         self.components.len() as i32
     }
 
+    fn append_logical_part(&mut self, mut part: LogicalPartIr) {
+        // LogicalParts.add sorts the pin array by pin index BEFORE
+        // construction (Arrays.sort — stable merge sort).
+        part.pins.sort_by_key(|pin| pin.pin_index);
+        self.logical_parts.push(part);
+    }
+
+    fn logical_part_name(&self, name: &str) -> Option<String> {
+        // LogicalParts.get(String): first CASE-INSENSITIVE name match.
+        self.logical_parts
+            .iter()
+            .find(|part| eq_ignore_case(&part.name, name))
+            .map(|part| part.name.clone())
+    }
+
+    fn set_component_logical_part(&mut self, component_name: &str, logical_part: Option<String>) {
+        // Components.get(String): first CASE-SENSITIVE name match
+        // (Components.java); a miss is the caller's log-only warning.
+        if let Some(component) = self
+            .components
+            .iter_mut()
+            .find(|component| component.name == component_name)
+        {
+            component.logical_part = logical_part;
+        }
+    }
+
     fn insert_pin(&mut self, pin: PinIr) -> i32 {
         let id = self.alloc_item_id();
         self.items.push(ItemIr::Pin { id, pin });
@@ -675,8 +930,21 @@ impl BoardSink for SesBoard {
     }
 
     fn insert_component_outline(&mut self, outline: ComponentOutlineIr) -> i32 {
+        // BasicBoard.insertComponentOutline null guard: a null area (the
+        // PolylinePath-stub outline slot) inserts NOTHING and burns NO id
+        // (the ItemIdGenerator is only consulted on the insert path);
+        // 0 is the "not inserted" sentinel — real ids start at 1.
+        let Some(area) = outline.area else {
+            return 0;
+        };
         let id = self.alloc_item_id();
-        self.items.push(ItemIr::ComponentOutline { id, outline });
+        self.items.push(ItemIr::ComponentOutline {
+            id,
+            outline: ComponentOutlineIr {
+                area: Some(area),
+                ..outline
+            },
+        });
         id
     }
 
@@ -717,6 +985,18 @@ impl BoardSink for SesBoard {
             .map(|index| index as i32 + 1)
     }
 
+    fn net_nos(&self, name: &str) -> Vec<i32> {
+        // Nets.get(String) (rules/Nets.java:54-62): EVERY case-insensitive
+        // name match, in table order — insertNetClass's net-list pass
+        // setClasses all of them (T35: `GND` reclasses `gnd` too).
+        self.nets
+            .iter()
+            .enumerate()
+            .filter(|(_, net)| eq_ignore_case(&net.name, name))
+            .map(|(index, _)| index as i32 + 1)
+            .collect()
+    }
+
     fn layer_count(&self) -> i32 {
         // board.getLayerCount() — 0 before create_board.
         self.layers
@@ -740,6 +1020,10 @@ impl BoardSink for SesBoard {
 
     fn board_bounding_box(&self) -> Option<IntBox> {
         self.bounding_box
+    }
+
+    fn board_layer_structure(&self) -> Option<&LayerStructure> {
+        self.layers.as_ref()
     }
 
     fn push_warning(&mut self, warning: String) {
@@ -801,6 +1085,7 @@ mod tests {
                 name: "PERFECT".to_string(),
                 subnet_number: 1,
                 contains_plane: false,
+                net_class: 0,
             }),
             1
         );
@@ -821,22 +1106,40 @@ mod tests {
             area: AreaIr::simple(BoardShape::PolygonShape(PolygonShape::new(&corners))),
             clearance_class: 1,
             fixed: FixedStateIr::SystemFixed,
+            component_id: 0,
+            translation: IntPoint::new(0, 0),
+            rotation: 0.0,
+            side_changed: false,
+            name: None,
         });
 
         // network scope: component + pin insertions in parse order
         let u1 = board.insert_component(ComponentIr {
             name: "U1".to_string(),
-            placement: 0,
+            package_front: 1,
+            package_back: 1,
+            location: Some(IntPoint::new(20_000, 50_000)),
+            rotation: 0.0,
+            is_front: true,
+            fixed: FixedStateIr::Unfixed,
+            part_number: None,
+            logical_part: None,
         });
         let u2 = board.insert_component(ComponentIr {
             name: "U2".to_string(),
-            placement: 1,
+            package_front: 1,
+            package_back: 1,
+            location: Some(IntPoint::new(80_000, 50_000)),
+            rotation: 0.0,
+            is_front: true,
+            fixed: FixedStateIr::Unfixed,
+            part_number: None,
+            logical_part: None,
         });
         board.insert_pin(PinIr {
             component_id: u1,
             pin_index: 0,
             padstack_no: 2,
-            center: IntPoint::new(20_000, 50_000),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::Unfixed,
@@ -845,7 +1148,6 @@ mod tests {
             component_id: u2,
             pin_index: 0,
             padstack_no: 2,
-            center: IntPoint::new(80_000, 50_000),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::Unfixed,
@@ -991,6 +1293,7 @@ mod tests {
                 name: "GND".to_string(),
                 subnet_number: 1,
                 contains_plane: false,
+                net_class: 0,
             }),
             1
         );
@@ -999,6 +1302,7 @@ mod tests {
                 name: "gnd".to_string(),
                 subnet_number: 1,
                 contains_plane: false,
+                net_class: 0,
             }),
             2
         );
@@ -1007,6 +1311,7 @@ mod tests {
                 name: "VDD".to_string(),
                 subnet_number: 2,
                 contains_plane: false,
+                net_class: 0,
             }),
             3
         );
@@ -1160,14 +1465,28 @@ mod tests {
         assert_eq!(
             board.insert_component(ComponentIr {
                 name: "U1".to_string(),
-                placement: 0,
+                package_front: 1,
+                package_back: 1,
+                location: Some(IntPoint::new(20_000, 50_000)),
+                rotation: 0.0,
+                is_front: true,
+                fixed: FixedStateIr::Unfixed,
+                part_number: None,
+                logical_part: None,
             }),
             1
         );
         assert_eq!(
             board.insert_component(ComponentIr {
                 name: "U2".to_string(),
-                placement: 0,
+                package_front: 1,
+                package_back: 1,
+                location: Some(IntPoint::new(20_000, 50_000)),
+                rotation: 0.0,
+                is_front: true,
+                fixed: FixedStateIr::Unfixed,
+                part_number: None,
+                logical_part: None,
             }),
             2
         );

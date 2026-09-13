@@ -311,6 +311,7 @@ mod tests {
                 name: "PERFECT".to_string(),
                 subnet_number: 1,
                 contains_plane: false,
+                net_class: 0,
             }),
             1
         );
@@ -330,21 +331,39 @@ mod tests {
             area: AreaIr::simple(BoardShape::PolygonShape(PolygonShape::new(&corners))),
             clearance_class: 1,
             fixed: FixedStateIr::SystemFixed,
+            component_id: 0,
+            translation: IntPoint::new(0, 0),
+            rotation: 0.0,
+            side_changed: false,
+            name: None,
         });
 
         let u1 = board.insert_component(ComponentIr {
             name: "U1".to_string(),
-            placement: 0,
+            package_front: 1,
+            package_back: 1,
+            location: Some(IntPoint::new(20_000, 50_000)),
+            rotation: 0.0,
+            is_front: true,
+            fixed: FixedStateIr::Unfixed,
+            part_number: None,
+            logical_part: None,
         });
         let u2 = board.insert_component(ComponentIr {
             name: "U2".to_string(),
-            placement: 1,
+            package_front: 1,
+            package_back: 1,
+            location: Some(IntPoint::new(80_000, 50_000)),
+            rotation: 0.0,
+            is_front: true,
+            fixed: FixedStateIr::Unfixed,
+            part_number: None,
+            logical_part: None,
         });
         board.insert_pin(PinIr {
             component_id: u1,
             pin_index: 0,
             padstack_no: 2,
-            center: IntPoint::new(20_000, 50_000),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::Unfixed,
@@ -353,7 +372,6 @@ mod tests {
             component_id: u2,
             pin_index: 0,
             padstack_no: 2,
-            center: IntPoint::new(80_000, 50_000),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::Unfixed,
@@ -514,6 +532,11 @@ mod tests {
             ))),
             clearance_class: 0,
             fixed: FixedStateIr::SystemFixed,
+            component_id: 0,
+            translation: IntPoint::new(0, 0),
+            rotation: 0.0,
+            side_changed: false,
+            name: None,
         });
         board.insert_keepout(KeepoutIr {
             kind: KeepoutKindIr::Keepout,
@@ -523,20 +546,33 @@ mod tests {
             )))),
             clearance_class: 1,
             fixed: FixedStateIr::SystemFixed,
+            component_id: 0,
+            translation: IntPoint::new(0, 0),
+            rotation: 0.0,
+            side_changed: false,
+            name: None,
         });
         board.insert_component_outline(ComponentOutlineIr {
             component_id: 1,
             layer_no: 0,
-            area: AreaIr::simple(BoardShape::Circle(BoardCircle::new(IntPoint::new(1, 1), 3))),
+            area: Some(AreaIr::simple(BoardShape::Circle(BoardCircle::new(
+                IntPoint::new(1, 1),
+                3,
+            )))),
             nets: vec![],
             clearance_class: 1,
             fixed: FixedStateIr::Unfixed,
+            is_front: true,
+            translation: IntPoint::new(0, 0),
+            rotation: 0.0,
+            is_courtyard: false,
+            is_fabrication: false,
+            is_closed: true,
         });
         board.insert_pin(PinIr {
             component_id: 1,
             pin_index: 0,
             padstack_no: 1,
-            center: IntPoint::new(0, 0),
             nets: vec![],
             clearance_class: 1,
             fixed: FixedStateIr::Unfixed,
