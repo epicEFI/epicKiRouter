@@ -51,13 +51,45 @@
 //!   pins; the skeleton here appends only unknown names (case-insensitive
 //!   check) and grows the matrix with zeros.
 //! - Components: id = `size() + 1` (`Network.java:957-966`).
+//! - Packages (library images): an insertion-ordered table mirroring Java
+//!   `Packages` (`Packages.java:14`); `insert_package` ALWAYS appends
+//!   (`Packages.java:69-94`, id = `size() + 1`). The duplicate-image
+//!   dedup is READER-side (`Library.java:409-449`): retry the base name
+//!   as `NAME::1`, `NAME::2`, ... and insert under the first name whose
+//!   `Packages.get` hit does not already carry that exact stored name
+//!   (`:417`) — the `::N`-strip inside `get` is what terminates the loop
+//!   — skipping entirely when the existing package's pins are identical
+//!   (`arePackagePinsIdentical`, `Library.java:226-259`: pin count, name
+//!   `String.equals`, padstack id, location/rotation within 0.001). Jar
+//!   `/tmp/epic-t4c-images.out`: identical-pin dup deduped
+//!   (PACKAGE_COUNT stays 1), different-pin dup inserted as `PAD::1`,
+//!   case-variant same-pin `pad` deduped into `PAD`.
+//! - Via-padstack list: a SECOND index over the padstack registry (the
+//!   routing-eligible subset); `SesWriter`'s library section walks THE
+//!   LIST, not the registry. `set_via_padstacks` REPLACES it wholesale
+//!   (`BoardLibrary.java:81-84`; network tail `Network.java:1273-1313`,
+//!   `.N`-cleaned names, warn + drop misses, fires whenever any net
+//!   class was seen — a class without `(circuit (use_via ...))` WIPES
+//!   the list, jar `/tmp/epic-t4c-images.out` VIAPADSTACK_COUNT 0);
+//!   `append_via_padstack` is the via-info path (`Network.java:272-284`
+//!   via `addViaPadstack`, `BoardLibrary.java:90-101`), deduped by
+//!   case-SENSITIVE name over the list. `via_padstack_no` is the
+//!   case-sensitive `getViaPadstack(String)` (`:53-62`).
+//! - `create_board` runs ONCE per board: Java re-invoking the structure
+//!   reader's `createBoard` is guarded by
+//!   `if (getRoutingBoard() == null)` (`Structure.java:1034-1036`), so a
+//!   second `(structure ...)` scope re-parses its layers/rules/keepouts
+//!   but does NOT rebuild the board (jar `/tmp/epic-t4c-twostruct.out`:
+//!   two structure scopes yield ONE outline, items dense 1..5, the
+//!   second boundary ignored). The sink mirrors the guard by
+//!   early-returning once `transform` is set.
 
 use crate::coordinate_transform::CoordinateTransform;
 use crate::layer_structure::LayerStructure;
 use crate::sink::{
     BoardOutlineIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr, CreateBoardIr,
-    FixedStateIr, KeepoutIr, MetadataIr, NetClassIr, NetIr, PadstackIr, PinIr, PlacementIr,
-    TraceIr, ViaInfoIr, ViaIr,
+    FixedStateIr, ImageIr, KeepoutIr, MetadataIr, NetClassIr, NetIr, PadstackIr, PinIr,
+    PlacementIr, TraceIr, ViaInfoIr, ViaIr,
 };
 use crate::state::AngleRestriction;
 
@@ -175,6 +207,18 @@ pub struct SesBoard {
     /// The padstack registry in insertion order (raw names; T32 strip is
     /// query-side only).
     pub padstacks: Vec<PadstackIr>,
+    /// The library image/package table in insertion (file) order; the
+    /// package id is the 1-based position (`Packages.java:14`,
+    /// `:69-94`). Task 8 pin expansion and Task 13 placement grouping
+    /// walk this in LIBRARY order.
+    pub packages: Vec<ImageIr>,
+    /// The via-padstack list: the routing-eligible subset of
+    /// [`SesBoard::padstacks`], as 1-based registry numbers in list
+    /// order (0-based via indexes in Java, `BoardLibrary.java:45-50`).
+    /// REPLACED wholesale by `set_via_padstacks`, appended by
+    /// `append_via_padstack` — see the trait docs for the two
+    /// construction paths.
+    pub via_padstacks: Vec<i32>,
     /// The component table (id = position + 1).
     pub components: Vec<ComponentIr>,
     /// Net classes (Task 8 fills field-for-field).
@@ -231,6 +275,29 @@ pub fn strip_padstack_alias(name: &str) -> String {
     out
 }
 
+/// Java `replaceAll("::\\d+$", "")` (the `Packages.get` retry strip,
+/// `Packages.java:40` — anchored at the END, unlike the T32 `.N` strip):
+/// removes the final `::<digits>` run if the name ends with one —
+/// `PAD::1` -> `PAD`, `PAD::1::2` -> `PAD::1`, `PAD::` and `PAD` stay.
+/// At most one candidate suffix can match (a matching suffix spans all
+/// digits to the end, so an earlier `::` can never match), hence a
+/// single backward scan is Java-exact.
+pub fn strip_package_dedup_suffix(name: &str) -> String {
+    let chars: Vec<char> = name.chars().collect();
+    let mut end = chars.len();
+    for i in (0..chars.len().saturating_sub(1)).rev() {
+        // `::<digits>` with at least one digit, reaching end-of-name.
+        if chars[i] == ':' && chars[i + 1] == ':' && chars.len() > i + 2 {
+            if chars[i + 2..].iter().all(|c| c.is_ascii_digit()) {
+                end = i;
+            }
+            // Only the rightmost `::` can match (see doc); stop scanning.
+            break;
+        }
+    }
+    chars[..end].iter().collect()
+}
+
 impl SesBoard {
     /// An empty board (no `create_board` yet); metadata carries the
     /// parse-state defaults.
@@ -242,6 +309,8 @@ impl SesBoard {
             nets: Vec::new(),
             placements: Vec::new(),
             padstacks: Vec::new(),
+            packages: Vec::new(),
+            via_padstacks: Vec::new(),
             components: Vec::new(),
             net_classes: Vec::new(),
             via_infos: Vec::new(),
@@ -282,6 +351,16 @@ impl SesBoard {
 
 impl BoardSink for SesBoard {
     fn create_board(&mut self, board: CreateBoardIr) {
+        // Java's structure reader only builds the board when none exists
+        // (`if (getRoutingBoard() == null)`, `Structure.java:1034-1036`):
+        // a second `(structure ...)` scope re-parses but does NOT
+        // recreate — jar `/tmp/epic-t4c-twostruct.out` (two structure
+        // scopes: one outline, items dense 1..5, second boundary
+        // ignored). `transform` is only ever set here, so it is the
+        // board-exists flag.
+        if self.transform.is_some() {
+            return;
+        }
         self.transform = Some(board.transform);
         self.layers = Some(board.layer_structure);
         self.clearance = ClearanceIr::default_instance();
@@ -364,12 +443,81 @@ impl BoardSink for SesBoard {
             .map(|index| index as i32 + 1)
     }
 
+    fn insert_package(&mut self, image: ImageIr) -> i32 {
+        self.packages.push(image);
+        self.packages.len() as i32
+    }
+
+    fn package_no(&self, name: &str, is_front: bool) -> Option<i32> {
+        // Packages.get(name, isFront) (Packages.java:27-52), verbatim:
+        // pass 1 = first case-insensitive same-side match; wrong-side
+        // matches are remembered (LAST one wins, `otherSidePackage`);
+        // pass 2 = the same against the name with its trailing ::N
+        // suffix stripped (:40); final fallback = the remembered
+        // other-side package (:51).
+        let mut other_side: Option<usize> = None;
+        for (index, package) in self.packages.iter().enumerate() {
+            if eq_ignore_case(&package.name, name) {
+                if package.is_front == is_front {
+                    return Some(index as i32 + 1);
+                }
+                other_side = Some(index);
+            }
+        }
+        let base = strip_package_dedup_suffix(name);
+        if !eq_ignore_case(&base, name) {
+            for (index, package) in self.packages.iter().enumerate() {
+                if eq_ignore_case(&package.name, &base) {
+                    if package.is_front == is_front {
+                        return Some(index as i32 + 1);
+                    }
+                    other_side = Some(index);
+                }
+            }
+        }
+        other_side.map(|index| index as i32 + 1)
+    }
+
     fn insert_net_class(&mut self, net_class: NetClassIr) {
         self.net_classes.push(net_class);
     }
 
     fn append_via_info(&mut self, via_info: ViaInfoIr) {
         self.via_infos.push(via_info);
+    }
+
+    fn set_via_padstacks(&mut self, padstack_nos: Vec<i32>) {
+        self.via_padstacks = padstack_nos;
+    }
+
+    fn via_padstack_no(&self, name: &str) -> Option<i32> {
+        // BoardLibrary.getViaPadstack(String) (BoardLibrary.java:53-62):
+        // first list entry whose REGISTRY padstack name equals the query
+        // with String.equals — CASE-SENSITIVE, unlike every registry
+        // query. Returns the matched entry's registry number; the 0-based
+        // list index (Java getViaPadstack(int), :45-50) is the position.
+        for padstack_no in &self.via_padstacks {
+            if self.padstack_name(*padstack_no) == Some(name) {
+                return Some(*padstack_no);
+            }
+        }
+        None
+    }
+
+    fn append_via_padstack(&mut self, padstack_no: i32) {
+        // BoardLibrary.addViaPadstack (BoardLibrary.java:90-101, driven
+        // by the via-info reader Network.java:283): no-op when the list
+        // already holds an entry whose name equals the candidate's
+        // (case-SENSITIVE String.equals, :91); append otherwise. An
+        // unresolvable number cannot occur for a correct reader (Java
+        // holds the Padstack object) and is ignored here.
+        let Some(candidate_name) = self.padstack_name(padstack_no) else {
+            return;
+        };
+        if self.via_padstack_no(candidate_name).is_some() {
+            return;
+        }
+        self.via_padstacks.push(padstack_no);
     }
 
     fn set_flip_style(&mut self, flip_style: String) {
@@ -438,7 +586,7 @@ impl BoardSink for SesBoard {
 mod tests {
     use super::*;
     use crate::shape::BoardShape;
-    use crate::sink::{AreaIr, KeepoutKindIr};
+    use crate::sink::{AreaIr, ImagePinIr, KeepoutKindIr};
     use epic_geometry::int_box::IntBox;
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::point::Point;
@@ -771,6 +919,20 @@ mod tests {
         assert!(board.clearance.values.iter().all(|row| row.len() == 3));
         board.append_clearance_class("default");
         assert_eq!(board.clearance.names.len(), 3, "dedup: no second default");
+        // Case variant: the dedup match rule is the same case-insensitive
+        // rule as get_no (`ClearanceMatrix.getNo`, ClearanceMatrix.java:
+        // 58-65, via append_class) — "DEFAULT" is a no-op too.
+        board.append_clearance_class("DEFAULT");
+        assert_eq!(
+            board.clearance_class_no("DEFAULT"),
+            Some(1),
+            "case variant resolves to the existing class"
+        );
+        assert_eq!(
+            board.clearance.names.len(),
+            3,
+            "case-variant append is a no-op"
+        );
     }
 
     /// A fresh board has no items and no transform; the component/placement
@@ -843,5 +1005,287 @@ mod tests {
             },
             other => panic!("expected Keepout, got {other:?}"),
         }
+    }
+
+    /// The `Packages.get` retry strip (Java `replaceAll("::\\d+$", "")`,
+    /// `Packages.java:40` — anchored at the end, unlike the T32 strip).
+    #[test]
+    fn strip_package_dedup_suffix_cases() {
+        assert_eq!(strip_package_dedup_suffix("PAD::1"), "PAD");
+        assert_eq!(strip_package_dedup_suffix("PAD::1::2"), "PAD::1");
+        assert_eq!(strip_package_dedup_suffix("PAD::"), "PAD::");
+        assert_eq!(strip_package_dedup_suffix("PAD"), "PAD");
+        assert_eq!(strip_package_dedup_suffix("A::1:B"), "A::1:B");
+        assert_eq!(strip_package_dedup_suffix("PAD:::5"), "PAD:");
+    }
+
+    /// Java `arePackagePinsIdentical` (`Library.java:226-259`): pin
+    /// count, then per pin name `String.equals` (case-SENSITIVE),
+    /// padstack id, exact relative location and rotation within 0.001.
+    fn package_pins_identical(existing: &ImageIr, pins: &[ImagePinIr]) -> bool {
+        if existing.pins.len() != pins.len() {
+            return false;
+        }
+        existing.pins.iter().zip(pins).all(|(a, b)| {
+            a.name == b.name
+                && a.padstack_no == b.padstack_no
+                && a.rel_location == b.rel_location
+                && (a.rotation - b.rotation).abs() <= 0.001
+        })
+    }
+
+    /// The library-scope image reader flow (`Library.java:409-449`):
+    /// retry the base name as `NAME::1`, `NAME::2`, ... and insert under
+    /// the first name whose `Packages.get` hit does not already carry
+    /// that exact stored name (`:417` — the `::N`-strip inside `get` is
+    /// what terminates the loop), skipping entirely on identical pins.
+    fn insert_image_scope(
+        board: &mut SesBoard,
+        scope_name: &str,
+        is_front: bool,
+        pins: Vec<ImagePinIr>,
+    ) -> i32 {
+        let base = strip_package_dedup_suffix(scope_name);
+        let mut suffix = 0;
+        loop {
+            let test_name = if suffix == 0 {
+                base.clone()
+            } else {
+                format!("{base}::{suffix}")
+            };
+            let (insert_here, identical_hit) = match board.package_no(&test_name, is_front) {
+                None => (true, false),
+                Some(existing_no) => {
+                    let existing = &board.packages[(existing_no - 1) as usize];
+                    if !eq_ignore_case(&existing.name, &test_name) {
+                        (true, false)
+                    } else {
+                        (false, package_pins_identical(existing, &pins))
+                    }
+                }
+            };
+            if insert_here {
+                break board.insert_package(ImageIr {
+                    name: test_name,
+                    pins,
+                    outline: Vec::new(),
+                    keepouts: Vec::new(),
+                    via_keepouts: Vec::new(),
+                    place_keepouts: Vec::new(),
+                    is_front,
+                });
+            }
+            if identical_hit {
+                // Java returns the existing package (dedup skip).
+                return board
+                    .package_no(&test_name, is_front)
+                    .expect("hit vanished between the two queries");
+            }
+            suffix += 1;
+        }
+    }
+
+    /// Package table reader flow, pinned to the jar probe
+    /// `/tmp/epic-t4c-images.jsh`/`.out` (fixture
+    /// `/tmp/epic-t4c-images.dsn`): five `(image ...)` scopes — PAD with
+    /// 1 pin, PAD duplicated identically, PAD with 2 pins, case-variant
+    /// `pad` with the base's pins, and a back-side `(side back)` PAD with
+    /// 2 shifted pins. Jar: `PACKAGE_COUNT 3` with rows `PAD`(front),
+    /// `PAD::1`(front), `PAD::1`(BACK) — the identical dup deduped, the
+    /// 2-pin dup inserted as `PAD::1`, the case variant deduped into the
+    /// base, and the back-side dup landing under `PAD::1` TOO because
+    /// `Packages.get`'s other-side fallback returns the front base whose
+    /// stored name differs from the queried `PAD::1` (`:417` insert
+    /// fires). The `package_no` pins then discriminate every `get` arm:
+    /// exact same-side, exact other-side, `::N`-strip retry, other-side
+    /// fallback and total miss.
+    #[test]
+    fn package_table_reader_flow_jar_probe() {
+        let pin = |name: &str, x: i32, y: i32| ImagePinIr {
+            name: name.to_string(),
+            padstack_no: 2,
+            rel_location: IntPoint::new(x, y),
+            rotation: 0.0,
+        };
+        let mut board = SesBoard::new();
+
+        // image PAD, 1 pin at (0,0) — appended as id 1.
+        assert_eq!(
+            insert_image_scope(&mut board, "PAD", true, vec![pin("1", 0, 0)]),
+            1
+        );
+        // duplicate identical — deduped, still 1 package (jar PACKAGE 1).
+        assert_eq!(
+            insert_image_scope(&mut board, "PAD", true, vec![pin("1", 0, 0)]),
+            1
+        );
+        // PAD with a second pin — different pins, `PAD::1` appended (id 2).
+        assert_eq!(
+            insert_image_scope(
+                &mut board,
+                "PAD",
+                true,
+                vec![pin("1", 0, 0), pin("2", 1000, 0)]
+            ),
+            2
+        );
+        // case-variant `pad` with the base pins — deduped into id 1.
+        assert_eq!(
+            insert_image_scope(&mut board, "pad", true, vec![pin("1", 0, 0)]),
+            1
+        );
+        // back-side PAD, 2 shifted pins — jar PACKAGE 3: `PAD::1` BACK
+        // (the other-side fallback poisons the name search: at suffix 1,
+        // get("PAD::1", back) returns the front base PAD whose name
+        // differs from the queried "PAD::1", so the insert fires under
+        // the suffixed name).
+        assert_eq!(
+            insert_image_scope(
+                &mut board,
+                "PAD",
+                false,
+                vec![pin("1", 0, 500), pin("2", 1000, 500)]
+            ),
+            3
+        );
+
+        let names: Vec<(&str, bool, usize)> = board
+            .packages
+            .iter()
+            .map(|image| (image.name.as_str(), image.is_front, image.pins.len()))
+            .collect();
+        assert_eq!(
+            names,
+            vec![("PAD", true, 1), ("PAD::1", true, 2), ("PAD::1", false, 2)],
+            "jar PACKAGE lines 1-3"
+        );
+
+        // Packages.get arms (`Packages.java:27-52`):
+        assert_eq!(board.package_no("PAD", true), Some(1), "exact same side");
+        assert_eq!(
+            board.package_no("pad", true),
+            Some(1),
+            "case-insensitive name"
+        );
+        assert_eq!(
+            board.package_no("PAD::1", true),
+            Some(2),
+            "exact hit on the suffixed name, front"
+        );
+        assert_eq!(
+            board.package_no("PAD::1", false),
+            Some(3),
+            "exact hit on the suffixed name, back"
+        );
+        assert_eq!(
+            board.package_no("PAD::2", true),
+            Some(1),
+            "::N-strip retry falls into the base (the loop terminator)"
+        );
+        assert_eq!(
+            board.package_no("PAD", false),
+            Some(1),
+            "other-side fallback (wrong-side match remembered in pass 1)"
+        );
+        assert_eq!(board.package_no("NOPE", true), None, "total miss");
+    }
+
+    /// A second `create_board` is a NO-OP: Java's structure reader only
+    /// builds the board when none exists (`if (getRoutingBoard() ==
+    /// null)`, `Structure.java:1034-1036`); jar probe
+    /// `/tmp/epic-t4c-twostruct.jsh`/`.out` (two `(structure ...)` scopes,
+    /// second with a different boundary): ONE outline, items dense 1..5,
+    /// `GEN_MAX 5` — the second boundary never became a second board.
+    /// Accumulating stale state on re-invocation would duplicate the
+    /// outline and reset the clearance table.
+    #[test]
+    fn create_board_twice_is_noop_jar_probe() {
+        let mut board = SesBoard::new();
+        let first = CreateBoardIr {
+            bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(100_000, 100_000)),
+            layer_structure: spike_layers(),
+            outline_shapes: Vec::new(),
+            outline_clearance_class: "default".to_string(),
+            transform: crate::coordinate_transform::CoordinateTransform::new(10.0, 0.0, 0.0),
+        };
+        board.create_board(first.clone());
+        board.create_board(CreateBoardIr {
+            bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(200_000, 100_000)),
+            layer_structure: spike_layers(),
+            outline_shapes: Vec::new(),
+            outline_clearance_class: "default".to_string(),
+            transform: crate::coordinate_transform::CoordinateTransform::new(10.0, 0.0, 0.0),
+        });
+        assert_eq!(
+            board.transform,
+            Some(first.transform),
+            "the first transform survived"
+        );
+        assert_eq!(
+            board.items.len(),
+            1,
+            "one BoardOutline, not one per create_board"
+        );
+        assert_eq!(board.last_assigned_item_id(), 1);
+        assert_eq!(board.clearance, ClearanceIr::default_instance());
+    }
+
+    /// The via-padstack list is a REPLACED-then-appended second index
+    /// over the registry; lookups over it are case-SENSITIVE
+    /// (`BoardLibrary.getViaPadstack(String)`, `:53-62`) while the
+    /// registry query is not — the discriminating pair. Replace
+    /// semantics pin the network tail (`Network.java:1313`), the empty
+    /// replace pins the jar wipe (`/tmp/epic-t4c-images.out`:
+    /// VIAPADSTACK_COUNT 0 — class-scope vias written as bare `(via ...)`
+    /// never reach `useVia`, so the tail replaced with an empty list).
+    #[test]
+    fn via_padstack_list_replace_append_and_case_sensitive_lookup() {
+        let mut board = SesBoard::new();
+        board.append_padstack(PadstackIr {
+            name: "ViaPad_F".to_string(),
+            shapes: Vec::new(),
+            drillable: true,
+            placed_absolute: false,
+        });
+        board.append_padstack(PadstackIr {
+            name: "CirclePad_F_800_um".to_string(),
+            shapes: Vec::new(),
+            drillable: false,
+            placed_absolute: false,
+        });
+
+        board.set_via_padstacks(vec![2, 1]);
+        assert_eq!(board.via_padstacks, vec![2, 1], "order is significant");
+        assert_eq!(
+            board.via_padstack_no("CirclePad_F_800_um"),
+            Some(2),
+            "exact-name hit at list position 0"
+        );
+        assert_eq!(
+            board.via_padstack_no("circlepad_f_800_um"),
+            None,
+            "case-SENSITIVE: viaPadstack_no misses where the registry hits"
+        );
+        assert_eq!(
+            board.padstack_no("circlepad_f_800_um"),
+            Some(2),
+            "registry query is case-insensitive"
+        );
+        assert_eq!(board.via_padstack_no("ViaPad_F"), Some(1));
+        assert_eq!(board.via_padstack_no("Nope"), None);
+
+        // addViaPadstack (BoardLibrary.java:90-101): no-op on an existing
+        // case-sensitive name, append otherwise.
+        board.append_via_padstack(2);
+        assert_eq!(board.via_padstacks, vec![2, 1], "name dedup: no re-append");
+        board.append_via_padstack(1);
+        assert_eq!(board.via_padstacks, vec![2, 1], "ViaPad_F already listed");
+
+        // The tail replace clobbers via-info appends and can WIPE the
+        // list entirely (a net class without `(circuit (use_via ...))`
+        // makes viaPadstackNames non-null empty — jar probe outcome).
+        board.set_via_padstacks(Vec::new());
+        assert!(board.via_padstacks.is_empty(), "empty replace = wipe");
+        assert_eq!(board.via_padstack_no("ViaPad_F"), None);
     }
 }

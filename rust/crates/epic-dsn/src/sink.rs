@@ -145,12 +145,105 @@ pub struct PadstackIr {
     /// pre-stripped and the sink stores them verbatim; query sites strip
     /// again idempotently ([`BoardSink::resolve_padstack_query`]).
     pub name: String,
-    /// Java `Padstack.shapes` (relative to the pad center).
-    pub shapes: Vec<BoardShape>,
+    /// Java `Padstack.shapes` — the per-layer `ConvexShape[layerCount]`
+    /// array (`Library.java:96-118` sizes it, `Padstacks.add` stores it),
+    /// indexed by 0-based layer number with length == layer count; `None`
+    /// is a Java null slot.
+    ///
+    /// Why per-layer slots and not `(layer set, shape)` pairs: this IS
+    /// Java's storage, `SesWriter.writePadstack` walks it per index
+    /// (`SesWriter.java:271-307`, emitting `getShape(i)` per layer), and
+    /// a DSN padstack may mix a layer-less `(shape ...)` (Java FILLS all
+    /// slots) with layered `(shape (layers ...) ...)` scopes (ASSIGNS
+    /// only the listed slots, later scopes overwriting earlier fills —
+    /// `Library.java:179-221`). Pairs could not represent per-slot
+    /// overwrite order. The fill-vs-assign expansion itself stays
+    /// READER-side (Task 7).
+    pub shapes: Vec<Option<BoardShape>>,
     /// Java `Padstack.is_drillable`.
     pub drillable: bool,
     /// Java `Padstack.placed_absolute`.
     pub placed_absolute: bool,
+}
+
+/// Java `Package.Pin` parse subset (`core/library/Package.java` fields
+/// `name`, `padstackId`, `relativeLocation`, `rotationInDegree`): one pin
+/// of a library image/package.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImagePinIr {
+    /// Java `Package.Pin.name` — the pin number/name as written in the
+    /// `(pin <padstack> <name> <x> <y> [...])` scope.
+    pub name: String,
+    /// Java `Package.Pin.padstackId` — the resolved 1-based padstack
+    /// number (reader resolves through [`BoardSink::resolve_padstack_query`],
+    /// `Library.java:321-323`).
+    pub padstack_no: i32,
+    /// Java `Package.Pin.relativeLocation` — board coordinates relative
+    /// to the image origin (`Package.java` stores the `Vector` as read;
+    /// front/back mirroring happens at pin-expansion time, Task 8,
+    /// `Network.java:979-1034`).
+    pub rel_location: IntPoint,
+    /// Java `Package.Pin.rotationInDegree`.
+    pub rotation: f64,
+}
+
+/// Java `Package.Keepout` parse subset (`core/library/Package.java`
+/// nested `Keepout`: fields `name`, `area`, `layer`): one keepout of a
+/// library image, in image-relative coordinates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageKeepoutIr {
+    /// Java `Package.Keepout.name`.
+    pub name: String,
+    /// Java `Package.Keepout.layer` — 0-based layer number.
+    pub layer_no: i32,
+    /// Java `Package.Keepout.area` (board coordinates; windows ride in
+    /// [`AreaIr`]).
+    pub area: AreaIr,
+}
+
+/// One outline shape of a library image. Java `Package` stores three
+/// PARALLEL arrays (`outline: Shape[]`, `outlineWidths: double[]`,
+/// `outlineIsClosed: boolean[]`, all read from the `(outline ...)`
+/// scope); the struct is one aligned slice of those arrays.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageOutlineIr {
+    /// `Package.outline[i]` — board coordinates relative to the image
+    /// origin.
+    pub shape: BoardShape,
+    /// `Package.outlineWidths[i]` — the `(outline ... (width w))` value.
+    pub width: f64,
+    /// `Package.outlineIsClosed[i]`.
+    pub is_closed: bool,
+}
+
+/// Java `Package` parse subset (`core/library/Package.java` fields): one
+/// library image (DSN `(image ...)` scope). Insertion-ordered table =
+/// Java `Packages` (`Packages.java:14` `Vector<Package>`); ids are
+/// 1-based positions. Two consumers depend on this table existing in
+/// LIBRARY order: Task 8 pin expansion (`Network.java:979-1034` resolves
+/// `placement` lib names through `Packages.get`) and Task 13 placement
+/// grouping (`SesWriter` groups placements per package). The dedup that
+/// rewrites duplicate image names to `<name>::<k>` happens in the
+/// READER before this lands (`Library.java:409-443`; jar
+/// `/tmp/epic-t4c-images.out`: identical-pin dup deduped, different-pin
+/// dup inserted as `PAD::1`, case-variant same-pin dup deduped).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageIr {
+    /// Java `Package.name` (post-dedup: possibly `NAME::k`).
+    pub name: String,
+    /// Java `Package.pins` (`Pin[]`), file order.
+    pub pins: Vec<ImagePinIr>,
+    /// Java `Package.outline` + `outlineWidths` + `outlineIsClosed`,
+    /// zipped, file order.
+    pub outline: Vec<ImageOutlineIr>,
+    /// Java `Package.keepouts`.
+    pub keepouts: Vec<ImageKeepoutIr>,
+    /// Java `Package.viaKeepouts`.
+    pub via_keepouts: Vec<ImageKeepoutIr>,
+    /// Java `Package.placeKeepoutArr`.
+    pub place_keepouts: Vec<ImageKeepoutIr>,
+    /// Java `Package.isFront` (an `(image ... (front)` / back flip).
+    pub is_front: bool,
 }
 
 /// Java `rules.Net` parse subset: the board net table entry. The net
@@ -513,6 +606,28 @@ pub trait BoardSink {
     /// drop (`Wiring.java:661-671`).
     fn resolve_padstack_query(&self, name: &str) -> Option<i32>;
 
+    /// Java `Packages.add` (`core/library/Packages.java:69-94`): ALWAYS
+    /// appends to the insertion-ordered package table (no dedup IN the
+    /// table — the get-then-add dedup is the library-scope reader's job,
+    /// `Library.java:409-443`) and returns the 1-based package id
+    /// (`packages.size() + 1`).
+    fn insert_package(&mut self, image: ImageIr) -> i32;
+
+    /// Java `Packages.get(name, isFront)` (`Packages.java:27-52`),
+    /// verbatim: (1) scan in insertion order for the first package whose
+    /// name equals the query CASE-INSENSITIVELY and whose side matches —
+    /// wrong-side matches are remembered (`otherSidePackage`, last one
+    /// wins); (2) unless the name is already suffix-free, retry both
+    /// rules against the name with its trailing `::N` suffix stripped
+    /// (`replaceAll("::\\d+$", "")`, `:40` — anchored at the END, unlike
+    /// the T32 `.N` strip); (3) return the remembered other-side package
+    /// (`:51`), else `None` (Java null). The `::N`-strip inner lookup is
+    /// what makes the reader dedup insert `PAD::1` beside `PAD`: the
+    /// inner get returns the base package, whose stored name is not equal
+    /// to the queried `PAD::1` (jar `/tmp/epic-t4c-images.out`,
+    /// PACKAGE_COUNT 2).
+    fn package_no(&self, name: &str, is_front: bool) -> Option<i32>;
+
     // ---- rules ----------------------------------------------------------
 
     /// Java `insertNetClass` (`Network.java:436-543`, Task 8).
@@ -520,6 +635,56 @@ pub trait BoardSink {
 
     /// Java via-info insertion (net-class via rules, Task 8).
     fn append_via_info(&mut self, via_info: ViaInfoIr);
+
+    /// Java `BoardLibrary.setViaPadstacks` (`core/library/BoardLibrary.java:81-84`):
+    /// REPLACES the whole via-padstack list (the routing-eligible subset
+    /// of the padstack registry, `BoardLibrary.java:24`). This list is a
+    /// SEPARATE index from the padstack registry: `SesWriter`'s library
+    /// section iterates THE LIST (`library_out` via padstacks), not the
+    /// registry. Two construction paths feed it (both reader-side):
+    ///
+    /// 1. Network tail REPLACE (`Network.java:1273-1313`, after the
+    ///    network scope closes): names come from the structure `(via
+    ///    <names>)` scope (`Structure.java:979-980`) plus every net
+    ///    class's `(circuit (use_via ...))` scopes (`NetClass.java:52-53`
+    ///    via `Circuit.java:107`, gathered at `Network.java:1274-1280`).
+    ///    Each name is `.N`-cleaned (`replaceAll("\\.\\d+", "")`,
+    ///    `:1292-1294`) and resolved case-insensitively against the
+    ///    registry; misses are warned and DROPPED (the array shrinks,
+    ///    `:1307-1312`), then the survivors REPLACE the list (`:1313`).
+    ///    The block runs whenever at least one net class OR a structure
+    ///    via list was seen (`viaPadstackNames != null`, `:1286`) — a
+    ///    class with no use_via therefore WIPES the list (jar
+    ///    `/tmp/epic-t4c-images.out`: class vias written as bare `(via
+    ///    ...)` are skipped, `useVia` stays empty, VIAPADSTACK_COUNT 0).
+    /// 2. Via-info appends DURING the network scope (`Network.java:272-284`,
+    ///    each `(via <name> <padstack> <class> [(attach)])` scope,
+    ///    `:1240-1242`): case-sensitive list probe first
+    ///    ([`BoardSink::via_padstack_no`]), then RAW case-insensitive
+    ///    registry query with NO `.N` clean (`:275`); a hit is appended
+    ///    through `addViaPadstack` ([`BoardSink::append_via_padstack`]),
+    ///    a miss is warned and the via rule dropped (`:276-282`). Parse
+    ///    order note: these appends run BEFORE path 1's tail replace, so
+    ///    the tail replace clobbers them whenever it fires — Task 7's
+    ///    reader mirrors that order.
+    ///
+    /// Entries are registry padstack numbers (1-based); order is
+    /// significant (0-based via indexes, `BoardLibrary.java:45-50`).
+    fn set_via_padstacks(&mut self, padstack_nos: Vec<i32>);
+
+    /// Java `BoardLibrary.getViaPadstack(String)` (`:53-62`): scan the
+    /// via-padstack list in order for the first entry whose REGISTRY
+    /// padstack name equals the query — case-SENSITIVE `String.equals`,
+    /// unlike every registry query. `None` (Java null) on a miss.
+    fn via_padstack_no(&self, name: &str) -> Option<i32>;
+
+    /// Java `BoardLibrary.addViaPadstack` (`:90-101`, driven by the
+    /// via-info reader, `Network.java:283`): no-op when the list already
+    /// holds an entry whose registry name equals the candidate's name
+    /// (case-SENSITIVE `String.equals`, `:91`); otherwise APPENDS the
+    /// padstack number. Dedup by name, not by number: two registry names
+    /// never collide (registry dedup), so this matches Java 1:1.
+    fn append_via_padstack(&mut self, padstack_no: i32);
 
     /// Structure `(flip_style ...)` raw value (Task 6).
     fn set_flip_style(&mut self, flip_style: String);

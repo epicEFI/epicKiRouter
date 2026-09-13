@@ -25,7 +25,12 @@
 //!   `system_fixed` (the `FixedState` ordinal order).
 //! - `<padstack>` is the RAW registry name of the resolved padstack,
 //!   through [`quote_java_identifier`] with the board's string quote and
-//!   the SES reserved set (`SesWriter.java:62`).
+//!   the SES reserved set (`SesWriter.java:62`). An out-of-range via
+//!   padstack number (unreachable from a correct parse — Java
+//!   dereferences the Padstack object at `Wiring.java:706`) emits
+//!   `<unresolved <no>>` in that field instead of panicking, so one
+//!   reader bug surfaces as a digest mismatch on its fixture rather than
+//!   killing a whole soak batch.
 //! - `<layer>`/`<class>` are the 0-based layer number and the clearance
 //!   class index.
 //! - `<shape-encoding>` kinds:
@@ -190,12 +195,19 @@ pub fn canonical_geometry_text(board: &SesBoard) -> String {
                 text.push('\n');
             }
             ItemIr::Via { id, via } => {
-                let padstack = board.padstack_name(via.padstack_no).unwrap_or_else(|| {
-                    panic!("via {id} padstack {} out of range", via.padstack_no)
-                });
+                // An out-of-range via padstack number cannot come from a
+                // correct parse (Java dereferences the Padstack object at
+                // `Wiring.java:706`); emit a marked line instead of
+                // panicking so one reader bug cannot kill a whole soak
+                // batch (the divergence still shows up as a digest
+                // mismatch on that fixture).
+                let padstack: String = board
+                    .padstack_name(via.padstack_no)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("<unresolved {}>", via.padstack_no));
                 text.push_str(&format!(
                     "V {id} {} {} {} {}\n",
-                    quote_java_identifier(padstack, &board.metadata.string_quote),
+                    quote_java_identifier(&padstack, &board.metadata.string_quote),
                     via.location.x,
                     via.location.y,
                     fixed_token(via.fixed)
