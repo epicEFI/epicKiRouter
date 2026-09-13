@@ -327,15 +327,21 @@ pub struct ComponentPlacement {
     pub locations: Vec<ComponentLocation>,
 }
 
-/// Mirror of `Shape.ReadAreaScopeResult` (`Shape.java:633-646`) minus the
-/// shape collection, which is `shape.rs` IR and lands with Task 3
-/// (`area_name` may be generated later if null — Java field note `:637`).
+/// Mirror of `Shape.ReadAreaScopeResult` (`Shape.java:633-646`): the shape
+/// list is needed at INSERTION time (Task 6 keepouts/planes read the first
+/// shape's layer and transform border + holes together). The first entry is
+/// the border; the rest are `(window ...)` holes. Entries are `None` where
+/// Java stored a null shape — only a failed WINDOW shape leaves a `None`
+/// in a successful result (a failed FIRST shape sets `resultOk = false` and
+/// the whole read returns null).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AreaScopeResult {
     /// Java `areaName` (nullable).
     pub area_name: Option<String>,
     /// Java `clearanceClassName` (nullable).
     pub clearance_class: Option<String>,
+    /// Java `shapeList` — border first, holes after, file order.
+    pub shapes: Vec<Option<crate::shape::Shape>>,
 }
 
 /// Java `ReadScopeParameter.PlaneInfo` (`ReadScopeParameter.java:176-186`):
@@ -343,8 +349,11 @@ pub struct AreaScopeResult {
 /// known (evaluated after the structure scope, Task 6).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlaneInfo {
-    /// Java `area`.
-    pub area: AreaScopeResult,
+    /// Java `area` — `None` (Java null) when `read_area_scope` failed:
+    /// `Plane.readScope` stores the result UNCHECKED (`Plane.java:72-81`);
+    /// the null surfaces as the `Structure.java:1084` NPE at insertion
+    /// (parse-fatal parity, jar `/tmp/epic-t6-board.out` t6-plane-badshape).
+    pub area: Option<AreaScopeResult>,
     /// Java `netName`.
     pub net_name: String,
 }

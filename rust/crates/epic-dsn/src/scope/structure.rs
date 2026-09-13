@@ -46,6 +46,7 @@
 //!   empirically verified — the only `false` exit is the IOException
 //!   handler `:294-296`). The port returns `false` instead of hanging.
 
+use super::plane::read_plane_scope;
 use super::rule::{Rule, read_rule_scope};
 use crate::coordinate_transform::{
     CoordinateTransform, calc_scale_factor, max_abs_scaled_coordinate,
@@ -53,12 +54,14 @@ use crate::coordinate_transform::{
 use crate::keyword::{Keyword, skip_scope};
 use crate::layer_structure::{Layer, LayerStructure};
 use crate::lexer::{LexicalState, Scanner, Token};
-use crate::shape::{BoardShape, PolygonPath, Shape};
-use crate::sink::{
-    AreaIr, BoardRulesIr, BoardSink, CreateBoardIr, FixedStateIr, ItemClassIr, KeepoutIr,
-    KeepoutKindIr,
+use crate::shape::{
+    BoardShape, PolygonPath, Shape, box_shape, read_area_scope, transform_area_to_board,
 };
-use crate::state::ParseState;
+use crate::sink::{
+    AreaIr, BoardRulesIr, BoardSink, ConductionAreaIr, CreateBoardIr, FixedStateIr, ItemClassIr,
+    KeepoutIr, KeepoutKindIr, NetIr,
+};
+use crate::state::{AngleRestriction, AreaScopeResult, NetId, ParseState, PlaneInfo};
 use epic_geometry::int_box::IntBox;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::rounding::java_round;
@@ -149,7 +152,7 @@ fn read_boundary_scope(scanner: &mut Scanner, info: &mut BoardConstructionInfo) 
 /// one-string scope such as `(clearance_class <name>)`, tolerant of a
 /// missing closing bracket (drains to the bracket; a null string scans as
 /// `""`, which the only Task 5 caller stores verbatim).
-fn read_string_scope(scanner: &mut Scanner) -> String {
+pub(crate) fn read_string_scope(scanner: &mut Scanner) -> String {
     let result = scanner.next_string_with(true, b' ');
     let mut next_token = scanner.next_token();
     if next_token != Token::Close {
@@ -326,17 +329,30 @@ fn read_via_padstacks(scanner: &mut Scanner) -> Option<Vec<String>> {
 }
 
 /// Java `Structure.readScope` (`:936-1137`): the `(structure ...)` body
-/// loop + the post-loop board construction. `state` collects the parse
-/// state (`layerStructure`, `coordinateTransform`, `viaPadstackNames`,
-/// `boardOutlineOk`), `sink` receives the board.
+/// loop + the post-loop board construction and keepout/plane/power-plane
+/// insertions. `state` collects the parse state (`layerStructure`,
+/// `coordinateTransform`, `viaPadstackNames`, `boardOutlineOk`, planes,
+/// control values), `sink` receives the board and items.
 ///
-/// Task 6 stubs: the keepout/plane/control arms consume their scopes to
-/// keep the scanner aligned, but store nothing — each carries the Java
-/// line range it must grow into. `(autoroute_settings ...)` mirrors the
-/// Java quirk of doing NOTHING AT ALL (not even reading) when the layer
-/// structure already exists (`:1006-1011`).
+/// `(autoroute_settings ...)` mirrors the Java quirk of doing NOTHING AT
+/// ALL (not even reading) when the layer structure already exists
+/// (`:1006-1011`); the Task 9 assembly owns the reader.
+///
+/// Warnings: every FRLogger.warn in the Task 6 halves (degenerate
+/// keepouts, unknown clearance classes, bad plane layers, via_at_smd
+/// garbage, ...) is log-only — none reach `push_warning`, so the
+/// parity-warnings count stays 0 on every fixture that parses.
 pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn BoardSink) -> bool {
     let mut info = BoardConstructionInfo::default();
+
+    // If true, components on the back side are rotated before mirroring
+    // (`:939-941` — the correct place is the place_control scope, but
+    // Electra writes it here).
+    let mut flip_style_rotate_first = false;
+    // Java `:943-945`: LinkedLists that tolerate null entries.
+    let mut keepout_list: Vec<Option<AreaScopeResult>> = Vec::new();
+    let mut via_keepout_list: Vec<Option<AreaScopeResult>> = Vec::new();
+    let mut place_keepout_list: Vec<Option<AreaScopeResult>> = Vec::new();
 
     let mut prev_token: Option<Token> = None;
     loop {
@@ -373,27 +389,31 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
                     // Java `:982` addAll(null) NPE — crash parity.
                     None => return false,
                 },
-                // ---- Task 6 stubs (keepout/plane/control family) -------
+                // ---- keepout/plane/control family (Task 6) --------------
                 Token::Keyword(Keyword::Keepout)
                 | Token::Keyword(Keyword::ViaKeepout)
                 | Token::Keyword(Keyword::PlaceKeepout) => {
                     if state.layer_structure.is_none() {
                         state.layer_structure = Some(LayerStructure::new(info.layer_info.clone()));
                     }
-                    // Java `:983-1000`: Shape.readAreaScope into
-                    // keepoutList/viaKeepoutList/placeKeepoutList, inserted
-                    // through insertKeepout after createBoard
-                    // (`:1045-1065`).
-                    skip_scope(scanner);
+                    // Java `:983-1000`: the area scope is read and APPENDED
+                    // even when the read fails (Java LinkedList of possibly
+                    // null entries) — the failure surfaces as the
+                    // `area.shapeList` NPE at insertion time.
+                    let area = read_area_scope(scanner, state.layer_structure.as_ref(), false);
+                    match next_token {
+                        Token::Keyword(Keyword::Keepout) => keepout_list.push(area),
+                        Token::Keyword(Keyword::ViaKeepout) => via_keepout_list.push(area),
+                        _ => place_keepout_list.push(area),
+                    }
                 }
                 Token::Keyword(Keyword::Plane) => {
                     if state.layer_structure.is_none() {
                         state.layer_structure = Some(LayerStructure::new(info.layer_info.clone()));
                     }
-                    // Java `:1001-1005`: Keyword.PLANE_SCOPE.readScope into
-                    // planeList, inserted as conduction areas after
-                    // createBoard (`:1067-1122`).
-                    skip_scope(scanner);
+                    // Java `:1005`: the return value is DISCARDED — a failed
+                    // read appends no plane and does not fail the parse.
+                    read_plane_scope(scanner, state);
                 }
                 Token::Keyword(Keyword::AutorouteSettings) => {
                     // Java `:1006-1011`: read ONLY when the layer structure
@@ -407,20 +427,20 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
                     }
                 }
                 Token::Keyword(Keyword::Control) => {
-                    // Java `:1012-1013` readControlScope (`:446-476`,
-                    // `(via_at_smd on|off)` into the parse state) — Task 6.
-                    skip_scope(scanner);
+                    read_ok = read_control_scope(scanner, state);
                 }
                 Token::Keyword(Keyword::FlipStyle) => {
-                    // Java `:1014-1015`
-                    // PlaceControl.readFlipStyleRotateFirst — Task 6.
-                    skip_scope(scanner);
+                    // Java `:1015`: the local is OVERWRITTEN — a second
+                    // `(flip_style rotate_first)` after a failed read
+                    // clears it again.
+                    flip_style_rotate_first = read_flip_style_rotate_first(scanner);
                 }
                 Token::Keyword(Keyword::SnapAngle) => {
-                    // Java `:1016-1021` readSnapAngle (`:478-508`) into the
-                    // parse state — Task 6 wires it through; consumed for
-                    // scanner alignment until then.
-                    skip_scope(scanner);
+                    // Java `:1018-1021`: a FAILED read (None) keeps the
+                    // previous value.
+                    if let Some(snap_angle) = read_snap_angle(scanner) {
+                        state.snap_angle = snap_angle;
+                    }
                 }
                 _ => {
                     skip_scope(scanner);
@@ -433,8 +453,10 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
         prev_token = Some(next_token);
     }
 
-    // Post loop (`:1031-1040`): build the board once; a failed build (or
-    // a sink that still has no board) is a parse failure.
+    // Post loop (`:1031-1123`): build the board once, then flip style,
+    // keepouts, planes and the missing-power-plane fallback. The
+    // `:1126-1134` autoroute-settings job block needs a RoutingJob (Task
+    // 9 assembly); the plane heuristic itself runs from there.
     let mut result = true;
     if !sink.has_board() {
         result = create_board(state, &mut info, sink);
@@ -442,9 +464,386 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
     if !sink.has_board() {
         return false;
     }
-    // Java `:1041-1134` (flip style, keepout/plane insertion,
-    // insertMissingPowerPlanes, autoroute job) — Task 6/9.
+    if flip_style_rotate_first {
+        // Java `board.components.setFlipStyleRotateFirst(true)`
+        // (`:1041-1043`) — only TRUE is ever stored.
+        sink.set_flip_style("rotate_first".to_string());
+    }
+    // insert the keepouts (`:1045-1065`); a false from insertKeepout is a
+    // parse failure.
+    for area in &keepout_list {
+        if !insert_keepout(
+            area.as_ref(),
+            state,
+            sink,
+            KeepoutKindIr::Keepout,
+            FixedStateIr::SystemFixed,
+        ) {
+            return false;
+        }
+    }
+    for area in &via_keepout_list {
+        if !insert_keepout(
+            area.as_ref(),
+            state,
+            sink,
+            KeepoutKindIr::ViaKeepout,
+            FixedStateIr::SystemFixed,
+        ) {
+            return false;
+        }
+    }
+    for area in &place_keepout_list {
+        if !insert_keepout(
+            area.as_ref(),
+            state,
+            sink,
+            KeepoutKindIr::PlaceKeepout,
+            FixedStateIr::SystemFixed,
+        ) {
+            return false;
+        }
+    }
+    // insert the planes (`:1067-1122`) — over the ACCUMULATED plane list,
+    // so a second structure scope re-inserts them (Java bug-compat; the
+    // clone breaks the state borrow for `add_plane_net`).
+    let plane_infos = state.plane_list.clone();
+    for plane_info in &plane_infos {
+        if !insert_plane(plane_info, state, sink) {
+            return false;
+        }
+    }
+    insert_missing_power_planes(&info.layer_info, state, sink);
     result
+}
+
+/// Java `DsnFile.readOnOffScope` (`DsnFile.java:116-132`): one value
+/// token — `on` -> true; anything that is not `off` warns (log-only) and
+/// stays false; then the scope is ALWAYS drained. Never fails: the
+/// primitive `boolean` return is why `via_at_smd_allowed` is a plain
+/// `bool` on the parse state.
+fn read_on_off_scope(scanner: &mut Scanner) -> bool {
+    let mut result = false;
+    if scanner.next_token() == Token::Keyword(Keyword::On) {
+        result = true;
+    }
+    skip_scope(scanner);
+    result
+}
+
+/// Java `Structure.readControlScope` (`:446-476`): scans the control
+/// scope body; `(via_at_smd <value>)` feeds
+/// [`ParseState::via_at_smd_allowed`], any other inner scope is skipped.
+/// EOF (or an error token) is a `false` return, the closing bracket a
+/// `true`.
+fn read_control_scope(scanner: &mut Scanner, state: &mut ParseState) -> bool {
+    let mut prev_token: Option<Token> = None;
+    loop {
+        let next_token = scanner.next_token();
+        if matches!(next_token, Token::Eof | Token::Error(_)) {
+            // Java warns "unexpected end of file" (`:456-462`)
+            return false;
+        }
+        if next_token == Token::Close {
+            break;
+        }
+        if prev_token == Some(Token::Open) {
+            if next_token == Token::Keyword(Keyword::ViaAtSmd) {
+                state.via_at_smd_allowed = read_on_off_scope(scanner);
+            } else {
+                skip_scope(scanner);
+            }
+        }
+        prev_token = Some(next_token);
+    }
+    true
+}
+
+/// Java `PlaceControl.readFlipStyleRotateFirst` (`PlaceControl.java:16-36`):
+/// the first token decides (`rotate_first` -> true), then the closing
+/// bracket is required — a missing one returns false even after a
+/// `rotate_first`.
+fn read_flip_style_rotate_first(scanner: &mut Scanner) -> bool {
+    let mut result = false;
+    if scanner.next_token() == Token::Keyword(Keyword::RotateFirst) {
+        result = true;
+    }
+    if scanner.next_token() != Token::Close {
+        // Java warns "closing bracket expected"
+        return false;
+    }
+    result
+}
+
+/// Java `Structure.readSnapAngle` (`:478-508`): one of the three angle
+/// keywords, then the closing bracket. `None` (Java null) on a bad token
+/// or a missing bracket — the caller KEEPS the previous value then
+/// (`:1018-1021`).
+fn read_snap_angle(scanner: &mut Scanner) -> Option<AngleRestriction> {
+    let snap_angle = match scanner.next_token() {
+        Token::Keyword(Keyword::NinetyDegree) => AngleRestriction::NinetyDegree,
+        Token::Keyword(Keyword::FortyfiveDegree) => AngleRestriction::FortyfiveDegree,
+        Token::Keyword(Keyword::None) => AngleRestriction::None,
+        _ => {
+            // Java warns "unexpected token"
+            return None;
+        }
+    };
+    if scanner.next_token() != Token::Close {
+        // Java warns "closing bracket expected"
+        return None;
+    }
+    Some(snap_angle)
+}
+
+/// The first shape's parser layer (Java `area.shapeList.iterator().next()
+/// .layer`, `:882`/`:1086`). The `PolylinePath` arm is only reachable
+/// from the PLANE path (a keepout dies earlier on the null transform);
+/// `None` (Java null layer from an unknown layer name, `Shape.java:
+/// 107-162` has no check) maps to `None` for the caller's NPE parity.
+fn area_first_layer(area: &AreaScopeResult) -> Option<&Layer> {
+    match area.shapes[0].as_ref() {
+        None => None, // unreachable for a successful read (resultOk gate)
+        Some(Shape::Rectangle(shape)) => Some(&shape.layer),
+        Some(Shape::Polygon(shape)) => Some(&shape.layer),
+        Some(Shape::Circle(shape)) => Some(&shape.layer),
+        Some(Shape::PolylinePath(shape)) => shape.layer.as_ref(),
+        Some(Shape::PolygonPath(shape)) => Some(&shape.layer),
+    }
+}
+
+/// Java `Structure.insertKeepout` (`:857-901`). `area` is `None` (Java
+/// null, a failed `readAreaScope` stored in the list unchecked) exactly
+/// where Java NPEs on `area.shapeList` — parse-fatal parity, as is the
+/// null transform result (`keepoutArea.dimension()` NPE at `:864`, jar
+/// `/tmp/epic-t6-board.out` THROWN lines). A degenerate area (dimension
+/// < 2) is SKIPPED with a log-only warning and does not fail the parse
+/// (`:864-876`). A `signal`-layer keepout inserts on every PARSER signal
+/// layer (indexed up to the BOARD layer count — a shorter parser
+/// structure is the AIOOBE parity `false`); a `pcb`/unknown-layer
+/// keepout (no < 0) warns and FAILS the parse (`:892-898`, jar
+/// t6-pcb-keep).
+fn insert_keepout(
+    area: Option<&AreaScopeResult>,
+    state: &ParseState,
+    sink: &mut dyn BoardSink,
+    kind: KeepoutKindIr,
+    fixed: FixedStateIr,
+) -> bool {
+    let Some(area) = area else {
+        return false; // Java NPE at `area.shapeList` (`:862`, jar stack)
+    };
+    let Some(coordinate_transform) = &state.coordinate_transform else {
+        // Java NPE inside transformToBoard — unreachable post-create_board
+        return false;
+    };
+    let Some(keepout_area) = transform_area_to_board(&area.shapes, coordinate_transform) else {
+        return false; // Java NPE at `keepoutArea.dimension()` (`:864`)
+    };
+    if keepout_area.border.dimension() < 2 {
+        // Java `:864-876`: FRLogger.warn "Keepout zone '<name>' was
+        // skipped because its geometry is degenerate ..." — log-only.
+        return true;
+    }
+    let Some(current_layer) = area_first_layer(area) else {
+        return false; // Java NPE at `:882` — unreachable (see area_first_layer)
+    };
+    if current_layer.name == Layer::SIGNAL_NAME {
+        // `currentLayer == Layer.SIGNAL` — the getLayer interning makes
+        // the exact-case name the identity test (shape.rs module docs).
+        let board_layer_count = sink.layer_count();
+        let Some(layer_structure) = &state.layer_structure else {
+            // unreachable: the keepout arm guarantees the structure
+            return false;
+        };
+        for i in 0..board_layer_count {
+            match layer_structure.layers.get(i as usize) {
+                // Java `:884-888` indexes the PARSER structure up to the
+                // BOARD layer count — a shorter parser structure AIOOBEs
+                // (parse dies).
+                None => return false,
+                Some(parser_layer) => {
+                    if parser_layer.is_signal {
+                        insert_keepout_item(
+                            sink,
+                            &keepout_area,
+                            i,
+                            area.clearance_class.as_deref(),
+                            kind,
+                            fixed,
+                        );
+                    }
+                }
+            }
+        }
+    } else if current_layer.no >= 0 {
+        insert_keepout_item(
+            sink,
+            &keepout_area,
+            current_layer.no,
+            area.clearance_class.as_deref(),
+            kind,
+            fixed,
+        );
+    } else {
+        // Java `:892-898`: "Structure.insert_keepout: unknown layer name"
+        // — the Layer.PCB arm (jar t6-pcb-keep: ParseError).
+        return false;
+    }
+    true
+}
+
+/// Java `Structure.insertKeepout` inner overload (`:903-933`): the
+/// clearance class resolves from the name (a miss warns and falls back
+/// to class 0, the `null` class) or from the default net class's AREA
+/// item class when no name is present; then one of the three board
+/// obstacle insertions per keepout kind.
+fn insert_keepout_item(
+    sink: &mut dyn BoardSink,
+    area: &AreaIr,
+    layer: i32,
+    clearance_class_name: Option<&str>,
+    kind: KeepoutKindIr,
+    fixed: FixedStateIr,
+) {
+    let clearance_class_index = match clearance_class_name {
+        None => sink.default_item_clearance_class(ItemClassIr::Area),
+        Some(name) => {
+            // Java `getNo` -> `< 0` warns "Keepout.insert_keepout:
+            // clearance class not found" (log-only) and falls back to
+            // BoardRules.clearanceClassNone() == 0.
+            sink.clearance_class_no(name).unwrap_or(0)
+        }
+    };
+    sink.insert_keepout(KeepoutIr {
+        kind,
+        layer_no: layer,
+        area: area.clone(),
+        clearance_class: clearance_class_index,
+        fixed,
+    });
+}
+
+/// The netlist-guard block of the plane and power-plane insertions
+/// (`Structure.java:1070-1075` and `:543-548`): the CASE-SENSITIVE
+/// parser `NetList` decides is-new; a new net is appended to the BOARD
+/// table with `contains_plane = true` (`Nets.add(..., true)`).
+fn add_plane_net(state: &mut ParseState, sink: &mut dyn BoardSink, name: &str) {
+    let net_id = NetId {
+        name: name.to_string(),
+        subnet_number: 1,
+    };
+    if !state.netlist.contains(&net_id) && state.netlist.add_net(net_id).is_some() {
+        sink.append_net(NetIr {
+            name: name.to_string(),
+            subnet_number: 1,
+            contains_plane: true,
+        });
+    }
+}
+
+/// One iteration of the plane insertion loop (`Structure.java:1068-1122`).
+/// Order is load-bearing: the net list entry is created BEFORE the area
+/// is transformed, and the layer check comes last — a plane on an
+/// unknown layer still added its net before the parse fails
+/// (`:1115-1120`, jar t6-plane-signal). `plane_info.area == None` is the
+/// `Structure.java:1084` NPE (a failed area read stored unchecked);
+/// a null AREA SHAPE (circle border + window) does NOT fail —
+/// `BasicBoard.insertConductionArea` rejects it with a log-only warning
+/// BEFORE burning an id (jar t6-plane-circwin: Success, no item).
+fn insert_plane(plane_info: &PlaneInfo, state: &mut ParseState, sink: &mut dyn BoardSink) -> bool {
+    add_plane_net(state, sink, &plane_info.net_name);
+    let Some(current_net_no) = sink.net_no_subnet(&plane_info.net_name, 1) else {
+        // Java `:1077-1083`: "Plane.read_scope: net not found" (log-only)
+        return true; // continue with the next plane
+    };
+    let Some(area) = &plane_info.area else {
+        return false; // Java NPE at `planeInfo.area.shapeList` (`:1084`, jar stack)
+    };
+    let Some(coordinate_transform) = &state.coordinate_transform else {
+        // unreachable post-create_board (Java NPE inside transformToBoard)
+        return false;
+    };
+    let plane_area = transform_area_to_board(&area.shapes, coordinate_transform);
+    let Some(current_layer) = area_first_layer(area) else {
+        // Java `currentLayer.no` NPE at `:1086-1087` — reachable ONLY via
+        // a PolylinePath first shape with a null layer (unknown layer
+        // name); both the port and the jar die on the parse.
+        return false;
+    };
+    if current_layer.no >= 0 {
+        let clearance_class_index = match &area.clearance_class {
+            Some(name) => {
+                // a miss warns (log-only) and falls back to class 0
+                sink.clearance_class_no(name).unwrap_or(0)
+            }
+            None => {
+                // Java `currentNet.getNetClass().defaultItemClearanceClasses
+                // .get(AREA)` (`:1100-1104`): the NET's class — for a
+                // Task 6 parse the net was just created into the default
+                // net class, so the sink's default AREA value matches;
+                // the general net->class linkage lands with Task 8.
+                sink.default_item_clearance_class(ItemClassIr::Area)
+            }
+        };
+        if let Some(plane_area) = plane_area {
+            sink.insert_conduction_area(ConductionAreaIr {
+                layer_no: current_layer.no,
+                area: plane_area,
+                nets: vec![current_net_no],
+                clearance_class: clearance_class_index,
+                fixed: FixedStateIr::SystemFixed,
+            });
+        }
+        // else: BasicBoard.insert_conduction_area rejects the null area
+        // with a log-only warning BEFORE inserting (`BasicBoard.java:546`)
+        // — no item, no id burned, parse continues.
+        true
+    } else {
+        // Java `:1115-1120`: "Plane.read_scope: unexpected layer name" —
+        // parse failure (jar t6-plane-signal: ParseError).
+        false
+    }
+}
+
+/// Java `Structure.insertMissingPowerPlanes` (`:526-571`): every
+/// PARSER non-signal layer that carries `(use_net ...)` names and no
+/// conduction area yet gets a full-bounding-box plane for its FIRST net
+/// name (class 0, SYSTEM_FIXED, `contains_plane = true`). Missing net
+/// names warn (log-only) and skip.
+fn insert_missing_power_planes(
+    layer_info: &[Layer],
+    state: &mut ParseState,
+    sink: &mut dyn BoardSink,
+) {
+    for current_layer in layer_info {
+        if current_layer.is_signal {
+            continue;
+        }
+        if sink.has_conduction_area_on_layer(current_layer.no) {
+            continue;
+        }
+        let Some(current_net_name) = current_layer.net_names.first() else {
+            continue;
+        };
+        add_plane_net(state, sink, current_net_name);
+        let Some(current_net_no) = sink.net_no_subnet(current_net_name, 1) else {
+            // Java `:552-558`: "insert_missing_power_planes: net not
+            // found" (log-only), continue with the next layer.
+            continue;
+        };
+        let Some(bounding_box) = sink.board_bounding_box() else {
+            // Java `board.boundingBox` is never null post-create_board
+            continue;
+        };
+        sink.insert_conduction_area(ConductionAreaIr {
+            layer_no: current_layer.no,
+            area: AreaIr::simple(box_shape(bounding_box)),
+            nets: vec![current_net_no],
+            clearance_class: 0, // BoardRules.clearanceClassNone()
+            fixed: FixedStateIr::SystemFixed,
+        });
+    }
 }
 
 /// Java `Structure.createBoard` (`:1139-1286`). Emits [`CreateBoardIr`]
@@ -938,7 +1337,9 @@ impl OutlineShape {
 mod tests {
     use super::*;
     use crate::ses_board::SesBoard;
+    use crate::sink::TraceIr;
     use crate::state::AngleRestriction;
+    use epic_geometry::int_point::IntPoint;
 
     /// Positions the scanner after the `(structure` opener (the dispatch
     /// site consumes the OPEN bracket + the keyword before `read_scope`)
@@ -1563,5 +1964,585 @@ mod tests {
         assert!(!ok);
         assert!(state.board_outline_ok, "crash path: flag never set");
         assert!(!board.has_board());
+    }
+
+    // ---- Task 6: keepouts/planes/control (jar /tmp/epic-t6-board.out) ----
+
+    /// The keepout payload by board id (ids are dense from 1, outline = 1).
+    fn keepout_by_id(board: &SesBoard, id: i32) -> &KeepoutIr {
+        for item in &board.items {
+            if let crate::ses_board::ItemIr::Keepout {
+                id: item_id,
+                keepout,
+            } = item
+                && *item_id == id
+            {
+                return keepout;
+            }
+        }
+        panic!("no keepout with id {id}");
+    }
+
+    fn bbox_of(area: &AreaIr) -> [i32; 4] {
+        let bbox = area.border.bounding_box();
+        [bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y]
+    }
+
+    fn conduction_by_id(board: &SesBoard, id: i32) -> &ConductionAreaIr {
+        for item in &board.items {
+            if let crate::ses_board::ItemIr::ConductionArea { id: item_id, area } = item
+                && *item_id == id
+            {
+                return area;
+            }
+        }
+        panic!("no conduction area with id {id}");
+    }
+
+    /// Jar FILE `/tmp/epic-t6-keep.dsn` (16 items): the signal keepout with
+    /// a named class expands over all four PARSER signal layers (ids 2-5,
+    /// class 2 = `power`), the nonexistent class falls back to 0 with a
+    /// log-only warn (ids 6-9 — WARN_COUNT still 0), the named-layer and
+    /// windowed keepouts insert per kind (`via_keepout` -> ViaObstacleArea
+    /// id 15, `place_keepout` -> ComponentObstacleArea id 16), and the
+    /// keepout loop order is keepout/via_keepout/place_keepout.
+    #[test]
+    fn keepout_full_battery_jar_probe() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer IN1 (type signal))\
+             (layer IN2 (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (rule (clearance 800 (type power-ground)))\
+             (keepout (rect signal 1000 1000 2000 2000) (clearance_class power))\
+             (keepout (rect signal 300 300 400 400) (clearance_class nonexistent))\
+             (keepout (rect F.Cu 3000 1000 4000 2000))\
+             (via_keepout (rect B.Cu 5000 1000 6000 2000))\
+             (place_keepout (rect IN1 7000 1000 8000 2000))\
+             (keepout (poly signal 0 500 5000 1500 5000 1500 6000 500 6000)\
+                      (window (rect signal 800 5300 1200 5700)))",
+        );
+        assert!(ok);
+        let layers = board.layers.as_ref().expect("layers");
+        assert_eq!(layers.layers.len(), 4);
+        assert_eq!(
+            board.rules.clearance.names,
+            ["null", "default", "power", "ground"]
+        );
+        assert_eq!(board.items.len(), 16);
+        // ids 2-5: the `signal` keepout folded over the parser layers
+        for (id, layer) in [(2, 0), (3, 1), (4, 2), (5, 3)] {
+            let keepout = keepout_by_id(&board, id);
+            assert_eq!(keepout.kind, KeepoutKindIr::Keepout);
+            assert_eq!(keepout.layer_no, layer);
+            assert_eq!(keepout.clearance_class, 2, "the power class");
+            assert_eq!(keepout.fixed, FixedStateIr::SystemFixed);
+            assert_eq!(bbox_of(&keepout.area), [10_000, 10_000, 20_000, 20_000]);
+        }
+        // ids 6-9: `nonexistent` class -> clearanceClassNone() = 0
+        for (id, layer) in [(6, 0), (7, 1), (8, 2), (9, 3)] {
+            let keepout = keepout_by_id(&board, id);
+            assert_eq!(keepout.layer_no, layer);
+            assert_eq!(keepout.clearance_class, 0, "class-not-found fallback");
+            assert_eq!(bbox_of(&keepout.area), [3_000, 3_000, 4_000, 4_000]);
+        }
+        // id 10: the F.Cu keepout, default AREA item class
+        let keepout = keepout_by_id(&board, 10);
+        assert_eq!(keepout.layer_no, 0);
+        assert_eq!(keepout.clearance_class, 1);
+        assert_eq!(bbox_of(&keepout.area), [30_000, 10_000, 40_000, 20_000]);
+        // ids 11-14: the windowed polygon keepout, hole preserved
+        for (id, layer) in [(11, 0), (12, 1), (13, 2), (14, 3)] {
+            let keepout = keepout_by_id(&board, id);
+            assert_eq!(keepout.layer_no, layer);
+            assert_eq!(keepout.clearance_class, 1);
+            assert_eq!(bbox_of(&keepout.area), [5_000, 50_000, 15_000, 60_000]);
+            assert_eq!(keepout.area.holes.len(), 1);
+        }
+        // id 15 / id 16: the via and place keepout kinds, in that order
+        let keepout = keepout_by_id(&board, 15);
+        assert_eq!(keepout.kind, KeepoutKindIr::ViaKeepout);
+        assert_eq!(keepout.layer_no, 3);
+        assert_eq!(bbox_of(&keepout.area), [50_000, 10_000, 60_000, 20_000]);
+        let keepout = keepout_by_id(&board, 16);
+        assert_eq!(keepout.kind, KeepoutKindIr::PlaceKeepout);
+        assert_eq!(keepout.layer_no, 1);
+        assert_eq!(bbox_of(&keepout.area), [70_000, 10_000, 80_000, 20_000]);
+    }
+
+    /// Jar `/tmp/epic-t6-degen.dsn`: the zero-area polygon (name `dz`) and
+    /// the zero-width rectangle (no name -> 'null' in the warn) are
+    /// SKIPPED with log-only warnings; only the healthy keepout survives
+    /// (ids 2-3, both layers) and the parse still succeeds.
+    #[test]
+    fn degenerate_keepouts_are_skipped() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout dz (poly signal 0 2000 2000 2000 2000 2000 2000))\
+             (keepout (rect signal 2000 2000 2000 3000))\
+             (keepout ok (rect signal 1000 1000 2000 2000))",
+        );
+        assert!(ok);
+        assert_eq!(board.items.len(), 3);
+        for id in [2, 3] {
+            let keepout = keepout_by_id(&board, id);
+            assert_eq!(keepout.layer_no, id - 2);
+            assert_eq!(keepout.clearance_class, 1);
+            assert_eq!(bbox_of(&keepout.area), [10_000, 10_000, 20_000, 20_000]);
+        }
+    }
+
+    /// Jar `/tmp/epic-t6-keep-circle.dsn`: a single-shape circle keepout
+    /// is INSERTED, not degenerate-skipped — `transformAreaToBoard`
+    /// returns it uncast and `Circle.dimension()` is 2 (`Circle.java:
+    /// 36-42`). Bbox center +/- radius: jar `48500 38500 .. 51500 41500`.
+    #[test]
+    fn circle_keepout_is_inserted_not_skipped() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (circle signal 300 5000 4000))",
+        );
+        assert!(ok);
+        assert_eq!(board.items.len(), 3);
+        for (id, layer) in [(2, 0), (3, 1)] {
+            let keepout = keepout_by_id(&board, id);
+            assert_eq!(keepout.layer_no, layer);
+            assert_eq!(keepout.clearance_class, 1);
+            assert!(matches!(
+                keepout.area.border,
+                crate::shape::BoardShape::Circle(_)
+            ));
+            assert_eq!(
+                bbox_of(&keepout.area),
+                [48_500, 38_500, 51_500, 41_500],
+                "center (50000,40000) +/- radius 1500"
+            );
+        }
+    }
+
+    /// Jar `/tmp/epic-t6-keep-circle-hole.dsn`: a circle WINDOW makes the
+    /// `PolylineArea` construction fail (warn "PolylineShape expected"),
+    /// the null `keepoutArea` then NPEs at `:864` — parse-fatal parity.
+    #[test]
+    fn circle_window_keepout_is_a_parse_failure() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (poly signal 0 500 5000 1500 5000 1500 6000 500 6000)\
+                      (window (circle signal 100 1000 5500)))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-keep-badshape.dsn`: a failed FIRST shape is
+    /// appended as null (Java LinkedList) and NPEs at `area.shapeList`
+    /// (`:862`, jar stack "Cannot read field \"shapeList\" because
+    /// \"area\" is null") — parse-fatal parity.
+    #[test]
+    fn bad_first_shape_keepout_is_a_parse_failure() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (nosuchshape x))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-keep-signal.dsn` + `-signal-fold.dsn`: the exact
+    /// lowercase `signal` name takes the expand branch, and the UPPERCASE
+    /// `SIGNAL` (unknown -> signal FALLBACK in the shape reader) lands on
+    /// the same expanded result — the fallback normalizes the case BEFORE
+    /// the insert-time name test (jar: identical items for both files).
+    #[test]
+    fn signal_layer_keepout_expands_and_folds() {
+        for layer_token in ["signal", "SIGNAL"] {
+            let (ok, _state, board) = run_structure(&format!(
+                "(layer F.Cu (type signal))\
+                 (layer B.Cu (type signal))\
+                 (boundary (rect pcb 0 0 10000 8000))\
+                 (keepout (rect {layer_token} 1 1 2 2))"
+            ));
+            assert!(ok, "{layer_token}");
+            assert_eq!(board.items.len(), 3, "{layer_token}");
+            for (id, layer) in [(2, 0), (3, 1)] {
+                let keepout = keepout_by_id(&board, id);
+                assert_eq!(keepout.layer_no, layer, "{layer_token}");
+                assert_eq!(bbox_of(&keepout.area), [10, 10, 20, 20]);
+            }
+        }
+    }
+
+    /// Jar `/tmp/epic-t6-keep-unknown.dsn`: an unknown layer name falls
+    /// back to signal in the shape reader -> the keepout still EXPANDS
+    /// over both layers (a wrong port failing the parse here diverges).
+    #[test]
+    fn unknown_layer_keepout_falls_back_to_signal() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (rect nosuch 1 1 2 2))",
+        );
+        assert!(ok);
+        assert_eq!(board.items.len(), 3);
+        for (id, layer) in [(2, 0), (3, 1)] {
+            let keepout = keepout_by_id(&board, id);
+            assert_eq!(keepout.layer_no, layer);
+            assert_eq!(bbox_of(&keepout.area), [10, 10, 20, 20]);
+        }
+    }
+
+    /// Jar `/tmp/epic-t6-probe3.out` (`t6-pcb-keep.dsn`): the pcb
+    /// pseudo-layer has no -1; `insertKeepout` warns "unknown layer name"
+    /// and the parse FAILS (`:892-898`).
+    #[test]
+    fn pcb_layer_keepout_is_a_parse_error() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (rect pcb 1 1 2 2))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar FILE `/tmp/epic-t6-plane.dsn`: the plane battery. Parser nets
+    /// are CASE-SENSITIVE (GND and gnd both exist) while the board net
+    /// lookup is case-INSENSITIVE (`nets.get("gnd", 1)` -> net 1 — the
+    /// second plane carries nets=[1]); all plane nets get
+    /// `contains_plane = true`; the control/flip_style/snap_angle values
+    /// land on the parse state and the board; the VDD window survives as
+    /// a hole.
+    #[test]
+    fn plane_battery_jar_probe() {
+        let (ok, state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (control (via_at_smd on))\
+             (flip_style rotate_first)\
+             (snap_angle ninety_degree)\
+             (keepout (rect F.Cu 100 100 200 200))\
+             (plane GND (rect B.Cu 1000 1000 3000 3000))\
+             (plane gnd (rect B.Cu 4000 1000 6000 3000))\
+             (plane VDD (poly F.Cu 0 7000 1000 9000 1000 9000 3000 7000 3000)\
+                  (window (rect F.Cu 7500 1500 8500 2500)))",
+        );
+        assert!(ok);
+        assert!(state.via_at_smd_allowed, "(control (via_at_smd on))");
+        assert_eq!(state.snap_angle, AngleRestriction::NinetyDegree);
+        assert_eq!(board.metadata.flip_style.as_deref(), Some("rotate_first"));
+        // NET_COUNT 3, all contains_plane=true (jar NET lines)
+        assert_eq!(board.nets.len(), 3);
+        assert_eq!(board.nets[0].name, "GND");
+        assert_eq!(board.nets[1].name, "gnd", "case-sensitive parser list");
+        assert_eq!(board.nets[2].name, "VDD");
+        assert!(board.nets.iter().all(|net| net.contains_plane));
+        assert_eq!(board.items.len(), 5);
+        // keepout id 2 (F.Cu, default item class)
+        let keepout = keepout_by_id(&board, 2);
+        assert_eq!(keepout.layer_no, 0);
+        assert_eq!(keepout.clearance_class, 1);
+        assert_eq!(bbox_of(&keepout.area), [1_000, 1_000, 2_000, 2_000]);
+        // conduction ids 3/4: GND and gnd BOTH resolve to board net 1
+        let area = conduction_by_id(&board, 3);
+        assert_eq!(area.layer_no, 1);
+        assert_eq!(area.nets, [1]);
+        assert_eq!(area.clearance_class, 1);
+        assert_eq!(area.fixed, FixedStateIr::SystemFixed);
+        assert_eq!(bbox_of(&area.area), [10_000, 10_000, 30_000, 30_000]);
+        let area = conduction_by_id(&board, 4);
+        assert_eq!(area.layer_no, 1);
+        assert_eq!(area.nets, [1], "case-insensitive board lookup of 'gnd'");
+        assert_eq!(bbox_of(&area.area), [40_000, 10_000, 60_000, 30_000]);
+        // conduction id 5: the VDD polygon with its window hole
+        let area = conduction_by_id(&board, 5);
+        assert_eq!(area.layer_no, 0);
+        assert_eq!(area.nets, [3]);
+        assert_eq!(bbox_of(&area.area), [70_000, 10_000, 90_000, 30_000]);
+        assert_eq!(area.area.holes.len(), 1);
+    }
+
+    /// Jar `/tmp/epic-t6-plane-badnet.dsn`: `(plane 123 ...)` — the NAME
+    /// lexical state scans digits as a string, so the net "123" is a
+    /// successful parse with a conduction area on B.Cu.
+    #[test]
+    fn plane_net_name_numeric_string() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (keepout (rect F.Cu 100 100 200 200))\
+             (plane 123 (rect B.Cu 1 1 2 2))",
+        );
+        assert!(ok);
+        assert_eq!(board.nets.len(), 1);
+        assert_eq!(board.nets[0].name, "123");
+        assert!(board.nets[0].contains_plane);
+        let area = conduction_by_id(&board, 3);
+        assert_eq!(area.layer_no, 1);
+        assert_eq!(area.nets, [1]);
+        assert_eq!(bbox_of(&area.area), [10, 10, 20, 20]);
+    }
+
+    /// Jar `/tmp/epic-t6-plane-signal.dsn`: a plane on the `signal`
+    /// pseudo-layer (no >= 0 fails) warns "unexpected layer name" and the
+    /// parse FAILS (`:1115-1120`) — the net was still added first.
+    #[test]
+    fn plane_on_signal_layer_is_a_parse_error() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (plane GND (rect signal 1 1 2 2))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-plane-badlayer.dsn`: an unknown plane layer falls
+    /// back to signal in the shape reader, so the plane dies on the SAME
+    /// unexpected-layer branch (`:1115-1120`).
+    #[test]
+    fn plane_unknown_layer_falls_back_to_signal_then_fails() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (plane STRAY (rect nosuch 1 1 2 2))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-plane-badshape.dsn`: a failed plane area is
+    /// stored UNCHECKED (`Plane.java:79-81`) and NPEs at
+    /// `planeInfo.area.shapeList` (`:1084`, jar stack) — parse-fatal
+    /// parity, but only AFTER the net was added.
+    #[test]
+    fn plane_bad_shape_is_a_parse_failure() {
+        let (ok, _state, _board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (plane GND (nosuchshape x))",
+        );
+        assert!(!ok);
+    }
+
+    /// Jar `/tmp/epic-t6-probe3.out` (`t6-plane-circwin.dsn`): a circle
+    /// border + window fails the PolylineArea construction, the null area
+    /// is rejected by `BasicBoard.insertConductionArea` BEFORE burning an
+    /// id — Success, NO item, but the plane net still exists.
+    #[test]
+    fn plane_circle_border_with_window_inserts_nothing() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (plane GND (circle F.Cu 300 5000 4000) (window (rect F.Cu 4900 3900 5100 4100)))",
+        );
+        assert!(ok);
+        assert_eq!(board.items.len(), 1, "outline only — no conduction item");
+        assert_eq!(board.nets.len(), 1);
+        assert_eq!(board.nets[0].name, "GND");
+        assert!(board.nets[0].contains_plane);
+    }
+
+    /// Jar `/tmp/epic-t6-probe3.out` (`t6-ctrl-garbage.dsn`): the
+    /// `(via_at_smd garbage)` value is not `on` -> false (the readOnOffScope
+    /// warn is log-only), the scope is drained, and the later
+    /// `(snap_angle ninety_degree)` still parses: Success, ANGLE
+    /// NINETY_DEGREE.
+    #[test]
+    fn control_via_at_smd_garbage_drains_scope() {
+        let (ok, state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (control (via_at_smd garbage))\
+             (snap_angle ninety_degree)",
+        );
+        assert!(ok);
+        assert!(!state.via_at_smd_allowed);
+        assert_eq!(state.snap_angle, AngleRestriction::NinetyDegree);
+        assert_eq!(board.items.len(), 1);
+    }
+
+    /// Dispatch pins read verbatim (`Structure.java:1015`, `:1018-1021`):
+    /// a FAILED snap_angle read keeps the PREVIOUS value (a port resetting
+    /// to the fortyfive default reads FORTYFIVE here and fails), and a
+    /// second flip_style scope OVERWRITES the local — a failed read after
+    /// a successful one clears it.
+    #[test]
+    fn snap_angle_keeps_previous_and_flip_style_overwrites() {
+        let (ok, state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (snap_angle ninety_degree)\
+             (snap_angle bogus)\
+             (flip_style rotate_first)\
+             (flip_style rotate_first extra)",
+        );
+        assert!(ok);
+        assert_eq!(state.snap_angle, AngleRestriction::NinetyDegree);
+        assert_eq!(
+            board.metadata.flip_style, None,
+            "the failed second flip_style scope overwrote the first"
+        );
+    }
+
+    /// Jar FILE `/tmp/epic-t6-power.dsn`: `insertMissingPowerPlanes` —
+    /// every non-signal layer with `(use_net ...)` and no conduction area
+    /// gets a full-bounds plane (class 0, SYSTEM_FIXED) for its FIRST net
+    /// name only; VDD is shared by PWR and PWR2 (one net, the second
+    /// netlist guard hits), PWR3 (no names) is skipped, GND2 never added.
+    #[test]
+    fn insert_missing_power_planes_jar_probe() {
+        let (ok, _state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer PWR (type power) (use_net VDD))\
+             (layer PWR2 (type power) (use_net VDD GND2))\
+             (layer PWR3 (type power))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))",
+        );
+        assert!(ok);
+        assert_eq!(board.nets.len(), 1);
+        assert_eq!(board.nets[0].name, "VDD");
+        assert!(board.nets[0].contains_plane);
+        assert_eq!(board.items.len(), 3);
+        for (id, layer) in [(2, 1), (3, 2)] {
+            let area = conduction_by_id(&board, id);
+            assert_eq!(area.layer_no, layer);
+            assert_eq!(area.nets, [1]);
+            assert_eq!(area.clearance_class, 0);
+            assert_eq!(area.fixed, FixedStateIr::SystemFixed);
+            assert_eq!(
+                bbox_of(&area.area),
+                [-1000, -1000, 101_000, 81_000],
+                "board.boundingBox = bounds incl. offset(1000)"
+            );
+        }
+    }
+
+    /// Jar FILE `/tmp/epic-t6-t37-fire.dsn` (T37, seed mirrors the jar
+    /// wiring order): only the IN1 plane fires — interior signal layer,
+    /// no wires, 5.525E9 >= 0.5 * 8.0E9 board area — promoting its net to
+    /// `contains_plane` and the area to USER_FIXED; the IN2 area is vetoed
+    /// by the trace on its layer, IN3 by the area gate (2.25E8), F.Cu and
+    /// B.Cu by the exterior/last-layer gate. Jar: NET 1 cp=true, INFO
+    /// "Layer 'IN1' has been automatically configured ...", conduction
+    /// id 6 fixed=USER_FIXED, ids 8-11 UNFIXED.
+    #[test]
+    fn adjust_plane_autoroute_settings_jar_probe() {
+        let (ok, _state, mut board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer IN1 (type signal))\
+             (layer IN2 (type signal))\
+             (layer IN3 (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (path pcb 0 0 0 10000 0 10000 8000 0 8000 0 0))",
+        );
+        assert!(ok);
+        for name in ["PERFECT", "NET2", "NET3", "NET4"] {
+            board.append_net(NetIr {
+                name: name.to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+            });
+        }
+        let big = AreaIr::simple(box_shape(IntBox::new(
+            IntPoint::new(10_000, 10_000),
+            IntPoint::new(95_000, 75_000),
+        )));
+        let small = AreaIr::simple(box_shape(IntBox::new(
+            IntPoint::new(10_000, 10_000),
+            IntPoint::new(25_000, 25_000),
+        )));
+        fn plane(board: &mut SesBoard, layer_no: i32, nets: Vec<i32>, area: &AreaIr) {
+            board.insert_conduction_area(ConductionAreaIr {
+                layer_no,
+                area: area.clone(),
+                nets,
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            });
+        }
+        // the t37 wiring order: IN1 area, IN2 trace + area, IN3 area,
+        // F.Cu area, B.Cu area
+        plane(&mut board, 1, vec![1], &big);
+        board.insert_trace(TraceIr {
+            layer_no: 2,
+            half_width: 500,
+            corners: vec![IntPoint::new(20_000, 20_000), IntPoint::new(30_000, 20_000)],
+            nets: vec![2],
+            clearance_class: 1,
+            fixed: FixedStateIr::UserFixed,
+        });
+        plane(&mut board, 2, vec![2], &big);
+        plane(&mut board, 3, vec![3], &small);
+        plane(&mut board, 0, vec![4], &big);
+        plane(&mut board, 4, vec![4], &big);
+        assert!(board.adjust_plane_autoroute_settings());
+        assert!(board.nets[0].contains_plane, "PERFECT promoted");
+        assert!(!board.nets[1].contains_plane);
+        assert!(!board.nets[2].contains_plane);
+        assert!(!board.nets[3].contains_plane);
+        let fixed_by_layer: Vec<(i32, FixedStateIr)> = board
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                crate::ses_board::ItemIr::ConductionArea { area, .. } => {
+                    Some((area.layer_no, area.fixed))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            fixed_by_layer,
+            [
+                (1, FixedStateIr::UserFixed),
+                (2, FixedStateIr::Unfixed),
+                (3, FixedStateIr::Unfixed),
+                (0, FixedStateIr::Unfixed),
+                (4, FixedStateIr::Unfixed),
+            ]
+        );
+    }
+
+    /// The heuristic early gates (code-read `DsnFile.java:33-45`): no
+    /// board at all (Java `routingBoard == null`), <= 2 layers, and any
+    /// non-signal layer all return false before scanning items.
+    #[test]
+    fn adjust_plane_autoroute_settings_early_gates() {
+        let mut board = SesBoard::new();
+        assert!(!board.adjust_plane_autoroute_settings(), "no board");
+
+        let (ok, _state, mut two_layer) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))",
+        );
+        assert!(ok);
+        assert!(!two_layer.adjust_plane_autoroute_settings(), "2 layers");
+
+        let (ok, _state, mut power_layer) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer PWR (type power))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))",
+        );
+        assert!(ok);
+        assert!(
+            !power_layer.adjust_plane_autoroute_settings(),
+            "non-signal layer"
+        );
     }
 }

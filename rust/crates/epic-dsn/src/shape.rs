@@ -75,6 +75,8 @@ use crate::coordinate_transform::CoordinateTransform;
 use crate::keyword::{Keyword, skip_scope};
 use crate::layer_structure::{Layer, LayerStructure};
 use crate::lexer::{Scanner, Token};
+use crate::sink::AreaIr;
+use crate::state::AreaScopeResult;
 use epic_geometry::circle::Circle as BoardCircle;
 use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
@@ -173,31 +175,53 @@ pub enum BoardShape {
 }
 
 impl BoardShape {
-    /// Java `PolylineShape.dimension()`: 0 for degenerate shapes, 2 for
-    /// real areas. The Circle arm is unreachable in the readers — Java
-    /// casts every board shape here to `PolylineShape` and a Circle
-    /// throws `ClassCastException` first (create_board / insertKeepout).
+    /// Java `Area.dimension()` over the concrete board shapes: 0 for
+    /// degenerate tiles/polygons, 2 for real areas. The Circle arm IS
+    /// reachable from Task 6 — a single-shape circle keepout survives
+    /// `transformAreaToBoard` uncast (the `(PolylineShape)` casts only
+    /// guard createBoard and the PolylineArea constructor), and Java
+    /// `Circle.dimension` (`Circle.java:36-42`) is 2 unless the radius is
+    /// 0. Jar `/tmp/epic-t6-board.out` t6-keep-circle: the r=1500 circle
+    /// keepout is INSERTED on both layers, not degenerate-skipped.
     pub(crate) fn dimension(&self) -> i32 {
         match self {
             BoardShape::Tile(tile) => tile.dimension(),
             BoardShape::PolygonShape(polygon) => polygon.dimension(),
-            BoardShape::Circle(_) => 0,
+            BoardShape::Circle(circle) => {
+                if circle.radius == 0 {
+                    0
+                } else {
+                    2
+                }
+            }
         }
     }
 
-    /// Java `PolylineShape.boundingBox()`. The Circle arm is unreachable
-    /// (see [`BoardShape::dimension`]); it returns a zero box.
+    /// Java `Circle.boundingBox` (`Circle.java:99-105`) for the Circle arm:
+    /// center +/- radius on both axes (jar t6-keep-circle: the r=1500
+    /// circle at (50000, 40000) dumps bbox 48500 38500 .. 51500 41500).
     pub(crate) fn bounding_box(&self) -> IntBox {
         match self {
             BoardShape::Tile(tile) => tile.bounding_box(),
             BoardShape::PolygonShape(polygon) => polygon.bounding_box(),
-            BoardShape::Circle(_) => IntBox::new(IntPoint::new(0, 0), IntPoint::new(0, 0)),
+            BoardShape::Circle(circle) => IntBox::new(
+                IntPoint::new(
+                    circle.center.x - circle.radius,
+                    circle.center.y - circle.radius,
+                ),
+                IntPoint::new(
+                    circle.center.x + circle.radius,
+                    circle.center.y + circle.radius,
+                ),
+            ),
         }
     }
 
     /// Java `PolylineShape.splitToConvex()`: tiles decompose to themselves
     /// (`TileShape.java:890-894`); the polygon split can fail (Java null).
-    /// The Circle arm is unreachable (see [`BoardShape::dimension`]).
+    /// A Circle is NOT a `PolylineShape` (a Java cast here throws) — the
+    /// `None` arm stands in for that; every current caller rejects circles
+    /// before splitting.
     pub(crate) fn split_to_convex(&self) -> Option<Vec<TileShape>> {
         match self {
             BoardShape::Tile(tile) => Some(vec![tile.clone()]),
@@ -206,8 +230,8 @@ impl BoardShape {
         }
     }
 
-    /// Java `PolylineShape.borderLineCount()`. The Circle arm is
-    /// unreachable (see [`BoardShape::dimension`]).
+    /// Java `PolylineShape.borderLineCount()`. A Circle is not a
+    /// `PolylineShape` (the Java cast would throw) — stub 0.
     pub(crate) fn border_line_count(&self) -> i32 {
         match self {
             BoardShape::Tile(tile) => tile.border_line_count() as i32,
@@ -216,8 +240,8 @@ impl BoardShape {
         }
     }
 
-    /// Java `PolylineShape.corner(i)`. The Circle arm is unreachable (see
-    /// [`BoardShape::dimension`]).
+    /// Java `PolylineShape.corner(i)`. A Circle is not a `PolylineShape`
+    /// (the Java cast would throw) — stub origin.
     pub(crate) fn corner(&self, no: i32) -> Point {
         match self {
             BoardShape::Tile(tile) => tile.corner(no),
@@ -227,7 +251,9 @@ impl BoardShape {
     }
 }
 
-fn box_shape(r#box: IntBox) -> BoardShape {
+/// The `IntBox` board shape constructor (used by the structure reader's
+/// power-plane fallback too).
+pub(crate) fn box_shape(r#box: IntBox) -> BoardShape {
     BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(r#box)))
 }
 
@@ -845,6 +871,134 @@ pub fn read_polyline_path_scope(
     })
 }
 
+/// Java `Shape.readAreaScope` (`Shape.java:169-251`): one area scope — an
+/// optional NAME string, the border shape, then `(window ...)` holes
+/// (unless `skip_window_scopes`, set when the host is Allegro —
+/// `Plane.readScope` — whose cutouts would fragment the conduction area),
+/// `(clearance_class ...)` and unknown scopes. `None` mirrors the Java
+/// null return: a failed FIRST shape (`resultOk = false`), end of file or
+/// a scan error anywhere, or a missing bracket after a window shape.
+///
+/// Bug-compat notes:
+/// - a failed WINDOW shape is appended as `None` (Java `shapeList.add(null)`)
+///   and does NOT fail the read — the failure only surfaces at insertion
+///   time, when `transform_area_to_board` NPEs on the null hole;
+/// - the scope identifier is set to the area name (Java
+///   `scanner.setScopeIdentifier`), which only feeds FRLogger warning
+///   texts — no Rust counterpart.
+pub(crate) fn read_area_scope(
+    scanner: &mut Scanner,
+    layer_structure: Option<&LayerStructure>,
+    skip_window_scopes: bool,
+) -> Option<AreaScopeResult> {
+    let mut area_name = None;
+    let mut clearance_class_name = None;
+    let mut shapes: Vec<Option<Shape>> = Vec::new();
+    let mut result_ok = true;
+
+    let first_token = scanner.next_token();
+    if let Token::Str(name) = first_token
+        && !name.is_empty()
+    {
+        area_name = Some(name.to_string());
+    }
+    let current_shape = read_scope(scanner, layer_structure);
+    if current_shape.is_none() {
+        // Java warns "Shape.read_area_scope: could not read shape"
+        result_ok = false;
+    }
+    shapes.push(current_shape);
+
+    let mut prev_token: Option<Token> = None;
+    loop {
+        let next_token = scanner.next_token();
+        if matches!(next_token, Token::Eof | Token::Error(_)) {
+            // Java warns "unexpected end of file" and returns null
+            return None;
+        }
+        if next_token == Token::Close {
+            break;
+        }
+        if prev_token == Some(Token::Open) {
+            if next_token == Token::Keyword(Keyword::Window) && !skip_window_scopes {
+                let hole_shape = read_scope(scanner, layer_structure);
+                shapes.push(hole_shape);
+                // overread the closing bracket
+                if scanner.next_token() != Token::Close {
+                    // Java warns "closed bracket expected"
+                    return None;
+                }
+            } else if next_token == Token::Keyword(Keyword::ClearanceClass) {
+                clearance_class_name = Some(crate::scope::structure::read_string_scope(scanner));
+            } else {
+                // skip unknown scope
+                skip_scope(scanner);
+            }
+        }
+        prev_token = Some(next_token);
+    }
+    if !result_ok {
+        return None;
+    }
+    Some(AreaScopeResult {
+        area_name,
+        clearance_class: clearance_class_name,
+        shapes,
+    })
+}
+
+/// Java `Shape.transformAreaToBoard` (`Shape.java:522-557`): transforms the
+/// area's shape list to board coordinates. With no holes the transformed
+/// border IS the area; with holes the border must be a Java
+/// `PolylineShape` (tiles and `PolygonShape` — NOT a `Circle` and not a
+/// null hole, where Java throws inside the iterator loop) and the result
+/// is a `PolylineArea` ([`AreaIr`]). `None` mirrors BOTH the Java null
+/// return and the in-loop NPE — at every keepout/plane call site both are
+/// parse-fatal (`keepoutArea.dimension()` / `planeInfo.area.shapeList`
+/// NPEs, jar `/tmp/epic-t6-board.out` THROWN lines).
+///
+/// The empty-list arm (`holeCount <= -1`) is unreachable through the two
+/// Java call sites (`readAreaScope` always appends the first shape), kept
+/// for signature totality.
+pub(crate) fn transform_area_to_board(
+    shapes: &[Option<Shape>],
+    coordinate_transform: &CoordinateTransform,
+) -> Option<AreaIr> {
+    if shapes.is_empty() {
+        // Java: warn "area.size() > 0 expected" + null
+        return None;
+    }
+    let Some(boundary) = shapes[0].as_ref() else {
+        // Java: null boundary -> NPE in boundary.transformToBoard
+        return None;
+    };
+    let boundary_shape = boundary.transform_to_board(coordinate_transform)?;
+    if shapes.len() == 1 {
+        return Some(AreaIr::simple(boundary_shape));
+    }
+    // area with holes: the border must be a PolylineShape — a Circle
+    // triggers the "PolylineShape expected" warn + null (jar:
+    // t6-keep-circle-hole THROWN "keepoutArea is null")
+    if matches!(boundary_shape, BoardShape::Circle(_)) {
+        return None;
+    }
+    let mut holes = Vec::with_capacity(shapes.len() - 1);
+    for hole in &shapes[1..] {
+        let hole_shape = hole
+            .as_ref()
+            .and_then(|shape| shape.transform_to_board(coordinate_transform))?;
+        if matches!(hole_shape, BoardShape::Circle(_)) {
+            // Java: warn "PolylineShape expected" + null
+            return None;
+        }
+        holes.push(hole_shape);
+    }
+    Some(AreaIr {
+        border: boundary_shape,
+        holes,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1458,5 +1612,71 @@ mod tests {
     fn unknown_scope_is_skipped() {
         assert!(read("(layer TopLayer)", Some(&two_layers())).is_none());
         assert!(read("(window 1 2 3)", None).is_none());
+    }
+
+    // ---- Task 6: read_area_scope / transform_area_to_board -------------
+
+    /// `read_area_scope` null arms (`Shape.java:169-251`): EOF inside the
+    /// scope, and a failed FIRST shape (resultOk = false -> null at the
+    /// end even though the rest of the scope drained fine).
+    #[test]
+    fn area_scope_null_forms() {
+        // EOF: the rectangle never closes
+        let mut scanner = Scanner::new(b"(rectangle signal 0 0 10 10");
+        assert!(read_area_scope(&mut scanner, None, false).is_none());
+
+        // unknown first shape: consumed via skip, then nulled
+        let mut scanner = Scanner::new(b"(nosuch 1))");
+        assert!(read_area_scope(&mut scanner, None, false).is_none());
+    }
+
+    /// `read_area_scope` capture arms: the optional NAME (empty string is
+    /// Java null -> None), the `(clearance_class ...)` value and the
+    /// window as a second (hole) entry.
+    #[test]
+    fn area_scope_captures_name_class_and_window() {
+        let mut scanner = Scanner::new(
+            b"zone (rectangle signal 0 0 10 10) (window (rectangle signal 1 1 2 2)) (clearance_class power))",
+        );
+        let area = read_area_scope(&mut scanner, None, false).expect("area");
+        assert_eq!(area.area_name.as_deref(), Some("zone"));
+        assert_eq!(area.clearance_class.as_deref(), Some("power"));
+        assert_eq!(area.shapes.len(), 2);
+        assert!(area.shapes[0].is_some());
+        assert!(area.shapes[1].is_some());
+
+        // an empty name string is treated as Java null (Shape.java:180-184)
+        let mut scanner = Scanner::new(b"\"\" (rectangle signal 0 0 10 10))");
+        let area = read_area_scope(&mut scanner, None, false).expect("area");
+        assert_eq!(area.area_name, None);
+    }
+
+    /// `transform_area_to_board` (`Shape.java:522-557`): the empty-list
+    /// arm, the null first shape, the single-shape passthrough (a Circle
+    /// survives — no PolylineArea constructor involved) and the
+    /// circle-border + window rejection.
+    #[test]
+    fn transform_area_to_board_null_and_circle_arms() {
+        assert!(transform_area_to_board(&[], &ct()).is_none());
+
+        // null boundary -> None (the Java iterator NPE)
+        assert!(transform_area_to_board(&[None], &ct()).is_none());
+
+        // single circle passes through untouched
+        let circle = Shape::Circle(Circle {
+            layer: Layer::signal(),
+            coor: [300.0, 5000.0, 4000.0],
+        });
+        let area = transform_area_to_board(&[Some(circle.clone())], &ct()).expect("single shape");
+        assert!(area.holes.is_empty());
+        assert!(matches!(area.border, BoardShape::Circle(_)));
+
+        // circle border + window: PolylineArea rejects (warn-null, jar
+        // t6-keep-circle-hole / t6-plane-circwin "PolylineShape expected")
+        let window = Shape::Rectangle(Rectangle {
+            layer: Layer::signal(),
+            coor: [4900.0, 3900.0, 5100.0, 4100.0],
+        });
+        assert!(transform_area_to_board(&[Some(circle), Some(window)], &ct()).is_none());
     }
 }

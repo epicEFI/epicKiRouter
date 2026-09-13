@@ -3,5 +3,6 @@
 //! reader ([`structure`]) and the `Rule.java` readers ([`rule`]) it
 //! drives.
 
+pub mod plane;
 pub mod rule;
 pub mod structure;

@@ -310,6 +310,7 @@ mod tests {
             board.append_net(NetIr {
                 name: "PERFECT".to_string(),
                 subnet_number: 1,
+                contains_plane: false,
             }),
             1
         );

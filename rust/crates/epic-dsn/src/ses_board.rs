@@ -88,8 +88,8 @@ use crate::coordinate_transform::CoordinateTransform;
 use crate::layer_structure::LayerStructure;
 use crate::sink::{
     BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr,
-    CreateBoardIr, FixedStateIr, ImageIr, KeepoutIr, MetadataIr, NetClassIr, NetIr, PadstackIr,
-    PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr, eq_ignore_case,
+    CreateBoardIr, FixedStateIr, ImageIr, ItemClassIr, KeepoutIr, MetadataIr, NetClassIr, NetIr,
+    PadstackIr, PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr, eq_ignore_case,
 };
 use crate::state::AngleRestriction;
 use epic_geometry::int_box::IntBox;
@@ -319,6 +319,146 @@ impl SesBoard {
         self.next_item_id += 1;
         id
     }
+
+    /// Java `DsnFile.adjustPlaneAutorouteSettings` (`DsnFile.java:32-114`),
+    /// called from `DsnReader.readBoard` when the DSN has no
+    /// `(autoroute_settings ...)` scope (the Task 9 assembly owns that
+    /// gate). Promotes interior-layer conduction areas covering >= half
+    /// the board to power planes: their nets gain `contains_plane` and
+    /// areas below USER_FIXED are promoted to USER_FIXED. Returns whether
+    /// anything changed (Java `!nothingChanged`).
+    ///
+    /// FRLogger INFO per changed layer is log-only — no Rust counterpart.
+    /// Divergence (documented): Java sums `PolylineArea.splitToConvex`
+    /// pieces (holes CUT OUT per piece); this port subtracts the hole-piece
+    /// areas from the border-piece areas, which is exact for the
+    /// non-overlapping, border-contained polygon windows every exporter
+    /// produces (circle windows never reach a conduction area —
+    /// `transform_area_to_board` rejects them). A split failure
+    /// (`PolygonShape::split_to_convex` -> `None`, Java null pieces -> NPE
+    /// at `DsnFile.java:88`) returns `false` here.
+    pub fn adjust_plane_autoroute_settings(&mut self) -> bool {
+        let Some(layer_structure) = &self.layers else {
+            return false; // Java `routingBoard == null` (`:33-35`)
+        };
+        let layer_count = layer_structure.layers.len();
+        if layer_count <= 2 {
+            // `:38-40`: a plane needs interior layers to exist at all
+            return false;
+        }
+        if layer_structure.layers.iter().any(|layer| !layer.is_signal) {
+            // `:41-45`: any non-signal layer disables the heuristic
+            return false;
+        }
+        let mut layer_contains_wires = vec![false; layer_count];
+        let mut conduction_indices: Vec<usize> = Vec::new();
+        for (index, item) in self.items.iter().enumerate() {
+            match item {
+                ItemIr::Trace { trace, .. } => {
+                    let layer = trace.layer_no;
+                    // Java `layerContainsWiresArr[currentLayer] = true` —
+                    // an out-of-range trace layer would AIOOBE (unreachable:
+                    // traces only insert on board layers); guarded skip.
+                    if let Ok(slot) = usize::try_from(layer)
+                        && slot < layer_count
+                    {
+                        layer_contains_wires[slot] = true;
+                    }
+                }
+                ItemIr::ConductionArea { .. } => conduction_indices.push(index),
+                _ => {}
+            }
+        }
+        let mut nothing_changed = true;
+
+        // board area (`:64-73`): the sum over the outline's convex pieces;
+        // a null piece split (PolygonShape that cannot split) is SKIPPED
+        // (`:68-72` — the one split-failure Java tolerates).
+        let mut board_area = 0.0f64;
+        for item in &self.items {
+            if let ItemIr::BoardOutline { outline, .. } = item {
+                for shape in &outline.shapes {
+                    if let Some(pieces) = shape.split_to_convex() {
+                        for piece in pieces {
+                            board_area += piece.area();
+                        }
+                    }
+                }
+            }
+        }
+        for index in conduction_indices {
+            let ItemIr::ConductionArea { area, .. } = &self.items[index] else {
+                unreachable!("collected indices point at conduction areas");
+            };
+            let layer_index = area.layer_no;
+            // Java `layerContainsWiresArr[layerIndex]` would AIOOBE out of
+            // range (unreachable: conduction areas insert on board layers);
+            // guarded skip.
+            let Ok(layer_slot) = usize::try_from(layer_index) else {
+                continue;
+            };
+            if layer_slot >= layer_count || layer_contains_wires[layer_slot] {
+                // `:76-78`: wires on the plane layer veto the promotion
+                continue;
+            }
+            let layer_is_signal =
+                self.layers.as_ref().expect("checked above").layers[layer_slot].is_signal;
+            if !layer_is_signal || layer_slot == 0 || layer_slot == layer_count - 1 {
+                // `:81-85`: only INTERIOR signal layers promote
+                continue;
+            }
+            let Some(current_area) = convex_area(&area.area) else {
+                // Java null convex pieces -> NPE at `:88` (parse dies);
+                // the port degrades to "no change".
+                return false;
+            };
+            if current_area < 0.5 * board_area {
+                // `:91-93`: the >= half-board-area gate
+                continue;
+            }
+            for net_no in &area.nets {
+                // Java `nets.get(netNumber)` NPEs on an unknown number
+                // (unreachable: plane nets resolve before insertion);
+                // guarded skip.
+                if let Some(net) = usize::try_from(*net_no)
+                    .ok()
+                    .and_then(|slot| self.nets.get_mut(slot.checked_sub(1)?))
+                {
+                    net.contains_plane = true;
+                    nothing_changed = false;
+                }
+            }
+            let ItemIr::ConductionArea { area, .. } = &mut self.items[index] else {
+                unreachable!("collected indices point at conduction areas");
+            };
+            if area.fixed < FixedStateIr::UserFixed {
+                // `:100-102`: UNFIXED/SHOVE_FIXED -> USER_FIXED (the
+                // `ordinal() <` comparison is the FixedStateIr order)
+                area.fixed = FixedStateIr::UserFixed;
+            }
+            // `changedLayerArr` feeds the FRLogger INFO loop (`:104-112`)
+            // — log-only, not tracked here.
+        }
+        !nothing_changed
+    }
+}
+
+/// The convex-piece area of an [`AreaIr`] for the plane heuristic: the
+/// border's `splitToConvex` piece areas, minus the holes' piece areas when
+/// holes exist (module docs on
+/// [`SesBoard::adjust_plane_autoroute_settings`] for the divergence).
+/// `None` mirrors a failed Java `splitToConvex`.
+fn convex_area(area: &crate::sink::AreaIr) -> Option<f64> {
+    let mut total = 0.0f64;
+    for piece in area.border.split_to_convex()? {
+        total += piece.area();
+    }
+    for hole in &area.holes {
+        for piece in hole.split_to_convex()? {
+            total -= piece.area();
+        }
+    }
+    Some(total)
 }
 
 impl BoardSink for SesBoard {
@@ -548,6 +688,44 @@ impl BoardSink for SesBoard {
         id
     }
 
+    fn net_no_subnet(&self, name: &str, subnet_number: i32) -> Option<i32> {
+        // Nets.get(name, subnetNumber) (rules/Nets.java:42-51): the FIRST
+        // table entry whose name matches case-INSENSITIVELY and whose
+        // subnet number equals exactly. Discriminator pin
+        // /tmp/epic-t6-board.out t6-plane.dsn: after appending board nets
+        // GND(1) and gnd(2), get("gnd", 1) still resolves to net 1, so
+        // both B.Cu conduction areas carry nets=[1].
+        self.nets
+            .iter()
+            .position(|net| eq_ignore_case(&net.name, name) && net.subnet_number == subnet_number)
+            .map(|index| index as i32 + 1)
+    }
+
+    fn layer_count(&self) -> i32 {
+        // board.getLayerCount() — 0 before create_board.
+        self.layers
+            .as_ref()
+            .map_or(0, |layers| layers.layers.len() as i32)
+    }
+
+    fn default_item_clearance_class(&self, item_class: ItemClassIr) -> i32 {
+        // rules.getDefaultNetClass().defaultItemClearanceClasses.get(kind)
+        // — moves when a rule scope appends a class of the same name
+        // (append_clearance_class retargets via/pin/smd/area).
+        self.rules.default_item_clearance_classes[item_class as usize]
+    }
+
+    fn has_conduction_area_on_layer(&self, layer_no: i32) -> bool {
+        // the insertMissingPowerPlanes scan (Structure.java:532-539)
+        self.items.iter().any(
+            |item| matches!(item, ItemIr::ConductionArea { area, .. } if area.layer_no == layer_no),
+        )
+    }
+
+    fn board_bounding_box(&self) -> Option<IntBox> {
+        self.bounding_box
+    }
+
     fn push_warning(&mut self, warning: String) {
         self.warnings.push(warning);
     }
@@ -606,6 +784,7 @@ mod tests {
             board.append_net(NetIr {
                 name: "PERFECT".to_string(),
                 subnet_number: 1,
+                contains_plane: false,
             }),
             1
         );
@@ -795,6 +974,7 @@ mod tests {
             board.append_net(NetIr {
                 name: "GND".to_string(),
                 subnet_number: 1,
+                contains_plane: false,
             }),
             1
         );
@@ -802,6 +982,7 @@ mod tests {
             board.append_net(NetIr {
                 name: "gnd".to_string(),
                 subnet_number: 1,
+                contains_plane: false,
             }),
             2
         );
@@ -809,6 +990,7 @@ mod tests {
             board.append_net(NetIr {
                 name: "VDD".to_string(),
                 subnet_number: 2,
+                contains_plane: false,
             }),
             3
         );

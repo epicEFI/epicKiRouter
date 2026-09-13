@@ -65,8 +65,9 @@ use epic_geometry::int_point::IntPoint;
 
 /// Java `FixedState` (`board/model/items/FixedState.java`): enum order
 /// UNFIXED, SHOVE_FIXED, USER_FIXED, SYSTEM_FIXED (ordinal order is
-/// load-bearing — module docs).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// load-bearing — module docs; the T37 plane heuristic compares
+/// `ordinal() < USER_FIXED.ordinal()`, `DsnFile.java:100`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FixedStateIr {
     /// Java `UNFIXED`.
     Unfixed,
@@ -268,6 +269,13 @@ pub struct NetIr {
     /// inserts one board net per subnet with the SAME name and
     /// incrementing subnet numbers (`Network.java:1461`).
     pub subnet_number: i32,
+    /// Java `Net.containsPlane` (`rules/Net.java:31`): true for nets
+    /// created by the plane-scope and missing-power-plane insertions
+    /// (`Nets.add(..., containsPlane=true)`, `Structure.java:1073`/
+    /// `:553`) and for nets the T37 plane heuristic promotes
+    /// (`DsnFile.adjustPlaneAutorouteSettings`, `:87-89`). Network-scope
+    /// nets (Task 8) insert with `false`.
+    pub contains_plane: bool,
 }
 
 /// Java `ComponentPlacement` group + one placed instance, stored in
@@ -857,6 +865,17 @@ pub trait BoardSink {
     /// miss.
     fn net_no(&self, name: &str) -> Option<i32>;
 
+    /// Java `Nets.get(name, subnetNumber)` — the TWO-argument overload
+    /// (`rules/Nets.java:42-51`): the FIRST table entry whose name equals
+    /// the query case-INSENSITIVELY and whose subnet number equals
+    /// exactly; `None` (Java null) on a miss. Consumed by the plane
+    /// insertions (`Structure.java:1075`) and the missing-power-plane
+    /// pass (`:549`) — the discriminator pin is `/tmp/epic-t6-board.out`
+    /// t6-plane.dsn: after inserting board nets `GND` (1) and `gnd` (2),
+    /// the `gnd` plane's `get("gnd", 1)` still resolves to net 1, so BOTH
+    /// B.Cu conduction areas carry nets=[1].
+    fn net_no_subnet(&self, name: &str, subnet_number: i32) -> Option<i32>;
+
     /// Java `ClearanceMatrix.append_class`: appends a class unless a class
     /// with the name is already present (the dedup match rule is pinned by
     /// the Task 5 clearance pins; the two initial classes are `"null"` and
@@ -1026,6 +1045,29 @@ pub trait BoardSink {
     /// returns its board id (duplicate-via detection is a READER rule,
     /// `Wiring.java:699-703`).
     fn insert_via(&mut self, via: ViaIr) -> i32;
+
+    // ---- board queries (Task 6 keepout/plane insertion) ------------------
+
+    /// Java `board.getLayerCount()` (`Structure.java:871`): the BOARD layer
+    /// count from `create_board`; 0 before the board exists.
+    fn layer_count(&self) -> i32;
+
+    /// Java `rules.getDefaultNetClass().defaultItemClearanceClasses.get(
+    /// ItemClass)` — the default net class's clearance class for one item
+    /// kind (`Structure.java:921-925` keepouts, `:1097-1100` planes).
+    /// The value moves when a rule scope appends a class of the same name
+    /// (`append_clearance_class` retargets via/pin/smd/area).
+    fn default_item_clearance_class(&self, item_class: ItemClassIr) -> i32;
+
+    /// The `insertMissingPowerPlanes` conduction-area scan
+    /// (`Structure.java:532-541`): true when ANY conduction area already
+    /// sits on the layer — the power-plane fallback then skips it.
+    fn has_conduction_area_on_layer(&self, layer_no: i32) -> bool;
+
+    /// Java `board.boundingBox` (`Structure.java:563`): the bounds stored
+    /// by `create_board` (T43, including the offset(1000)); `None` before.
+    /// The power-plane fallback covers this box with a conduction area.
+    fn board_bounding_box(&self) -> Option<IntBox>;
 
     // ---- diagnostics + metadata -----------------------------------------
 
