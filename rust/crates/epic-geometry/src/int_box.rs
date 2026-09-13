@@ -900,6 +900,15 @@ mod tests {
                 "intersection not commutative for {a:?} x {c:?}"
             );
         }
+        // Deliberate sentinel probe: the shared EMPTY box (fresh
+        // sentinel-valued results on both sides) must behave
+        // symmetrically too.
+        let nonempty = b(1, 2, 3, 4);
+        assert_eq!(
+            IntBox::EMPTY.intersection(&nonempty),
+            nonempty.intersection(&IntBox::EMPTY),
+            "EMPTY-sentinel intersection not commutative"
+        );
     }
 
     /// jshell pin: `IntBox.EMPTY` field values.

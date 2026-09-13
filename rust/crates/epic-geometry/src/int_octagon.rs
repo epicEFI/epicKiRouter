@@ -2645,6 +2645,14 @@ mod tests {
                 "intersection not commutative for {a:?} x {b:?}"
             );
         }
+        // Deliberate sentinel probe: the shared EMPTY octagon must
+        // behave symmetrically too.
+        let nonempty = o(-10, -10, 10, 10, -10, 10, -10, 10).normalize();
+        assert_eq!(
+            IntOctagon::EMPTY.intersection(&nonempty),
+            nonempty.intersection(&IntOctagon::EMPTY),
+            "EMPTY-sentinel intersection not commutative"
+        );
     }
 
     /// jshell pins (offset25/offsetM25/offsetBig): offset(2.5) rounds the

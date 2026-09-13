@@ -1268,6 +1268,11 @@ mod tests {
                 );
             }
             // (b) survivors ARE input lines, endpoint-exact.
+            // `position()` maps each survivor to its FIRST
+            // endpoint-identical input line: the fresh-anchor generator
+            // makes an exact (a, b) pair repeat with probability ~2^-64,
+            // and a genuine repeat would mean get_instance emitted the
+            // same line twice, which dedup removes (pin P1).
             // (c) tie stability: compareTo == Equal survivors keep their
             // input relative order (TimSort stability; pruning only
             // deletes). Debug dump of the input fires on mismatch.

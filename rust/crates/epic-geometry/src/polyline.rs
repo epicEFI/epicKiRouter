@@ -757,6 +757,12 @@ mod tests {
     /// dog-ear/flip normalization). Fans mirror the corpus generator:
     /// 2-4 lines mixing 45-degree continuations and free general-slope
     /// lines at full-range magnitudes (wrapping bands included).
+    ///
+    /// Mutation-proven (Task 10 review F1): re-anchoring one rewrapped
+    /// line one direction-step along its own supporting line (anchor-blind
+    /// equal under `Line`'s PartialEq) passes the naive
+    /// `assert_eq!(lines, lines)` and FAILS the endpoint-exact comparison
+    /// below.
     #[test]
     fn ctor_is_idempotent_on_random_fans() {
         use crate::java_random::JavaRandom;
@@ -791,7 +797,20 @@ mod tests {
             }
             let pl = Polyline::new(lines);
             let rewrapped = Polyline::new(pl.lines.clone());
-            assert_eq!(rewrapped.lines, pl.lines, "ctor not idempotent for {pl:?}");
+            // Endpoint-exact element-wise comparison (trap T20): `Line`'s
+            // PartialEq is ANCHOR-BLIND (collinearity + positive direction
+            // projection), so a plain `rewrapped.lines == pl.lines` would
+            // let a ctor mutation that re-anchors lines along their own
+            // direction pass silently.
+            assert!(
+                rewrapped.lines.len() == pl.lines.len()
+                    && rewrapped
+                        .lines
+                        .iter()
+                        .zip(&pl.lines)
+                        .all(|(r, pv)| r.a == pv.a && r.b == pv.b),
+                "ctor not idempotent for {pl:?}"
+            );
         }
     }
 

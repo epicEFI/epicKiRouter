@@ -391,7 +391,12 @@ impl Line {
                 // Java tests Math.abs(isX.doubleValue()) <= CRIT_INT; for
                 // integer BigIntegers the double conversion is exact in
                 // the decisive range, so the BigInt comparison is
-                // bit-identical.
+                // bit-identical. Above 2^53 the conversion rounds with
+                // relative error <= 2^-53, so any |v| >= 2^53 lands on a
+                // magnitude >= 2^52 — still far above CRIT_INT — and
+                // values beyond double range become +-Infinity, which
+                // also compares Greater; the exact BigInt comparison
+                // classifies every such value identically.
                 if big_abs(&is_x).cmp(&*CRIT_INT_BIG) != Ordering::Greater
                     && big_abs(&is_y).cmp(&*CRIT_INT_BIG) != Ordering::Greater
                 {
