@@ -11,10 +11,14 @@
 //! port returns a `Vec<Line>` with the same 0/1/2 contract, so
 //! `overlaps` (more than one intersection line) keeps its meaning.
 //!
-//! `startPoint` / `endPoint` panic deliberately when the respective
-//! closing line is parallel to the middle line: Java would return an
-//! infinite RationalPoint and corrupt every downstream result; the class
-//! contract requires non-parallel closing lines.
+//! `startPoint` / `endPoint` mirror Java exactly (trap T22): when the
+//! respective closing line is parallel to the middle line they return an
+//! infinite RationalPoint (z = 0) via [`Line::intersection_point`], and
+//! every downstream consumer (`sortEndpointsInXY`, `intersection`,
+//! `contains`, `toSimplex`) keeps computing through it with exact
+//! rational arithmetic. The class contract *prefers* non-parallel
+//! closing lines, but the code degrades gracefully — corpus cases
+//! seg-000020/93/125/151 pin that behavior.
 //!
 //! Deferral ledger — CLOSED in Task 8:
 //! - `LineSegment(Polyline, int)` landed as [`LineSegment::from_polyline`]
@@ -58,20 +62,19 @@ impl LineSegment {
         LineSegment { start, middle, end }
     }
 
-    /// Returns the intersection of the first 2 lines of this segment.
+    /// Returns the intersection of the first 2 lines of this segment
+    /// (Java `startPoint`): an infinite RationalPoint when the start
+    /// closing line is parallel to the middle line — Java computes on
+    /// through it (trap T22, pins SORT-INF1/2/3).
     pub fn start_point(&self) -> Point {
-        match self.middle.intersection(&self.start) {
-            Some(p) => p,
-            None => panic!("LineSegment: start closing line is parallel to the middle line"),
-        }
+        self.middle.intersection_point(&self.start)
     }
 
-    /// Returns the intersection of the last 2 lines of this segment.
+    /// Returns the intersection of the last 2 lines of this segment
+    /// (Java `endPoint`); see [`LineSegment::start_point`] for the
+    /// parallel-pair behavior.
     pub fn end_point(&self) -> Point {
-        match self.middle.intersection(&self.end) {
-            Some(p) => p,
-            None => panic!("LineSegment: end closing line is parallel to the middle line"),
-        }
+        self.middle.intersection_point(&self.end)
     }
 
     /// Returns an approximation of the intersection of the first 2 lines
@@ -486,13 +489,10 @@ impl LineSegment {
     /// Returns the numbers of the border lines of `shape` intersected by
     /// this line segment, at most 2 entries ordered by distance from the
     /// segment start (Java `borderIntersections(TileShape)`; jshell pins
-    /// `PB3`).
-    ///
-    /// Divergence note (Task 6): a parallel pair among `middle` and a
-    /// border line has no candidate intersection here — Java produces an
-    /// infinite RationalPoint — so the port skips that edge (keeping the
-    /// prev/current rotation) instead of propagating infinities. For
-    /// non-parallel inputs the results are identical.
+    /// `PB3`). The middle-line/border-line intersection is computed
+    /// unconditionally as in Java — a parallel pair yields an infinite
+    /// RationalPoint whose side checks run on exact rational arithmetic
+    /// (trap T22; the former Task-6 skip divergence is closed).
     pub fn border_intersections(&self, shape: &TileShape) -> Vec<i32> {
         if !self.bounding_box().intersects(&shape.bounding_box()) {
             return Vec::new();
@@ -537,14 +537,11 @@ impl LineSegment {
             if start_point_side != Side::Negative || end_point_side != Side::Negative {
                 // not both points are inside the halfplane defined by
                 // current_line
-                let Some(is) = self.middle.intersection(&current_line) else {
-                    // Java returns an infinite RationalPoint for the
-                    // parallel pair; the port skips the candidate (see the
-                    // divergence note above).
-                    prev_line = current_line.clone();
-                    current_line = next_line;
-                    continue;
-                };
+                // Java computes `get_line().intersection(current_line)`
+                // unconditionally; a parallel pair yields an infinite
+                // RationalPoint and the side checks below decide on it
+                // exactly (trap T22).
+                let is = self.middle.intersection_point(&current_line);
                 let prev_line_side_of_is = prev_line.side_of(&is);
                 let next_line_side_of_is = next_line.side_of(&is);
                 if prev_line_side_of_is != Side::Positive && next_line_side_of_is != Side::Positive
@@ -911,12 +908,12 @@ mod tests {
     /// (0,0,10,10): seg1 crosses the bottom border -> [0]; seg2 (fully
     /// inside) finds nothing (both endpoints on the left of the bottom
     /// border line). The oracle's seg3 is degenerate — all three lines
-    /// horizontal, so Java's `startPoint()` is an infinite RationalPoint —
-    /// and cannot be built here (`start_point` panics on parallels, the
-    /// documented Task-6 divergence); two non-degenerate substitutes hit
-    /// the same branches: seg3a below the box (parallel middle line, the
-    /// candidate rejected by the next-line check) and seg3b with its end
-    /// point exactly on the bottom border (the collinear early return).
+    /// horizontal, so Java's `startPoint()` is an infinite RationalPoint
+    /// (trap T22, now built identically here); two non-degenerate
+    /// substitutes hit the same branches: seg3a below the box (parallel
+    /// middle line — the candidate is computed through the infinite
+    /// point exactly, as Java does) and seg3b with its end point exactly
+    /// on the bottom border (the collinear early return).
     #[test]
     fn pb3_border_intersections_pins() {
         let box_tile = TileShape::RegularTileShape(RegularTileShape::IntOctagon(
@@ -936,5 +933,113 @@ mod tests {
         // return.
         let seg3b = seg((3, 1, 3, 0), (3, 1, 4, 1), (5, 0, 5, -1));
         assert!(seg3b.border_intersections(&box_tile).is_empty());
+    }
+
+    fn rat(x: i64, y: i64, z: i64) -> Point {
+        Point::rational(crate::rational_point::RationalPoint::new(
+            num_bigint::BigInt::from(x),
+            num_bigint::BigInt::from(y),
+            num_bigint::BigInt::from(z),
+        ))
+    }
+
+    /// jshell pins `SORT-INF1`/`SORT-INF2`/`SORT-INF3` and `CMP-INF1`/`CMP-INF2`
+    /// (corpus cases seg-000020/93/125, trap T22): corner points of segments
+    /// with a closing line PARALLEL to the middle line are infinite
+    /// RationalPoints (z = 0); `compareXY` decides on them exactly, and
+    /// `sortEndpointsInXY` swaps or keeps the closing lines accordingly —
+    /// bit-identical to the Java oracle, which never panics here.
+    #[test]
+    fn sort_endpoints_with_parallel_closing_lines() {
+        // seg-000020: sp = Rat(822986573811360, 822986573811360, 0),
+        // ep = Int(-119856304, 9102); sp sorts AFTER ep, so the closing
+        // lines swap (start <- e, middle <- m, end <- s).
+        let s20 = seg(
+            (29065462, -5356, 29067219, -3599),
+            (-119870338, -4932, -119873483, -8077),
+            (-5751, 9102, -4566, 9102),
+        );
+        assert_eq!(s20.start_point(), rat(822986573811360, 822986573811360, 0)); // SORT-INF1
+        assert_eq!(s20.end_point(), Point::int(IntPoint::new(-119856304, 9102)));
+        assert_eq!(s20.start_point().compare_xy(&s20.end_point()), 1); // CMP-INF1
+        let sorted20 = s20.sort_endpoints_in_xy();
+        assert_eq!(
+            sorted20.get_start_closing_line(),
+            &line(-5751, 9102, -4566, 9102)
+        );
+        assert_eq!(
+            sorted20.get_line(),
+            &line(-119870338, -4932, -119873483, -8077)
+        );
+        assert_eq!(
+            sorted20.get_end_closing_line(),
+            &line(29065462, -5356, 29067219, -3599)
+        );
+
+        // seg-000093: sp = Rat(0, -34839094706, 0), ep = Int(2146,
+        // 235305820); sp sorts BEFORE ep, so the triple is kept as-is.
+        let s93 = seg(
+            (8237, 2759, 8237, 432),
+            (2146, 14305889, 2146, 14303431),
+            (-2517, 235305820, 341, 235305820),
+        );
+        assert_eq!(s93.start_point(), rat(0, -34839094706, 0)); // SORT-INF2
+        assert_eq!(s93.end_point(), Point::int(IntPoint::new(2146, 235305820)));
+        assert_eq!(s93.start_point().compare_xy(&s93.end_point()), -1);
+        let sorted93 = s93.sort_endpoints_in_xy();
+        assert_eq!(
+            sorted93.get_start_closing_line(),
+            &line(8237, 2759, 8237, 432)
+        );
+        assert_eq!(
+            sorted93.get_end_closing_line(),
+            &line(-2517, 235305820, 341, 235305820)
+        );
+
+        // seg-000125: sp = Int(26732269, 567239809), the END corner is the
+        // infinite one here: Rat(0, 1791925913988, 0); still sp before ep.
+        let s125 = seg(
+            (-29884187, 623856265, -29887963, 623860041),
+            (26732269, -7725, 26732269, -7534),
+            (5458321, 21233336, 5458321, 21233777),
+        );
+        assert_eq!(
+            s125.start_point(),
+            Point::int(IntPoint::new(26732269, 567239809))
+        );
+        assert_eq!(s125.end_point(), rat(0, 1791925913988, 0)); // SORT-INF3
+        assert_eq!(s125.start_point().compare_xy(&s125.end_point()), -1); // CMP-INF2
+        let sorted125 = s125.sort_endpoints_in_xy();
+        assert_eq!(
+            sorted125.get_start_closing_line(),
+            &line(-29884187, 623856265, -29887963, 623860041)
+        );
+        assert_eq!(
+            sorted125.get_end_closing_line(),
+            &line(5458321, 21233336, 5458321, 21233777)
+        );
+    }
+
+    /// jshell pin `I-INF` (corpus case seg-000151, trap T22): both
+    /// segments have a closing line parallel to their middle line, yet
+    /// Java's `intersection` degrades gracefully — the infinite corner
+    /// points are collinear with / on definite sides of the other middle
+    /// line, and the single crossing line (other's middle) is returned.
+    #[test]
+    fn intersection_through_infinite_corner_points() {
+        let a = seg(
+            (-4478, -1894, -7376, 1004),
+            (8326, -8949, 8948, -9571),
+            (5386, -846, 5386, 1172),
+        );
+        let b = seg(
+            (-3193, -5007, -3193, -6455),
+            (14717832, -17304286, 14720647, -17307101),
+            (6198, -9568, 7570, -10940),
+        );
+        assert_eq!(
+            a.intersection(&b),
+            vec![line(14717832, -17304286, 14720647, -17307101)] // I-INF
+        );
     }
 }

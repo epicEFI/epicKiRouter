@@ -181,9 +181,11 @@ impl Line {
     /// Returns the side of this line relative to the intersection of p1
     /// and p2: Side::Collinear only if all 3 lines intersect in exactly 1
     /// point. The float tolerance-1.0 check runs first; the exact check
-    /// runs only on COLLINEAR (T8). If p1 and p2 are parallel, Java feeds
-    /// the infinite intersection point onward; this port returns the
-    /// float-stage side in that case (documented divergence).
+    /// runs only on COLLINEAR (T8). Java feeds `p1.intersection(p2)`
+    /// onward verbatim — for a parallel pair that is an infinite
+    /// RationalPoint, whose side is computed by the exact rational
+    /// arithmetic of [`Point::side_of`]; the port does the same via
+    /// [`Line::intersection_point`].
     pub fn side_of_intersection(&self, p1: &Line, p2: &Line) -> Side {
         let intersection_approx = p1.intersection_approx(p2);
         let result = self.side_of_float(&intersection_approx, 1.0);
@@ -191,10 +193,7 @@ impl Line {
             // Previous calculation was with FloatPoints and a tolerance
             // for performance reasons. Make an exact check for
             // collinearity now with class Point instead of FloatPoint.
-            match p1.intersection(p2) {
-                Some(intersection) => self.side_of(&intersection),
-                None => result,
-            }
+            self.side_of(&p1.intersection_point(p2))
         } else {
             result
         }
@@ -232,13 +231,26 @@ impl Line {
     }
 
     /// Returns the intersection point of the 2 lines, or `None` if the
-    /// lines are parallel (Java returns an infinite RationalPoint).
+    /// lines are parallel (Java returns an infinite RationalPoint; the
+    /// corpus convention serializes both as `{"kind":"Infinity"}`).
+    /// Java-verbatim behavior lives on [`Line::intersection_point`].
+    pub fn intersection(&self, other: &Line) -> Option<Point> {
+        let p = self.intersection_point(other);
+        if p.is_infinite() { None } else { Some(p) }
+    }
+
+    /// Java `Line.intersection` verbatim: returns the intersection point,
+    /// an **infinite RationalPoint (z = 0)** for parallel/collinear pairs.
+    /// Java never returns null here, and its callers (`LineSegment`
+    /// corner points, `sideOfIntersection`) keep computing through the
+    /// infinity with exact RationalPoint cross products (trap T22, corpus
+    /// cases seg-000020/93/125/151).
     ///
     /// The 16 fast paths cover every pair of 45-degree orientations
     /// (delta1 = b - a of this, delta2 = b - a of other), classified in
     /// Java's exact branch order (Line.java:225-275): 10 pairs resolve
     /// in int arithmetic, 6 fall through to the BigInteger general
-    /// formula (T6):
+    /// formula (T6); the full table is on [`Line::intersection_point`].
     ///
     /// | #  | delta1      | delta2      | result                              |
     /// |----|-------------|-------------|-------------------------------------|
@@ -260,7 +272,7 @@ impl Line {
     /// | 16 | left diag   | right diag  | general formula (exact division)    |
     ///
     /// General-slope lines always take the general formula.
-    pub fn intersection(&self, other: &Line) -> Option<Point> {
+    pub fn intersection_point(&self, other: &Line) -> Point {
         let (this_a, this_b) = int_pair(self);
         let (other_a, other_b) = int_pair(other);
         let delta1 = IntVector::new(
@@ -277,100 +289,96 @@ impl Line {
             // this line is vertical
             if delta2.y == 0 {
                 // other line is horizontal
-                return Some(Point::int(IntPoint::new(this_a.x, other_a.y)));
+                return Point::int(IntPoint::new(this_a.x, other_a.y));
             }
             if delta2.x == delta2.y {
                 // other line is right diagonal
                 let this_x = this_a.x;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     this_x,
                     other_a.y.wrapping_add(this_x).wrapping_sub(other_a.x),
-                )));
+                ));
             }
             if delta2.x == delta2.y.wrapping_neg() {
                 // other line is left diagonal
                 let this_x = this_a.x;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     this_x,
                     other_a.y.wrapping_add(other_a.x).wrapping_sub(this_x),
-                )));
+                ));
             }
         } else if delta1.y == 0 {
             // this line is horizontal
             if delta2.x == 0 {
                 // other line is vertical
-                return Some(Point::int(IntPoint::new(other_a.x, this_a.y)));
+                return Point::int(IntPoint::new(other_a.x, this_a.y));
             }
             if delta2.x == delta2.y {
                 // other line is right diagonal
                 let this_y = this_a.y;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     other_a.x.wrapping_add(this_y).wrapping_sub(other_a.y),
                     this_y,
-                )));
+                ));
             }
             if delta2.x == delta2.y.wrapping_neg() {
                 // other line is left diagonal
                 let this_y = this_a.y;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     other_a.x.wrapping_add(other_a.y).wrapping_sub(this_y),
                     this_y,
-                )));
+                ));
             }
         } else if delta1.x == delta1.y {
             // this line is right diagonal
             if delta2.x == 0 {
                 // other line is vertical
                 let other_x = other_a.x;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     other_x,
                     this_a.y.wrapping_add(other_x).wrapping_sub(this_a.x),
-                )));
+                ));
             }
             if delta2.y == 0 {
                 // other line is horizontal
                 let other_y = other_a.y;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     this_a.x.wrapping_add(other_y).wrapping_sub(this_a.y),
                     other_y,
-                )));
+                ));
             }
         } else if delta1.x == delta1.y.wrapping_neg() {
             // this line is left diagonal
             if delta2.x == 0 {
                 // other line is vertical
                 let other_x = other_a.x;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     other_x,
                     this_a.y.wrapping_add(this_a.x).wrapping_sub(other_x),
-                )));
+                ));
             }
             if delta2.y == 0 {
                 // other line is horizontal
                 let other_y = other_a.y;
-                return Some(Point::int(IntPoint::new(
+                return Point::int(IntPoint::new(
                     this_a.x.wrapping_add(this_a.y).wrapping_sub(other_y),
                     other_y,
-                )));
+                ));
             }
         }
 
         let det1 = BigInt::from(this_a.determinant(this_b));
         let det2 = BigInt::from(other_a.determinant(other_b));
         let mut det = BigInt::from(delta2.determinant(&delta1));
-        if det.sign() == Sign::NoSign {
-            // Java returns the infinite RationalPoint(det1 * delta2 -
-            // det2 * delta1 over z = 0) here; this port maps the parallel
-            // (and collinear) case to None.
-            return None;
-        }
         let mut tmp1 = &det1 * BigInt::from(delta2.x);
         let mut tmp2 = &det2 * BigInt::from(delta1.x);
         let mut is_x = tmp1 - tmp2;
         tmp1 = &det1 * BigInt::from(delta2.y);
         tmp2 = &det2 * BigInt::from(delta1.y);
         let mut is_y = tmp1 - tmp2;
-        // always true (early return above); Java shape kept for diffing
+        // Java shape kept for diffing: the signum gate is only ever false
+        // for parallel pairs, which return RationalPoint(isX, isY, 0)
+        // (never null — trap T22).
         if det.sign() != Sign::NoSign {
             if det.sign() == Sign::Minus {
                 det = -det;
@@ -387,15 +395,15 @@ impl Line {
                 if big_abs(&is_x).cmp(&*CRIT_INT_BIG) != Ordering::Greater
                     && big_abs(&is_y).cmp(&*CRIT_INT_BIG) != Ordering::Greater
                 {
-                    return Some(Point::int(IntPoint::new(
+                    return Point::int(IntPoint::new(
                         big_integer_int_value(&is_x),
                         big_integer_int_value(&is_y),
-                    )));
+                    ));
                 }
                 det = BigInt::ONE;
             }
         }
-        Some(Point::rational(RationalPoint::new(is_x, is_y, det)))
+        Point::rational(RationalPoint::new(is_x, is_y, det))
     }
 
     /// Returns an approximation of the intersection of the 2 lines by a
@@ -881,6 +889,26 @@ mod tests {
         let lv = line(0, 0, 0, 10);
         assert_eq!(lv.intersection(&line(3, 0, 3, 9)), None); // L10
         assert_eq!(line(0, 0, 2, 2).intersection(&line(4, 4, 8, 8)), None); // L12
+    }
+
+    /// jshell pin `INF1` (trap T22, corpus case seg-000020): the general
+    /// formula on a parallel pair returns the infinite RationalPoint
+    /// Rat(isX, isY, 0) — never null. `intersection_point` hands it on
+    /// verbatim (LineSegment corner points compute through it); the
+    /// [`Line::intersection`] wrapper maps it to None for the corpus's
+    /// Infinity encoding.
+    #[test]
+    fn parallel_intersection_is_infinite_rational_point() {
+        let m = line(-119870338, -4932, -119873483, -8077);
+        let s = line(29065462, -5356, 29067219, -3599);
+        let expected = Point::rational(RationalPoint::new(
+            BigInt::from(822986573811360_i64),
+            BigInt::from(822986573811360_i64),
+            BigInt::ZERO,
+        ));
+        assert_eq!(m.intersection_point(&s), expected); // INF1
+        assert!(m.intersection_point(&s).is_infinite());
+        assert_eq!(m.intersection(&s), None);
     }
 
     /// jshell pin `L14`: coordinates near +-2^31 force intermediate

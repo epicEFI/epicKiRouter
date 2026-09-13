@@ -803,7 +803,10 @@ fn args_int_point(args: &Value, key: &str) -> IntPoint {
 
 fn args_point(args: &Value, key: &str) -> Point {
     let (x, y) = args_pt(args, key);
-    Point::get_instance(x, y)
+    // The oracle builds args with RAW `new IntPoint(x, y)` (trap T23):
+    // Point::get_instance would silently box a RationalPoint above
+    // +-CRIT_INT and diverge (corpus case ipt-000140).
+    Point::Int(IntPoint::new(x, y))
 }
 
 fn args_vec(args: &Value, key: &str) -> Vector {
@@ -1197,13 +1200,15 @@ pub fn eval_op(op: &str, args: &Value) -> Value {
         ),
         "tileshape.from_points" => {
             let arr = args["points"].as_array().expect("points array");
+            // Raw IntPoint args to mirror the oracle's `points()` helper
+            // (trap T23 — NOT Point::get_instance).
             let pts: Vec<Point> = arr
                 .iter()
                 .map(|p| {
-                    Point::get_instance(
+                    Point::Int(IntPoint::new(
                         i32::try_from(p[0].as_i64().expect("int")).expect("fits i32"),
                         i32::try_from(p[1].as_i64().expect("int")).expect("fits i32"),
-                    )
+                    ))
                 })
                 .collect();
             tile_out(&TileShape::from_points(&pts))
