@@ -648,6 +648,12 @@ public class GeometryCorpusOracle {
       }
       out.write(result.toString());
       out.write("\n");
+      // Flush per case: FRLogger.warn inside evaluateOp (e.g.
+      // Polyline.offsetShape "no out of range") writes straight to
+      // System.out; a lazily-buffered result line would interleave with
+      // it and corrupt the JSONL stream. Flushed lines are atomic, and
+      // the consumer drops non-`{"id"` lines (the warnings).
+      out.flush();
     }
     out.flush();
   }

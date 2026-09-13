@@ -52,7 +52,7 @@ pub enum CorpusCommand {
         #[arg(long, default_value_t = 20260912)]
         seed: u64,
         /// Number of cases to generate.
-        #[arg(long, default_value_t = 200)]
+        #[arg(long, default_value_t = 5000)]
         cases: usize,
         /// Output path for the case file (relative to cwd).
         #[arg(long, default_value = "harness/corpus/geometry-cases.jsonl")]
@@ -255,8 +255,9 @@ fn rand_line_fan(rng: &mut SplitMix64, n: usize, forty_five: bool) -> Value {
 // Generator
 // ---------------------------------------------------------------------------
 
-/// (id code, ops, weight) per family. Simple constants for now; Task 10
-/// re-weights toward the hot path.
+/// (id code, ops, weight) per family. Task 10 weighting: the router hot
+/// path (octagons + lines + boxes + segments) carries ~65% of the cases;
+/// every family is kept so the tail ops stay differentially covered.
 const FAMILIES: &[(&str, &[&str], u32)] = &[
     (
         "ipt",
@@ -267,7 +268,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
             "intpoint.perpendicular_projection",
             "intpoint.surrounding_octagon",
         ],
-        2,
+        3,
     ),
     (
         "vec",
@@ -299,7 +300,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
             "intbox.intersects",
             "intbox.cutout",
         ],
-        3,
+        6,
     ),
     (
         "oct",
@@ -319,7 +320,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
             "octagon.compare_edge",
             "octagon.side_of_border_line",
         ],
-        5,
+        13,
     ),
     (
         "lin",
@@ -335,7 +336,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
             "line.direction",
             "line.length",
         ],
-        5,
+        11,
     ),
     (
         "seg",
@@ -344,7 +345,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
             "line_segment.bounding_box",
             "line_segment.sort_endpoints_in_xy",
         ],
-        2,
+        3,
     ),
     (
         "tsh",
@@ -359,7 +360,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
     // package-private (Simplex.java:884); pruning is covered transitively by
     // `Simplex.getInstance` (:46) and `intersection` (:629). Task 10 adds
     // deliberately-redundant `simplex.get_instance` cases to exercise it.
-    ("spx", &["simplex.get_instance", "simplex.intersection"], 2),
+    ("spx", &["simplex.get_instance", "simplex.intersection"], 3),
     (
         "ply",
         &[
@@ -374,7 +375,7 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
     (
         "cir",
         &["circle.intersects_octagon", "circle.bounding_octagon"],
-        2,
+        1,
     ),
     (
         "fpt",
@@ -384,12 +385,12 @@ const FAMILIES: &[(&str, &[&str], u32)] = &[
             "floatpoint.distance_square",
             "floatpoint.inside_circle",
         ],
-        2,
+        1,
     ),
     (
         "fln",
         &["floatline.intersection", "floatline.projection"],
-        2,
+        1,
     ),
 ];
 
@@ -499,7 +500,27 @@ fn build_args(rng: &mut SplitMix64, op: &str) -> Value {
         }
         "simplex.get_instance" | "simplex.intersection" => {
             let n = 3 + rng.below(2) as usize;
-            let mut args = json!({"lines": rand_line_fan(rng, n, true)});
+            let mut lines = match rand_line_fan(rng, n, true) {
+                Value::Array(v) => v,
+                _ => unreachable!("rand_line_fan emits an array"),
+            };
+            if op == "simplex.get_instance" && rng.below(2) == 0 {
+                // Deliberately-redundant fan (Task 10): 1-2 extra lines
+                // drawn from the full direction set collide with the fan,
+                // producing compareTo == 0 duplicates and nested
+                // half-planes for the stable sort + removeRedundantLines
+                // pruning inside Simplex.getInstance.
+                let extras = 1 + rng.below(2) as usize;
+                for _ in 0..extras {
+                    lines.push(line_val(
+                        rand_coord(rng),
+                        rand_coord(rng),
+                        rng.below(8) as usize,
+                        rng.i32_in(1, 4000),
+                    ));
+                }
+            }
+            let mut args = json!({ "lines": Value::Array(lines) });
             if op == "simplex.intersection" {
                 args["lines2"] = rand_line_fan(rng, 3, true);
             }
@@ -552,7 +573,7 @@ fn build_args(rng: &mut SplitMix64, op: &str) -> Value {
 fn edge_case(idx: usize) -> (&'static str, Value) {
     let crit = CRIT_INT;
     let f = |v: f64| v.to_bits() as i64;
-    match idx % 26 {
+    match idx % 30 {
         0 => (
             "line.intersection",
             json!({"a": line_val(0, 0, 0, 10), "b": line_val(0, 5, 0, 10)}),
@@ -660,10 +681,42 @@ fn edge_case(idx: usize) -> (&'static str, Value) {
                 "l2": line_val(0, 3, 0, 10)
             }),
         ),
-        _ => (
+        25 => (
             "tileshape.from_points",
             json!({"points": [[3, 4], [3, 4], [9, 1]]}),
         ),
+        // Negative-sign wraparound: (-46341)^2 overflows i32 exactly like
+        // the positive case 11.
+        26 => (
+            "intpoint.determinant",
+            json!({"a": [-46341, 0], "b": [0, -46341]}),
+        ),
+        27 => (
+            "intpoint.determinant",
+            json!({"a": [-crit, 0], "b": [0, crit]}),
+        ),
+        // Parallel closing/middle verticals: the start corner is an
+        // infinite RationalPoint and sortEndpointsInXY decides on it (T22).
+        28 => (
+            "line_segment.sort_endpoints_in_xy",
+            json!({
+                "s": {"a": {"x": 0, "y": 1}, "b": {"x": 0, "y": 9}},
+                "m": {"a": {"x": 3, "y": 5}, "b": {"x": 3, "y": -5}},
+                "e": {"a": {"x": -4, "y": -2}, "b": {"x": 6, "y": -2}}
+            }),
+        ),
+        29 => (
+            "simplex.get_instance",
+            json!({
+                "lines": [
+                    line_val(0, 0, 0, 10),
+                    line_val(1, 0, 0, 10),
+                    line_val(0, 5, 2, 10),
+                    line_val(3, 1, 0, 10)
+                ]
+            }),
+        ),
+        _ => unreachable!("edge_case index exhausted"),
     }
 }
 
@@ -1421,9 +1474,9 @@ mod tests {
     /// definition (family weights, edge-case stride, RNG) must regenerate
     /// `corpus/geometry-cases.jsonl` in the same commit. Mutation-proven
     /// necessity: `i % 9 == 0` -> `i % 8 == 0` rewrote the corpus and passed
-    /// the old self-consistency-only suite. Task 10 adds the matching
-    /// compare-vs-committed-golden pin once the 5 known port divergences are
-    /// fixed; until then the golden cannot be pinned this way.
+    /// the old self-consistency-only suite. Task 10 completed the pair with
+    /// the matching compare-vs-committed-golden pin
+    /// ([`Self::compare_matches_committed_golden`]).
     #[test]
     fn generate_matches_committed_corpus() {
         let committed =
@@ -1431,14 +1484,28 @@ mod tests {
         let expected =
             std::fs::read(&committed).expect("committed corpus/geometry-cases.jsonl must exist");
         let tmp = temp_path("committed-pin");
-        generate(20260912, 200, &tmp).expect("generate the committed corpus");
+        generate(20260912, 5000, &tmp).expect("generate the committed corpus");
         let actual = std::fs::read(&tmp).expect("read generated corpus");
         let _ = std::fs::remove_file(&tmp);
         assert_eq!(
             actual, expected,
-            "generate(seed 20260912, 200 cases) diverged from the committed corpus — \
+            "generate(seed 20260912, 5000 cases) diverged from the committed corpus — \
              regenerate the artifact in the same commit as the generator change"
         );
+    }
+
+    /// Task 9 review follow-up (landed Task 10): the committed GOLDEN is
+    /// pinned by running the pure-Rust evaluator against it — the corpus
+    /// gate needs no JDK. Regenerating either artifact is only sanctioned
+    /// through the generate -> golden -> compare flow, in one commit.
+    #[test]
+    fn compare_matches_committed_golden() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("corpus");
+        compare(
+            &dir.join("geometry-cases.jsonl"),
+            &dir.join("geometry-golden.jsonl"),
+        )
+        .expect("committed corpus must compare green against the committed golden");
     }
 
     /// Rust-side pins captured live from the Java oracle smoke (GeometryCorpus

@@ -13,7 +13,7 @@
 //! - `intersection` classifies 16 orientation pairs (delta1 × delta2
 //!   for the four 45-degree orientations) in int arithmetic — 10 of
 //!   them resolve there, 6 fall through to the BigInteger general
-//!   formula (T6); the full table is on [`Line::intersection`].
+//!   formula (T6); the full table is on [`Line::intersection_point`].
 //! - `equals` (the [`PartialEq`] impl) requires a POSITIVE projection,
 //!   so opposite directions are UNEQUAL; `is_equal_or_opposite` only
 //!   requires collinearity (T9 asymmetry).
@@ -837,7 +837,7 @@ mod tests {
 
     /// jshell pins `L1`-`L9`, `L11`, `L13`, `P3`/`P9`: every int-arithmetic
     /// fast path of `intersection` (see the table on
-    /// [`Line::intersection`]) plus the general-formula integral and
+    /// [`Line::intersection_point`]) plus the general-formula integral and
     /// rational outcomes, captured from the oracle jar. P3/P9 exercise
     /// paths 3/9 with a.x != oa.x so the coordinate terms cannot cancel.
     #[test]
