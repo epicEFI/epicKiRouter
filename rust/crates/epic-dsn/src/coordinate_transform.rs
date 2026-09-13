@@ -11,9 +11,14 @@
 //! i.e. division first, then base add).
 //!
 //! The two shape-producing overloads (`boardToDsn(board.Shape, Layer)` /
-//! `boardToDsnRel(...)`, `CoordinateTransform.java:90-107,138-155`) return
-//! parser `Shape` objects and land with `shape.rs` (M1b Task 3); everything
-//! else in the file is ported here.
+//! `boardToDsnRel(...)`, `CoordinateTransform.java:90-107,138-155`) live at
+//! the bottom of this file; they return the `shape.rs` IR. Because Java
+//! `TileShape extends PolylineShape`, only the IntBox arm produces a
+//! `Rectangle` — octagons and simplexes take the PolylineShape arm and come
+//! back as `Polygon`s of their corner approximations, and the final
+//! warn-null branch is dead for every existing board shape class (jar
+//! session `/tmp/epic-t3-transforms.jsh`, output
+//! `/tmp/epic-t3-transforms.out`, cases B1-B5).
 //!
 //! [`calc_scale_factor`] is the scale-factor prelude of
 //! `Structure.createBoard` (`Structure.java:1189-1203`): it derives the
@@ -24,10 +29,17 @@
 //! `/tmp/epic-t25-transform.out`: resolution 15 with 1e7 coordinates yields
 //! `P3 sf=0.0` after two passes, `15/10=1` then `1/10=0`).
 
+use crate::layer_structure::Layer;
+use crate::shape::{
+    BoardShape, Circle, Polygon, Rectangle, Shape, polygon_shape_corner_approx_arr,
+    tile_corner_approx_arr,
+};
 use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::limits::CRIT_INT;
 use epic_geometry::line::Line;
+use epic_geometry::regular_tile_shape::RegularTileShape;
+use epic_geometry::tile_shape::TileShape;
 use epic_geometry::vector::Vector;
 
 /// Java `CoordinateTransform` (`io/CoordinateTransform.java:20-31`).
@@ -119,6 +131,45 @@ impl CoordinateTransform {
         ]
     }
 
+    /// Java `boardToDsn(board.Shape, Layer)` (`CoordinateTransform.java:
+    /// 90-107`): an IntBox becomes a Rectangle; EVERY `PolylineShape` —
+    /// which includes octagons and simplexes, because `TileShape extends
+    /// PolylineShape` — becomes a Polygon of its corner approximations (jar
+    /// B4: an IntOctagon yields the 8-corner Polygon with degenerate corners
+    /// repeated; B5: the empty simplex yields a 0-coordinate Polygon); a
+    /// Circle carries `2 * boardToDsn(radius)` as the DSN diameter. The
+    /// trailing warn-null branch (`:102-105`) is dead for these arms — every
+    /// existing `geometry.planar.Shape` class is an IntBox, PolylineShape or
+    /// Circle — so the Rust match is exhaustive and `None` is unreachable
+    /// for the current [`BoardShape`] set (kept for signature parity).
+    pub fn board_to_dsn_shape(&self, board_shape: &BoardShape, layer: &Layer) -> Option<Shape> {
+        let result = match board_shape {
+            BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(r#box))) => {
+                Shape::Rectangle(Rectangle {
+                    layer: layer.clone(),
+                    coor: self.board_to_dsn_box(r#box),
+                })
+            }
+            BoardShape::Tile(tile) => Shape::Polygon(Polygon {
+                layer: layer.clone(),
+                coor: self.board_to_dsn_points(&tile_corner_approx_arr(tile)),
+            }),
+            BoardShape::PolygonShape(polygon_shape) => Shape::Polygon(Polygon {
+                layer: layer.clone(),
+                coor: self.board_to_dsn_points(&polygon_shape_corner_approx_arr(polygon_shape)),
+            }),
+            BoardShape::Circle(board_circle) => {
+                let diameter = 2.0 * self.board_to_dsn_value(f64::from(board_circle.radius));
+                let center = self.board_to_dsn_point(board_circle.center.to_float());
+                Shape::Circle(Circle {
+                    layer: layer.clone(),
+                    coor: [diameter, center[0], center[1]],
+                })
+            }
+        };
+        Some(result)
+    }
+
     /// Java `boardToDsnRel(FloatPoint)` (`:110-115`): relative (vector)
     /// coordinates — no base offset.
     pub fn board_to_dsn_rel_point(&self, point: FloatPoint) -> [f64; 2] {
@@ -147,6 +198,41 @@ impl CoordinateTransform {
             f64::from(bounding_box.ur.x) / self.scale_factor,
             f64::from(bounding_box.ur.y) / self.scale_factor,
         ]
+    }
+
+    /// Java `boardToDsnRel(board.Shape, Layer)` (`CoordinateTransform.java:
+    /// 138-155`): the relative mirror of `board_to_dsn_shape` — IntBox ->
+    /// Rectangle, tile/PolygonShape shapes -> Polygon of corner
+    /// approximations, Circle keeps the same diameter scaling
+    /// (`2 * boardToDsn(radius)`, `:147`) with only the CENTER going through
+    /// the base-free rel transform (`:148`). Same dead warn-null branch as
+    /// there.
+    pub fn board_to_dsn_rel_shape(&self, board_shape: &BoardShape, layer: &Layer) -> Option<Shape> {
+        let result = match board_shape {
+            BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(r#box))) => {
+                Shape::Rectangle(Rectangle {
+                    layer: layer.clone(),
+                    coor: self.board_to_dsn_rel_box(r#box),
+                })
+            }
+            BoardShape::Tile(tile) => Shape::Polygon(Polygon {
+                layer: layer.clone(),
+                coor: self.board_to_dsn_rel_points(&tile_corner_approx_arr(tile)),
+            }),
+            BoardShape::PolygonShape(polygon_shape) => Shape::Polygon(Polygon {
+                layer: layer.clone(),
+                coor: self.board_to_dsn_rel_points(&polygon_shape_corner_approx_arr(polygon_shape)),
+            }),
+            BoardShape::Circle(board_circle) => {
+                let diameter = 2.0 * self.board_to_dsn_value(f64::from(board_circle.radius));
+                let center = self.board_to_dsn_rel_point(board_circle.center.to_float());
+                Shape::Circle(Circle {
+                    layer: layer.clone(),
+                    coor: [diameter, center[0], center[1]],
+                })
+            }
+        };
+        Some(result)
     }
 
     /// Java `dsnToBoard(double[])` (`:163-167`): external tuple to board
@@ -384,5 +470,171 @@ mod tests {
     fn scale_factor_clamps_resolution_to_one() {
         assert_eq!(calc_scale_factor(0, 0.0), 1);
         assert_eq!(calc_scale_factor(-5, 0.0), 1);
+    }
+
+    // ---- boardToDsn(Shape, Layer) overloads ----------------------------
+    // Jar session `/tmp/epic-t3-transforms.jsh`, output
+    // `/tmp/epic-t3-transforms.out` (B1-B5, B1r-B4r); all doubles captured
+    // via `Double.toString` — B2's `2.1500000000000004` is exactly the value
+    // a `FloatPoint.toString` capture would have rounded into a lie.
+
+    use crate::shape::BoardShape as Bs;
+    use epic_geometry::circle::Circle as BoardCircle;
+    use epic_geometry::polygon_shape::PolygonShape;
+    use epic_geometry::simplex::Simplex;
+
+    /// B1 "box->[3.5, -2.25, 103.5, 47.75]" / B1r "relBox->[0.0, 0.0,
+    /// 100.0, 50.0]" for IntBox(0,0)-(1000,500) on layer SIGNAL: the box arm
+    /// is the ONLY Rectangle producer (Java `instanceof IntBox` first).
+    #[test]
+    fn board_to_dsn_shape_box_arm() {
+        let board = Bs::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(
+            IntBox::new(IntPoint::new(0, 0), IntPoint::new(1000, 500)),
+        )));
+        let Some(crate::shape::Shape::Rectangle(rectangle)) =
+            ct().board_to_dsn_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Rectangle");
+        };
+        assert_eq!(rectangle.layer, Layer::signal());
+        assert_eq!(rectangle.coor, [3.5, -2.25, 103.5, 47.75]);
+
+        let Some(crate::shape::Shape::Rectangle(rel)) =
+            ct().board_to_dsn_rel_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Rectangle");
+        };
+        assert_eq!(rel.coor, [0.0, 0.0, 100.0, 50.0]);
+    }
+
+    /// B2 "poly->[3.6, 2.1500000000000004, 13.6, 2.1500000000000004, 13.6,
+    /// 12.15, 3.6, 12.15]" for the PolygonShape square (1,44)-(101,144);
+    /// B2r "relPoly->[0.1, 4.4, 10.1, 4.4, 10.1, 14.4, 0.1, 14.4]".
+    #[test]
+    fn board_to_dsn_shape_polygon_arm() {
+        let board = Bs::PolygonShape(PolygonShape::new(&[
+            Point::Int(IntPoint::new(1, 44)),
+            Point::Int(IntPoint::new(101, 44)),
+            Point::Int(IntPoint::new(101, 144)),
+            Point::Int(IntPoint::new(1, 144)),
+        ]));
+        let Some(crate::shape::Shape::Polygon(polygon)) =
+            ct().board_to_dsn_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Polygon");
+        };
+        assert_eq!(
+            polygon.coor,
+            vec![
+                3.6,
+                2.1500000000000004,
+                13.6,
+                2.1500000000000004,
+                13.6,
+                12.15,
+                3.6,
+                12.15
+            ]
+        );
+
+        let Some(crate::shape::Shape::Polygon(rel)) =
+            ct().board_to_dsn_rel_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Polygon");
+        };
+        assert_eq!(rel.coor, vec![0.1, 4.4, 10.1, 4.4, 10.1, 14.4, 0.1, 14.4]);
+    }
+
+    /// B3 "circ->[6.0, 3.5, -2.25]" for geometry.Circle((0,0), 30): the DSN
+    /// diameter is `2 * boardToDsn(radius)` = 6, the center is base-adding.
+    /// B3r "relCirc->[6.0, 0.0, 0.0]" — the diameter is IDENTICAL in the rel
+    /// overload (Java `:147` reuses boardToDsn for it); only the center is
+    /// rel.
+    #[test]
+    fn board_to_dsn_shape_circle_arm() {
+        let board = Bs::Circle(BoardCircle::new(IntPoint::new(0, 0), 30));
+        let Some(crate::shape::Shape::Circle(circle)) =
+            ct().board_to_dsn_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Circle");
+        };
+        assert_eq!(circle.coor, [6.0, 3.5, -2.25]);
+
+        let Some(crate::shape::Shape::Circle(rel)) =
+            ct().board_to_dsn_rel_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Circle");
+        };
+        assert_eq!(rel.coor, [6.0, 0.0, 0.0]);
+    }
+
+    /// B4: the octagon is NOT an unsupported arm — `TileShape extends
+    /// PolylineShape`, so it takes the polygon branch. The 16 doubles pin
+    /// the 8-corner approximation ORDER, including the degenerate
+    /// repetitions (corners 0,1 = ll; 2-5 = ur; 6,7 = ll):
+    /// "[3.6, 2.1500000000000004, 3.6, 2.1500000000000004, 13.6, 12.15,
+    /// 13.6, 12.15, 13.6, 12.15, 13.6, 12.15, 3.6, 2.1500000000000004, 3.6,
+    /// 2.1500000000000004]". B4r rel: same corner pattern base-free.
+    #[test]
+    fn board_to_dsn_shape_octagon_takes_polygon_branch() {
+        let octagon = FloatPoint::bounding_octagon(&[
+            FloatPoint::new(1.0, 44.0),
+            FloatPoint::new(101.0, 144.0),
+        ]);
+        let board = Bs::Tile(TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            octagon,
+        )));
+        let Some(crate::shape::Shape::Polygon(polygon)) =
+            ct().board_to_dsn_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Polygon");
+        };
+        assert_eq!(
+            polygon.coor,
+            vec![
+                3.6,
+                2.1500000000000004,
+                3.6,
+                2.1500000000000004,
+                13.6,
+                12.15,
+                13.6,
+                12.15,
+                13.6,
+                12.15,
+                13.6,
+                12.15,
+                3.6,
+                2.1500000000000004,
+                3.6,
+                2.1500000000000004
+            ]
+        );
+
+        let Some(crate::shape::Shape::Polygon(rel)) =
+            ct().board_to_dsn_rel_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Polygon");
+        };
+        assert_eq!(
+            rel.coor,
+            vec![
+                0.1, 4.4, 0.1, 4.4, 10.1, 14.4, 10.1, 14.4, 10.1, 14.4, 10.1, 14.4, 0.1, 4.4, 0.1,
+                4.4
+            ]
+        );
+    }
+
+    /// B5 "simplex->coorLen=0" for Simplex.EMPTY: zero border corners, an
+    /// empty-coordinate Polygon — the same PolylineShape arm as B4.
+    #[test]
+    fn board_to_dsn_shape_empty_simplex_yields_empty_polygon() {
+        let board = Bs::Tile(TileShape::Simplex(Box::new(Simplex::empty())));
+        let Some(crate::shape::Shape::Polygon(polygon)) =
+            ct().board_to_dsn_shape(&board, &Layer::signal())
+        else {
+            panic!("expected Polygon");
+        };
+        assert!(polygon.coor.is_empty());
     }
 }

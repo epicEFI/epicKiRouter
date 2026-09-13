@@ -8,13 +8,16 @@
 //! classes. [`coordinate_transform`] (incl. the T25 scale-factor loop),
 //! [`layer_structure`] (T34 Electra fallback) and the parse state
 //! ([`state`], T24 defaults + T35 netlist) port the shared reader
-//! infrastructure. Scope readers (`readScope` dispatch, wiring/rules/network
-//! readers) land in later M1b tasks.
+//! infrastructure. [`shape`] ports the `parser/Shape` hierarchy: the shape
+//! IR, the five scope readers, the board transforms and the T44
+//! bug-compatible bounding boxes. Scope readers (`readScope` dispatch,
+//! wiring/rules/network readers) land in later M1b tasks.
 
 pub mod coordinate_transform;
 pub mod keyword;
 pub mod layer_structure;
 pub mod lexer;
+pub mod shape;
 pub mod state;
 
 #[cfg(test)]
