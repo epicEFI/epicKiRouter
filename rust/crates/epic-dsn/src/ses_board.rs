@@ -23,14 +23,25 @@
 //! ## Registry semantics (bug-compatible)
 //!
 //! - Padstacks: `add` ALWAYS appends (`Library.java:222`), the number is
-//!   `size() + 1` (1-based); lookup is a linear CASE-INSENSITIVE
-//!   first-match over the RAW names, and the T32 `.N` strip applies to
-//!   the QUERY only ([`SesBoard::resolve_padstack_query`],
-//!   `Wiring.java:659`, `Network.java:1289-1291`) — registry keys are
-//!   never rewritten.
-//! - Nets: case-insensitive lookup merges spellings at `append` time
-//!   (`rules/Nets.java:39,51`); the number is the 1-based insertion
-//!   position. The parse netlist (T35) stays case-sensitive — that is
+//!   `size() + 1` (1-based); the dedup guard is at the reader call site
+//!   (`Library.java:158-161`) on the name ALREADY stripped at `:113`, so
+//!   DSN library padstacks arrive pre-stripped (jar
+//!   `/tmp/epic-t4b-review.out`: a `(padstack viapad_f.1 ...)` scope adds
+//!   NOTHING beside `ViaPad_F` — `PADSTACK_COUNT 2`). Name queries strip
+//!   then match case-insensitively, first match
+//!   ([`SesBoard::resolve_padstack_query`]; `Wiring.java:659-660`,
+//!   `Network.java:1292-1294`, `Library.java:321-323`); the via-info rule
+//!   fallback queries the RAW name ([`BoardSink::padstack_no`],
+//!   `Network.java:275`).
+//! - Nets: TWO layers. The parser `NetList` is a case-SENSITIVE TreeMap
+//!   keyed by `Net.Id(name, subnetNumber)` (`NetList.java:13-33`;
+//!   `compareTo` = `String.compareTo`, `parser/Net.java:95-98`) whose
+//!   contains-guard (`Network.java:1410`) decides is-new. The board table
+//!   (`rules/Nets.java:88-96`) ALWAYS appends — `GND` and `gnd` are two
+//!   nets and an explicit positional subnet number is carried (jar
+//!   `/tmp/epic-t4b-review.out`: nets 1, 2 and VDD/2 as net 3); an exact
+//!   duplicate scope adds nothing because the READER skipped it. The
+//!   parse netlist (T35) is the reader-side
 //!   [`ParseState`](crate::state::ParseState)::netlist, not this table.
 //! - Clearance classes: the `create_board` default instance is
 //!   `["null", "default"]` with a zero matrix (`ClearanceMatrix
@@ -292,13 +303,12 @@ impl BoardSink for SesBoard {
         });
     }
 
-    fn append_net(&mut self, name: &str) -> i32 {
-        if let Some(no) = self.net_no(name) {
-            return no;
-        }
-        self.nets.push(NetIr {
-            name: name.to_string(),
-        });
+    fn append_net(&mut self, net: NetIr) -> i32 {
+        // Nets.add (rules/Nets.java:88-96): ALWAYS appends, number =
+        // nets.size() + 1 — no lookup, no merge. The case-sensitive
+        // is-new guard is the reader's (Network.java:1410); merging here
+        // would shift every later net number (review finding, Task 4).
+        self.nets.push(net);
         self.nets.len() as i32
     }
 
@@ -333,6 +343,17 @@ impl BoardSink for SesBoard {
     fn append_padstack(&mut self, padstack: PadstackIr) -> i32 {
         self.padstacks.push(padstack);
         self.padstacks.len() as i32
+    }
+
+    fn padstack_no(&self, name: &str) -> Option<i32> {
+        // Padstacks.get(String): RAW name (NO `.N` strip), case-sensitive
+        // NO — the Java lookup is a case-INSENSITIVE first match
+        // (core/library/Padstacks.java:25-32); the via-info rule fallback
+        // consumer is Network.java:275.
+        self.padstacks
+            .iter()
+            .position(|padstack| eq_ignore_case(&padstack.name, name))
+            .map(|index| index as i32 + 1)
     }
 
     fn resolve_padstack_query(&self, name: &str) -> Option<i32> {
@@ -457,7 +478,13 @@ mod tests {
             drillable: false,
             placed_absolute: false,
         });
-        assert_eq!(board.append_net("PERFECT"), 1);
+        assert_eq!(
+            board.append_net(NetIr {
+                name: "PERFECT".to_string(),
+                subnet_number: 1,
+            }),
+            1
+        );
 
         // structure keepout: polygon F.Cu 1000..3000 -> x10
         let corners: Vec<Point> = [
@@ -622,27 +649,69 @@ mod tests {
         assert!(board.layers.is_some());
     }
 
-    /// Java `Nets.add` (`rules/Nets.java:39,51`): case-INSENSITIVE merge
-    /// at append time — `gnd` returns the number of the existing `GND`
-    /// and adds no second row; genuinely new nets get the next number.
+    /// The two-layer net rule, pinned to the jar probe
+    /// `/tmp/epic-t4b-review.jsh`/`.out` (fixture
+    /// `/tmp/epic-t4b-review.dsn`): the SINK always appends
+    /// (`rules/Nets.java:88-96`) — case variants `GND`/`gnd` become nets
+    /// 1 AND 2 (the case-sensitive contains-guard lives in the parser
+    /// NetList, `Network.java:1410`), the explicit positional subnet
+    /// integer is carried (`(net VDD 2 ...)` -> subnet 2, net 3), and
+    /// `net_no` looks names up case-insensitively (Java `Nets.get`,
+    /// `rules/Nets.java:42-51`). A merge-at-append port would produce 2
+    /// nets here instead of 3 and shift every downstream net number.
     #[test]
-    fn append_net_merges_case_insensitively() {
+    fn append_net_always_appends_subnet_jar_probe() {
         let mut board = SesBoard::new();
-        assert_eq!(board.append_net("GND"), 1);
-        assert_eq!(board.append_net("gnd"), 1);
-        assert_eq!(board.append_net("VCC"), 2);
-        assert_eq!(board.nets.len(), 2);
-        assert_eq!(board.net_no("vcc"), Some(2));
-        assert_eq!(board.net_no("missing"), None);
+        assert_eq!(
+            board.append_net(NetIr {
+                name: "GND".to_string(),
+                subnet_number: 1,
+            }),
+            1
+        );
+        assert_eq!(
+            board.append_net(NetIr {
+                name: "gnd".to_string(),
+                subnet_number: 1,
+            }),
+            2
+        );
+        assert_eq!(
+            board.append_net(NetIr {
+                name: "VDD".to_string(),
+                subnet_number: 2,
+            }),
+            3
+        );
+        assert_eq!(board.nets.len(), 3);
         assert_eq!(board.net_name(1), Some("GND"));
-        assert_eq!(board.net_name(9), None);
+        assert_eq!(board.net_name(2), Some("gnd"));
+        assert_eq!(board.net_name(3), Some("VDD"));
+        assert_eq!(
+            board
+                .nets
+                .iter()
+                .map(|net| net.subnet_number)
+                .collect::<Vec<_>>(),
+            vec![1, 1, 2],
+            "jar NET lines: subnet=1, subnet=1, subnet=2"
+        );
+        assert_eq!(board.net_no("vdd"), Some(3));
+        assert_eq!(board.net_no("missing"), None);
     }
 
     /// Padstack registry (T32): `add` always appends (1-based numbers);
-    /// the query strips every `.digits` run THEN matches
-    /// case-insensitively over the raw registry names; misses return
-    /// None. Strip semantics of Java `replaceAll("\\.\\d+", "")`:
-    /// `x.1.2` -> `x`, `a.1b` -> `ab`, trailing bare `.` survives.
+    /// the reader's library-scope dedup queries the scope name stripped
+    /// of every `.digits` run (`Library.java:113` + `:158-161`) THEN
+    /// matches case-insensitively over the registry — jar
+    /// `/tmp/epic-t4b-review.out`: scopes `ViaPad_F`, `viapad_f.1`,
+    /// `ViaPad_F`, `CirclePad_F_800_um` produce `PADSTACK_COUNT 2` and
+    /// the `(via ViaPad_F.1 ...)` resolves to padstack 1 (first-match).
+    /// The RAW query ([`BoardSink::padstack_no`], via-info fallback
+    /// `Network.java:275`) does NOT strip: `viapad_f.1` misses exactly
+    /// where the strip query hits — the discriminating pair. Strip
+    /// semantics of Java `replaceAll("\\.\\d+", "")`: `x.1.2` -> `x`,
+    /// `a.1b` -> `ab`, trailing bare `.` survives.
     #[test]
     fn padstack_registry_and_t32_query_strip() {
         assert_eq!(strip_padstack_alias("ViaPad_F.1"), "ViaPad_F");
@@ -651,25 +720,32 @@ mod tests {
         assert_eq!(strip_padstack_alias("trailing."), "trailing.");
         assert_eq!(strip_padstack_alias("no_alias"), "no_alias");
 
+        // The reader's library-scope flow (Library.java:113 strip, :158
+        // guard, :222 append): strip the scope name, skip on query hit,
+        // append otherwise.
+        fn append_scope(board: &mut SesBoard, scope_name: &str) {
+            let stripped = strip_padstack_alias(scope_name);
+            if board.resolve_padstack_query(&stripped).is_none() {
+                board.append_padstack(PadstackIr {
+                    name: stripped,
+                    shapes: Vec::new(),
+                    drillable: true,
+                    placed_absolute: false,
+                });
+            }
+        }
         let mut board = SesBoard::new();
-        assert_eq!(
-            board.append_padstack(PadstackIr {
-                name: "ViaPad_F".to_string(),
-                shapes: Vec::new(),
-                drillable: true,
-                placed_absolute: false,
-            }),
-            1
-        );
-        assert_eq!(
-            board.append_padstack(PadstackIr {
-                name: "CirclePad_F_800_um".to_string(),
-                shapes: Vec::new(),
-                drillable: false,
-                placed_absolute: false,
-            }),
-            2
-        );
+        append_scope(&mut board, "ViaPad_F");
+        append_scope(&mut board, "viapad_f.1");
+        append_scope(&mut board, "ViaPad_F");
+        append_scope(&mut board, "CirclePad_F_800_um");
+        assert_eq!(board.padstacks.len(), 2, "jar: PADSTACK_COUNT 2");
+        assert_eq!(board.padstack_name(1), Some("ViaPad_F"));
+        assert_eq!(board.padstack_name(2), Some("CirclePad_F_800_um"));
+        assert_eq!(board.padstack_name(3), None);
+
+        // Wiring-side queries strip the alias first (`Wiring.java:659`):
+        // `ViaPad_F.1` -> `viapad_f` -> the FIRST case-insensitive match.
         assert_eq!(board.resolve_padstack_query("ViaPad_F.1"), Some(1));
         assert_eq!(board.resolve_padstack_query("viapad_f"), Some(1));
         assert_eq!(
@@ -677,9 +753,10 @@ mod tests {
             Some(2)
         );
         assert_eq!(board.resolve_padstack_query("NoSuch.3"), None);
-        assert_eq!(board.resolve_padstack_query("ViaPad_F"), Some(1));
-        assert_eq!(board.padstack_name(2), Some("CirclePad_F_800_um"));
-        assert_eq!(board.padstack_name(3), None);
+        // The raw via-info fallback (Network.java:275) does NOT strip.
+        assert_eq!(board.padstack_no("ViaPad_F"), Some(1));
+        assert_eq!(board.padstack_no("viapad_f.1"), None);
+        assert_eq!(board.padstack_no("circlepad_f_800_um"), Some(2));
     }
 
     /// Clearance class append: unknown names append (matrix grows with

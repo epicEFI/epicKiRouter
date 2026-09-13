@@ -20,9 +20,10 @@
 //! - `getRoutingBoard` has NO counterpart — the parser holds
 //!   `&mut dyn BoardSink` and never reads a board back mid-parse; the
 //!   queries below ([`BoardSink::resolve_padstack_query`],
-//!   [`BoardSink::net_no`], [`BoardSink::clearance_class_no`]) cover
+//!   [`BoardSink::padstack_no`], [`BoardSink::net_no`],
+//!   [`BoardSink::clearance_class_no`]) cover
 //!   exactly what the Java readers legitimately look up mid-parse
-//!   (`Padstacks.get`, `Nets.get_no`, `ClearanceMatrix.get_no`).
+//!   (`Padstacks.get`, `Nets.get`, `ClearanceMatrix.get_no`).
 //! - `createBoard` (`BoardParserCallback.java:29-36`) maps to
 //!   [`BoardSink::create_board`] with router types (`BoardRules`,
 //!   `Communication`) replaced by their parse-derivable IR (the transform;
@@ -138,9 +139,11 @@ impl AreaIr {
 /// transforms the shape scopes before calling the sink).
 #[derive(Clone, Debug, PartialEq)]
 pub struct PadstackIr {
-    /// Java `Padstack.name` — the RAW registry name; the `.N` alias strip
-    /// (T32) applies to QUERIES only
-    /// ([`BoardSink::resolve_padstack_query`]).
+    /// Java `Padstack.name`. The library-scope reader strips the `.N`
+    /// alias at READ time (`Library.java:113`,
+    /// `replaceAll("\\.\\d+", "")`), so DSN padstacks arrive here
+    /// pre-stripped and the sink stores them verbatim; query sites strip
+    /// again idempotently ([`BoardSink::resolve_padstack_query`]).
     pub name: String,
     /// Java `Padstack.shapes` (relative to the pad center).
     pub shapes: Vec<BoardShape>,
@@ -152,14 +155,26 @@ pub struct PadstackIr {
 
 /// Java `rules.Net` parse subset: the board net table entry. The net
 /// NUMBER is the 1-based position in insertion order (`Nets.add`:
-/// `nets.size() + 1`), carried implicitly by [`SesBoard`](crate::ses_board::SesBoard)'s
+/// `nets.size() + 1`, `rules/Nets.java:88-96` — ALWAYS appends, no
+/// lookup), carried implicitly by [`SesBoard`](crate::ses_board::SesBoard)'s
 /// table order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NetIr {
-    /// Java `Net.name` — as written in the DSN (case preserved; the board
-    /// lookup is case-INSENSITIVE, `rules/Nets.java:39,51`, but distinct
-    /// spellings stay distinct entries until a lookup merges them, T35).
+    /// Java `Net.name` — as written in the DSN (case preserved; the
+    /// case-SENSITIVE is-new guard is the parser `NetList` TreeMap keyed
+    /// by `Net.Id.compareTo` = `String.compareTo`
+    /// (`NetList.java:13-33`, `parser/Net.java:95-98`, guard at
+    /// `Network.java:1410`), so case variants are DISTINCT nets; the
+    /// board-side lookup by name is case-insensitive
+    /// (`rules/Nets.java:42-62`)).
     pub name: String,
+    /// Java `Net.subnetNumber` (`rules/Net.java:29`): the optional
+    /// positional integer directly after the net name in the `(net ...)`
+    /// scope (`Network.java:1336-1345`, default 1) — a bare integer, NOT
+    /// a `(subnet_number N)` scope. A net split into several subnets
+    /// inserts one board net per subnet with the SAME name and
+    /// incrementing subnet numbers (`Network.java:1461`).
+    pub subnet_number: i32,
 }
 
 /// Java `ComponentPlacement` group + one placed instance, stored in
@@ -436,16 +451,26 @@ pub trait BoardSink {
 
     // ---- tables: nets, clearance classes, padstacks ---------------------
 
-    /// Java `Nets.add(name, subnetNumber, isLogical)` at the network/plane
-    /// call sites (`Network.java:1414`, `Structure.java:1073`):
-    /// case-INSENSITIVE lookup first (`rules/Nets.java:39,51`) — an
-    /// existing net (any spelling) returns its number and adds nothing;
-    /// otherwise the net is appended with number `size + 1`. Returns the
-    /// net number.
-    fn append_net(&mut self, name: &str) -> i32;
+    /// Java `Nets.add(name, subnetNumber, containsPlane)` at the
+    /// network/plane call sites (`Network.java:1414`,
+    /// `Structure.java:1073`): ALWAYS appends — no lookup, no merge
+    /// (`rules/Nets.java:88-96`, `newNetNo = nets.size() + 1`) — and
+    /// returns the net number. The is-new guard lives in the READER: the
+    /// parser `NetList` is a case-SENSITIVE TreeMap keyed by
+    /// `Net.Id(name, subnetNumber)` (`NetList.java:13-33`; `compareTo` =
+    /// `String.compareTo`, `parser/Net.java:95-98`), so case variants are
+    /// distinct nets (jar `/tmp/epic-t4b-review.out`: `GND` + `gnd` give
+    /// nets 1 AND 2) and an exact duplicate scope is skipped by the
+    /// reader guard (`Network.java:1410`). Net number shifts from a merge
+    /// here would diverge every downstream net reference.
+    fn append_net(&mut self, net: NetIr) -> i32;
 
-    /// Java `Nets.get_no(name)` (`rules/Nets.java:39,51`): case-insensitive
-    /// lookup, `None` (Java -1) on a miss.
+    /// Java `Nets.get(name, subnetNumber)` (`rules/Nets.java:42-51`):
+    /// case-insensitive NAME match; the single-name overload
+    /// (`:54-62`) returns ALL subnets — multi-subnet resolution follows
+    /// `getSubnets` (`Wiring.java:223-236`) and lands with the Task 9
+    /// wiring reader. This first-match query is `None` (Java null) on a
+    /// miss.
     fn net_no(&self, name: &str) -> Option<i32>;
 
     /// Java `ClearanceMatrix.append_class`: appends a class unless a class
@@ -458,18 +483,34 @@ pub trait BoardSink {
     /// `None` (Java -1) on a miss.
     fn clearance_class_no(&self, name: &str) -> Option<i32>;
 
-    /// Java `Padstacks.add` (`Library.java:222`): ALWAYS appends (no
-    /// dedup) and returns the 1-based padstack number (`size() + 1`).
-    /// Lookup is a separate case-insensitive first-match query.
+    /// Java `Padstacks.add` (`Library.java:222`): ALWAYS appends (the
+    /// dedup guard is at the CALL SITE, `Library.java:158-161`, on the
+    /// name ALREADY stripped at `:113`) and returns the 1-based padstack
+    /// number (`size() + 1`).
     fn append_padstack(&mut self, padstack: PadstackIr) -> i32;
 
-    /// Java `Padstacks.get(name)` with the T32 query strip applied
-    /// (`Wiring.java:659`, `Network.java:1289-1291`): the query name has
-    /// every `.<digits>` run removed (Java `replaceAll("\\.\\d+", "")` —
-    /// anywhere in the name, not only suffixes), then the registry is
-    /// scanned in insertion order for the first CASE-INSENSITIVE match of
-    /// the stripped name. `None` (Java null) on a miss — the CALLER owns
-    /// the missing-padstack warning + drop (`Wiring.java:661-671`).
+    /// Java `Padstacks.get(name)` — RAW name, NO `.N` strip
+    /// (`core/library/Padstacks.java:25-32`, case-insensitive first
+    /// match). The one parse-side consumer is the `(via ...)` via-info
+    /// rule fallback (`Network.java:275`; its first attempt,
+    /// `getViaPadstack`, is a case-SENSITIVE via-subset lookup,
+    /// `BoardLibrary.java:53-62`). For every other name query the strip
+    /// variant applies. `None` (Java null) on a miss.
+    fn padstack_no(&self, name: &str) -> Option<i32>;
+
+    /// Java `Padstacks.get(name)` with the T32 query strip applied:
+    /// the query name has every `.<digits>` run removed (Java
+    /// `replaceAll("\\.\\d+", "")` — anywhere in the name, not only
+    /// suffixes), then the registry is scanned in insertion order for the
+    /// first CASE-INSENSITIVE match of the stripped name. Parse-side
+    /// consumers: via placement (`Wiring.java:659-660`), net-class via
+    /// instantiation (`Network.java:1292-1294`), package image pins
+    /// (`Library.java:321-323`) and the library-scope dedup itself
+    /// (`Library.java:158` on the `:113`-stripped name — jar
+    /// `/tmp/epic-t4b-review.out`: a `(padstack viapad_f.1 ...)` scope is
+    /// NOT added beside `ViaPad_F`; `PADSTACK_COUNT 2`). `None` (Java
+    /// null) on a miss — the CALLER owns the missing-padstack warning +
+    /// drop (`Wiring.java:661-671`).
     fn resolve_padstack_query(&self, name: &str) -> Option<i32>;
 
     // ---- rules ----------------------------------------------------------
