@@ -254,6 +254,30 @@ impl NetList {
     pub fn get(&self, id: &NetId) -> Option<&Net> {
         self.nets.get(id)
     }
+
+    /// Java `getNets(component, pin)` (`NetList.java:44-55`): every net
+    /// whose pin set contains `(component_name, pin_name)`, in netlist
+    /// (TreeMap key) order.
+    ///
+    /// Java's `netPins != null` guard (`:50`) only skips nets whose pin
+    /// collection was never assigned; here `pins` is always a (possibly
+    /// empty) set, which the `contains` check filters identically. Jar
+    /// session `/tmp/epic-t3-part-a.jsh`, output `/tmp/epic-t3-part-a.out`
+    /// (2026-09-12): on nets A (pins never set), B {(U1,1),(U2,2)},
+    /// C {(U1,2)}, a {(U1,1)} — "NETS getNets(U1,1)=B,a," (B before the
+    /// lowercase net proves the case-sensitive key order), "getNets(U1,2)=C,"
+    /// (same component, other pin), "getNets(U2,1)=" and "getNets(U9,9)="
+    /// (empty).
+    pub fn get_nets(&self, component_name: &str, pin_name: &str) -> Vec<&Net> {
+        let search_pin = NetPin {
+            component_name: component_name.to_string(),
+            pin_name: pin_name.to_string(),
+        };
+        self.nets
+            .values()
+            .filter(|net| net.pins.contains(&search_pin))
+            .collect()
+    }
 }
 
 /// Java `ComponentPlacement.ItemClearanceInfo` (`ComponentPlacement.java:82-91`).
@@ -521,6 +545,50 @@ mod tests {
             .map(|net| net.id.name.as_str())
             .collect();
         assert_eq!(names, vec!["A", "GND", "gnd"]);
+    }
+
+    /// `getNets` (jar session `/tmp/epic-t3-part-a.jsh`, output
+    /// `/tmp/epic-t3-part-a.out`, 2026-09-12): nets A (pins never set),
+    /// B {(U1,1),(U2,2)}, C {(U1,2)}, a {(U1,1)} — "NETS getNets(U1,1)=B,a,"
+    /// (B before the lowercase net: the case-sensitive key order), "getNets
+    /// (U1,2)=C," (same component, other pin), "getNets(U2,1)=" (same net
+    /// name set, wrong pin pair) and "getNets(U9,9)=" (no match; the
+    /// pinless net A never trips a null collection).
+    #[test]
+    fn get_nets_filters_by_pin_in_key_order() {
+        let mut netlist = NetList::default();
+        let id = |name: &str| NetId {
+            name: name.to_string(),
+            subnet_number: 0,
+        };
+        let pin = |component: &str, pin_name: &str| NetPin {
+            component_name: component.to_string(),
+            pin_name: pin_name.to_string(),
+        };
+        netlist.add_net(id("A"));
+        netlist
+            .add_net(id("B"))
+            .expect("B fresh")
+            .pins
+            .extend([pin("U1", "1"), pin("U2", "2")]);
+        netlist
+            .add_net(id("C"))
+            .expect("C fresh")
+            .pins
+            .insert(pin("U1", "2"));
+        netlist
+            .add_net(id("a"))
+            .expect("a fresh")
+            .pins
+            .insert(pin("U1", "1"));
+
+        fn names<'a>(nets: &[&'a Net]) -> Vec<&'a str> {
+            nets.iter().map(|net| net.id.name.as_str()).collect()
+        }
+        assert_eq!(names(&netlist.get_nets("U1", "1")), vec!["B", "a"]);
+        assert_eq!(names(&netlist.get_nets("U1", "2")), vec!["C"]);
+        assert!(netlist.get_nets("U2", "1").is_empty());
+        assert!(netlist.get_nets("U9", "9").is_empty());
     }
 
     /// Defaults (Java initializers `ReadScopeParameter.java:36-89`).

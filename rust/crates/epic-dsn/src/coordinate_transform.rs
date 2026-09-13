@@ -246,6 +246,24 @@ mod tests {
         );
     }
 
+    /// Part-A review carryover pin for `board_to_dsn_rel_points` (previously
+    /// the only untested transform), jar session `/tmp/epic-t3-part-a.jsh`,
+    /// output
+    /// `/tmp/epic-t3-part-a.out`: "CTREL boardToDsnRel(FloatPoint[2]) =
+    /// [0.1, 0.2, -0.3, 0.4]" for points (1,2), (-3,4), captured via
+    /// `Double.toString`. The base-ADDING sibling `board_to_dsn_points`
+    /// yields [3.6, -2.05, 3.2, -1.85] on the same input (pinned in
+    /// `points_transform_is_interleaved`), so this pin flips if the rel path
+    /// ever picks up a base offset.
+    #[test]
+    fn rel_points_transform_is_base_free() {
+        let points = [FloatPoint::new(1.0, 2.0), FloatPoint::new(-3.0, 4.0)];
+        assert_eq!(
+            ct().board_to_dsn_rel_points(&points),
+            vec![0.1, 0.2, -0.3, 0.4]
+        );
+    }
+
     /// Jar session `/tmp/epic-ct-extra.jsh`, output `/tmp/epic-ct-extra.out`:
     /// "CT boardToDsn(Line[(10,-4)->(30,16)]) = [4.5, -2.65, 6.5,
     /// -0.6499999999999999]" — the fourth value proves the Java order

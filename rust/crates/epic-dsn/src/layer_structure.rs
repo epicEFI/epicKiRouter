@@ -57,6 +57,30 @@ impl Layer {
             net_names,
         }
     }
+
+    /// Java `Layer.PCB` static constant (`Layer.java:11`): the
+    /// boundary/outline pseudo-layer (name "pcb", `no` -1, not a signal
+    /// layer).
+    ///
+    /// Java compares shape layers by IDENTITY (`==` against the two static
+    /// constants — `Shape.java:82-84`, `Structure.java:314-320`,
+    /// `Library.java:208`), so only the shared constants can ever match. Rust
+    /// has no object identity: value [`PartialEq`] stands in for it, and the
+    /// port relies on every use site building the pseudo-layers through these
+    /// canonical constructors (jar session `/tmp/epic-t3-part-a.jsh`, output
+    /// `/tmp/epic-t3-part-a.out`: "LAYER pcb name=pcb no=-1 isSignal=false
+    /// netNames=0"). Never hand-roll `Layer::new("pcb", ..)`.
+    pub fn pcb() -> Self {
+        Layer::new(Layer::PCB_NAME, -1, false)
+    }
+
+    /// Java `Layer.SIGNAL` static constant (`Layer.java:14`): the
+    /// all-signal-layers pseudo-layer (name "signal", `no` -1) — see
+    /// [`Layer::pcb`] for the identity-vs-value rationale (jar, same session:
+    /// "LAYER signal name=signal no=-1 isSignal=true netNames=0").
+    pub fn signal() -> Self {
+        Layer::new(Layer::SIGNAL_NAME, -1, true)
+    }
 }
 
 /// Java `parser/LayerStructure.java` (`:8-69`): the ordered layer table.
@@ -124,6 +148,37 @@ mod tests {
             Layer::new("Inner1", 1, true),
             Layer::new("Bottom", 2, true),
         ])
+    }
+
+    /// Canonical pseudo-layer singletons (jar session
+    /// `/tmp/epic-t3-part-a.jsh`, output `/tmp/epic-t3-part-a.out`,
+    /// 2026-09-12): "LAYER pcb name=pcb no=-1 isSignal=false netNames=0",
+    /// "LAYER signal name=signal no=-1 isSignal=true netNames=0", "LAYER
+    /// identity distinct=true" — the Java constants are distinct objects
+    /// with no=-1 and empty net-name lists. All shape/structure use sites
+    /// must build them via these constructors so value equality stands in
+    /// for Java's `==` identity compares (`Shape.java:82-84` et al.).
+    #[test]
+    fn canonical_pseudo_layer_singletons() {
+        assert_eq!(
+            Layer::pcb(),
+            Layer {
+                name: "pcb".to_string(),
+                no: -1,
+                is_signal: false,
+                net_names: Vec::new()
+            }
+        );
+        assert_eq!(
+            Layer::signal(),
+            Layer {
+                name: "signal".to_string(),
+                no: -1,
+                is_signal: true,
+                net_names: Vec::new()
+            }
+        );
+        assert_ne!(Layer::pcb(), Layer::signal());
     }
 
     /// T34a: exact matches hit their file-order index; "T34a
