@@ -35,7 +35,9 @@
 //! - `"` / `'` start quoted strings (content keeps whitespace, brackets,
 //!   newlines; the other quote char is content); a closing quote yields one
 //!   `Token::Str`. Unterminated quotes swallow the rest of the input and
-//!   produce `Token::Eof` (jar: `(net "abc 1)` → EOF).
+//!   produce `Token::Eof` (jar: `(net "abc 1)` → EOF). Exception: in
+//!   [`LexicalState::IgnoreQuote`] a quote is an ordinary word character
+//!   (see that state).
 //! - Integer tokens are `Integer.valueOf(yytext())`; overflow throws in
 //!   Java (`2147483648` → `NumberFormatException` out of `nextToken`) and
 //!   is represented as [`Token::Error`] here. Double tokens are
@@ -52,7 +54,8 @@
 //!   `+.5`) is warned about and skipped by the Java scanner (jar:
 //!   "Non-ansi character '+'"). The warning goes to FRLogger only — not to
 //!   the parse warnings list — so this port skips such characters silently.
-//!   A lone `-` was never probed; it is mirrored from `+`.
+//!   A lone `-` behaves identically (jar `/tmp/epic-corner-probe.jsh`
+//!   `minus-word`: `(x -x)` → the `-` is skipped and `x` scans).
 
 use crate::keyword::Keyword;
 
@@ -76,8 +79,15 @@ pub enum LexicalState {
     /// JFlex `SPEC_CHAR` (6) — no scanner rule enters this state (no
     /// keyword action selects it in the jar); kept for state-number parity.
     SpecChar,
-    /// JFlex `IGNORE_QUOTE` (7) — entered by the `string_quote` keyword;
-    /// the quote character itself scans as a one-char string.
+    /// JFlex `IGNORE_QUOTE` (7) — entered by the `string_quote` keyword.
+    /// There the configured quote character is an ordinary word character:
+    /// a token starting with it is the quote plus the maximal run of
+    /// non-whitespace non-bracket bytes, VERBATIM — embedded quotes
+    /// included (jar /tmp/epic-review-probe.jsh: `'a'b` → ONE
+    /// `STR:"'a'b"`, `"a b"` → `STR:""a"` + `STR:"b""`) — and the state
+    /// resets after that one word like any other string token (jar
+    /// /tmp/epic-iq-probe.jsh: keywords and digits also scan as plain
+    /// strings in this state).
     IgnoreQuote,
 }
 
@@ -168,15 +178,12 @@ impl<'a> Scanner<'a> {
                 return Token::Close;
             }
 
-            if matches!(b, b'"' | b'\'') {
-                if self.state == LexicalState::IgnoreQuote {
-                    // Jar /tmp/epic-iq-probe.jsh: in IGNORE_QUOTE the quote
-                    // character itself scans as a one-char string.
-                    self.cursor += 1;
-                    self.state = LexicalState::YyInitial;
-                    // the quote bytes are ASCII, so `as char` is lossless
-                    return Token::Str((b as char).to_string().into_boxed_str());
-                }
+            // A quote starts a quoted string EXCEPT in IGNORE_QUOTE, where
+            // the configured quote character is an ordinary word character
+            // (jar /tmp/epic-review-probe.jsh: `'a` scans as the verbatim
+            // word `'a`, `'a'b` as ONE token, `"a b"` as two words) — that
+            // case falls through to the word scan below.
+            if matches!(b, b'"' | b'\'') && self.state != LexicalState::IgnoreQuote {
                 return self.scan_quoted(b);
             }
 
@@ -343,7 +350,11 @@ impl<'a> Scanner<'a> {
         if is_double {
             // Rust's f64 parser is correctly rounded like Double.valueOf;
             // overflow yields infinity (jar: `1.5e400` -> DBL:Infinity).
-            Token::Double(text.parse::<f64>().unwrap_or(f64::NAN))
+            // The scanned grammar guarantees a parseable f64.
+            Token::Double(
+                text.parse::<f64>()
+                    .expect("number grammar guarantees a valid f64"),
+            )
         } else {
             match text.parse::<i32>() {
                 Ok(value) => Token::Int(value),
@@ -363,7 +374,9 @@ impl<'a> Scanner<'a> {
     /// byte when the last consumed byte is a bracket (T27).
     ///
     /// A name is read with `next_string(false, b' ')`; resets the lexical
-    /// state to [`LexicalState::YyInitial`] (Java line 1784).
+    /// state to [`LexicalState::YyInitial`] (Java line 1784). `leading` is
+    /// a single byte; Java's `char` separator only round-trips for ASCII
+    /// (the DSN grammar is ASCII).
     pub fn next_string_with(&mut self, ignore_newline: bool, leading: u8) -> String {
         self.string_buf.clear();
         let mut i = 0usize;
@@ -433,24 +446,32 @@ impl<'a> Scanner<'a> {
         self.next_string_with(false, b' ')
     }
 
-    /// Port of `nextStringList` (`SpecctraDsnStreamReader.java:1798-1827`):
-    /// reads strings until an empty one; an empty *first* element is
-    /// dropped (T28, the KiCad 8 netlist workaround). Java also rewinds
+    /// Port of `nextStringList` (`SpecctraDsnStreamReader.java:1798-1827`)
+    /// with the caller-supplied separator character: reads strings until an
+    /// empty one; an empty *first* element is dropped (T28, the KiCad 8
+    /// netlist workaround). The separator doubles as a skip-leading
+    /// character and a stop character, which is how the KiCad
+    /// clearance-class pair splits (jar /tmp/epic-review-probe2.jsh:
+    /// `default-default` with separator `-` → `["default", "default"]`).
+    /// `Rule.readClearanceRule` calls the Java original with
+    /// `DsnFile.CLASS_CLEARANCE_SEPARATOR = '-'` (`Rule.java:277`,
+    /// parser/DsnFile.java:20); the common space-separated form is
+    /// [`Scanner::next_string_list`]. Java also rewinds
     /// `zzStartRead`/`zzCurrentPos` by one here (`:1823-1824`) — cosmetic
     /// position bookkeeping that does not move the resume cursor
     /// (`zzMarkedPos`), so the next `next_token` still sees the `)`
     /// terminator (jar: probe T28, next token after the list is `Close`).
-    pub fn next_string_list(&mut self) -> Vec<String> {
+    pub fn next_string_list_with(&mut self, separator: u8) -> Vec<String> {
         let mut result = Vec::new();
         // Every string list must have at least one item, but the first item
         // can be empty; that one is ignored (the KiCad 8 netlist workaround,
         // SpecctraDsnStreamReader.java:1805-1812).
-        let first = self.next_string_with(true, b' ');
+        let first = self.next_string_with(true, separator);
         if !first.is_empty() {
             result.push(first);
         }
         loop {
-            let next = self.next_string_with(true, b' ');
+            let next = self.next_string_with(true, separator);
             if next.is_empty() {
                 break;
             }
@@ -463,6 +484,12 @@ impl<'a> Scanner<'a> {
         result
     }
 
+    /// Java `nextStringList()` — the space-separated form used by nearly
+    /// all call sites.
+    pub fn next_string_list(&mut self) -> Vec<String> {
+        self.next_string_list_with(b' ')
+    }
+
     /// Port of `nextDouble()` (`SpecctraDsnStreamReader.java:1829-1840`):
     /// reads a string and parses it with `NumberFormat.getInstance(Locale.US)`
     /// lenient prefix semantics, `None` on failure (T26; Java returns null
@@ -470,6 +497,27 @@ impl<'a> Scanner<'a> {
     pub fn next_double(&mut self) -> Option<f64> {
         let s = self.next_string();
         parse_number_format_us(s.as_bytes())
+    }
+
+    /// Port of `nextClosingBracket()`
+    /// (`SpecctraDsnStreamReader.java:1842-1861`): consumes one token and
+    /// requires a closing bracket. Returns `false` on end of input (Java
+    /// warns "unexpected end of file") or on any other token (Java warns
+    /// "expected closed bracket is missing"; the offending token is
+    /// consumed either way, and both warnings go to FRLogger only). An
+    /// error token (integer overflow, where Java's `nextToken` throws out
+    /// of this method) also yields `false` — callers treat the result as
+    /// fatal for the rule either way. Call sites: `Rule.readWidthRule`
+    /// (`Rule.java:112`) and `readClearanceRule` (`:280`, `:289`).
+    ///
+    /// Java divergence at end of input: with the resume point already at
+    /// end of input, Java's buffer refill CRASHES
+    /// (`ArrayIndexOutOfBoundsException` in `zzRefill`,
+    /// /tmp/epic-review-probe2.jsh) instead of reaching the null check —
+    /// the same 16 MB-buffer family as `nextString` at EOF. This port
+    /// models the clean `false` the source intends.
+    pub fn next_closing_bracket(&mut self) -> bool {
+        matches!(self.next_token(), Token::Close)
     }
 }
 
@@ -520,11 +568,20 @@ fn parse_number_format_us(s: &[u8]) -> Option<f64> {
 /// Strict `Double.parseDouble` semantics (T26's second parser; used by
 /// `Package.readRotation`, `Package.java:339`): the whole string must be a
 /// decimal number — `parseDouble("1.5e2")` → 150.0 while lenient parsing
-/// yields 1.5 — with Java's optional trailing `d`/`f` suffix.
+/// yields 1.5 — with one optional trailing `d`/`D`/`f`/`F` suffix (jar
+/// /tmp/epic-review-probe.jsh: `5l`/`5L` throw NumberFormatException,
+/// `5e2d` → 500.0).
+///
+/// Known divergences, jar /tmp/epic-review-probe.jsh `parseDouble edges`:
+/// Java also accepts the exact spellings `Infinity`/`-Infinity`/`NaN`
+/// (which Rust accepts too) and hex-float literals (`0x1.8p1` → 3.0,
+/// rejected by Rust), while it THROWS on Rust's lowercase `nan`/`infinity`
+/// spellings. None of these forms can appear in a DSN rotation value, so
+/// Rust's native accept set is kept (see the pinning test).
 pub fn parse_double_strict(s: &str) -> Option<f64> {
-    // Java accepts one trailing float-type suffix (d/D/f/F/l/L);
-    // Rust's parser rejects it, so strip it first.
-    let stripped = s.strip_suffix(['d', 'D', 'f', 'F', 'l', 'L']).unwrap_or(s);
+    // Java accepts one trailing float-type suffix d/D/f/F only (`5l`
+    // throws); Rust's parser rejects any suffix, so strip it first.
+    let stripped = s.strip_suffix(['d', 'D', 'f', 'F']).unwrap_or(s);
     stripped.parse::<f64>().ok()
 }
 
@@ -694,9 +751,11 @@ mod tests {
     }
 
     /// Jar: `string_quote` switches to the IGNORE_QUOTE state (st=7) and
-    /// the quote char scans as a one-char string resetting to the initial
-    /// state (`toks string-quote-ignore` + custom-quote probe in
-    /// `/tmp/epic-num-probe.jsh`).
+    /// the lone quote char directly before `)` scans as a one-char word
+    /// (the verbatim quote-run ends at the bracket) resetting to the
+    /// initial state (`toks string-quote-ignore` + custom-quote probe in
+    /// `/tmp/epic-num-probe.jsh`; the quote-run rule itself is pinned by
+    /// `ignore_quote_quote_starts_verbatim_word` below).
     #[test]
     fn string_quote_enters_ignore_quote_state() {
         let mut scanner = Scanner::new(b"(parser (string_quote '))");
@@ -1232,7 +1291,8 @@ mod tests {
     /// Jar `/tmp/epic-iq-probe.jsh` `iq-keyword-word` / `iq-digit` /
     /// `iq-paren`: in the IGNORE_QUOTE state every word scans as a plain
     /// string (keywords and digits included — `net` → STR, `5` → STR:"5"),
-    /// the quote char is a one-char string even directly before a bracket.
+    /// and the quote char directly before a bracket is a one-char word
+    /// (the quote-run stops at the bracket).
     #[test]
     fn ignore_quote_state_words_are_plain_strings() {
         let mut scanner = Scanner::new(b"(parser (string_quote net))");
@@ -1296,5 +1356,180 @@ mod tests {
         assert_eq!(parse_number_format_us(b","), None);
         assert_eq!(parse_number_format_us(b""), None);
         assert_eq!(parse_number_format_us(b"abc"), None);
+    }
+
+    // ------------------------------------------------------------------
+    // Review-fix pins, session /tmp/epic-review-probe.jsh (2026-09-12)
+    // ------------------------------------------------------------------
+
+    /// Jar /tmp/epic-review-probe.jsh `iq-quote-run` etc.: in the
+    /// IGNORE_QUOTE state a quote character does NOT start a quoted string —
+    /// it is an ordinary word character. A token starting with a quote is
+    /// the quote plus the maximal run of non-whitespace non-bracket bytes,
+    /// verbatim (embedded quotes included), and the state resets to the
+    /// initial state afterwards.
+    #[test]
+    fn ignore_quote_quote_starts_verbatim_word() {
+        // quote + run up to the closing bracket
+        let mut scanner = Scanner::new(b"(parser (string_quote 'a))");
+        for expected in [
+            Token::Open,
+            Token::Keyword(Keyword::Parser),
+            Token::Open,
+            Token::Keyword(Keyword::StringQuote),
+        ] {
+            assert_eq!(scanner.next_token(), expected);
+        }
+        assert_eq!(scanner.lexical_state(), LexicalState::IgnoreQuote);
+        assert_eq!(scanner.next_token(), str_token("'a"));
+        assert_eq!(scanner.lexical_state(), LexicalState::YyInitial);
+        assert_eq!(scanner.next_token(), Token::Close);
+        assert_eq!(scanner.next_token(), Token::Close);
+
+        // embedded quotes are verbatim content; ONE token (jar probe
+        // `iq-quote-run-embedded` printed 6 tokens: ... STR:"'a'b" CLOSE;
+        // the second CLOSE closes the (parser scope)
+        assert_eq!(
+            tokens("(parser (string_quote 'a'b))"),
+            vec![
+                Token::Open,
+                Token::Keyword(Keyword::Parser),
+                Token::Open,
+                Token::Keyword(Keyword::StringQuote),
+                str_token("'a'b"),
+                Token::Close,
+                Token::Close,
+                Token::Eof,
+            ]
+        );
+
+        // whitespace ends the quote-run; the second fragment starts fresh
+        // (jar probe `iq-quote-run-space` printed 7 tokens: ... STR:""a"
+        // STR:"b"" CLOSE; the second CLOSE closes the (parser scope)
+        assert_eq!(
+            tokens(r#"(parser (string_quote "a b"))"#),
+            vec![
+                Token::Open,
+                Token::Keyword(Keyword::Parser),
+                Token::Open,
+                Token::Keyword(Keyword::StringQuote),
+                str_token("\"a"),
+                str_token("b\""),
+                Token::Close,
+                Token::Close,
+                Token::Eof,
+            ]
+        );
+
+        // at end of input the run just ends (words do not swallow input)
+        assert_eq!(
+            tokens("(parser (string_quote 'a"),
+            vec![
+                Token::Open,
+                Token::Keyword(Keyword::Parser),
+                Token::Open,
+                Token::Keyword(Keyword::StringQuote),
+                str_token("'a"),
+                Token::Eof,
+            ]
+        );
+
+        // digits inside the run are verbatim, not a number token
+        assert_eq!(tokens("(parser (string_quote '5))")[4], str_token("'5"));
+    }
+
+    /// Strict-double suffix set (jar /tmp/epic-review-probe.jsh `parseDouble
+    /// edges`): only d/D/f/F are accepted suffixes; l/L throw
+    /// NumberFormatException in Java. A suffix after an exponent works too
+    /// ("5e2d" -> 500.0).
+    #[test]
+    fn parse_double_strict_suffix_set() {
+        assert_eq!(parse_double_strict("5f"), Some(5.0));
+        assert_eq!(parse_double_strict("5F"), Some(5.0));
+        assert_eq!(parse_double_strict("5d"), Some(5.0));
+        assert_eq!(parse_double_strict("5D"), Some(5.0));
+        assert_eq!(parse_double_strict("5e2d"), Some(500.0));
+        assert_eq!(parse_double_strict("5l"), None);
+        assert_eq!(parse_double_strict("5L"), None);
+    }
+
+    /// Known Rust/Java divergences in the strict double grammar, jar
+    /// /tmp/epic-review-probe.jsh `parseDouble edges`: Java accepts only
+    /// the exact spellings `Infinity`/`-Infinity`/`NaN` plus hex-float
+    /// literals (`0x1.8p1` → 3.0, rejected by Rust), and THROWS on the
+    /// lowercase spellings Rust accepts. None of these forms can appear in
+    /// a DSN rotation value, so the port keeps Rust's native accept/reject
+    /// set and pins the delta here so a future "fix" does not silently
+    /// flip it.
+    #[test]
+    fn parse_double_strict_inf_nan_divergence_is_documented() {
+        // "inf": Java THROWS; the suffix strip eats the trailing f
+        // ("inf" -> "in") so Rust rejects too — coincidental agreement.
+        assert_eq!(parse_double_strict("inf"), None);
+        // "nan": Java THROWS (only "NaN" parses). Rust: accepted.
+        // (NaN is never equal to itself, so assert on the predicate.)
+        assert!(parse_double_strict("nan").is_some_and(|v| v.is_nan()));
+        // Hex float: Java parseDouble("0x1.8p1") == 3.0. Rust: rejected.
+        assert_eq!(parse_double_strict("0x1.8p1"), None);
+        // The exact Java spellings agree (jar: they parse).
+        assert_eq!(parse_double_strict("Infinity"), Some(f64::INFINITY));
+        assert!(parse_double_strict("NaN").is_some_and(|v| v.is_nan()));
+    }
+
+    /// `next_string_list_with('-')` as `Rule.readClearanceRule` uses it
+    /// (`Rule.java:277`, separator `DsnFile.CLASS_CLEARANCE_SEPARATOR = '-'
+    ///`, parser/DsnFile.java:20). Jar /tmp/epic-review-probe2.jsh: the
+    /// separator acts as skip-leading AND stop char, splitting the KiCad
+    /// clearance class pair; the KiCad 8 empty-first drop works with any
+    /// separator; afterwards the two closing brackets are still tokens.
+    #[test]
+    fn next_string_list_with_dash_separator() {
+        let mut scanner = scanner_after("(clearance 10 (type default-default))", 5);
+        assert_eq!(
+            scanner.next_string_list_with(b'-'),
+            vec!["default", "default"]
+        );
+        assert!(scanner.next_closing_bracket());
+        assert!(scanner.next_closing_bracket());
+
+        let mut scanner = scanner_after("(clearance 10 (type \"\" A-B))", 5);
+        assert_eq!(scanner.next_string_list_with(b'-'), vec!["A", "B"]);
+    }
+
+    /// `next_closing_bracket` (port of `nextClosingBracket`,
+    /// `SpecctraDsnStreamReader.java:1842-1861`): consumes ONE token and
+    /// requires the closing bracket; returns false on any other token or on
+    /// end of input, consuming the offending token either way. Warnings go
+    /// to FRLogger only.
+    ///
+    /// Java divergence at EOF: with the resume point at end of input, Java's
+    /// buffer refill CRASHES (`ArrayIndexOutOfBoundsException` in zzRefill,
+    /// /tmp/epic-review-probe2.jsh) instead of reaching the null check; the
+    /// port returns the clean `false` the source intends.
+    #[test]
+    fn next_closing_bracket_semantics() {
+        // Happy path (jar /tmp/epic-review-probe2.jsh `ncb happy`): consume
+        // `(width` as tokens, nextDouble reads the value buffer-level, the
+        // closing bracket is consumed and true returned.
+        let mut scanner = scanner_after("(width 10)", 2);
+        assert_eq!(scanner.next_double(), Some(10.0));
+        assert!(scanner.next_closing_bracket());
+        assert_eq!(scanner.lexical_state(), LexicalState::YyInitial);
+
+        // Wrong token (jar /tmp/epic-review-probe.jsh `ncb wrong-token`,
+        // same token flow: nextDouble reads "width" and fails, then ncb
+        // consumes INT:10 and returns false, so the NEXT token is INT:5).
+        let mut scanner = scanner_after("(width 10 5)", 1);
+        assert_eq!(scanner.next_double(), None);
+        assert!(!scanner.next_closing_bracket());
+        assert_eq!(scanner.next_token(), Token::Int(5));
+
+        // End of input (jar /tmp/epic-review-probe2.jsh `ncb eof`): nextDouble
+        // still reads 10.0, then ncb returns false (Java crashes in zzRefill
+        // before reaching its null check — documented divergence above).
+        let mut scanner = scanner_after("(width 10", 2);
+        assert_eq!(scanner.next_double(), Some(10.0));
+        assert!(!scanner.next_closing_bracket());
+        assert_eq!(scanner.next_token(), Token::Eof);
     }
 }
