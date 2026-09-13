@@ -608,7 +608,7 @@ fn get_layer(layer_structure: Option<&LayerStructure>, layer_name: &str) -> Opti
 
 /// Java `instanceof Double || instanceof Integer` on a token
 /// (Shape.java:270-273 et al.).
-fn number_value(token: &Token) -> Option<f64> {
+pub(crate) fn number_value(token: &Token) -> Option<f64> {
     match token {
         Token::Double(value) => Some(*value),
         Token::Int(value) => Some(f64::from(*value)),
@@ -1031,6 +1031,77 @@ pub(crate) fn transform_area_to_board(
         holes.push(hole_shape);
     }
     TransformedArea::Area(AreaIr {
+        border: boundary_shape,
+        holes,
+    })
+}
+
+/// The `transformAreaToBoardRel` mirror of [`TransformedArea`] — same
+/// three flavors, same call-site split: the image-keepout conversion
+/// (`Library.java:382-390`) stores a `TransformedAreaRel::Null` result as
+/// a keepout with a NULL area and the parse SURVIVES, while
+/// `TransformedAreaRel::Threw` (null WINDOW entry dereferenced at
+/// `it.next().transformToBoardRel`) is parse-fatal — the enclosing
+/// `Library.readScope` has no try/catch.
+pub(crate) enum TransformedAreaRel {
+    Area(AreaIr),
+    Null,
+    Threw,
+}
+
+/// Java `Shape.transformAreaToBoardRel` (`Shape.java:561-596`): the
+/// image-relative twin of [`transform_area_to_board`], transforming every
+/// shape with `transformToBoardRel`. Structure is Java-verbatim except
+/// the per-shape transform call; note the Java quirk that the HOLE loop's
+/// warn still says `transform_area_to_board` (copy-paste upstream,
+/// `:585`) while the boundary warn says `transform_area_to_board_rel`
+/// (`:572`) — both log-only.
+pub(crate) fn transform_area_to_board_rel(
+    shapes: &[Option<Shape>],
+    coordinate_transform: &CoordinateTransform,
+) -> TransformedAreaRel {
+    if shapes.is_empty() {
+        // Java: warn "area.size() > 0 expected" + null
+        return TransformedAreaRel::Null;
+    }
+    let Some(boundary) = shapes[0].as_ref() else {
+        // Java cannot reach this: readAreaScope only returns results whose
+        // first shape is non-null (a failed FIRST shape fails the whole
+        // read). Handled as the Threw flavor (a Java NPE = parse death).
+        return TransformedAreaRel::Threw;
+    };
+    let Some(boundary_shape) = boundary.transform_to_board_rel(coordinate_transform) else {
+        // Java: a null boundary TRANSFORM (PolylinePath stub) fails the
+        // instanceof PolylineShape check -> warn + null. Jar t7-image: the
+        // keepout list never saw this (rect keepouts), but the OUTLINE
+        // path did (OUTLINE 3 null) — same stub.
+        return TransformedAreaRel::Null;
+    };
+    if shapes.len() == 1 {
+        return TransformedAreaRel::Area(AreaIr::simple(boundary_shape));
+    }
+    // area with holes: the border must be a PolylineShape
+    if matches!(boundary_shape, BoardShape::Circle(_)) {
+        return TransformedAreaRel::Null;
+    }
+    let mut holes = Vec::with_capacity(shapes.len() - 1);
+    for hole in &shapes[1..] {
+        let Some(shape) = hole else {
+            // Java: NPE at `it.next().transformToBoardRel` — parse death
+            // (Library.readScope has no catch).
+            return TransformedAreaRel::Threw;
+        };
+        let Some(hole_shape) = shape.transform_to_board_rel(coordinate_transform) else {
+            // Java: null transform -> the instanceof check fails
+            return TransformedAreaRel::Null;
+        };
+        if matches!(hole_shape, BoardShape::Circle(_)) {
+            // Java: warn "PolylineShape expected" + null
+            return TransformedAreaRel::Null;
+        }
+        holes.push(hole_shape);
+    }
+    TransformedAreaRel::Area(AreaIr {
         border: boundary_shape,
         holes,
     })

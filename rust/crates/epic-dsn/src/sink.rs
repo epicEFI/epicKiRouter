@@ -195,11 +195,18 @@ pub struct ImagePinIr {
 pub struct ImageKeepoutIr {
     /// Java `Package.Keepout.name`.
     pub name: String,
-    /// Java `Package.Keepout.layer` — 0-based layer number.
+    /// Java `Package.Keepout.layer` — 0-based layer number (taken from the
+    /// FIRST shape's parser layer BEFORE the area transform, so it is set
+    /// even when the transform fails).
     pub layer_no: i32,
     /// Java `Package.Keepout.area` (board coordinates; windows ride in
-    /// [`AreaIr`]).
-    pub area: AreaIr,
+    /// [`AreaIr`]). `None` (Java null) when `Shape.transformAreaToBoardRel`
+    /// returned null (empty list, non-`PolylineShape` border with holes, or
+    /// a null boundary transform): the keepout is STILL STORED with a null
+    /// area and the parse SURVIVES (`Library.java:382-390`); the null
+    /// surfaces board-side at Task 8 insertion. The `Threw` flavor (null
+    /// WINDOW entry) is parse-fatal and never reaches the sink.
+    pub area: Option<AreaIr>,
 }
 
 /// One outline shape of a library image. Java `Package` stores three
@@ -209,8 +216,14 @@ pub struct ImageKeepoutIr {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageOutlineIr {
     /// `Package.outline[i]` — board coordinates relative to the image
-    /// origin.
-    pub shape: BoardShape,
+    /// origin. `None` (Java null array slot) when the DSN shape's
+    /// `transformToBoardRel` returned null (the `PolylinePath` stub) —
+    /// the `width`/`is_closed` fields are STILL SET in that case
+    /// (`Library.java:350-366`: the transform result and the
+    /// width/isClosed writes are independent; jar
+    /// `/tmp/epic-t7-probe.out` t7-image `OUTLINE 3 null w=10.0
+    /// closed=false`).
+    pub shape: Option<BoardShape>,
     /// `Package.outlineWidths[i]` — the `(outline ... (width w))` value.
     pub width: f64,
     /// `Package.outlineIsClosed[i]`.
@@ -937,6 +950,26 @@ pub trait BoardSink {
     /// to the queried `PAD::1` (jar `/tmp/epic-t4c-images.out`,
     /// PACKAGE_COUNT 2).
     fn package_no(&self, name: &str, is_front: bool) -> Option<i32>;
+
+    /// Java `Package.name` of the stored package with the given 1-based
+    /// number (`board.library.packages.get(no)`). The library-scope dedup
+    /// loop needs the STORED name (not the queried one) to tell a
+    /// case-insensitive exact match from a `::N`-suffix/other-side hit —
+    /// `existingPkg.name.equalsIgnoreCase(testName)`,
+    /// `Library.java:425-433`. `None` for an out-of-range number (Java
+    /// would throw; unreachable through the reader, which only queries
+    /// numbers returned by [`BoardSink::package_no`]).
+    fn package_name(&self, package_no: i32) -> Option<String>;
+
+    /// The stored pins of the package with the given 1-based number
+    /// (`board.library.packages.get(no).pins`), in pin order. The
+    /// library-scope dedup loop compares them against the freshly parsed
+    /// pins (`arePackagePinsIdentical`, `Library.java:226-259`). An
+    /// out-of-range number yields an empty slice (Java would NPE; the
+    /// reader only queries numbers returned by
+    /// [`BoardSink::package_no`], so the empty count then fails the
+    /// comparison — the same outcome by a shorter route).
+    fn package_pins(&self, package_no: i32) -> &[ImagePinIr];
 
     // ---- rules ----------------------------------------------------------
 

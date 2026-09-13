@@ -526,7 +526,7 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
 /// stays false; then the scope is ALWAYS drained. Never fails: the
 /// primitive `boolean` return is why `via_at_smd_allowed` is a plain
 /// `bool` on the parse state.
-fn read_on_off_scope(scanner: &mut Scanner) -> bool {
+pub(crate) fn read_on_off_scope(scanner: &mut Scanner) -> bool {
     let mut result = false;
     if scanner.next_token() == Token::Keyword(Keyword::On) {
         result = true;
@@ -567,7 +567,7 @@ fn read_control_scope(scanner: &mut Scanner, state: &mut ParseState) -> bool {
 /// the first token decides (`rotate_first` -> true), then the closing
 /// bracket is required — a missing one returns false even after a
 /// `rotate_first`.
-fn read_flip_style_rotate_first(scanner: &mut Scanner) -> bool {
+pub(crate) fn read_flip_style_rotate_first(scanner: &mut Scanner) -> bool {
     let mut result = false;
     if scanner.next_token() == Token::Keyword(Keyword::RotateFirst) {
         result = true;

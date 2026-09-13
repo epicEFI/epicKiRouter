@@ -16,11 +16,12 @@
 //! `dsn_file_generated_by_host`; `boardOutlineOk` (`:75`) ->
 //! `board_outline_ok`; `writeResolution` (`:77`) -> `write_resolution`;
 //! `coordinateTransform` (`:80`) -> `coordinate_transform`;
-//! `layerStructure` (`:82`) -> `layer_structure`.
+//! `layerStructure` (`:82`) -> `layer_structure`;
+//! `logicalPartMappings`/`logicalParts` (`:62-64`) ->
+//! `logical_part_mappings`/`logical_parts` (Task 7 part_library reader).
 //!
 //! Deliberately deferred (the types land with their scope readers):
-//! `autorouteSettings` (`:85`, raw IR per D15, Task 9),
-//! `logicalPartMappings`/`logicalParts` (`:62-64`, Task 7), and the
+//! `autorouteSettings` (`:85`, raw IR per D15, Task 9), and the
 //! plumbing fields `scanner`/`boardHandling`/`observers`/`idGenerator`
 //! (`:26-29`), which belong to the reader/sink split of Tasks 4/9.
 //!
@@ -298,7 +299,11 @@ pub struct ComponentLocation {
     /// Java `name`: the placed component instance name.
     pub name: String,
     /// Java `coor`: the x/y location (DSN coordinates, as parsed doubles).
-    pub coor: [f64; 2],
+    /// `None` (Java null) for an UNPLACED component — `(place U9)` with no
+    /// coordinates stores a `ComponentLocation` with a null coor and
+    /// `isFront = true`, `rotation = 0` (`Component.java:198-225`; jar
+    /// `/tmp/epic-t7-probe.out` t7-place: `U9`/`U10` `loc=null placed=false`).
+    pub coor: Option<[f64; 2]>,
     /// Java `isFront`: component side (true) or solder side.
     pub is_front: bool,
     /// Java `rotation` in degrees.
@@ -325,6 +330,53 @@ pub struct ComponentPlacement {
     pub lib_name: String,
     /// Java `locations`, in file order.
     pub locations: Vec<ComponentLocation>,
+}
+
+/// Java `PartLibrary.PartPin` (`PartLibrary.java:352-378`): one
+/// `(pin <pin_name> <int> <gate_name> <gate_swap> <gate_pin_name>
+/// <gate_pin_swap> ...)` entry of a logical part. Subgate tokens after
+/// the fifth field are DRAINED (do-while to the closing bracket) and not
+/// stored (`PartLibrary.java:300-305`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PartPin {
+    /// Java `pinName`.
+    pub pin_name: String,
+    /// Java `gateName`.
+    pub gate_name: String,
+    /// Java `gateSwapCode`.
+    pub gate_swap_code: i32,
+    /// Java `gatePinName`.
+    pub gate_pin_name: String,
+    /// Java `gatePinSwapCode`.
+    pub gate_pin_swap_code: i32,
+}
+
+/// Java `PartLibrary.LogicalPart` (`PartLibrary.java:380-408`): one
+/// `(logicalPart <name> ...)` scope — the gate/pin-swap structure of a
+/// logical part. Pins keep file order (Java `LinkedList`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct LogicalPart {
+    /// Java `name`.
+    pub name: String,
+    /// Java `partPins`, file order.
+    pub part_pins: Vec<PartPin>,
+}
+
+/// Java `PartLibrary.LogicalPartMapping` (`PartLibrary.java:410-437`):
+/// one `(logical_part_mapping <name> (comp <components>))` scope. The
+/// component set is a Java `TreeSet<String>` — sorted, deduplicated;
+/// order is LOAD-BEARING at consumption time (`Network.searchLibPackage`
+/// takes `components.getFirst()`, the SORTED-FIRST name — jar
+/// `/tmp/epic-t7-probe.out` t7-part vs t7-part2 discriminates it).
+/// Rust `BTreeSet` orders by UTF-8 bytes where Java `TreeSet` orders by
+/// UTF-16 code units; the divergence needs non-BMP vs U+E000-U+FFFF
+/// names (same documented caveat as the Task 2 BTreeMap decision).
+#[derive(Clone, Debug, PartialEq)]
+pub struct LogicalPartMapping {
+    /// Java `name`.
+    pub name: String,
+    /// Java `components` (sorted set).
+    pub components: BTreeSet<String>,
 }
 
 /// Mirror of `Shape.ReadAreaScopeResult` (`Shape.java:633-646`): the shape
@@ -373,6 +425,14 @@ pub struct ParseState {
     pub plane_list: Vec<PlaneInfo>,
     /// Java `placementList` (`:48`).
     pub placement_list: Vec<ComponentPlacement>,
+    /// Java `logicalPartMappings` (`:62`, `LinkedList` — file order),
+    /// appended by the part_library scope (Task 7) and consumed by the
+    /// network scope (Task 8, `Network.insertLogicalParts`).
+    pub logical_part_mappings: Vec<LogicalPartMapping>,
+    /// Java `logicalParts` (`:64`, `LinkedList` — file order), appended by
+    /// the part_library scope (Task 7) and consumed by the network scope
+    /// (Task 8, `Network.insertLogicalParts`).
+    pub logical_parts: Vec<LogicalPart>,
     /// Java `netlist` (`:28`) — case-sensitive order (T35).
     pub netlist: NetList,
     /// Java `constants` (`:50`) — `Collection<String[]>` of name/value pairs.
@@ -414,6 +474,8 @@ impl Default for ParseState {
             warnings: Vec::new(),
             plane_list: Vec::new(),
             placement_list: Vec::new(),
+            logical_part_mappings: Vec::new(),
+            logical_parts: Vec::new(),
             netlist: NetList::default(),
             constants: Vec::new(),
             via_padstack_names: None,
@@ -637,7 +699,7 @@ mod tests {
     fn component_location_infos_are_name_sorted() {
         let location = ComponentLocation {
             name: "U1".to_string(),
-            coor: [1000.0, -2000.5],
+            coor: Some([1000.0, -2000.5]),
             is_front: true,
             rotation: 90.0,
             position_fixed: false,

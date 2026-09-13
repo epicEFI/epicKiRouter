@@ -88,8 +88,8 @@ use crate::coordinate_transform::CoordinateTransform;
 use crate::layer_structure::LayerStructure;
 use crate::sink::{
     BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr,
-    CreateBoardIr, FixedStateIr, ImageIr, ItemClassIr, KeepoutIr, MetadataIr, NetClassIr, NetIr,
-    PadstackIr, PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr, eq_ignore_case,
+    CreateBoardIr, FixedStateIr, ImageIr, ImagePinIr, ItemClassIr, KeepoutIr, MetadataIr,
+    NetClassIr, NetIr, PadstackIr, PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr, eq_ignore_case,
 };
 use crate::state::AngleRestriction;
 use epic_geometry::int_box::IntBox;
@@ -591,6 +591,22 @@ impl BoardSink for SesBoard {
             }
         }
         other_side.map(|index| index as i32 + 1)
+    }
+
+    fn package_name(&self, package_no: i32) -> Option<String> {
+        self.packages
+            .get(package_no.checked_sub(1)? as usize)
+            .map(|package| package.name.clone())
+    }
+
+    fn package_pins(&self, package_no: i32) -> &[ImagePinIr] {
+        if package_no < 1 {
+            return &[];
+        }
+        match self.packages.get((package_no - 1) as usize) {
+            Some(package) => package.pins.as_slice(),
+            None => &[],
+        }
     }
 
     fn insert_net_class(&mut self, net_class: NetClassIr) {
@@ -1130,7 +1146,7 @@ mod tests {
             lib_name: "PAD".to_string(),
             location: crate::state::ComponentLocation {
                 name: "U1".to_string(),
-                coor: [2000.0, 5000.0],
+                coor: Some([2000.0, 5000.0]),
                 is_front: true,
                 rotation: 0.0,
                 position_fixed: false,
