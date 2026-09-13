@@ -194,7 +194,7 @@ Writer has NO timestamps/RNG/UUID; ordering fully determined (placement by id as
 **Files:** Modify `src/scope/structure.rs`.
 
 - [ ] Keepout/place-keepout/via-keepout scopes with degenerate skips (T31: zero-area dropped with warning `Structure.java:862-876` — the warning string is parity surface D12).
-- [ ] Plane scopes → conduction areas (`Structure.java:1068-1122`) + `insertMissingPowerPlanes` (`:526-571`).
+- [ ] Plane scopes → conduction areas (`Structure.java:1068-1122`) + `insertMissingPowerPlanes` (`:526-571`). IR decision (Task 3 quality review): represent `PolylineArea` as a dedicated `BoardArea { border, holes }`-style IR — `BoardShape` alone cannot carry holes; design it in here, not bolted on.
 - [ ] `adjust_plane_autoroute_settings` heuristic (T37, `DsnFile.java:32-114`): >50% area, middle signal layer, no traces → plane + USER_FIXED; runs only when no `(autoroute ...)` scope. Pin on a crafted fixture where the heuristic fires AND one where it doesn't (both jar-captured via digest warnings/fixed states).
 - [ ] Flip_style + snap angle.
 - [ ] Gates + commit `feat(m1b): structure scope II — keepouts, planes, power-plane heuristic`.
