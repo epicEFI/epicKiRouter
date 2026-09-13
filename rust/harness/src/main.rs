@@ -9,6 +9,10 @@ use std::time::Duration;
 
 mod baseline;
 mod corpus;
+// Canonical DSN parse digest (M1b Task 4); wired into the `dsn`
+// subcommands in Task 11 — dead until then.
+#[allow(dead_code)]
+mod dsn_digest;
 mod manifest;
 mod oracle;
 mod tiers;

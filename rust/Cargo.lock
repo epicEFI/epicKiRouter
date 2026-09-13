@@ -194,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "epic-dsn",
  "epic-geometry",
  "serde",
  "serde_json",
