@@ -205,7 +205,7 @@ Writer has NO timestamps/RNG/UUID; ordering fully determined (placement by id as
 **Files:** Create `src/scope/placement.rs`, `src/scope/library.rs`.
 
 - [ ] `(placement (component ... (place ...)))` per `Component.java` incl. TreeMap-sorted pin/keepout infos (T45 — pin insertion order differing from file order on a crafted component), rotation via strict parse (T26).
-- [ ] `(library ...)`: padstacks (circle/rect/polygon shapes, `Library.java` 473 LOC), `(image ...)` pin definitions (`Package.java` 425), placement rotation helper. NOTE (Task 2 quality review): `Package.java:175` passes the RELATIVE pin location through the base-ADDING `boardToDsn(FloatPoint[])` — a Java quirk to replicate verbatim, not "fix".
+- [ ] `(library ...)`: padstacks (circle/rect/polygon shapes, `Library.java` 473 LOC), `(image ...)` pin definitions (`Package.java` 425), placement rotation helper. NOTE — Task 2's claim that `Package.java:175` passes the relative pin location through the base-ADDING `boardToDsn(FloatPoint[])` was REFUTED in Task 7 (spec review confirmed on static types): `:175` passes `relativeLocation`, declared type `Vector`, resolving to `boardToDsn(Vector)` (`CoordinateTransform.java:71-77`) — pure scaling, NO base shift. No quirk; do not add one in Task 13.
 - [ ] `(part_library ...)` logical parts/mappings (`PartLibrary.java` 351) → IR.
 - [ ] KiCad stress pins (T46): quoted name with space, apostrophe quote char (`Parser.readQuoteChar`), `(property (index N))` skipped — use real tier-A file bytes in tests.
 - [ ] Gates + commit `feat(m1b): placement + library/package/part-library scopes`.
