@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-13T01:08:55.397Z
-> Files: 588 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-13T01:31:34.527Z
+> Files: 591 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -239,7 +239,7 @@
 ## docs/superpowers/plans/
 
 - `2026-09-11-epicrouter-m0-rust-scaffold-and-baselines.md` — EpicRouter M0: Rust Workspace Scaffold + Java Golden Baselines — Implementation Plan (~18426 tok)
-- `2026-09-12-epicrouter-m1a-geometry-kernel.md` — EpicRouter M1a: Geometry Kernel Port + Differential Corpus — Implementation Plan (~10452 tok)
+- `2026-09-12-epicrouter-m1a-geometry-kernel.md` — EpicRouter M1a: Geometry Kernel Port + Differential Corpus — Implementation Plan (~11001 tok)
 
 ## docs/superpowers/research/
 
@@ -822,9 +822,12 @@
 
 ## rust/crates/epic-geometry/src/
 
-- `line_segment.rs` — Port of Java `app.freerouting.geometry.planar.LineSegment`. (~12222 tok)
-- `line.rs` — Port of Java `app.freerouting.geometry.planar.Line`. (~12768 tok)
-- `simplex.rs` — Port of Java `app.freerouting.geometry.planar.Simplex` — a convex shape (~16855 tok)
+- `int_box.rs` — Port of Java `app.freerouting.geometry.planar.IntBox`. (~15454 tok)
+- `int_octagon.rs` — Port of Java `app.freerouting.geometry.planar.IntOctagon` — the router's (~29218 tok)
+- `line_segment.rs` — Port of Java `app.freerouting.geometry.planar.LineSegment`. (~12250 tok)
+- `line.rs` — Port of Java `app.freerouting.geometry.planar.Line`. (~12863 tok)
+- `polyline.rs` — Port of Java `app.freerouting.geometry.planar.Polyline` — a sequence of (~11427 tok)
+- `simplex.rs` — Port of Java `app.freerouting.geometry.planar.Simplex` — a convex shape (~16967 tok)
 - `vector.rs` — Port of Java `app.freerouting.geometry.planar.Vector`. (~7340 tok)
 
 ## rust/harness/oracle/

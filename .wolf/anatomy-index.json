@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-13T01:08:55.397Z",
-    "fileCount": 588,
+    "lastScanned": "2026-09-13T01:31:34.527Z",
+    "fileCount": 591,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "e2f6ecb62b3435b988c2fb1f690898a9147dc62f0848b3c67256cb7d2652dacf",
-    "storeUpdatedAt": "2026-09-13T01:08:55.406Z",
-    "rootHash": "2e8ebb450e07c888"
+    "renderedHash": "3b8de879ecb76e4dfe3d971f6636cb3158fa9b4ef64a61156f2a5503cc5603d9",
+    "storeUpdatedAt": "2026-09-13T01:31:34.535Z",
+    "rootHash": "8c249f49b505ef4a"
   },
   "files": {
     ".dockerignore": {
@@ -1560,12 +1560,12 @@
     },
     "docs/superpowers/plans/2026-09-12-epicrouter-m1a-geometry-kernel.md": {
       "description": "EpicRouter M1a: Geometry Kernel Port + Differential Corpus — Implementation Plan",
-      "tokens": 10452,
-      "hash": "380a851ca09d39c9",
-      "size": 42129,
-      "mtimeMs": 1789250954528.2686,
-      "updatedAt": "2026-09-13T00:00:00.064Z",
-      "source": "scan"
+      "tokens": 11001,
+      "hash": "6e1fcc4e78337adf",
+      "size": 44335,
+      "mtimeMs": 1789262202618.2812,
+      "updatedAt": "2026-09-13T01:16:42.711Z",
+      "source": "hook"
     },
     "docs/superpowers/research/2026-09-11-autorouter-state-of-the-art.md": {
       "description": "Autorouter State of the Art (September 2026)",
@@ -5471,11 +5471,11 @@
     },
     "rust/crates/epic-geometry/src/line.rs": {
       "description": "Port of Java `app.freerouting.geometry.planar.Line`.",
-      "tokens": 12768,
-      "hash": "8597c6f2b9e71039",
-      "size": 47901,
-      "mtimeMs": 1789260153620.8894,
-      "updatedAt": "2026-09-13T00:42:33.726Z",
+      "tokens": 12863,
+      "hash": "9629dae1701c50cd",
+      "size": 48260,
+      "mtimeMs": 1789262990455.7837,
+      "updatedAt": "2026-09-13T01:29:50.547Z",
       "source": "hook",
       "symbols": [
         {
@@ -5503,29 +5503,29 @@
           "name": "Line",
           "kind": "section",
           "startLine": 82,
-          "endLine": 772,
-          "tokens": 8089
+          "endLine": 773,
+          "tokens": 8187
         },
         {
           "name": "Line",
           "kind": "section",
-          "startLine": 773,
-          "endLine": 789,
+          "startLine": 774,
+          "endLine": 790,
           "tokens": 138
         },
         {
           "name": "Line",
           "kind": "section",
-          "startLine": 790,
-          "endLine": 795,
+          "startLine": 791,
+          "endLine": 796,
           "tokens": 62
         },
         {
           "name": "Line",
           "kind": "section",
-          "startLine": 796,
-          "endLine": 1149,
-          "tokens": 4453
+          "startLine": 797,
+          "endLine": 1150,
+          "tokens": 4455
         }
       ]
     },
@@ -5540,11 +5540,11 @@
     },
     "rust/crates/epic-geometry/src/line_segment.rs": {
       "description": "Port of Java `app.freerouting.geometry.planar.LineSegment`.",
-      "tokens": 12222,
-      "hash": "13fa1ffd7db1009d",
-      "size": 45862,
-      "mtimeMs": 1789260142282.8596,
-      "updatedAt": "2026-09-13T00:42:22.377Z",
+      "tokens": 12250,
+      "hash": "fb38e1fc8a1afc3a",
+      "size": 45967,
+      "mtimeMs": 1789262509082.8499,
+      "updatedAt": "2026-09-13T01:21:49.178Z",
       "source": "hook",
       "symbols": [
         {
@@ -5558,18 +5558,18 @@
           "name": "LineSegment",
           "kind": "section",
           "startLine": 56,
-          "endLine": 1046,
-          "tokens": 12424
+          "endLine": 1049,
+          "tokens": 12454
         }
       ]
     },
     "rust/crates/epic-geometry/src/simplex.rs": {
       "description": "Port of Java `app.freerouting.geometry.planar.Simplex` — a convex shape",
-      "tokens": 16855,
-      "hash": "922240d7d59aeeb4",
-      "size": 63231,
-      "mtimeMs": 1789261696190.3445,
-      "updatedAt": "2026-09-13T01:08:16.290Z",
+      "tokens": 16967,
+      "hash": "a259bcc9ed6fb34d",
+      "size": 63651,
+      "mtimeMs": 1789262982804.7686,
+      "updatedAt": "2026-09-13T01:29:42.902Z",
       "source": "hook",
       "symbols": [
         {
@@ -5611,8 +5611,8 @@
           "name": "Simplex",
           "kind": "section",
           "startLine": 1147,
-          "endLine": 1504,
-          "tokens": 4213
+          "endLine": 1512,
+          "tokens": 4333
         }
       ]
     },
@@ -5666,6 +5666,116 @@
           "startLine": 408,
           "endLine": 684,
           "tokens": 3309
+        }
+      ]
+    },
+    "rust/crates/epic-geometry/src/polyline.rs": {
+      "description": "Port of Java `app.freerouting.geometry.planar.Polyline` — a sequence of",
+      "tokens": 11427,
+      "hash": "755fd4b20451adb2",
+      "size": 42883,
+      "mtimeMs": 1789263094432.989,
+      "updatedAt": "2026-09-13T01:31:34.526Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "Polyline",
+          "kind": "class",
+          "startLine": 47,
+          "endLine": 51,
+          "tokens": 32
+        },
+        {
+          "name": "Polyline",
+          "kind": "section",
+          "startLine": 52,
+          "endLine": 652,
+          "tokens": 7253
+        },
+        {
+          "name": "remove_consecutive_parallel_lines",
+          "kind": "fn",
+          "startLine": 653,
+          "endLine": 676,
+          "tokens": 241
+        },
+        {
+          "name": "remove_overlaps",
+          "kind": "fn",
+          "startLine": 677,
+          "endLine": 1034,
+          "tokens": 4084
+        }
+      ]
+    },
+    "rust/crates/epic-geometry/src/int_box.rs": {
+      "description": "Port of Java `app.freerouting.geometry.planar.IntBox`.",
+      "tokens": 15454,
+      "hash": "4eefd99faf528a01",
+      "size": 57988,
+      "mtimeMs": 1789262985622.7742,
+      "updatedAt": "2026-09-13T01:29:45.717Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "IntBox",
+          "kind": "class",
+          "startLine": 58,
+          "endLine": 64,
+          "tokens": 52
+        },
+        {
+          "name": "IntBox",
+          "kind": "section",
+          "startLine": 65,
+          "endLine": 778,
+          "tokens": 7661
+        },
+        {
+          "name": "IntBox",
+          "kind": "section",
+          "startLine": 779,
+          "endLine": 1511,
+          "tokens": 8027
+        }
+      ]
+    },
+    "rust/crates/epic-geometry/src/int_octagon.rs": {
+      "description": "Port of Java `app.freerouting.geometry.planar.IntOctagon` — the router's",
+      "tokens": 29218,
+      "hash": "62e9d98f8c812882",
+      "size": 109642,
+      "mtimeMs": 1789262988169.779,
+      "updatedAt": "2026-09-13T01:29:48.267Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "IntOctagon",
+          "kind": "class",
+          "startLine": 71,
+          "endLine": 89,
+          "tokens": 214
+        },
+        {
+          "name": "IntOctagon",
+          "kind": "section",
+          "startLine": 90,
+          "endLine": 1821,
+          "tokens": 19006
+        },
+        {
+          "name": "IntOctagon",
+          "kind": "section",
+          "startLine": 1822,
+          "endLine": 1842,
+          "tokens": 228
+        },
+        {
+          "name": "IntOctagon",
+          "kind": "section",
+          "startLine": 1843,
+          "endLine": 2830,
+          "tokens": 10763
         }
       ]
     }
