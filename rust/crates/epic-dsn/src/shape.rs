@@ -1042,12 +1042,11 @@ pub(crate) fn transform_area_to_board(
 /// a keepout with a NULL area and the parse SURVIVES, while
 /// `TransformedAreaRel::Threw` (null WINDOW entry dereferenced at
 /// `it.next().transformToBoardRel`) is parse-fatal — the enclosing
-/// `Library.readScope` has no try/catch.
-pub(crate) enum TransformedAreaRel {
-    Area(AreaIr),
-    Null,
-    Threw,
-}
+/// `Library.readScope` has no try/catch. Structurally the SAME three-state
+/// enum as [`TransformedArea`] (the Area/Null/Threw split lives entirely at
+/// the call sites), so it is a type alias; the duplicated transform bodies
+/// are kept Java-verbatim per flavor.
+pub(crate) type TransformedAreaRel = TransformedArea;
 
 /// Java `Shape.transformAreaToBoardRel` (`Shape.java:561-596`): the
 /// image-relative twin of [`transform_area_to_board`], transforming every

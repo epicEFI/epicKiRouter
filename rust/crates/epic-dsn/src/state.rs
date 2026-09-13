@@ -332,7 +332,7 @@ pub struct ComponentPlacement {
     pub locations: Vec<ComponentLocation>,
 }
 
-/// Java `PartLibrary.PartPin` (`PartLibrary.java:352-378`): one
+/// Java `PartLibrary.PartPin` (`PartLibrary.java:316-336`): one
 /// `(pin <pin_name> <int> <gate_name> <gate_swap> <gate_pin_name>
 /// <gate_pin_swap> ...)` entry of a logical part. Subgate tokens after
 /// the fifth field are DRAINED (do-while to the closing bracket) and not
@@ -351,7 +351,7 @@ pub struct PartPin {
     pub gate_pin_swap_code: i32,
 }
 
-/// Java `PartLibrary.LogicalPart` (`PartLibrary.java:380-408`): one
+/// Java `PartLibrary.LogicalPart` (`PartLibrary.java:338-350`): one
 /// `(logicalPart <name> ...)` scope — the gate/pin-swap structure of a
 /// logical part. Pins keep file order (Java `LinkedList`).
 #[derive(Clone, Debug, PartialEq)]
@@ -362,7 +362,7 @@ pub struct LogicalPart {
     pub part_pins: Vec<PartPin>,
 }
 
-/// Java `PartLibrary.LogicalPartMapping` (`PartLibrary.java:410-437`):
+/// Java `PartLibrary.LogicalPartMapping` (`PartLibrary.java:302-314`):
 /// one `(logical_part_mapping <name> (comp <components>))` scope. The
 /// component set is a Java `TreeSet<String>` — sorted, deduplicated;
 /// order is LOAD-BEARING at consumption time (`Network.searchLibPackage`

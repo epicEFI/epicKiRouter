@@ -9,7 +9,7 @@
 //! the library loop; AFTER the loop closes, every image is converted to an
 //! [`ImageIr`] (pins through the padstack registry, outline/keepout shapes
 //! through `transformToBoardRel`) and inserted behind the `Packages.get`
-//! dedup loop (`Library.java:330-450`).
+//! dedup loop (`Library.java:309-450`).
 //!
 //! Jar sessions (repo root, JDK 25 jar): `/tmp/epic-t7-pad.dsn`,
 //! `/tmp/epic-t7-image.dsn`, `/tmp/epic-t7-image-bad.dsn`,
@@ -113,8 +113,8 @@ pub fn read_library_scope(
         }
         prev_token = Some(next_token);
     }
-    // Create the library packages on the board (`Library.java:330-450`).
-    for image in &package_list {
+    // Create the library packages on the board (`Library.java:309-450`).
+    for image in package_list {
         if !insert_image_with_dedup(image, &coordinate_transform, sink) {
             return false;
         }
@@ -205,7 +205,10 @@ fn read_padstack_scope(
     let mut padstack_shapes: Vec<Option<BoardShape>> = vec![None; layer_structure.layers.len()];
     for pad_shape in &shape_list {
         // Java dereferences the transform result unguarded — the
-        // PolylinePath stub's null NPEs at the `instanceof` (parse death).
+        // PolylinePath stub's null NPEs at the `splitToConvex` call
+        // (both `instanceof` checks fail first; jar
+        // /tmp/epic-t8-partb.out t8-pcpath: uncaught
+        // NullPointerException) — parse death.
         let Some(current_shape) = pad_shape.transform_to_board_rel(coordinate_transform) else {
             return false;
         };
@@ -327,7 +330,7 @@ fn read_image_scope(
                     image.pin_infos.push(pin_info);
                 }
                 Token::Keyword(Keyword::Side) => {
-                    image.is_front = read_placement_side(scanner);
+                    image.is_front = read_placement_side(scanner)?;
                 }
                 Token::Keyword(Keyword::Outline) => {
                     let current_shape = read_shape_scope(scanner, Some(layer_structure));
@@ -469,13 +472,26 @@ fn read_rotation(scanner: &mut Scanner) -> Option<f64> {
 
 /// Java `Package.readPlacementSide` (`Package.java:389-401`): ANY token
 /// that is not `back` means front (including garbage/EOF); a missing
-/// bracket only warns.
-fn read_placement_side(scanner: &mut Scanner) -> bool {
-    let result = scanner.next_token() != Token::Keyword(Keyword::Back);
-    if scanner.next_token() != Token::Close {
-        // Java warns "closing bracket expected"
+/// bracket only warns. An overflow integer still dies: both tokens are
+/// LEXED before the front fallback applies, and the scanner's
+/// NumberFormatException escapes every IOException-only catch — parse
+/// death (jar `/tmp/epic-t8-errorpin.jsh`, output
+/// `/tmp/epic-t8-errorpin.out` t8-errorpin2: `(side 99999999999)` inside
+/// an image dies with an uncaught NumberFormatException).
+/// `None` = that throw = parse-fatal at the caller.
+fn read_placement_side(scanner: &mut Scanner) -> Option<bool> {
+    let result = match scanner.next_token() {
+        Token::Error(_) => return None,
+        token => token != Token::Keyword(Keyword::Back),
+    };
+    match scanner.next_token() {
+        Token::Close => {}
+        Token::Error(_) => return None,
+        _ => {
+            // Java warns "closing bracket expected"
+        }
     }
-    result
+    Some(result)
 }
 
 /// One outline/keepout conversion target: the convex shapes that survive
@@ -563,7 +579,7 @@ fn package_pins_identical(stored: &[ImagePinIr], new_pins: &[ImagePinIr]) -> boo
 /// the `Packages.get` dedup insertion. `false` is parse-fatal (missing
 /// padstack, missing keepout layer, or the Threw transform flavor).
 fn insert_image_with_dedup(
-    image: &ParserImage,
+    mut image: ParserImage,
     coordinate_transform: &CoordinateTransform,
     sink: &mut dyn BoardSink,
 ) -> bool {
@@ -631,20 +647,18 @@ fn insert_image_with_dedup(
         }
         Some(converted)
     };
-    let mut keepouts = image.keepouts.clone();
-    let mut via_keepouts = image.via_keepouts.clone();
-    let mut place_keepouts = image.place_keepouts.clone();
-    generate_missing_keepout_names("keepout_", &mut keepouts);
-    generate_missing_keepout_names("via_keepout_", &mut via_keepouts);
-    generate_missing_keepout_names("place_keepout_", &mut place_keepouts);
+    // Rename + convert in place — no clones: `image` is owned here.
+    generate_missing_keepout_names("keepout_", &mut image.keepouts);
+    generate_missing_keepout_names("via_keepout_", &mut image.via_keepouts);
+    generate_missing_keepout_names("place_keepout_", &mut image.place_keepouts);
     // A Threw keepout (null window entry) is parse death at every list.
-    let Some(keepouts) = convert_keepouts(&keepouts) else {
+    let Some(keepouts) = convert_keepouts(&image.keepouts) else {
         return false;
     };
-    let Some(via_keepouts) = convert_keepouts(&via_keepouts) else {
+    let Some(via_keepouts) = convert_keepouts(&image.via_keepouts) else {
         return false;
     };
-    let Some(place_keepouts) = convert_keepouts(&place_keepouts) else {
+    let Some(place_keepouts) = convert_keepouts(&image.place_keepouts) else {
         return false;
     };
 
@@ -665,7 +679,7 @@ fn insert_image_with_dedup(
             Some(existing_no) => {
                 let exact_match = sink
                     .package_name(existing_no)
-                    .is_some_and(|stored| eq_ignore_case(&stored, &test_name));
+                    .is_some_and(|stored| eq_ignore_case(stored, &test_name));
                 if !exact_match {
                     true
                 } else if package_pins_identical(sink.package_pins(existing_no), &pins) {
@@ -678,11 +692,11 @@ fn insert_image_with_dedup(
         if insert_here {
             sink.insert_package(ImageIr {
                 name: test_name,
-                pins: pins.clone(),
-                outline: outlines.clone(),
-                keepouts: keepouts.clone(),
-                via_keepouts: via_keepouts.clone(),
-                place_keepouts: place_keepouts.clone(),
+                pins,
+                outline: outlines,
+                keepouts,
+                via_keepouts,
+                place_keepouts,
                 is_front: image.is_front,
             });
             return true;
@@ -691,7 +705,7 @@ fn insert_image_with_dedup(
     }
 }
 
-/// `Package.java:357-362`: `coords.length >= 4 && first == last` on the
+/// `Package.java:352-354`: `coords.length >= 4 && first == last` on the
 /// RAW doubles (exact `==`).
 fn path_is_closed(coordinate_arr: &[f64]) -> bool {
     coordinate_arr.len() >= 4
@@ -878,12 +892,18 @@ fn read_part_pin(scanner: &mut Scanner) -> Option<PartPin> {
         return None;
     };
     // Overread subgates: do-while to CLOSE or EOF (Java tolerates EOF here
-    // — the pin is still returned). Error tokens terminate too (the Rust
-    // scanner cannot fail, but the parse dies via the part loop's caller
-    // only if we propagate; the drain is value-less in Java as well).
+    // — the pin is still returned). An Error token is NOT value-less: the
+    // Java scanner throws NumberFormatException at LEX time and the
+    // exception escapes every IOException-only catch — parse death
+    // (jar /tmp/epic-t8-errorpin.jsh, output /tmp/epic-t8-errorpin.out
+    // t8-errorpin1: `(pin 1 0 G1 0 GP1 0 99999999999)` dies with an
+    // uncaught NumberFormatException before readBoard returns).
     loop {
         let next_token = scanner.next_token();
-        if matches!(next_token, Token::Close | Token::Eof | Token::Error(_)) {
+        if matches!(next_token, Token::Error(_)) {
+            return None;
+        }
+        if matches!(next_token, Token::Close | Token::Eof) {
             break;
         }
     }
@@ -1269,5 +1289,141 @@ mod tests {
         assert_eq!(r14.location.rotation, 180.0);
         assert_eq!(r14.location.part_number.as_deref(), Some("100"));
         assert!(!r14.location.position_fixed, "no (lock_type position) here");
+    }
+
+    /// Jar `/tmp/epic-t8-errorpin.out` t8-errorpin1: an overflow integer in
+    /// the subgate DRAIN of a `(pin ...)` logical-part entry throws
+    /// NumberFormatException at LEX time — the drain is NOT value-less;
+    /// parse death. The same pin without the extra token parses (the
+    /// t7_part pin).
+    #[test]
+    fn part_pin_drain_error_token_is_fatal() {
+        let mut mappings = Vec::new();
+        let mut parts = Vec::new();
+        let mut scanner = Scanner::new(b"(logical_part LP1 (pin 1 0 G1 0 GP1 0 99999999999)))");
+        assert!(!read_part_library_scope(
+            &mut scanner,
+            &mut mappings,
+            &mut parts
+        ));
+        assert!(parts.is_empty());
+    }
+
+    /// Jar `/tmp/epic-t8-errorpin.out` t8-errorpin2: `(side 99999999999)`
+    /// inside an image dies (the side token is LEXED before the
+    /// front-fallback applies). Controls: a garbage token that lexes
+    /// cleanly keeps the front fallback, and `(side back)` flips the side.
+    #[test]
+    fn image_side_error_token_is_fatal() {
+        let common = b"\
+(padstack P1 (shape (circle F.Cu 400)) (attach off)) \
+(image PA (pin P1 1 0 0) ";
+
+        let mut state = state_with_layers();
+        let mut board = SesBoard::new();
+        let mut input = common.to_vec();
+        input.extend_from_slice(b"(side 99999999999)))");
+        let mut scanner = Scanner::new(&input);
+        assert!(!read_library_scope(&mut scanner, &mut state, &mut board));
+        assert!(board.packages.is_empty());
+
+        let mut state = state_with_layers();
+        let mut board = SesBoard::new();
+        let mut input = common.to_vec();
+        input.extend_from_slice(b"(side garbage)))");
+        let mut scanner = Scanner::new(&input);
+        assert!(read_library_scope(&mut scanner, &mut state, &mut board));
+        assert!(board.packages[0].is_front, "warn-only front fallback");
+
+        let mut state = state_with_layers();
+        let mut board = SesBoard::new();
+        let mut input = common.to_vec();
+        input.extend_from_slice(b"(side back)))");
+        let mut scanner = Scanner::new(&input);
+        assert!(read_library_scope(&mut scanner, &mut state, &mut board));
+        assert!(!board.packages[0].is_front);
+    }
+
+    /// Jar `/tmp/epic-t8-partb.out` t8-pcbadlayer + `/tmp/epic-t8-partb2.out`
+    /// (REFUTATION of the assumed fatal): an unknown layer inside a padstack
+    /// rectangle warns log-only ("Shape.read_circle_scope: layer with name
+    /// 'Z.TOP' not found" — the upstream copy-paste warn string) and falls
+    /// back to the SIGNAL layer (`Shape.java:290-292`), so the shape
+    /// FILL-ALLs and the padstack IS added: jar `PADSTACK 1 name=BAD
+    /// attach=false from=0 to=1` with BOTH slots `IntBox -1000 -1000 1000
+    /// 1000` (scale 10). The `shapeLayer < 0` fatal in read_padstack_scope
+    /// is therefore dead via DSN input (unknown layers never yield a
+    /// shape; PolylinePath dies at the transform stub first) — kept as
+    /// Java-verbatim dead defense, not pinned as reachable.
+    #[test]
+    fn padstack_unknown_layer_falls_back_to_signal() {
+        let input = b"(padstack BAD (shape (rectangle Z.TOP -100 -100 100 100)) (attach off)))";
+        let mut state = state_with_layers();
+        let mut board = SesBoard::new();
+        let mut scanner = Scanner::new(input);
+        assert!(read_library_scope(&mut scanner, &mut state, &mut board));
+        assert_eq!(board.padstacks.len(), 1, "jar PADSTACK_COUNT 1");
+        assert_eq!(board.padstacks[0].name, "BAD");
+        assert!(!board.padstacks[0].drillable);
+        assert_eq!(
+            slot_box(&board.padstacks[0].shapes[0]),
+            (-1000, -1000, 1000, 1000)
+        );
+        assert_eq!(
+            slot_box(&board.padstacks[0].shapes[1]),
+            (-1000, -1000, 1000, 1000)
+        );
+        assert!(board.warnings.is_empty(), "FRLogger warns are log-only");
+    }
+
+    /// Jar `/tmp/epic-t8-partb.out` t8-pcpath: `(shape (polyline_path ...))`
+    /// inside a padstack — the PolylinePath transform stub returns null and
+    /// Java dereferences it at the `splitToConvex` call (uncaught
+    /// NullPointerException) — parse death.
+    #[test]
+    fn padstack_polyline_path_shape_is_fatal() {
+        let input = b"\
+(padstack PATH (shape (polyline_path signal 10 0 0 100 0 100 100)) (attach off)))";
+        let mut state = state_with_layers();
+        let mut board = SesBoard::new();
+        let mut scanner = Scanner::new(input);
+        assert!(!read_library_scope(&mut scanner, &mut state, &mut board));
+        assert!(board.padstacks.is_empty());
+    }
+
+    /// `arePackagePinsIdentical` discriminators, flow-level (the dedup
+    /// loop of `Library.java:412-449`): a rotation delta of 0.0005 (within
+    /// the 0.001 tolerance) DEDUPES while 0.002 inserts as `PAD::1`, and
+    /// pin names compare CASE-SENSITIVE (`String.equals`): image `pad`
+    /// with pin `a` against stored pin `A` inserts as `pad::1` instead of
+    /// deduping. Jar-anchored on the Task 7 dedup pins
+    /// (`/tmp/epic-t4c-images.out`); the tolerance values are the Java
+    /// `> 0.001` bound discriminated at 0.0005/0.002.
+    #[test]
+    fn package_pins_identical_tolerance_and_case() {
+        let input = b"\
+(padstack P (shape (circle signal 400)) (attach off)) \
+(image PAD (pin P A 0 0)) \
+(image PAD (pin P A 0 0)) \
+(image PAD (pin P (rotate 0.0005) A 0 0)) \
+(image PAD (pin P (rotate 0.002) A 0 0)) \
+(image pad (pin P a 0 0)))";
+        let mut state = state_with_layers();
+        let mut board = SesBoard::new();
+        let mut scanner = Scanner::new(input);
+        assert!(read_library_scope(&mut scanner, &mut state, &mut board));
+        let names: Vec<&str> = board.packages.iter().map(|p| p.name.as_str()).collect();
+        // The third insert retries "pad::1", but `Packages.get` matches
+        // package names CASE-INSENSITIVELY, so it hits the stored "PAD::1"
+        // (different pins) and lands as "pad::2" — the case-variant PIN
+        // name is still the discriminator: a case-insensitive pin compare
+        // would have deduped image 5 into PAD (2 packages, not 3).
+        assert_eq!(
+            names,
+            vec!["PAD", "PAD::1", "pad::2"],
+            "dup deduped; 0.0005 deduped; 0.002 renamed; case-variant pin renamed"
+        );
+        assert!((board.packages[1].pins[0].rotation - 0.002).abs() < 1e-12);
+        assert_eq!(board.packages[2].pins[0].name, "a");
     }
 }

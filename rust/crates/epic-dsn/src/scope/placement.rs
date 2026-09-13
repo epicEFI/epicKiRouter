@@ -39,7 +39,8 @@ use crate::state::{ComponentLocation, ComponentPlacement, ItemClearanceInfo, Par
 
 /// The inherited `ScopeKeyword.readScope` loop (`ScopeKeyword.java:44-80`)
 /// with `Placement` overriding nothing. Two EOF quirks are load-bearing:
-/// EOF returns **true** (the truncated-scope parse SUCCEEDS — `:47-51`),
+/// EOF returns **true** (the truncated-scope parse SUCCEEDS —
+/// `ScopeKeyword.java:52-55`),
 /// and the `prev == OPEN` arm dispatches on ScopeKeyword instances.
 ///
 /// `pub` (like [`crate::scope::structure::read_scope`]): the pcb-level
@@ -156,7 +157,7 @@ fn read_place_scope(scanner: &mut Scanner) -> Option<ComponentLocation> {
             Token::Close => {
                 // "component is not yet placed": a CLOSE on the FIRST or
                 // SECOND coordinate stores a location with a NULL coor,
-                // front, rotation 0, nothing fixed (`:211-224`; jar
+                // front, rotation 0, nothing fixed (`:204-216`; jar
                 // t7-place: `(place U9)` and `(place U10 500)` both land
                 // `loc=null placed=false front=true rot=0.0`).
                 return Some(ComponentLocation {
@@ -184,6 +185,15 @@ fn read_place_scope(scanner: &mut Scanner) -> Option<ComponentLocation> {
     match scanner.next_token() {
         Token::Keyword(Keyword::Back) => is_front = false,
         Token::Keyword(Keyword::Front) => {}
+        Token::Error(_) => {
+            // The side token is LEXED before the warn-only front fallback
+            // can apply: the scanner's NumberFormatException escapes every
+            // IOException-only catch — parse death (jar
+            // /tmp/epic-t8-errorpin.jsh, output /tmp/epic-t8-errorpin.out
+            // t8-errorpin3: `(place U1 2000 2000 99999999999)` dies with
+            // an uncaught NumberFormatException).
+            return None;
+        }
         // ANY other token warns "Keyword.FRONT expected" and CONTINUES with
         // front (`readPlacementSide` warn-only flavor, inline here)
         _ => {}
@@ -323,7 +333,7 @@ fn read_lock_type(scanner: &mut Scanner) -> bool {
     result
 }
 
-/// Java `PlaceControl.readScope` (`PlaceControl.java:38-69`). Unlike the
+/// Java `PlaceControl.readScope` (`PlaceControl.java:45-73`). Unlike the
 /// generic loop this is hand-rolled: EOF is FATAL (`false`), and there is
 /// NO else arm after the `flip_style` check — an unknown inner scope is
 /// NOT skipped, so its tokens flow and its CLOSE ends THIS scope read
@@ -480,8 +490,9 @@ mod tests {
 
     /// A failed `(pin ...)` clearance info (missing class) is fatal; a
     /// complete one stores the class. Jar t7-place exercises the complete
-    /// form (Z9 CPIN classes); the fatal form mirrors `Component.java
-    // :341-345` (warn "clearance class name not found" -> null -> fatal).
+    /// form (Z9 CPIN classes); the fatal form mirrors
+    /// `Component.java:341-345` (warn "clearance class name not found" ->
+    /// null -> fatal).
     #[test]
     fn pin_info_without_clearance_class_is_fatal() {
         let mut state = ParseState::default();
@@ -545,5 +556,70 @@ mod tests {
         assert_eq!(state.placement_list.len(), 1);
         assert!(state.placement_list[0].locations.is_empty());
         assert!(board.placements.is_empty());
+    }
+
+    /// `read_place_control_scope` has NO else arm: an unknown inner scope
+    /// is NOT skipped — its tokens flow and its CLOSE ends the
+    /// place_control read, so a later `(flip_style rotate_first)` lands in
+    /// the placement loop (which skip-scopes it) and never applies. Jar
+    /// `/tmp/epic-t8-partb.out` t8-pc1: `(place_control (whatever 1)
+    /// (flip_style rotate_first))` -> `FLIP_STYLE_ROTATE_FIRST false`
+    /// (control t8-pc3 without the unknown scope: true).
+    #[test]
+    fn place_control_unknown_inner_scope_closes_the_read() {
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner = scanner_after_placement_keyword(
+            b"(place_control (whatever 1) (flip_style rotate_first)))",
+        );
+        assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
+        assert_eq!(board.metadata.flip_style, None, "read ended at (whatever");
+
+        // Discriminator: without the unknown scope the flag applies.
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner =
+            scanner_after_placement_keyword(b"(place_control (flip_style rotate_first)))");
+        assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
+        assert_eq!(board.metadata.flip_style.as_deref(), Some("rotate_first"));
+    }
+
+    /// The flip_style result is ASSIGNED (not OR-ed): a second, bare
+    /// `(flip_style)` RESETS the flag. Jar `/tmp/epic-t8-partb.out` t8-pc2:
+    /// `(place_control (flip_style rotate_first) (flip_style))` ->
+    /// `FLIP_STYLE_ROTATE_FIRST false`.
+    #[test]
+    fn place_control_flip_style_is_assign_not_or() {
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner = scanner_after_placement_keyword(
+            b"(place_control (flip_style rotate_first) (flip_style)))",
+        );
+        assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
+        assert_eq!(board.metadata.flip_style, None, "the bare read reset it");
+    }
+
+    /// Jar `/tmp/epic-t8-errorpin.out` t8-errorpin3: the side token of a
+    /// `(place ...)` is LEXED before the warn-only front fallback — an
+    /// overflow integer throws NumberFormatException uncaught, parse
+    /// death. A garbage token that lexes cleanly keeps the warn-only front
+    /// fallback (with the rotation still to come: `(place U1 2000 2000
+    /// garbage 0)`).
+    #[test]
+    fn place_side_error_token_is_fatal_but_garbage_is_front() {
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner =
+            scanner_after_placement_keyword(b"(component PA (place U1 2000 2000 99999999999)))");
+        assert!(!read_placement_scope(&mut scanner, &mut state, &mut board));
+        assert!(state.placement_list.is_empty());
+
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner =
+            scanner_after_placement_keyword(b"(component PA (place U1 2000 2000 garbage 0)))");
+        assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
+        assert!(state.placement_list[0].locations[0].is_front);
+        assert_eq!(state.placement_list[0].locations[0].rotation, 0.0);
     }
 }

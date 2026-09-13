@@ -593,10 +593,10 @@ impl BoardSink for SesBoard {
         other_side.map(|index| index as i32 + 1)
     }
 
-    fn package_name(&self, package_no: i32) -> Option<String> {
+    fn package_name(&self, package_no: i32) -> Option<&str> {
         self.packages
             .get(package_no.checked_sub(1)? as usize)
-            .map(|package| package.name.clone())
+            .map(|package| package.name.as_str())
     }
 
     fn package_pins(&self, package_no: i32) -> &[ImagePinIr] {

@@ -955,11 +955,12 @@ pub trait BoardSink {
     /// number (`board.library.packages.get(no)`). The library-scope dedup
     /// loop needs the STORED name (not the queried one) to tell a
     /// case-insensitive exact match from a `::N`-suffix/other-side hit —
-    /// `existingPkg.name.equalsIgnoreCase(testName)`,
-    /// `Library.java:425-433`. `None` for an out-of-range number (Java
-    /// would throw; unreachable through the reader, which only queries
-    /// numbers returned by [`BoardSink::package_no`]).
-    fn package_name(&self, package_no: i32) -> Option<String>;
+    /// `existingPkg.name.equalsIgnoreCase(testName)` inside the
+    /// `Library.java:412-449` dedup loop (`:417`). `None` for an
+    /// out-of-range number (Java would throw; unreachable through the
+    /// reader, which only queries numbers returned by
+    /// [`BoardSink::package_no`]).
+    fn package_name(&self, package_no: i32) -> Option<&str>;
 
     /// The stored pins of the package with the given 1-based number
     /// (`board.library.packages.get(no).pins`), in pin order. The
