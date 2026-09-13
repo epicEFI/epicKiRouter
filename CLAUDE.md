@@ -53,8 +53,9 @@ The Rust workspace is `rust/` (run cargo from there). Rules:
   regenerate only via `epic-harness capture` and explain why in the commit.
 - The oracle jar needs JDK 25 (`~/.jdks/jdk-25.0.4.1+1/bin/java`), not the
   system Java 21; `epic-harness` resolves this automatically.
-- CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests on any
-  commit touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
+- CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests + the
+  geometry corpus compare (java-free, committed goldens) on any commit
+  touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
 
 ## Quality Gate Rules (do not violate)
 

@@ -35,11 +35,13 @@ EPIC_SKIP_GRADLE=1 cargo run -p epic-harness --release -- verify  --tier A
 ### Corpus
 
 ```bash
+cd rust
 # Differential geometry corpus (committed goldens — no Java needed)
 cargo run -q -p epic-harness -- corpus compare   # PASS 5000/5000
-# Regenerating (requires the oracle jar + JDK 25; explain WHY in the commit)
-cargo run -q -p epic-harness -- corpus generate
-EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java cargo run -q -p epic-harness -- corpus golden
+# Regenerating
+cargo run -q -p epic-harness -- corpus generate              # pure Rust
+EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
+  cargo run -q -p epic-harness -- corpus golden              # needs jar + JDK 25; explain WHY in the commit
 ```
 
 ## Oracle prerequisites
