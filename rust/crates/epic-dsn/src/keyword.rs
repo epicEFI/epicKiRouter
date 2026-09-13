@@ -532,7 +532,11 @@ mod tests {
     /// Jar: `path` scans as the POLYGON_PATH keyword with LAYER_NAME
     /// post-state ("(wire (path F.Cu ...))" sweep: `KW:polygon_path st=4`),
     /// while `polyline_path`/`polygon`/`circle`/`rectangle` are their own
-    /// keywords, also with LAYER_NAME post-state.
+    /// keywords, also with LAYER_NAME post-state. The Specctra
+    /// abbreviations `rect` and `poly` resolve to the SAME keywords as the
+    /// long spellings (jar sessions `/tmp/epic-t5-rect.jsh` and
+    /// `/tmp/epic-t5-rect2.jsh`: both `(rect ...)` and `(rectangle ...)`
+    /// scan `KW:rectangle`, `poly` scans `KW:polygon`).
     #[test]
     fn path_aliases_and_shape_words() {
         assert_eq!(Keyword::from_bytes(b"path"), Some(Keyword::PolygonPath));
@@ -541,6 +545,10 @@ mod tests {
             Some(Keyword::PolylinePath)
         );
         assert_eq!(Keyword::from_bytes(b"polygon"), Some(Keyword::Polygon));
+        // the abbreviated spellings are scanner keywords too (Task 5 pins:
+        // every /tmp/epic-t5-*.dsn boundary fixture uses `(rect pcb ...)`)
+        assert_eq!(Keyword::from_bytes(b"poly"), Some(Keyword::Polygon));
+        assert_eq!(Keyword::from_bytes(b"rect"), Some(Keyword::Rectangle));
         assert_eq!(Keyword::from_bytes(b"circle"), Some(Keyword::Circle));
         assert_eq!(Keyword::from_bytes(b"rectangle"), Some(Keyword::Rectangle));
         for kw in [
