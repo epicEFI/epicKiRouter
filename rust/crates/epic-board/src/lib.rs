@@ -1,13 +1,12 @@
-//! Board model: items, layers, nets, clearance classes, pours, keepouts.
-//! Arena-allocated struct-of-arrays layout with snapshot/undo (design §4.1;
-//! content lands in M2).
+//! Board model: items, ids, undo, rules, normalize (M2). The live board
+//! the parse IR converts into — [`board::Board::from_ses_board`] — and
+//! the surface the router mutates (design §4.1).
+//!
+//! M2 Task 1 scaffold: [`id`] (the id allocator, T61 burn + wrap),
+//! [`items`] (kind dispatch, T70 obstacle kinds, per-kind payloads) and
+//! [`board`] (the descending-id arena, D25/T60, revision T69, the
+//! epic-dsn -> epic-board conversion boundary).
 
-#[cfg(test)]
-mod tests {
-    /// The crate is a scaffold in M0; content lands in M2.
-    #[test]
-    fn crate_scaffolds() {
-        let name = env!("CARGO_PKG_NAME");
-        assert_eq!(name, "epic-board");
-    }
-}
+pub mod board;
+pub mod id;
+pub mod items;

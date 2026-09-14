@@ -157,6 +157,10 @@ dependencies = [
 [[package]]
 name = "epic-board"
 version = "0.1.0"
+dependencies = [
+ "epic-dsn",
+ "epic-geometry",
+]
 
 [[package]]
 name = "epic-cli"
@@ -194,6 +198,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "epic-board",
  "epic-dsn",
  "epic-geometry",
  "serde",
