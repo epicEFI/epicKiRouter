@@ -464,16 +464,6 @@ impl<T: Clone + PartialEq> ComponentsUndoStack<T> {
         id
     }
 
-    /// The CURRENT map-node value for an id (map residency, not
-    /// visibility — same semantics as [`UndoableObjects::get`]).
-    /// Java reads the shared live object; the port's arr is the read
-    /// surface, and this accessor exists for the save-then-mutate
-    /// bookkeeping in `Components` (module docs there).
-    #[must_use]
-    pub fn get(&self, id: u32) -> Option<&T> {
-        self.undo_list.get(&Reverse(id))
-    }
-
     /// Mutable access to the CURRENT node value — the port-side stand-in
     /// for Java mutating the one shared `Component` instance that both
     /// `componentArr` and the undo map reference.

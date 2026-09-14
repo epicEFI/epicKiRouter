@@ -199,13 +199,6 @@ impl Board {
         &self.components
     }
 
-    /// Mutable components access — the placement MUTATION surface
-    /// (move/rotate/changeSide each save for undo internally, exactly
-    /// like Java's `Components` methods).
-    pub fn components_mut(&mut self) -> &mut Components {
-        &mut self.components
-    }
-
     /// Java `board.library`.
     #[must_use]
     pub fn library(&self) -> &BoardLibrary {

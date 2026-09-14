@@ -30,7 +30,15 @@
 //! distinct side/rotation keys), and a SYNTHETIC pad-shape correction
 //! (no corpus fixture triggers `Pin.java:114` — every fixture pad
 //! shape contains its raw center — so the spike constructed an
-//! off-center pad through the real board API).
+//! off-center pad through the real board API). Phase 6 (the T3 review
+//! fix round, capture `/tmp/epic-t3-pins-final.out`) adds the
+//! flip-style re-query (`FLIPSTYLE`: the same C23 pin under
+//! rotate-first — mirror-AFTER), a MULTI-LAYER synthetic under
+//! rotate-first (`MLPIN`: 2-layer padstack with distinct asymmetric
+//! per-layer boxes, pin rotation 90 — pins the back-side
+//! padstack-layer remap, the pin-rotation arm, and the center
+//! correction through the full chain), and the same geometry FRESH
+//! under mirror-first (`SPIKE3_MIRRORFIRST`).
 //!
 //! ## Math.toRadians bit-parity
 //!
@@ -45,13 +53,25 @@
 //!   value (`Pin.java:97-119`); the stored value IS the computed one,
 //!   so the port computes fresh each call — the cache is a Java
 //!   performance detail with no observable read.
+//! - `Pin.getShape` likewise MEMOIZES the whole shape array on the
+//!   FIRST call (`precalculatedShapes`, `Pin.java:170-236` — "all
+//!   shapes have to be calculated at once, because otherwise
+//!   calculation of fromLayer and toLayer may not be correct"); the
+//!   port computes fresh each call. The two differ only when the
+//!   flip-style flag or the component table changes between calls of
+//!   the SAME pin — never through any M2 gate (the flag is parse-set
+//!   and no board flow mutates it mid-board). The spike's Phase 6
+//!   leans on exactly this: its mirror-first pin is inserted FRESH
+//!   because re-querying the rotate-first pin would return Java's
+//!   cached shapes (verified: the re-query produced byte-identical
+//!   corners — it pins the cache, not the chain).
 //! - `Components` keeps its OWN `component_arr` mirror beside the
 //!   undo stack ([`crate::undo::ComponentsUndoStack`]): Java's
 //!   `componentArr` Vector holds the LIVE objects (the undo list
 //!   holds clones created by `saveForUndo`); the port clones at
 //!   `save_for_undo` instead and re-syncs the arr from the visible
 //!   undo entries after undo/redo
-//!   (`restoreComponentArrFromUndoList`, `Components.java:131-145`) —
+//!   (`restoreComponentArrFromUndoList`, `Components.java:133-146`) —
 //!   the same observable state at the same points.
 //! - The arr NEVER shrinks and `get(id)` reads the ARR, not the undo
 //!   list: a component created above `stack_level` that
@@ -186,7 +206,10 @@ pub struct BoardLibrary {
 
 impl BoardLibrary {
     /// Java `Padstacks.get(padstackId)` — 1-based; `None` on a miss
-    /// (Java would return null and the caller warns).
+    /// (Java would return null and the caller warns). Precondition:
+    /// `padstack_no >= 1` — id 0 underflows the `index - 1` (Java:
+    /// `elementAt(-1)` throws AIOOBE); ids are 1-based by
+    /// construction (the registry appends).
     #[must_use]
     pub fn padstack(&self, padstack_no: i32) -> Option<&BoardPadstack> {
         usize::try_from(padstack_no)
@@ -194,7 +217,9 @@ impl BoardLibrary {
             .and_then(|index| self.padstacks.get(index - 1))
     }
 
-    /// `Packages.get(packageNo)` — 1-based.
+    /// `Packages.get(packageNo)` — 1-based. Precondition:
+    /// `package_no >= 1` — id 0 underflows the `index - 1` (same
+    /// AIOOBE-in-Java shape as [`BoardLibrary::padstack`]).
     #[must_use]
     pub fn package(&self, package_no: i32) -> Option<&BoardPackage> {
         usize::try_from(package_no)
@@ -249,7 +274,7 @@ fn package_pin_from_ir(pin: &ImagePinIr) -> BoardPackagePin {
 /// Java `board.model.structure.Component` — the placement record.
 /// Package references are the 1-based registry numbers
 /// ([`BoardLibrary`]); `getPackage()` resolves
-/// `is_front ? package_front : package_back` (`Component.java:238-244`).
+/// `is_front ? package_front : package_back` (`Component.java:238-246`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Component {
     /// Java `Component.name` — the placed instance name (e.g. `U1`).
@@ -316,7 +341,7 @@ impl Component {
         self.is_front
     }
 
-    /// Java `Component.getPackage()` (`:238-244`): the front or back
+    /// Java `Component.getPackage()` (`:238-246`): the front or back
     /// package number by side.
     #[must_use]
     pub fn package_no(&self) -> i32 {
@@ -327,7 +352,7 @@ impl Component {
         }
     }
 
-    /// Java `Component.translateBy(Vector)` (`:100-105`) — a no-op on
+    /// Java `Component.translateBy(Vector)` (`:104-108`) — a no-op on
     /// an unplaced component. The port keeps the location integral: a
     /// rational translation result (unreachable from the parse, whose
     /// pin/package locations are rounded IntPoints) is rounded back.
@@ -341,7 +366,7 @@ impl Component {
         }
     }
 
-    /// Java `Component.turn90Degree(factor, pole)` (`:107-122`):
+    /// Java `Component.turn90Degree(factor, pole)` (`:110-125`):
     /// `rotation += factor * 90` (re-normalized) and the location
     /// turns EXACTLY (integer geometry).
     pub fn turn_90_degree(&mut self, factor: i32, pole: &IntPoint) {
@@ -380,7 +405,7 @@ impl Component {
         let mut turn_angle = angle_in_degree;
         if flip_style_rotate_first && !self.placed_on_front() {
             // take care of the order of mirroring and rotating on the
-            // back side of the board (Component.java:136-139)
+            // back side of the board (Component.java:133-135)
             turn_angle = 360.0 - angle_in_degree;
         }
         self.rotation_in_degree += turn_angle;
@@ -404,7 +429,7 @@ impl Component {
         }
     }
 
-    /// Java `Component.changeSide(pole)` (`:150-153`): flips the side
+    /// Java `Component.changeSide(pole)` (`:153-156`): flips the side
     /// and mirrors the location at the vertical line through the pole.
     pub fn change_side(&mut self, pole: &IntPoint) {
         self.is_front = !self.is_front;
@@ -429,7 +454,7 @@ impl Component {
 /// Component ids are 1-BASED (`componentArr.size() + 1` at add time)
 /// and NEVER reused: the arr never shrinks, `undo`/`redo` re-sync
 /// slots BY INDEX (`restoreComponentArrFromUndoList`,
-/// `Components.java:131-145`), and `get(id)` reads the ARR even for
+/// `Components.java:133-146`), and `get(id)` reads the ARR even for
 /// components the undo list no longer knows (module docs).
 #[derive(Clone, Debug, Default)]
 pub struct Components {
@@ -450,7 +475,7 @@ impl Components {
         Self::default()
     }
 
-    /// Java `Components.add(...)` (`:36-65`): id =
+    /// Java `Components.add(...)` (`:30-54`): id =
     /// `componentArr.size() + 1` (1-based, monotone), a slot in the
     /// arr, and an insert at the CURRENT undo level.
     pub fn add(&mut self, component: Component) -> u32 {
@@ -460,14 +485,17 @@ impl Components {
         id
     }
 
-    /// Java `Components.get(int componentId)` (`:83-89`) — reads the
+    /// Java `Components.get(int componentId)` (`:88-94`) — reads the
     /// ARR (`componentArr.elementAt(id - 1)`); ids run 1..=count.
+    /// Precondition: `component_id >= 1` — id 0 underflows the
+    /// `id - 1` index (Java: `elementAt(-1)` throws AIOOBE);
+    /// unreachable, callers pass add()-issued ids.
     #[must_use]
     pub fn get(&self, component_id: u32) -> Option<&Component> {
         self.component_arr.get(component_id as usize - 1)
     }
 
-    /// Java `Components.get(String name)` (`:69-77`): first
+    /// Java `Components.get(String name)` (`:75-82`): first
     /// case-SENSITIVE `equals` match over the arr (INCLUDING
     /// components the undo list has dropped — the arr is the truth).
     #[must_use]
@@ -509,7 +537,7 @@ impl Components {
         self.undo_list.generate_snapshot();
     }
 
-    /// Java `Components.undo(observers)` (`:105-114`): the stack undo,
+    /// Java `Components.undo(observers)` (`:113-119`): the stack undo,
     /// then the arr re-sync from the VISIBLE undo entries.
     pub fn undo(&mut self) -> bool {
         if self.undo_list.undo().is_none() {
@@ -519,7 +547,7 @@ impl Components {
         true
     }
 
-    /// Java `Components.redo(observers)` (`:117-127`).
+    /// Java `Components.redo(observers)` (`:121-128`).
     pub fn redo(&mut self) -> bool {
         if self.undo_list.redo().is_none() {
             return false;
@@ -528,7 +556,7 @@ impl Components {
         true
     }
 
-    /// Java `restoreComponentArrFromUndoList` (`:131-145`): every
+    /// Java `restoreComponentArrFromUndoList` (`:133-146`): every
     /// visible undo entry lands back in its OWN slot (`id - 1`).
     fn sync_component_arr_from_undo_list(&mut self) {
         for (id, component) in self.undo_list.iter_visible() {
@@ -538,7 +566,7 @@ impl Components {
         }
     }
 
-    /// Java `Components.move(componentId, vector)` (`:147-152`):
+    /// Java `Components.move(componentId, vector)` (`:148-156`):
     /// `saveForUndo` then mutate the live component. (`move` is a Rust
     /// keyword, hence the raw identifier.)
     pub fn r#move(&mut self, component_id: u32, vector: &Vector) {
@@ -550,7 +578,7 @@ impl Components {
     }
 
     /// Java `Components.turn90Degree(componentId, factor, pole)`
-    /// (`:154-161`).
+    /// (`:158-166`).
     pub fn turn_90_degree(&mut self, component_id: u32, factor: i32, pole: &IntPoint) {
         self.undo_list.save_for_undo(component_id);
         if let Some(component) = self.component_arr.get_mut(component_id as usize - 1) {
@@ -560,7 +588,7 @@ impl Components {
     }
 
     /// Java `Components.rotate(componentId, rotationInDegree, pole)`
-    /// (`:163-170`) — passes the table's flip-style flag through to
+    /// (`:172-176`) — passes the table's flip-style flag through to
     /// [`Component::rotate`].
     pub fn rotate(&mut self, component_id: u32, angle_in_degree: f64, pole: &IntPoint) {
         self.undo_list.save_for_undo(component_id);
@@ -571,7 +599,7 @@ impl Components {
         self.sync_live_undo_value(component_id);
     }
 
-    /// Java `Components.changeSide(componentId, pole)` (`:172-179`).
+    /// Java `Components.changeSide(componentId, pole)` (`:182-186`).
     pub fn change_side(&mut self, component_id: u32, pole: &IntPoint) {
         self.undo_list.save_for_undo(component_id);
         if let Some(component) = self.component_arr.get_mut(component_id as usize - 1) {
@@ -991,7 +1019,7 @@ mod tests {
         assert_eq!(zero.location.expect("placed"), IntPoint::new(1_000_000, 0));
     }
 
-    /// `Component.java:107-122` `turn90Degree` and `:150-153`
+    /// `Component.java:110-125` `turn90Degree` and `:153-156`
     /// `changeSide`: exact integer turn around a NON-origin pole, the
     /// rotation re-normalization, and the side flip + vertical mirror.
     #[test]
@@ -1422,6 +1450,198 @@ mod tests {
                 ),
                 other => panic!("expected an integer center, got {other:?}"),
             }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Phase 6 pins — the flip-style re-query + the multi-layer
+    // synthetic (/tmp/epic-t3-pins-final.out, the T3 review fix round)
+    // -----------------------------------------------------------------
+
+    /// The SPIKE2/SPIKE3 geometry (`PinResolutionSpike.java` Phase 6):
+    /// a 2-layer padstack with DISTINCT asymmetric per-layer boxes
+    /// (L0 flat horizontal, L1 tall and offset), a package pin at rel
+    /// (20000, 10000) with PIN ROTATION 90, and a BACK-SIDE component
+    /// with rotation 90 at (1500000, -900000). The distinct boxes make
+    /// the back-side padstack-LAYER REMAP observable (shape index 0
+    /// must read the L1 box — `layerCount - index - firstLayer - 1`;
+    /// an identity remap reads the flat L0 box and fails), and the
+    /// asymmetric boxes keep the 90-degree pin rotation observable
+    /// (turn90 of a box centered on the origin is not identity here).
+    fn spike2_geometry(flip_style_rotate_first: bool) -> (Components, BoardLibrary) {
+        let mut components = Components::new();
+        components.set_flip_style_rotate_first(flip_style_rotate_first);
+        let component_id = components.add(Component::new(
+            "SPIKE2",
+            Some(IntPoint::new(1_500_000, -900_000)),
+            90.0,
+            false,
+            1,
+            1,
+            false,
+        ));
+        assert_eq!(component_id, 1);
+        let library = BoardLibrary {
+            padstacks: vec![BoardPadstack {
+                name: "spike_ml".to_string(),
+                shapes: vec![
+                    Some(BoardShape::Tile(TileShape::RegularTileShape(
+                        RegularTileShape::IntBox(IntBox::new(
+                            IntPoint::new(-2_000, -1_000),
+                            IntPoint::new(6_000, 1_000),
+                        )),
+                    ))),
+                    Some(BoardShape::Tile(TileShape::RegularTileShape(
+                        RegularTileShape::IntBox(IntBox::new(
+                            IntPoint::new(1_000, -5_000),
+                            IntPoint::new(11_000, 4_000),
+                        )),
+                    ))),
+                ],
+                drillable: false,
+                placed_absolute: false,
+            }],
+            packages: vec![BoardPackage {
+                name: "spike_ml_pkg".to_string(),
+                pins: vec![BoardPackagePin {
+                    name: "1".to_string(),
+                    padstack_no: 1,
+                    rel_location: IntPoint::new(20_000, 10_000),
+                    rotation: 90.0,
+                }],
+            }],
+        };
+        (components, library)
+    }
+
+    /// Renders a tile shape's four corners exactly like the spike's
+    /// `corners()` helper (`x,y;x,y;x,y;x,y`), so assertions quote the
+    /// capture lines verbatim.
+    fn int_box_corners(shape: &BoardShape) -> String {
+        let BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(b))) = shape
+        else {
+            panic!("expected an IntBox shape, got {shape:?}");
+        };
+        (0..4)
+            .map(|no| {
+                let corner = b.corner(no);
+                format!("{},{}", corner.x, corner.y)
+            })
+            .collect::<Vec<_>>()
+            .join(";")
+    }
+
+    /// The flip-style re-query (`PinResolutionSpike.java` Phase 6a):
+    /// the SAME fixture pin — C23's pin 0, relRaw (-6750, 0), back-side
+    /// rotation 45 (the FLOAT branch) — under BOTH styles. Captures:
+    ///   PIN      comp=93 ... pinIdx=0 ... relRaw=-6750 0 rel=4773 4773
+    ///           branch=float mirror=before   (the fixture default)
+    ///   FLIPSTYLE comp=93 pinIdx=0 rel=4773 -4773          (rotate-first)
+    /// The mirror-AFTER arm flips the y sign of the float branch; a
+    /// port that mirrors before rotating under BOTH styles returns
+    /// (4773, 4773) here and fails. (Location-free: rel is
+    /// component-relative, so the crafted table needs only the
+    /// rotation/side/relRaw triple.)
+    #[test]
+    fn flip_style_requery_flips_the_mirror_order_on_the_float_branch() {
+        // mirror-FIRST (the committed fixture capture): mirror, rotate.
+        let (mirror_first, library) =
+            pin_table(false, placed(45.0, false), IntPoint::new(-6_750, 0), 0.0);
+        match pin_relative_location(&mirror_first, &library, 1, 0).expect("resolves") {
+            Vector::Int(v) => assert_eq!((v.x, v.y), (4_773, 4_773), "mirror BEFORE"),
+            other => panic!("expected an integer vector, got {other:?}"),
+        }
+        // rotate-FIRST (the FLIPSTYLE capture): rotate, mirror.
+        let (rotate_first, library) =
+            pin_table(true, placed(45.0, false), IntPoint::new(-6_750, 0), 0.0);
+        match pin_relative_location(&rotate_first, &library, 1, 0).expect("resolves") {
+            Vector::Int(v) => assert_eq!((v.x, v.y), (4_773, -4_773), "mirror AFTER"),
+            other => panic!("expected an integer vector, got {other:?}"),
+        }
+    }
+
+    /// The multi-layer synthetic under ROTATE-FIRST (Phase 6b) — the
+    /// capture line, quoted whole:
+    ///   MLPIN comp=96 rel=10000 20000 rawCenter=1510000 -880000
+    ///   shape0=1511000,-884000;1521000,-884000;1521000,-875000;1511000,-875000
+    ///   shape1=1508000,-881000;1516000,-881000;1516000,-879000;1508000,-879000
+    ///   gravity=1516000.0 -879500.0 center=1516000 -879500
+    /// This one geometry pins FOUR `Pin.getShape` behaviors at once:
+    /// the back-side padstack-layer remap (shape index 0 reads the L1
+    /// box — an identity remap returns the flat L0 box), the
+    /// PIN-ROTATION arm (the box actually turns), the mirror-AFTER
+    /// arm, and the getCenter CORRECTION fired through the full chain
+    /// (the raw center (1510000, -880000) lies outside shape0, so the
+    /// center becomes `centreOfGravity().round()`).
+    #[test]
+    fn rotate_first_multi_layer_pin_remaps_layers_and_corrects_center() {
+        let (components, library) = spike2_geometry(true);
+        match pin_relative_location(&components, &library, 1, 0).expect("resolves") {
+            Vector::Int(v) => assert_eq!((v.x, v.y), (10_000, 20_000), "rel"),
+            other => panic!("expected an integer vector, got {other:?}"),
+        }
+        let shape0 = pin_shape(&components, &library, 1, 0, 0).expect("shape 0");
+        assert_eq!(
+            int_box_corners(&shape0),
+            "1511000,-884000;1521000,-884000;1521000,-875000;1511000,-875000",
+            "the L1 box through the rotate-first chain (remap + pin rot + mirror-after)"
+        );
+        let shape1 = pin_shape(&components, &library, 1, 0, 1).expect("shape 1");
+        assert_eq!(
+            int_box_corners(&shape1),
+            "1508000,-881000;1516000,-881000;1516000,-879000;1508000,-879000",
+            "the L0 box through the same chain (index 1 remaps to layer 0)"
+        );
+        // The raw center loc + rel lies OUTSIDE the first shape, so
+        // the center is the corrected gravity — not loc + rel.
+        let raw = IntPoint::new(1_500_000 + 10_000, -900_000 + 20_000);
+        assert_eq!((raw.x, raw.y), (1_510_000, -880_000));
+        assert!(
+            !shape_contains_inside(&shape0, &Point::Int(raw)),
+            "the correction precondition holds"
+        );
+        match pin_center(&components, &library, 1, 0).expect("resolves") {
+            Point::Int(center) => {
+                assert_eq!((center.x, center.y), (1_516_000, -879_500), "gravity round");
+                assert_ne!((center.x, center.y), (raw.x, raw.y));
+            }
+            other => panic!("expected an integer center, got {other:?}"),
+        }
+    }
+
+    /// The same geometry under MIRROR-FIRST (Phase 6c, the FRESH
+    /// SPIKE3 pin — re-querying the SPIKE2 pin would return Java's
+    /// memoized shapes, `Pin.java:170-236`; module docs). Capture:
+    ///   SPIKE3_MIRRORFIRST comp=97 rel=-10000 -20000
+    ///   shape0=1479000,-925000;1489000,-925000;1489000,-916000;1479000,-916000
+    ///   shape1=1484000,-921000;1492000,-921000;1492000,-919000;1484000,-919000
+    ///   center=1484000 -920500
+    /// The mirror-BEFORE arm: the rel AND the shape mirror BEFORE the
+    /// rotations, with no mirror after. Both styles' shape0 boxes
+    /// differ in every coordinate — neither branch can pass the
+    /// other's pin.
+    #[test]
+    fn mirror_first_multi_layer_pin_mirrors_before_the_rotations() {
+        let (components, library) = spike2_geometry(false);
+        match pin_relative_location(&components, &library, 1, 0).expect("resolves") {
+            Vector::Int(v) => assert_eq!((v.x, v.y), (-10_000, -20_000), "rel"),
+            other => panic!("expected an integer vector, got {other:?}"),
+        }
+        let shape0 = pin_shape(&components, &library, 1, 0, 0).expect("shape 0");
+        assert_eq!(
+            int_box_corners(&shape0),
+            "1479000,-925000;1489000,-925000;1489000,-916000;1479000,-916000"
+        );
+        let shape1 = pin_shape(&components, &library, 1, 0, 1).expect("shape 1");
+        assert_eq!(
+            int_box_corners(&shape1),
+            "1484000,-921000;1492000,-921000;1492000,-919000;1484000,-919000"
+        );
+        match pin_center(&components, &library, 1, 0).expect("resolves") {
+            Point::Int(center) => {
+                assert_eq!((center.x, center.y), (1_484_000, -920_500), "gravity round")
+            }
+            other => panic!("expected an integer center, got {other:?}"),
         }
     }
 }

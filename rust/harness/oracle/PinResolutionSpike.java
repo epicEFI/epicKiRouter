@@ -262,5 +262,130 @@ public class PinResolutionSpike {
             + " expected=" + ((IntPoint) spikeExpected).x + " " + ((IntPoint) spikeExpected).y
             + " center=" + ((IntPoint) spikeCenter).x + " " + ((IntPoint) spikeCenter).y
             + " agree=" + spikeCenter.equals(spikeExpected));
+
+    // ---------------------------------------------------------------------
+    // PHASE 6: rotate-first (mirror-AFTER) coverage. Everything above ran
+    // under the fixture's default mirror-FIRST style. Flipping the LIVE
+    // table flag re-queries (a) an existing back-side fixture pin — same
+    // pin, both styles, the two captures differ — and (b) a synthetic
+    // back-side component with PIN ROTATION 90 and a 2-layer padstack
+    // whose per-layer shapes are DISTINCT and asymmetric, so the
+    // back-side padstack-layer remap (layerCount - index - firstLayer - 1,
+    // Pin.java:248-257), the pin-rotation arm of Pin.getShape
+    // (Pin.java:200-213), and the getCenter pad-shape CORRECTION through
+    // the full transform chain are all observable. (c) flips the style
+    // back to mirror-FIRST BEFORE inserting a FRESH pin (SPIKE3, same
+    // geometry) — the mirror-BEFORE arm of getShape. (Re-querying the
+    // SPIKE2 pin instead would return Java's MEMOIZED shapes — see the
+    // note at (c).)
+    // ---------------------------------------------------------------------
+    board.components.setFlipStyleRotateFirst(true);
+    Pin flipPin = null;
+    for (Pin pin : pins) {
+      Component component = board.components.get(pin.getComponentId());
+      if (component != null && component.id == 93 && pin.getPinIndex() == 0) {
+        flipPin = pin;
+        break;
+      }
+    }
+    if (flipPin != null) {
+      app.freerouting.geometry.planar.Vector flipRel = flipPin.relativeLocation();
+      System.out.println(
+          "FLIPSTYLE comp=93 pinIdx=0 rel="
+              + ((app.freerouting.geometry.planar.IntVector) flipRel).x
+              + " " + ((app.freerouting.geometry.planar.IntVector) flipRel).y);
+    } else {
+      System.out.println("FLIPSTYLE_MISSING");
+    }
+
+    app.freerouting.geometry.planar.ConvexShape[] mlShapes =
+        new app.freerouting.geometry.planar.ConvexShape[board.getLayerCount()];
+    mlShapes[0] =
+        new app.freerouting.geometry.planar.IntBox(
+            new IntPoint(-2000, -1000), new IntPoint(6000, 1000));
+    mlShapes[1] =
+        new app.freerouting.geometry.planar.IntBox(
+            new IntPoint(1000, -5000), new IntPoint(11000, 4000));
+    app.freerouting.core.library.Padstack mlPadstack =
+        padstacks.add("spike_ml", mlShapes, false, false);
+    Package.Pin mlPkgPin =
+        new Package.Pin(
+            "1", mlPadstack.id, new app.freerouting.geometry.planar.IntVector(20000, 10000), 90.0);
+    Package mlPackage =
+        board.library.packages.add(
+            "spike_ml_pkg",
+            new Package.Pin[] {mlPkgPin},
+            new Shape[0],
+            new double[0],
+            new boolean[0],
+            new Package.Keepout[0],
+            new Package.Keepout[0],
+            new Package.Keepout[0],
+            true);
+    Component mlComponent =
+        board.components.add(
+            "SPIKE2", new IntPoint(1_500_000, -900_000), 90.0, false, mlPackage,
+            mlPackage, false, null);
+    Pin mlPin =
+        board.insertPin(
+            mlComponent.id, 0, new int[0], 1,
+            app.freerouting.board.model.structure.FixedState.SYSTEM_FIXED);
+    app.freerouting.geometry.planar.Vector mlRel = mlPin.relativeLocation();
+    Point mlRaw = mlComponent.getLocation().translateBy(mlRel);
+    Shape mlShape0 = mlPin.getShape(0);
+    Shape mlShape1 = mlPin.getShape(1);
+    FloatPoint mlGravity = mlShape0.centreOfGravity();
+    Point mlCenter = mlPin.getCenter();
+    System.out.println(
+        "MLPIN comp=" + mlComponent.id
+            + " rel=" + ((app.freerouting.geometry.planar.IntVector) mlRel).x
+                + " " + ((app.freerouting.geometry.planar.IntVector) mlRel).y
+            + " rawCenter=" + ((IntPoint) mlRaw).x + " " + ((IntPoint) mlRaw).y
+            + " shape0=" + corners(mlShape0)
+            + " shape1=" + corners(mlShape1)
+            + " gravity=" + Double.toString(mlGravity.x) + " " + Double.toString(mlGravity.y)
+            + " center=" + ((IntPoint) mlCenter).x + " " + ((IntPoint) mlCenter).y);
+
+    // (c) Java MEMOIZES the shape array (precalculatedShapes, computed
+    // once on the FIRST getShape call — Pin.java:170-236), so
+    // re-querying mlPin under a flipped style would return the CACHED
+    // rotate-first shapes (tried: byte-identical corners — that pins
+    // the cache, not the chain). The mirror-BEFORE arm is therefore
+    // pinned with a FRESH pin: flip the style back BEFORE inserting
+    // SPIKE3, same padstack/package geometry.
+    board.components.setFlipStyleRotateFirst(false);
+    Component mirrorFirstComponent =
+        board.components.add(
+            "SPIKE3", new IntPoint(1_500_000, -900_000), 90.0, false, mlPackage,
+            mlPackage, false, null);
+    Pin mirrorFirstPin =
+        board.insertPin(
+            mirrorFirstComponent.id, 0, new int[0], 1,
+            app.freerouting.board.model.structure.FixedState.SYSTEM_FIXED);
+    app.freerouting.geometry.planar.Vector mfRel = mirrorFirstPin.relativeLocation();
+    Point mfCenter = mirrorFirstPin.getCenter();
+    System.out.println(
+        "SPIKE3_MIRRORFIRST comp=" + mirrorFirstComponent.id
+            + " rel=" + ((app.freerouting.geometry.planar.IntVector) mfRel).x
+                + " " + ((app.freerouting.geometry.planar.IntVector) mfRel).y
+            + " shape0=" + corners(mirrorFirstPin.getShape(0))
+            + " shape1=" + corners(mirrorFirstPin.getShape(1))
+            + " center=" + ((IntPoint) mfCenter).x + " " + ((IntPoint) mfCenter).y);
+  }
+
+  /** Prints a tile shape's four corners as x,y;x,y;x,y;x,y (exact ints). */
+  private static String corners(Shape shape) {
+    if (!(shape instanceof app.freerouting.geometry.planar.TileShape tile)) {
+      return shape == null ? "null" : "?" + shape.getClass().getSimpleName();
+    }
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < 4; i++) {
+      IntPoint c = (IntPoint) tile.corner(i);
+      if (i > 0) {
+        sb.append(';');
+      }
+      sb.append(c.x).append(',').append(c.y);
+    }
+    return sb.toString();
   }
 }

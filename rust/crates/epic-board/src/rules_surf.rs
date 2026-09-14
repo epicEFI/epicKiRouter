@@ -52,7 +52,12 @@ pub enum AngleRestriction {
 
 impl AngleRestriction {
     /// Java `AngleRestriction.valueOf(i)` = `values()[i]` — the
-    /// ORDINAL-LOAD-BEARING accessor (T59).
+    /// ORDINAL-LOAD-BEARING accessor (T59). DIVERGENCE: Java throws
+    /// `ArrayIndexOutOfBoundsException` for an ordinal outside
+    /// `0..=2`; the port maps every out-of-range ordinal to
+    /// `NinetyDegree` (the `_` arm). Parse-unreachable — the
+    /// epic-dsn IR enum serializes exactly the three Java ordinals,
+    /// so `read_board` never feeds another value here.
     #[must_use]
     pub fn value_of(value: i32) -> Self {
         match value {
@@ -178,6 +183,12 @@ impl ClearanceMatrix {
     /// `max(value, 0)` and rounding an ODD value UP to even
     /// (`Integer.MAX_VALUE` rounds DOWN, `:108-110`). Also raises the
     /// per-row and per-layer maxima (monotone `Math.max`).
+    ///
+    /// DIVERGENCE: a NEGATIVE or out-of-range class/layer index is a
+    /// SILENT no-op here (the `let-else`/`get_mut` misses return),
+    /// where Java's `values[layer][classJ][classI]` write would throw
+    /// AIOOBE. Parse-unreachable — the DSN writer only emits indices
+    /// inside the parsed matrix.
     pub fn set_value(&mut self, class_i: i32, class_j: i32, layer: i32, value: i32) {
         let (Ok(i), Ok(j), Ok(l)) = (
             usize::try_from(class_i),
@@ -243,6 +254,12 @@ impl ClearanceMatrix {
     /// means `row[classI]`, i.e. the cells `values[layer][classI][*]`
     /// ever written — in an ASYMMETRIC matrix the row max and the
     /// column max differ (pinned in the tests).
+    ///
+    /// DIVERGENCE: on an EMPTY matrix (0 classes or 0 layers) the
+    /// clamp range `0..=count-1` inverts and this PANICS (min > max);
+    /// Java clamps to `-1` and throws AIOOBE at `elementAt(-1)`.
+    /// Both are fatal; unreachable through the parse (every real
+    /// board carries >= 2 layers and >= 1 class).
     #[must_use]
     pub fn max_value(&self, class: i32, layer: i32) -> i32 {
         let class = class.clamp(0, self.class_count() as i32 - 1);
@@ -275,6 +292,10 @@ impl ClearanceMatrix {
     /// The IR conversion: copies the final values verbatim and
     /// RECONSTRUCTS the maxima from them (module docs — the IR cannot
     /// represent Java's overwrite-downward high-water corner).
+    ///
+    /// Precondition: `ir.values` is RECTANGULAR — every per-layer row
+    /// jagged against `names.len()` (a ragged IR panics at the direct
+    /// index). The epic-dsn parse always emits rectangular matrices.
     #[must_use]
     pub fn from_ir(ir: &ClearanceIr) -> Self {
         let class_count = ir.names.len();
@@ -303,7 +324,7 @@ pub const MAX_LEGAL_NET_NUMBER: i32 = 9_999_999;
 /// number for internal use.
 pub const HIDDEN_NET_NUMBER: i32 = 10_000_001;
 
-/// Java `Nets.isNormalNetNumber(netNumber)` (`Nets.java:27-29`).
+/// Java `Nets.isNormalNetNumber(netNumber)` (`Nets.java:31-34`).
 #[must_use]
 pub fn is_normal_net_number(net_number: i32) -> bool {
     net_number > 0 && net_number <= MAX_LEGAL_NET_NUMBER
@@ -339,7 +360,7 @@ impl Nets {
         Self::default()
     }
 
-    /// Java `maxNetNumber()` (`:48-50`) = the table size.
+    /// Java `maxNetNumber()` (`:36-39`) = the table size.
     #[must_use]
     pub fn max_net_number(&self) -> i32 {
         self.nets.len() as i32
@@ -528,7 +549,7 @@ pub struct BoardRules {
     pub default_trace_half_widths: Vec<i32>,
     /// Java `minTraceHalfWidth` (`BoardRules.java:37`).
     pub min_trace_half_width: i32,
-    /// Java `maxTraceHalfWidth` (`:38`).
+    /// Java `maxTraceHalfWidth` (`:40`).
     pub max_trace_half_width: i32,
     /// Java `holeClearance` (`:49`, ctor 0, `setHoleClearance` clamps
     /// to `max(0, value)` at `:105-110`). NEVER set by the DSN parse —

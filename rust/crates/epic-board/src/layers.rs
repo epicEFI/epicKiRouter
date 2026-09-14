@@ -25,7 +25,7 @@
 //! — the parser-side `net_names` plane list does not exist board-side
 //! (plane membership lives on the net, `rules.Net.containsPlane`).
 
-/// Java `board.model.structure.Layer` (`Layer.java:8-32`): `name` +
+/// Java `board.model.structure.Layer` (`Layer.java:8-26`): `name` +
 /// `isSignal` only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Layer {
