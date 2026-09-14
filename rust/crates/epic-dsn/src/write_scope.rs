@@ -251,6 +251,14 @@ mod tests {
         assert_eq!(quote_java_identifier("a\"b", "\""), "ab");
         // non-ASCII UTF-8 byte (signed <= 0) forces quotes
         assert_eq!(quote_java_identifier("ré", "\""), "\"ré\"");
+        // APOSTROPHE pin (plan :284's quote-decision dimensions): `'` is
+        // NOT in the reserved set (`SesWriter.java:62`:
+        // {"(", ")", " ", ";", "-", "_", "/", "~", "{", "}"}), is ASCII,
+        // and is not the string quote — `IdentifierType.write` quotes only
+        // on quote-char/reserved/non-ASCII (`IdentifierType.java:24-63`),
+        // so `O'Brien` stays UNQUOTED. The counterintuitive case a wrong
+        // "quote all punctuation" implementation would flip.
+        assert_eq!(quote_java_identifier("O'Brien", "\""), "O'Brien");
     }
 
     /// `IndentFileWriter` layout pin — the exact byte layout of
