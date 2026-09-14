@@ -20,9 +20,18 @@
 //! carrying an [`ObstacleKind`] discriminator — the KIND ENUM still has
 //! all three variants, so no kind is erased.
 //!
-//! The geometry here is scaffold-grade: primary fields only, no methods
-//! beyond kind dispatch. Per-item geometry (absolute areas, drill
-//! spans, outline keepout derivation) lands in M2 Task 4.
+//! The per-kind geometry surface (M2 Task 4) lives in the submodules:
+//! [`trace`] (the `PolylineTraceGeometry` accessors), [`drill`] (the
+//! `DrillItem` precalculated spans), [`pin`] (the Pin item wrapping
+//! Task 3's placement resolution), [`obstacle`] (the T49 absolute-area
+//! transform chain + `ConductionArea`), and [`outline`]
+//! (`ComponentOutline` + `BoardOutline` keepout derivation).
+
+pub mod drill;
+pub mod obstacle;
+pub mod outline;
+pub mod pin;
+pub mod trace;
 
 use epic_geometry::circle::Circle;
 use epic_geometry::int_point::IntPoint;
@@ -207,15 +216,26 @@ pub enum ItemData {
         /// whose image keepout carried a name.
         name: Option<String>,
     },
-    /// Java `ConductionArea` (`model/items/ConductionArea.java`): a plane
-    /// or rectangle wire. The `isObstacle`/`isFilled` flags are M2 Task 4
-    /// (the parse IR does not carry them; parse-time planes pass
-    /// `isObstacle=false`, `Structure.java:1110`).
+    /// Java `ConductionArea` (`model/items/ConductionArea.java` — an
+    /// `ObstacleArea` subclass with two extra flags): a plane or
+    /// rectangle wire. Parse-time inserts always pass `isObstacle=false`
+    /// (`Structure.java:1108`, `:562`, `Wiring.java:485`) and the ctor
+    /// default `isFilled=true` (`ConductionArea.java:30`) — the flags
+    /// exist for the router to flip (`setIsObstacle`/`setIsFilled`).
     ConductionArea {
         /// 0-based layer.
         layer: i32,
-        /// Java `ConductionArea.relativeArea` (border + window holes).
+        /// Java `ConductionArea.relativeArea` (border + window holes);
+        /// the parse inserts with translation ZERO / rotation 0 / no
+        /// side change (`BasicBoard.insertConductionArea:558-562`).
         area: Area,
+        /// Java `ConductionArea.isObstacle` (`:29`, `getIsObstacle`
+        /// `:388`) — false at parse; when false, foreign-net traces and
+        /// vias may route through the area.
+        is_obstacle: bool,
+        /// Java `ConductionArea.isFilled` (`:30`) — true at parse; a
+        /// false value turns the area into a routing border only.
+        is_filled: bool,
     },
     /// Java `ComponentOutline` (`model/items/ComponentOutline.java:27-37`):
     /// a package outline item (inserted when a package outline has more
@@ -241,12 +261,16 @@ pub enum ItemData {
         is_closed: bool,
     },
     /// Java `BoardOutline` (`model/structure/BoardOutline.java:29-48`):
-    /// the id-1 item of every parse. The derived keepout fields
-    /// (`keepoutArea`, `keepoutLines`, `keepoutOutsideOutline`,
-    /// `HALF_WIDTH = 100`) are M2 Task 4.
+    /// the id-1 item of every parse. The keepout derivations live in
+    /// [`outline`] (keepout area/lines, `HALF_WIDTH = 100`).
     BoardOutline {
         /// Java `BoardOutline.shapes` — the outline's inner shapes.
         shapes: Vec<BoardShape>,
+        /// Java `BoardOutline.keepoutOutsideOutline` (`:44`) — false at
+        /// parse (`generateKeepoutOutside` is a GUI/router action);
+        /// while false the outline's tree keepout is the LINE shapes
+        /// inflated by [`outline::HALF_WIDTH`], not the outside area.
+        keepout_outside_outline: bool,
     },
     /// Java `BoardItemType.OTHER` — no parse-time item produces this;
     /// present so the kind enum round-trips every Java kind.
@@ -331,6 +355,8 @@ mod tests {
             ItemData::ConductionArea {
                 layer: 0,
                 area: test_area(),
+                is_obstacle: false,
+                is_filled: true,
             },
             ItemData::ObstacleArea {
                 kind: ObstacleKind::ComponentObstacleArea,
@@ -341,7 +367,10 @@ mod tests {
                 side_changed: false,
                 name: None,
             },
-            ItemData::BoardOutline { shapes: Vec::new() },
+            ItemData::BoardOutline {
+                shapes: Vec::new(),
+                keepout_outside_outline: false,
+            },
             ItemData::ComponentOutline {
                 layer: 0,
                 area: test_area(),

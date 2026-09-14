@@ -31,10 +31,12 @@ use std::collections::BTreeMap;
 use epic_dsn::ses_board::{ItemIr, SesBoard};
 use epic_dsn::shape::BoardShape as IrBoardShape;
 use epic_dsn::sink::{AreaIr, FixedStateIr, KeepoutKindIr};
+use epic_geometry::int_box::IntBox;
 use epic_geometry::point::Point;
 
 use crate::components::{BoardLibrary, Components, pin_center, pin_relative_location};
 use crate::id::{ItemId, ItemIdGenerator};
+use crate::items::drill::DrillPrecalc;
 use crate::items::{Area, BoardItemType, BoardShape, FixedState, ItemData, ObstacleKind};
 use crate::layers::LayerStructure;
 use crate::rules_surf::BoardRules;
@@ -46,12 +48,14 @@ use crate::rules_surf::BoardRules;
 ///
 /// Only Java's PERSISTENT item state belongs here (`Item.java:38-67`).
 /// Derived state — `searchTreesInfo`, trace contacts,
-/// `smallestClearance`, the drill precalculated widths — lives in
-/// Board-side side tables keyed by [`ItemId`], because undo snapshots
-/// clone `ItemEntry`s and Java's `Item.clone` deliberately skips
-/// `searchTreesInfo` (`Item.java:263`: the copy is commented out).
-/// Task 4's lazy caches will need an additive `Board::get_mut` for
-/// those tables, never a mutation path through the entry itself.
+/// `smallestClearance`, the drill precalculated trio — lives in
+/// Board-side side tables keyed by [`ItemId`] (the `drill_precalc`
+/// map), because undo snapshots clone `ItemEntry`s and Java's
+/// `Item.clone` deliberately skips `searchTreesInfo` (`Item.java:263`:
+/// the copy is commented out). The lazy caches are therefore
+/// `&mut self` methods on [`Board`] itself (e.g.
+/// [`Board::drill_min_width`]) — never a mutation path through the
+/// entry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ItemEntry {
     /// The item id (Java `Item.getId()`), allocated at construction.
@@ -97,6 +101,17 @@ pub struct Board {
     /// Java `board.library` — the padstack/package registries the pin
     /// resolution reads.
     library: BoardLibrary,
+    /// Java `BasicBoard.boundingBox` (`:91`) — the outline bounding box
+    /// enlarged by 1000 (`Structure.java:1207-1208`, T43); `None`
+    /// before `create_board`. Consumed by the outline keepout-area
+    /// derivation ([`crate::items::outline`]).
+    bounding_box: Option<IntBox>,
+    /// The `DrillItem` precalculated triple, memoized per pin/via id
+    /// ([`crate::items::drill::DrillPrecalc`] — the Java field trio of
+    /// `DrillItem.java:34-46` lives Board-side because the arena's
+    /// `ItemEntry` is the PERSISTENT payload only; see the
+    /// [`ItemEntry`] docs).
+    drill_precalc: BTreeMap<ItemId, DrillPrecalc>,
 }
 
 impl Board {
@@ -205,6 +220,185 @@ impl Board {
         &self.library
     }
 
+    /// Java `board.boundingBox` (`BasicBoard.java:91`) — the outline
+    /// bounds enlarged by 1000 (`Structure.java:1207-1208`, T43).
+    /// `None` only before `create_board` (never after a successful
+    /// parse: the IR always carries it). The outline keepout area is
+    /// built over it ([`crate::items::outline::keepout_area`]).
+    #[must_use]
+    pub fn bounding_box(&self) -> Option<IntBox> {
+        self.bounding_box
+    }
+
+    /// Java `DrillItem.firstLayer()` (`DrillItem.java:162-172`) for a
+    /// pin or via item — [`crate::items::drill::via_first_layer`] for
+    /// vias, [`crate::components::pin_first_layer`] for pins —
+    /// memoized Board-side (Java's `precalculatedFirstLayer` sentinel
+    /// `-1`), cleared only by [`Board::clear_derived_data`]. `None`
+    /// for a non-drill item or an unresolvable pin.
+    pub fn drill_first_layer(&mut self, id: ItemId) -> Option<i32> {
+        if let Some(first_layer) = self
+            .drill_precalc
+            .get(&id)
+            .and_then(|precalc| precalc.first_layer)
+        {
+            return Some(first_layer);
+        }
+        let first_layer = self.compute_drill_first_layer(id)?;
+        self.drill_precalc.entry(id).or_default().first_layer = Some(first_layer);
+        Some(first_layer)
+    }
+
+    /// Java `DrillItem.lastLayer()` (`DrillItem.java:174-185`) — the
+    /// memoized counterpart of [`Board::drill_first_layer`].
+    pub fn drill_last_layer(&mut self, id: ItemId) -> Option<i32> {
+        if let Some(last_layer) = self
+            .drill_precalc
+            .get(&id)
+            .and_then(|precalc| precalc.last_layer)
+        {
+            return Some(last_layer);
+        }
+        let last_layer = self.compute_drill_last_layer(id)?;
+        self.drill_precalc.entry(id).or_default().last_layer = Some(last_layer);
+        Some(last_layer)
+    }
+
+    /// Java `DrillItem.minWidth()` (`DrillItem.java:368-388`) for a
+    /// pin or via item: the minimum bounding-box width AND height of
+    /// the item's shapes over its signal layers
+    /// ([`crate::items::drill::drill_min_width`], with the shapes
+    /// fetched per layer through [`Board::pin_shape`] /
+    /// [`crate::items::drill::via_shape`]). Memoized Board-side — and
+    /// NOT cleared by [`Board::clear_derived_data`] (the Java quirk,
+    /// module docs of [`crate::items::drill`]).
+    pub fn drill_min_width(&mut self, id: ItemId) -> Option<f64> {
+        if let Some(min_width) = self
+            .drill_precalc
+            .get(&id)
+            .and_then(|precalc| precalc.min_width)
+        {
+            return Some(min_width);
+        }
+        let first_layer = self.drill_first_layer(id)?;
+        let last_layer = self.drill_last_layer(id)?;
+        let min_width = self.compute_drill_min_width(id, first_layer, last_layer)?;
+        self.drill_precalc.entry(id).or_default().min_width = Some(min_width);
+        Some(min_width)
+    }
+
+    /// Java `DrillItem.clearDerivedData()` (`DrillItem.java:390-395`)
+    /// — clears the LAYER SPAN only. `precalculatedMinWidth` is never
+    /// reset in Java (not by this, not by the geometry mutators that
+    /// all route here), so a moved drill keeps its stale width; the
+    /// port reproduces the asymmetry exactly (pinned white-box in the
+    /// tests below — `drill_precalc_clear_derived_data_keeps_min_width`).
+    pub fn clear_derived_data(&mut self, id: ItemId) {
+        if let Some(precalc) = self.drill_precalc.get_mut(&id) {
+            precalc.first_layer = None;
+            precalc.last_layer = None;
+        }
+    }
+
+    /// The fresh-computation half of [`Board::drill_first_layer`].
+    fn compute_drill_first_layer(&self, id: ItemId) -> Option<i32> {
+        let entry = self.get(id)?;
+        match &entry.data {
+            ItemData::Via { padstack_no, .. } => Some(crate::items::drill::via_first_layer(
+                self.library.padstack(*padstack_no)?,
+            )),
+            ItemData::Pin { padstack_no, .. } => Some(crate::components::pin_first_layer(
+                self.components
+                    .get(u32::try_from(entry.component_id).ok()?)?,
+                self.library.padstack(*padstack_no)?,
+            )),
+            _ => None,
+        }
+    }
+
+    /// The fresh-computation half of [`Board::drill_last_layer`].
+    fn compute_drill_last_layer(&self, id: ItemId) -> Option<i32> {
+        let entry = self.get(id)?;
+        match &entry.data {
+            ItemData::Via { padstack_no, .. } => Some(crate::items::drill::via_last_layer(
+                self.library.padstack(*padstack_no)?,
+            )),
+            ItemData::Pin { padstack_no, .. } => Some(crate::components::pin_last_layer(
+                self.components
+                    .get(u32::try_from(entry.component_id).ok()?)?,
+                self.library.padstack(*padstack_no)?,
+            )),
+            _ => None,
+        }
+    }
+
+    /// The fresh-computation half of [`Board::drill_min_width`] — the
+    /// per-layer shape fetchers Java's `getShapeOnLayer` reaches
+    /// (`DrillItem.java:263-271`: `getShape(layer - firstLayer)`).
+    fn compute_drill_min_width(
+        &self,
+        id: ItemId,
+        first_layer: i32,
+        last_layer: i32,
+    ) -> Option<f64> {
+        let entry = self.get(id)?;
+        match &entry.data {
+            ItemData::Via {
+                center,
+                padstack_no,
+                ..
+            } => {
+                let padstack = self.library.padstack(*padstack_no)?;
+                let center = *center;
+                Some(crate::items::drill::drill_min_width(
+                    &self.layers,
+                    first_layer,
+                    last_layer,
+                    |layer| crate::items::drill::via_shape(padstack, center, layer - first_layer),
+                ))
+            }
+            ItemData::Pin { pin_index, .. } => {
+                let component_id = u32::try_from(entry.component_id).ok()?;
+                let pin_index = *pin_index;
+                let components = &self.components;
+                let library = &self.library;
+                Some(crate::items::drill::drill_min_width(
+                    &self.layers,
+                    first_layer,
+                    last_layer,
+                    |layer| {
+                        crate::components::pin_shape(
+                            components,
+                            library,
+                            component_id,
+                            pin_index,
+                            layer - first_layer,
+                        )
+                    },
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    /// Java `Via.getShape(index)` (`Via.java:115-132`) for a VIA item
+    /// — the padstack shape at `index + firstLayer`, translated by the
+    /// via center ([`crate::items::drill::via_shape`]). `None` for a
+    /// non-via item.
+    #[must_use]
+    pub fn via_shape(&self, id: ItemId, index: i32) -> Option<crate::items::BoardShape> {
+        let entry = self.get(id)?;
+        let ItemData::Via {
+            center,
+            padstack_no,
+            ..
+        } = &entry.data
+        else {
+            return None;
+        };
+        crate::items::drill::via_shape(self.library.padstack(*padstack_no)?, *center, index)
+    }
+
     /// Java `Pin.relativeLocation()` for a PIN ITEM on this board
     /// (resolves `component_id` + `pin_index` from the entry and
     /// delegates to [`crate::components::pin_relative_location`]).
@@ -284,6 +478,10 @@ impl Board {
             ses.metadata.flip_style.as_deref() == Some("rotate_first"),
         );
         board.library = BoardLibrary::from_ir(&ses.padstacks, &ses.packages);
+        // The outline-derived bounding box (T43) — set by create_board
+        // before any item is inserted; None only on a board without a
+        // boundary (Java leaves the field null there).
+        board.bounding_box = ses.bounding_box;
         board
     }
 }
@@ -354,6 +552,11 @@ fn convert_item(item: &ItemIr) -> Option<ItemEntry> {
             data: ItemData::ConductionArea {
                 layer: area.layer_no,
                 area: area_from_ir(&area.area),
+                // Every parse-time insert passes isObstacle=false
+                // (Structure.java:1108, :562; Wiring.java:485) and the
+                // ctor default isFilled=true (ConductionArea.java:30).
+                is_obstacle: false,
+                is_filled: true,
             },
             nets: area.nets.clone(),
             clearance_class: area.clearance_class,
@@ -391,6 +594,10 @@ fn convert_item(item: &ItemIr) -> Option<ItemEntry> {
             id,
             data: ItemData::BoardOutline {
                 shapes: outline.shapes.iter().map(board_shape_from_ir).collect(),
+                // Java `keepoutOutsideOutline` starts false
+                // (`generateKeepoutOutside` is a GUI/router action,
+                // BoardOutline.java:234-244).
+                keepout_outside_outline: false,
             },
             // Java constructs the outline with `new int[0]`
             // (`BoardOutline.java:47`).
@@ -736,5 +943,83 @@ mod tests {
         // that seeds the generator from the live items instead of
         // last_assigned_item_id.
         assert_eq!(board.alloc_id().get(), 6, "next id continues the parse");
+    }
+
+    /// The bm08 fixture path (the item-geometry pin fixture — module
+    /// docs of `crate::items::outline`).
+    const BM08: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn"
+    );
+
+    /// Parses bm08 through the epic-dsn reader and converts it.
+    fn bm08_board() -> Board {
+        let bytes = std::fs::read(BM08).expect("bm08 fixture present");
+        let mut ses = SesBoard::new();
+        match read_board(bytes.as_slice(), &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+        Board::from_ses_board(&ses)
+    }
+
+    /// The bounding-box wiring: `from_ses_board` carries the IR's
+    /// T43 box (capture `BOARD_BBOX 1381520 -1120380 1588500 -979694`)
+    /// — the outline bounds + the 1000 margin, NOT the raw outline
+    /// bounds (1382520..1587500).
+    #[test]
+    fn from_ses_board_carries_the_bounding_box() {
+        let board = bm08_board();
+        let bbox = board.bounding_box().expect("BOARD_BBOX exists");
+        assert_eq!(
+            (bbox.ll.x, bbox.ll.y, bbox.ur.x, bbox.ur.y),
+            (1_381_520, -1_120_380, 1_588_500, -979_694),
+            "BOARD_BBOX (capture)"
+        );
+    }
+
+    /// **The `clearDerivedData` asymmetry, white-box.** Java
+    /// `DrillItem.clearDerivedData()` (`DrillItem.java:390-395`)
+    /// resets ONLY `precalculatedFirstLayer`/`precalculatedLastLayer`
+    /// — `precalculatedMinWidth` is never reset anywhere in Java
+    /// (the geometry mutators `:62-93` all route here and leave it).
+    /// The port's memo table must reproduce the exact split: after a
+    /// `drill_min_width` read (capture `DRILL kind=pin id=41 ...
+    /// firstLayer=0 lastLayer=1 minWidth=15240.0`), a clear wipes the
+    /// span and KEEPS the width. A "fixed" clear (also wiping the
+    /// width) fails the `min_width` assertion — this is the form
+    /// where wrong and right differ.
+    #[test]
+    fn drill_precalc_clear_derived_data_keeps_min_width() {
+        let mut board = bm08_board();
+        let id = ItemId::new(41);
+        assert_eq!(board.drill_first_layer(id), Some(0), "firstLayer=0");
+        assert_eq!(board.drill_last_layer(id), Some(1), "lastLayer=1");
+        assert_eq!(
+            board.drill_min_width(id),
+            Some(15_240.0),
+            "minWidth=15240.0"
+        );
+        // White-box: after the three reads the memo holds the full trio.
+        let precalc = board.drill_precalc.get(&id).expect("memoized trio");
+        assert_eq!(precalc.first_layer, Some(0));
+        assert_eq!(precalc.last_layer, Some(1));
+        assert_eq!(precalc.min_width, Some(15_240.0));
+
+        board.clear_derived_data(id);
+        let precalc = board.drill_precalc.get(&id).expect("the entry is kept");
+        assert_eq!(precalc.first_layer, None, "the span is cleared");
+        assert_eq!(precalc.last_layer, None, "the span is cleared");
+        assert_eq!(
+            precalc.min_width,
+            Some(15_240.0),
+            "the width SURVIVES — DrillItem.java:390-395 clears only the span"
+        );
+
+        // The public reads agree: the width is served from the
+        // surviving memo; the span recomputes fresh.
+        assert_eq!(board.drill_min_width(id), Some(15_240.0));
+        assert_eq!(board.drill_first_layer(id), Some(0));
+        assert_eq!(board.drill_last_layer(id), Some(1));
     }
 }

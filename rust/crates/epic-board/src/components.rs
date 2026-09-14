@@ -92,7 +92,11 @@ use crate::undo::ComponentsUndoStack;
 
 /// Java `Math.toRadians(angdeg)` (`StrictMath`: `angdeg / 180.0 * PI`)
 /// — division FIRST; Rust's `to_radians()` differs by up to 1 ulp.
-fn java_to_radians(degrees: f64) -> f64 {
+/// `pub(crate)`: the item-geometry modules ([`crate::items`]) run the
+/// same anchored conversions (`ObstacleArea.getArea`
+/// `ObstacleArea.java:130`, `ComponentOutline.getArea`
+/// `ComponentOutline.java:203`).
+pub(crate) fn java_to_radians(degrees: f64) -> f64 {
     degrees / 180.0 * std::f64::consts::PI
 }
 
@@ -725,11 +729,25 @@ pub fn pin_relative_location(
 /// (or absolutely-placed) padstack the padstack's own from-layer, else
 /// the mirrored span.
 #[must_use]
-fn pin_first_layer(component: &Component, padstack: &BoardPadstack) -> i32 {
+pub(crate) fn pin_first_layer(component: &Component, padstack: &BoardPadstack) -> i32 {
     if component.placed_on_front() || padstack.placed_absolute {
         padstack.from_layer() as i32
     } else {
         padstack.board_layer_count() as i32 - padstack.to_layer() - 1
+    }
+}
+
+/// Java `DrillItem.lastLayer()` for a Pin (`DrillItem.java:174-185`)
+/// — the MIRROR-SIDE span of [`pin_first_layer`]: for a front-side (or
+/// absolutely-placed) padstack the padstack's own to-layer, else
+/// `boardLayerCount - fromLayer - 1`. The two derivations swap
+/// from/to between first and last (`DrillItem.java:168` vs `:181`).
+#[must_use]
+pub(crate) fn pin_last_layer(component: &Component, padstack: &BoardPadstack) -> i32 {
+    if component.placed_on_front() || padstack.placed_absolute {
+        padstack.to_layer()
+    } else {
+        padstack.board_layer_count() as i32 - padstack.from_layer() as i32 - 1
     }
 }
 
@@ -738,7 +756,7 @@ fn pin_first_layer(component: &Component, padstack: &BoardPadstack) -> i32 {
 /// and absolutely-placed padstacks, mirrored (`layerCount - index -
 /// firstLayer - 1`) for back-side ones.
 #[must_use]
-fn padstack_layer(component: &Component, padstack: &BoardPadstack, index: i32) -> i32 {
+pub(crate) fn padstack_layer(component: &Component, padstack: &BoardPadstack, index: i32) -> i32 {
     if component.placed_on_front() || padstack.placed_absolute {
         index + pin_first_layer(component, padstack)
     } else {
@@ -760,7 +778,7 @@ fn padstack_layer(component: &Component, padstack: &BoardPadstack, index: i32) -
 /// 6. `mirrorVertical` when the flip style mirrors AFTER,
 /// 7. translate by the component location.
 #[must_use]
-fn pin_shape(
+pub(crate) fn pin_shape(
     components: &Components,
     library: &BoardLibrary,
     component_id: u32,
@@ -865,7 +883,9 @@ pub fn pin_center(
 // ---------------------------------------------------------------------------
 
 /// `ConvexShape.turn90Degree(factor, Point.ZERO)` over the shape arms.
-fn shape_turn_90_degree(shape: BoardShape, factor: i32) -> BoardShape {
+/// `pub(crate)`: [`crate::items::obstacle`] runs the same dispatch for
+/// the T49 absolute-area chain.
+pub(crate) fn shape_turn_90_degree(shape: BoardShape, factor: i32) -> BoardShape {
     let zero = IntPoint::new(0, 0);
     match shape {
         BoardShape::Tile(tile) => BoardShape::Tile(tile.turn_90_degree(factor, &zero)),
@@ -877,7 +897,8 @@ fn shape_turn_90_degree(shape: BoardShape, factor: i32) -> BoardShape {
 }
 
 /// `ConvexShape.rotateApprox(angle, FloatPoint.ZERO)` over the arms.
-fn shape_rotate_approx(shape: BoardShape, angle: f64) -> BoardShape {
+/// `pub(crate)`: [`crate::items::obstacle`] (T49 chain).
+pub(crate) fn shape_rotate_approx(shape: BoardShape, angle: f64) -> BoardShape {
     match shape {
         BoardShape::Tile(tile) => BoardShape::Tile(tile.rotate_approx(angle, &FloatPoint::ZERO)),
         BoardShape::PolygonShape(polygon) => {
@@ -890,7 +911,8 @@ fn shape_rotate_approx(shape: BoardShape, angle: f64) -> BoardShape {
 }
 
 /// `ConvexShape.mirrorVertical(Point.ZERO)` over the arms.
-fn shape_mirror_vertical(shape: BoardShape) -> BoardShape {
+/// `pub(crate)`: [`crate::items::obstacle`] (T49 chain).
+pub(crate) fn shape_mirror_vertical(shape: BoardShape) -> BoardShape {
     let zero = IntPoint::new(0, 0);
     match shape {
         BoardShape::Tile(tile) => BoardShape::Tile(tile.mirror_vertical(&zero)),
@@ -902,7 +924,10 @@ fn shape_mirror_vertical(shape: BoardShape) -> BoardShape {
 }
 
 /// `Shape.translateBy(Vector)` over the arms.
-fn shape_translate_by(shape: BoardShape, vector: &Vector) -> BoardShape {
+/// `pub(crate)`: [`crate::items::obstacle`] (T49 chain) and
+/// [`crate::items::drill`] (`Via.getShape`'s center translation,
+/// `Via.java:115-132`).
+pub(crate) fn shape_translate_by(shape: BoardShape, vector: &Vector) -> BoardShape {
     match shape {
         BoardShape::Tile(tile) => BoardShape::Tile(tile.translate_by(vector)),
         BoardShape::PolygonShape(polygon) => BoardShape::PolygonShape(polygon.translate_by(vector)),
