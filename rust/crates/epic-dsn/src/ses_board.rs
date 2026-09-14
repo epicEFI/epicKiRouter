@@ -2000,6 +2000,13 @@ mod tests {
     /// flip styles, `rotateApprox` at an odd angle, the default-order
     /// mirror (mirror -> rotate -> translate), and the rotate-first
     /// ordering (rotate -> mirror -> translate).
+    ///
+    /// The rows `back_rot0_mirror_moves_x` and
+    /// `flip_first_rotate_then_mirror` are REGENERABLE from the
+    /// supplemental probe `/tmp/epic-t49b.jsh` (output
+    /// `/tmp/epic-t49b.out`, lines `T49B MIRROR-ABS id=682` and
+    /// `T49B FLIPFIRST-CIRC abs`); its early-`return` sweep bug is fixed
+    /// so part 2 (the rotate-first composition) runs.
     #[test]
     fn t49_obstacle_absolute_area_matches_jar_captures() {
         use epic_geometry::circle::Circle as BoardCircle;
@@ -2090,6 +2097,7 @@ mod tests {
             // mirror branch with a NON-DEGENERATE center (x=28800 != 0; the
             // CM5_MINIMA first example at x=0 cancels the mirror and is
             // anchor-blind). Mirror: (28800,12900) -> (-28800,12900).
+            // Regenerable: /tmp/epic-t49b.out `T49B MIRROR-ABS id=682`.
             Case {
                 name: "back_rot0_mirror_moves_x",
                 provenance: "dsn-0083 Issue297-myboard.dsn keepout id=682",
@@ -2204,5 +2212,90 @@ mod tests {
                 case.provenance
             );
         }
+    }
+
+    /// T49 rotateApprox ROUNDING pin (supplemental probe
+    /// `/tmp/epic-t49c.jsh` -> `/tmp/epic-t49c.out`, lines
+    /// `T49C ROUNDDISC`): 10 degrees on a circle at (55000, 0). The
+    /// Y coordinate is the round-vs-truncate discriminator —
+    /// sin(10 deg) * 55000 = 9550.6498..., so round-half-up gives
+    /// 9551 while truncate/floor give 9550. (X does NOT discriminate:
+    /// cos(10 deg) * 55000 = 54164.4264 rounds down to 54164 either
+    /// way; the row 10 rot330 pin had the same blindness with
+    /// -47631.397, which is why this one exists.) Synthetic
+    /// composition of Java's own `Circle.rotateApprox(toRadians(10),
+    /// FloatPoint 0)` + `translateBy` — the exact ops
+    /// `obstacle_absolute_area` performs at rotation=10, side_changed
+    /// = false.
+    #[test]
+    fn t49_rotate_approx_rounds_half_up_not_truncates() {
+        use epic_geometry::circle::Circle as BoardCircle;
+        let board = SesBoard::new();
+        let area = AreaIr::simple(BoardShape::Circle(BoardCircle::new(
+            IntPoint::new(55000, 0),
+            9000,
+        )));
+        let absolute =
+            board.obstacle_absolute_area(&area, IntPoint::new(1742920, -1341750), 10.0, false);
+        assert_eq!(
+            absolute,
+            AreaIr::simple(BoardShape::Circle(BoardCircle::new(
+                IntPoint::new(1797084, -1332199),
+                9000
+            ))),
+            "T49 rotateApprox rounding: y=-1341750+9551 (round) not -1341750+9550 (truncate)"
+        );
+    }
+
+    /// T49 HOLES arm pin (supplemental probe `/tmp/epic-t49c.jsh` ->
+    /// `/tmp/epic-t49c.out`, lines `T49C HOLES`): a holed
+    /// [`AreaIr`] transformed by `obstacle_absolute_area` must apply
+    /// the SAME default-order transform (mirrorVertical ->
+    /// turn90Degree(1) -> translateBy) to every hole as to the
+    /// border. No corpus keepout carries `(window)` holes (16 files
+    /// do overall, none as image keepouts), so this is a SYNTHETIC
+    /// composition: a border rect(-20000,-10000,20000,10000) with a
+    /// hole rect(-5000,-2500,5000,2500), pushed through Java's own
+    /// `PolylineArea.mirrorVertical/turn90Degree/translateBy`. The
+    /// expected corner SEQUENCES are the jar dump verbatim (Java
+    /// re-normalizes start corner under the transform — same rule as
+    /// the `back_rot270_polygon` row: pinned as captured, not
+    /// recomputed). A border-only implementation leaves the hole at
+    /// its relative position — off by the full mirror+turn here.
+    #[test]
+    fn t49_placement_transform_reaches_holes() {
+        let rect = |x0: i32, y0: i32, x1: i32, y1: i32| {
+            BoardShape::PolygonShape(PolygonShape::new(&[
+                Point::Int(IntPoint::new(x0, y0)),
+                Point::Int(IntPoint::new(x1, y0)),
+                Point::Int(IntPoint::new(x1, y1)),
+                Point::Int(IntPoint::new(x0, y1)),
+            ]))
+        };
+        let board = SesBoard::new();
+        let area = AreaIr {
+            border: rect(-20000, -10000, 20000, 10000),
+            holes: vec![rect(-5000, -2500, 5000, 2500)],
+        };
+        let absolute =
+            board.obstacle_absolute_area(&area, IntPoint::new(1301800, -728800), 90.0, true);
+        let expected_border = rect(1291800, -748800, 1311800, -708800);
+        // jar corner order: (1291800,-748800) (1311800,-748800)
+        // (1311800,-708800) (1291800,-708800) — identical to the rect()
+        // construction here (start corner survives the normalization),
+        // verified against the dump.
+        assert_eq!(
+            absolute,
+            AreaIr {
+                border: expected_border,
+                holes: vec![BoardShape::PolygonShape(PolygonShape::new(&[
+                    Point::Int(IntPoint::new(1299300, -733800)),
+                    Point::Int(IntPoint::new(1304300, -733800)),
+                    Point::Int(IntPoint::new(1304300, -723800)),
+                    Point::Int(IntPoint::new(1299300, -723800)),
+                ]))],
+            },
+            "T49 holes arm: hole must mirror+turn+translate with the border"
+        );
     }
 }

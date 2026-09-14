@@ -216,14 +216,26 @@ fn d16_read_metadata_agrees_with_read_board_on_every_fixture() {
         fixture_paths.insert(path);
     }
 
-    // 23 tier entries + 152 fixtures/*.dsn at Task 10 time. A floor (not
-    // an exact count) keeps the pin from churning when fixtures are
-    // added, while still catching a silently broken walk or a truncated
-    // tiers.yaml pinning an (almost) empty set.
-    assert!(
-        fixture_paths.len() >= 170,
-        "fixture matrix suspiciously small: {} total ({} tier entries + {} walked from fixtures/)",
+    // 23 tier entries + 152 fixtures/*.dsn at Task 10 time = 175, the
+    // digest set. The EXPECTED count is derived from the committed
+    // manifest (`rust/harness/corpus/dsn-manifest.jsonl`, the same
+    // doc-of-record the corpus pins anchor) instead of a hardcoded
+    // number, so the pin never churns when fixtures are added — yet is
+    // EXACT: a floor (the old `>= 170`) could not catch a silently
+    // broken walk or a truncated tiers.yaml shrinking the set fixture
+    // by fixture. If the manifest and this walk disagree, either the
+    // walk regressed or the manifest needs regenerating (`epic-harness
+    // dsn manifest`).
+    let manifest = fs::read_to_string(root.join("rust/harness/corpus/dsn-manifest.jsonl"))
+        .expect("committed dsn manifest readable");
+    let manifest_dsn_count = manifest
+        .lines()
+        .filter(|line| line.starts_with("{\"id\":\"dsn-"))
+        .count();
+    assert_eq!(
         fixture_paths.len(),
+        manifest_dsn_count,
+        "fixture matrix must equal the manifest's dsn- digest set ({} tier entries + {} walked from fixtures/)",
         tier_count,
         walked_count
     );

@@ -927,8 +927,10 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
                 // A ledgered fixture that now matches means the
                 // divergence class was fixed (or the golden changed): the
                 // entry is stale and MUST be pruned — a ledger that
-                // silently passes on a match is how drift hides.
-                tally.1 += 1;
+                // silently passes on a match is how drift hides. NOT
+                // counted as a match (the run fails on it below); the
+                // per-set line shows it as a mismatch so the printout
+                // never reads clean on a failing run.
                 stale_ledger.push(entry.id.as_str());
             }
             LedgerVerdict::Covered => {
@@ -1100,6 +1102,9 @@ mod pins {
     /// The ledger's committed content (doc-of-record): exactly the
     /// dsn-0151 normalizeAllTraces entry, and its id must exist in the
     /// committed manifest (a renamed fixture would strand the entry).
+    /// The anchor PARSES the manifest (load_manifest) and checks the
+    /// id set — a byte-substring scan would falsely anchor dsn-0151
+    /// inside a hypothetical dsn-01510 or a path string.
     #[test]
     fn ledger_contents_are_pinned_and_manifest_anchored() {
         assert_eq!(DIVERGENCE_LEDGER.len(), 1);
@@ -1107,13 +1112,10 @@ mod pins {
         assert_eq!(entry.id, "dsn-0151");
         assert_eq!(entry.allowed_fields, &["stats", "geometry_sha256"]);
         assert!(entry.reason.contains("normalizeAllTraces"));
-        let committed =
-            std::fs::read(corpus_path("dsn-manifest.jsonl")).expect("committed manifest");
-        let anchored = committed
-            .windows(entry.id.len())
-            .any(|window| window == entry.id.as_bytes());
+        let manifest = load_manifest(&corpus_path("dsn-manifest.jsonl")).expect("manifest");
+        let manifest_ids: Vec<&str> = manifest.iter().map(|e| e.id.as_str()).collect();
         assert!(
-            anchored,
+            manifest_ids.contains(&entry.id),
             "ledger id {} must exist in the committed manifest",
             entry.id
         );

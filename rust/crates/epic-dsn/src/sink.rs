@@ -589,7 +589,20 @@ pub struct KeepoutIr {
     /// Java `ObstacleArea.translation` — `Point.ZERO` for structure
     /// keepouts.
     pub translation: IntPoint,
-    /// Java `ObstacleArea.rotation` — 0.0 for structure keepouts.
+    /// Java `ObstacleArea.rotationInDegree` — 0.0 for structure
+    /// keepouts. The RAW placement-scope rotation (`location.rotation`,
+    /// `Network.java:955`), NOT the component's normalized copy: Java's
+    /// `Component` ctor wraps ITS rotation into [0,360)
+    /// (`board/model/structure/Component.java` ctor) but the obstacle
+    /// keeps the unwrapped value, and [`crate::ses_board::SesBoard::
+    /// obstacle_absolute_area`] must consume THIS raw field — feeding a
+    /// [0,360)-normalized rotation instead diverges from
+    /// `ObstacleArea.getArea()` on placements whose rotation falls
+    /// outside [0,360) (`(int) rotation / 90` truncation and
+    /// `rotateApprox(toRadians(rotation))` argument rounding both see
+    /// the raw value, `ObstacleArea.java:130-140`). The reader wires it
+    /// raw (`scope/network.rs` passes `rotation_in_degree`, the
+    /// un-normalized local, unlike the normalized `ComponentIr` copy).
     pub rotation: f64,
     /// Java `ObstacleArea.side_changed` — false except back-side package
     /// keepouts (`!isFront`, `Network.java:1110`).
