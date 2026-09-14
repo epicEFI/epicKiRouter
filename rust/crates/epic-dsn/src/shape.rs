@@ -88,6 +88,7 @@ use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::rounding::java_round;
 use epic_geometry::simplex::Simplex;
 use epic_geometry::tile_shape::TileShape;
+use epic_geometry::vector::Vector;
 
 /// Java `parser/Rectangle` (`Rectangle.java:11-22`): `coor` is lower-left x,
 /// lower-left y, upper-right x, upper-right y (DSN doubles, unrounded).
@@ -247,6 +248,63 @@ impl BoardShape {
             BoardShape::Tile(tile) => tile.corner(no),
             BoardShape::PolygonShape(polygon) => polygon.corner(no),
             BoardShape::Circle(_) => Point::Int(IntPoint::new(0, 0)),
+        }
+    }
+
+    /// Java `Area.turn90Degree(factor, pole)` over the concrete classes:
+    /// `TileShape` rotates the border lines (`TileShape.java:663-671`),
+    /// `PolylineShape`/`Circle` rotate the center/corners and keep the kind
+    /// (`Circle.java:192-195`, `PolygonShape.turn90Degree`). T49: used by
+    /// [`crate::ses_board::SesBoard::obstacle_absolute_area`] for the
+    /// `ObstacleArea.getArea()` placement transform.
+    pub(crate) fn turn_90_degree(&self, factor: i32, pole: &IntPoint) -> BoardShape {
+        match self {
+            BoardShape::Tile(tile) => tile_shape(tile.turn_90_degree(factor, pole)),
+            BoardShape::PolygonShape(polygon) => {
+                BoardShape::PolygonShape(polygon.turn_90_degree(factor, pole))
+            }
+            BoardShape::Circle(circle) => BoardShape::Circle(circle.turn_90_degree(factor, pole)),
+        }
+    }
+
+    /// Java `Area.rotateApprox(angle, pole)`: the approximate rotation.
+    /// `TileShape` rotates the corner approximations and rebuilds the
+    /// smallest containing tile (`TileShape.java:673-698` — a box rotated
+    /// by 45° comes back as an octagon/simplex), polygons/circles keep
+    /// their kind (`Circle.java:197-200` re-centers and keeps the radius).
+    pub(crate) fn rotate_approx(&self, angle: f64, pole: &FloatPoint) -> BoardShape {
+        match self {
+            BoardShape::Tile(tile) => tile_shape(tile.rotate_approx(angle, pole)),
+            BoardShape::PolygonShape(polygon) => {
+                BoardShape::PolygonShape(polygon.rotate_approx(angle, pole))
+            }
+            BoardShape::Circle(circle) => BoardShape::Circle(circle.rotate_approx(angle, pole)),
+        }
+    }
+
+    /// Java `Area.mirrorVertical(pole)` — the mirror at the VERTICAL line
+    /// through the pole (x reflected about pole.x; `point.rs`
+    /// `mirror_at_y_axis`). `TileShape.java:700-707`, `Circle.java:207-210`,
+    /// `PolygonShape.mirrorVertical`.
+    pub(crate) fn mirror_vertical(&self, pole: &IntPoint) -> BoardShape {
+        match self {
+            BoardShape::Tile(tile) => tile_shape(tile.mirror_vertical(pole)),
+            BoardShape::PolygonShape(polygon) => {
+                BoardShape::PolygonShape(polygon.mirror_vertical(pole))
+            }
+            BoardShape::Circle(circle) => BoardShape::Circle(circle.mirror_vertical(pole)),
+        }
+    }
+
+    /// Java `Area.translateBy(vector)` (`PolylineShape.java:44`,
+    /// `Circle.java:245-251`, `PolygonShape.java:242-249`).
+    pub(crate) fn translate_by(&self, vector: &Vector) -> BoardShape {
+        match self {
+            BoardShape::Tile(tile) => tile_shape(tile.translate_by(vector)),
+            BoardShape::PolygonShape(polygon) => {
+                BoardShape::PolygonShape(polygon.translate_by(vector))
+            }
+            BoardShape::Circle(circle) => BoardShape::Circle(circle.translate_by(vector)),
         }
     }
 }

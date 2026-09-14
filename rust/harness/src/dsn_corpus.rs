@@ -7,6 +7,16 @@
 //! `rust/harness/oracle/DsnParseOracle.java`, which must byte-match the
 //! canonical geometry text and the D12 warning normalization.
 //!
+//! ## The divergence ledger (Task 12)
+//!
+//! [`DIVERGENCE_LEDGER`] holds the fixtures whose Java goldens encode Java
+//! board machinery deliberately NOT ported in M1b (documented divergence
+//! accounting per the Task 12 brief — NEVER a comparator weakening). The
+//! fixture is still fully parsed and diffed; an entry only reclassifies a
+//! mismatch when every differing field is in its `allowed_fields`, any
+//! other divergence fails, and a ledgered fixture that MATCHES fails as a
+//! stale entry that must be pruned. Every branch is pinned in [`pins`].
+//!
 //! ## Manifest path determinism (the plan's "abs_path", interpreted)
 //!
 //! The plan (`:260`) words the manifest entries as `{id, abs_path}`.
@@ -801,6 +811,79 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, set: &str, jvm_xmx: &st
 // `dsn compare` — java-free (D10's CI gate)
 // ---------------------------------------------------------------------------
 
+/// One DOCUMENTED divergence between the goldens and the Rust port: a
+/// fixture whose Java golden encodes Java board machinery deliberately NOT
+/// ported in M1b. This is divergence ACCOUNTING, not comparator weakening —
+/// the fixture is still fully parsed and field-for-field diffed, and an
+/// entry only reclassifies a mismatch when EVERY differing field is in
+/// `allowed_fields`; anything else fails the compare. A ledgered fixture
+/// that unexpectedly MATCHES also fails (stale entry to prune).
+///
+/// Task 12 census lead #2 (plan `:274-276`): beyond dsn-0151 nothing was
+/// ledger-eligible — after the T49 fix every remaining fixture was fixed in
+/// the parser, so this list is expected to shrink to empty in M2 when
+/// `normalizeAllTraces` lands and this entry is pruned.
+struct LedgerEntry {
+    /// The manifest fixture id.
+    id: &'static str,
+    /// Why the divergence exists (doc-of-record; printed by `dsn compare`).
+    reason: &'static str,
+    /// The trap-table class of the divergence.
+    trap: &'static str,
+    /// The ONLY golden-vs-rust fields this reason may explain.
+    allowed_fields: &'static [&'static str],
+}
+
+const DIVERGENCE_LEDGER: &[LedgerEntry] = &[LedgerEntry {
+    id: "dsn-0151",
+    reason: "Java ends the wiring read with board.normalizeAllTraces() \
+             (Wiring.java:345-353), combining the file's 4,000 collinear \
+             wire segments into one trace with a fresh id (stats items=2, \
+             traces=1); deliberately NOT ported in M1b — board machinery \
+             scheduled for M2 (plan :38, decision D11)",
+    trap: "T39-adjacent divergence class (plan D11)",
+    allowed_fields: &["stats", "geometry_sha256"],
+}];
+
+fn ledger_entry(id: &str) -> Option<&'static LedgerEntry> {
+    DIVERGENCE_LEDGER.iter().find(|entry| entry.id == id)
+}
+
+/// The verdict for one fixture's diff against the ledger (pure — pinned in
+/// [`pins`], every branch executed there).
+enum LedgerVerdict {
+    /// The fixture matches AND is ledgered — a stale entry (compare fails).
+    StaleMatch,
+    /// The fixture matches and is not ledgered — the normal green path.
+    Match,
+    /// Ledgered and every differing field is in `allowed_fields`.
+    Covered,
+    /// Ledgered but some differing field is NOT in `allowed_fields`.
+    Outside(&'static LedgerEntry, Vec<&'static str>),
+    /// No ledger entry — a plain mismatch.
+    Unledgered,
+}
+
+fn ledger_classify(id: &str, diffs: &[(&'static str, String, String)]) -> LedgerVerdict {
+    match (diffs.is_empty(), ledger_entry(id)) {
+        (true, Some(_)) => LedgerVerdict::StaleMatch,
+        (true, None) => LedgerVerdict::Match,
+        (false, None) => LedgerVerdict::Unledgered,
+        (false, Some(entry)) => {
+            let uncovered: Vec<&'static str> = diffs
+                .iter()
+                .map(|(field, _, _)| *field)
+                .filter(|field| !entry.allowed_fields.contains(field))
+                .collect();
+            if uncovered.is_empty() {
+                LedgerVerdict::Covered
+            } else {
+                LedgerVerdict::Outside(entry, uncovered)
+            }
+        }
+    }
+}
+
 fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Result<()> {
     let started = Instant::now();
     let sel = SetSel::parse(set)?;
@@ -812,6 +895,8 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
 
     let mut per_set: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new(); // set -> (checked, matched)
     let mut census: BTreeMap<&'static str, usize> = BTreeMap::new();
+    let mut ledgered_ids: Vec<&str> = Vec::new();
+    let mut stale_ledger: Vec<&str> = Vec::new();
     let mut shown = 0usize;
     for (entry, gold) in entries.iter().zip(&records) {
         if !sel.selects(&entry.id) {
@@ -836,19 +921,64 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
         let diffs = diff_records(gold, &actual);
         let tally = per_set.entry(set_name).or_insert((0, 0));
         tally.0 += 1;
-        if diffs.is_empty() {
-            tally.1 += 1;
-        } else {
-            *census.entry(diffs[0].0).or_insert(0) += 1;
-            if shown < 20 {
-                shown += 1;
-                println!("{} ({} differing field(s)):", entry.id, diffs.len());
-                for (field, gold_value, rust_value) in &diffs {
-                    println!(
-                        "  {field}: golden={} rust={}",
-                        truncate(gold_value),
-                        truncate(rust_value)
-                    );
+        match ledger_classify(&entry.id, &diffs) {
+            LedgerVerdict::Match => tally.1 += 1,
+            LedgerVerdict::StaleMatch => {
+                // A ledgered fixture that now matches means the
+                // divergence class was fixed (or the golden changed): the
+                // entry is stale and MUST be pruned — a ledger that
+                // silently passes on a match is how drift hides.
+                tally.1 += 1;
+                stale_ledger.push(entry.id.as_str());
+            }
+            LedgerVerdict::Covered => {
+                // Documented divergence: fully parsed and diffed, loudly
+                // printed, not a failure.
+                tally.1 += 1;
+                ledgered_ids.push(entry.id.as_str());
+                let ledger = ledger_entry(&entry.id).expect("Covered implies ledgered");
+                println!(
+                    "{} LEDGERED DIVERGENCE ({} differing field(s): {}):",
+                    entry.id,
+                    diffs.len(),
+                    diffs
+                        .iter()
+                        .map(|(field, _, _)| *field)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                println!("  trap: {}", ledger.trap);
+                println!("  reason: {}", ledger.reason);
+            }
+            LedgerVerdict::Outside(ledger, uncovered) => {
+                *census.entry(diffs[0].0).or_insert(0) += 1;
+                println!(
+                    "{} diverges OUTSIDE its ledger allowance ({uncovered:?}) — not covered by: {}",
+                    entry.id, ledger.reason
+                );
+                if shown < 20 {
+                    shown += 1;
+                    for (field, gold_value, rust_value) in &diffs {
+                        println!(
+                            "  {field}: golden={} rust={}",
+                            truncate(gold_value),
+                            truncate(rust_value)
+                        );
+                    }
+                }
+            }
+            LedgerVerdict::Unledgered => {
+                *census.entry(diffs[0].0).or_insert(0) += 1;
+                if shown < 20 {
+                    shown += 1;
+                    println!("{} ({} differing field(s)):", entry.id, diffs.len());
+                    for (field, gold_value, rust_value) in &diffs {
+                        println!(
+                            "  {field}: golden={} rust={}",
+                            truncate(gold_value),
+                            truncate(rust_value)
+                        );
+                    }
                 }
             }
         }
@@ -878,11 +1008,18 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
         }
     }
     println!(
-        "compare --set {set}: {} fixture(s), {} mismatch(es) in {:.1}s",
+        "compare --set {set}: {} fixture(s), {} mismatch(es), {} ledgered divergence(s) in {:.1}s",
         per_set.values().map(|(checked, _)| checked).sum::<usize>(),
         total_mismatches,
+        ledgered_ids.len(),
         started.elapsed().as_secs_f64()
     );
+    if !stale_ledger.is_empty() {
+        bail!(
+            "stale divergence ledger: {stale_ledger:?} now matches the golden — prune the entries \
+             (the documented divergence is fixed or the golden moved)"
+        );
+    }
     if total_mismatches > 0 {
         bail!("dsn compare: {total_mismatches} mismatch(es) — parse parity not green");
     }
@@ -958,6 +1095,76 @@ mod pins {
         assert!(SetSel::parse("all").expect("valid").selects("dsn-0001"));
         assert!(SetSel::parse("all").expect("valid").selects("soak-0001"));
         assert!(SetSel::parse("bogus").is_err());
+    }
+
+    /// The ledger's committed content (doc-of-record): exactly the
+    /// dsn-0151 normalizeAllTraces entry, and its id must exist in the
+    /// committed manifest (a renamed fixture would strand the entry).
+    #[test]
+    fn ledger_contents_are_pinned_and_manifest_anchored() {
+        assert_eq!(DIVERGENCE_LEDGER.len(), 1);
+        let entry = &DIVERGENCE_LEDGER[0];
+        assert_eq!(entry.id, "dsn-0151");
+        assert_eq!(entry.allowed_fields, &["stats", "geometry_sha256"]);
+        assert!(entry.reason.contains("normalizeAllTraces"));
+        let committed =
+            std::fs::read(corpus_path("dsn-manifest.jsonl")).expect("committed manifest");
+        let anchored = committed
+            .windows(entry.id.len())
+            .any(|window| window == entry.id.as_bytes());
+        assert!(
+            anchored,
+            "ledger id {} must exist in the committed manifest",
+            entry.id
+        );
+    }
+
+    fn diff(field: &'static str) -> (&'static str, String, String) {
+        (field, "g".to_string(), "r".to_string())
+    }
+
+    /// EVERY ledger verdict branch, driven with synthetic diffs
+    /// (branch-executing per the cerebrum pin rules): green match,
+    /// stale match (compare must fail), covered divergence, divergence
+    /// outside the allowance, and the unledgered mismatch.
+    #[test]
+    fn ledger_verdict_branches_are_exhaustive() {
+        // Green: no diff, no entry.
+        assert!(matches!(
+            ledger_classify("dsn-0002", &[]),
+            LedgerVerdict::Match
+        ));
+        // Stale: the ledgered fixture MATCHES — compare must fail on it.
+        assert!(matches!(
+            ledger_classify("dsn-0151", &[]),
+            LedgerVerdict::StaleMatch
+        ));
+        // Covered: the exact Task-12 divergence shape (stats + geometry).
+        assert!(matches!(
+            ledger_classify("dsn-0151", &[diff("stats"), diff("geometry_sha256")]),
+            LedgerVerdict::Covered
+        ));
+        // Outside: the ledger never whitewashes a result flip or any
+        // third field.
+        let LedgerVerdict::Outside(entry, uncovered) =
+            ledger_classify("dsn-0151", &[diff("result")])
+        else {
+            panic!("a result flip must be Outside the allowance");
+        };
+        assert_eq!(entry.id, "dsn-0151");
+        assert_eq!(uncovered, vec!["result"]);
+        let LedgerVerdict::Outside(_, uncovered) = ledger_classify(
+            "dsn-0151",
+            &[diff("stats"), diff("geometry_sha256"), diff("warnings_n")],
+        ) else {
+            panic!("a partially-covered diff must be Outside the allowance");
+        };
+        assert_eq!(uncovered, vec!["warnings_n"]);
+        // Unledgered: any other fixture diverging is a plain mismatch.
+        assert!(matches!(
+            ledger_classify("dsn-0042", &[diff("stats")]),
+            LedgerVerdict::Unledgered
+        ));
     }
 }
 

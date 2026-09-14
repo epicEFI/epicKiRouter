@@ -933,4 +933,30 @@ mod tests {
         assert_eq!(scanner.lexical_state(), LexicalState::Name);
         assert_eq!(scanner.next_token(), Token::Eof);
     }
+
+    /// `skip_scope` idempotency (Task 12 invariant): each call consumes
+    /// EXACTLY ONE balanced scope and resets to the initial state, so
+    /// successive skips over adjacent scopes each advance by one scope —
+    /// a skip must never over-consume into the sibling scope (that would
+    /// silently drop real content, e.g. a second `(via ...)` scope after a
+    /// skipped unknown scope in the pcb dispatch) and never under-consume
+    /// (leaving bracket debt that corrupts the next dispatch).
+    #[test]
+    fn skip_scope_consumes_exactly_one_scope_per_call() {
+        // The first scope nests two levels deep; the sibling scopes must
+        // survive both skips byte-for-byte.
+        let mut scanner = Scanner::new(b"(a (deep (deeper x))) (b) (tail)");
+        assert_eq!(scanner.next_token(), Token::Open);
+        assert_eq!(scanner.next_token(), str_token("a"));
+        assert!(skip_scope(&mut scanner));
+        assert_eq!(scanner.lexical_state(), LexicalState::YyInitial);
+        // Position is exactly at the second scope's open bracket.
+        assert_eq!(scanner.next_token(), Token::Open);
+        assert_eq!(scanner.next_token(), str_token("b"));
+        assert!(skip_scope(&mut scanner));
+        assert_eq!(scanner.lexical_state(), LexicalState::YyInitial);
+        // The tail scope is untouched by the first skip.
+        assert_eq!(scanner.next_token(), Token::Open);
+        assert_eq!(scanner.next_token(), str_token("tail"));
+    }
 }

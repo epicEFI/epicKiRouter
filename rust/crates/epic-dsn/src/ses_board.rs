@@ -86,15 +86,19 @@
 
 use crate::coordinate_transform::CoordinateTransform;
 use crate::layer_structure::LayerStructure;
+use crate::shape::BoardShape;
 use crate::sink::{
-    BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr, ConductionAreaIr,
-    CreateBoardIr, FixedStateIr, ImageIr, ImagePinIr, ItemClassIr, KeepoutIr, LogicalPartIr,
-    MetadataIr, NetClassIr, NetIr, PadstackIr, PinIr, PlacementIr, TraceIr, ViaInfoIr, ViaIr,
-    ViaRuleIr, eq_ignore_case,
+    AreaIr, BoardOutlineIr, BoardRulesIr, BoardSink, ComponentIr, ComponentOutlineIr,
+    ConductionAreaIr, CreateBoardIr, FixedStateIr, ImageIr, ImagePinIr, ItemClassIr, KeepoutIr,
+    LogicalPartIr, MetadataIr, NetClassIr, NetIr, PadstackIr, PinIr, PlacementIr, TraceIr,
+    ViaInfoIr, ViaIr, ViaRuleIr, eq_ignore_case,
 };
 use crate::state::AngleRestriction;
+use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
+use epic_geometry::int_vector::IntVector;
+use epic_geometry::vector::Vector;
 
 /// A parse-time board item with its Java `Item.getId()` board id
 /// (`board/model/items/Item.java:87` — the sink assigns the id on
@@ -326,6 +330,52 @@ impl SesBoard {
     pub fn net_name(&self, net_no: i32) -> Option<&str> {
         let index = usize::try_from(net_no.checked_sub(1)?).ok()?;
         self.nets.get(index).map(|net| net.name.as_str())
+    }
+
+    /// T49 — `ObstacleArea.getArea()` (`ObstacleArea.java:119-144`): the
+    /// absolute (placement-transformed) form of a stored obstacle area.
+    /// Java applies the component placement LAZILY — the item keeps the
+    /// image-relative geometry and the flag is read at first consumption —
+    /// so the port stores the raw area in [`SesBoard::items`] and applies
+    /// this transform in the digest/emission consumers. Transform order:
+    /// mirror (back-side, flip style not rotate-first), then the rotation
+    /// (exact 90° multiples via `turn90Degree`, everything else via
+    /// `rotateApprox`), then the mirror for a rotate-first flip style, then
+    /// the translation. The flip-style flag mirrors
+    /// `board.components.getFlipStyleRotateFirst()`, which the parse sets
+    /// from the structure `(flip_style ...)` scope (`Structure.java:1041`)
+    /// and `(place_control (flip_style ...))` (`PlaceControl.java:69`) —
+    /// both funneled into [`MetadataIr::flip_style`] = `rotate_first`.
+    pub fn obstacle_absolute_area(
+        &self,
+        area: &AreaIr,
+        translation: IntPoint,
+        rotation: f64,
+        side_changed: bool,
+    ) -> AreaIr {
+        let flip_style_rotate_first = self.metadata.flip_style.as_deref() == Some("rotate_first");
+        let transform_shape = |shape: &BoardShape| -> BoardShape {
+            let mut turned = shape.clone();
+            if side_changed && !flip_style_rotate_first {
+                turned = turned.mirror_vertical(&IntPoint::new(0, 0));
+            }
+            if rotation != 0.0 {
+                if rotation % 90.0 == 0.0 {
+                    turned = turned.turn_90_degree((rotation as i32) / 90, &IntPoint::new(0, 0));
+                } else {
+                    turned =
+                        turned.rotate_approx(rotation.to_radians(), &FloatPoint::new(0.0, 0.0));
+                }
+            }
+            if side_changed && flip_style_rotate_first {
+                turned = turned.mirror_vertical(&IntPoint::new(0, 0));
+            }
+            turned.translate_by(&Vector::Int(IntVector::new(translation.x, translation.y)))
+        };
+        AreaIr {
+            border: transform_shape(&area.border),
+            holes: area.holes.iter().map(transform_shape).collect(),
+        }
     }
 
     fn alloc_item_id(&mut self) -> i32 {
@@ -1936,5 +1986,223 @@ mod tests {
             3,
             "GEN_MAX 3 — the closed wire burned id 2"
         );
+    }
+
+    /// T49 pins — [`SesBoard::obstacle_absolute_area`] against the Java
+    /// oracle. Every row's input AND expected output were captured from
+    /// `build/libs/freerouting-current-executable.jar` by the one-time
+    /// jshell probe `/tmp/epic-t12-probe.jsh` (reflection off
+    /// `ObstacleArea`: `translation`/`rotationInDegree`/`sideChanged`,
+    /// expected = the item's `getArea()` output; doubles via
+    /// `Double.toString`). Each row names its corpus fixture. The rows
+    /// cover every `getArea()` branch (`ObstacleArea.java:119-144`):
+    /// translation-only, exact 90-degree turns x1/x-1/x2/x3 under both
+    /// flip styles, `rotateApprox` at an odd angle, the default-order
+    /// mirror (mirror -> rotate -> translate), and the rotate-first
+    /// ordering (rotate -> mirror -> translate).
+    #[test]
+    fn t49_obstacle_absolute_area_matches_jar_captures() {
+        use epic_geometry::circle::Circle as BoardCircle;
+
+        struct Case {
+            name: &'static str,
+            provenance: &'static str,
+            flip_style: Option<&'static str>,
+            border: BoardShape,
+            translation: (i32, i32),
+            rotation: f64,
+            side_changed: bool,
+            expected_border: BoardShape,
+        }
+        let circle =
+            |x: i32, y: i32, r: i32| BoardShape::Circle(BoardCircle::new(IntPoint::new(x, y), r));
+        let rect = |x0: i32, y0: i32, x1: i32, y1: i32| {
+            BoardShape::PolygonShape(PolygonShape::new(&[
+                Point::Int(IntPoint::new(x0, y0)),
+                Point::Int(IntPoint::new(x1, y0)),
+                Point::Int(IntPoint::new(x1, y1)),
+                Point::Int(IntPoint::new(x0, y1)),
+            ]))
+        };
+        let cases = vec![
+            // T49 BRANCH flipFirst=false sideChanged=false rot0 (count=2572).
+            // A no-translate bug pins x at 39500 (vs 1370841).
+            Case {
+                name: "translation_only",
+                provenance: "dsn-0002 DAC2020_bm02.dsn keepout id=362",
+                flip_style: None,
+                border: circle(39500, 0, 10000),
+                translation: (1331341, -1036066),
+                rotation: 0.0,
+                side_changed: false,
+                expected_border: circle(1370841, -1036066, 10000),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=false rot90x1 (count=57).
+            // turn90Degree(1) is CCW: (109000,37000) -> (-37000,109000).
+            Case {
+                name: "front_rot90_ccw",
+                provenance: "dsn-0012 DAC2020_bm05.dsn keepout id=162",
+                flip_style: None,
+                border: circle(109000, 37000, 11000),
+                translation: (1384311, -1233536),
+                rotation: 90.0,
+                side_changed: false,
+                expected_border: circle(1347311, -1124536, 11000),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=false rot90x-1 (count=66).
+            // turn90Degree(-1) is CW: (50800,-88900) -> (-88900,-50800).
+            Case {
+                name: "front_rot_minus90_cw",
+                provenance: "dsn-0019 1-Wire_Wing unrouted.dsn keepout id=170",
+                flip_style: None,
+                border: circle(50800, -88900, 18750),
+                translation: (1193160, -1089020),
+                rotation: -90.0,
+                side_changed: false,
+                expected_border: circle(1104260, -1139820, 18750),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=false rot90x2 (count=536).
+            // turn90Degree(2) negates both: (35800,0) -> (-35800,0).
+            Case {
+                name: "front_rot180",
+                provenance: "dsn-0022 CM5_MINIMA_3.dsn keepout id=655",
+                flip_style: None,
+                border: circle(35800, 0, 6000),
+                translation: (861500, -622500),
+                rotation: 180.0,
+                side_changed: false,
+                expected_border: circle(825700, -622500, 6000),
+            },
+            // T49 BRANCH flipFirst=true sideChanged=false rot90x3 (count=12):
+            // rotate_first metadata alone must not mirror a front keepout.
+            // turn90Degree(3): (0,-220000) -> (-220000,0).
+            Case {
+                name: "front_rot270_under_rotate_first",
+                provenance: "dsn-0051 Issue143-rpi_splitter.dsn keepout id=33",
+                flip_style: Some("rotate_first"),
+                border: circle(0, -220000, 146600),
+                translation: (1016000, 3556000),
+                rotation: 270.0,
+                side_changed: false,
+                expected_border: circle(796000, 3556000, 146600),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=true rot0 — the pure
+            // mirror branch with a NON-DEGENERATE center (x=28800 != 0; the
+            // CM5_MINIMA first example at x=0 cancels the mirror and is
+            // anchor-blind). Mirror: (28800,12900) -> (-28800,12900).
+            Case {
+                name: "back_rot0_mirror_moves_x",
+                provenance: "dsn-0083 Issue297-myboard.dsn keepout id=682",
+                flip_style: None,
+                border: circle(28800, 12900, 5750),
+                translation: (1365223, -1614442),
+                rotation: 0.0,
+                side_changed: true,
+                expected_border: circle(1336423, -1601542, 5750),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=true rot90x1 — the
+            // mirror-PROVING pin: mirror-then-turn90 gives (5600,-15000);
+            // a mirror-skipping bug gives (5600,15000) and abs y -713800
+            // instead of -743800.
+            Case {
+                name: "back_rot90_mirror_proving",
+                provenance: "dsn-0022 CM5_MINIMA_3.dsn keepout id=1267",
+                flip_style: None,
+                border: circle(15000, -5600, 6500),
+                translation: (1301800, -728800),
+                rotation: 90.0,
+                side_changed: true,
+                expected_border: circle(1307400, -743800, 6500),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=true rot90x2 — mirror,
+            // then turn90Degree(2): (-38100,-25400) -> (38100,-25400) ->
+            // (-38100,25400).
+            Case {
+                name: "back_rot180_mirror_then_turn",
+                provenance: "dsn-0088 corney_island_wireless.dsn keepout id=25",
+                flip_style: None,
+                border: circle(-38100, -25400, 17500),
+                translation: (1950000, -786250),
+                rotation: 180.0,
+                side_changed: true,
+                expected_border: circle(1911900, -760850, 17500),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=true rot90x3 — the
+            // polygon branch: mirror + turn90Degree(3) + translate. The
+            // expected corner SEQUENCE is the jar's `getArea()` dump verbatim
+            // (Java re-normalizes the polygon's start corner under the
+            // transform; hand-permuting rel corners gives the same corner
+            // set in a DIFFERENT order — pinned as captured, not recomputed).
+            Case {
+                name: "back_rot270_polygon",
+                provenance: "dsn-0155 Issue732-RoyalBlue54L-Feather.dsn keepout id=961",
+                flip_style: None,
+                border: rect(-12700, -6350, 12700, 6350),
+                translation: (1286100, -1049725),
+                rotation: 270.0,
+                side_changed: true,
+                expected_border: BoardShape::PolygonShape(PolygonShape::new(&[
+                    Point::Int(IntPoint::new(1279750, -1062425)),
+                    Point::Int(IntPoint::new(1292450, -1062425)),
+                    Point::Int(IntPoint::new(1292450, -1037025)),
+                    Point::Int(IntPoint::new(1279750, -1037025)),
+                ])),
+            },
+            // T49 BRANCH flipFirst=false sideChanged=false rotOdd:330.0 — the
+            // rotateApprox branch (cos330 * -55000 = -47631.397 -> -47631).
+            // Case below shares this exact input with side_changed=true +
+            // rotate_first, so the two rows together discriminate BOTH the
+            // mirror and the ordering (wrong order -> y -1369250 here).
+            Case {
+                name: "front_rot330_approx",
+                provenance: "dsn-0033 Issue054-tairakb.dsn keepout id=1479",
+                flip_style: None,
+                border: circle(-55000, 0, 9000),
+                translation: (1742920, -1341750),
+                rotation: 330.0,
+                side_changed: false,
+                expected_border: circle(1695289, -1314250, 9000),
+            },
+            // rotate-first ordering discriminator (supplemental probe
+            // /tmp/epic-t49b.jsh: no corpus fixture combines flip_style
+            // rotate_first with a side-changed keepout, so the probe applied
+            // the flipRotateFirst=true order — rotateApprox, mirrorVertical,
+            // translateBy — with Java's own Area methods on the jar-parsed
+            // relative area of the same keepout). rotateApprox rounds FIRST
+            // (-47631,27500), then the mirror flips to (47631,27500):
+            // abs (1790551,-1314250). The default order on the same input is
+            // the row above (1695289,-1314250) — the ordering swap moves
+            // BOTH coordinates.
+            Case {
+                name: "flip_first_rotate_then_mirror",
+                provenance: "dsn-0033 Issue054-tairakb.dsn keepout id=1479 shape, rotate_first order",
+                flip_style: Some("rotate_first"),
+                border: circle(-55000, 0, 9000),
+                translation: (1742920, -1341750),
+                rotation: 330.0,
+                side_changed: true,
+                expected_border: circle(1790551, -1314250, 9000),
+            },
+        ];
+        for case in &cases {
+            let mut board = SesBoard::new();
+            if let Some(flip_style) = case.flip_style {
+                board.set_flip_style(flip_style.to_string());
+            }
+            let area = AreaIr::simple(case.border.clone());
+            let absolute = board.obstacle_absolute_area(
+                &area,
+                IntPoint::new(case.translation.0, case.translation.1),
+                case.rotation,
+                case.side_changed,
+            );
+            assert_eq!(
+                absolute,
+                AreaIr::simple(case.expected_border.clone()),
+                "T49 {} ({}): wrong placement transform",
+                case.name,
+                case.provenance
+            );
+        }
     }
 }

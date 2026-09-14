@@ -20,7 +20,10 @@
 //! ```
 //!
 //! - All numbers are decimal i64 in BOARD space (parse output is
-//!   already rounded; nothing re-rounds here).
+//!   already rounded; nothing re-rounds here). The shape of a `K` line is
+//!   the item's ABSOLUTE area — Java `ObstacleArea.getArea()`
+//!   (`ObstacleArea.java:119-144`), i.e. the placement transform applied
+//!   (T49) — while structure-scope areas transform identically.
 //! - `<fixed>` is one of `unfixed`, `shove_fixed`, `user_fixed`,
 //!   `system_fixed` (the `FixedState` ordinal order).
 //! - `<padstack>` is the RAW registry name of the resolved padstack,
@@ -220,12 +223,22 @@ pub fn canonical_geometry_text(board: &SesBoard) -> String {
                 ));
             }
             ItemIr::Keepout { id, keepout } => {
+                // T49: the Java oracle reads `keepout.getArea()` — the
+                // LAZY placement-transformed form (`ObstacleArea.java:
+                // 119-144`); the port applies the same transform here so
+                // component keepouts digest at their absolute geometry.
+                let absolute = board.obstacle_absolute_area(
+                    &keepout.area,
+                    keepout.translation,
+                    keepout.rotation,
+                    keepout.side_changed,
+                );
                 text.push_str(&format!(
                     "K {id} {} {} {} {}\n",
                     keepout.layer_no,
                     keepout.clearance_class,
                     fixed_token(keepout.fixed),
-                    encode_area(&keepout.area)
+                    encode_area(&absolute)
                 ));
             }
             ItemIr::ConductionArea { id, area } => {
