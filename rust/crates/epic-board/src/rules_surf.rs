@@ -357,7 +357,7 @@ impl ClearanceMatrix {
 /// `ShapeSearchTree` port: the compensated-tree class choice
 /// (`SearchTreeManager.setClearanceCompensationUsed`, value ? 1 : 0)
 /// and `drillHoleClearanceDelta`'s class-0-tree fallback
-/// (`ShapeSearchTree.java:1065-1067`,
+/// (`ShapeSearchTree.java:1058-1061`,
 /// `clearanceClass = treeClass > 0 ? treeClass : defaultClearanceClass()`).
 pub const DEFAULT_CLEARANCE_CLASS: i32 = 1;
 
@@ -636,7 +636,7 @@ impl BoardRules {
         self.via_rules.iter().find(|rule| rule.id == id)
     }
 
-    /// Java `setHoleClearance(value)` (`:108-110`): `max(0, value)`.
+    /// Java `setHoleClearance(value)` (`:109-111`): `max(0, value)`.
     pub fn set_hole_clearance(&mut self, value: i32) {
         self.hole_clearance = value.max(0);
     }
@@ -819,7 +819,7 @@ mod tests {
         assert_eq!(matrix.get_value_opt(1, 1, 0, true), 2016, "with=2016");
         assert_eq!(matrix.get_value_opt(1, 1, 1, true), 1506, "with=1506");
         // Out of bounds: class, then layer — 0 both with and without the
-        // margin (the `:133-161` early return precedes the `:185-186`
+        // margin (the `:133-161` early return precedes the `:163-165`
         // margin add).
         assert_eq!(matrix.get_value_opt(4, 1, 0, true), 0, "class OOB stays 0");
         assert_eq!(matrix.get_value_opt(1, -1, 0, true), 0, "negative class 0");

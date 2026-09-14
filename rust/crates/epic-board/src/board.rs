@@ -328,7 +328,7 @@ impl Board {
         }
     }
 
-    /// Java `Item.setOnTheBoard(boolean)` (`Item.java:63-64`): the raw
+    /// Java `Item.setOnTheBoard(boolean)` (`Item.java:248`): the raw
     /// flag write the search-tree manager performs after broadcasting
     /// an insert/remove (`SearchTreeManager.java:43` / `:61`).
     pub fn set_on_the_board(&mut self, id: ItemId, value: bool) {

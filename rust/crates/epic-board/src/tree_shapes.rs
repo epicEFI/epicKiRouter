@@ -25,8 +25,8 @@
 //! over `fixtures/Issue575-drc_dev-board_4_hole_clearance_violations.dsn`
 //! (capture `/tmp/epic-t6-treeshapes.out`), `PCBench/1Bitsy_1bitsy`
 //! (capture `/tmp/epic-t6-treeshapes-1bitsy.out`, 4 layers, classes
-//! 0/1/2 with `v1.1 = v2.1 = 1490`, `cc(1) = 745`, and — unlike
-//! Issue575 — a NON-ZERO row 0: `getValue(0, 1, l) = 2000`), and a
+//! 0/1/2 with `v1.1 = v2.1 = 1490`, `cc(1) = 745`, and — like every
+//! capture fixture — an ALL-ZERO row 0: `getValue(0, j, l) = 0`), and a
 //! SYNTHETIC hole padstack (`spike_hole_600:300`: copper circles only
 //! on layers 0 and 3 of the 4-layer board) inserted through the real
 //! Java board API, which drives the null-shape and drill-hole-obstacle
@@ -76,10 +76,11 @@ pub const DRILL_HOLE_CLEARANCE_MARGIN: i32 = 10;
 /// order is unobservable, so the pins below use a hand-built
 /// ASYMMETRIC matrix where swapping them changes the answer.
 ///
-/// The `item_class <= 0` guard is unobservable through Issue575 (row 0
-/// all zero — the negative clamp subsumes it) but IS observable on
-/// 1Bitsy, where `getValue(0, 1, l) = 2000` against `cc(1) = 745`:
-/// unguarded the formula yields 1255, guarded 0 — pinned in the tests.
+/// The `item_class <= 0` guard is unobservable through EVERY capture
+/// fixture (row 0 is all zero on both Issue575 and 1Bitsy — the
+/// negative clamp subsumes it); it is pinned on a hand-built matrix
+/// where the unguarded formula is POSITIVE (`getValue(0, 1, l) = 2000`
+/// against `cc(1) = 745`: unguarded 1255, guarded 0).
 #[must_use]
 pub fn clearance_compensation_value(
     rules: &BoardRules,
@@ -156,10 +157,10 @@ pub fn drill_hole_obstacle(
 /// * `copperRadius = drillRadius` for a `holeOnly` padstack, else the
 ///   current shape's `borderDistance(item center)`; a `<= 0` result
 ///   re-reads the RAW padstack shape's `borderDistance(ZERO)`
-///   (`:1062-1064`), falling back to `drillRadius` when that slot is
+///   (`:1053-1055`), falling back to `drillRadius` when that slot is
 ///   null.
 ///
-/// The int additions promote to double before `ceil` (Java `:1070` —
+/// The int additions promote to double before `ceil` (Java `:1068` —
 /// the whole sum is a double expression); `(int)` casts the ceil.
 #[must_use]
 pub fn drill_hole_clearance_delta(
@@ -176,7 +177,7 @@ pub fn drill_hole_clearance_delta(
         return 0;
     }
     let Some(shape) = shape else {
-        // Java's `shape == null` guard (:1044).
+        // Java's `shape == null` guard (:1040).
         return 0;
     };
     let drill_radius = padstack.drill_radius();
@@ -236,7 +237,7 @@ pub fn drill_hole_clearance_delta(
 ///   `boundingBox` + **`offset(w)`** — an `IntBox` stays an `IntBox`.
 ///
 /// `offset_width` is the T54 compensation plus the T55 delta
-/// (`:894-899` / the subclass equivalents) — both keyed by
+/// (`:893-896` / the subclass equivalents) — both keyed by
 /// `drillItem.shapeLayer(i)`, the ITEM-span-clamped layer
 /// ([`Board::drill_shape_layer`]).
 ///
@@ -259,7 +260,7 @@ pub fn drill_tree_shapes(
         let index = i32::try_from(index).unwrap_or(i32::MAX);
         let mut current = board.drill_shape(id, index);
         if current.is_none() {
-            // The synthesized drill-hole obstacle (:878-881) — for a
+            // The synthesized drill-hole obstacle (:878-880) — for a
             // copper-less layer when the hole-clearance rule is on.
             if let (Some(padstack), Some(center)) =
                 (board.drill_padstack(id), board.drill_center(id))
@@ -268,7 +269,7 @@ pub fn drill_tree_shapes(
             }
         }
         let Some(current) = current else {
-            // Java result[i] = null (:883-884) — a null SLOT, not a
+            // Java result[i] = null (:881-882) — a null SLOT, not a
             // skipped index.
             result.push(None);
             continue;
@@ -298,7 +299,7 @@ pub fn drill_tree_shapes(
                     AngleRestriction::FortyfiveDegree => current.bounding_octagon(),
                     AngleRestriction::None => Some(current.bounding_tile()),
                 };
-                // Java warns and stores null for a null hull (:900-905)
+                // Java warns and stores null for a null hull (:897-901)
                 // — reachable only for an unbounded Simplex shape,
                 // which a padstack shape never is.
                 hull.map(|hull| hull.enlarge(width))
@@ -360,7 +361,7 @@ pub fn item_tree_shapes(
 /// item whose padstack vanished — the empty shape list makes the
 /// drill radius 0, which the delta's own `drillRadius <= 0` guard
 /// turns into 0, exactly like Java's `drillItem.getPadstack() == null`
-/// early-out (`:1044`).
+/// early-out (`:1040`).
 static EMPTY_PADSTACK: BoardPadstack = BoardPadstack {
     name: String::new(),
     shapes: Vec::new(),
@@ -615,9 +616,9 @@ mod tests {
         }
 
         // hc=200000, cc0, CLASS-0 ITEM: comp is 0 (the T54 guard) and
-        // copperClearance reads getValue(0, 1, l) = 2000 on 1Bitsy —
-        // copper delta 198510, hole delta 200010 (the same octagon
-        // extent by the same cancellation).
+        // copperClearance reads getValue(0, 1, l) = 0 (row 0 is all
+        // zero on 1Bitsy) — copper delta 198510, hole delta 200010
+        // (the same octagon extent by the same cancellation).
         let shapes = drill_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, hole_via_c0);
         for (index, shape) in shapes.iter().enumerate() {
             assert_eq!(
@@ -631,9 +632,9 @@ mod tests {
         // is 1500; the class-1 via takes delta 0 (copper:
         // 1500+2510-3000-1490 = -480 -> 0) / 1020 (hole:
         // 1500+2510-1500-1490); the class-0 via — with
-        // copperClearance 2000 — takes 1010 / 2510, and the two deltas
-        // round the octagon diagonals DIFFERENTLY (1194330 vs
-        // 1194329), captured.
+        // copperClearance 0 (row 0 all zero) — takes 1010 / 2510, and
+        // the two deltas round the octagon diagonals DIFFERENTLY
+        // (1194330 vs 1194329), captured.
         board.rules_mut().set_hole_clearance(2500);
         let shapes = drill_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, hole_via);
         assert_eq!(
@@ -725,13 +726,13 @@ mod tests {
         );
     }
 
-    /// **T54, the class-0 guard** (`:108-110`): a class-0 (null-class)
+    /// **T54, the class-0 guard** (`:105-107`): a class-0 (null-class)
     /// item compensates 0 EVEN where the unguarded formula would NOT
-    /// clamp — 1Bitsy's shape (`getValue(0, 1, l) = 2000` against
-    /// `cc(1) = 745`, unguarded 1255) is reproduced by hand here. A
-    /// port without the guard inflates class-0 items in compensated
-    /// trees; the Issue575 captures alone (row 0 zero) could never
-    /// tell the difference.
+    /// clamp — a HAND-BUILT matrix (`getValue(0, 1, l) = 2000` against
+    /// `cc(1) = 745`, unguarded 1255; row 0 is all zero on every
+    /// capture fixture, so no jar capture can discriminate). A port
+    /// without the guard inflates class-0 items in compensated trees;
+    /// the captures alone could never tell the difference.
     #[test]
     fn compensation_guard_zeroes_the_null_class() {
         let mut rules = BoardRules::new();
@@ -774,12 +775,13 @@ mod tests {
     }
 
     /// **T55 — the delta's clearance class is the TREE's, defaulting
-    /// to 1** (`:1065-1067`): in a class-0 tree the copper clearance
+    /// to 1** (`:1058-1061`): in a class-0 tree the copper clearance
     /// reads `getValue(item, 1, l)` (the DEFAULT class), not
     /// `getValue(item, 0, l)`. Hand-built matrix where the two differ
-    /// by 500 — the captured 1Bitsy class-0 deltas (198510/200010
-    /// under `getValue(0,1,l) = 2000`) pin the same rule end-to-end
-    /// above.
+    /// by 500 — the captured 1Bitsy class-0 deltas (198510/200010)
+    /// exercise the same path end-to-end above, but under an all-zero
+    /// row 0 (`getValue(0,1,l) = getValue(0,0,l) = 0`) they cannot
+    /// DISCRIMINATE the default; this matrix does.
     #[test]
     fn delta_uses_the_tree_class_defaulting_to_one() {
         let mut rules = BoardRules::new();
@@ -826,7 +828,7 @@ mod tests {
     }
 
     /// **T55 — `holeOnly` short-circuits the copper radius to the
-    /// drill radius** (`:1055-1057`): the delta then measures from the
+    /// drill radius** (`:1049-1050`): the delta then measures from the
     /// HOLE, not the copper. Java never writes `holeOnly` on a parsed
     /// padstack (grep-verified — no writer in the main tree), so this
     /// pins the field's one read site on a hand-built padstack.
