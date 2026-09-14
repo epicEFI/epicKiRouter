@@ -189,7 +189,12 @@ impl MinAreaTree {
     /// Hazard inherited from Java: removing a leaf that is not in the
     /// tree (double remove) corrupts the structure exactly like the Java
     /// original (a detached leaf has no parent, so the removal clears
-    /// the root). Callers must remove live leaves only.
+    /// the root). Callers must remove live leaves only. The COUNT
+    /// diverges in that corrupt state: Java's `leafCount` silently
+    /// goes negative; the port's `usize` count underflows (debug
+    /// panic, release wrap — and the wrapped count then aborts the
+    /// next `to_array` at the capacity computation) where Java NPEs
+    /// inside the walk.
     pub fn remove_leaf(&mut self, leaf: NodeIdx) {
         // Java nulls the leaf's fields here (:126-128, GC hygiene); the
         // slab slot stays populated but unreachable — except the parent
@@ -229,17 +234,11 @@ impl MinAreaTree {
                 self.base.root = Some(other);
             }
             Some(gp) => {
-                let (gfirst, gsecond) = self
-                    .base
-                    .inner_children(gp)
-                    .unwrap_or_else(|| unreachable!("grandparent is not an inner node"));
                 let (gfirst_slot, gsecond_slot) = self.base.children_mut(gp);
                 if *gsecond_slot == parent {
                     *gsecond_slot = other;
-                    let _ = gsecond;
                 } else if *gfirst_slot == parent {
                     *gfirst_slot = other;
-                    let _ = gfirst;
                 } else {
                     // Java warns ("grandParent inconsistent") and leaves
                     // the tree corrupt (:156-158); unreachable by the
@@ -275,7 +274,10 @@ impl MinAreaTree {
     /// Java's `TreeSet<Leaf>` iteration: sorted by `cmp(object_key)`
     /// (the OBJECT's compareTo — `Item` is DESCENDING id) then
     /// `shape_index_in_object` ASC, with compareTo-equal duplicates
-    /// collapsed (an object inserted twice is reported once per shape).
+    /// collapsed (an object inserted twice is reported once per
+    /// shape). The RETAINED entry is the first leaf in DFS
+    /// discovery order — matching Java's TreeSet, which keeps the
+    /// first-added key on an equal re-add.
     ///
     /// The DFS itself pushes first-then-second (popped
     /// second-then-first); the sort makes the traversal order

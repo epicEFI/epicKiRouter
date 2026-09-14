@@ -155,6 +155,12 @@ impl ShapeTree {
         shape_index_in_object: u32,
         bounds: RegularTileShape,
     ) -> NodeIdx {
+        // `NodeIdx` is u32: the slab index truncates past 2^32 nodes
+        // (~256 GB of nodes; Java OOMs long before).
+        debug_assert!(
+            self.nodes.len() <= u32::MAX as usize,
+            "slab index truncation"
+        );
         let idx = NodeIdx(self.nodes.len() as u32);
         self.nodes.push(Node {
             parent: None,
@@ -176,6 +182,10 @@ impl ShapeTree {
         first: NodeIdx,
         second: NodeIdx,
     ) -> NodeIdx {
+        debug_assert!(
+            self.nodes.len() <= u32::MAX as usize,
+            "slab index truncation"
+        );
         let idx = NodeIdx(self.nodes.len() as u32);
         self.nodes.push(Node {
             parent,
