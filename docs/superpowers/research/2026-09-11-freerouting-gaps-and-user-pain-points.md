@@ -103,3 +103,21 @@ User supplied an external DipTrace-vs-Freerouting feature/algorithm analysis (Di
 5. **Controlled impedance width/spacing from stackup** — BLOCKED on input side: DSN carries no dielectric/Er data (KiCad doesn't export it); needs a settings/rules extension. Adjacent to the parked post-2.0 "impedance-driven stackup solving" line; pull earlier only if the input gap is solved.
 6. **Thermal relief generation in-router** — workflow caveat: KiCad regenerates reliefs when re-pouring on SES import, so in-router spokes would double up unless flag-gated default-off. M6 consideration.
 7. **Arc/curved + freeform routing** — fundamental extension beyond the 45° kernel port (epic-geometry is deliberately 45°-exact for parity). Post-M10 additive layer; DSN path syntax supports arcs so I/O would not block it.
+
+---
+
+## Tier-one router passes addendum (2026-09-13)
+
+User supplied an analysis of commercial pipeline passes (Situs/Specctra/TopoR/Allegro). Cross-checked:
+
+**Already covered:** hug/spread gloss (Specctra `spread → miter → recorner` ordering + Xpedition hug already in the design's gloss suite, M8); bus/bundle group routing (the "biggest looks-human win", M6 global + M8); TopoR itself (free-angle topological, "looks strange" — research doc); blind/buried vias parked post-2.0.
+
+**Genuinely new (banked):**
+1. **Memory/DDR daisy-chain pre-pass** — detect shared X/Y coordinate pins on adjacent components (DDR banks), strict U-pattern fanout+connect BEFORE the global router clutters the space. Adjacent to Xpedition "automated DDR tune" (already cited). Slots: M6 pipeline, after BGA escape, before global PathFinder.
+2. **Clean pad entry pass** — force SMD pad exits parallel to the pad's long axis for a short run before turning (acid traps, tombstoning). Slots: M8 gloss suite (manufacturability member).
+3. **Hug as a MID-ROUTING move** — new nuance vs our end-gloss framing: run hug mid-pipeline when completion stalls to consolidate channels for failing nets; spread stays end-of-pipeline. Slots: M6/M8 pipeline placement.
+4. **Multi-candidate parallel branching (portfolio search)** — 4-8 parallel global-router instances with perturbed cost weights, score all, import best. Constraints: determinism is non-negotiable (fixed per-thread perturbations, deterministic winner selection — the parity harness depends on reproducibility); composes with NCTU-GR collision-aware threading but multiplies the parallel budget. Attribution to "TopoR/Quilter method" is loose (TopoR is topological; Quilter is RL) — treat as algorithm-portfolio search. Slots: M6+ once parallel global stage is stable.
+5. **Dynamic pin swapping** — swap logically-equivalent destinations to uncross the ratsnest (resistor networks, FPGA banks); requires a back-annotation swap-list output for KiCad. Verified: Freerouting's 101-keyword DSN table has NO swap keyword — the feature is absent from the entire pipeline, not just the router. Needs input-side equivalence data (DSN `pin_swap` rules exist in Specctra; KiCad export support unknown). Slots: late M7+ / post-2.0, input-gated like impedance.
+6. **Via-type-per-layer-pair legality maps + stacked/staggered microvia DRC** — HDI constraints; refinements of the parked blind/buried-via line (rule model can land in M6/M7 constraint work before the vias themselves do).
+
+**Corrections:** bundle routing gives *similar* lengths, not target-matched — M7 tuning still required ("guarantees length matching out of the gate" overstated); "multi-threaded C++" — engine is Rust by design decision (§Language evidence); proprietary Situs/Allegro pass details are directional, not verifiable.
