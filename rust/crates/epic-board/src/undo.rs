@@ -23,7 +23,7 @@
 //!   list, else pushes `undo_object` (if non-null). A delete at
 //!   stack level 0 (or of a no-undoObject node at the top level)
 //!   pushes nothing — the deletion is unrecoverable.
-//! - **undo** (:143-178): for map nodes at `level == stack_level`,
+//! - **undo** (:143-176): for map nodes at `level == stack_level`,
 //!   swap in `undo_object` (setting `undo_object.redo_object = node`;
 //!   `cancelled` gets the node's value ALWAYS, `restored` the old
 //!   value), then re-put every node of `deleted_objects_stack[
@@ -85,9 +85,10 @@
 //!   the live instance share the id and the caller mutates only
 //!   after saving.
 //! - The `FRLogger.warn` calls (delete-miss in redo's walk,
-//!   save-for-undo node-miss) are log-only in Java and are no-ops
-//!   here (the D12 warnings surface is fed exclusively by
-//!   `Wiring.java`; see the M1b Task 6 correction).
+//!   save-for-undo node-miss) and `delete`'s `FRLogger.trace` block
+//!   (:91-105) are log-only in Java and are no-ops here (the D12
+//!   warnings surface is fed exclusively by `Wiring.java`; see the
+//!   M1b Task 6 correction).
 
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
@@ -225,7 +226,7 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
                 cancelled.push(self.nodes[idx].value.clone());
             }
         }
-        // restore the deleted objects (Java :170-177)
+        // restore the deleted objects (Java :164-172)
         let delete_list = self.deleted_objects_stack[self.stack_level - 1].clone();
         for idx in delete_list {
             let key = self.nodes[idx].key;
@@ -373,10 +374,12 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
         Some(&mut self.nodes[idx].value)
     }
 
-    /// The visible value for a key (any node at or below the stack
-    /// level; the map only ever holds current nodes, so this is the
-    /// map entry — unlike iteration, single lookups have no
-    /// redo-only entries to skip).
+    /// The CURRENT node's value for a key — map residency, NOT
+    /// visibility: a key whose node sits above `stack_level`
+    /// (undo-cancelled, redo-only) is still returned here even though
+    /// `iter_visible` skips it (spike S11/S29 pin exactly this state),
+    /// matching Java's internal `objects.get()` that `delete` and
+    /// `save_for_undo` rely on.
     #[must_use]
     pub fn get(&self, key: &K) -> Option<&T> {
         let &idx = self.objects.get(key)?;
@@ -428,7 +431,7 @@ impl<K: Ord + Copy, T: Clone + PartialEq> Default for UndoableObjects<K, T> {
 /// The components-side second stack (T63, `Components.java:16`):
 /// `Components` owns its own `UndoableObjects` instance, completely
 /// independent of the board's item stack. Component ids are 1-BASED
-/// indexes (`Components.java:140`, `componentArr.size() + 1` at add
+/// indexes (`Components.java:48`, `componentArr.size() + 1` at add
 /// time) and are never reused — the counter only grows, even across
 /// undo (Java re-syncs `componentArr` from the undo list by INDEX,
 /// `restoreComponentArrFromUndoList`, so the array slots stay 1:1
@@ -860,10 +863,13 @@ mod tests {
         let (cancelled, restored) = s.undo().expect("S29 undo");
         assert_eq!(show(&cancelled), "7:g0");
         assert!(restored.is_empty());
-        // g invisible at L1 but the map still holds it: get() would
-        // find it through the CURRENT-node map (no redo-only entry
-        // here — the map only ever holds current nodes; the skip is
-        // purely the level filter in iteration).
+        // g is invisible at L1 but STILL MAP-RESIDENT — the redo-only
+        // entry the S29 capture describes (same fact as e at S11).
+        assert!(
+            s.contains(&Reverse(7)),
+            "g stays map-resident while invisible"
+        );
+        assert!(s.iter_visible().all(|(k, _)| k.0 != 7));
         assert_eq!(show(&iter(&s)), "6:f0, 2:b1");
         // S29's undo popped the snapshot stack: L1 -> L0 (the spike's
         // stack level, NOT g's node level, which stays at 1)
@@ -944,10 +950,11 @@ mod tests {
     }
 
     /// T63: the components stack is independent — ids are 1-based and
-    /// monotonically growing (`Components.java:140`), and undo/redo
-    /// never resurrect an id. Java `restoreComponentArrFromUndoList`
-    /// re-syncs slots BY INDEX, so a redone component lands back in
-    /// its original slot.
+    /// monotonically growing (`Components.java:48`): the id COUNTER
+    /// never resets or reissues across undo (undo DOES resurrect the
+    /// component's value, below — the next `add` returns 4, not 2).
+    /// Java `restoreComponentArrFromUndoList` re-syncs slots BY
+    /// INDEX, so a redone component lands back in its original slot.
     #[test]
     fn components_stack_ids_are_one_based_and_grow_monotonically() {
         let mut comps: ComponentsUndoStack<String> = ComponentsUndoStack::new();
