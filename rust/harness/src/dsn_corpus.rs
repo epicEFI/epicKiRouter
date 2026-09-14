@@ -94,6 +94,21 @@ pub enum DsnCommand {
         #[arg(long, default_value = "harness/corpus/ses")]
         out: PathBuf,
     },
+    /// Compare the Rust port's session emission against the committed
+    /// SES goldens (Task 13 B4): parse each tier A+B fixture with
+    /// epic-dsn, emit via ses::writer, canonical-compare
+    /// (whitespace-insensitive sexpr trees, numbers exact) + byte-diff
+    /// classification. Java-free, CI-able; exits nonzero on any
+    /// T40-snap or genuine divergence.
+    SesCompare {
+        /// Tier file holding the fixtures_root + tier A/B fixture lists.
+        #[arg(long, default_value = "harness/config/tiers.yaml")]
+        tiers: PathBuf,
+        /// The committed golden directory (relative paths resolve under
+        /// rust/).
+        #[arg(long, default_value = "harness/corpus/ses")]
+        golden: PathBuf,
+    },
 }
 
 pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
@@ -110,6 +125,9 @@ pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
         } => compare(&repo_root, &manifest, &golden, &set),
         DsnCommand::SesGolden { tiers, out } => {
             crate::ses_compare::golden(&repo_root, &tiers, &out, jvm_xmx)
+        }
+        DsnCommand::SesCompare { tiers, golden } => {
+            crate::ses_compare::compare(&repo_root, &tiers, &golden)
         }
     }
 }
@@ -277,13 +295,15 @@ fn load_manifest(path: &Path) -> Result<Vec<ManifestEntry>> {
 }
 
 pub(crate) fn resolve_input(repo_root: &Path, given: &Path) -> PathBuf {
-    if given.is_absolute() || given.is_file() {
+    // exists(), not is_file(): inputs may be directories (the SES golden
+    // corpus dir for `dsn ses-compare`).
+    if given.is_absolute() || given.exists() {
         given.to_path_buf()
     } else {
         // Default values are written relative to the rust/ checkout; also
         // accept repo-root-relative spellings.
         let candidate = repo_root.join("rust").join(given);
-        if candidate.is_file() {
+        if candidate.exists() {
             candidate
         } else {
             repo_root.join(given)
