@@ -29,3 +29,15 @@ jobs:
       - run: cargo run -q -p epic-harness -- corpus compare
         env:
           EPIC_SKIP_GRADLE: "1"
+      # M1b parse parity: all 1,332 digest+soak fixtures (175 + 1,157) vs
+      # the committed Java-oracle goldens; dsn-0151 is the one documented
+      # ledgered divergence (normalizeAllTraces deferral, D11).
+      - run: cargo run -q -p epic-harness -- dsn compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M1b SES emission parity: tier A+B (20 fixtures) vs the committed
+      # session goldens — byte-equal expected (byte-diff classifier for
+      # anything else).
+      - run: cargo run -q -p epic-harness -- dsn ses-compare
+        env:
+          EPIC_SKIP_GRADLE: "1"

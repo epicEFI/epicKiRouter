@@ -2,6 +2,13 @@
 //! round-trip parity against the Java `io.specctra` package (design §5,
 //! I/O parity gate).
 //!
+//! **M1b COMPLETE**: all 1,332 corpus fixtures parse to byte-identical
+//! digests vs the Java oracle (175 digest + 1,157 soak; one documented
+//! ledgered divergence on dsn-0151 — the `normalizeAllTraces` board
+//! machinery deferred to M2 per D11), and the tier A+B sessions emit
+//! BYTE-EQUAL through [`ses::writer`]. The gates run java-free in CI
+//! (`epic-harness dsn compare` / `dsn ses-compare`).
+//!
 //! M1b progress: the hand-written tokenizer ([`lexer`]) and the keyword
 //! table with scope skipping ([`keyword`]) port the JFlex-generated
 //! `SpecctraDsnStreamReader` scan layer and the `Keyword`/`ScopeKeyword`

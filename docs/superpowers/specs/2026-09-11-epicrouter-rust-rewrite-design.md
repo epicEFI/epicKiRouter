@@ -104,7 +104,7 @@ Divergence triage: structured routing event streams (`RAW_SECTION` door/section/
 | # | Milestone | Exit criteria |
 |---|---|---|
 | M0 | Fork setup: Rust workspace scaffold, harness skeleton, golden baselines from Java | Baseline manifests for Tier A/B/C; `cargo test` + `./gradlew test` green |
-| M1 | `epic-geometry` + `epic-dsn` | Geometry parity green; DSN parses all 162 fixtures; SES round-trip parity on Tier A |
+| M1 | `epic-geometry` + `epic-dsn` | Geometry parity green; DSN parses all fixtures (the planning-time "162" was a stale census — the enumerated corpus is 175 digest + 1,157 soak, all green; see the M1b plan D10) ; SES round-trip parity on Tier A |
 | M2 | `epic-board` + `epic-index` | Index query-set parity; snapshot/undo correct |
 | M3 | Detail routing core + `epic-cli` | Single-net quality ≥ Java; Tier A per-fixture completion ≥ Java and violations ≤ Java |
 | M4 | Full pipeline (fanout + detail + optimizer) | **Zero-regression moment**: all fixtures ≥ Java on completion/violations/score |
