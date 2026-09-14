@@ -1,0 +1,82 @@
+(session "DAC2020_bm07.ses"
+  (base_design "DAC2020_bm07.dsn")
+  (placement
+    (resolution um 10)
+    (component piezoMusic:0603
+      (place U3 1428811 -837136 front 270)
+      (place U4 1479511 -894336 front 180)
+      (place U8 1476811 -1073936 front 180)
+      (place U9 1428711 -870336 front 270)
+      (place U15 1441811 -1233336 front 0)
+      (place U16 1441811 -1213036 front 0)
+      (place U17 1441811 -1192736 front 0)
+      (place U18 1441911 -1172436 front 0)
+      (place U19 1442111 -1150536 front 0)
+      (place U25 1417311 -1317936 front 270)
+      (place U26 1394711 -1317936 front 270)
+      (place U28 1445311 -806836 front 180)
+    )
+    (component "piezoMusic:LED-0603"
+      (place U5 1449511 -1064936 front 90)
+      (place U23 1417411 -1285736 front 90)
+      (place U24 1394611 -1285736 front 90)
+    )
+    (component piezoMusic:1X14
+      (place U2 1572911 -1126436 front 90)
+      (place U7 1395111 -796436 front 270)
+    )
+    (component piezoMusic:2X3
+      (place U6 1510411 -1101436 front 180)
+    )
+    (component "piezoMusic:TQFP32-08"
+      (place U10 1484111 -966036 front 90)
+    )
+    (component "piezoMusic:RESONATOR-SMD"
+      (place U11 1500111 -1033936 front 180)
+    )
+    (component "piezoMusic:FTDI_BASIC"
+      (place U12 1548011 -768636 front 180)
+    )
+    (component "piezoMusic:TACTILE_SWITCH_SMD_6.2MM_TALL"
+      (place U13 1485811 -845436 front 180)
+    )
+    (component piezoMusic:SO14
+      (place U14 1509411 -1192036 front 90)
+    )
+    (component piezoMusic:1X05
+      (place U20 1395211 -1151936 front 270)
+      (place U21 1573211 -1253336 front 90)
+    )
+    (component piezoMusic:PKMCS
+      (place U22 1490111 -1290736 front 0)
+    )
+    (component piezoMusic:1X03
+      (place U1 1573611 -1278636 front 270)
+    )
+    (component piezoMusic:FUSC1608X100N
+      (place U27 1462711 -791036 front 180)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

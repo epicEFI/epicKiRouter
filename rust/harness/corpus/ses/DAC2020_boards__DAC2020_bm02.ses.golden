@@ -1,0 +1,70 @@
+(session "DAC2020_bm02.ses"
+  (base_design "DAC2020_bm02.dsn")
+  (placement
+    (resolution um 10)
+    (component MICROSD
+      (place X4 1568831 -1121156 front 90)
+    )
+    (component "BTN_KMR2_4.6X2.8"
+      (place SW1 1435481 -1086866 front 180)
+    )
+    (component "SOIC8_150MIL"
+      (place IC1 1502791 -1061466 front 270)
+    )
+    (component "CRYSTAL_8X3.8"
+      (place Y1 1482471 -1006856 front 0)
+    )
+    (component "0603-NO"
+      (place R1 1518031 -1103376 front 270)
+      (place R2 1504061 -1103376 front 270)
+      (place R3 1552321 -1037336 front 270)
+      (place R4 1552321 -1067816 front 270)
+    )
+    (component "CR1220-2"
+      (place B1 1331341 -1036066 front 0)
+    )
+    (component "0805-NO"
+      (place C1 1543431 -1097026 front 180)
+      (place C2 1478661 -1103376 front 180)
+    )
+    (component "1X11_ROUND"
+      (place JP1 1548511 -968756 front 0)
+    )
+    (component "1X16_ROUND"
+      (place JP2 1485011 -1131316 front 180)
+    )
+    (component "1X01_ROUND"
+      (place JP3 1421511 -990346 front 0)
+      (place SDCS 1554861 -1011936 front 0)
+      (place INT1 1438021 -1060196 front 0)
+    )
+    (component "SOLDERJUMPER_CLOSEDWIRE"
+      (place SJ1 1547241 -989076 front 0)
+    )
+    (component "FIDUCIAL_1MM"
+      (place FID1 1704721 -1014476 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

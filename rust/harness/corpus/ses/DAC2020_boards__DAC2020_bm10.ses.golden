@@ -1,0 +1,137 @@
+(session "DAC2020_bm10.ses"
+  (base_design "DAC2020_bm10.dsn")
+  (placement
+    (resolution um 10)
+    (component "controller_board:BALUN"
+      (place B2 1675011 -837536 front 270)
+    )
+    (component "controller_board:CAPC2012X140_HS"
+      (place C3 1645011 -827536 front 270)
+      (place C14 1725011 -747536 front 90)
+      (place C15 1815011 -747536 front 90)
+      (place C11 1755011 -977536 front 270)
+      (place C13 1725011 -797536 front 270)
+      (place C2 1680011 -805036 front 0)
+      (place C12 1795011 -977536 front 270)
+      (place C16 1815011 -797536 front 270)
+      (place C1 1125011 -1187536 front 90)
+      (place C8 1555011 -967536 front 270)
+      (place C7 1555011 -917536 front 90)
+      (place C9 1695011 -927536 front 90)
+      (place C5 1185011 -857536 front 270)
+      (place C6 1185011 -957536 front 90)
+      (place C4 1555011 -867536 front 270)
+      (place C10 1445011 -1067536 front 270)
+      (place C17 1525011 -1067536 front 90)
+    )
+    (component "controller_board:2X3-SMD"
+      (place J4 1325011 -955000 front 180)
+    )
+    (component "controller_board:RESC2012X60_HS"
+      (place R18 1785011 -1187536 front 270)
+      (place R2 1085011 -1187536 front 90)
+      (place R1 1165011 -1187536 front 90)
+      (place R7 1145011 -857536 front 90)
+      (place R15 1285011 -1187536 front 270)
+      (place R8 1325011 -1187536 front 90)
+      (place R13 1825011 -1187536 front 90)
+      (place R16 1245011 -1187536 front 270)
+      (place R3 1205011 -1187536 front 270)
+      (place R14 1865011 -1187536 front 90)
+      (place R17 1745011 -1187536 front 270)
+    )
+    (component "controller_board:4.5MM_TACTILE_SWITCH_TL3305AF160QG"
+      (place B5 1345011 -1337536 front 180)
+      (place B4 1345011 -1237536 front 180)
+      (place B1 1165011 -1287536 front 90)
+      (place B8 1675011 -1287536 front 180)
+      (place B9 1745011 -1287536 front 270)
+      (place B7 1605011 -1287536 front 90)
+      (place B10 1675011 -1357536 front 180)
+      (place B6 1675011 -1217536 front 180)
+    )
+    (component "controller_board:QFN-64"
+      (place U4 1775011 -887536 front 0)
+    )
+    (component "controller_board:CRYSTAL-SMD-5X3"
+      (place Y1 1770011 -797536 front 180)
+    )
+    (component "controller_board:JS102011JCQN"
+      (place S1 1095011 -1287536 front 90)
+      (place S2 1875011 -1287536 front 270)
+    )
+    (component "controller_board:SSOP28DB"
+      (place U3 1625011 -917536 front 90)
+    )
+    (component "controller_board:SOT23-5"
+      (place U2 1185011 -907536 front 0)
+    )
+    (component "controller_board:SOP65P640X110-16"
+      (place U5 1485011 -947536 front 270)
+    )
+    (component "controller_board:SOD3716X135_HS"
+      (place D3 1255011 -937536 front 270)
+      (place D2 1225011 -877536 front 90)
+    )
+    (component "controller_board:USB-MICROA-10118192-0001LF"
+      (place J1 1385011 -742536 front 180)
+    )
+    (component "controller_board:JST-13-PTH"
+      (place J2 1085011 -878036 front 270)
+      (place J3 1885011 -1057536 front 90)
+    )
+    (component "controller_board:2X-SERVO-SMD"
+      (place J7 1395011 -1077536 front 90)
+      (place J8 1575011 -1077536 front 270)
+    )
+    (component "controller_board:BOURNS-PEC12R"
+      (place E1 1485011 -1287536 front 0)
+    )
+    (component "controller_board:LED-2X-LTST-C155"
+      (place D6 1815011 -1247536 front 270)
+      (place D5 1815011 -1327536 front 270)
+      (place D1 1245011 -1327536 front 270)
+      (place D4 1245011 -1247536 front 270)
+    )
+    (component "controller_board:FTDI-BASIC-SMD"
+      (place JP1 1225011 -812536 front 0)
+    )
+    (component "controller_board:WIRE-TERMINAL-1X2-2.5MM-SMD-AVX-009276002021106"
+      (place B3 1325011 -877536 front 0)
+    )
+    (component "controller_board:SOT23-DBV"
+      (place U1 1485011 -1067536 front 180)
+    )
+    (component "controller_board:ANT-2.4GHZ-6.5X2.2MM"
+      (place A1 1640000 -745000 front 180)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-3]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Route2 6000 0 0)
+        )
+        (shape
+          (circle Route15 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

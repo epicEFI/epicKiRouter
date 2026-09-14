@@ -1,0 +1,87 @@
+(session "interf_u.ses"
+  (base_design "interf_u.dsn")
+  (placement
+    (resolution um 10)
+    (component "interf_u:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal"
+      (place R5 1719580 -420370 front 0)
+      (place R4 1517650 -419100 front 180)
+      (place R3 920750 -571500 front 180)
+      (place R2 1276350 -914400 front 270)
+      (place R1 1174750 -990600 front 90)
+    )
+    (component "interf_u:CP_Axial_L10.0mm_D4.5mm_P15.00mm_Horizontal"
+      (place C6 1593850 -1117600 front 0)
+      (place C1 831850 -838200 front 0)
+      (place C5 869950 -1130300 front 270)
+      (place C4 1706880 -521970 front 180)
+    )
+    (component "interf_u:C_Disc_D3.0mm_W2.0mm_P2.50mm"
+      (place C2 1213050 -914400 front 0)
+      (place C3 1213050 -990600 front 0)
+    )
+    (component "interf_u:PinHeader_2x08_P2.54mm_Vertical"
+      (place JP1 1162050 -1054100 front 270)
+    )
+    (component "interf_u:DIP-20_W7.62mm"
+      (place U1 1517650 -1244600 front 90)
+      (place U2 958850 -1244600 front 90)
+      (place U3 1238250 -1244600 front 90)
+    )
+    (component "interf_u:DIP-32_W15.24mm"
+      (place U5 869950 -762000 front 90)
+    )
+    (component "interf_u:DIP-24_W7.62mm"
+      (place U8 1238250 -1129030 front 90)
+    )
+    (component "interf_u:Crystal_HC18-U_Horizontal"
+      (place X1 1136650 -927100 front 270)
+    )
+    (component "interf_u:LED_D5.0mm"
+      (place D1 1555800 -380600 front 0)
+      (place D2 1657100 -380800 front 0)
+    )
+    (component "interf_u:DSUB-25_Female_Horizontal_P2.77x2.84mm_EdgePinOffset9.90mm_Housed_MountingHolesOffset11.32mm"
+      (place P1 1821000 -724000 front 90)
+    )
+    (component "interf_u:R_Array_SIP10"
+      (place RR1 958850 -1130300 front 0)
+    )
+    (component "interf_u:PGA120"
+      (place U9 1581150 -825500 front 180)
+    )
+    (component "interf_u:BUS_PC"
+      (place BUS1 1314450 -1384300 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.2")
+    )
+    (library_out 
+      (padstack "Via[0-1]_1400:600_um"
+        (shape
+          (circle "top_copper" 14000 0 0)
+        )
+        (shape
+          (circle "bottom_copper" 14000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_1600:600_um"
+        (shape
+          (circle "top_copper" 16000 0 0)
+        )
+        (shape
+          (circle "bottom_copper" 16000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

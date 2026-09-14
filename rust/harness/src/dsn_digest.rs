@@ -266,7 +266,13 @@ pub fn canonical_geometry_text(board: &SesBoard) -> String {
 
 /// Lowercase SHA-256 hex over the UTF-8 canonical text.
 pub fn geometry_sha256(board: &SesBoard) -> String {
-    let digest = Sha256::digest(canonical_geometry_text(board).as_bytes());
+    sha256_hex(canonical_geometry_text(board).as_bytes())
+}
+
+/// Lowercase SHA-256 hex over raw bytes — shared by the digest and the
+/// SES golden capture (cross-check against the oracle's own digest).
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
     let mut hex = String::with_capacity(64);
     for byte in digest {
         hex.push_str(&format!("{byte:02x}"));

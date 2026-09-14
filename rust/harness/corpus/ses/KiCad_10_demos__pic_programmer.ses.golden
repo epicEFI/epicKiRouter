@@ -1,0 +1,133 @@
+(session "pic_programmer.ses"
+  (base_design "pic_programmer.dsn")
+  (placement
+    (resolution um 10)
+    (component "Capacitor_THT:CP_Axial_L18.0mm_D6.5mm_P25.00mm_Horizontal"
+      (place C1 1104900 -788670 front 180)
+      (place C2 845820 -901700 front 0)
+    )
+    (component "MountingHole:MountingHole_4.3mm_M4"
+      (place P101 774700 -1358900 front 0)
+      (place P102 1587500 -1358900 front 0)
+      (place P103 2298700 -1358900 front 0)
+      (place P104 2298700 -444500 front 0)
+      (place P105 1587500 -444500 front 0)
+      (place P106 774700 -444500 front 0)
+    )
+    (component "footprints:40tex-Ell600"
+      (place P3 1752600 -508000 front 0)
+    )
+    (component "Package_DIP:DIP-8_W7.62mm_Socket_LongPads"
+      (place U6 1790700 -1206500 front 0)
+      (place U1 1790700 -1092200 front 0)
+    )
+    (component "Package_DIP:DIP-8_W7.62mm_LongPads"
+      (place U4 1104900 -571500 front 0)
+    )
+    (component "Package_DIP:DIP-28_W7.62mm_Socket_LongPads"
+      (place P2 2076450 -508000 front 0)
+    )
+    (component "Package_DIP:DIP-18_W7.62mm_Socket_LongPads"
+      (place U5 2078990 -1079500 front 0)
+    )
+    (component "Package_DIP:DIP-14_W7.62mm_LongPads"
+      (place U2 1155700 -1193800 front 90)
+    )
+    (component "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal"
+      (place D2 1079500 -1182370 front 180)
+      (place D3 1079500 -1219200 front 180)
+      (place D4 1079500 -1118870 front 180)
+      (place D5 1079500 -1085850 front 180)
+      (place D7 1079500 -1153160 front 180)
+      (place D6 1079500 -1250950 front 180)
+      (place D11 1390650 -806450 front 0)
+    )
+    (component "Connector_Dsub:DSUB-9_Socket_Horizontal_P2.77x2.84mm_EdgePinOffset7.70mm_Housed_MountingHolesOffset9.12mm"
+      (place J1 826000 -1202000 front 270)
+    )
+    (component "footprints:TO-92"
+      (place Q3 1422400 -977900 front 0)
+      (place Q1 1460500 -698500 front 0)
+      (place Q2 1480820 -607060 front 180)
+    )
+    (component "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (place R18 1524000 -685800 front 90)
+      (place R17 1562100 -685800 front 90)
+      (place R12 1352550 -1219200 front 90)
+      (place R11 1400810 -709930 front 90)
+      (place R10 1143000 -482600 front 0)
+      (place R9 1390650 -774700 front 0)
+      (place R1 876300 -1181100 front 0)
+      (place R2 876300 -1145540 front 0)
+      (place R3 876300 -1111250 front 0)
+      (place R4 876300 -1078230 front 0)
+      (place R5 877570 -1254760 front 0)
+      (place R7 1397000 -546100 front 0)
+      (place R6 877570 -1219200 front 0)
+      (place R16 1181100 -751840 front 0)
+      (place R15 1181100 -787400 front 0)
+      (place R14 1390650 -876300 front 0)
+      (place R8 1390650 -910590 front 0)
+      (place R21 1581150 -1022350 front 180)
+      (place R20 1447800 -1022350 front 180)
+      (place R19 1492250 -838200 front 180)
+      (place R13 1403350 -1117600 front 270)
+    )
+    (component "LED_THT:LED_D5.0mm"
+      (place D8 1562100 -774700 front 180)
+      (place D9 1562100 -876300 front 180)
+      (place D12 1562100 -971550 front 180)
+    )
+    (component "Capacitor_THT:C_Disc_D5.1mm_W3.2mm_P5.00mm"
+      (place C4 1143000 -520700 front 0)
+      (place C5 1295400 -495300 front 0)
+      (place C9 1430020 -497840 front 0)
+      (place C7 1987550 -711200 front 270)
+      (place C6 1968500 -1123950 front 270)
+    )
+    (component "Diode_THT:D_DO-35_SOD27_P12.70mm_Horizontal"
+      (place D10 1371600 -571500 front 180)
+      (place D1 783000 -897000 front 90)
+    )
+    (component footprints:RV2X4
+      (place RV1 1276350 -908050 front 180)
+    )
+    (component "TerminalBlock_Altech:Altech_AK300_1x02_P5.00mm_45-Degree"
+      (place P1 818000 -600000 front 270)
+    )
+    (component "Package_TO_SOT_THT:TO-220-3_Horizontal_TabDown"
+      (place U3 965200 -711200 front 0)
+    )
+    (component "Capacitor_THT:C_Axial_L12.0mm_D6.5mm_P20.00mm_Horizontal"
+      (place C3 1341120 -622300 front 270)
+    )
+    (component "Inductor_THT:L_Radial_D7.8mm_P5.00mm_Fastron_07HCP"
+      (place L1 1257300 -622300 front 270)
+    )
+    (component "Jumper:SolderJumper-2_P1.3mm_Open_TrianglePad1.0x1.5mm"
+      (place JP1 1480820 -977900 back 180)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.2")
+    )
+    (library_out 
+      (padstack "Via[0-1]_1600:600_um"
+        (shape
+          (circle "top_layer" 16000 0 0)
+        )
+        (shape
+          (circle "bottom_layer" 16000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

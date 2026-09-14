@@ -81,6 +81,19 @@ pub enum DsnCommand {
         #[arg(long, default_value = "all")]
         set: String,
     },
+    /// Capture the Java oracle's parse→emit SES goldens for tier A+B
+    /// (Task 13 B3): ONE JVM parses each tier fixture and emits its
+    /// session via the jar's SesWriter; the bytes land in
+    /// `harness/corpus/ses/<flattened>.ses.golden` (committed artifacts;
+    /// regenerate only via this subcommand).
+    SesGolden {
+        /// Tier file holding the fixtures_root + tier A/B fixture lists.
+        #[arg(long, default_value = "harness/config/tiers.yaml")]
+        tiers: PathBuf,
+        /// Golden output directory (relative paths resolve under rust/).
+        #[arg(long, default_value = "harness/corpus/ses")]
+        out: PathBuf,
+    },
 }
 
 pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
@@ -95,6 +108,9 @@ pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
             golden,
             set,
         } => compare(&repo_root, &manifest, &golden, &set),
+        DsnCommand::SesGolden { tiers, out } => {
+            crate::ses_compare::golden(&repo_root, &tiers, &out, jvm_xmx)
+        }
     }
 }
 
@@ -260,7 +276,7 @@ fn load_manifest(path: &Path) -> Result<Vec<ManifestEntry>> {
     Ok(entries)
 }
 
-fn resolve_input(repo_root: &Path, given: &Path) -> PathBuf {
+pub(crate) fn resolve_input(repo_root: &Path, given: &Path) -> PathBuf {
     if given.is_absolute() || given.is_file() {
         given.to_path_buf()
     } else {
@@ -275,7 +291,7 @@ fn resolve_input(repo_root: &Path, given: &Path) -> PathBuf {
     }
 }
 
-fn resolve_output(repo_root: &Path, given: &Path) -> PathBuf {
+pub(crate) fn resolve_output(repo_root: &Path, given: &Path) -> PathBuf {
     if given.is_absolute() {
         given.to_path_buf()
     } else {

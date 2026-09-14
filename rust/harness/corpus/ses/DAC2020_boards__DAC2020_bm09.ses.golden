@@ -1,0 +1,132 @@
+(session "DAC2020_bm09.ses"
+  (base_design "DAC2020_bm09.dsn")
+  (placement
+    (resolution um 10)
+    (component picDevBoard:DIL40
+      (place U1 1605204 -1035609 front 270)
+    )
+    (component "picDevBoard:B3F-10XX"
+      (place U2 1605204 -730809 front 0)
+      (place U36 1435024 -1414069 front 180)
+    )
+    (component "picDevBoard:C025-024X044"
+      (place U3 1427404 -1022909 front 270)
+      (place U7 1681404 -743509 front 270)
+      (place U10 1391844 -1279449 front 270)
+      (place U19 1508582 -718109 front 90)
+      (place U20 1539000 -718000 front 270)
+      (place U21 1508582 -661100 front 90)
+      (place U22 1551700 -666600 front 270)
+      (place U28 1605204 -654609 front 0)
+      (place U31 1366444 -1279449 front 270)
+      (place U34 1368984 -1426769 front 270)
+      (place U35 1417244 -1279449 front 270)
+    )
+    (component "picDevBoard:HC49_S"
+      (place U4 1427404 -1111809 front 270)
+    )
+    (component "picDevBoard:C050-024X044"
+      (place U5 1366444 -1086409 front 180)
+      (place U6 1366444 -1134669 front 180)
+      (place U8 1384529 -680009 front 270)
+      (place U13 1338504 -781609 front 0)
+      (place U14 1262304 -992429 front 90)
+      (place U15 1414704 -845109 front 270)
+      (place U16 1262304 -845109 front 270)
+      (place U17 1262304 -921309 front 270)
+    )
+    (component picDevBoard:LED3MM
+      (place U9 1419784 -1345489 front 270)
+      (place U27 1668704 -654609 front 0)
+      (place U30 1374064 -1345489 front 270)
+    )
+    (component picDevBoard:1X06
+      (place U11 1732204 -705409 front 90)
+      (place U24 1538555 -1390294 front 90)
+      (place U25 1716762 -1390091 front 270)
+    )
+    (component picDevBoard:DIL16
+      (place U12 1338504 -908609 front 270)
+    )
+    (component picDevBoard:DB9
+      (place U18 1309447 -1317449 front 90)
+    )
+    (component picDevBoard:317TS
+      (place U23 1430757 -680213 front 90)
+    )
+    (component "picDevBoard:733980-62"
+      (place U26 1289025 -674726 front 180)
+    )
+    (component "picDevBoard:MA03-1"
+      (place U29 1391844 -1226109 front 0)
+    )
+    (component "picDevBoard:MA20-1"
+      (place U32 1478204 -1035609 front 90)
+      (place U33 1732204 -1035609 front 270)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-15]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Route2 6000 0 0)
+        )
+        (shape
+          (circle Route3 6000 0 0)
+        )
+        (shape
+          (circle Route4 6000 0 0)
+        )
+        (shape
+          (circle Route5 6000 0 0)
+        )
+        (shape
+          (circle Route6 6000 0 0)
+        )
+        (shape
+          (circle Route7 6000 0 0)
+        )
+        (shape
+          (circle Route8 6000 0 0)
+        )
+        (shape
+          (circle Route9 6000 0 0)
+        )
+        (shape
+          (circle Route10 6000 0 0)
+        )
+        (shape
+          (circle Route11 6000 0 0)
+        )
+        (shape
+          (circle Route12 6000 0 0)
+        )
+        (shape
+          (circle Route13 6000 0 0)
+        )
+        (shape
+          (circle Route14 6000 0 0)
+        )
+        (shape
+          (circle Route15 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

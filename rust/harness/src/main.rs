@@ -15,6 +15,8 @@ mod dsn_corpus;
 mod dsn_digest;
 mod manifest;
 mod oracle;
+// SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
+mod ses_compare;
 mod tiers;
 
 use baseline::BaselineRecord;
