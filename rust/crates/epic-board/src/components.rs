@@ -122,6 +122,13 @@ pub struct BoardPadstack {
     pub drillable: bool,
     /// Java `Padstack.placed_absolute`.
     pub placed_absolute: bool,
+    /// Java `Padstack.holeOnly` (`Padstack.java:41`) — a PUBLIC field
+    /// with NO writer anywhere in the Java main tree (verified by grep:
+    /// only the declaration exists), so it is `false` for every parsed
+    /// board; [`crate::tree_shapes`] reads it for the
+    /// `drillHoleClearanceDelta` copper-radius arm
+    /// (`ShapeSearchTree.java:1055-1057`).
+    pub hole_only: bool,
 }
 
 impl BoardPadstack {
@@ -157,6 +164,98 @@ impl BoardPadstack {
     pub fn get_shape(&self, index: usize) -> Option<&BoardShape> {
         self.shapes.get(index).and_then(Option::as_ref)
     }
+
+    /// Java `Padstack.getSmallestRadius()` (`Padstack.java:114-125`): the
+    /// minimum of `min(bbox.width, bbox.height) / 2` over the NON-NULL
+    /// shapes (all layers), `0.0` when every slot is null
+    /// (`Double.MAX_VALUE` sentinel kept unreturned).
+    #[must_use]
+    pub fn smallest_radius(&self) -> f64 {
+        let mut min_radius = f64::MAX;
+        for shape in self.shapes.iter().flatten() {
+            let bounds = shape.bounding_box();
+            let radius = f64::from(bounds.width().min(bounds.height())) / 2.0;
+            if radius < min_radius {
+                min_radius = radius;
+            }
+        }
+        if min_radius == f64::MAX {
+            0.0
+        } else {
+            min_radius
+        }
+    }
+
+    /// Java `Padstack.getDrillRadius()` (`Padstack.java:72-112`): the
+    /// drill radius in BOARD UNITS, parsed from the padstack NAME when it
+    /// carries the `..._<outer>:<drill>_...` KiCad pattern —
+    ///
+    /// * `drillStr` = the substring after `:` up to the next `_` (or the
+    ///   name end), stripped of everything but digits and `.`,
+    /// * `outerStr` = the substring between the LAST `_` BEFORE the colon
+    ///   and the colon, stripped the same way,
+    /// * success (`outerDia > 0` AND `smallestRadius > 0`) returns
+    ///   `smallestRadius * drillDia / outerDia` — the ratio is unit-free,
+    ///   so the resolution-scaled shapes give the board-unit radius,
+    /// * every other path (no colon, unparseable numbers, zero radius)
+    ///   falls through to `smallestRadius * 0.45`.
+    ///
+    /// DIVERGENCE (cache artifact, unobservable): Java memoizes into
+    /// `cachedDrillRadius` (`:44`, written at `:87-89`/`:108-110` before
+    /// any value-dependent branch); the port recomputes per call — same
+    /// value every time, no branch reads the cache.
+    ///
+    /// Captured pins (TreeShapesSpike against the frozen jar,
+    /// `/tmp/epic-t6-treeshapes*.out`): `Via[0-1]_600:300_um` (circle
+    /// r=3000) -> 1500.0; `Via[0-3]_450:250_um` (r=2250) -> 1250.0;
+    /// `Round[A]Pad_1700_um` (r=8500) -> 3825.0; `Rect[T]Pad_
+    /// 2650x1000_um` (box 26500x10000) -> 2250.0; the synthetic
+    /// `spike_hole_600:300` (r=3000) -> 1500.0.
+    #[must_use]
+    pub fn drill_radius(&self) -> f64 {
+        if let Some(colon_index) = self.name.find(':') {
+            // drillStr: after the colon up to the next '_' (or the name
+            // end) — `name.indexOf('_', colonIndex)` with the
+            // `underscoreIndex > colonIndex` condition.
+            let after_colon = &self.name[colon_index + 1..];
+            let drill_part = match after_colon.split_once('_') {
+                Some((before, _)) => before,
+                None => after_colon,
+            };
+            if let Some(drill_dia) = parse_name_number(drill_part) {
+                // The outer diameter: between the LAST '_' before the
+                // colon and the colon (`name.lastIndexOf('_', colonIndex)`
+                // — Java searches [0, colonIndex), so an underscore AT
+                // the colon position is impossible anyway). `> 0`
+                // guards both numbers (Java `:101-104`).
+                let outer_dia = self.name[..colon_index]
+                    .rfind('_')
+                    .and_then(|last_underscore| {
+                        parse_name_number(&self.name[last_underscore + 1..colon_index])
+                    })
+                    .filter(|&dia| dia > 0.0);
+                if let Some(outer_dia) = outer_dia {
+                    let outer_radius = self.smallest_radius();
+                    if outer_radius > 0.0 {
+                        return outer_radius * (drill_dia / outer_dia);
+                    }
+                }
+            }
+        }
+        self.smallest_radius() * 0.45
+    }
+}
+
+/// The `replaceAll("[^0-9.]", "")` + `Double.parseDouble` pair of
+/// `Padstack.getDrillRadius` (`Padstack.java:83-95`): `None` is Java's
+/// `NumberFormatException` (an empty or multi-dot string), which the
+/// caller turns into the `0.45` fallback.
+fn parse_name_number(raw: &str) -> Option<f64> {
+    let stripped: String = raw
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    stripped.parse::<f64>().ok()
 }
 
 /// Java `Package.Pin` (`core/library/Package.java`: `name`,
@@ -248,6 +347,10 @@ impl BoardLibrary {
                         .collect(),
                     drillable: padstack.drillable,
                     placed_absolute: padstack.placed_absolute,
+                    // The IR carries no hole-only flag — Java's field is
+                    // never written by the parse either (module docs of
+                    // the field).
+                    hole_only: false,
                 })
                 .collect(),
             packages: packages
@@ -1102,6 +1205,7 @@ mod tests {
                 ],
                 drillable: false,
                 placed_absolute: false,
+                hole_only: false,
             }],
             packages: vec![BoardPackage {
                 name: "PKG".to_string(),
@@ -1236,6 +1340,7 @@ mod tests {
                 ],
                 drillable: false,
                 placed_absolute: false,
+                hole_only: false,
             }],
             packages: vec![BoardPackage {
                 name: "spike_pkg".to_string(),
@@ -1525,6 +1630,7 @@ mod tests {
                 ],
                 drillable: false,
                 placed_absolute: false,
+                hole_only: false,
             }],
             packages: vec![BoardPackage {
                 name: "spike_ml_pkg".to_string(),

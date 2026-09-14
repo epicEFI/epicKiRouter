@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 epic-dsn = { path = "../epic-dsn" }
 epic-geometry = { path = "../epic-geometry" }
+epic-index = { path = "../epic-index" }
 
 [lints]
 workspace = true

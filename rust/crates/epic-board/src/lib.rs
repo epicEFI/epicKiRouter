@@ -15,7 +15,12 @@
 //! board-side `LayerStructure` — exact `getNo`, no parser fallback),
 //! and [`components`] (placements with the T68 `rotate` trap, the
 //! library mirror, and pin placement resolution jar-pinned by
-//! `rust/harness/oracle/PinResolutionSpike.java`).
+//! `rust/harness/oracle/PinResolutionSpike.java`). Task 6 adds the
+//! search-tree surface: [`tree_shapes`] (the T54 compensation and
+//! T55 drill-hole inflation feeding a tree's per-item shapes,
+//! jar-pinned by `rust/harness/oracle/TreeShapesSpike.java`) and
+//! [`tree_manager`] (the tree set and the insert/remove/rebuild
+//! broadcast, T58/T59).
 
 pub mod board;
 pub mod components;
@@ -23,4 +28,6 @@ pub mod id;
 pub mod items;
 pub mod layers;
 pub mod rules_surf;
+pub mod tree_manager;
+pub mod tree_shapes;
 pub mod undo;

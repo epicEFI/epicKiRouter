@@ -34,10 +34,12 @@ pub mod pin;
 pub mod trace;
 
 use epic_geometry::circle::Circle;
+use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
 use epic_geometry::polygon_shape::PolygonShape;
 use epic_geometry::polyline::Polyline;
+use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
 
 /// Java `BoardItemType` (`board/model/items/BoardItemType.java`) —
@@ -161,6 +163,59 @@ impl BoardShape {
             BoardShape::Circle(circle) => circle.bounding_box(),
         }
     }
+
+    /// Java `Shape.boundingOctagon()` over the arms (M2 Task 6: the
+    /// FORTYFIVE drill dispatch and the 45-degree tree insert hull).
+    /// `IntBox.boundingOctagon` = `toIntOctagon()` (cut-corner octagon,
+    /// `IntBox.java:252-254`); `None` is Java's null (an unbounded
+    /// Simplex only — never reachable from a padstack shape).
+    #[must_use]
+    pub fn bounding_octagon(&self) -> Option<TileShape> {
+        let octagon = match self {
+            BoardShape::Tile(tile) => return tile.bounding_octagon().map(octagon_tile),
+            BoardShape::PolygonShape(polygon) => polygon.bounding_octagon(),
+            BoardShape::Circle(circle) => circle.bounding_octagon(),
+        };
+        Some(octagon_tile(octagon))
+    }
+
+    /// Java `Shape.boundingTile()` over the arms (the no-restriction
+    /// drill dispatch arm).
+    #[must_use]
+    pub fn bounding_tile(&self) -> TileShape {
+        match self {
+            BoardShape::Tile(tile) => tile.bounding_tile(),
+            BoardShape::PolygonShape(polygon) => polygon.bounding_tile(),
+            BoardShape::Circle(circle) => circle.bounding_tile(),
+        }
+    }
+
+    /// Java `Shape.borderDistance(FloatPoint)` over the arms — the
+    /// copper-radius input of `drillHoleClearanceDelta`
+    /// (`ShapeSearchTree.java:1058`).
+    ///
+    /// QUIRK PORTED VERBATIM: `PolygonShape.borderDistance` is NOT
+    /// IMPLEMENTED in Java — it logs "not yet implemented" and returns
+    /// 0 (`PolygonShape.java:184-187`), which the delta caller then
+    /// treats as `copperRadius <= 0` and re-reads the raw padstack
+    /// shape. `PolygonShape` is not a `ConvexShape`, so a PADSTACK
+    /// shape can never be one (the parse census confirms: pad shapes
+    /// arrive as Circle/IntBox/IntOctagon only) — the arm exists for
+    /// the OTHER item kinds' shapes (obstacle areas, Task 7).
+    #[must_use]
+    pub fn border_distance(&self, point: &FloatPoint) -> f64 {
+        match self {
+            BoardShape::Tile(tile) => tile.border_distance(point),
+            BoardShape::PolygonShape(_polygon) => 0.0,
+            BoardShape::Circle(circle) => circle.border_distance(point),
+        }
+    }
+}
+
+/// Wraps an [`IntOctagon`] as the [`TileShape`] the Java
+/// `boundingOctagon()` sites assign into their `TileShape` locals.
+fn octagon_tile(octagon: epic_geometry::int_octagon::IntOctagon) -> TileShape {
+    TileShape::RegularTileShape(RegularTileShape::IntOctagon(octagon))
 }
 
 /// The per-kind payload of a board item — one variant per

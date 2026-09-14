@@ -160,6 +160,7 @@ version = "0.1.0"
 dependencies = [
  "epic-dsn",
  "epic-geometry",
+ "epic-index",
 ]
 
 [[package]]

@@ -89,6 +89,16 @@ impl AngleRestriction {
     }
 }
 
+/// Java `ClearanceMatrix.clearance_safety_margin` (`:17`) — added by
+/// `getValue(..., addSafetyMargin = true)` ONLY. Every Task 6 tree path
+/// passes `false` (`ShapeSearchTree.clearanceCompensationValue` `:110`,
+/// `drillHoleClearanceDelta` `:1071-1073`); the `true` form is the
+/// WithClearance query (Task 8). Captured on the Task 6 fixtures
+/// (`MARGIN` lines, `/tmp/epic-t6-treeshapes.out` and
+/// `/tmp/epic-t6-treeshapes-1bitsy.out`): Issue575 `v1.1.l0` no=2000
+/// with=2016, 1Bitsy no=1490 with=1506.
+pub const CLEARANCE_SAFETY_MARGIN: i32 = 16;
+
 /// Java `rules.ClearanceMatrix` — the NxN-per-layer spacing table.
 ///
 /// Storage `values[layer][j][i]` (module docs, T54). All values are EVEN
@@ -162,6 +172,23 @@ impl ClearanceMatrix {
     /// and returns 0, `:133-161`).
     #[must_use]
     pub fn get_value(&self, class_i: i32, class_j: i32, layer: i32) -> i32 {
+        self.get_value_opt(class_i, class_j, layer, false)
+    }
+
+    /// Java `getValue(classI, classJ, layer, addSafetyMargin)` in full
+    /// (`:131-201`). The safety margin is added to the IN-BOUNDS read
+    /// only: the out-of-bounds branch (`:133-161`) early-returns 0
+    /// BEFORE the margin add, so an out-of-bounds query stays 0, never
+    /// [`CLEARANCE_SAFETY_MARGIN`] — a port folding the margin into the
+    /// `unwrap_or(0)` chain would return 16 there.
+    #[must_use]
+    pub fn get_value_opt(
+        &self,
+        class_i: i32,
+        class_j: i32,
+        layer: i32,
+        add_safety_margin: bool,
+    ) -> i32 {
         let (Ok(i), Ok(j), Ok(l)) = (
             usize::try_from(class_i),
             usize::try_from(class_j),
@@ -174,6 +201,13 @@ impl ClearanceMatrix {
             .and_then(|per_layer| per_layer.get(j))
             .and_then(|row| row.get(i))
             .copied()
+            .map(|value| {
+                if add_safety_margin {
+                    value + CLEARANCE_SAFETY_MARGIN
+                } else {
+                    value
+                }
+            })
             .unwrap_or(0)
     }
 
@@ -317,6 +351,15 @@ impl ClearanceMatrix {
         matrix
     }
 }
+
+/// Java `BoardRules.default_clearance_class` (`BoardRules.java:64-66`)
+/// — always class 1. The tree-side consumers are the
+/// `ShapeSearchTree` port: the compensated-tree class choice
+/// (`SearchTreeManager.setClearanceCompensationUsed`, value ? 1 : 0)
+/// and `drillHoleClearanceDelta`'s class-0-tree fallback
+/// (`ShapeSearchTree.java:1065-1067`,
+/// `clearanceClass = treeClass > 0 ? treeClass : defaultClearanceClass()`).
+pub const DEFAULT_CLEARANCE_CLASS: i32 = 1;
 
 /// Java `Nets.max_legal_net_number` (`Nets.java:16`).
 pub const MAX_LEGAL_NET_NUMBER: i32 = 9_999_999;
@@ -757,6 +800,30 @@ mod tests {
             5,
             "(9+1)/2 = 5 — value/2 would give 4"
         );
+    }
+
+    /// `ClearanceMatrix.java:131-201` + `:17`: the safety margin lands on
+    /// the IN-BOUNDS read only. Captured `MARGIN` lines from the Task 6
+    /// jar spike (TreeShapesSpike.java against the frozen jar):
+    /// Issue575 `/tmp/epic-t6-treeshapes.out` — `v1.1.l0 no=2000
+    /// with=2016`; 1Bitsy `/tmp/epic-t6-treeshapes-1bitsy.out` —
+    /// `no=1490 with=1506`. The out-of-bounds forms pin the
+    /// early-return-BEFORE-margin order: an implementation that folds
+    /// the margin into the bounds-check fallback returns 16, not 0.
+    #[test]
+    fn safety_margin_adds_only_to_in_bounds_reads() {
+        let mut matrix = matrix_3x2();
+        matrix.set_value(1, 1, 0, 2000); // Issue575 v1.1
+        matrix.set_value(1, 1, 1, 1490); // 1Bitsy v1.1
+        assert_eq!(matrix.get_value(1, 1, 0), 2000, "no=2000");
+        assert_eq!(matrix.get_value_opt(1, 1, 0, true), 2016, "with=2016");
+        assert_eq!(matrix.get_value_opt(1, 1, 1, true), 1506, "with=1506");
+        // Out of bounds: class, then layer — 0 both with and without the
+        // margin (the `:133-161` early return precedes the `:185-186`
+        // margin add).
+        assert_eq!(matrix.get_value_opt(4, 1, 0, true), 0, "class OOB stays 0");
+        assert_eq!(matrix.get_value_opt(1, -1, 0, true), 0, "negative class 0");
+        assert_eq!(matrix.get_value_opt(1, 1, 9, true), 0, "layer OOB stays 0");
     }
 
     /// `ClearanceMatrix.java:207-213` + `:116`: `maxValue(class, layer)`

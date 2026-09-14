@@ -200,6 +200,7 @@ mod tests {
                 shapes: vec![None, Some(box_shape(-1000, -1000, 5000, 1000))],
                 drillable: true,
                 placed_absolute: false,
+                hole_only: false,
             }],
             packages: vec![BoardPackage {
                 name: "spike_partial_pkg".to_string(),
@@ -322,6 +323,7 @@ mod tests {
                 ],
                 drillable: true,
                 placed_absolute: false,
+                hole_only: false,
             }],
             ..library
         };
@@ -371,6 +373,7 @@ mod tests {
                 ],
                 drillable: true,
                 placed_absolute: false,
+                hole_only: false,
             }],
             ..BoardLibrary::default()
         };
@@ -393,6 +396,7 @@ mod tests {
                 shapes: vec![None],
                 drillable: true,
                 placed_absolute: false,
+                hole_only: false,
             }],
             ..BoardLibrary::default()
         };

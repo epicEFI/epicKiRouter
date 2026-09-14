@@ -208,6 +208,15 @@ impl Board {
         &self.rules
     }
 
+    /// The mutable seam onto `board.rules` — Java's `rules` is a
+    /// mutable object the settings flows write through (e.g.
+    /// `setHoleClearance` on the T55 drill-inflation path,
+    /// `BoardRules.java:104-110`); the port's field is private, so the
+    /// write side goes through here.
+    pub fn rules_mut(&mut self) -> &mut BoardRules {
+        &mut self.rules
+    }
+
     /// Java `board.layerStructure`.
     #[must_use]
     pub fn layers(&self) -> &LayerStructure {
@@ -224,6 +233,15 @@ impl Board {
     #[must_use]
     pub fn library(&self) -> &BoardLibrary {
         &self.library
+    }
+
+    /// The mutable seam onto `board.library` — Java's `library` is a
+    /// mutable object the board flows append to (`Padstacks.add` at
+    /// via-insertion time, `RoutingBoard.insertVia`);
+    /// [`crate::tree_shapes`] tests insert synthetic padstacks through
+    /// it the same way the Task 6 jar spike did through the Java API.
+    pub fn library_mut(&mut self) -> &mut BoardLibrary {
+        &mut self.library
     }
 
     /// Java `board.boundingBox` (`BasicBoard.java:91`) — the outline
@@ -308,6 +326,119 @@ impl Board {
             precalc.first_layer = None;
             precalc.last_layer = None;
         }
+    }
+
+    /// Java `Item.setOnTheBoard(boolean)` (`Item.java:63-64`): the raw
+    /// flag write the search-tree manager performs after broadcasting
+    /// an insert/remove (`SearchTreeManager.java:43` / `:61`).
+    pub fn set_on_the_board(&mut self, id: ItemId, value: bool) {
+        if let Some(entry) = self.items.get_mut(&Reverse(id)) {
+            entry.on_the_board = value;
+        }
+    }
+
+    /// Java `Item.isOnTheBoard()`.
+    #[must_use]
+    pub fn is_on_the_board(&self, id: ItemId) -> bool {
+        self.items
+            .get(&Reverse(id))
+            .is_some_and(|entry| entry.on_the_board)
+    }
+
+    /// Java `Item.clearanceClassIndex()` — the tree-compensation input
+    /// (`ShapeSearchTree.clearanceCompensationValue`'s first argument).
+    #[must_use]
+    pub fn item_clearance_class(&self, id: ItemId) -> Option<i32> {
+        self.get(id).map(|entry| entry.clearance_class)
+    }
+
+    /// Java `DrillItem.getPadstack()` — the padstack of a pin or via
+    /// (`None` for a non-drill item or an unresolvable padstack number).
+    #[must_use]
+    pub fn drill_padstack(&self, id: ItemId) -> Option<&crate::components::BoardPadstack> {
+        let entry = self.get(id)?;
+        let padstack_no = match &entry.data {
+            ItemData::Via { padstack_no, .. } | ItemData::Pin { padstack_no, .. } => *padstack_no,
+            _ => return None,
+        };
+        self.library.padstack(padstack_no)
+    }
+
+    /// Java `DrillItem.getCenter()` — the via's stored center or the
+    /// pin's placement-resolved center (`None` for a non-drill item or
+    /// an unresolvable pin).
+    #[must_use]
+    pub fn drill_center(&self, id: ItemId) -> Option<Point> {
+        let entry = self.get(id)?;
+        match &entry.data {
+            ItemData::Via { center, .. } => Some(Point::Int(*center)),
+            ItemData::Pin { pin_index, .. } => {
+                let component_id = u32::try_from(entry.component_id).ok()?;
+                pin_center(&self.components, &self.library, component_id, *pin_index)
+            }
+            _ => None,
+        }
+    }
+
+    /// Java `DrillItem.getShape(index)` dispatched per kind: a via
+    /// translates the raw padstack shape by its center
+    /// ([`crate::items::drill::via_shape`]); a pin runs the full
+    /// placement-resolution chain ([`crate::components::pin_shape`]).
+    /// `None` = Java's null entry (a copper-less padstack layer).
+    #[must_use]
+    pub fn drill_shape(&self, id: ItemId, index: i32) -> Option<BoardShape> {
+        let entry = self.get(id)?;
+        match &entry.data {
+            ItemData::Via {
+                center,
+                padstack_no,
+                ..
+            } => {
+                crate::items::drill::via_shape(self.library.padstack(*padstack_no)?, *center, index)
+            }
+            ItemData::Pin { pin_index, .. } => {
+                let component_id = u32::try_from(entry.component_id).ok()?;
+                crate::components::pin_shape(
+                    &self.components,
+                    &self.library,
+                    component_id,
+                    *pin_index,
+                    index,
+                )
+            }
+            _ => None,
+        }
+    }
+
+    /// Java `DrillItem.shapeLayer(index)` (`DrillItem.java:145-152`):
+    /// `min(index, lastLayer - firstLayer) + firstLayer` — the clamp is
+    /// against the ITEM span (memoized like Java's
+    /// `firstLayer()`/`lastLayer()` calls; for a back-side pin this is
+    /// NOT the padstack span).
+    pub fn drill_shape_layer(&mut self, id: ItemId, index: i32) -> Option<i32> {
+        let first = self.drill_first_layer(id)?;
+        let last = self.drill_last_layer(id)?;
+        Some(first + index.min(last - first))
+    }
+
+    /// Java `DrillItem.tileShapeCount()` (`DrillItem.java:202-208`) —
+    /// the PADSTACK span (`toLayer - fromLayer + 1`), deliberately not
+    /// the item span (a back-side pin's span is mirrored).
+    #[must_use]
+    pub fn drill_tile_shape_count(&self, id: ItemId) -> Option<i32> {
+        Some(crate::items::drill::drill_tile_shape_count(
+            self.drill_padstack(id)?,
+        ))
+    }
+
+    /// Crate-internal seam onto the drill-span memo — the white-box
+    /// test channel for the [`Board::clear_derived_data`] staleness
+    /// contract (Java's `precalculatedFirstLayer`/`LastLayer` are
+    /// package-private fields the Java tests poison directly; no
+    /// production caller may use this).
+    #[cfg(test)]
+    pub(crate) fn drill_precalc_mut(&mut self, id: ItemId) -> Option<&mut DrillPrecalc> {
+        self.drill_precalc.get_mut(&id)
     }
 
     /// The fresh-computation half of [`Board::drill_first_layer`].
@@ -1084,6 +1215,7 @@ mod tests {
                 ],
                 drillable: true,
                 placed_absolute: false,
+                hole_only: false,
             }],
             ..BoardLibrary::default()
         };
