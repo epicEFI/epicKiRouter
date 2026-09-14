@@ -12,10 +12,9 @@
 //! IR, the five scope readers, the board transforms and the T44
 //! bug-compatible bounding boxes. [`sink`] introduces the `BoardSink`
 //! seam (D9) and [`ses_board`] the parse-derivable mini board model the
-//! scope readers of Tasks 5-9 emit through; [`write_scope`] seeds the
-//! Task 13 SES writer with the T38 identifier rule. Scope readers
-//! (`readScope` dispatch, wiring/rules/network readers) land in later M1b
-//! tasks.
+//! scope readers of Tasks 5-9 emit through; [`write_scope`] holds the
+//! T38 identifier rule + the emission core and [`ses::writer`] the full
+//! Task 13 `SesWriter` port (session emission from a parse-time board).
 
 pub mod coordinate_transform;
 pub mod keyword;
@@ -23,6 +22,7 @@ pub mod layer_structure;
 pub mod lexer;
 pub mod reader;
 pub mod scope;
+pub mod ses;
 pub mod ses_board;
 pub mod shape;
 pub mod sink;
