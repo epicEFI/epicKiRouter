@@ -171,6 +171,44 @@ pub(crate) fn read_string_scope(scanner: &mut Scanner) -> String {
     result
 }
 
+/// Java `DsnFile.readIntegerScope` (`DsnFile.java:131-154`): a strict
+/// Integer then the closing bracket; 0 on either mismatch. NOTE: the
+/// non-bracket token is CONSUMED AND DISCARDED (no drain-to-bracket
+/// here).
+pub(crate) fn read_integer_scope(scanner: &mut Scanner) -> i32 {
+    let value = match scanner.next_token() {
+        Token::Int(value) => value,
+        // Java: warn "DsnFile.read_integer_scope: number expected at
+        // '<id>'" (log-only).
+        _ => return 0,
+    };
+    if scanner.next_token() != Token::Close {
+        // Java: warn "DsnFile.read_integer_scope: closing bracket expected
+        // at '<id>'" (log-only).
+        return 0;
+    }
+    value
+}
+
+/// Java `DsnFile.readFloatScope` (`DsnFile.java:159-182`): a Double OR an
+/// Integer (widened) then the closing bracket; 0.0 on mismatch — again
+/// WITHOUT a drain loop.
+pub(crate) fn read_float_scope(scanner: &mut Scanner) -> f64 {
+    let value = match scanner.next_token() {
+        Token::Double(value) => value,
+        Token::Int(value) => f64::from(value),
+        // Java: warn "DsnFile.read_float_scope: number expected at '<id>'"
+        // (log-only).
+        _ => return 0.0,
+    };
+    if scanner.next_token() != Token::Close {
+        // Java: warn "DsnFile.read_float_scope: closing bracket expected at
+        // '<id>'" (log-only).
+        return 0.0;
+    }
+    value
+}
+
 /// Java `Structure.addBoundaryShape` (`:306-325`): path shapes
 /// (`PolylinePath`/`PolygonPath`) are outline shapes on ANY layer; a
 /// pcb-layer shape becomes the bounding shape (only the FIRST — later pcb

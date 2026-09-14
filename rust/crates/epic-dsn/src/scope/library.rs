@@ -1003,10 +1003,6 @@ mod tests {
         let mut scanner = Scanner::new(input);
         assert!(read_library_scope(&mut scanner, &mut state, &mut board));
         assert_eq!(board.padstacks.len(), 7, "dupl.1 deduped, EMPTYSH skipped");
-        assert!(
-            board.warnings.is_empty(),
-            "jar WARN_COUNT 0 despite 3 warns"
-        );
         assert!(board.packages.is_empty(), "no images here");
 
         let names: Vec<&str> = board.padstacks.iter().map(|p| p.name.as_str()).collect();
@@ -1373,7 +1369,6 @@ mod tests {
             slot_box(&board.padstacks[0].shapes[1]),
             (-1000, -1000, 1000, 1000)
         );
-        assert!(board.warnings.is_empty(), "FRLogger warns are log-only");
     }
 
     /// Jar `/tmp/epic-t8-partb.out` t8-pcpath: `(shape (polyline_path ...))`

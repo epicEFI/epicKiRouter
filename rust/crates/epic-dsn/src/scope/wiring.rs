@@ -68,7 +68,7 @@
 //! ## Documented divergences
 //!
 //! - Java NPEs (`board.rules` `:437`, `board.library.padstacks` `:660`,
-//!   a null `PolylinePath.layer` `:464`, a null transform) escape
+//!   a null `PolylinePath.layer` `:453`, a null transform) escape
 //!   `readBoard` UNCAUGHT — jar stack traces in
 //!   `/tmp/epic-t9-{fresh,cfk}.out`. The Rust port classifies them as
 //!   read failures (`false`), which surface as `OutlineMissing` or
@@ -231,7 +231,7 @@ fn read_wire_scope(
                     }
                 }
                 Some(Token::Keyword(Keyword::Net)) => {
-                    net_id = read_net_id(scanner);
+                    net_id = Some(read_net_id(scanner));
                 }
                 Some(Token::Keyword(Keyword::ClearanceClass)) => {
                     clearance_class_name = Some(read_string_scope(scanner));
@@ -262,7 +262,7 @@ fn read_wire_scope(
     if !sink.has_board() {
         return false;
     }
-    // `:455`/:483/:506/:553 use the transform; None only before
+    // `:454`/:483/:497/:556/:559 use the transform; None only before
     // create_board (same condition as the board guard).
     let Some(transform) = state.coordinate_transform else {
         return false;
@@ -298,7 +298,8 @@ fn read_wire_scope(
             layer_name = polygon_path.layer.name.clone();
         }
         Some(Shape::PolylinePath(polyline_path)) => {
-            // `:464` `path.layer.no` NPEs on a null layer (module docs).
+            // `:453` `layerIndex = path.layer.no` NPEs on a null layer
+            // (module docs).
             let Some(layer) = &polyline_path.layer else {
                 return false;
             };
@@ -496,7 +497,7 @@ fn read_via_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
         if prev_token == Some(Token::Open) {
             match next_token {
                 Some(Token::Keyword(Keyword::Net)) => {
-                    net_id = read_net_id(scanner);
+                    net_id = Some(read_net_id(scanner));
                 }
                 Some(Token::Keyword(Keyword::ClearanceClass)) => {
                     clearance_class_name = Some(read_string_scope(scanner));
@@ -617,11 +618,13 @@ fn calc_fixed(scanner: &mut Scanner) -> FixedStateIr {
 /// Java `Wiring.readNetId` (`:281-305`): the net name, an optional
 /// positional subnet integer (default 0), then the closing bracket. A
 /// non-close token only logs (log-only warn); the Id is returned either
-/// way. `None` mirrors the IOException catch (Java null).
-fn read_net_id(scanner: &mut Scanner) -> Option<NetId> {
-    // `Scanner.nextString` returns "" on stream failure (the Java catch
-    // maps IOException to null; the port carries an empty name through
-    // the same path).
+/// way. The Task-5 scanner fold routes stream failure to an EMPTY name —
+/// the port's IOException-substitute for Java's null (the catch maps the
+/// exception to null; the port carries `""` through the same path) — so
+/// the return is the bare [`NetId`], never absent. Theoretical edge,
+/// unreachable today: Java's null id suppresses the downstream "net not
+/// found" warning, while the Rust `""`-id could emit one.
+fn read_net_id(scanner: &mut Scanner) -> NetId {
     let net_name = scanner.next_string();
     scanner.set_scope_identifier(&net_name);
     let mut subnet_number = 0i32;
@@ -633,10 +636,10 @@ fn read_net_id(scanner: &mut Scanner) -> Option<NetId> {
     if next_token != Token::Close {
         // log-only "Wiring.read_net_id: closing bracket expected".
     }
-    Some(NetId {
+    NetId {
         name: net_name,
         subnet_number,
-    })
+    }
 }
 
 /// Java `Wiring.getSubnets` (`:223-236`): no id → empty; a positive
@@ -669,8 +672,10 @@ fn net_class_item_clearance(
         .unwrap_or_else(|| item_class.default_clearance_class())
 }
 
-/// `insertTraceWithoutCleaning` — the sink owns the drop guards
-/// (sub-2-corner polylines and closed low-fixed loops drop without an id).
+/// `insertTraceWithoutCleaning` — the sink owns the drop guards:
+/// sub-2-corner polylines drop without an id; closed low-fixed loops
+/// drop but still burn one (the guard fires after the `Item` ctor,
+/// `BasicBoard.java:183-201` / `Item.java:86-89`).
 fn insert_trace(
     sink: &mut dyn BoardSink,
     polyline: &Polyline,

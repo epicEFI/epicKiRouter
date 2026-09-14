@@ -1401,9 +1401,17 @@ pub trait BoardSink {
     /// item and returns its board id.
     fn insert_conduction_area(&mut self, area: ConductionAreaIr) -> i32;
 
-    /// Java `insertTraceWithoutCleaning` (`Wiring.java:534`, `:564`):
-    /// appends the trace item and returns its board id. NO normalization,
-    /// NO endpoint cleaning (D11).
+    /// Java `insertTraceWithoutCleaning` (`Wiring.java:534`, `:564`; the
+    /// guard body `BasicBoard.java:183-201`): appends the trace item and
+    /// returns its board id. NO normalization, NO endpoint cleaning (D11).
+    /// Two drop guards with DIFFERENT id semantics, both returning the 0
+    /// "not inserted" sentinel: a sub-2-corner polyline returns null
+    /// BEFORE the `Item` is constructed — no id burned; a CLOSED (first
+    /// == last corner) trace fixed below USER_FIXED returns null AFTER
+    /// construction — the `Item` constructor (`Item.java:86-89`) already
+    /// consumed an id, so the id stays burned with no stored item.
+    /// BoardSink is the M2 seam: an epic-board implementation MUST
+    /// reproduce this asymmetry.
     fn insert_trace(&mut self, trace: TraceIr) -> i32;
 
     /// Java `insertVia` (`Wiring.java:706`): appends the via item and

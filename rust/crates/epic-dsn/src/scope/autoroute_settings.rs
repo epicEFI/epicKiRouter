@@ -34,7 +34,7 @@
 use crate::keyword::{Keyword, skip_scope};
 use crate::layer_structure::LayerStructure;
 use crate::lexer::{LexicalState, Scanner, Token};
-use crate::scope::structure::read_on_off_scope;
+use crate::scope::structure::{read_float_scope, read_integer_scope, read_on_off_scope};
 
 /// One layer's rule slice: the observable `RouterSettings` layer getters
 /// (`getLayerActive`, `getPreferredDirectionIsHorizontal`,
@@ -247,43 +247,6 @@ fn read_layer_rule(
         prev_token = Some(next_token);
     }
     Some(())
-}
-
-/// Java `DsnFile.readIntegerScope` (`:131-154`): a strict Integer then the
-/// closing bracket; 0 on either mismatch. NOTE: the non-bracket token is
-/// CONSUMED AND DISCARDED (no drain-to-bracket here).
-fn read_integer_scope(scanner: &mut Scanner) -> i32 {
-    let value = match scanner.next_token() {
-        Token::Int(value) => value,
-        // Java: warn "DsnFile.read_integer_scope: number expected at
-        // '<id>'" (log-only).
-        _ => return 0,
-    };
-    if scanner.next_token() != Token::Close {
-        // Java: warn "DsnFile.read_integer_scope: closing bracket expected
-        // at '<id>'" (log-only).
-        return 0;
-    }
-    value
-}
-
-/// Java `DsnFile.readFloatScope` (`:159-182`): a Double OR an Integer
-/// (widened) then the closing bracket; 0.0 on mismatch — again WITHOUT a
-/// drain loop.
-fn read_float_scope(scanner: &mut Scanner) -> f64 {
-    let value = match scanner.next_token() {
-        Token::Double(value) => value,
-        Token::Int(value) => f64::from(value),
-        // Java: warn "DsnFile.read_float_scope: number expected at '<id>'"
-        // (log-only).
-        _ => return 0.0,
-    };
-    if scanner.next_token() != Token::Close {
-        // Java: warn "DsnFile.read_float_scope: closing bracket expected at
-        // '<id>'" (log-only).
-        return 0.0;
-    }
-    value
 }
 
 #[cfg(test)]

@@ -227,8 +227,6 @@ pub struct SesBoard {
     /// The items in ASCENDING id (parse) order; descending-id consumers
     /// walk `.iter().rev()` (T39).
     pub items: Vec<ItemIr>,
-    /// Exact parity warnings (D12: the digest digit-normalizes).
-    pub warnings: Vec<String>,
     /// The id the NEXT inserted item gets (starts at 1; mirrors
     /// `ItemIdGenerator.lastGeneratedId + 1`).
     next_item_id: i32,
@@ -308,7 +306,6 @@ impl SesBoard {
             logical_parts: Vec::new(),
             rules: BoardRulesIr::new(0),
             items: Vec::new(),
-            warnings: Vec::new(),
             next_item_id: 1,
         }
     }
@@ -962,19 +959,23 @@ impl BoardSink for SesBoard {
     }
 
     fn insert_trace(&mut self, trace: TraceIr) -> i32 {
-        // BasicBoard.insertTraceWithoutCleaning guards
-        // (`BasicBoard.java:183-201`): a sub-2-corner polyline drops the
-        // trace, and so does first == last with a fixed state below
-        // USER_FIXED. NO item is created and NO id is burned in either
-        // case (Java returns null before reaching insertItem).
+        // BasicBoard.insertTraceWithoutCleaning (`BasicBoard.java:183-201`)
+        // has TWO drop guards with DIFFERENT id semantics: (1) a
+        // sub-2-corner polyline returns null BEFORE the PolylineTrace is
+        // constructed — no id burned; (2) first == last with a fixed state
+        // below USER_FIXED returns null AFTER construction — the `Item`
+        // constructor already allocated the id (`Item.java:86-89`), so the
+        // id is burned with no stored item (jar /tmp/t9rev-two.out CASE
+        // closed: the closed UNFIXED wire consumes id 2 and is not stored;
+        // the open wire lands at id 3, GEN_MAX 3).
         if trace.corners.len() < 2 {
             return 0;
         }
+        let id = self.alloc_item_id();
         let last_corner = trace.corners[trace.corners.len() - 1];
         if trace.corners[0] == last_corner && trace.fixed < FixedStateIr::UserFixed {
             return 0;
         }
-        let id = self.alloc_item_id();
         self.items.push(ItemIr::Trace { id, trace });
         id
     }
@@ -1870,5 +1871,70 @@ mod tests {
         board.set_via_padstacks(Vec::new());
         assert!(board.via_padstacks.is_empty(), "empty replace = wipe");
         assert_eq!(board.via_padstack_no("ViaPad_F"), None);
+    }
+
+    /// The T51 probe fixture (exact bytes of /tmp/t9rev-closed.dsn): a
+    /// closed 3-corner UNFIXED wire, then an open wire, both on net
+    /// PERFECT over the um/10 two-layer board.
+    const T9REV_CLOSED_DSN: &str = r#"(pcb t9rev-closed.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+  )
+  (network
+    (net PERFECT)
+  )
+  (wiring
+    (wire (path F.Cu 125  1000 1000  3000 1000  3000 3000  1000 1000) (net PERFECT))
+    (wire (path F.Cu 125  5000 1000  5000 2000) (net PERFECT))
+  )
+)
+"#;
+
+    /// Jar /tmp/t9rev-two.out CASE closed: the closed sub-USER_FIXED wire
+    /// is dropped by `BasicBoard.java:183-201`'s second guard — but the
+    /// `Item` constructor (`Item.java:86-89`) burned its id first — so
+    /// only the open trace is stored, at id 3, and GEN_MAX is 3 (id 2
+    /// consumed by the dropped closed wire). WARN_COUNT 0.
+    #[test]
+    fn t51_closed_trace_drop_burns_an_id() {
+        let mut board = SesBoard::new();
+        let result = crate::reader::read_board(T9REV_CLOSED_DSN.as_bytes(), &mut board);
+        match result {
+            crate::reader::DsnReadResult::Success { warnings } => {
+                assert!(warnings.is_empty(), "WARN_COUNT 0, got {warnings:?}");
+            }
+            other => panic!("expected Success, got {other:?}"),
+        }
+        assert_eq!(board.items.len(), 2, "outline + open trace only");
+        let traces: Vec<(i32, [i32; 2], FixedStateIr)> = board
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                ItemIr::Trace { id, trace } => {
+                    Some((*id, [trace.corners[0].x, trace.corners[0].y], trace.fixed))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            traces,
+            vec![(3, [50000, 10000], FixedStateIr::Unfixed)],
+            "TRACE id=3 first=(50000,10000) fixed=UNFIXED"
+        );
+        assert_eq!(
+            board.last_assigned_item_id(),
+            3,
+            "GEN_MAX 3 — the closed wire burned id 2"
+        );
     }
 }

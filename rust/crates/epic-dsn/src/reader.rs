@@ -177,9 +177,16 @@ fn read_pcb_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
                 Token::Keyword(Keyword::Resolution) => resolution::read_scope(scanner, state),
                 Token::Keyword(Keyword::Structure) => structure::read_scope(scanner, state, sink),
                 Token::Keyword(Keyword::Wiring) => wiring::read_scope(scanner, state, sink),
-                // `ScopeKeyword.java:68-70`: any other scope is skipped
-                // whole; a skip failure (EOF) is a read failure.
-                _ => skip_scope(scanner),
+                // `ScopeKeyword.java:74-76`: any other scope is skipped
+                // whole — skipScope is called BARE and its result
+                // DISCARDED, so a skip failure (EOF inside the unknown
+                // scope) is NOT a read failure: the loop continues, the
+                // next token is EOF and readScope returns true (`:55-57`;
+                // jar /tmp/t9rev-two.out CASE eof).
+                _ => {
+                    let _ = skip_scope(scanner);
+                    true
+                }
             };
         }
         if !read_ok {
@@ -775,5 +782,40 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    /// The T50 probe shape: the on-disk fixture /tmp/t9rev-eof.dsn ends
+    /// `(mystery_scope_that_never_closes` + a stray `)` line — that close
+    /// balances the mystery scope, so the fixture here omits it to
+    /// actually reach the skip failure. The jar's CASE eof values hold
+    /// for BOTH variants (ScopeKeyword.java:74-76 discards skipScope's
+    /// result either way).
+    const T9REV_EOF_DSN: &str = r#"(pcb t9rev-eof.dsn
+  (structure
+    (layer F.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+  )
+  (mystery_scope_that_never_closes
+"#;
+
+    /// Jar /tmp/t9rev-two.out CASE eof: an unknown pcb-level scope hitting
+    /// EOF does NOT fail the read — the dispatcher discards skip_scope's
+    /// failure (`ScopeKeyword.java:74-76`), the loop's next token is EOF
+    /// and readScope returns true (`:55-57`). Success, GEN_MAX 1 (the
+    /// outline alone), WARN_COUNT 0. Before the fix the skip failure
+    /// failed the read (ParseError).
+    #[test]
+    fn t50_eof_in_unknown_pcb_scope_is_discarded() {
+        let (result, board) = run(T9REV_EOF_DSN);
+        match result {
+            crate::reader::DsnReadResult::Success { warnings } => {
+                assert!(warnings.is_empty(), "WARN_COUNT 0, got {warnings:?}");
+            }
+            other => panic!("expected Success, got {other:?}"),
+        }
+        assert_eq!(board.items.len(), 1, "the outline alone");
+        assert_eq!(board.items[0].id(), 1, "GEN_MAX 1");
     }
 }
