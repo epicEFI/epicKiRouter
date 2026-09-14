@@ -128,22 +128,12 @@ pub fn drill_min_width(
             continue;
         }
         if let Some(shape) = shape_on_layer(current_layer) {
-            let bounds = shape_bounding_box(&shape);
+            let bounds = shape.bounding_box();
             min_width = min_width.min(f64::from(bounds.width()));
             min_width = min_width.min(f64::from(bounds.height()));
         }
     }
     min_width
-}
-
-/// `Shape.boundingBox()` over the shape arms (Java `Item.boundingBox`
-/// consumers call it on the fetched shape; `DrillItem.java:380`).
-pub(crate) fn shape_bounding_box(shape: &BoardShape) -> epic_geometry::int_box::IntBox {
-    match shape {
-        BoardShape::Tile(tile) => tile.bounding_box(),
-        BoardShape::PolygonShape(polygon) => polygon.bounding_box(),
-        BoardShape::Circle(circle) => circle.bounding_box(),
-    }
 }
 
 /// Java `DrillItem.tileShapeCount()` (`DrillItem.java:202-208`) — the

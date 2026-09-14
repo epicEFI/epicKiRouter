@@ -6,14 +6,14 @@
 //! (`sideChanged` vs `!isFront`). Transform order, verbatim:
 //!
 //! 1. `mirrorVertical(Point.ZERO)` when the mirror flag is set AND the
-//!    flip style is NOT rotate-first (`ObstacleArea.java:123-125`),
+//!    flip style is NOT rotate-first (`ObstacleArea.java:127-129`),
 //! 2. the rotation — exact 90-multiples via
 //!    `turn90Degree(((int) rotation) / 90, Point.ZERO)`, everything
 //!    else `rotateApprox(Math.toRadians(rotation), FloatPoint.ZERO)`
-//!    (`:126-135`),
+//!    (`:130-137`),
 //! 3. the mirror when the flag is set AND the style IS rotate-first
-//!    (`:136-138`),
-//! 4. `translateBy(translation)` (`:140`, relative to `Point.ZERO`).
+//!    (`:138-140`),
+//! 4. `translateBy(translation)` (`:141`, relative to `Point.ZERO`).
 //!
 //! The reference implementation of this chain is
 //! `epic_dsn::ses_board::SesBoard::obstacle_absolute_area` (M1b Task
@@ -67,9 +67,10 @@ fn transform_shape(
     mirror: bool,
     flip_style_rotate_first: bool,
 ) -> BoardShape {
+    // Owned working copy — the arms below reassign it wholesale.
     let mut turned = shape.clone();
     if mirror && !flip_style_rotate_first {
-        // ObstacleArea.java:123-125 (ComponentOutline.java:197-199).
+        // ObstacleArea.java:127-129 (ComponentOutline.java:199-201).
         turned = shape_mirror_vertical(turned);
     }
     if rotation != 0.0 {
@@ -82,7 +83,7 @@ fn transform_shape(
         }
     }
     if mirror && flip_style_rotate_first {
-        // ObstacleArea.java:136-138 (ComponentOutline.java:210-212).
+        // ObstacleArea.java:138-140 (ComponentOutline.java:210-212).
         turned = shape_mirror_vertical(turned);
     }
     let vector = Vector::Int(epic_geometry::int_vector::IntVector::new(
@@ -129,9 +130,15 @@ impl crate::board::Board {
     /// `ObstacleArea.getArea()` for an obstacle item on this board —
     /// the T49 chain with the board's flip-style flag
     /// (`components.getFlipStyleRotateFirst()`, parse-set). `None` for
-    /// a non-obstacle item or a foreign id. Computes on demand (the
-    /// Java `precalculatedAbsoluteArea` cache is a performance
-    /// artifact — module docs).
+    /// a non-obstacle item or a foreign id — including
+    /// `ConductionArea` ids: Java's `ConductionArea` EXTENDS
+    /// `ObstacleArea` and inherits `getArea`, but a parse-time
+    /// conduction area always carries identity placement fields
+    /// (translation zero, rotation 0, no side change — module docs),
+    /// so its Java `getArea()` equals its stored area verbatim; read
+    /// [`ItemData::ConductionArea`]'s `area` directly for those.
+    /// Computes on demand (the Java `precalculatedAbsoluteArea` cache
+    /// is a performance artifact — module docs).
     #[must_use]
     pub fn obstacle_area(&self, id: ItemId) -> Option<Area> {
         let entry = self.get(id)?;
@@ -185,6 +192,8 @@ impl crate::board::Board {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::board::{Board, ItemEntry};
+    use crate::items::FixedState;
     use epic_geometry::circle::Circle;
     use epic_geometry::point::Point;
     use epic_geometry::polygon_shape::PolygonShape;
@@ -533,5 +542,118 @@ mod tests {
             }
             other => panic!("CO_APPROX border is a simplex tile, got {other:?}"),
         }
+    }
+
+    /// **I-1 board-path pin — `Board::obstacle_area`.** The T49 rows
+    /// above call the FREE function with hand-supplied flags; this one
+    /// drives the wrapper through a real inserted entry
+    /// (`insert_item` -> `board.obstacle_area(id)`), pinning the
+    /// entry-field -> predicate wiring the free-function rows cannot
+    /// see. Geometry: the mirror-proving T49B circle (NON-origin
+    /// centered, so the mirror is observable) at rot 90,
+    /// t(1301800,-728800), default mirror-first style:
+    /// `side_changed=false` -> turn90 only -> y -713800;
+    /// `side_changed=true` -> mirror-then-turn, the captured
+    /// `back_rot90_mirror_proving` row -> y -743800. A wrapper that
+    /// drops or inverts the `side_changed` read swaps the two
+    /// outcomes.
+    #[test]
+    fn obstacle_area_wrapper_reads_side_changed_from_the_entry() {
+        let mut board = Board::new();
+        assert!(
+            !board.components().flip_style_rotate_first(),
+            "the default style is mirror-first"
+        );
+        let make_entry = |id: crate::id::ItemId, side_changed: bool| ItemEntry {
+            id,
+            data: ItemData::ObstacleArea {
+                kind: crate::items::ObstacleKind::ObstacleArea,
+                layer: 0,
+                area: Area::simple(circle(15_000, -5_600, 6_500)),
+                translation: IntPoint::new(1_301_800, -728_800),
+                rotation: 90.0,
+                side_changed,
+                name: None,
+            },
+            nets: Vec::new(),
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::SystemFixed,
+            on_the_board: false,
+        };
+        let front_id = board.alloc_id();
+        board.insert_item(make_entry(front_id, false));
+        let back_id = board.alloc_id();
+        board.insert_item(make_entry(back_id, true));
+
+        let front = board.obstacle_area(front_id).expect("front keepout");
+        assert_eq!(
+            front.border,
+            circle(1_307_400, -713_800, 6_500),
+            "no mirror: turn90(15000,-5600) = (5600,15000), + t"
+        );
+        let back = board.obstacle_area(back_id).expect("back keepout");
+        assert_eq!(
+            back.border,
+            circle(1_307_400, -743_800, 6_500),
+            "the T49 back_rot90_mirror_proving row (dsn-0022 id=1267)"
+        );
+        // The discriminator: the two outcomes differ, so a swapped or
+        // dropped predicate cannot satisfy both assertions.
+        assert_ne!(front.border, back.border);
+        // A foreign id stays None.
+        assert!(board.obstacle_area(crate::id::ItemId::new(9_999)).is_none());
+    }
+
+    /// **I-1 board-path pin — `Board::component_outline_area`.** The
+    /// same outline geometry inserted twice with ONLY `is_front`
+    /// differing — the wrapper's `!is_front` mirror predicate (the
+    /// reviewer-prescribed discriminating form; the port reads the
+    /// flag per call, so two entries on one board are safe). Expected
+    /// values are the same turn90 arithmetic as the obstacle pin:
+    /// front (no mirror) -> (1307400,-713800); back (mirror-then-turn)
+    /// -> (1307400,-743800). An inverted predicate (`is_front` instead
+    /// of `!is_front`) swaps the two and fails.
+    #[test]
+    fn component_outline_area_wrapper_mirrors_only_back_side_outlines() {
+        let mut board = Board::new();
+        let make_entry = |id: crate::id::ItemId, is_front: bool| ItemEntry {
+            id,
+            data: ItemData::ComponentOutline {
+                layer: 0,
+                area: Area::simple(circle(15_000, -5_600, 6_500)),
+                translation: IntPoint::new(1_301_800, -728_800),
+                rotation: 90.0,
+                is_front,
+                is_courtyard: true,
+                is_fabrication: false,
+                is_closed: true,
+            },
+            nets: Vec::new(),
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::SystemFixed,
+            on_the_board: false,
+        };
+        let front_id = board.alloc_id();
+        board.insert_item(make_entry(front_id, true));
+        let back_id = board.alloc_id();
+        board.insert_item(make_entry(back_id, false));
+
+        let front = board
+            .component_outline_area(front_id)
+            .expect("front outline");
+        assert_eq!(
+            front.border,
+            circle(1_307_400, -713_800, 6_500),
+            "is_front=true -> !is_front=false -> no mirror"
+        );
+        let back = board.component_outline_area(back_id).expect("back outline");
+        assert_eq!(
+            back.border,
+            circle(1_307_400, -743_800, 6_500),
+            "is_front=false -> !is_front=true -> mirror-then-turn"
+        );
+        assert_ne!(front.border, back.border, "the predicate is observable");
     }
 }

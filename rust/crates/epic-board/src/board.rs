@@ -111,6 +111,12 @@ pub struct Board {
     /// `DrillItem.java:34-46` lives Board-side because the arena's
     /// `ItemEntry` is the PERSISTENT payload only; see the
     /// [`ItemEntry`] docs).
+    ///
+    /// Undo policy: Java's undo restores FRESH item copies (the −1
+    /// sentinels come back with the copy, so the spans recompute);
+    /// this memo lives OUTSIDE the entries and would survive a
+    /// restore — when Board-level undo lands, the restore path must
+    /// drop the restored id's entry here.
     drill_precalc: BTreeMap<ItemId, DrillPrecalc>,
 }
 
@@ -293,6 +299,10 @@ impl Board {
     /// all route here), so a moved drill keeps its stale width; the
     /// port reproduces the asymmetry exactly (pinned white-box in the
     /// tests below — `drill_precalc_clear_derived_data_keeps_min_width`).
+    /// Java's override also runs `super.clearDerivedData()` first
+    /// (`Item.clearDerivedData` resets `searchTreesInfo`) — that half
+    /// lands with the search-tree surface (M2 Tasks 6-8); this method
+    /// owns the DrillItem span only.
     pub fn clear_derived_data(&mut self, id: ItemId) {
         if let Some(precalc) = self.drill_precalc.get_mut(&id) {
             precalc.first_layer = None;
@@ -1021,5 +1031,91 @@ mod tests {
         assert_eq!(board.drill_min_width(id), Some(15_240.0));
         assert_eq!(board.drill_first_layer(id), Some(0));
         assert_eq!(board.drill_last_layer(id), Some(1));
+    }
+
+    // Imports for the via wrapper pin below.
+    use crate::components::{BoardLibrary, BoardPadstack};
+    use epic_geometry::int_box::IntBox;
+    use epic_geometry::int_point::IntPoint;
+    use epic_geometry::point::Point;
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+    use epic_geometry::tile_shape::TileShape;
+
+    /// An `IntBox` tile shape (the synthetic via padstack rows).
+    fn box_shape(x0: i32, y0: i32, x1: i32, y1: i32) -> BoardShape {
+        BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(
+            IntBox::new(IntPoint::new(x0, y0), IntPoint::new(x1, y1)),
+        )))
+    }
+
+    /// A tile's corners in the spike capture format (`x,y;...`).
+    fn tile_corners(shape: &BoardShape) -> String {
+        let BoardShape::Tile(tile) = shape else {
+            panic!("expected a tile shape, got {shape:?}");
+        };
+        (0..tile.border_line_count())
+            .map(|no| match tile.corner(no as i32) {
+                Point::Int(p) => format!("{},{}", p.x, p.y),
+                other => panic!("expected an integer corner, got {other:?}"),
+            })
+            .collect::<Vec<_>>()
+            .join(";")
+    }
+
+    /// **I-1 board-path pin — `Board::via_shape`.** The drill-module
+    /// tests pin the FREE function `drill::via_shape` on the spike's
+    /// captured rows; this drives the item WRAPPER through a real
+    /// inserted entry, pinning the entry -> padstack/center/index
+    /// wiring the free-function rows cannot see. The padstack is the
+    /// spike's `spike_full` (a 10000x10000 box on layer 0, a 4000x2000
+    /// box on layer 1), so index 0 and index 1 return DIFFERENT
+    /// captured shapes (`SYNTH_FULL_VIA_SHAPE i=0/i=1`) — a wrapper
+    /// that ignores `index`, drops the center translation, or reads
+    /// the wrong padstack fails here.
+    #[test]
+    fn via_shape_wrapper_reads_entry_padstack_center_and_index() {
+        let mut board = Board::new();
+        board.library = BoardLibrary {
+            padstacks: vec![BoardPadstack {
+                name: "spike_full".to_string(),
+                shapes: vec![
+                    Some(box_shape(-5000, -5000, 5000, 5000)),
+                    Some(box_shape(-2000, -1000, 2000, 1000)),
+                ],
+                drillable: true,
+                placed_absolute: false,
+            }],
+            ..BoardLibrary::default()
+        };
+        let id = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id,
+            data: ItemData::Via {
+                center: IntPoint::new(650_000, -250_000),
+                padstack_no: 1,
+                attach_smd_allowed: false,
+            },
+            nets: vec![1],
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        assert_eq!(
+            tile_corners(&board.via_shape(id, 0).expect("shape 0")),
+            "645000,-255000;655000,-255000;655000,-245000;645000,-245000",
+            "SYNTH_FULL_VIA_SHAPE i=0 — the layer-0 box translated by the center"
+        );
+        assert_eq!(
+            tile_corners(&board.via_shape(id, 1).expect("shape 1")),
+            "648000,-251000;652000,-251000;652000,-249000;648000,-249000",
+            "SYNTH_FULL_VIA_SHAPE i=1 — the index reaches the layer arithmetic"
+        );
+        assert_eq!(board.via_shape(id, 2), None, "past the padstack span");
+        assert_eq!(board.via_shape(id, -1), None, "below the padstack span");
+        // A non-via id stays None (the wrapper's else arm).
+        let other = board.alloc_id();
+        board.insert_item(pin_entry(other));
+        assert_eq!(board.via_shape(other, 0), None, "a pin entry is not a via");
     }
 }

@@ -94,7 +94,9 @@ pub fn keepout_area(bounding_box: IntBox, shapes: &[BoardShape]) -> Area {
 /// — ALWAYS EMPTY. Dead code in Java (the lazily-assigned
 /// `new TileShape[0]` is never replaced; the real line keepout is
 /// computed by [`line_keepout_tiles`], the search-tree branch). The
-/// port reproduces the empty result so callers mirror Java exactly.
+/// port reproduces the empty result so callers mirror Java exactly; a
+/// fresh `Vec` per call mirrors Java's lazy `new TileShape[0]`
+/// allocation (never a shared static).
 #[must_use]
 pub fn keepout_lines() -> Vec<TileShape> {
     Vec::new()
@@ -122,8 +124,8 @@ fn shape_border_lines(shape: &BoardShape) -> Vec<Line> {
 /// - per border line `i` the THREE-LINE window is
 ///   `(border_line(i - 1), border_line(i), border_line((i + 1) % n))`
 ///   — the previous/next lines wrap around the closed polygon
-///   (`:972` seeds `currentLineArr[0] = borderLine(n - 1)`;
-///   `:989` carries `currentLineArr[0] = currentLineArr[1]`),
+///   (`:975` seeds `currentLineArr[0] = borderLine(n - 1)`;
+///   `:984` carries `currentLineArr[0] = currentLineArr[1]`),
 /// - the window becomes a canonical [`Polyline`] (the ctor skips
 ///   degenerate corners — the M1b dsn-0151 core) and each tile is
 ///   `offsetShape(half_width + cmp(layer), 0)`.
@@ -192,15 +194,6 @@ mod tests {
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::point::Point;
 
-    /// `Shape.boundingBox()` over the outline shape arms.
-    fn shape_bounding_box(shape: &BoardShape) -> IntBox {
-        match shape {
-            BoardShape::Tile(tile) => tile.bounding_box(),
-            BoardShape::PolygonShape(polygon) => polygon.bounding_box(),
-            BoardShape::Circle(circle) => circle.bounding_box(),
-        }
-    }
-
     /// The bm08 fixture path — the smallest tier-A fixture WITH an
     /// outline (module docs).
     const BM08: &str = concat!(
@@ -264,7 +257,7 @@ mod tests {
         assert_eq!(line_count(shapes), 4, "OUTLINE lineCount=4");
         assert_eq!(half_width(), 100, "OUTLINE halfWidth=100");
         assert_eq!(entry.clearance_class, 1, "clearanceClass=1");
-        let bounds = shape_bounding_box(&shapes[0]);
+        let bounds = shapes[0].bounding_box();
         assert_eq!(
             (bounds.ll.x, bounds.ll.y, bounds.ur.x, bounds.ur.y),
             (1_382_520, -1_119_380, 1_587_500, -980_694),
@@ -304,7 +297,7 @@ mod tests {
             other => panic!("the border is the bounding IntBox, got {other:?}"),
         }
         assert_eq!(keepout.holes.len(), 1, "OUTLINE_KEEPOUT holes=1");
-        let hole_bounds = shape_bounding_box(&keepout.holes[0]);
+        let hole_bounds = keepout.holes[0].bounding_box();
         assert_eq!(
             (
                 hole_bounds.ll.x,

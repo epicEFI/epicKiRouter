@@ -34,6 +34,7 @@ pub mod pin;
 pub mod trace;
 
 use epic_geometry::circle::Circle;
+use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
 use epic_geometry::polygon_shape::PolygonShape;
 use epic_geometry::polyline::Polyline;
@@ -148,16 +149,28 @@ impl Area {
     }
 }
 
+impl BoardShape {
+    /// Java `Shape.boundingBox()` over the shape arms — the one
+    /// geometry accessor every kind shares (`DrillItem.java:380`'s
+    /// width/height reads, the outline keepout bounds checks).
+    #[must_use]
+    pub fn bounding_box(&self) -> IntBox {
+        match self {
+            BoardShape::Tile(tile) => tile.bounding_box(),
+            BoardShape::PolygonShape(polygon) => polygon.bounding_box(),
+            BoardShape::Circle(circle) => circle.bounding_box(),
+        }
+    }
+}
+
 /// The per-kind payload of a board item — one variant per
 /// [`BoardItemType`] kind (T70: the obstacle kinds share a variant but
 /// keep the [`ObstacleKind`] discriminator), carrying that kind's
 /// primary fields. The item-common fields (nets, clearance class,
 /// component id, fixed state, on-the-board flag) live on
 /// [`crate::board::ItemEntry`], mirroring the Java `Item` base class vs
-/// subclass split (`Item.java:38-67`).
-///
-/// Geometry methods land in M2 Task 4; today only construction and kind
-/// dispatch exist.
+/// subclass split (`Item.java:38-67`). The per-kind geometry surface
+/// (M2 Task 4, delivered) lives in the submodules — module docs above.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ItemData {
     /// Java `PolylineTrace` (`trace/PolylineTrace.java`): the canonical
@@ -175,7 +188,9 @@ pub enum ItemData {
     },
     /// Java `Pin` (`model/items/Pin.java`): a component pin. The center
     /// is DERIVED from the component placement (`Pin.getCenter`) and is
-    /// not stored — placement resolution lands in M2 Task 3.
+    /// not stored — placement resolution is delivered (M2 Task 3):
+    /// [`crate::components::pin_shape`] / [`crate::components::pin_center`]
+    /// and the item-side wrappers of [`pin`].
     Pin {
         /// Java `Pin.pin_index` (0-based position in the package image).
         pin_index: i32,
@@ -183,8 +198,10 @@ pub enum ItemData {
         padstack_no: i32,
     },
     /// Java `Via` (`model/items/Via.java`): a drill item with its own
-    /// stored center. Padstack-derived spans (first/last layer,
-    /// min width) are M2 Task 4.
+    /// stored center. Padstack-derived spans (first/last layer, min
+    /// width) and the per-layer shape are delivered (M2 Task 4) in
+    /// [`drill`]; the item-side wrappers live on
+    /// [`crate::board::Board`] (`via_shape`/`drill_*`).
     Via {
         /// Java `DrillItem.center`.
         center: IntPoint,
