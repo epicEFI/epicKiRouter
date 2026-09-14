@@ -31,9 +31,13 @@ use std::collections::BTreeMap;
 use epic_dsn::ses_board::{ItemIr, SesBoard};
 use epic_dsn::shape::BoardShape as IrBoardShape;
 use epic_dsn::sink::{AreaIr, FixedStateIr, KeepoutKindIr};
+use epic_geometry::point::Point;
 
+use crate::components::{BoardLibrary, Components, pin_center, pin_relative_location};
 use crate::id::{ItemId, ItemIdGenerator};
 use crate::items::{Area, BoardItemType, BoardShape, FixedState, ItemData, ObstacleKind};
+use crate::layers::LayerStructure;
+use crate::rules_surf::BoardRules;
 
 /// One arena entry: the Java `Item` base-class fields plus the
 /// per-kind payload. `on_the_board` mirrors `Item.onTheBoard`
@@ -74,7 +78,8 @@ impl ItemEntry {
     }
 }
 
-/// The live board model (Java `BasicBoard`'s item-list face).
+/// The live board model (Java `BasicBoard`'s item-list face plus the
+/// rules / layers / components / library read surfaces, M2 Task 3).
 #[derive(Clone, Debug, Default)]
 pub struct Board {
     /// The items keyed by DESCENDING id (module docs, D25/T60).
@@ -83,6 +88,15 @@ pub struct Board {
     id_generator: ItemIdGenerator,
     /// Java `BasicBoard.revision` — bumped per insert and remove (T69).
     revision: u64,
+    /// Java `board.rules` (`BasicBoard.rules`, a `BoardRules`).
+    rules: BoardRules,
+    /// Java `board.layerStructure`.
+    layers: LayerStructure,
+    /// Java `board.components` (with its own undo stack, T63).
+    components: Components,
+    /// Java `board.library` — the padstack/package registries the pin
+    /// resolution reads.
+    library: BoardLibrary,
 }
 
 impl Board {
@@ -167,6 +181,63 @@ impl Board {
         self.revision
     }
 
+    /// Java `board.rules`.
+    #[must_use]
+    pub fn rules(&self) -> &BoardRules {
+        &self.rules
+    }
+
+    /// Java `board.layerStructure`.
+    #[must_use]
+    pub fn layers(&self) -> &LayerStructure {
+        &self.layers
+    }
+
+    /// Java `board.components`.
+    #[must_use]
+    pub fn components(&self) -> &Components {
+        &self.components
+    }
+
+    /// Mutable components access — the placement MUTATION surface
+    /// (move/rotate/changeSide each save for undo internally, exactly
+    /// like Java's `Components` methods).
+    pub fn components_mut(&mut self) -> &mut Components {
+        &mut self.components
+    }
+
+    /// Java `board.library`.
+    #[must_use]
+    pub fn library(&self) -> &BoardLibrary {
+        &self.library
+    }
+
+    /// Java `Pin.relativeLocation()` for a PIN ITEM on this board
+    /// (resolves `component_id` + `pin_index` from the entry and
+    /// delegates to [`crate::components::pin_relative_location`]).
+    /// `None` for a non-pin item or an unresolvable pin.
+    #[must_use]
+    pub fn pin_relative_location(&self, id: ItemId) -> Option<epic_geometry::vector::Vector> {
+        let entry = self.items.get(&Reverse(id))?;
+        let ItemData::Pin { pin_index, .. } = entry.data else {
+            return None;
+        };
+        let component_id = u32::try_from(entry.component_id).ok()?;
+        pin_relative_location(&self.components, &self.library, component_id, pin_index)
+    }
+
+    /// Java `Pin.getCenter()` for a PIN ITEM on this board (`None` for
+    /// a non-pin item or an unresolvable pin).
+    #[must_use]
+    pub fn pin_center(&self, id: ItemId) -> Option<Point> {
+        let entry = self.items.get(&Reverse(id))?;
+        let ItemData::Pin { pin_index, .. } = entry.data else {
+            return None;
+        };
+        let component_id = u32::try_from(entry.component_id).ok()?;
+        pin_center(&self.components, &self.library, component_id, pin_index)
+    }
+
     /// Converts the parse-time IR into the live board (M2 plan:
     /// `SesBoard` is the one-shot parse model; this is the ONLY
     /// epic-dsn -> epic-board item path).
@@ -201,6 +272,25 @@ impl Board {
                 board.insert_item(entry);
             }
         }
+        // The read surfaces (M2 Task 3). `layers` is None only before
+        // `create_board`; the conversion of a finalized board always
+        // has it (defensive: an empty structure instead of a panic).
+        board.rules = BoardRules::from_ir(
+            &ses.rules,
+            &ses.nets,
+            &ses.net_classes,
+            &ses.via_infos,
+            &ses.via_rules,
+        );
+        board.layers = match ses.layers.as_ref() {
+            Some(layers) => LayerStructure::from_ir(layers),
+            None => LayerStructure::default(),
+        };
+        board.components = Components::from_ir(
+            &ses.components,
+            ses.metadata.flip_style.as_deref() == Some("rotate_first"),
+        );
+        board.library = BoardLibrary::from_ir(&ses.padstacks, &ses.packages);
         board
     }
 }
@@ -348,7 +438,7 @@ fn obstacle_kind_from_ir(kind: KeepoutKindIr) -> ObstacleKind {
 /// The epic-board mirror of the IR's `BoardShape` — variants matched
 /// 1:1 (an epic-dsn variant addition fails this match at compile time,
 /// which is the conversion boundary doing its job).
-fn board_shape_from_ir(shape: &IrBoardShape) -> BoardShape {
+pub(crate) fn board_shape_from_ir(shape: &IrBoardShape) -> BoardShape {
     match shape {
         IrBoardShape::Tile(tile) => BoardShape::Tile(tile.clone()),
         IrBoardShape::PolygonShape(polygon) => BoardShape::PolygonShape(polygon.clone()),
