@@ -5,8 +5,12 @@
 //! M2 Task 1 scaffold: [`id`] (the id allocator, T61 burn + wrap),
 //! [`items`] (kind dispatch, T70 obstacle kinds, per-kind payloads) and
 //! [`board`] (the descending-id arena, D25/T60, revision T69, the
-//! epic-dsn -> epic-board conversion boundary).
+//! epic-dsn -> epic-board conversion boundary). Task 2 adds
+//! [`undo`] — the `UndoableObjects` level-stack port (T62) jar-pinned
+//! by `rust/harness/oracle/UndoSpike.java`, plus the components-side
+//! second stack (T63).
 
 pub mod board;
 pub mod id;
 pub mod items;
+pub mod undo;
