@@ -164,6 +164,67 @@ public final class UndoSpike {
     step("insert g=7:g0                 [L1]");
     stepUndoRedo("undo   // -> L0: g cancelled (created-new node stays in map invisible)");
     step("end");
+
+    // ---- Phase 5 (FRESH instance): popSnapshot merge with CONTENT — both sides ----
+    // Appended AFTER the original S30 "end" so the S1-S30 lines stay
+    // byte-identical to the first capture (the committed pins quote them).
+    // The residual state above cannot reach a content-bearing merge, so a
+    // second instance drives it directly: a (L0 node) and b's second-save
+    // old node (L1, with undoObject = the first-save clone) both sit in the
+    // TOP delete list at pop time. The merge must send a down as its NODE
+    // (level 0 < stackLevel-1) and b's entry as its UNDOOBJECT (level 1 not
+    // < 1) — the undo right after the pop restores from the MERGED list, so
+    // the restored values pin which side each entry took.
+    mphase5();
+  }
+
+  private void mstep(String what, UndoableObjects m, StringBuilder extra) {
+    step++;
+    System.out.println("S" + step + " " + what);
+    if (extra != null) {
+      System.out.println("    " + extra);
+    }
+    StringBuilder sb = new StringBuilder("    iter=[");
+    java.util.Iterator<UndoableObjects.UndoableObjectNode> it = m.startReadObject();
+    while (true) {
+      UndoableObjects.Storable next = m.readObject(it);
+      if (next == null) {
+        break;
+      }
+      if (sb.length() > "    iter=[".length()) {
+        sb.append(", ");
+      }
+      sb.append(next);
+    }
+    sb.append(']');
+    System.out.println(sb);
+  }
+
+  private void mphase5() {
+    UndoableObjects m = new UndoableObjects();
+    Rec ma = new Rec(1, "a0");
+    m.insert(ma);
+    Rec mb = new Rec(2, "b0");
+    m.insert(mb);
+    mstep("P5 insert a=1:a0 b=2:b0   [L0]", m, null);
+    m.generateSnapshot();
+    m.saveForUndo(mb);
+    mb.value = "b1";
+    mstep("P5 snapshot; saveForUndo(b); b.value=b1", m, null);
+    m.generateSnapshot();
+    m.saveForUndo(mb);
+    mb.value = "b2";
+    mstep("P5 snapshot; saveForUndo(b); b.value=b2  // b_old1 (b1, L1) undoObject=b_old (b0, L0)", m, null);
+    m.delete(ma);
+    mstep("P5 delete(a)   // a L0 < stack L2 -> NODE into TOP list", m, null);
+    m.delete(mb);
+    mstep("P5 delete(b)   // b live L2 == stack -> UNDOOBJECT (b_old1) into TOP list", m, null);
+    boolean popped = m.popSnapshot();
+    mstep("P5 popSnapshot // merge TOP into second-top: a stays NODE (0 < 1); b_old1's UNDOOBJECT b_old (1 !< 1) -> popped=" + popped, m, null);
+    java.util.LinkedList<UndoableObjects.Storable> cancelled = new java.util.LinkedList<>();
+    java.util.LinkedList<UndoableObjects.Storable> restored = new java.util.LinkedList<>();
+    boolean undone = m.undo(cancelled, restored);
+    mstep("P5 undo -> " + undone + " cancelled=" + cancelled + " restored=" + restored + "  // restores from the MERGED list", m, null);
   }
 
   public static void main(String[] args) {

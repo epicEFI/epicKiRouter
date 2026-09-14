@@ -40,15 +40,18 @@
 //!   (c's live node) and the walk then advanced `c0_old → c-live` and
 //!   removed `3:c1` from `restored`, yielding
 //!   `cancelled=[3:c0, 2:b0, 1:a0] restored=[2:b1]`.
-//! - **The walk never advances more than once** (spike-verified): a
-//!   delete-list node's `redo_object` is only ever set at its creation
-//!   by `save_for_undo` (`oldNode.redoObject = currentNode`, :285),
-//!   pointing at the then-live node; undo's cross-link only touches
-//!   map-resident nodes, and map nodes never enter a delete list
-//!   after gaining a redo link (any mutator between would disable
-//!   redo). The M2 plan's "chain walk of length ≥2" is therefore
-//!   unreachable; the 1-advance walk is pinned instead and the loop is
-//!   kept verbatim for transliteration fidelity.
+//! - **The walk never advances more than once** (spike S13 shows the
+//!   one advance): a delete-list node's `redo_object` points at the
+//!   then-live node (set at `save_for_undo` creation, :285), and the
+//!   only way that TARGET can itself carry a `redo_object` is the
+//!   popSnapshot re-link branch (:246-252), which is dead code (see
+//!   below). A restored old node CAN re-enter a delete list with its
+//!   creation link intact (undo restores it below `stack_level` and a
+//!   later delete pushes it — the merge pin's `b_old` travels exactly
+//!   this path), but the link still points at a node whose own
+//!   `redo_object` is null, so the walk stops after one advance. The
+//!   1-advance walk is pinned and the loop is kept verbatim for
+//!   transliteration fidelity.
 //! - **popSnapshot** (:232-267): calls `disable_redo` first. The
 //!   re-link branch (:246-252, node at `stack_level-1` with
 //!   `redo_object` at `stack_level`) is DEAD CODE in the frozen Java:
@@ -252,13 +255,14 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
         for (key, idx) in entries {
             let redo_idx = self.nodes[idx].redo_object;
             if let Some(r) = redo_idx
-                && self.nodes[r].level == self.stack_level {
-                    // replace the lower-level object by the current one
-                    self.objects.insert(key, r);
-                    cancelled.push(self.nodes[idx].value.clone());
-                    restored.push(self.nodes[r].value.clone());
-                    continue;
-                }
+                && self.nodes[r].level == self.stack_level
+            {
+                // replace the lower-level object by the current one
+                self.objects.insert(key, r);
+                cancelled.push(self.nodes[idx].value.clone());
+                restored.push(self.nodes[r].value.clone());
+                continue;
+            }
             if self.nodes[idx].level == self.stack_level {
                 // created on the current level — restorable by a later undo
                 restored.push(self.nodes[idx].value.clone());
@@ -305,12 +309,13 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
             if self.nodes[idx].level == self.stack_level - 1 {
                 let redo_idx = self.nodes[idx].redo_object;
                 if let Some(r) = redo_idx
-                    && self.nodes[r].level == self.stack_level {
-                        self.nodes[r].undo_object = self.nodes[idx].undo_object;
-                        if let Some(u) = self.nodes[idx].undo_object {
-                            self.nodes[u].redo_object = self.nodes[idx].redo_object;
-                        }
+                    && self.nodes[r].level == self.stack_level
+                {
+                    self.nodes[r].undo_object = self.nodes[idx].undo_object;
+                    if let Some(u) = self.nodes[idx].undo_object {
+                        self.nodes[u].redo_object = self.nodes[idx].redo_object;
                     }
+                }
             } else if self.nodes[idx].level >= self.stack_level {
                 self.nodes[idx].level -= 1;
             }
@@ -634,8 +639,14 @@ mod tests {
         assert_eq!(show(&cancelled), "5:e0");
         assert_eq!(show(&restored), "2:b1");
         assert_eq!(show(&iter(&s)), "2:b1");
-        // e is invisible but still in the map — S14 brings it back.
-        assert!(!s.contains(&Reverse(5)) || s.iter_visible().all(|(k, _)| k.0 != 5));
+        // e is invisible but STILL MAP-RESIDENT (undo leaves its level-2
+        // node in the map; only disable_redo removes it) — S14 brings it
+        // back through the swap-forward branch.
+        assert!(
+            s.contains(&Reverse(5)),
+            "e stays map-resident while invisible"
+        );
+        assert!(s.iter_visible().all(|(k, _)| k.0 != 5));
 
         // S12: undo to L0 — b1 swapped for b0 (cross-link), then the
         // S4/S7 delete list restored IN PUSH ORDER.
@@ -962,5 +973,48 @@ mod tests {
         // (Java: componentArr keeps its slots; ids are never reused)
         assert_eq!(comps.add("U4".to_string()), 4);
         assert_eq!(comps.count(), 4);
+    }
+
+    /// S31–S37 (spike Phase 5, fresh instance — the plan-mandated
+    /// popSnapshot MERGE pin): the TOP delete list's entries re-enter the
+    /// second-top through the SAME node-vs-undoObject dichotomy as
+    /// delete, evaluated against `stack_level - 1` (`UndoableObjects
+    /// .java:249-263`). Setup parks BOTH sides in the top list at once:
+    /// a (level 0, deleted at L2) and b's second-save old node `b_old1`
+    /// (level 1, `undo_object` = the first-save clone `b_old` carrying
+    /// `b0`). The merge keeps a as its NODE (`0 < 1`) and sends `b_old1`
+    /// as its UNDOOBJECT (`1 !< 1`). The capture's S37
+    /// `restored=[1:a0, 2:b0]` pins both sides AND the merge push order:
+    /// flipping the merge `<` to `<=` lands `b_old1` itself and restores
+    /// `2:b1` (mutation-verified before commit); dropping the node side
+    /// loses `a` entirely. The undo right after the pop restores from
+    /// the MERGED second-top list (at level 1, undo reads index
+    /// `stack_level - 1` = 0 — where the merge landed).
+    #[test]
+    fn p5_pop_snapshot_merge_dichotomy_both_sides() {
+        let mut s = Stack::new();
+        s.insert(Reverse(1), Rec::new(1, "a0")); // S31
+        s.insert(Reverse(2), Rec::new(2, "b0"));
+        assert_eq!(show(&iter(&s)), "2:b0, 1:a0");
+        s.generate_snapshot(); // S32 — b_old (b0, L0)
+        s.save_for_undo(&Reverse(2));
+        s.value_mut(&Reverse(2)).expect("b").value = "b1".to_string();
+        assert_eq!(show(&iter(&s)), "2:b1, 1:a0");
+        s.generate_snapshot(); // S33 — b_old1 (b1, L1), undo_object = b_old
+        s.save_for_undo(&Reverse(2));
+        s.value_mut(&Reverse(2)).expect("b").value = "b2".to_string();
+        assert_eq!(show(&iter(&s)), "2:b2, 1:a0");
+        assert!(s.delete(&Reverse(1))); // S34: a L0 < 2 -> NODE into top list
+        assert_eq!(show(&iter(&s)), "2:b2");
+        assert!(s.delete(&Reverse(2))); // S35: b live L2 == 2 -> UNDOOBJECT
+        assert_eq!(show(&iter(&s)), "");
+        assert!(s.pop_snapshot()); // S36: merge — a stays NODE; b_old1 -> b_old
+        assert_eq!(show(&iter(&s)), "");
+        assert_eq!(s.stack_level(), 1);
+        let (cancelled, restored) = s.undo().expect("S37 undo"); // S37
+        assert!(cancelled.is_empty());
+        assert_eq!(show(&restored), "1:a0, 2:b0");
+        assert_eq!(show(&iter(&s)), "2:b0, 1:a0");
+        assert_eq!(s.stack_level(), 0);
     }
 }
