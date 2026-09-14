@@ -9,9 +9,9 @@ use std::time::Duration;
 
 mod baseline;
 mod corpus;
-// Canonical DSN parse digest (M1b Task 4); wired into the `dsn`
-// subcommands in Task 11 — dead until then.
-#[allow(dead_code)]
+// Canonical DSN parse digest (M1b Task 4); consumed by the `dsn`
+// subcommands' goldens/compare since Task 11.
+mod dsn_corpus;
 mod dsn_digest;
 mod manifest;
 mod oracle;
@@ -59,6 +59,12 @@ enum Command {
         #[command(subcommand)]
         cmd: corpus::CorpusCommand,
     },
+    /// DSN parse-parity digest corpus (M1b Task 11): manifest generation,
+    /// Java-oracle golden capture, java-free Rust comparison.
+    Dsn {
+        #[command(subcommand)]
+        cmd: dsn_corpus::DsnCommand,
+    },
 }
 
 fn main() {
@@ -73,6 +79,11 @@ fn run() -> Result<()> {
     if let Command::Corpus { cmd } = cli.command {
         // The corpus pipeline needs no tier file or eager JVM resolution.
         return corpus::run(cmd);
+    }
+    if let Command::Dsn { cmd } = cli.command {
+        // The dsn pipeline resolves tiers.yaml itself (manifest
+        // generation) and needs no eager JVM resolution.
+        return dsn_corpus::run(cmd, &cli.jvm_xmx);
     }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
@@ -206,6 +217,7 @@ fn run() -> Result<()> {
         }
         // Handled before tier loading; unreachable here.
         Command::Corpus { .. } => unreachable!("corpus command handled before tier loading"),
+        Command::Dsn { .. } => unreachable!("dsn command handled before tier loading"),
     }
 }
 
