@@ -28,6 +28,7 @@ impl ItemId {
     /// source (the generator or a parse IR id — always >= 1).
     #[must_use]
     pub fn new(raw: u32) -> Self {
+        debug_assert!(raw >= 1, "item ids are positive (Java Item.getId())");
         Self(raw)
     }
 

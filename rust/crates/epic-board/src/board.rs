@@ -39,6 +39,15 @@ use crate::items::{Area, BoardItemType, BoardShape, FixedState, ItemData, Obstac
 /// per-kind payload. `on_the_board` mirrors `Item.onTheBoard`
 /// (`Item.java:63-64`) — false while constructed-but-not-inserted
 /// (Java's burned-id state), true from [`Board::insert_item`] on.
+///
+/// Only Java's PERSISTENT item state belongs here (`Item.java:38-67`).
+/// Derived state — `searchTreesInfo`, trace contacts,
+/// `smallestClearance`, the drill precalculated widths — lives in
+/// Board-side side tables keyed by [`ItemId`], because undo snapshots
+/// clone `ItemEntry`s and Java's `Item.clone` deliberately skips
+/// `searchTreesInfo` (`Item.java:263`: the copy is commented out).
+/// Task 4's lazy caches will need an additive `Board::get_mut` for
+/// those tables, never a mutation path through the entry itself.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ItemEntry {
     /// The item id (Java `Item.getId()`), allocated at construction.
@@ -120,10 +129,15 @@ impl Board {
     /// the `Item` object; the id is the port's handle). Bumps the
     /// revision ONLY when an entry was actually removed
     /// (`BoardItemRepository.java:198` sits behind the successful-removal
-    /// path). A no-op on a foreign id.
+    /// path), and clears the entry's `on_the_board` flag — Java does
+    /// that flip in `SearchTreeManager.remove`
+    /// (`SearchTreeManager.java:61`, `item.setOnTheBoard(false)` behind
+    /// the `isOnTheBoard()` guard); until the tree manager exists this
+    /// method owns the side effect. A no-op on a foreign id.
     pub fn remove_item(&mut self, id: ItemId) -> Option<ItemEntry> {
-        let removed = self.items.remove(&Reverse(id));
-        if removed.is_some() {
+        let mut removed = self.items.remove(&Reverse(id));
+        if let Some(entry) = removed.as_mut() {
+            entry.on_the_board = false;
             self.revision += 1;
         }
         removed
@@ -470,14 +484,19 @@ mod tests {
     }
 
     /// `Item.java:63-64`: the on-the-board flag is false at
-    /// construction and true once inserted.
+    /// construction and true once inserted; removal clears it again
+    /// (Java flips the flag in `SearchTreeManager.remove`,
+    /// `SearchTreeManager.java:61` — `item.setOnTheBoard(false)` behind
+    /// the `isOnTheBoard()` guard).
     #[test]
-    fn on_the_board_is_set_by_insert() {
+    fn on_the_board_is_set_by_insert_and_cleared_by_remove() {
         let mut board = Board::new();
         let id = board.alloc_id();
         assert!(!pin_entry(id).on_the_board, "constructed, not inserted");
         board.insert_item(pin_entry(id));
         assert!(board.get(id).expect("inserted").on_the_board);
+        let removed = board.remove_item(id).expect("removed");
+        assert!(!removed.on_the_board, "remove must clear the flag");
     }
 
     /// The generator survives a forced wrap THROUGH the board seam:
@@ -491,11 +510,13 @@ mod tests {
     }
 
     /// The from_ses_board DSN: outline (id 1) -> structure keepout
-    /// (id 2) -> via (id 3) -> a CLOSED UNFIXED wire whose id 4 is
-    /// BURNED by the `BasicBoard.java:192-196` drop guard -> an open
-    /// wire (id 5). The IR therefore holds ids {1, 2, 3, 5} with a
-    /// burned gap at 4 — a renumbering conversion (dense 1..4) fails
-    /// the pin.
+    /// (id 2) -> via (id 3) -> open wire (id 4) -> a CLOSED UNFIXED
+    /// wire LAST, whose id 5 is BURNED by the `BasicBoard.java:192-196`
+    /// drop guard. The IR therefore holds ids {1, 2, 3, 4} with
+    /// `last_assigned_item_id == 5` — the burned id sits ABOVE the max
+    /// live id, so the generator pin (`alloc == 6`) discriminates
+    /// `set_next(last_assigned)` from a wrong `set_next(max live id)`
+    /// (which would allocate 5): anchor-blind agreement is out.
     const KEEPOUT_BURN_DSN: &str = r#"(pcb keepout-burn.dsn
   (parser
     (string_quote ")
@@ -524,8 +545,8 @@ mod tests {
   )
   (wiring
     (via ViaPad_V 5000 5000 (net PERFECT))
-    (wire (path F.Cu 125  1000 1000  3000 1000  3000 3000  1000 1000) (net PERFECT))
     (wire (path F.Cu 125  5000 1000  5000 2000) (net PERFECT))
+    (wire (path F.Cu 125  1000 1000  3000 1000  3000 3000  1000 1000) (net PERFECT))
   )
 )
 "#;
@@ -551,10 +572,15 @@ mod tests {
         let ir_ids: Vec<u32> = ses.items.iter().map(|item| item.id() as u32).collect();
         assert_eq!(
             ir_ids,
-            vec![1, 2, 3, 5],
+            vec![1, 2, 3, 4],
             "outline, keepout, via, open trace"
         );
-        assert_eq!(ses.last_assigned_item_id(), 5, "id 4 burned");
+        assert_eq!(ses.last_assigned_item_id(), 5, "id 5 burned (last wire)");
+        assert_eq!(
+            ir_ids.iter().copied().max(),
+            Some(4),
+            "the burn sits ABOVE the max live id — the pin discriminates"
+        );
 
         let mut board = Board::from_ses_board(&ses);
         assert_eq!(board.item_count(), ses.items.len());
@@ -613,7 +639,7 @@ mod tests {
             other => panic!("expected a via payload, got {other:?}"),
         }
 
-        let trace = board.get(ItemId::new(5)).expect("trace");
+        let trace = board.get(ItemId::new(4)).expect("trace");
         assert_eq!(trace.board_item_type(), BoardItemType::Trace);
         assert_eq!(trace.nets, vec![1]);
         if let ItemData::Trace { lines, .. } = &trace.data {
@@ -622,7 +648,10 @@ mod tests {
             panic!("expected a trace payload");
         }
 
-        // The generator continues one past the parse.
+        // The generator continues one past the PARSE SEQUENCE (5), not
+        // one past the max live id (4): 6 here fails any conversion
+        // that seeds the generator from the live items instead of
+        // last_assigned_item_id.
         assert_eq!(board.alloc_id().get(), 6, "next id continues the parse");
     }
 }
