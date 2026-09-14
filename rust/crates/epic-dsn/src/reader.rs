@@ -48,8 +48,15 @@ pub enum DsnReadResult {
     IoError,
 }
 
-/// Mirror of `io/BoardMetadata.java` (the record fields, `:22-30`): the
+/// Mirror of `io/BoardMetadata.java` (the record fields, `:27-34`): the
 /// snapshot `readMetadata` builds (`DsnReader.java:268-276`).
+///
+/// Hand-mirrors the 8 shared fields of [`crate::sink::MetadataIr`] (the
+/// two structs deliberately mirror two different Java types — this one
+/// Java `BoardMetadata`, that one the parse-state snapshot); when adding
+/// a field here, mirror it in `MetadataIr` AND add a `diff_field` call
+/// in `rust/harness/tests/dsn_metadata_pin.rs` (enforced by that file's
+/// self-test).
 #[derive(Clone, Debug, PartialEq)]
 pub struct BoardMetadataIr {
     /// Java `hostCad` — `scopeParameter.hostCad` (`:270`).

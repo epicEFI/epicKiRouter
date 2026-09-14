@@ -9,6 +9,18 @@
 //! the same fields on these files) is deferred to Task 11's golden
 //! capture — this pin is Rust-side only.
 //!
+//! Warnings are deliberately NOT compared: the fast path legitimately
+//! stops before the wiring scope, where the bulk of parity warnings
+//! accumulate, so `read_board` warnings ≠ `read_metadata` warnings on
+//! 15/175 fixtures (measured by the spec-review probe, 2026-09-14).
+//!
+//! Known unit divergence: Java's `Resolution.java:39-40` assigns
+//! `scopeParameter.unit` BEFORE the null check, so an unrecognized unit
+//! overwrites the previous value with null in Java's metadata path; the
+//! Rust port keeps the previous value (`Unit` is non-nullable,
+//! unreachable through `read_board` — see `scope/resolution.rs` module
+//! docs).
+//!
 //! Lives in the harness crate (which already depends on epic-dsn) so the
 //! reader crate stays filesystem-free.
 
@@ -91,10 +103,7 @@ fn compare(
     fast_result: &MetadataReadResult,
 ) -> Option<String> {
     match (full_result, fast_result) {
-        (
-            DsnReadResult::Success { .. } | DsnReadResult::OutlineMissing { .. },
-            MetadataReadResult::Success { metadata, .. },
-        ) => {
+        (DsnReadResult::Success { .. }, MetadataReadResult::Success { metadata, .. }) => {
             let mut problems = Vec::new();
             diff_field("unit", &full_metadata.unit, &metadata.unit, &mut problems);
             diff_field(
@@ -144,6 +153,17 @@ fn compare(
             } else {
                 Some(problems.join("; "))
             }
+        }
+        (DsnReadResult::OutlineMissing { .. }, MetadataReadResult::Success { .. }) => {
+            // Classification-only compat arm — NO field diff. The sink
+            // metadata snapshot is populated only under `read_ok`
+            // (reader.rs:181-199), so a full-path OutlineMissing leaves
+            // the full side at `MetadataIr::default()` while the fast
+            // side returns real parse-state values; diffing fields here
+            // would report false "genuine D16 disagreements" on the
+            // first outline-less fixture. The classification itself is
+            // legal (the arm's doc on `compare` above).
+            None
         }
         (
             DsnReadResult::ParseError { location, detail },
@@ -230,4 +250,191 @@ fn d16_read_metadata_agrees_with_read_board_on_every_fixture() {
             .collect::<Vec<_>>()
             .join("\n")
     );
+}
+
+/// Self-tests for the pin machinery above (pure functions, no I/O,
+/// microseconds): they fabricate result pairs and call the SAME
+/// [`compare`]/[`diff_field`] functions the 175-fixture pin uses, so a
+/// regressed compare (a copy-paste field swap — `resolution` and
+/// `layer_count` are both i32 — or a metadata field added without a
+/// `diff_field` call) fails here even though all 174 real
+/// Success/Success pairs would stay silently green.
+#[cfg(test)]
+mod self_test {
+    use super::*;
+    use epic_dsn::reader::BoardMetadataIr;
+    use epic_dsn::scope::autoroute_settings::AutorouteSettingsIr;
+    use epic_dsn::state::{AngleRestriction, Unit};
+
+    /// A valid fast-side snapshot; values are irrelevant except where a
+    /// test overrides them.
+    fn fast_metadata() -> BoardMetadataIr {
+        BoardMetadataIr {
+            unit: Unit::Mil,
+            resolution: 100,
+            string_quote: "\"".to_string(),
+            snap_angle: AngleRestriction::None,
+            host_cad: None,
+            host_version: None,
+            layer_count: 0,
+            autoroute_settings: None,
+        }
+    }
+
+    /// Fully divergent pair: ALL 8 compared fields differ, with the two
+    /// i32 fields (`resolution`/`layer_count`) and the strings taking
+    /// values that would expose a copy-paste swap between the i32 pair
+    /// (a swapped compare still names every field, but transposes the
+    /// values). `compare` must name all 8 fields with the right values —
+    /// this is the only guard against a regressed or incomplete
+    /// `diff_field` set, which stays silent on 174 matching fixtures.
+    #[test]
+    fn fully_divergent_pair_names_all_eight_fields() {
+        let full = MetadataIr {
+            unit: Unit::Mil,
+            resolution: 100,
+            string_quote: "\"".to_string(),
+            snap_angle: AngleRestriction::None,
+            flip_style: None,
+            host_cad: Some("full host".to_string()),
+            host_version: Some("v1".to_string()),
+            layer_count: 2,
+            autoroute_settings: None,
+        };
+        let mut fast = fast_metadata();
+        fast.unit = Unit::Inch;
+        fast.resolution = 1000;
+        fast.string_quote = "'".to_string();
+        fast.snap_angle = AngleRestriction::NinetyDegree;
+        fast.host_cad = Some("fast host".to_string());
+        fast.host_version = Some("v2".to_string());
+        fast.layer_count = 4;
+        fast.autoroute_settings = Some(AutorouteSettingsIr::new(2));
+
+        let problem = compare(
+            &DsnReadResult::Success {
+                warnings: Vec::new(),
+            },
+            &full,
+            &MetadataReadResult::Success {
+                metadata: fast,
+                warnings: Vec::new(),
+            },
+        )
+        .expect("fully divergent pair must report problems");
+
+        for name in [
+            "unit",
+            "resolution",
+            "string_quote",
+            "snap_angle",
+            "host_cad",
+            "host_version",
+            "layer_count",
+            "autoroute_settings",
+        ] {
+            assert!(
+                problem.contains(&format!("{name}: read_board=")),
+                "problem report must name '{name}': {problem}"
+            );
+        }
+        // Value checks: a swapped/aliased i32 compare would still name
+        // every field but with transposed values.
+        assert!(
+            problem.contains("resolution: read_board=100 read_metadata=1000"),
+            "resolution values wrong or swapped: {problem}"
+        );
+        assert!(
+            problem.contains("layer_count: read_board=2 read_metadata=4"),
+            "layer_count values wrong or swapped: {problem}"
+        );
+        assert!(
+            problem.contains("unit: read_board=Mil read_metadata=Inch"),
+            "unit values wrong: {problem}"
+        );
+    }
+
+    /// The classification-mismatch fallback arm: a fast `Success` paired
+    /// with any non-paired full classification must surface. Also pins
+    /// the `OutlineMissing ∥ fast Success` compat arm: classification
+    /// only, `None` (see the arm's doc on `compare`).
+    #[test]
+    fn classification_mismatch_surfaces() {
+        let full_metadata = MetadataIr::default();
+        let fast = MetadataReadResult::Success {
+            metadata: fast_metadata(),
+            warnings: Vec::new(),
+        };
+        for full_arm in [
+            DsnReadResult::ParseError {
+                location: "(pcb".to_string(),
+                detail: "header".to_string(),
+            },
+            DsnReadResult::IoError,
+        ] {
+            let problem = compare(&full_arm, &full_metadata, &fast)
+                .expect("non-paired classification must surface");
+            assert!(
+                problem.contains("classification mismatch"),
+                "unexpected problem text: {problem}"
+            );
+        }
+        // The compat arm itself: legal pair, classification only.
+        assert_eq!(
+            compare(
+                &DsnReadResult::OutlineMissing {
+                    warnings: Vec::new()
+                },
+                &full_metadata,
+                &fast
+            ),
+            None
+        );
+    }
+
+    /// The ParseError arm must compare BOTH location and detail: a
+    /// same-location/different-detail pair (and a location mismatch)
+    /// surfaces, an identical pair passes.
+    #[test]
+    fn parse_error_location_and_detail_mismatches_surface() {
+        let full_metadata = MetadataIr::default();
+        let full_err = |detail: &str| DsnReadResult::ParseError {
+            location: "(pcb".to_string(),
+            detail: detail.to_string(),
+        };
+        // Identical pair: the contract real failing fixtures rely on.
+        assert_eq!(
+            compare(
+                &full_err("DSN structure parsing failed"),
+                &full_metadata,
+                &MetadataReadResult::ParseError {
+                    location: "(pcb".to_string(),
+                    detail: "DSN structure parsing failed".to_string(),
+                },
+            ),
+            None
+        );
+        // Detail mismatch at the same location.
+        let problem = compare(
+            &full_err("full detail"),
+            &full_metadata,
+            &MetadataReadResult::ParseError {
+                location: "(pcb".to_string(),
+                detail: "fast detail".to_string(),
+            },
+        )
+        .expect("detail mismatch must surface");
+        assert!(problem.contains("ParseError mismatch"), "{problem}");
+        // Location mismatch.
+        let problem = compare(
+            &full_err("detail"),
+            &full_metadata,
+            &MetadataReadResult::ParseError {
+                location: "(resolution".to_string(),
+                detail: "detail".to_string(),
+            },
+        )
+        .expect("location mismatch must surface");
+        assert!(problem.contains("ParseError mismatch"), "{problem}");
+    }
 }

@@ -34,7 +34,8 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState) -> bool {
     let Some(unit) = unit else {
         // Java: warn "Resolution.read_scope: unit mil, inch or mm expected
         // at '<id>'" (log-only; jar resbad). Java additionally overwrites
-        // p.unit with null — see the module docs deferral.
+        // p.unit with null — see the module docs (resolved divergence,
+        // Task 10).
         return false;
     };
     state.unit = unit;
@@ -87,8 +88,8 @@ mod tests {
     }
 
     /// Jar CASE resbad: an unknown unit name fails the read and leaves the
-    /// resolution default. (Java also nulls `p.unit`; deferred — module
-    /// docs.)
+    /// resolution default. (Java also nulls `p.unit`; resolved divergence
+    /// — module docs, Task 10.)
     #[test]
     fn unknown_unit_fails_read() {
         let (ok, unit, resolution) = run_resolution("bogus 10");

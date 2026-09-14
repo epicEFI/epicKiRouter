@@ -962,6 +962,13 @@ impl BoardRulesIr {
 /// Parse-time metadata snapshot (the `Communication`/parser-info fields
 /// the digest and the SES writer need). Defaults mirror the parse-state
 /// defaults (T24: MIL / 100; string quote `"`; snap angle 45).
+///
+/// Hand-mirrors the 8 shared fields of [`crate::reader::BoardMetadataIr`]
+/// (the two structs deliberately mirror two different Java types — this
+/// one the parse-state snapshot, that one Java `BoardMetadata`); when
+/// adding a field here, mirror it in `BoardMetadataIr` AND add a
+/// `diff_field` call in `rust/harness/tests/dsn_metadata_pin.rs`
+/// (enforced by that file's self-test).
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetadataIr {
     /// Java `Unit` from `(resolution <unit> <n>)` (T24).
