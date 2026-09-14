@@ -85,10 +85,16 @@
 //!   `insert_logical_parts`' false is genuinely swallowed.
 //! - **Known scanner-null substitutions** (Task 5 precedent): Java
 //!   `nextString`/`readStringScope` can return null; the pinned Rust
-//!   scanner folds those to `""`, so the null checks in the class-scope
-//!   `via_rule`/`clearance_class` arms are unreachable here — the empty
-//!   string is stored and the later name lookup just misses (log-only
-//!   warn in Java, silent miss here; no state difference).
+//!   scanner folds those to `""`. The two class-scope arms differ in
+//!   Java: `(via_rule ...)` STORES the null unchecked
+//!   (`viaRule = DsnFile.readStringScope(scanner)`, `NetClass.java:
+//!   100-101`), so Rust stores `Some("")` whose later `via_rule_no`
+//!   lookup misses exactly where Java's null skips — no state
+//!   difference. For `(clearance_class ...)` a null is PARSE-FATAL in
+//!   Java (`if (traceClearanceClass == null) return null`,
+//!   `NetClass.java:110-114`); the fold makes that branch unreachable
+//!   here — `Some("")` is stored and the lookup silently misses
+//!   (accepted Task-5 divergence on malformed input only).
 
 use crate::coordinate_transform::CoordinateTransform;
 use crate::keyword::{Keyword, skip_scope};
@@ -96,7 +102,9 @@ use crate::lexer::{LexicalState, Scanner, Token};
 use crate::scope::rule::{
     LayerRuleIr, LayerRuleOutcome, Rule, read_layer_rule_scope, read_rule_scope,
 };
-use crate::scope::structure::{read_on_off_scope, read_string_scope, read_via_padstacks};
+use crate::scope::structure::{
+    contains_wire_clearance_pair, read_on_off_scope, read_string_scope, read_via_padstacks,
+};
 use crate::ses_board::strip_padstack_alias;
 use crate::shape::BoardShape;
 use crate::sink::{
@@ -110,7 +118,7 @@ use epic_geometry::rounding::java_round;
 
 /// Java `parser.NetClass` parse subset (`NetClass.java:31-53` ctor): one
 /// `(class ...)` scope of the network body.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct DsnNetClass {
     /// Java `name` — the scope name string.
     name: String,
@@ -147,7 +155,7 @@ struct DsnNetClass {
 
 /// Java `parser.NetClass.ClassClass` (`NetClass.java:201-220`): one
 /// `(class_class ...)` scope.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct DsnClassClass {
     /// Java `classNames` — the `(classes ...)` list, file order.
     class_names: Vec<String>,
@@ -364,8 +372,10 @@ fn read_net_class_scope(scanner: &mut Scanner) -> Option<DsnNetClass> {
                     LayerRuleOutcome::Fatal => return None,
                 },
                 Token::Keyword(Keyword::ViaRule) => {
-                    // Java: `readStringScope` null -> return null. The
-                    // pinned scanner folds the null to "" (module docs).
+                    // Java stores the readStringScope result UNCHECKED — a
+                    // null becomes viaRule = null (`NetClass.java:100-101`).
+                    // The Task-5 fold stores Some(""), whose later
+                    // `via_rule_no` lookup misses like Java's null skips.
                     via_rule = Some(read_string_scope(scanner));
                 }
                 Token::Keyword(Keyword::Circuit) => match read_circuit_scope(scanner) {
@@ -384,7 +394,12 @@ fn read_net_class_scope(scanner: &mut Scanner) -> Option<DsnNetClass> {
                     CircuitOutcome::Fatal => return None,
                 },
                 Token::Keyword(Keyword::ClearanceClass) => {
-                    // Same null-substitution as `via_rule` (module docs).
+                    // Java is PARSE-FATAL on a null here (`if (
+                    // traceClearanceClass == null) return null`,
+                    // `NetClass.java:110-114`) — unlike `via_rule`, where
+                    // the null is stored. The Task-5 fold makes the fatal
+                    // branch unreachable; Some("") misses the lookup
+                    // (module docs, accepted divergence).
                     trace_clearance_class = Some(read_string_scope(scanner));
                 }
                 Token::Keyword(Keyword::ShoveFixed) => {
@@ -1148,8 +1163,11 @@ fn add_clearance_rule(
                     .set_value(i, class_no, j, current_value);
             }
         }
-        // `defaultItemClearanceClasses.setAll(classNo)` — all six slots.
-        sink.net_classes_mut()[class_idx].default_item_clearance_classes = [class_no; 6];
+        // `defaultItemClearanceClasses.setAll(classNo)`
+        // (`rules/DefaultItemClearanceClasses.java:35-38`): the loop
+        // starts at i = 1, so the never-read NONE slot 0 stays 0.
+        sink.net_classes_mut()[class_idx].default_item_clearance_classes =
+            [0, class_no, class_no, class_no, class_no, class_no];
     }
     sink.net_classes_mut()[class_idx].trace_clearance_class = class_no;
 
@@ -1263,14 +1281,6 @@ fn get_clearance_class(sink: &mut dyn BoardSink, class_idx: usize, item_class_na
         sink.net_classes_mut()[class_idx].default_item_clearance_classes[slot as usize] = result;
     }
     result
-}
-
-/// Java `Structure.containsWireClearancePair` (`Structure.java:810-817`):
-/// any pair STARTING with `wire_` or ENDING with `_wire`.
-fn contains_wire_clearance_pair(pairs: &[String]) -> bool {
-    pairs
-        .iter()
-        .any(|pair| pair.starts_with("wire_") || pair.ends_with("_wire"))
 }
 
 /// Java `Network.createDefaultClearanceClasses` (`Network.java:681-687`).
@@ -1645,7 +1655,7 @@ fn create_active_trace_layers(
 
 // ---- component / logical-part passes -------------------------------------
 
-/// Java `Network.insertComponents` (`Network.java:846-852`).
+/// Java `Network.insertComponents` (`Network.java:832-838`).
 fn insert_components(state: &ParseState, sink: &mut dyn BoardSink) {
     for placement in &state.placement_list {
         for location in &placement.locations {
@@ -2240,7 +2250,11 @@ mod tests {
         );
 
         // Net classes 0-4. The jar probe prints via/pin/smd/area item
-        // classes; the never-read NONE/TRACE slots stay at the T5-pinned 1.
+        // classes (slots 2-5); the never-read NONE slot stays 0
+        // (`DefaultItemClearanceClasses.setAll` loops from i = 1) and
+        // TRACE holds the create_board/default value 1 here (no setAll
+        // fired for the existing "default" class) — slot checks on the
+        // setAll path live in the wire-pair test below.
         assert_eq!(board.net_classes.len(), 5);
         let item_slots = |idx: usize| {
             let items = board.net_classes[idx].default_item_clearance_classes;
@@ -2917,6 +2931,10 @@ mod tests {
         // `items via=3 pin=5 smd=4 area=6` (slot order via,pin,smd,area;
         // the ROW creation order is via,smd,pin,area — see the names list).
         assert_eq!((items[2], items[3], items[4], items[5]), (3, 5, 4, 6));
+        // setAll(class_no = 2) fired on the appended class: NONE slot 0
+        // stays 0 (the loop starts at i = 1), TRACE slot 1 carries the
+        // appended class number.
+        assert_eq!((items[0], items[1]), (0, 2));
         let m = &board.rules.clearance.values[0];
         assert_eq!(m[2][3], 9000, "wire->own row vs via");
 

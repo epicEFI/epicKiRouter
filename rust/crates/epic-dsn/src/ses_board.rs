@@ -691,7 +691,7 @@ impl BoardSink for SesBoard {
         &self.net_classes
     }
 
-    fn net_classes_mut(&mut self) -> &mut Vec<NetClassIr> {
+    fn net_classes_mut(&mut self) -> &mut [NetClassIr] {
         &mut self.net_classes
     }
 

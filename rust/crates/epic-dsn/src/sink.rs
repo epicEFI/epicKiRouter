@@ -356,16 +356,20 @@ pub struct ComponentIr {
 /// `updateBoardRules` before the callback; with eager materialization the
 /// empty-table AIOOBE edge of `appendNetClass` is unreachable).
 ///
-/// Write-through invariant: mutations of class 0's
+/// Structure-era snapshot semantics:
+/// [`BoardRulesIr::default_item_clearance_classes`] /
+/// [`BoardRulesIr::default_trace_half_widths`] are written by the
+/// STRUCTURE rule readers and consumed by `create_board` (which copies
+/// them into class 0) and the structure keepout/plane reads
+/// (`default_item_clearance_class`). They are NOT kept in sync
+/// afterwards: later mutations of class 0's
 /// [`NetClassIr::default_item_clearance_classes`] /
 /// [`NetClassIr::trace_clearance_class`] /
-/// [`NetClassIr::trace_half_widths`] mirror into
-/// [`BoardRulesIr::default_item_clearance_classes`] /
-/// [`BoardRulesIr::default_trace_half_widths`] (the structure-era mirror
-/// consumed by `default_item_clearance_class` and the create_board
-/// outline-class resolution) — WITHOUT the min/max bookkeeping, which
-/// Java updates only via `BoardRules.setDefaultTraceHalfWidth*`
-/// (`NetClass.setTraceHalfWidth` touches nothing else).
+/// [`NetClassIr::trace_half_widths`] (network/wiring scope) do NOT
+/// mirror into [`BoardRulesIr`]. Java mutates one shared object there,
+/// but nothing re-reads those values through the rules surface after
+/// the structure scope, so the snapshot is observationally exact for
+/// the parse (see [`BoardSink::board_rules_mut`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct NetClassIr {
     /// Java `NetClass.name`.
@@ -1191,20 +1195,27 @@ pub trait BoardSink {
     /// the network reader treats an empty table as fatal.
     fn net_classes(&self) -> &[NetClassIr];
 
-    /// Mutable view for the reader-side mutations (`setClass`,
-    /// `setTraceHalfWidth`, item-class writes, ...). Class-0 write-through
-    /// into [`BoardRulesIr`] is the READER's job (see the
-    /// [`NetClassIr`] docs).
-    fn net_classes_mut(&mut self) -> &mut Vec<NetClassIr>;
+    /// Mutable SLICE view for the reader-side mutations (`setClass`,
+    /// `setTraceHalfWidth`, item-class writes, ...): index assignments
+    /// only — class APPENDS have their own sink methods
+    /// ([`BoardSink::append_net_class`],
+    /// [`BoardSink::append_generated_net_class`]), so readers never need
+    /// to grow the table through this view.
+    fn net_classes_mut(&mut self) -> &mut [NetClassIr];
 
-    /// Mutable rules view for the class-0 write-through mirror: the
-    /// network reader copies default-class half-width writes into
-    /// [`BoardRulesIr::default_trace_half_widths`] and item-class writes
-    /// into [`BoardRulesIr::default_item_clearance_classes`] — WITHOUT
-    /// touching `min/max_trace_half_width` (Java's
-    /// `NetClass.setTraceHalfWidth` mutates nothing outside the class;
-    /// only `BoardRules.setDefaultTraceHalfWidth*` updates the bookkeeping,
-    /// and those setters never run after the structure scope).
+    /// Mutable rules view. POST-`create_board` the only reader mutations
+    /// through this view hit [`BoardRulesIr::clearance`] (the clearance
+    /// matrix retargets of the network rules) — in Java that matrix is
+    /// ONE shared object between `BoardRules` and every consumer, so
+    /// mirroring the writes is exact. The DEFAULT-class mirrors
+    /// ([`BoardRulesIr::default_trace_half_widths`],
+    /// [`BoardRulesIr::default_item_clearance_classes`]) are a
+    /// STRUCTURE-ERA SNAPSHOT consumed by `create_board` and the
+    /// structure keepout/plane reads: they are NOT written through when
+    /// the network scope mutates class 0 (Java mutates the shared
+    /// `DefaultItemClearanceClasses`/width-array objects there, but
+    /// nothing re-reads them through the rules surface after the
+    /// structure scope, and the digest does not observe the mirror).
     fn board_rules_mut(&mut self) -> &mut BoardRulesIr;
 
     /// Java `BoardRules.appendNetClass(String)` (`BoardRules.java:225-239`):
