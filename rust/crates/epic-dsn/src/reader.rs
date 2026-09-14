@@ -1,16 +1,13 @@
-//! Port of `io.specctra.DsnReader` (`DsnReader.java`) — the read_board
-//! assembly that ties the scope readers together: the 3-token
+//! Port of `io.specctra.DsnReader` (`DsnReader.java`) — the read
+//! assemblies that tie the scope readers together: the shared 3-token
 //! `(pcb <name>` header scan, the pcb-level dispatch loop
 //! (`ScopeKeyword.readScope`, `ScopeKeyword.java:46-81`, with the eleven
 //! scope-keyword readers substituted for the Java `instanceof`
-//! dispatch), and the result classification
-//! (`BoardReadResult.java:22-31`).
-//!
-//! Deliberately deferred (Task 10): `readMetadata` (`DsnReader.java:
-//! 182-280`) — its early-stop-on-failure ordering is observable only
-//! through the BoardMetadata it builds, which this port materializes in
-//! M3. The design name token is inert here (Java uses it for FRLogger
-//! text and `effectiveDesignName`); it is parsed for cursor parity only.
+//! dispatch), the result classification (`BoardReadResult.java:22-31`),
+//! and — Task 10 — `read_metadata`, the `DsnReader.readMetadata`
+//! (`:182-280`) metadata-only early-stop path (T42). The design name
+//! token is inert in both paths (Java uses it for FRLogger text and
+//! `effectiveDesignName`); it is parsed for cursor parity only.
 
 use crate::keyword::{Keyword, skip_scope};
 use crate::lexer::{LexicalState, Scanner, Token};
@@ -18,7 +15,7 @@ use crate::scope::{
     library, network, parser_scope, placement, plane, resolution, structure, wiring,
 };
 use crate::sink::{BoardSink, MetadataIr};
-use crate::state::ParseState;
+use crate::state::{AngleRestriction, ParseState, Unit};
 
 /// Mirror of `BoardReadResult` (`io/BoardReadResult.java:22-31`): the
 /// outcome of a full board read. `IoError` exists in the Java sealed
@@ -51,28 +48,105 @@ pub enum DsnReadResult {
     IoError,
 }
 
-/// Java `DsnReader.readBoard` (`:58-161`), minus the metadata build
-/// (Task 10) and the stream plumbing (bytes in, sink out).
-pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
-    let mut scanner = Scanner::new(input);
-    // The 3-token header hand-scan (`DsnReader.java:83-109`): `(`, the
-    // `pcb` keyword, then the design name in the forced NAME state. The
-    // name token is inert (module docs) but still consumed.
+/// Mirror of `io/BoardMetadata.java` (the record fields, `:22-30`): the
+/// snapshot `readMetadata` builds (`DsnReader.java:268-276`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoardMetadataIr {
+    /// Java `hostCad` — `scopeParameter.hostCad` (`:270`).
+    pub host_cad: Option<String>,
+    /// Java `hostVersion` — `scopeParameter.hostVersion` (`:271`).
+    pub host_version: Option<String>,
+    /// Java `layerCount` — the `:261-266` precedence: the parser
+    /// `layerStructure` length when present, ELSE the created board's
+    /// layer count, else 0. The board is null when the DSN had no valid
+    /// outline — that is still `Success` (`:264-265`,
+    /// `:278-279`).
+    pub layer_count: i32,
+    /// Java `unit` — `scopeParameter.unit` (`:273`), default MIL
+    /// (`ReadScopeParameter.java:87-88`).
+    ///
+    /// Documented divergence (Task 5 deferral resolved here): Java
+    /// assigns `scopeParameter.unit = Unit.fromString(...)` BEFORE the
+    /// null check (`Resolution.java:39-47`), so an unrecognized unit
+    /// OVERWRITES the previous value with null and — readMetadata
+    /// ignoring the read's false return (`:242`) — the Java BoardMetadata
+    /// carries unit=null. The port's `Unit` is non-nullable
+    /// (`scope/resolution.rs` module docs): the failed read keeps the
+    /// previous value instead.
+    pub unit: Unit,
+    /// Java `resolution` (`:274`), default 100.
+    pub resolution: i32,
+    /// Java `snapAngle` (`:275`), default FORTYFIVE_DEGREE.
+    pub snap_angle: AngleRestriction,
+    /// Port extension beyond the Java record (which omits stringQuote):
+    /// `scopeParameter.stringQuote` — carried because the D16 pin
+    /// compares the parser-scope field across BOTH read paths.
+    pub string_quote: String,
+    /// Java `routerSettings` — `scopeParameter.autorouteSettings`
+    /// (`:276`); `None` when no `(autoroute_settings ...)` scope was
+    /// read. Unlike [`read_board`], `readMetadata` never runs the plane
+    /// heuristic (`:258-279` has no `adjustPlaneAutorouteSettings` call)
+    /// — mirrored: this value is the raw parse-state one.
+    pub autoroute_settings: Option<crate::scope::autoroute_settings::AutorouteSettingsIr>,
+}
+
+/// The `readMetadata` outcome. Java reuses `BoardReadResult`
+/// (`:278-279`), but only the `Success`/`ParseError`/`IoError` arms are
+/// reachable — the early-stop loop ignores every scope read's return
+/// (`:239`, `:242`, `:247-248`), so there is no `OutlineMissing`
+/// classification. The port narrows the shape accordingly.
+#[derive(Debug, PartialEq)]
+pub enum MetadataReadResult {
+    /// Java `Success(board, metadata, warnings)` (`:278-279`): the board
+    /// itself rides on the caller's sink (created by the structure scope
+    /// when a valid boundary exists); the metadata is the deliverable.
+    Success {
+        /// The `BoardMetadata` built at `:268-276`.
+        metadata: BoardMetadataIr,
+        /// The parity warnings collected so far (`:279`).
+        warnings: Vec<String>,
+    },
+    /// Java `ParseError(location, detail)` — header failure only
+    /// (`:211-213`).
+    ParseError {
+        /// Java `location` — always `"(pcb"` from this reader.
+        location: String,
+        /// Java `detail`.
+        detail: String,
+    },
+    /// Java `IoError` (`:200`, `:230`): stream failure. In-memory input
+    /// cannot fail mid-stream; the port constructs this only when the
+    /// metadata loop's `next_token` yields the lexer `Token::Error` (the
+    /// overflow shape Java's scanner throws — the same IOException-shaped
+    /// arm `read_pcb_scope` folds to `false`).
+    IoError,
+}
+
+/// The 3-token `(pcb <name>` header hand-scan shared by [`read_board`]
+/// and [`read_metadata`] (`DsnReader.java:83-109` and `:194-214` — Java
+/// duplicates the loop verbatim in both entry points; the port shares
+/// it). Returns the design-name token (`None` at EOF or a non-string
+/// third token — `:100-108` has no ok check there, so a nameless pcb
+/// reads on, jar `/tmp/epic-t9-res.out` HEADER hdpcbonly) or the header
+/// `(location, detail)` pair, identical in both Java entry points
+/// (`:106-108` / `:211-213`). The NAME state is switched UNCONDITIONALLY
+/// inside the i==1 arm (`:96-97` / `:206-207`): `(` + a wrong keyword
+/// still flips the state before the failure returns. A lexer
+/// `Token::Error` in the first two positions fails the keyword match
+/// (header ParseError) and in the third passes — the port-side fold of
+/// the header IOException arms (`:87-90` / `:198-201`, unreachable for
+/// in-memory input; jar-pinned Task 9).
+fn scan_pcb_header(scanner: &mut Scanner) -> Result<Option<String>, (String, String)> {
     let mut pcb_name: Option<String> = None;
     for i in 0..3 {
         let token = scanner.next_token();
         let ok = match i {
             0 => token == Token::Open,
-            // Java `:96` sets the NAME state UNCONDITIONALLY inside the
-            // ok-branch — `(` + wrong keyword still flips the state before
-            // the failure returns.
             1 => {
                 let ok = token == Token::Keyword(Keyword::Pcb);
                 scanner.set_lexical_state(LexicalState::Name);
                 ok
             }
-            // `:100-108`: no ok check — EOF passes (a nameless pcb reads
-            // on, jar `/tmp/epic-t9-res.out` HEADER hdpcbonly).
             _ => {
                 if let Token::Str(name) = token {
                     pcb_name = Some(name.to_string());
@@ -81,13 +155,26 @@ pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
             }
         };
         if !ok {
-            return DsnReadResult::ParseError {
-                location: "(pcb".to_string(),
-                detail: "Not a Specctra DSN file: expected '(pcb <name>' header".to_string(),
-            };
+            return Err((
+                "(pcb".to_string(),
+                "Not a Specctra DSN file: expected '(pcb <name>' header".to_string(),
+            ));
         }
     }
-    let _ = pcb_name;
+    Ok(pcb_name)
+}
+
+/// Java `DsnReader.readBoard` (`:58-161`) — the full walk; bytes in,
+/// sink out.
+pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
+    let mut scanner = Scanner::new(input);
+    // The 3-token header hand-scan (`DsnReader.java:83-109`): `(`, the
+    // `pcb` keyword, then the design name in the forced NAME state. The
+    // name token is inert (module docs) but still consumed.
+    let _ = match scan_pcb_header(&mut scanner) {
+        Ok(name) => name,
+        Err((location, detail)) => return DsnReadResult::ParseError { location, detail },
+    };
 
     let mut state = ParseState::default();
     let read_ok = read_pcb_scope(&mut scanner, &mut state, sink);
@@ -96,6 +183,9 @@ pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
         // is a DIGEST-side necessity — the metadata must include the
         // board-held flip_style (`Structure.java:1041-1043`, Task 6's
         // `set_flip_style`), which the sink merges in `set_metadata`.
+        // `layer_count`/`autoroute_settings` are the D16 read_board-side
+        // exposure (Task 10): layer_count via the shared `:261-266`
+        // precedence helper so the D16 pin compares like with like.
         sink.set_metadata(MetadataIr {
             unit: state.unit,
             resolution: state.resolution,
@@ -104,6 +194,8 @@ pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
             flip_style: None,
             host_cad: state.host_cad.clone(),
             host_version: state.host_version.clone(),
+            layer_count: metadata_layer_count(&state, sink),
+            autoroute_settings: state.autoroute_settings.clone(),
         });
         // Java `:134-136`: the plane heuristic fires only when the DSN
         // carried no `(autoroute_settings ...)` scope.
@@ -197,9 +289,123 @@ fn read_pcb_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
     true
 }
 
+/// Java `:261-266`: the parser `layerStructure` length wins; ELSE the
+/// created board's layer count (`getBoard()` is null when no valid
+/// outline existed, and the sink's `layer_count` is 0 before
+/// `create_board`); else 0. Shared verbatim by `read_board`'s metadata
+/// snapshot and `read_metadata`.
+fn metadata_layer_count(state: &ParseState, sink: &dyn BoardSink) -> i32 {
+    match &state.layer_structure {
+        Some(layer_structure) => layer_structure.layers.len() as i32,
+        None => sink.layer_count(),
+    }
+}
+
+/// Java `DsnReader.readMetadata` (`:182-280`), the T42 fast path: parse
+/// only `(parser ...)`, `(resolution ...)` and `(structure ...)`, then
+/// stop — `(library ...)`, `(placement ...)`, `(network ...)`,
+/// `(wiring ...)` and any SECOND structure scope are never read
+/// (`:249` `break outer`), which is what makes this path significantly
+/// faster than [`read_board`] on large DSNs. The pcb scope closing (or
+/// EOF) before any structure scope is also a `Success` — with
+/// `layer_count` 0 (`:232-234`, `:264-265`).
+///
+/// Stream plumbing folds (in-memory bytes): Java's IOException arms —
+/// the header `:198-201` and the loop `:228-231` — have no port-side IO
+/// source. The header arm folds into the shared [`scan_pcb_header`]
+/// fall-through (its doc); the loop arm returns
+/// [`MetadataReadResult::IoError`] on the lexer `Token::Error`.
+pub fn read_metadata(input: &[u8], sink: &mut dyn BoardSink) -> MetadataReadResult {
+    let mut scanner = Scanner::new(input);
+    // Same three-token check as readBoard (`:192-214`); the design name
+    // is inert here (Java never reads it back in readMetadata).
+    let _ = match scan_pcb_header(&mut scanner) {
+        Ok(name) => name,
+        Err((location, detail)) => return MetadataReadResult::ParseError { location, detail },
+    };
+
+    // Custom pcb-level loop (`:216-254`): dispatch ONLY the three
+    // metadata-relevant scopes; every other pcb-level scope is skipped
+    // whole.
+    let mut state = ParseState::default();
+    // Java inits nextToken = null — `None` models that (the first
+    // iteration must not take the `prev == Open` arm).
+    let mut prev_token: Option<Token> = None;
+    loop {
+        let next_token = scanner.next_token();
+        if matches!(next_token, Token::Error(_)) {
+            // `:228-231`: nextToken IOException -> IoError.
+            return MetadataReadResult::IoError;
+        }
+        if next_token == Token::Eof || next_token == Token::Close {
+            // `:232-234`: EOF or the end of the `(pcb ...)` scope.
+            break;
+        }
+        if prev_token == Some(Token::Open) {
+            match next_token {
+                // `:236-239`: populates hostCad/hostVersion/stringQuote.
+                Token::Keyword(Keyword::Parser) => {
+                    // Every dispatch arm's return value is IGNORED —
+                    // `:247-248`: "we extract whatever was populated".
+                    let _ = parser_scope::read_scope(&mut scanner, &mut state);
+                }
+                // `:240-242`: populates unit/resolution.
+                Token::Keyword(Keyword::Resolution) => {
+                    let _ = resolution::read_scope(&mut scanner, &mut state);
+                }
+                // `:243-249`: populates layerStructure/snapAngle/
+                // autorouteSettings and creates the board (valid
+                // boundary). Then STOP — skip library, placement,
+                // network, wiring and any second structure scope.
+                Token::Keyword(Keyword::Structure) => {
+                    let _ = structure::read_scope(&mut scanner, &mut state, sink);
+                    break; // `:249`: `break outer`
+                }
+                // `:251`: skipScope is called BARE and its result
+                // DISCARDED — a skip failure (EOF inside the unknown
+                // scope) is not a failure of the read (same discard as
+                // the t50 read_board case, `ScopeKeyword.java:74-76`).
+                _ => {
+                    let _ = skip_scope(&mut scanner);
+                }
+            }
+        }
+        prev_token = Some(next_token);
+    }
+
+    // `:258-279`: build the metadata from whatever was populated. NOTE:
+    // no `adjust_plane_autoroute_settings` — readMetadata has no
+    // heuristic call; the `:134-135` gate belongs to readBoard only.
+    let layer_count = metadata_layer_count(&state, sink);
+    let ParseState {
+        host_cad,
+        host_version,
+        string_quote,
+        unit,
+        resolution,
+        snap_angle,
+        autoroute_settings,
+        warnings,
+        ..
+    } = state;
+    MetadataReadResult::Success {
+        metadata: BoardMetadataIr {
+            host_cad,
+            host_version,
+            layer_count,
+            unit,
+            resolution,
+            snap_angle,
+            string_quote,
+            autoroute_settings,
+        },
+        warnings,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::reader::read_board;
+    use crate::reader::{read_board, read_metadata};
     use crate::ses_board::{ItemIr, SesBoard};
     use crate::state::{AngleRestriction, Unit};
 
@@ -817,5 +1023,119 @@ mod tests {
         }
         assert_eq!(board.items.len(), 1, "the outline alone");
         assert_eq!(board.items[0].id(), 1, "GEN_MAX 1");
+    }
+
+    // ==== read_metadata (Task 10, T42) ====
+
+    /// The early-stop shape: structure, then placement/library/network/
+    /// wiring, then a SECOND structure scope — the fast path must stop at
+    /// the first structure's close (`DsnReader.java:249` `break outer`)
+    /// and never see the rest.
+    const EARLY_STOP_DSN: &str = r#"(pcb t10-early.dsn
+  (parser (string_quote ") (host_cad KICAD) (host_version 8.99))
+  (resolution um 10)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+  )
+  (placement
+    (component PAD (place U1 2000 5000 front 0))
+  )
+  (library
+    (image PAD (pin CirclePad 1 0 0))
+    (padstack CirclePad (shape (circle F.Cu 800)) (attach off))
+  )
+  (network
+    (net N1)
+  )
+  (wiring
+    (wire (path F.Cu 125  2000 5000  8000 5000) (net N1))
+  )
+  (structure
+    (layer C2.Cu (type signal))
+  )
+)
+"#;
+
+    fn run_metadata(fixture: &str) -> (crate::reader::MetadataReadResult, SesBoard) {
+        let mut board = SesBoard::new();
+        let result = read_metadata(fixture.as_bytes(), &mut board);
+        (result, board)
+    }
+
+    /// `:249` `break outer`: the trace after the structure scope is NOT
+    /// read (fast board = outline alone), while the same bytes through
+    /// `read_board` DO produce the trace — the stop is real. The metadata
+    /// carries exactly what the three dispatched scopes populated (host
+    /// fields + um/10 + the 2 parser layers at the `:261-266`
+    /// precedence); `autoroute_settings` None (no such scope, and unlike
+    /// read_board no heuristic runs).
+    #[test]
+    fn metadata_stops_after_first_structure() {
+        let (result, board) = run_metadata(EARLY_STOP_DSN);
+        match result {
+            crate::reader::MetadataReadResult::Success { metadata, warnings } => {
+                assert!(warnings.is_empty());
+                assert_eq!(metadata.host_cad.as_deref(), Some("KICAD"));
+                assert_eq!(metadata.host_version.as_deref(), Some("8.99"));
+                assert_eq!(metadata.unit, Unit::Um);
+                assert_eq!(metadata.resolution, 10);
+                assert_eq!(metadata.layer_count, 2);
+                assert_eq!(metadata.snap_angle, AngleRestriction::FortyfiveDegree);
+                assert_eq!(metadata.string_quote, "\"");
+                assert_eq!(metadata.autoroute_settings, None);
+            }
+            other => panic!("expected Success, got {other:?}"),
+        }
+        assert_eq!(
+            board.items.len(),
+            1,
+            "the outline alone: placement/library/network/wiring never read"
+        );
+        let mut full_board = SesBoard::new();
+        assert!(matches!(
+            read_board(EARLY_STOP_DSN.as_bytes(), &mut full_board),
+            crate::reader::DsnReadResult::Success { .. }
+        ));
+        assert_eq!(
+            full_board.items.len(),
+            3,
+            "read_board on the same bytes inserts the placed pin and the wire"
+        );
+    }
+
+    /// `:232-234` + `:264-265`: the pcb scope closing before any
+    /// structure scope leaves `layer_structure` unset and the board
+    /// uncreated — Success with layer_count 0 and an empty sink.
+    #[test]
+    fn metadata_pcb_close_before_structure_is_success_layer_count_zero() {
+        let (result, board) = run_metadata(HEADER_PCB_EXTRA_DSN);
+        match result {
+            crate::reader::MetadataReadResult::Success { metadata, warnings } => {
+                assert!(warnings.is_empty());
+                assert_eq!(metadata.unit, Unit::Um);
+                assert_eq!(metadata.resolution, 10);
+                assert_eq!(metadata.layer_count, 0);
+            }
+            other => panic!("expected Success, got {other:?}"),
+        }
+        assert!(board.items.is_empty(), "no board without a structure scope");
+    }
+
+    /// The header ParseError is identical to read_board's (the shared
+    /// `scan_pcb_header` helper, `:211-213`).
+    #[test]
+    fn metadata_header_failure_matches_read_board() {
+        let (result, _board) = run_metadata(HEADER_GARBAGE_DSN);
+        assert_eq!(
+            result,
+            crate::reader::MetadataReadResult::ParseError {
+                location: "(pcb".to_string(),
+                detail: "Not a Specctra DSN file: expected '(pcb <name>' header".to_string(),
+            }
+        );
     }
 }

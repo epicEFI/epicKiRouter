@@ -978,6 +978,18 @@ pub struct MetadataIr {
     pub host_cad: Option<String>,
     /// `(parser (host_version ...))` (Task 9).
     pub host_version: Option<String>,
+    /// Java `layerCount` at the `DsnReader.java:261-266` precedence (the
+    /// parser `layerStructure` length, ELSE the created board's layer
+    /// count, else 0). Java's readBoard `Success` carries metadata=null —
+    /// this field exists for the D16 pin's read_board side (Task 10) and
+    /// is computed by the same shared helper as `read_metadata`'s
+    /// `BoardMetadataIr.layer_count`.
+    pub layer_count: i32,
+    /// Java `scopeParameter.autorouteSettings` — `None` when no
+    /// `(autoroute_settings ...)` scope was read; the plane heuristic does
+    /// not touch the parse state (Java's `adjustPlaneAutorouteSettings`
+    /// mutates the BOARD). D16 read_board-side exposure (Task 10).
+    pub autoroute_settings: Option<crate::scope::autoroute_settings::AutorouteSettingsIr>,
 }
 
 impl Default for MetadataIr {
@@ -991,6 +1003,8 @@ impl Default for MetadataIr {
             flip_style: None,
             host_cad: None,
             host_version: None,
+            layer_count: 0,
+            autoroute_settings: None,
         }
     }
 }

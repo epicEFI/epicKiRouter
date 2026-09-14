@@ -10,12 +10,13 @@
 //! assigned (jar `/tmp/epic-t9-res.out` CASE resint: `READ_OK false
 //! unit=um res=100`).
 //!
-//! Known deferral (Task 10): Java assigns `scopeParameter.unit` even when
-//! `fromString` returns null (CASE resbad leaves `unit=null`); the Rust
-//! [`crate::state::Unit`] is non-nullable, so the failed-unit read keeps
-//! the previous value. Only `readMetadata`'s BoardMetadata (Task 10) can
-//! observe the difference — `readOk=false` dominates the read_board
-//! result either way.
+//! Resolved divergence (Task 10): Java assigns `scopeParameter.unit` even
+//! when `fromString` returns null (CASE resbad leaves `unit=null`); the
+//! Rust [`crate::state::Unit`] is non-nullable, so the failed-unit read
+//! keeps the previous value. Observable only through `readMetadata`'s
+//! BoardMetadata (readOk=false dominates the read_board result either
+//! way) — the port's `BoardMetadataIr::unit` (`reader.rs`) documents the
+//! divergence instead of modeling Java's null.
 
 use crate::lexer::{Scanner, Token};
 use crate::state::ParseState;
