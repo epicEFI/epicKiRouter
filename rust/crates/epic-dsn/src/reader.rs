@@ -441,6 +441,57 @@ mod tests {
 )
 "#;
 
+    /// T47 composed shape (Task-1 trap, commit 502b88f8): a bare
+    /// `(class ...)` inside `(network ...)` with `(wiring ...)` AFTER it,
+    /// all closes balanced so the pcb scope completes. The wire is fully
+    /// valid (F.Cu exists, net PERFECT exists, endpoints on the U1/U2 pin
+    /// centers) — so a zero-trace result cannot be a wiring-scope veto.
+    /// Jar probe /tmp/epic-t9fix-t47.jsh -> /tmp/epic-t9fix-t47.out.
+    const T47_DSN: &str = r#"(pcb t47fix.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+    )
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+    (rule
+      (width 250)
+      (clearance 200)
+    )
+  )
+  (placement
+    (component PAD
+      (place U1 2000 5000 front 0)
+      (place U2 8000 5000 front 0)
+    )
+  )
+  (library
+    (image PAD
+      (pin CirclePad 1 0 0)
+    )
+    (padstack CirclePad
+      (shape (circle F.Cu 800))
+      (attach off)
+    )
+  )
+  (network
+    (net PERFECT (pins U1-1 U2-1))
+    (class kicad_default PERFECT
+    )
+  )
+  (wiring
+    (wire (path F.Cu 125  2000 5000  8000 5000) (net PERFECT)(type route))
+  )
+)
+"#;
+
     fn run(fixture: &str) -> (crate::reader::DsnReadResult, SesBoard) {
         let mut board = SesBoard::new();
         let result = read_board(fixture.as_bytes(), &mut board);
@@ -676,5 +727,53 @@ mod tests {
             other => panic!("expected ConductionArea, got {other:?}"),
         }
         assert!(!board.nets[0].contains_plane);
+    }
+
+    /// T47 at the dispatcher level, jar /tmp/epic-t9fix-t47.out (probe
+    /// /tmp/epic-t9fix-t47.jsh): Success, ZERO traces, ZERO warnings
+    /// despite the fully valid wire. The jar consumed all 748 bytes —
+    /// tokens past `(wiring` at offset 659 — so the parse walked past the
+    /// wiring region and still produced no trace and no drop warning:
+    /// the wiring scope never dispatched, and the loss is the NETWORK
+    /// scope's bare-class close-eating cascade (t8_deg1/t8_deg2 in
+    /// `scope/network.rs`), not a wiring veto. Side observations, same
+    /// capture: the outline + both pins survive, and the bare class
+    /// itself is lost too (NETCLASS_COUNT 1, only `default` — unlike the
+    /// t8_deg1 end-of-network tail, where it applied).
+    #[test]
+    fn t47_class_before_wiring_cascade_parity() {
+        let (result, board) = run(T47_DSN);
+        match result {
+            crate::reader::DsnReadResult::Success { warnings } => {
+                assert!(warnings.is_empty(), "cascade drops silently");
+            }
+            other => panic!("expected Success, got {other:?}"),
+        }
+        let traces = board
+            .items
+            .iter()
+            .filter(|item| matches!(item, ItemIr::Trace { .. }))
+            .count();
+        assert_eq!(
+            traces, 0,
+            "valid wire lost to the cascade, not a wiring veto"
+        );
+        assert_eq!(board.items.len(), 3);
+        assert_eq!(
+            board
+                .items
+                .iter()
+                .filter(|item| matches!(item, ItemIr::BoardOutline { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            board
+                .items
+                .iter()
+                .filter(|item| matches!(item, ItemIr::Pin { .. }))
+                .count(),
+            2
+        );
     }
 }

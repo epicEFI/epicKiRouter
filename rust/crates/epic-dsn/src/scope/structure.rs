@@ -346,7 +346,7 @@ pub(crate) fn read_via_padstacks(scanner: &mut Scanner) -> Option<Vec<String>> {
 ///
 /// Warnings: every FRLogger.warn in the Task 6 halves (degenerate
 /// keepouts, unknown clearance classes, bad plane layers, via_at_smd
-/// garbage, ...) is log-only — none reach `push_warning`, so the
+/// garbage, ...) is log-only — none reach `state.warnings`, so the
 /// parity-warnings count stays 0 on every fixture that parses.
 pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn BoardSink) -> bool {
     let mut info = BoardConstructionInfo::default();

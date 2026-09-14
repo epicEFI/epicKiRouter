@@ -1067,10 +1067,6 @@ impl BoardSink for SesBoard {
         self.layers.as_ref()
     }
 
-    fn push_warning(&mut self, warning: String) {
-        self.warnings.push(warning);
-    }
-
     fn set_metadata(&mut self, mut metadata: MetadataIr) {
         // The snapshot cannot carry the board-held flip_style: Java sets
         // `board.components.setFlipStyleRotateFirst(true)` from the

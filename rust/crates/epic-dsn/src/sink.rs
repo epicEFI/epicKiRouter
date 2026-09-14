@@ -1458,10 +1458,6 @@ pub trait BoardSink {
 
     // ---- diagnostics + metadata -----------------------------------------
 
-    /// Appends a parity warning (surface D12: digit-normalized in the
-    /// digest; exact strings live on the sink).
-    fn push_warning(&mut self, warning: String);
-
     /// Snapshot of the parse metadata (unit/resolution/quote/snap angle
     /// plus the host fields); called by the read_board assembly (Task 9).
     fn set_metadata(&mut self, metadata: MetadataIr);

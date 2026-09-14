@@ -984,7 +984,7 @@ mod tests {
     /// the drillable flag on a single-layer assign, DUPL/dupl.1 the
     /// `.N`-stripped dedup skip, EMPTYSH the warn-only skip. The three jar
     /// FRLogger.warn lines fire WITHOUT touching the parity warnings
-    /// (WARN_COUNT 0) — log-only, never push_warning.
+    /// (WARN_COUNT 0) — log-only, never routed to `state.warnings`.
     #[test]
     fn t7_pad_padstack_battery() {
         let input = b"\

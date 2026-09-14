@@ -48,6 +48,14 @@
 //!   breaks at `Close(net)`; the wire inserts UNFIXED with its ORIGINAL
 //!   net, and its close leaks exactly as above (jar cf-j: GEN 2).
 //!
+//! ## T47 reconciliation (Task-1 trap shape)
+//!
+//! A `(class ...)` before `(wiring ...)` loses every wire — but NOT here:
+//! the loss is the NETWORK scope's bare-class close-eating cascade
+//! (t8_deg1/t8_deg2 in `scope/network.rs`), not a wiring veto. Equivalence
+//! is pinned at the dispatcher level by the t47 test in `crate::reader`
+//! (jar `/tmp/epic-t9fix-t47.out`).
+//!
 //! ## Scanner alias
 //!
 //! The flex lexer maps plain `path` to `Keyword.POLYGON_PATH`
