@@ -72,3 +72,34 @@ User ran GitHub Copilot's repo analysis (top feature requests by engagement + co
 - **#726 ETA / progress display** (6 comments) — M9 GUI (egui) backlog; trivial, good UX win.
 
 None change the M0–M10 ordering; all three are post-parity improvements, exactly where the rewrite's headroom lives.
+
+---
+
+## DipTrace comparison addendum (2026-09-13)
+
+User supplied an external DipTrace-vs-Freerouting feature/algorithm analysis (DipTrace = commercial shape-based standalone EDA; the best-regarded router among hobby/pro tools for years). Fact-checked against our port work and recon:
+
+**Already in our research/design — with better sourcing than the analysis:**
+- PathFinder negotiated congestion = our #1 recommended scheduler upgrade (state-of-the-art doc: McMurchie & Ebeling 1995 formulation `(base + history) × present-sharing`; baseline uses "linear pass-scaled costs + snapshot restore, prone to oscillation — NOT PathFinder history costs — key gap"). Design M-stage: global routing w/ PathFinder, current scheduler as fixture-gated fallback.
+- Congestion-map global stage: design has it; a DATE 2023 global-routing paper *beat Freerouting* with exactly this.
+- Fanout/escape improvements: design already itemizes congestion-map-aware pin ordering, BGA channel-aware escapes, dog-bone/via-in-pad/under-pad, ordered-escape planning.
+- Coupled diff-pair + length matching: pose-based A* w/ Dubins heuristic + MSDTW (KRT Rust prior art); M7.
+- Teardrops: in the gloss suite (`spread → centering → miter → teardrops`); KiCad 8 also does them natively.
+- Multithreading: NCTU-GR 2.0 collision-aware net-level RRR is the cited technique; §13 has the data-layout side.
+- Plane islanding: M6 exit criteria include island detection.
+- The analysis's closing advice ("PathFinder + dedicated escape pass first, diff pairs later") independently confirms our M4→M6→M7 ordering.
+
+**Factual errors in the analysis (do NOT absorb into backlog):**
+- "Freerouting has no automated fanout" — FALSE: `autoroute.pipeline` runs fanout → batch → optimizer. The real gap is fanout *quality*, already itemized above.
+- "Lacks class-to-class clearance matrices" — FALSE: `ClearanceMatrix` per-pair per-layer values are core DSN (`class_class`), ported in M1b Tasks 5+8 (T33); the parity digest literally carries the full matrix.
+- "Cannot enforce via sizes by net class" — FALSE: `ViaRule`/`ViaInfo` per net class (`use_via`) ported in Task 8. Fair critique: *selection* intelligence when multiple vias allowed.
+- "Treats pours as static keepouts" — HALF: `ConductionArea` + `contains_plane` stub+via mode is more than static; no dynamic re-flood is by DSN-workflow design (host re-pours on SES import). M6 adds in-router awareness.
+
+**Genuinely new items (banked):**
+1. **Parallel-run/crosstalk cost penalty** — path cost grows with parallel proximity+length on same/adjacent layers. Slots: M6 global-stage objective term.
+2. **Max stub length DRC** — flags via/branch stubs that reflect signals. Slots: M6 epic-drc checks (cheap, high value).
+3. **Phase tuning bumps** — intra-pair phase correction at corners. Slots: M7 diff-pair engine sub-feature.
+4. **Layer direction bias strengthening** — penalize against-grain routing, allow short breakouts. Slots: M3/M4 cost weights (fixture-gated for zero regression).
+5. **Controlled impedance width/spacing from stackup** — BLOCKED on input side: DSN carries no dielectric/Er data (KiCad doesn't export it); needs a settings/rules extension. Adjacent to the parked post-2.0 "impedance-driven stackup solving" line; pull earlier only if the input gap is solved.
+6. **Thermal relief generation in-router** — workflow caveat: KiCad regenerates reliefs when re-pouring on SES import, so in-router spokes would double up unless flag-gated default-off. M6 consideration.
+7. **Arc/curved + freeform routing** — fundamental extension beyond the 45° kernel port (epic-geometry is deliberately 45°-exact for parity). Post-M10 additive layer; DSN path syntax supports arcs so I/O would not block it.
