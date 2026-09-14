@@ -167,9 +167,13 @@ pub fn java_double_to_string(value: f64) -> String {
     let Some((mantissa, exponent)) = scientific.split_once('e') else {
         return scientific; // unreachable for finite non-zero
     };
-    let exp10: i32 = exponent.parse().unwrap_or(0);
+    // Rust `{:e}` always writes a parseable exponent (any sign lives in
+    // the exponent half, never the mantissa), so both the parse and the
+    // absence of a `+` prefix on `digits` are invariants, not error paths.
+    let exp10: i32 = exponent
+        .parse()
+        .expect("Rust {:e} exponent is always a parseable i32");
     let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let digits = digits.strip_prefix('+').map_or(digits.as_str(), |s| s);
     let mut out = String::new();
     if negative {
         out.push('-');
@@ -183,9 +187,9 @@ pub fn java_double_to_string(value: f64) -> String {
             for _ in 0..-point_position {
                 out.push('0');
             }
-            out.push_str(digits);
+            out.push_str(&digits);
         } else if point_position >= n {
-            out.push_str(digits);
+            out.push_str(&digits);
             for _ in 0..(point_position - n) {
                 out.push('0');
             }
@@ -259,6 +263,15 @@ mod tests {
         // so `O'Brien` stays UNQUOTED. The counterintuitive case a wrong
         // "quote all punctuation" implementation would flip.
         assert_eq!(quote_java_identifier("O'Brien", "\""), "O'Brien");
+        // NON-`"` string quote (anchor-blind rule, the Task-1
+        // `(string_quote '` precedent): the quote char itself is STRIPPED
+        // from names and used for the wrap, so a hardcode-to-`"`
+        // regression flips both rows — `O'Brien` under quote `'` loses its
+        // apostrophe, and a reserved-char name wraps in `'…'`, not `"…"`.
+        // No tier A+B fixture declares a non-`"` quote, so the goldens
+        // cannot catch this class; only these rows do.
+        assert_eq!(quote_java_identifier("O'Brien", "'"), "OBrien");
+        assert_eq!(quote_java_identifier("a b", "'"), "'a b'");
     }
 
     /// `IndentFileWriter` layout pin — the exact byte layout of

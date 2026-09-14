@@ -364,6 +364,11 @@ pub enum Sexpr {
     List(Vec<Sexpr>),
 }
 
+/// Nesting cap: a pathological document must fail as a clean anyhow
+/// error, not abort the process on stack overflow (committed goldens sit
+/// at depth ~8; the port's own emission is similarly shallow).
+const MAX_SEXPR_DEPTH: usize = 512;
+
 /// Parses ONE root sexpr (a session document). Whitespace only separates
 /// tokens; atoms compare textually, so `1250` and `1250.0` are DIFFERENT
 /// atoms — the "numbers exact" rule. Only `"` gets string lexing: the
@@ -374,7 +379,7 @@ pub enum Sexpr {
 fn parse_sexpr(text: &str) -> Result<Sexpr> {
     let bytes = text.as_bytes();
     let mut pos = 0usize;
-    let root = parse_node(text, bytes, &mut pos)?;
+    let root = parse_node(text, bytes, &mut pos, 0)?;
     skip_ws(bytes, &mut pos);
     anyhow::ensure!(
         pos == bytes.len(),
@@ -389,7 +394,11 @@ fn skip_ws(bytes: &[u8], pos: &mut usize) {
     }
 }
 
-fn parse_node(text: &str, bytes: &[u8], pos: &mut usize) -> Result<Sexpr> {
+fn parse_node(text: &str, bytes: &[u8], pos: &mut usize, depth: usize) -> Result<Sexpr> {
+    anyhow::ensure!(
+        depth <= MAX_SEXPR_DEPTH,
+        "sexpr nesting exceeds {MAX_SEXPR_DEPTH} levels — not a session document"
+    );
     skip_ws(bytes, pos);
     anyhow::ensure!(*pos < bytes.len(), "unexpected end of input");
     if bytes[*pos] == b'(' {
@@ -402,7 +411,7 @@ fn parse_node(text: &str, bytes: &[u8], pos: &mut usize) -> Result<Sexpr> {
                 *pos += 1;
                 return Ok(Sexpr::List(items));
             }
-            items.push(parse_node(text, bytes, pos)?);
+            items.push(parse_node(text, bytes, pos, depth + 1)?);
         }
     }
     if bytes[*pos] == b')' {
@@ -1121,9 +1130,20 @@ mod compare_pins {
         collect_divergences(&golden, &rust, "session", false, &mut divergences, 8);
         assert!(divergences.is_empty());
         assert_eq!(classify(&divergences), ByteDiffClass::Normalization);
-        // Identical trees are also Normalization-shaped (but compare()
-        // catches byte-equality before ever classifying).
-        assert!(divergences.is_empty());
+    }
+
+    /// The depth cap: pathological nesting fails as a clean anyhow error
+    /// (not a stack-overflow abort), while realistic depth still parses.
+    #[test]
+    fn sexpr_depth_cap_fails_cleanly() {
+        let deep_ok = format!("{}a{}", "(".repeat(400), ")".repeat(400));
+        assert!(parse_sexpr(&deep_ok).is_ok(), "400 levels must parse");
+        let too_deep = format!("{}a{}", "(".repeat(600), ")".repeat(600));
+        let err = parse_sexpr(&too_deep).expect_err("600 levels must fail");
+        assert!(
+            err.to_string().contains("nesting"),
+            "unexpected error: {err:#}"
+        );
     }
 
     /// The report limit truncates without changing classification

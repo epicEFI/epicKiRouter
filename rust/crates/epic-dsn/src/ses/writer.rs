@@ -179,13 +179,7 @@ fn write_components(
             write_identifier(file, &board.packages[package_index].name, string_quote);
             component_found = true;
         }
-        write_component(
-            component_id,
-            component,
-            string_quote,
-            session_transform,
-            file,
-        );
+        write_component(component, string_quote, session_transform, file);
     }
     if component_found {
         file.end_scope();
@@ -200,7 +194,6 @@ fn write_components(
 /// component table (the reader never inserts unplaced components,
 /// `Network.java:968-970`); the port skips its place line.
 fn write_component(
-    component_id: i32,
     component: &crate::sink::ComponentIr,
     string_quote: &str,
     session_transform: &CoordinateTransform,
@@ -230,7 +223,6 @@ fn write_component(
         file.write(" (lock_type position)");
     }
     file.write(")");
-    let _ = component_id; // Java passes the component through; id unused
 }
 
 /// Java `writeWasIs` (`:183-218`): the `(was_is` scope — empty on a
