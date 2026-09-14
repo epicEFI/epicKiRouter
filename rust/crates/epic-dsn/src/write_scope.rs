@@ -3,6 +3,12 @@
 //! consumers need it — the harness parse digest (`dsn_digest`) and the
 //! Task 13 SES writer — and the dependency runs harness -> epic-dsn only,
 //! so a harness-local copy could never be shared with the writer.
+//!
+//! Task 13 added the emission core: [`IndentFileWriter`] (the exact
+//! `datastructures/IndentFileWriter.java` layout) and
+//! [`java_double_to_string`] (the `String.valueOf(double)` /
+//! `Double.toString` text, needed for window-hole coordinates the
+//! conduction-area writer emits in double precision).
 
 /// The SES reserved-character set (`SesWriter.java:62`); a name carrying
 /// any of these is written quoted.
@@ -63,6 +69,160 @@ pub fn quote_java_identifier(name: &str, string_quote: &str) -> String {
     }
 }
 
+/// Java `IndentFileWriter` (`datastructures/IndentFileWriter.java`) over
+/// an in-memory `String` instead of a stream: UTF-8 text, `\n` newlines,
+/// two-space indent per scope level. `startScope(false)` writes the
+/// opening paren WITHOUT a preceding newline (the session root);
+/// `endScope` ALWAYS newline-firsts (`:42-50`), so the very first
+/// `endScope` of a `startScope(false)` session leaves no stray indent
+/// (level 0).
+#[derive(Debug, Default)]
+pub struct IndentFileWriter {
+    buffer: String,
+    indent_level: i32,
+}
+
+impl IndentFileWriter {
+    /// An empty writer at indent level 0.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The accumulated text (the flushed stream contents).
+    pub fn into_string(self) -> String {
+        self.buffer
+    }
+
+    /// Java `startScope(boolean)` (`:23-34`): optional leading newline,
+    /// then `(` and the indent level grows.
+    pub fn start_scope_with_newline(&mut self, new_line: bool) {
+        if new_line {
+            self.new_line();
+        }
+        self.buffer.push('(');
+        self.indent_level += 1;
+    }
+
+    /// Java `startScope()` (`:37-39`): always newline-first.
+    pub fn start_scope(&mut self) {
+        self.start_scope_with_newline(true);
+    }
+
+    /// Java `endScope()` (`:42-50`): indent shrinks FIRST, then newline +
+    /// `)`.
+    pub fn end_scope(&mut self) {
+        self.indent_level -= 1;
+        self.new_line();
+        self.buffer.push(')');
+    }
+
+    /// Java `newLine()` (`:53-62`): `\n` plus the current indent.
+    pub fn new_line(&mut self) {
+        self.buffer.push('\n');
+        for _ in 0..self.indent_level {
+            self.buffer.push_str("  ");
+        }
+    }
+
+    /// Java `write(String)` — raw append.
+    pub fn write(&mut self, text: &str) {
+        self.buffer.push_str(text);
+    }
+}
+
+/// Java `Double.toString(double)` / `String.valueOf(double)` — JDK 19+
+/// shortest-round-trip digits with Java's LAYOUT rules, which differ from
+/// Rust's `Display`:
+///
+/// - plain decimal `ddd.ddd` (at least one fraction digit) iff
+///   `1e-3 <= |v| < 1e7`, else scientific `d.dddE±x` (uppercase `E`, no
+///   `+` on positive exponents, at least one fraction digit: `1.0E-4`,
+///   not `1E-4`);
+/// - `NaN`, `Infinity`, `-Infinity`, `0.0`, `-0.0` verbatim.
+///
+/// The DIGITS come from Rust's `{:e}` (shortest round-trip, same digit
+/// sequence as JDK 19+'s Ryu); only the rendering is Java's. Rust `{}`
+/// would print `12345678` where Java prints `1.2345678E7` and `0.0001`
+/// where Java prints `1.0E-4` — the two threshold rules this replica
+/// exists for.
+pub fn java_double_to_string(value: f64) -> String {
+    if value.is_nan() {
+        return "NaN".to_string();
+    }
+    if value.is_infinite() {
+        return if value > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
+    }
+    if value == 0.0 {
+        return if value.is_sign_negative() {
+            "-0.0".to_string()
+        } else {
+            "0.0".to_string()
+        };
+    }
+    let negative = value < 0.0;
+    let magnitude = value.abs();
+    // "d.dddde<exp>" — digits without the point, exponent of the FIRST
+    // digit (1.xxxx * 10^exp10).
+    let scientific = format!("{magnitude:e}");
+    let Some((mantissa, exponent)) = scientific.split_once('e') else {
+        return scientific; // unreachable for finite non-zero
+    };
+    let exp10: i32 = exponent.parse().unwrap_or(0);
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let digits = digits.strip_prefix('+').map_or(digits.as_str(), |s| s);
+    let mut out = String::new();
+    if negative {
+        out.push('-');
+    }
+    if (-3..=6).contains(&exp10) {
+        // plain decimal, 1e-3 <= |v| < 1e7
+        let point_position = exp10 + 1; // digits before the point
+        let n = digits.len() as i32;
+        if point_position <= 0 {
+            out.push_str("0.");
+            for _ in 0..-point_position {
+                out.push('0');
+            }
+            out.push_str(digits);
+        } else if point_position >= n {
+            out.push_str(digits);
+            for _ in 0..(point_position - n) {
+                out.push('0');
+            }
+            out.push_str(".0");
+        } else {
+            let split = point_position as usize;
+            out.push_str(&digits[..split]);
+            out.push('.');
+            out.push_str(&digits[split..]);
+        }
+    } else {
+        // Java scientific: d.dddE<exp> — at least one fraction digit
+        out.push_str(&digits[..1]);
+        out.push('.');
+        if digits.len() > 1 {
+            out.push_str(&digits[1..]);
+        } else {
+            out.push('0');
+        }
+        out.push('E');
+        out.push_str(&exp10.to_string());
+    }
+    out
+}
+
+/// Java `board.model.structure.Unit.toString()` (`Unit.java:36-38`:
+/// `super.toString().toLowerCase()`) — the lowercase enum name the
+/// `(resolution <unit> <n>)` SES/DSN scope writes.
+pub fn unit_to_dsn_string(unit: crate::state::Unit) -> &'static str {
+    match unit {
+        crate::state::Unit::Mil => "mil",
+        crate::state::Unit::Inch => "in",
+        crate::state::Unit::Mm => "mm",
+        crate::state::Unit::Um => "um",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +251,116 @@ mod tests {
         assert_eq!(quote_java_identifier("a\"b", "\""), "ab");
         // non-ASCII UTF-8 byte (signed <= 0) forces quotes
         assert_eq!(quote_java_identifier("ré", "\""), "\"ré\"");
+    }
+
+    /// `IndentFileWriter` layout pin — the exact byte layout of
+    /// `datastructures/IndentFileWriter.java`: root `startScope(false)`
+    /// opens without a newline, every nested `startScope()`
+    /// newline+indent-firsts BEFORE its `(`, and `endScope` decrements
+    /// then newline+indent+`)` — so every scope CLOSES on its own line at
+    /// the parent indent. The `(place ...)` line demonstrates the OTHER
+    /// emission style `SesWriter.writeComponent` actually uses for
+    /// inline scopes (`SesWriter.java:167-181`): raw `newLine` +
+    /// `"(place "` … `")"` writes, never startScope/endScope — which is
+    /// why real SES files show `(place front X Y 0)` closed inline.
+    #[test]
+    fn indent_file_writer_layout() {
+        let mut writer = IndentFileWriter::new();
+        writer.start_scope_with_newline(false);
+        writer.write("session");
+        writer.start_scope(); // placement, level 2
+        writer.write("placement");
+        writer.start_scope(); // component, level 3
+        writer.write("component U1");
+        // the writeComponent inline style: newLine + raw "(place ...)"
+        writer.new_line();
+        writer.write("(place U1 100 100 front 0)");
+        writer.end_scope(); // component
+        writer.end_scope(); // placement
+        writer.end_scope(); // session
+        assert_eq!(
+            writer.into_string(),
+            "(session\n  (placement\n    (component U1\n      (place U1 100 100 front 0)\n    )\n  )\n)"
+        );
+    }
+
+    /// `endScope` NEVER omits its newline — even at indent 0 straight
+    /// after a `startScope(false)` root, the closer is `\n)` (the Java
+    /// method unconditionally newline-firsts; a writer that suppressed
+    /// the level-0 newline would break every one-line-scope emission).
+    #[test]
+    fn indent_file_writer_root_close_always_newlines() {
+        let mut writer = IndentFileWriter::new();
+        writer.start_scope_with_newline(false);
+        writer.write("session");
+        writer.end_scope();
+        assert_eq!(writer.into_string(), "(session\n)");
+    }
+
+    /// `java_double_to_string` against known `Double.toString` outputs —
+    /// every value's expected text was produced by JDK 25's
+    /// `Double.toString`/`String.valueOf(double)` (same algorithm since
+    /// JDK 19's Ryu integration). The rows pin BOTH threshold rules
+    /// (1e-3 and 1e7), the mandatory-fraction-digit rule (`1.0E-4`, not
+    /// `1E-4`; `10.0`, not `10`), the no-`+` positive exponent, and the
+    /// shortest-round-trip digit sequence (the 2.15 row: Rust `{}`
+    /// would print `2.15` correctly, but `2150000000000000.5` exercises
+    /// the plain-range integer+fraction split with more digits than
+    /// fit comfortably before the point).
+    #[test]
+    fn java_double_to_string_pins() {
+        assert_eq!(java_double_to_string(0.0), "0.0");
+        assert_eq!(java_double_to_string(-0.0), "-0.0");
+        assert_eq!(java_double_to_string(f64::NAN), "NaN");
+        assert_eq!(java_double_to_string(f64::INFINITY), "Infinity");
+        assert_eq!(java_double_to_string(f64::NEG_INFINITY), "-Infinity");
+        // plain range [1e-3, 1e7)
+        assert_eq!(java_double_to_string(1.0), "1.0");
+        assert_eq!(java_double_to_string(10.0), "10.0");
+        assert_eq!(java_double_to_string(0.001), "0.001");
+        assert_eq!(java_double_to_string(9999999.0), "9999999.0");
+        assert_eq!(java_double_to_string(-123.456), "-123.456");
+        // just past the thresholds -> scientific with fraction digit
+        assert_eq!(java_double_to_string(0.0001), "1.0E-4");
+        assert_eq!(java_double_to_string(10000000.0), "1.0E7");
+        assert_eq!(java_double_to_string(12345678.0), "1.2345678E7");
+        assert_eq!(java_double_to_string(-0.000123456), "-1.23456E-4");
+        // shortest round-trip digits carried over from Rust's {:e}
+        assert_eq!(java_double_to_string(2.15), "2.15");
+        // captured from the jar (jshell /tmp/epic-t13-doubles.jsh): the
+        // value is EXACTLY representable (4300000000000001/2), so the
+        // 17-digit form is the shortest that round-trips.
+        assert_eq!(
+            java_double_to_string(2150000000000000.5),
+            "2.1500000000000005E15"
+        );
+        // subnormal territory: digits + deep negative exponent
+        assert_eq!(java_double_to_string(1.0e-300), "1.0E-300");
+        // trailing-zero-only fraction stays minimal (no padding)
+        assert_eq!(java_double_to_string(100.0), "100.0");
+    }
+
+    /// The plain-range INTEGER split arm: a value whose shortest digits
+    /// are fewer than the integer places needed (`point_position >= n`)
+    /// must zero-pad and force `.0` — `1.0E5`-shaped magnitudes inside
+    /// the plain range print as `100000.0`, not `1e5` or `100000`.
+    #[test]
+    fn java_double_to_string_integer_padding() {
+        assert_eq!(java_double_to_string(100000.0), "100000.0");
+        assert_eq!(java_double_to_string(5000.0), "5000.0");
+        // fraction-only-with-leading-zeros arm (point_position <= 0):
+        // 1e-3 itself is still in range: "0.001"
+        assert_eq!(java_double_to_string(0.001), "0.001");
+        // 1.25e-3 = 0.00125
+        assert_eq!(java_double_to_string(0.00125), "0.00125");
+    }
+
+    /// `Unit.toString()` is the lowercase enum name (`Unit.java:36-38`).
+    #[test]
+    fn unit_to_dsn_string_lowercase_names() {
+        assert_eq!(unit_to_dsn_string(crate::state::Unit::Mil), "mil");
+        assert_eq!(unit_to_dsn_string(crate::state::Unit::Inch), "in");
+        assert_eq!(unit_to_dsn_string(crate::state::Unit::Mm), "mm");
+        assert_eq!(unit_to_dsn_string(crate::state::Unit::Um), "um");
     }
 }
