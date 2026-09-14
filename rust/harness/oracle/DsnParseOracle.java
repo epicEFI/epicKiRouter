@@ -17,7 +17,8 @@
 // id/file/result; a case that THROWS (any Throwable — e.g. the binary
 // Cadence fixture Issue006) maps to "ParseError" — the documented Task-12
 // equivalence (plan :270). A malformed manifest line exits 3 with the
-// offending id on stderr.
+// offending id on stderr, or the truncated raw line when no id can be
+// extracted from it.
 //
 // The digest record contract is `rust/harness/src/dsn_digest.rs` — that
 // file is the DOC-OF-RECORD; the geometry-text formats below must
@@ -87,7 +88,7 @@ public class DsnParseOracle {
       if (line.isEmpty()) {
         continue;
       }
-      String id;
+      String id = null;
       String path;
       try {
         JsonObject caseObj = JsonParser.parseString(line).getAsJsonObject();
@@ -95,7 +96,16 @@ public class DsnParseOracle {
         path = caseObj.get("path").getAsString();
       } catch (RuntimeException e) {
         out.flush();
-        System.err.println("manifest format error on line '" + line + "': " + e);
+        // M1a convention (GeometryCorpusOracle): name the offending id when
+        // the line parsed far enough to yield one; a line with no
+        // extractable id (e.g. unparseable JSON) falls back to the raw
+        // line, truncated.
+        if (id != null) {
+          System.err.println("manifest format error for case id " + id + ": " + e);
+        } else {
+          String raw = line.length() <= 120 ? line : line.substring(0, 120) + "...";
+          System.err.println("manifest format error on line '" + raw + "': " + e);
+        }
         System.exit(3);
         return;
       }
