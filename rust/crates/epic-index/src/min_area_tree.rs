@@ -147,9 +147,10 @@ impl MinAreaTree {
                 *second_slot = new_node;
             }
         }
-        // Parent pointers of the old leaf and the new leaf point at the
-        // new node (set at push_inner for `leaf`; re-point the replaced
-        // leaf — Java :77-78).
+        // Parent pointers of the old leaf and the new leaf point at
+        // the new node — both set by these two calls (push_inner's
+        // `parent` parameter sets the NEW INNER node's own parent,
+        // not the children's; Java :77-78).
         self.base.set_parent(leaf_to_replace, Some(new_node));
         self.base.set_parent(leaf, Some(new_node));
 
@@ -176,7 +177,6 @@ impl MinAreaTree {
             let d1 = leaf_bounds.union(&first_bounds).area() - first_bounds.area();
             let d2 = leaf_bounds.union(&second_bounds).area() - second_bounds.area();
 
-            // T50: a tie descends FIRST (`<=`).
             // T50: a tie descends FIRST (`<=`).
             node = if d1 <= d2 { first } else { second };
         }
