@@ -14,11 +14,15 @@
 //    "layer_table":[...],"warnings_n":[...],"unit":"UM","resolution":10,
 //    "snap_angle":"45"}
 // Non-Success results (OutlineMissing/ParseError/IoError) carry only
-// id/file/result; a case that THROWS (any Throwable — e.g. the binary
-// Cadence fixture Issue006) maps to "ParseError" — the documented Task-12
-// equivalence (plan :270). A malformed manifest line exits 3 with the
-// offending id on stderr, or the truncated raw line when no id can be
-// extracted from it.
+// id/file/result. evaluateCase has TWO DISTINCT catch scopes: (1) around
+// readBoard only — any Throwable maps to "ParseError", the documented
+// Task-12 equivalence (plan :270; e.g. the binary Cadence fixture
+// Issue006); (2) around successRecord — a Throwable in the digest/
+// serialization code emits the DISTINCT marker result "DigestError"
+// (id + result only) plus a stderr line, never "ParseError", so a digest
+// bug fails loudly at compare time instead of lying in the committed
+// golden. A malformed manifest line exits 3 with the offending id on
+// stderr, or the truncated raw line when no id can be extracted from it.
 //
 // The digest record contract is `rust/harness/src/dsn_digest.rs` — that
 // file is the DOC-OF-RECORD; the geometry-text formats below must
@@ -133,38 +137,54 @@ public class DsnParseOracle {
       result.addProperty("result", "IoError");
       return result;
     }
+    // Catch scope 1: readBoard ONLY. Any throwable read failure is the
+    // documented "ParseError" equivalence (plan :270) — e.g.
+    // fixtures/Issue006-*.dsn, the binary Cadence file. One bad file must
+    // not kill the batch.
+    app.freerouting.io.BoardReadResult read;
     try {
       // Null observers + a real ItemIdGenerator (the same generator
       // DsnReader itself installs for null inputs) mirror the readBoard
       // smoke path; the design name only feeds log messages.
       IdGenerator idGenerator = new ItemIdGenerator();
-      app.freerouting.io.BoardReadResult read =
+      read =
           DsnReader.readBoard(
               new ByteArrayInputStream(bytes),
               null,
               idGenerator,
               Paths.get(path).getFileName().toString());
-      if (read instanceof app.freerouting.io.BoardReadResult.Success success) {
-        return successRecord(result, success.board(), success.warnings());
-      }
-      if (read instanceof app.freerouting.io.BoardReadResult.OutlineMissing) {
-        // Plan: non-Success results carry only id/file/result.
-        result.addProperty("result", "OutlineMissing");
-        return result;
-      }
-      if (read instanceof app.freerouting.io.BoardReadResult.IoError) {
-        result.addProperty("result", "IoError");
-        return result;
-      }
-      result.addProperty("result", "ParseError");
-      return result;
     } catch (Throwable t) {
-      // Any throwable read failure is the documented "ParseError"
-      // equivalence (plan :270) — e.g. fixtures/Issue006-*.dsn, the
-      // binary Cadence file. One bad file must not kill the batch.
       result.addProperty("result", "ParseError");
       return result;
     }
+    if (read instanceof app.freerouting.io.BoardReadResult.Success success) {
+      // Catch scope 2: digest/serialization ONLY. A bug in the digest code
+      // must NOT masquerade as "ParseError" (that would be a lie in the
+      // committed golden, sending the port work chasing a phantom parser
+      // bug); it emits the distinct "DigestError" marker (id + result
+      // only) — the Rust side never emits that string, so compare flags
+      // the line loudly instead of silently passing.
+      try {
+        return successRecord(result, success.board(), success.warnings());
+      } catch (Throwable t) {
+        System.err.println("digest error for case id " + id + ": " + t);
+        JsonObject digestError = new JsonObject();
+        digestError.addProperty("id", id);
+        digestError.addProperty("result", "DigestError");
+        return digestError;
+      }
+    }
+    if (read instanceof app.freerouting.io.BoardReadResult.OutlineMissing) {
+      // Plan: non-Success results carry only id/file/result.
+      result.addProperty("result", "OutlineMissing");
+      return result;
+    }
+    if (read instanceof app.freerouting.io.BoardReadResult.IoError) {
+      result.addProperty("result", "IoError");
+      return result;
+    }
+    result.addProperty("result", "ParseError");
+    return result;
   }
 
   // -------------------------------------------------------------------------

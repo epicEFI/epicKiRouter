@@ -491,16 +491,55 @@ fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
 fn load_golden(path: &Path) -> Result<Vec<GoldenRecord>> {
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("reading golden {}", path.display()))?;
+    parse_golden(&raw, &path.display().to_string())
+}
+
+/// Parses golden text (strict per line) — the in-memory half of
+/// [`load_golden`], split out so the comparator pins can exercise
+/// truncated/reordered goldens without touching the filesystem.
+fn parse_golden(raw: &str, source: &str) -> Result<Vec<GoldenRecord>> {
     let mut records = Vec::new();
     for (lineno, line) in raw.lines().enumerate() {
         if line.trim().is_empty() {
             continue;
         }
-        let record: GoldenRecord = serde_json::from_str(line)
-            .with_context(|| format!("{} line {}", path.display(), lineno + 1))?;
+        let record: GoldenRecord =
+            serde_json::from_str(line).with_context(|| format!("{source} line {}", lineno + 1))?;
         records.push(record);
     }
     Ok(records)
+}
+
+/// Position-by-position manifest/golden alignment — equal line counts and
+/// identical id sequences (the truncated/reordered-golden guard used by
+/// `compare`, shared with the comparator pins).
+fn ensure_alignment(
+    manifest_path: &Path,
+    entries: &[ManifestEntry],
+    golden_path: &Path,
+    records: &[GoldenRecord],
+) -> Result<()> {
+    // Counts checked (M1a lesson): a truncated golden must fail loudly,
+    // and the id sequences must agree position by position.
+    anyhow::ensure!(
+        records.len() == entries.len(),
+        "golden {} has {} line(s) but manifest {} has {} — recapture needed",
+        golden_path.display(),
+        records.len(),
+        manifest_path.display(),
+        entries.len()
+    );
+    for (index, (entry, record)) in entries.iter().zip(records).enumerate() {
+        anyhow::ensure!(
+            record.id == entry.id,
+            "golden line {} carries id {} but manifest line {} is {} — recapture needed",
+            index + 1,
+            record.id,
+            index + 1,
+            entry.id
+        );
+    }
+    Ok(())
 }
 
 fn json_string<T: Serialize>(value: &T) -> String {
@@ -612,6 +651,9 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, set: &str, jvm_xmx: &st
 
     let mut child = std::process::Command::new(&java)
         .arg(format!("-Xmx{jvm_xmx}"))
+        // Locale-pinned: locale-sensitive toUpperCase/equalsIgnoreCase paths in the engine must not capture different goldens on a non-en host (tr-TR).
+        .arg("-Duser.language=en")
+        .arg("-Duser.country=US")
         .arg("-cp")
         .arg(&jar)
         .arg(&oracle_src)
@@ -659,6 +701,16 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, set: &str, jvm_xmx: &st
             fresh_lines.len(),
             selected.len(),
             stderr.trim_end()
+        );
+    }
+    // Success: keep the discard semantics, but surface non-empty FRLogger
+    // noise instead of silently deleting it.
+    let stderr_bytes = std::fs::metadata(&stderr_path)
+        .map(|meta| meta.len())
+        .unwrap_or(0);
+    if stderr_bytes > 0 {
+        println!(
+            "note: oracle stderr held {stderr_bytes} byte(s) of FRLogger noise on a successful capture (discarded)"
         );
     }
     let _ = std::fs::remove_file(&stderr_path);
@@ -756,26 +808,7 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
     let golden_path = resolve_input(repo_root, golden);
     let entries = load_manifest(&manifest_path)?;
     let records = load_golden(&golden_path)?;
-    // Counts checked (M1a lesson): a truncated golden must fail loudly,
-    // and the id sequences must agree position by position.
-    anyhow::ensure!(
-        records.len() == entries.len(),
-        "golden {} has {} line(s) but manifest {} has {} — recapture needed",
-        golden_path.display(),
-        records.len(),
-        manifest_path.display(),
-        entries.len()
-    );
-    for (index, (entry, record)) in entries.iter().zip(&records).enumerate() {
-        anyhow::ensure!(
-            record.id == entry.id,
-            "golden line {} carries id {} but manifest line {} is {} — recapture needed",
-            index + 1,
-            record.id,
-            index + 1,
-            entry.id
-        );
-    }
+    ensure_alignment(&manifest_path, &entries, &golden_path, &records)?;
 
     let mut per_set: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new(); // set -> (checked, matched)
     let mut census: BTreeMap<&'static str, usize> = BTreeMap::new();
@@ -820,6 +853,16 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
             }
         }
     }
+
+    // Mirror of golden()'s empty-selection ensure: id-scheme drift must
+    // fail loudly, not print `0 fixture(s), 0 mismatch(es)` and pass the
+    // CI gate while comparing nothing.
+    let total_checked: usize = per_set.values().map(|(checked, _)| checked).sum();
+    anyhow::ensure!(
+        total_checked > 0,
+        "set {set} selects no manifest entries from {} — nothing was compared",
+        manifest_path.display()
+    );
 
     let total_mismatches: usize = census.values().sum();
     for (set_name, (checked, matched)) in &per_set {
@@ -915,5 +958,189 @@ mod pins {
         assert!(SetSel::parse("all").expect("valid").selects("dsn-0001"));
         assert!(SetSel::parse("all").expect("valid").selects("soak-0001"));
         assert!(SetSel::parse("bogus").is_err());
+    }
+}
+
+/// Task 11 quality-round pins: comparator/record-builder discrimination
+/// (cerebrum pin rules 3+4) + golden-load integrity. All synthetic
+/// in-memory records — no parsing, no JVM. A weakened `diff_records` or a
+/// vacuous alignment guard must fail these pins naming the gap.
+#[cfg(test)]
+mod comparator_pins {
+    use super::*;
+
+    /// A fully populated Success-shaped record. The discrimination pin
+    /// mutates exactly ONE field per case, so a comparator that skips a
+    /// field fails the pin naming the gap.
+    fn sample_record() -> GoldenRecord {
+        GoldenRecord {
+            id: "dsn-0001".to_string(),
+            file: "fixtures/example.dsn".to_string(),
+            result: "Success".to_string(),
+            stats: Some(StatsRecord {
+                layers: 4,
+                items: 120,
+                components: 10,
+                pads: 80,
+                nets: 12,
+                traces: 30,
+                vias: 2,
+            }),
+            geometry_sha256: Some("ab".repeat(32)),
+            clearance: Some(ClearanceRecord {
+                classes: vec!["default".to_string(), "power".to_string()],
+                values: vec![vec![0, 100], vec![100, 0]],
+            }),
+            net_table: Some(vec!["gnd".to_string(), "vcc".to_string()]),
+            layer_table: Some(vec![
+                LayerRecord {
+                    name: "top".to_string(),
+                    signal: true,
+                },
+                LayerRecord {
+                    name: "drill".to_string(),
+                    signal: false,
+                },
+            ]),
+            warnings_n: Some(vec!["wire # skipped".to_string()]),
+            unit: Some("UM".to_string()),
+            resolution: Some(10),
+            snap_angle: Some("45".to_string()),
+        }
+    }
+
+    /// Mutating exactly one field must yield EXACTLY ONE diff entry, and
+    /// it must name that field — a diff that omits or misnames it is a
+    /// vacuous comparator (the anchor-blind gap from the Task 10 review).
+    fn assert_field_discriminated(field: &'static str, mutate: impl FnOnce(&mut GoldenRecord)) {
+        let gold = sample_record();
+        let mut rust = sample_record();
+        mutate(&mut rust);
+        let diffs = diff_records(&gold, &rust);
+        assert_eq!(
+            diffs.len(),
+            1,
+            "mutating only {field} must produce exactly one diff entry, got {diffs:?}"
+        );
+        assert_eq!(
+            diffs[0].0, field,
+            "the diff entry must name {field}, got {diffs:?}"
+        );
+    }
+
+    /// Every comparable field of the golden record can fail the diff on
+    /// its own mutation (stats via three different sub-counts; clearance
+    /// via classes and values independently).
+    #[test]
+    fn each_comparable_field_is_discriminated() {
+        assert_field_discriminated("id", |r| r.id = "dsn-0002".to_string());
+        assert_field_discriminated("file", |r| r.file = "fixtures/other.dsn".to_string());
+        assert_field_discriminated("result", |r| r.result = "OutlineMissing".to_string());
+        assert_field_discriminated("stats", |r| {
+            r.stats.as_mut().expect("stats present").layers += 1;
+        });
+        assert_field_discriminated("stats", |r| {
+            r.stats.as_mut().expect("stats present").nets += 1;
+        });
+        assert_field_discriminated("stats", |r| {
+            r.stats.as_mut().expect("stats present").vias += 1;
+        });
+        assert_field_discriminated("geometry_sha256", |r| {
+            r.geometry_sha256 = Some("cd".repeat(32));
+        });
+        assert_field_discriminated("clearance", |r| {
+            r.clearance.as_mut().expect("clearance present").classes[1] = "signal".to_string();
+        });
+        assert_field_discriminated("clearance", |r| {
+            r.clearance.as_mut().expect("clearance present").values[0][1] += 5;
+        });
+        assert_field_discriminated("net_table", |r| {
+            r.net_table.as_mut().expect("net_table present")[0] = "gnd2".to_string();
+        });
+        assert_field_discriminated("layer_table", |r| {
+            r.layer_table.as_mut().expect("layer_table present")[0].name = "bottom".to_string();
+        });
+        assert_field_discriminated("warnings_n", |r| {
+            r.warnings_n
+                .as_mut()
+                .expect("warnings_n present")
+                .push("extra".to_string());
+        });
+        assert_field_discriminated("unit", |r| r.unit = Some("MIL".to_string()));
+        assert_field_discriminated("resolution", |r| r.resolution = Some(100));
+        assert_field_discriminated("snap_angle", |r| r.snap_angle = Some("90".to_string()));
+    }
+
+    /// A pair of identical records yields an empty diff (no false
+    /// positives).
+    #[test]
+    fn identical_records_diff_empty() {
+        assert!(diff_records(&sample_record(), &sample_record()).is_empty());
+    }
+
+    fn sample_entries(count: usize) -> Vec<ManifestEntry> {
+        (1..=count)
+            .map(|no| ManifestEntry {
+                id: format!("dsn-{no:04}"),
+                path: format!("fixtures/f{no}.dsn"),
+            })
+            .collect()
+    }
+
+    fn golden_lines(count: usize) -> Vec<String> {
+        (1..=count)
+            .map(|no| {
+                let mut record = sample_record();
+                record.id = format!("dsn-{no:04}");
+                serde_json::to_string(&record).expect("golden record serializes")
+            })
+            .collect()
+    }
+
+    /// Golden-load integrity: the compare-path load+zip rejects a
+    /// truncated golden (missing last line) and a reordered golden (two
+    /// lines swapped) — non-empty failure, never silent acceptance.
+    #[test]
+    fn golden_load_rejects_truncated_and_reordered() {
+        let entries = sample_entries(3);
+        let lines = golden_lines(3);
+        let join = |ls: &[String]| ls.join("\n");
+
+        // Control: an aligned pair is accepted.
+        let good = parse_golden(&join(&lines), "control").expect("control golden parses");
+        ensure_alignment(Path::new("m.jsonl"), &entries, Path::new("g.jsonl"), &good)
+            .expect("aligned pair accepted");
+
+        // Truncated: the last golden line is missing.
+        let mut truncated_lines = lines.clone();
+        truncated_lines.pop();
+        let truncated =
+            parse_golden(&join(&truncated_lines), "truncated").expect("truncated golden parses");
+        assert!(
+            ensure_alignment(
+                Path::new("m.jsonl"),
+                &entries,
+                Path::new("g.jsonl"),
+                &truncated
+            )
+            .is_err(),
+            "a truncated golden must not align silently"
+        );
+
+        // Reordered: the first two lines are swapped.
+        let mut swapped = lines.clone();
+        swapped.swap(0, 1);
+        let reordered =
+            parse_golden(&join(&swapped), "reordered").expect("reordered golden parses");
+        assert!(
+            ensure_alignment(
+                Path::new("m.jsonl"),
+                &entries,
+                Path::new("g.jsonl"),
+                &reordered
+            )
+            .is_err(),
+            "a reordered golden must not align silently"
+        );
     }
 }

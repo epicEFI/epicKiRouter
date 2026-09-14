@@ -46,6 +46,12 @@
 //!   - `circle <cx> <cy> <r>`,
 //!   - `(window)` holes append ` win <shape-encoding>` per hole in file
 //!     order.
+//! - Kind blind spot: the `K` line erases the keepout kind — keepout,
+//!   via_keepout and place_keepout (`KeepoutKindIr`) all render as `K` —
+//!   so a kind-swap regression is invisible to the digest. Changing the
+//!   line format requires updating BOTH this file and
+//!   `rust/harness/oracle/DsnParseOracle.java` together (doc-of-record
+//!   format).
 //! - A zero-corner trace would encode as `T <id> <layer> <halfwidth>
 //!   <fixed>` with no coordinate pairs (the encoder does not special-case
 //!   or panic), but it is UNREACHABLE from a parse: `readWire` skips any

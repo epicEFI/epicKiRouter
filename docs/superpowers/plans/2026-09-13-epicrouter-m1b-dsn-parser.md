@@ -271,6 +271,11 @@ closed pins: open trace stored at id 3, GEN_MAX 3, WARN_COUNT 0).
 - [ ] Algebraic/robustness invariants: re-parse determinism (parse twice → identical digest on all 175), idempotent skip_scope, lexer never panics on the 39 root .ses files (not DSN — must produce ParseError, not a panic).
 - [ ] Gates + commit `test(m1b): DSN parse parity green — 175 fixtures + soak vs Java oracle`.
 
+**Task 11 quality-review census leads:**
+1. **Circle-keepout centers dominate**: 550 of 552 pre-parity mismatches involve `shape:circle` keepouts where Java applies a component/coordinate translation to the circle center (e.g. dsn-0002 `K 362 ... circle 1370841 -1036066 10000` vs Rust `39500 0 10000`) — likely a single transform-site fix flips nearly the whole gate. Fixing this is the FIRST Task-12 move.
+2. **dsn-0151 `Issue723-CombineStackOverflow.dsn`**: Java `normalizeAllTraces()` combines 4,000 wire segments into 1 trace (items=2/traces=1) vs Rust 4,001/4,000 — the documented normalizeAllTraces M2 divergence class (this plan, D11). Task 12 must decide how the gate handles it (explicit documented exclusion or comparator divergence-marker — NOT a silent skip; the anti-fraud rule above stands).
+3. **Keepout-kind blind spot**: the digest `K` line erases the keepout/via_keepout/place_keepout distinction (see `dsn_digest.rs` module doc) — a kind-swap regression is digest-invisible; decide whether Task 12/M2 extends the format on BOTH sides.
+
 ## Task 13: SES emission + canonical compare + byte-diff classification
 
 **Files:** Create `src/write_scope.rs`, `src/ses/writer.rs`; harness: `rust/harness/src/ses_compare.rs` + oracle extension (or `SesEmitOracle.java` — parse→emit per fixture).
