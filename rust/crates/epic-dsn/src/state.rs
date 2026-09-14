@@ -470,6 +470,11 @@ pub struct ParseState {
     /// Java `layerStructure` (`:82`) — set when the structure scope creates
     /// the board.
     pub layer_structure: Option<LayerStructure>,
+    /// Java `autorouteSettings` (`:74`, default null) — set by the
+    /// structure scope's `(autoroute_settings ...)` arm (Task 9); `None`
+    /// (Java null) arms the `adjustPlaneAutorouteSettings` fallback in the
+    /// read_board assembly (`DsnReader.java:134-136`).
+    pub autoroute_settings: Option<crate::scope::autoroute_settings::AutorouteSettingsIr>,
 }
 
 impl Default for ParseState {
@@ -496,6 +501,7 @@ impl Default for ParseState {
             write_resolution: None,
             coordinate_transform: None,
             layer_structure: None,
+            autoroute_settings: None,
         }
     }
 }

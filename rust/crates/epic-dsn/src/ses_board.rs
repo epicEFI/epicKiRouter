@@ -94,6 +94,7 @@ use crate::sink::{
 };
 use crate::state::AngleRestriction;
 use epic_geometry::int_box::IntBox;
+use epic_geometry::int_point::IntPoint;
 
 /// A parse-time board item with its Java `Item.getId()` board id
 /// (`board/model/items/Item.java:87` — the sink assigns the id on
@@ -961,6 +962,18 @@ impl BoardSink for SesBoard {
     }
 
     fn insert_trace(&mut self, trace: TraceIr) -> i32 {
+        // BasicBoard.insertTraceWithoutCleaning guards
+        // (`BasicBoard.java:183-201`): a sub-2-corner polyline drops the
+        // trace, and so does first == last with a fixed state below
+        // USER_FIXED. NO item is created and NO id is burned in either
+        // case (Java returns null before reaching insertItem).
+        if trace.corners.len() < 2 {
+            return 0;
+        }
+        let last_corner = trace.corners[trace.corners.len() - 1];
+        if trace.corners[0] == last_corner && trace.fixed < FixedStateIr::UserFixed {
+            return 0;
+        }
         let id = self.alloc_item_id();
         self.items.push(ItemIr::Trace { id, trace });
         id
@@ -970,6 +983,34 @@ impl BoardSink for SesBoard {
         let id = self.alloc_item_id();
         self.items.push(ItemIr::Via { id, via });
         id
+    }
+
+    fn via_exists(&self, location: IntPoint, from_layer: i32, to_layer: i32, nets: &[i32]) -> bool {
+        // Java `Wiring.viaExists` (`:238-255`): pick the vias at the
+        // location, then compare net sets (`Item.netsEqual(int[])`,
+        // `Item.java:1234-1244` — equal LENGTH plus every QUERY net
+        // contained, set semantics), the exact center, and the first/last
+        // layer span, which Java derives from the via's OWN padstack — so
+        // the sink derives both spans from the stored via's registry
+        // padstack ([`crate::scope::network::padstack_from_layer`] /
+        // [`crate::scope::network::padstack_to_layer`]).
+        for item in &self.items {
+            let ItemIr::Via { via, .. } = item else {
+                continue;
+            };
+            if via.location != location || !nets_equal(&via.nets, nets) {
+                continue;
+            }
+            let Some(padstack) = self.padstack(via.padstack_no) else {
+                continue;
+            };
+            let first = crate::scope::network::padstack_from_layer(&padstack.shapes) as i32;
+            let last = crate::scope::network::padstack_to_layer(&padstack.shapes);
+            if first == from_layer && last == to_layer {
+                return true;
+            }
+        }
+        false
     }
 
     fn net_no_subnet(&self, name: &str, subnet_number: i32) -> Option<i32> {
@@ -1030,9 +1071,37 @@ impl BoardSink for SesBoard {
         self.warnings.push(warning);
     }
 
-    fn set_metadata(&mut self, metadata: MetadataIr) {
+    fn set_metadata(&mut self, mut metadata: MetadataIr) {
+        // The snapshot cannot carry the board-held flip_style: Java sets
+        // `board.components.setFlipStyleRotateFirst(true)` from the
+        // STRUCTURE scope (Task 6, `Structure.java:1041-1043`), before the
+        // read_board assembly snapshots the parser fields
+        // (`DsnReader.java:138-147`). MERGE instead of replace: keep the
+        // existing flip_style when the incoming snapshot carries None.
+        let flip_style = metadata
+            .flip_style
+            .take()
+            .or(self.metadata.flip_style.take());
         self.metadata = metadata;
+        self.metadata.flip_style = flip_style;
     }
+
+    fn adjust_plane_autoroute_settings(&mut self) {
+        // Java `DsnFile.adjustPlaneAutorouteSettings` (`:33-113`); the
+        // logic lives on the inherent method (Task 6, tested there) — the
+        // trait seam only reaches it through `dyn BoardSink`. The return
+        // value feeds an FRLogger INFO in Java only. (The `SesBoard::`
+        // path form resolves to the INHERENT method; plain method-call
+        // syntax would too, but the qualified form states it.)
+        let _changed = SesBoard::adjust_plane_autoroute_settings(self);
+    }
+}
+
+/// Java `Item.netsEqual(int[])` (`Item.java:1234-1244`): equal LENGTH plus
+/// every QUERY net contained in the item's net list (set semantics,
+/// order-insensitive).
+fn nets_equal(stored: &[i32], query: &[i32]) -> bool {
+    stored.len() == query.len() && query.iter().all(|net| stored.contains(net))
 }
 
 #[cfg(test)]

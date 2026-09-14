@@ -99,7 +99,7 @@ pub fn read_placement_scope(
 /// tokens pass through the walk). EOF exits the loop and the placement is
 /// KEPT (`while (... && nextToken != null)`); a failed `(place ...)` is
 /// fatal and leaves the group unparsed.
-fn read_component_scope(
+pub(crate) fn read_component_scope(
     scanner: &mut Scanner,
     state: &mut ParseState,
     sink: &mut dyn BoardSink,

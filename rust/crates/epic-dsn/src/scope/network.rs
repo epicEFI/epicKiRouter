@@ -2029,7 +2029,7 @@ fn java_split_underscore(value: &str) -> Vec<&str> {
 
 /// Java `Padstack.fromLayer()` (`Padstack.java:137-144`): the first layer
 /// with a shape; `shapes.len()` when ALL are null.
-fn padstack_from_layer(shapes: &[Option<BoardShape>]) -> usize {
+pub(crate) fn padstack_from_layer(shapes: &[Option<BoardShape>]) -> usize {
     shapes
         .iter()
         .position(|shape| shape.is_some())
@@ -2038,7 +2038,7 @@ fn padstack_from_layer(shapes: &[Option<BoardShape>]) -> usize {
 
 /// Java `Padstack.toLayer()` (`Padstack.java:146-153`): the last layer
 /// with a shape; -1 when ALL are null.
-fn padstack_to_layer(shapes: &[Option<BoardShape>]) -> i32 {
+pub(crate) fn padstack_to_layer(shapes: &[Option<BoardShape>]) -> i32 {
     shapes
         .iter()
         .rposition(|shape| shape.is_some())

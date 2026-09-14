@@ -426,10 +426,13 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
                     // is still null — otherwise the scope is left UNREAD
                     // (bug-compat; the scanner desyncs exactly like Java).
                     if state.layer_structure.is_none() {
-                        state.layer_structure = Some(LayerStructure::new(info.layer_info.clone()));
-                        // AutorouteSettings.readScope -> parse state
-                        // (Task 9); consumed as a scope for now.
-                        skip_scope(scanner);
+                        let layer_structure = LayerStructure::new(info.layer_info.clone());
+                        // Java assigns the readScope return UNCONDITIONALLY
+                        // — a failed read stores null (D15: the raw IR, no
+                        // RouterSettings merger until M3).
+                        state.autoroute_settings =
+                            crate::scope::autoroute_settings::read_scope(scanner, &layer_structure);
+                        state.layer_structure = Some(layer_structure);
                     }
                 }
                 Token::Keyword(Keyword::Control) => {

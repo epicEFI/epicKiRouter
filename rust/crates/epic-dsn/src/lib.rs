@@ -21,6 +21,7 @@ pub mod coordinate_transform;
 pub mod keyword;
 pub mod layer_structure;
 pub mod lexer;
+pub mod reader;
 pub mod scope;
 pub mod ses_board;
 pub mod shape;

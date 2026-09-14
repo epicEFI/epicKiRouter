@@ -133,6 +133,12 @@ pub struct Scanner<'a> {
     state: LexicalState,
     /// Scratch buffer for quoted-string content (Java `stringBuffer`).
     string_buf: Vec<u8>,
+    /// Java `scopeIdentifier` (`SpecctraDsnStreamReader.java:545`, default
+    /// `""`): the label the wiring readers stamp with the last-read net /
+    /// padstack name and the warning strings interpolate. Java declares it
+    /// `static` (shared across scanner instances); a per-scanner field is
+    /// behaviorally identical for the one-scanner-per-parse read path.
+    scope_identifier: String,
 }
 
 impl<'a> Scanner<'a> {
@@ -142,7 +148,18 @@ impl<'a> Scanner<'a> {
             cursor: 0,
             state: LexicalState::YyInitial,
             string_buf: Vec::new(),
+            scope_identifier: String::new(),
         }
+    }
+
+    /// Java `getScopeIdentifier()` (`:861-863`).
+    pub fn scope_identifier(&self) -> &str {
+        &self.scope_identifier
+    }
+
+    /// Java `setScopeIdentifier(String)` (`:865-868`).
+    pub fn set_scope_identifier(&mut self, identifier: &str) {
+        self.scope_identifier = identifier.to_string();
     }
 
     /// The current lexical state (Java `yystate()`).

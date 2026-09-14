@@ -1411,6 +1411,18 @@ pub trait BoardSink {
     /// `Wiring.java:699-703`).
     fn insert_via(&mut self, via: ViaIr) -> i32;
 
+    /// Java `Wiring.viaExists` (`:238-255`), the duplicate-via probe that
+    /// gates [`BoardSink::insert_via`]: true when a STORED via has the same
+    /// center, exactly the queried net set (`Item.netsEqual(int[])`,
+    /// `Item.java:1234-1244`: equal LENGTH plus every query net contained —
+    /// set semantics, order-insensitive) and the same first/last layer span
+    /// as the queried padstack (`Via.firstLayer`/`lastLayer` come from the
+    /// via's OWN padstack, so the sink derives both spans from its
+    /// registry). `from_layer` may be the shape-count (all-null padstack)
+    /// and `to_layer` -1 (`Padstack.fromLayer`/`toLayer`); such a padstack
+    /// only matches a stored via with the same degenerate span.
+    fn via_exists(&self, location: IntPoint, from_layer: i32, to_layer: i32, nets: &[i32]) -> bool;
+
     // ---- board queries (Task 6 keepout/plane insertion) ------------------
 
     /// Java `board.getLayerCount()` (`Structure.java:871`): the BOARD layer
@@ -1453,4 +1465,12 @@ pub trait BoardSink {
     /// Snapshot of the parse metadata (unit/resolution/quote/snap angle
     /// plus the host fields); called by the read_board assembly (Task 9).
     fn set_metadata(&mut self, metadata: MetadataIr);
+
+    /// Java `DsnFile.adjustPlaneAutorouteSettings` (`:33-113`), called by
+    /// the read_board assembly (`DsnReader.java:134-136`) when NO
+    /// `(autoroute_settings ...)` scope was read: promotes conduction
+    /// areas of net-carrying interior plane layers that hold no traces to
+    /// USER_FIXED and flags their nets `contains_plane`. The boolean is
+    /// log-only in Java (`changedSettings`) — the reader discards it.
+    fn adjust_plane_autoroute_settings(&mut self);
 }

@@ -5,9 +5,13 @@
 //! `Component.java`), [`library`] (`Library.java` + `Package.java`), and
 //! the `PartLibrary.java` half of [`library`].
 
+pub mod autoroute_settings;
 pub mod library;
 pub mod network;
+pub mod parser_scope;
 pub mod placement;
 pub mod plane;
+pub mod resolution;
 pub mod rule;
 pub mod structure;
+pub mod wiring;
