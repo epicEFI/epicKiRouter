@@ -107,7 +107,7 @@ pub struct BoardCommunication {
 }
 
 impl Default for BoardCommunication {
-    /// Java `Communication()` `:23-30`: `unit = Unit.MIL`,
+    /// Java `Communication()` `:49-58`: `unit = Unit.MIL`,
     /// `resolution = 1`, no specctra parser info.
     fn default() -> Self {
         Self {
@@ -120,7 +120,7 @@ impl Default for BoardCommunication {
 
 impl BoardCommunication {
     /// Java `Communication.getResolution(Unit.MIL)`
-    /// (`Communication.java:64-72`): `Unit.scale(resolution, MIL,
+    /// (`Communication.java:94-97`): `Unit.scale(resolution, MIL,
     /// unit)` — the resolution CONVERTED to mils, the unit the
     /// search-tree threshold reads.
     #[must_use]
