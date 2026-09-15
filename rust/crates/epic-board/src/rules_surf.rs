@@ -476,6 +476,19 @@ pub struct NetClass {
 }
 
 impl NetClass {
+    /// Java `getIgnoreCyclesWithAreas()` (`NetClass.java:143` — the
+    /// `private boolean ignoreCyclesWithAreas` field at `:35`, default
+    /// `false`). The setter (`:148`) is called ONLY from the GUI
+    /// (`WindowNetClasses.java:708`); the DSN reader never writes the
+    /// field, so every parsed board carries the default. The parse IR
+    /// (`epic_dsn` `NetClassIr`) accordingly has no column for it and
+    /// the read surface returns the parsed-board constant — the cycle
+    /// walk (`crate::trace_ops::is_cycle`) consumes exactly this.
+    #[must_use]
+    pub fn ignore_cycles_with_areas(&self) -> bool {
+        false
+    }
+
     /// Java `getTraceHalfWidth(layer)` (`NetClass.java:94-101`): 0 for an
     /// out-of-range layer (Java throws; unreachable from the parse,
     /// which sizes the array to the layer count).

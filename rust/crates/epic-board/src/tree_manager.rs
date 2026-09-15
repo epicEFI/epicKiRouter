@@ -84,8 +84,9 @@ impl SearchTreeManager {
     /// constructed with `FortyfiveDegreeBoundingDirections`), class
     /// 0. Creates NO entries: Java fills its trees item-by-item as
     /// the board is read — the port's counterpart of that read-time
-    /// fill is [`SearchTreeManager::insert_all_board_items`], which
-    /// the caller runs once after [`crate::board::Board::from_ses_board`].
+    /// fill is [`SearchTreeManager::insert_items_creation_order`],
+    /// which the caller runs once after
+    /// [`crate::board::Board::from_ses_board`].
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -251,6 +252,9 @@ impl SearchTreeManager {
         self.trees
             .push(SearchTree::new(variant, clearance_class_index));
         let index = self.trees.len() - 1;
+        // The `startReadObject` walk (`:163-170`) — DESCENDING id (the
+        // ConcurrentSkipListMap order, see
+        // [`SearchTreeManager::insert_all_board_items`]).
         let ids: Vec<ItemId> = board.iter_descending().map(|entry| entry.id).collect();
         for id in ids {
             self.insert_into_tree(board, id, index);
@@ -330,12 +334,23 @@ impl SearchTreeManager {
     }
 
     /// Java `insertAllBoardItems()` `:217-231` — every item
-    /// DESCENDING id (D25/T60), each preceded by
-    /// `clearDerivedData()` (`:228`), then broadcast-inserted. Java's
-    /// method is private (the read path inserts item-by-item); the
-    /// port makes it public as the one-shot fill after
-    /// [`crate::board::Board::from_ses_board`] until the read
-    /// integration (Task 7+) drives per-item inserts.
+    /// DESCENDING id, each preceded by `clearDerivedData()` (`:228`),
+    /// then broadcast-inserted. The order is not a style choice: Java's
+    /// `board.itemList` is a `ConcurrentSkipListMap` keyed by the item
+    /// itself (`UndoableObjects.java:21,37`), and `Item.compareTo` is
+    /// `other.id - id` (`Item.java:95-103`) — so the
+    /// `startReadObject()` walk (`UndoableObjects.java:46-48`) yields
+    /// DESCENDING id. The MinAreaTree is insertion-structured, so this
+    /// walk order IS the final tree skeleton (the two-path record,
+    /// [`SearchTreeManager::insert_items_creation_order`]); pinned
+    /// byte-for-row by the T9 index goldens, which capture exactly
+    /// this rebuild path.
+    ///
+    /// Java's method is private (the read path inserts item-by-item);
+    /// the port keeps it public for the REBUILD callers
+    /// ([`SearchTreeManager::reinsert_tree_items`],
+    /// [`SearchTreeManager::set_clearance_compensation_used`],
+    /// [`SearchTreeManager::clearance_value_changed`]).
     pub fn insert_all_board_items(&mut self, board: &mut Board) {
         let ids: Vec<ItemId> = board.iter_descending().map(|entry| entry.id).collect();
         for id in ids {
@@ -344,8 +359,32 @@ impl SearchTreeManager {
         }
     }
 
+    /// The READ-path fill — Java has no such method: there, every item
+    /// enters the trees at CREATION time (the repository insert's
+    /// observer callback), so a parsed board's tree is built in
+    /// creation order, which for parsed boards is ASCENDING id. The
+    /// port's parse creates items without inserting, so this one-shot
+    /// fill (after [`crate::board::Board::from_ses_board`]) replays
+    /// that ascending insertion sequence. Contrast
+    /// [`SearchTreeManager::insert_all_board_items`]: Java's REBUILD
+    /// walk (the `ConcurrentSkipListMap` iteration) is DESCENDING, and
+    /// the two skeletons genuinely differ — the MinAreaTree is
+    /// insertion-structured. The CombineSpike captures
+    /// (`/tmp/epic-t11-combine.out` `B_TREE`, pinned row-for-row in
+    /// the trace_ops tests) are read-path trees: they match THIS fill,
+    /// not the rebuild.
+    pub fn insert_items_creation_order(&mut self, board: &mut Board) {
+        let ids: Vec<ItemId> = board.iter_ascending().map(|entry| entry.id).collect();
+        for id in ids {
+            board.clear_derived_data(id);
+            self.insert(board, id);
+        }
+    }
+
     /// Java `removeAllBoardItems()` `:202-215` — every item, through
-    /// the guarded [`SearchTreeManager::remove`].
+    /// the guarded [`SearchTreeManager::remove`]. Same walk order as
+    /// the insert side: the `ConcurrentSkipListMap` iteration yields
+    /// DESCENDING id.
     fn remove_all_board_items(&mut self, board: &mut Board) {
         let ids: Vec<ItemId> = board.iter_descending().map(|entry| entry.id).collect();
         for id in ids {
@@ -1441,6 +1480,13 @@ mod tests {
             area_shapes,
             "flip-after-insert == flag-before-insert (both area shapes)"
         );
+        // The WHOLE default tree agrees with the flag-before-insert
+        // reference: under the rebuild walk (DESCENDING id — see
+        // [`SearchTreeManager::insert_all_board_items`]) both
+        // histories insert the outline's area shapes LAST (lowest id
+        // → last in the walk; the flip's re-insert likewise comes
+        // after the fill), and the insertion-structured MinAreaTree
+        // makes equal leaf-insertion sequences give equal skeletons.
         assert_eq!(
             reference.default_tree().min_area_tree().dump_lines(),
             manager.default_tree().min_area_tree().dump_lines(),

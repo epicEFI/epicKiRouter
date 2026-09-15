@@ -23,7 +23,11 @@
 //! broadcast, T58/T59). Task 10 adds [`contacts`] — the trace
 //! CONTACTS seam (`Trace.getNormalContacts` and its start/end/union
 //! wrappers), compute-on-demand over the query surface, jar-pinned
-//! by `rust/harness/oracle/ContactsSpike.java`.
+//! by `rust/harness/oracle/ContactsSpike.java`. Task 11 adds
+//! [`trace_ops`] — the trace COMBINE seam (`PolylineTrace.combine`
+//! and the join halves) plus the cycle-removal closure
+//! (`removeIfCycle`/`getTraceTail`/`isCycle`/`getConnectionItems`),
+//! jar-pinned by `rust/harness/oracle/CombineSpike.java`.
 
 pub mod board;
 pub mod components;
@@ -32,6 +36,7 @@ pub mod id;
 pub mod items;
 pub mod layers;
 pub mod rules_surf;
+pub mod trace_ops;
 pub mod tree_manager;
 pub mod tree_shapes;
 pub mod undo;

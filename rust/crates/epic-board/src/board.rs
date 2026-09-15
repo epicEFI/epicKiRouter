@@ -136,6 +136,34 @@ impl BoardCommunication {
     }
 }
 
+/// Java `BasicBoard`'s trace half-width ACCUMULATORS — the insert-seam
+/// pair (`maxTraceHalfWidth` `:107`, field-init 1000;
+/// `minTraceHalfWidth` `:110`, field-init 10000). Distinct from the
+/// parse-populated `BoardRules` fields of the same names
+/// (`BoardRules.java:37-40`): the DSN parse fills the RULES pair and
+/// never touches this one, and [`crate::trace_ops::
+/// insert_trace_without_cleaning`] (`BasicBoard.java:196-200`, under
+/// `netsNormal`) updates ONLY this one. Read back through the
+/// `getMaxTraceHalfWidth`/`getMinTraceHalfWidth` getters
+/// (`:1119-1126`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TraceHalfWidthRange {
+    /// Java `BasicBoard.maxTraceHalfWidth` (`:107`, init 1000).
+    pub max_trace_half_width: i32,
+    /// Java `BasicBoard.minTraceHalfWidth` (`:110`, init 10000).
+    pub min_trace_half_width: i32,
+}
+
+impl Default for TraceHalfWidthRange {
+    /// The Java field initializers — NOT zero.
+    fn default() -> Self {
+        Self {
+            max_trace_half_width: 1000,
+            min_trace_half_width: 10_000,
+        }
+    }
+}
+
 /// The live board model (Java `BasicBoard`'s item-list face plus the
 /// rules / layers / components / library read surfaces, M2 Task 3).
 #[derive(Clone, Debug, Default)]
@@ -158,6 +186,11 @@ pub struct Board {
     shape_precalc: BTreeMap<ItemId, BTreeMap<u64, Vec<Option<TileShape>>>>,
     /// Java `board.rules` (`BasicBoard.rules`, a `BoardRules`).
     rules: BoardRules,
+    /// Java `BasicBoard`'s OWN `maxTraceHalfWidth`/`minTraceHalfWidth`
+    /// accumulator pair (`:107`/:110, init 1000/10000) — the
+    /// insert-seam target, distinct from [`BoardRules`]' same-named
+    /// parse-populated fields (struct docs).
+    pub(crate) trace_half_width_range: TraceHalfWidthRange,
     /// Java `board.layerStructure`.
     layers: LayerStructure,
     /// Java `board.components` (with its own undo stack, T63).
@@ -262,6 +295,18 @@ impl Board {
         self.items.values()
     }
 
+    /// The one ASCENDING-id walk: creation order. Java's READ path
+    /// inserts each item into the trees at CREATION time (ascending id
+    /// on parsed boards), unlike the rebuild walk
+    /// ([`crate::tree_manager::SearchTreeManager::insert_all_board_items`],
+    /// the `ConcurrentSkipListMap` iteration, which descends). The
+    /// MinAreaTree skeleton depends on the walk order, so the two
+    /// paths build different skeletons — see
+    /// [`crate::tree_manager::SearchTreeManager::insert_items_creation_order`].
+    pub fn iter_ascending(&self) -> impl DoubleEndedIterator<Item = &ItemEntry> {
+        self.items.values().rev()
+    }
+
     /// The number of live items.
     #[must_use]
     pub fn item_count(&self) -> usize {
@@ -278,6 +323,20 @@ impl Board {
     #[must_use]
     pub fn rules(&self) -> &BoardRules {
         &self.rules
+    }
+
+    /// Java `BasicBoard.getMaxTraceHalfWidth()` (`:1119-1122`) — the
+    /// BOARD accumulator (`TraceHalfWidthRange`), not
+    /// [`BoardRules::max_trace_half_width`].
+    #[must_use]
+    pub fn max_trace_half_width(&self) -> i32 {
+        self.trace_half_width_range.max_trace_half_width
+    }
+
+    /// Java `BasicBoard.getMinTraceHalfWidth()` (`:1124-1127`).
+    #[must_use]
+    pub fn min_trace_half_width(&self) -> i32 {
+        self.trace_half_width_range.min_trace_half_width
     }
 
     /// The mutable seam onto `board.rules` — Java's `rules` is a
@@ -598,6 +657,28 @@ impl Board {
             return None;
         };
         Some(*half_width)
+    }
+
+    /// Java `PolylineTrace.setPolyline` (`PolylineTrace.java:569-572`
+    /// — `this.lines = pPolyline` alone). The write half of
+    /// [`Board::trace_polyline`]; the id is PRESERVED (Java mutates the
+    /// object). The surrounding remove/clear/insert choreography is
+    /// the adapter's — see [`crate::trace_ops::replace_geometry`]
+    /// (`PolylineTraceSearchTreeAdapter.replaceGeometry`,
+    /// `PolylineTraceSearchTreeAdapter.java:34-40`), the only caller
+    /// in the ported surface. A non-trace id is left untouched (Java
+    /// cannot even express the call — the receiver type guards it).
+    pub fn set_trace_polyline(&mut self, id: ItemId, lines: Polyline) {
+        let Some(entry) = self.items.get_mut(&Reverse(id)) else {
+            return;
+        };
+        if let ItemData::Trace {
+            lines: stored_lines,
+            ..
+        } = &mut entry.data
+        {
+            *stored_lines = lines;
+        }
     }
 
     /// Java `ObstacleArea.getLayer()` for an OBSTACLE or CONDUCTION

@@ -294,7 +294,7 @@ pub fn all_contacts(
 /// from the tree is only candidacy; each kind replaces geometry with
 /// its own point test (table in the module docs). Everything not in
 /// the table (keepouts, obstacles, outlines) accepts NOTHING.
-fn point_accepts_contact(board: &Board, id: ItemId, point: &Point) -> bool {
+pub(crate) fn point_accepts_contact(board: &Board, id: ItemId, point: &Point) -> bool {
     let Some(entry) = board.get(id) else {
         return false;
     };
