@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-15T18:52:24.374Z
-> Files: 517 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-15T21:53:50.772Z
+> Files: 532 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -545,14 +545,44 @@
 - `#195 Start as headless.run.xml` (~189 tok)
 - `#199 Stack overflow.run.xml` (~199 tok)
 
+## logs/M2-T13/
+
+- `dispatch-prompt.md` — M2 Task 13 — normalizeAllTraces + post-normalize goldens + ledger prune (~3678 tok)
+- `golden-regen-diff.py` — T13 golden-regen verification: the T13-regenerated (~672 tok)
+- `perf-notes.md` — M2-T13 perf notes — `dsn compare` before/after investigation (~969 tok)
+- `plan.md` — M2-T13 working notes (~1266 tok)
+
 ## logs/M2-T14/
 
 - `dispatch-prompt.md` — M2 Task 14 — Undo parity corpus: UndoOracle + java-free CI gate (~2249 tok)
 
 ## rust/crates/epic-board/src/
 
+- `board.rs` — The live board: the item arena, the id generator, and the (~19127 tok)
+- `normalize_all.rs` — The per-net normalize DRIVER — Java `BasicBoard.normalizeAllTraces` (~10138 tok)
 - `trace_ops.rs` — The trace COMBINE seam (M2 Task 11): Java `PolylineTrace.combine` (~61416 tok)
+
+## rust/crates/epic-dsn/src/
+
+- `ses_board.rs` — The parse-derivable mini board model (plan decision D9): (~26057 tok)
+- `sink.rs` — The `BoardSink` seam (plan decision D9): the trait the DSN scope (~20210 tok)
+
+## rust/crates/epic-dsn/src/scope/
+
+- `structure.rs` — The `(structure ...)` scope reader: the port of (~30399 tok)
+- `wiring.rs` — Port of `io.specctra.parser.Wiring` — the `(wiring ...)` scope: (~15368 tok)
+
+## rust/crates/epic-dsn/src/ses/
+
+- `writer.rs` — Port of `io/specctra/SesWriter.java` (Task 13, `:37-551`): serializes (~14587 tok)
 
 ## rust/harness/oracle/
 
+- `DsnParseOracle.java` — The SES reserved-character set (`SesWriter.java:62`). (~5552 tok)
+- `NormalizeAllSpike.java` — The id-4 parse trace as the insert template; falls back to the (~6749 tok)
 - `SplitSpike.java` — SplitSpike.java — jar spike for M2 Task 12 (the trace SPLIT + (~12619 tok)
+
+## rust/harness/src/
+
+- `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~16017 tok)
+- `dsn_digest.rs` — Canonical geometry digest for the DSN parse-parity gate (M1b Task 4; (~10322 tok)

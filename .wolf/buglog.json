@@ -1564,6 +1564,24 @@
     "dead-receiver",
     "loop-top-guard"
    ]
+  },
+  {
+   "id": "bug-100",
+   "ts": "2026-09-15T20:43:47",
+   "file": "rust/crates/epic-board/src/board.rs",
+   "kind": "parity-bug-canonicalization",
+   "summary": "M2 T13: Board::from_ses_board rebuilt every trace's polyline from the IR corner list via Polyline::from_points, so the live board NEVER stored the reader's parse-time polyline. Java has two read-path constructors: Wiring.java:531 Polyline(Polygon) for (path...)/(polygon_path...) (Polygon ctor dedups consecutive-equal corners + drops collinear middles) but Wiring.java:562 Polyline(Line[]) for (polyline_path...) (removeConsecutiveParallelLines + removeOverlaps only \u2014 duplicate trailing corners SURVIVE, dsn-0061/0063 keep ...C C). from_points' Polygon dedup silently erased the duplicates, and the digest diverged from the Java golden exactly on the fixtures whose wires carry them (geometry_sha256 mismatches on dsn-0061/0063).",
+   "root_cause": "The IR treated the rounded corner list as the source of truth and the polyline as derivable. It is not: Polyline::from_points applies the Polygon normalization the PolylinePath branch never runs, and reconstruct-from-corners is impossible anyway (Direction::get_instance_from_points returns None for equal points, so a [A,B,C,C] cap construction panics). Empirical proof the IR corners WERE Java-final: the pre-T13 golden hash for dsn-0061 equaled sha256(SesBoard canonical text) byte-for-byte.",
+   "fix": "TraceIr carries the reader-constructed Polyline verbatim (new field, set at the single construction site insert_trace); Board::from_ses_board stores trace.polyline.clone() directly. corners stays as the ROUNDED VIEW derived from the polyline (pinned by trace_ir_corners_are_the_rounded_polyline_view in scope/wiring.rs); hand-built test IRs use TraceIr::polyline_of_corners. Post-fix pre_sha == post_sha == old golden hash on both fixtures; all 1,332 goldens verify with stats/geometry_sha256 byte-unchanged.",
+   "tags": [
+    "t13",
+    "normalize-all",
+    "polyline",
+    "dsn-0061",
+    "dsn-0063",
+    "digest",
+    "canonicalization"
+   ]
   }
  ]
 }

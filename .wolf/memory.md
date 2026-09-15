@@ -2084,3 +2084,75 @@ description: chronological action log per session, consolidated weekly
 | 12:39 | Edited rust/harness/oracle/SplitSpike.java | 2→4 lines | ~19 |
 | 12:43 | Edited rust/crates/epic-board/src/trace_ops.rs | modified head() | ~409 |
 | 12:52 | Edited rust/crates/epic-board/src/trace_ops.rs | modified 0() | ~293 |
+| 13:06 | Edited logs/M2-T13/dispatch-prompt.md | 5→5 lines | ~67 |
+| 13:17 | Created logs/M2-T13/plan.md | — | ~1350 |
+| 13:19 | Created rust/harness/oracle/NormalizeAllSpike.java | — | ~5296 |
+| 13:21 | Edited rust/harness/oracle/NormalizeAllSpike.java | added 2 condition(s) | ~152 |
+| 13:21 | Edited rust/harness/oracle/NormalizeAllSpike.java | expanded (+16 lines) | ~229 |
+| 13:22 | Edited rust/harness/oracle/NormalizeAllSpike.java | modified ins() | ~149 |
+| 13:22 | Edited rust/harness/oracle/NormalizeAllSpike.java | ins() → insPoly() | ~52 |
+| 13:27 | Edited rust/harness/oracle/NormalizeAllSpike.java | 15→19 lines | ~290 |
+| 13:28 | Edited rust/harness/oracle/NormalizeAllSpike.java | expanded (+15 lines) | ~203 |
+| 13:32 | Created rust/crates/epic-board/src/normalize_all.rs | — | ~7958 |
+| 13:37 | Edited rust/crates/epic-board/src/normalize_all.rs | 11→9 lines | ~89 |
+| 13:37 | Edited rust/crates/epic-board/src/normalize_all.rs | modified ip() | ~568 |
+| 13:37 | Edited rust/crates/epic-board/src/normalize_all.rs | modified ca6_dsn_0151_second_call_is_a_fixpoint_on_survivor_4001() | ~107 |
+| 13:38 | Edited rust/crates/epic-board/src/normalize_all.rs | Float() → Rational() | ~206 |
+| 13:38 | Edited rust/crates/epic-board/src/normalize_all.rs | 2→2 lines | ~38 |
+| 13:39 | Edited rust/crates/epic-board/src/normalize_all.rs | modified trace_ids() | ~148 |
+| 13:39 | Edited rust/crates/epic-board/src/normalize_all.rs | modified ca6_dsn_0151_second_call_is_a_fixpoint_on_survivor_4001() | ~328 |
+| 13:40 | Edited rust/crates/epic-board/src/normalize_all.rs | modified list() | ~526 |
+| 13:40 | Edited rust/crates/epic-board/src/normalize_all.rs | modified CA6() | ~144 |
+| 13:41 | Edited rust/harness/oracle/DsnParseOracle.java | modified buildStats() | ~814 |
+| 13:43 | Edited rust/harness/src/dsn_digest.rs | expanded (+21 lines) | ~363 |
+| 13:43 | Edited rust/harness/src/dsn_digest.rs | modified geometry_sha256() | ~1754 |
+| 13:44 | Edited rust/harness/src/dsn_digest.rs | 9→8 lines | ~85 |
+| 13:44 | Edited rust/harness/src/dsn_digest.rs | added 3 import(s) | ~141 |
+| 13:46 | Edited rust/harness/src/dsn_corpus.rs | expanded (+9 lines) | ~230 |
+| 13:47 | Edited rust/harness/src/dsn_corpus.rs | modified board_stats() | ~1507 |
+| 13:47 | Edited rust/harness/src/dsn_corpus.rs | added 3 import(s) | ~66 |
+| 13:47 | Edited rust/harness/src/dsn_corpus.rs | modified result_only() | ~128 |
+| 13:47 | Edited rust/harness/src/dsn_corpus.rs | expanded (+7 lines) | ~110 |
+| 13:48 | Edited rust/harness/src/dsn_corpus.rs | modified RETIRED() | ~255 |
+| 13:48 | Edited rust/harness/src/dsn_corpus.rs | modified divergence_ledger_is_retired() | ~360 |
+| 13:49 | Edited rust/harness/src/dsn_corpus.rs | modified ledger_verdict_branches_are_exhaustive() | ~709 |
+| 13:49 | Edited rust/harness/src/dsn_corpus.rs | expanded (+10 lines) | ~120 |
+| 13:49 | Edited rust/harness/src/dsn_corpus.rs | expanded (+6 lines) | ~144 |
+| 13:49 | Edited rust/harness/src/dsn_corpus.rs | modified yet() | ~208 |
+| 14:01 | Edited rust/harness/src/dsn_corpus.rs | expanded (+6 lines) | ~79 |
+| 14:12 | Edited rust/harness/src/dsn_corpus.rs | modified expect() | ~379 |
+| 14:12 | Edited rust/harness/src/dsn_corpus.rs | modified contains() | ~250 |
+| 14:13 | Edited rust/harness/src/dsn_corpus.rs | added 1 import(s) | ~19 |
+| 14:13 | Edited rust/harness/src/dsn_corpus.rs | reduced (-6 lines) | ~63 |
+| 14:25 | Edited rust/crates/epic-dsn/src/sink.rs | added 1 import(s) | ~80 |
+| 14:25 | Edited rust/crates/epic-dsn/src/sink.rs | modified polyline_of_corners() | ~719 |
+| 14:25 | Edited rust/crates/epic-dsn/src/scope/wiring.rs | modified insert_trace() | ~217 |
+| 14:25 | Edited rust/crates/epic-board/src/board.rs | expanded (+6 lines) | ~183 |
+| 14:26 | Edited rust/crates/epic-board/src/board.rs | modified area_from_ir() | ~65 |
+| 14:26 | Edited rust/crates/epic-board/src/board.rs | modified VERBATIM() | ~242 |
+| 14:26 | Edited rust/crates/epic-dsn/src/ses/writer.rs | expanded (+13 lines) | ~450 |
+| 14:26 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 8→12 lines | ~130 |
+| 14:26 | Edited rust/crates/epic-dsn/src/ses_board.rs | expanded (+8 lines) | ~246 |
+| 14:26 | Edited rust/harness/src/dsn_digest.rs | expanded (+8 lines) | ~246 |
+| 14:27 | Edited rust/crates/epic-dsn/src/scope/structure.rs | 8→12 lines | ~123 |
+| 14:30 | Edited rust/harness/src/dsn_digest.rs | modified branch() | ~100 |
+| 14:30 | Edited rust/harness/src/dsn_digest.rs | modified board_twin_matches_ses_twin_on_a_noop_normalize_board() | ~523 |
+| 14:35 | Edited rust/harness/src/dsn_digest.rs | modified fixed_token() | ~72 |
+| 14:35 | Edited rust/harness/src/dsn_digest.rs | modified canonical_geometry_text() | ~115 |
+| 14:35 | Edited rust/harness/src/dsn_digest.rs | modified geometry_sha256() | ~56 |
+| 14:35 | Edited rust/harness/src/dsn_digest.rs | inline fix | ~23 |
+| 14:36 | Edited rust/harness/src/dsn_digest.rs | 3→8 lines | ~83 |
+| 15:10 | Created logs/M2-T13/golden-regen-diff.py | — | ~672 |
+| 15:10 | Created logs/M2-T13/perf-notes.md | — | ~1034 |
+| 15:37 | Edited rust/harness/oracle/NormalizeAllSpike.java | modified pair() | ~759 |
+| 15:40 | Edited rust/harness/oracle/NormalizeAllSpike.java | modified itself() | ~445 |
+| 15:41 | Edited rust/crates/epic-board/src/normalize_all.rs | expanded (+24 lines) | ~702 |
+| 15:41 | Edited rust/crates/epic-board/src/normalize_all.rs | 3→8 lines | ~142 |
+| 15:41 | Edited rust/crates/epic-board/src/normalize_all.rs | modified CA2() | ~169 |
+| 15:42 | Edited rust/crates/epic-board/src/normalize_all.rs | modified ca7_two_nets_split_work_pins_ascending_id_mapping() | ~1197 |
+| 15:42 | Edited rust/harness/src/dsn_corpus.rs | 2→2 lines | ~38 |
+| 15:42 | Edited rust/harness/src/dsn_corpus.rs | modified ASYMMETRY() | ~171 |
+| 15:44 | Edited rust/harness/src/dsn_digest.rs | modified board_twin_renders_rational_corners_via_java_round() | ~909 |
+| 15:46 | Edited rust/crates/epic-board/src/normalize_all.rs | inline fix | ~20 |
+| 15:46 | Edited rust/crates/epic-board/src/normalize_all.rs | inline fix | ~15 |
+| 15:53 | Edited rust/crates/epic-board/src/normalize_all.rs | 3→5 lines | ~87 |

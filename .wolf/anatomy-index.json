@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-15T18:52:24.374Z",
-    "fileCount": 517,
+    "lastScanned": "2026-09-15T21:53:50.772Z",
+    "fileCount": 532,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "1458cc0c2d7a821b5bbd94ad03875d92cda7fbbfeac316dff5394e80b911e215",
-    "storeUpdatedAt": "2026-09-15T18:52:24.387Z",
-    "rootHash": "ddd02a2b614c4a25"
+    "renderedHash": "413840d1dcee3241d9cbd3927713d6b3f3d213bf2c717aca970fa6c9c88bb65e",
+    "storeUpdatedAt": "2026-09-15T21:53:50.780Z",
+    "rootHash": "0d1513f844df66b1"
   },
   "files": {
     ".dockerignore": {
@@ -4873,6 +4873,1300 @@
       "size": 47497,
       "mtimeMs": 1789497566736.9795,
       "updatedAt": "2026-09-15T18:39:26.841Z",
+      "source": "hook"
+    },
+    "logs/M2-T13/dispatch-prompt.md": {
+      "description": "M2 Task 13 — normalizeAllTraces + post-normalize goldens + ledger prune",
+      "tokens": 3678,
+      "hash": "f6134279ff2be94b",
+      "size": 14865,
+      "mtimeMs": 1789499173812.7693,
+      "updatedAt": "2026-09-15T19:06:13.901Z",
+      "source": "hook"
+    },
+    "logs/M2-T13/plan.md": {
+      "description": "M2-T13 working notes",
+      "tokens": 1266,
+      "hash": "5548c533580f7b56",
+      "size": 5076,
+      "mtimeMs": 1789499826104.2778,
+      "updatedAt": "2026-09-15T19:17:06.194Z",
+      "source": "hook"
+    },
+    "rust/harness/oracle/NormalizeAllSpike.java": {
+      "description": "The id-4 parse trace as the insert template; falls back to the",
+      "tokens": 6749,
+      "hash": "0b8faf30989ac561",
+      "size": 25366,
+      "mtimeMs": 1789508454439.7656,
+      "updatedAt": "2026-09-15T21:40:54.544Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/normalize_all.rs": {
+      "description": "The per-net normalize DRIVER — Java `BasicBoard.normalizeAllTraces`",
+      "tokens": 10138,
+      "hash": "4b18a2cb52baaa57",
+      "size": 38125,
+      "mtimeMs": 1789509230676.9905,
+      "updatedAt": "2026-09-15T21:53:50.771Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "iteration_cap_reached",
+          "kind": "fn",
+          "startLine": 125,
+          "endLine": 139,
+          "tokens": 192
+        },
+        {
+          "name": "normalize_all_traces",
+          "kind": "fn",
+          "startLine": 140,
+          "endLine": 973,
+          "tokens": 8633
+        }
+      ]
+    },
+    "rust/harness/oracle/DsnParseOracle.java": {
+      "description": "The SES reserved-character set (`SesWriter.java:62`).",
+      "tokens": 5552,
+      "hash": "ab47c16ed7fc2981",
+      "size": 20848,
+      "mtimeMs": 1789501284653.66,
+      "updatedAt": "2026-09-15T19:41:24.753Z",
+      "source": "hook"
+    },
+    "rust/harness/src/dsn_digest.rs": {
+      "description": "Canonical geometry digest for the DSN parse-parity gate (M1b Task 4;",
+      "tokens": 10322,
+      "hash": "feb2834325a8e8c5",
+      "size": 38775,
+      "mtimeMs": 1789508670193.3845,
+      "updatedAt": "2026-09-15T21:44:30.286Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "normalize_warning_digits",
+          "kind": "fn",
+          "startLine": 117,
+          "endLine": 136,
+          "tokens": 188
+        },
+        {
+          "name": "fixed_token",
+          "kind": "fn",
+          "startLine": 137,
+          "endLine": 146,
+          "tokens": 97
+        },
+        {
+          "name": "encode_shape",
+          "kind": "fn",
+          "startLine": 147,
+          "endLine": 187,
+          "tokens": 402
+        },
+        {
+          "name": "encode_corner_polygon",
+          "kind": "fn",
+          "startLine": 188,
+          "endLine": 197,
+          "tokens": 124
+        },
+        {
+          "name": "encode_corner_points",
+          "kind": "fn",
+          "startLine": 198,
+          "endLine": 209,
+          "tokens": 108
+        },
+        {
+          "name": "encode_area",
+          "kind": "fn",
+          "startLine": 210,
+          "endLine": 224,
+          "tokens": 165
+        },
+        {
+          "name": "canonical_geometry_text",
+          "kind": "fn",
+          "startLine": 225,
+          "endLine": 304,
+          "tokens": 970
+        },
+        {
+          "name": "geometry_sha256",
+          "kind": "fn",
+          "startLine": 305,
+          "endLine": 312,
+          "tokens": 110
+        },
+        {
+          "name": "board_shape_to_ir",
+          "kind": "fn",
+          "startLine": 313,
+          "endLine": 323,
+          "tokens": 136
+        },
+        {
+          "name": "board_area_to_ir",
+          "kind": "fn",
+          "startLine": 324,
+          "endLine": 332,
+          "tokens": 93
+        },
+        {
+          "name": "board_fixed_token",
+          "kind": "fn",
+          "startLine": 333,
+          "endLine": 351,
+          "tokens": 301
+        },
+        {
+          "name": "canonical_geometry_text_board",
+          "kind": "fn",
+          "startLine": 352,
+          "endLine": 455,
+          "tokens": 1203
+        },
+        {
+          "name": "geometry_sha256_board",
+          "kind": "fn",
+          "startLine": 456,
+          "endLine": 461,
+          "tokens": 86
+        },
+        {
+          "name": "sha256_hex",
+          "kind": "fn",
+          "startLine": 462,
+          "endLine": 929,
+          "tokens": 5361
+        }
+      ]
+    },
+    "rust/harness/src/dsn_corpus.rs": {
+      "description": "/*.dsn` lexicographic; dedup by path across the two",
+      "tokens": 16017,
+      "hash": "45d7db0a95033b2e",
+      "size": 60171,
+      "mtimeMs": 1789508551468.044,
+      "updatedAt": "2026-09-15T21:42:31.565Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "DsnCommand",
+          "kind": "class",
+          "startLine": 56,
+          "endLine": 119,
+          "tokens": 858
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 120,
+          "endLine": 148,
+          "tokens": 327
+        },
+        {
+          "name": "ManifestEntry",
+          "kind": "class",
+          "startLine": 149,
+          "endLine": 155,
+          "tokens": 50
+        },
+        {
+          "name": "SetSel",
+          "kind": "class",
+          "startLine": 156,
+          "endLine": 161,
+          "tokens": 15
+        },
+        {
+          "name": "SetSel",
+          "kind": "section",
+          "startLine": 162,
+          "endLine": 187,
+          "tokens": 279
+        },
+        {
+          "name": "walk_files",
+          "kind": "fn",
+          "startLine": 188,
+          "endLine": 217,
+          "tokens": 325
+        },
+        {
+          "name": "build_manifest",
+          "kind": "fn",
+          "startLine": 218,
+          "endLine": 273,
+          "tokens": 484
+        },
+        {
+          "name": "build_manifest_bytes",
+          "kind": "fn",
+          "startLine": 274,
+          "endLine": 287,
+          "tokens": 120
+        },
+        {
+          "name": "load_manifest",
+          "kind": "fn",
+          "startLine": 288,
+          "endLine": 302,
+          "tokens": 152
+        },
+        {
+          "name": "resolve_input",
+          "kind": "fn",
+          "startLine": 303,
+          "endLine": 319,
+          "tokens": 167
+        },
+        {
+          "name": "resolve_output",
+          "kind": "fn",
+          "startLine": 320,
+          "endLine": 327,
+          "tokens": 56
+        },
+        {
+          "name": "manifest",
+          "kind": "fn",
+          "startLine": 328,
+          "endLine": 359,
+          "tokens": 357
+        },
+        {
+          "name": "StatsRecord",
+          "kind": "class",
+          "startLine": 360,
+          "endLine": 371,
+          "tokens": 75
+        },
+        {
+          "name": "ClearanceRecord",
+          "kind": "class",
+          "startLine": 372,
+          "endLine": 381,
+          "tokens": 105
+        },
+        {
+          "name": "LayerRecord",
+          "kind": "class",
+          "startLine": 382,
+          "endLine": 391,
+          "tokens": 97
+        },
+        {
+          "name": "GoldenRecord",
+          "kind": "class",
+          "startLine": 392,
+          "endLine": 430,
+          "tokens": 566
+        },
+        {
+          "name": "board_stats",
+          "kind": "fn",
+          "startLine": 431,
+          "endLine": 473,
+          "tokens": 496
+        },
+        {
+          "name": "success_record",
+          "kind": "fn",
+          "startLine": 474,
+          "endLine": 570,
+          "tokens": 1154
+        },
+        {
+          "name": "result_only",
+          "kind": "fn",
+          "startLine": 571,
+          "endLine": 593,
+          "tokens": 203
+        },
+        {
+          "name": "evaluate_rust",
+          "kind": "fn",
+          "startLine": 594,
+          "endLine": 604,
+          "tokens": 155
+        },
+        {
+          "name": "load_golden",
+          "kind": "fn",
+          "startLine": 605,
+          "endLine": 613,
+          "tokens": 122
+        },
+        {
+          "name": "parse_golden",
+          "kind": "fn",
+          "startLine": 614,
+          "endLine": 629,
+          "tokens": 175
+        },
+        {
+          "name": "ensure_alignment",
+          "kind": "fn",
+          "startLine": 630,
+          "endLine": 658,
+          "tokens": 254
+        },
+        {
+          "name": "json_string",
+          "kind": "fn",
+          "startLine": 659,
+          "endLine": 662,
+          "tokens": 40
+        },
+        {
+          "name": "truncate",
+          "kind": "fn",
+          "startLine": 663,
+          "endLine": 676,
+          "tokens": 104
+        },
+        {
+          "name": "diff_records",
+          "kind": "fn",
+          "startLine": 677,
+          "endLine": 724,
+          "tokens": 477
+        },
+        {
+          "name": "golden",
+          "kind": "fn",
+          "startLine": 725,
+          "endLine": 945,
+          "tokens": 2598
+        },
+        {
+          "name": "LedgerEntry",
+          "kind": "class",
+          "startLine": 946,
+          "endLine": 958,
+          "tokens": 118
+        },
+        {
+          "name": "ledger_entry",
+          "kind": "fn",
+          "startLine": 959,
+          "endLine": 964,
+          "tokens": 73
+        },
+        {
+          "name": "LedgerVerdict",
+          "kind": "class",
+          "startLine": 965,
+          "endLine": 1517,
+          "tokens": 6418
+        }
+      ]
+    },
+    "rust/crates/epic-dsn/src/sink.rs": {
+      "description": "The `BoardSink` seam (plan decision D9): the trait the DSN scope",
+      "tokens": 20210,
+      "hash": "a7a84a1211a9701d",
+      "size": 76026,
+      "mtimeMs": 1789503937886.9387,
+      "updatedAt": "2026-09-15T20:25:37.986Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "FixedStateIr",
+          "kind": "class",
+          "startLine": 72,
+          "endLine": 89,
+          "tokens": 210
+        },
+        {
+          "name": "ItemClassIr",
+          "kind": "class",
+          "startLine": 90,
+          "endLine": 104,
+          "tokens": 60
+        },
+        {
+          "name": "ItemClassIr",
+          "kind": "section",
+          "startLine": 105,
+          "endLine": 120,
+          "tokens": 193
+        },
+        {
+          "name": "AreaIr",
+          "kind": "class",
+          "startLine": 121,
+          "endLine": 127,
+          "tokens": 57
+        },
+        {
+          "name": "AreaIr",
+          "kind": "section",
+          "startLine": 128,
+          "endLine": 142,
+          "tokens": 132
+        },
+        {
+          "name": "PadstackIr",
+          "kind": "class",
+          "startLine": 143,
+          "endLine": 174,
+          "tokens": 464
+        },
+        {
+          "name": "ImagePinIr",
+          "kind": "class",
+          "startLine": 175,
+          "endLine": 195,
+          "tokens": 274
+        },
+        {
+          "name": "ImageKeepoutIr",
+          "kind": "class",
+          "startLine": 196,
+          "endLine": 217,
+          "tokens": 328
+        },
+        {
+          "name": "ImageOutlineIr",
+          "kind": "class",
+          "startLine": 218,
+          "endLine": 245,
+          "tokens": 429
+        },
+        {
+          "name": "ImageIr",
+          "kind": "class",
+          "startLine": 246,
+          "endLine": 269,
+          "tokens": 283
+        },
+        {
+          "name": "NetIr",
+          "kind": "class",
+          "startLine": 270,
+          "endLine": 305,
+          "tokens": 560
+        },
+        {
+          "name": "PlacementIr",
+          "kind": "class",
+          "startLine": 306,
+          "endLine": 321,
+          "tokens": 222
+        },
+        {
+          "name": "ComponentIr",
+          "kind": "class",
+          "startLine": 322,
+          "endLine": 374,
+          "tokens": 787
+        },
+        {
+          "name": "NetClassIr",
+          "kind": "class",
+          "startLine": 375,
+          "endLine": 425,
+          "tokens": 787
+        },
+        {
+          "name": "ViaInfoIr",
+          "kind": "class",
+          "startLine": 426,
+          "endLine": 444,
+          "tokens": 239
+        },
+        {
+          "name": "ViaRuleIr",
+          "kind": "class",
+          "startLine": 445,
+          "endLine": 461,
+          "tokens": 214
+        },
+        {
+          "name": "LogicalPartPinIr",
+          "kind": "class",
+          "startLine": 462,
+          "endLine": 482,
+          "tokens": 222
+        },
+        {
+          "name": "LogicalPartIr",
+          "kind": "class",
+          "startLine": 483,
+          "endLine": 495,
+          "tokens": 150
+        },
+        {
+          "name": "PinIr",
+          "kind": "class",
+          "startLine": 496,
+          "endLine": 517,
+          "tokens": 259
+        },
+        {
+          "name": "TraceIr",
+          "kind": "class",
+          "startLine": 518,
+          "endLine": 548,
+          "tokens": 453
+        },
+        {
+          "name": "TraceIr",
+          "kind": "section",
+          "startLine": 549,
+          "endLine": 569,
+          "tokens": 262
+        },
+        {
+          "name": "ViaIr",
+          "kind": "class",
+          "startLine": 570,
+          "endLine": 590,
+          "tokens": 231
+        },
+        {
+          "name": "KeepoutKindIr",
+          "kind": "class",
+          "startLine": 591,
+          "endLine": 607,
+          "tokens": 222
+        },
+        {
+          "name": "KeepoutIr",
+          "kind": "class",
+          "startLine": 608,
+          "endLine": 653,
+          "tokens": 651
+        },
+        {
+          "name": "ConductionAreaIr",
+          "kind": "class",
+          "startLine": 654,
+          "endLine": 675,
+          "tokens": 270
+        },
+        {
+          "name": "ComponentOutlineIr",
+          "kind": "class",
+          "startLine": 676,
+          "endLine": 721,
+          "tokens": 621
+        },
+        {
+          "name": "BoardOutlineIr",
+          "kind": "class",
+          "startLine": 722,
+          "endLine": 741,
+          "tokens": 280
+        },
+        {
+          "name": "eq_ignore_case",
+          "kind": "fn",
+          "startLine": 742,
+          "endLine": 754,
+          "tokens": 175
+        },
+        {
+          "name": "ClearanceIr",
+          "kind": "class",
+          "startLine": 755,
+          "endLine": 762,
+          "tokens": 88
+        },
+        {
+          "name": "ClearanceIr",
+          "kind": "section",
+          "startLine": 763,
+          "endLine": 1549,
+          "tokens": 11391
+        }
+      ]
+    },
+    "rust/crates/epic-dsn/src/scope/wiring.rs": {
+      "description": "Port of `io.specctra.parser.Wiring` — the `(wiring ...)` scope:",
+      "tokens": 15368,
+      "hash": "84ab5c2e343f8682",
+      "size": 57751,
+      "mtimeMs": 1789503947221.9702,
+      "updatedAt": "2026-09-15T20:25:47.316Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "read_scope",
+          "kind": "fn",
+          "startLine": 104,
+          "endLine": 158,
+          "tokens": 616
+        },
+        {
+          "name": "read_wire_scope",
+          "kind": "fn",
+          "startLine": 159,
+          "endLine": 453,
+          "tokens": 3616
+        },
+        {
+          "name": "read_via_scope",
+          "kind": "fn",
+          "startLine": 454,
+          "endLine": 599,
+          "tokens": 1634
+        },
+        {
+          "name": "calc_fixed",
+          "kind": "fn",
+          "startLine": 600,
+          "endLine": 626,
+          "tokens": 369
+        },
+        {
+          "name": "read_net_id",
+          "kind": "fn",
+          "startLine": 627,
+          "endLine": 647,
+          "tokens": 208
+        },
+        {
+          "name": "get_subnets",
+          "kind": "fn",
+          "startLine": 648,
+          "endLine": 663,
+          "tokens": 145
+        },
+        {
+          "name": "net_class_item_clearance",
+          "kind": "fn",
+          "startLine": 664,
+          "endLine": 678,
+          "tokens": 170
+        },
+        {
+          "name": "insert_trace",
+          "kind": "fn",
+          "startLine": 679,
+          "endLine": 706,
+          "tokens": 260
+        },
+        {
+          "name": "corner_to_int",
+          "kind": "fn",
+          "startLine": 707,
+          "endLine": 712,
+          "tokens": 53
+        },
+        {
+          "name": "int_box_contains_float",
+          "kind": "fn",
+          "startLine": 713,
+          "endLine": 721,
+          "tokens": 107
+        },
+        {
+          "name": "border_shape_layer_no",
+          "kind": "fn",
+          "startLine": 722,
+          "endLine": 731,
+          "tokens": 88
+        },
+        {
+          "name": "border_shape_layer_name",
+          "kind": "fn",
+          "startLine": 732,
+          "endLine": 1542,
+          "tokens": 7631
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/board.rs": {
+      "description": "The live board: the item arena, the id generator, and the",
+      "tokens": 19127,
+      "hash": "daf906637db9f7f5",
+      "size": 71916,
+      "mtimeMs": 1789503974112.0603,
+      "updatedAt": "2026-09-15T20:26:14.212Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "ItemEntry",
+          "kind": "class",
+          "startLine": 64,
+          "endLine": 80,
+          "tokens": 163
+        },
+        {
+          "name": "ItemEntry",
+          "kind": "section",
+          "startLine": 81,
+          "endLine": 98,
+          "tokens": 207
+        },
+        {
+          "name": "BoardCommunication",
+          "kind": "class",
+          "startLine": 99,
+          "endLine": 108,
+          "tokens": 102
+        },
+        {
+          "name": "BoardCommunication",
+          "kind": "section",
+          "startLine": 109,
+          "endLine": 120,
+          "tokens": 85
+        },
+        {
+          "name": "BoardCommunication",
+          "kind": "section",
+          "startLine": 121,
+          "endLine": 149,
+          "tokens": 345
+        },
+        {
+          "name": "TraceHalfWidthRange",
+          "kind": "class",
+          "startLine": 150,
+          "endLine": 156,
+          "tokens": 68
+        },
+        {
+          "name": "TraceHalfWidthRange",
+          "kind": "section",
+          "startLine": 157,
+          "endLine": 169,
+          "tokens": 115
+        },
+        {
+          "name": "Board",
+          "kind": "class",
+          "startLine": 170,
+          "endLine": 219,
+          "tokens": 729
+        },
+        {
+          "name": "Board",
+          "kind": "section",
+          "startLine": 220,
+          "endLine": 1088,
+          "tokens": 10414
+        },
+        {
+          "name": "convert_item",
+          "kind": "fn",
+          "startLine": 1089,
+          "endLine": 1219,
+          "tokens": 1575
+        },
+        {
+          "name": "fixed_from_ir",
+          "kind": "fn",
+          "startLine": 1220,
+          "endLine": 1233,
+          "tokens": 172
+        },
+        {
+          "name": "obstacle_kind_from_ir",
+          "kind": "fn",
+          "startLine": 1234,
+          "endLine": 1244,
+          "tokens": 140
+        },
+        {
+          "name": "board_shape_from_ir",
+          "kind": "fn",
+          "startLine": 1245,
+          "endLine": 1253,
+          "tokens": 111
+        },
+        {
+          "name": "area_from_ir",
+          "kind": "fn",
+          "startLine": 1254,
+          "endLine": 1723,
+          "tokens": 5428
+        }
+      ]
+    },
+    "rust/crates/epic-dsn/src/ses/writer.rs": {
+      "description": "Port of `io/specctra/SesWriter.java` (Task 13, `:37-551`): serializes",
+      "tokens": 14587,
+      "hash": "6e870abc76c70ce4",
+      "size": 54790,
+      "mtimeMs": 1789504000603.1482,
+      "updatedAt": "2026-09-15T20:26:40.703Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "write_session",
+          "kind": "fn",
+          "startLine": 89,
+          "endLine": 117,
+          "tokens": 358
+        },
+        {
+          "name": "write_identifier",
+          "kind": "fn",
+          "startLine": 118,
+          "endLine": 123,
+          "tokens": 78
+        },
+        {
+          "name": "write_placement",
+          "kind": "fn",
+          "startLine": 124,
+          "endLine": 147,
+          "tokens": 290
+        },
+        {
+          "name": "write_components",
+          "kind": "fn",
+          "startLine": 148,
+          "endLine": 195,
+          "tokens": 541
+        },
+        {
+          "name": "write_component",
+          "kind": "fn",
+          "startLine": 196,
+          "endLine": 229,
+          "tokens": 312
+        },
+        {
+          "name": "write_was_is",
+          "kind": "fn",
+          "startLine": 230,
+          "endLine": 236,
+          "tokens": 46
+        },
+        {
+          "name": "write_routes",
+          "kind": "fn",
+          "startLine": 237,
+          "endLine": 254,
+          "tokens": 177
+        },
+        {
+          "name": "write_resolution_scope",
+          "kind": "fn",
+          "startLine": 255,
+          "endLine": 268,
+          "tokens": 174
+        },
+        {
+          "name": "write_parser_scope_reduced",
+          "kind": "fn",
+          "startLine": 269,
+          "endLine": 290,
+          "tokens": 248
+        },
+        {
+          "name": "write_library",
+          "kind": "fn",
+          "startLine": 291,
+          "endLine": 317,
+          "tokens": 299
+        },
+        {
+          "name": "write_padstack",
+          "kind": "fn",
+          "startLine": 318,
+          "endLine": 378,
+          "tokens": 677
+        },
+        {
+          "name": "write_network",
+          "kind": "fn",
+          "startLine": 379,
+          "endLine": 405,
+          "tokens": 229
+        },
+        {
+          "name": "write_net",
+          "kind": "fn",
+          "startLine": 406,
+          "endLine": 464,
+          "tokens": 647
+        },
+        {
+          "name": "write_wire",
+          "kind": "fn",
+          "startLine": 465,
+          "endLine": 504,
+          "tokens": 458
+        },
+        {
+          "name": "write_via",
+          "kind": "fn",
+          "startLine": 505,
+          "endLine": 531,
+          "tokens": 274
+        },
+        {
+          "name": "write_fixed_state",
+          "kind": "fn",
+          "startLine": 532,
+          "endLine": 551,
+          "tokens": 235
+        },
+        {
+          "name": "write_conduction_area",
+          "kind": "fn",
+          "startLine": 552,
+          "endLine": 593,
+          "tokens": 413
+        },
+        {
+          "name": "write_path",
+          "kind": "fn",
+          "startLine": 594,
+          "endLine": 619,
+          "tokens": 218
+        },
+        {
+          "name": "shape_write_scope_int",
+          "kind": "fn",
+          "startLine": 620,
+          "endLine": 696,
+          "tokens": 879
+        },
+        {
+          "name": "shape_write_scope",
+          "kind": "fn",
+          "startLine": 697,
+          "endLine": 771,
+          "tokens": 818
+        },
+        {
+          "name": "shape_write_hole_scope",
+          "kind": "fn",
+          "startLine": 772,
+          "endLine": 785,
+          "tokens": 193
+        },
+        {
+          "name": "format_placement_rotation",
+          "kind": "fn",
+          "startLine": 786,
+          "endLine": 1390,
+          "tokens": 6725
+        }
+      ]
+    },
+    "rust/crates/epic-dsn/src/ses_board.rs": {
+      "description": "The parse-derivable mini board model (plan decision D9):",
+      "tokens": 26057,
+      "hash": "b7d79ca47840e9e9",
+      "size": 97877,
+      "mtimeMs": 1789504008296.1733,
+      "updatedAt": "2026-09-15T20:26:48.398Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "ItemIr",
+          "kind": "class",
+          "startLine": 107,
+          "endLine": 162,
+          "tokens": 414
+        },
+        {
+          "name": "ItemIr",
+          "kind": "section",
+          "startLine": 163,
+          "endLine": 179,
+          "tokens": 142
+        },
+        {
+          "name": "SesBoard",
+          "kind": "class",
+          "startLine": 180,
+          "endLine": 238,
+          "tokens": 836
+        },
+        {
+          "name": "SesBoard",
+          "kind": "section",
+          "startLine": 239,
+          "endLine": 248,
+          "tokens": 101
+        },
+        {
+          "name": "strip_padstack_alias",
+          "kind": "fn",
+          "startLine": 249,
+          "endLine": 274,
+          "tokens": 292
+        },
+        {
+          "name": "strip_package_dedup_suffix",
+          "kind": "fn",
+          "startLine": 275,
+          "endLine": 290,
+          "tokens": 170
+        },
+        {
+          "name": "SesBoard",
+          "kind": "section",
+          "startLine": 291,
+          "endLine": 525,
+          "tokens": 3036
+        },
+        {
+          "name": "convex_area",
+          "kind": "fn",
+          "startLine": 526,
+          "endLine": 538,
+          "tokens": 92
+        },
+        {
+          "name": "SesBoard",
+          "kind": "section",
+          "startLine": 539,
+          "endLine": 1149,
+          "tokens": 7013
+        },
+        {
+          "name": "nets_equal",
+          "kind": "fn",
+          "startLine": 1150,
+          "endLine": 2310,
+          "tokens": 14022
+        }
+      ]
+    },
+    "rust/crates/epic-dsn/src/scope/structure.rs": {
+      "description": "The `(structure ...)` scope reader: the port of",
+      "tokens": 30399,
+      "hash": "41288c8ce3d741e4",
+      "size": 114216,
+      "mtimeMs": 1789504022677.2207,
+      "updatedAt": "2026-09-15T20:27:02.779Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "LayerRule",
+          "kind": "class",
+          "startLine": 77,
+          "endLine": 87,
+          "tokens": 90
+        },
+        {
+          "name": "BoardConstructionInfo",
+          "kind": "class",
+          "startLine": 88,
+          "endLine": 113,
+          "tokens": 347
+        },
+        {
+          "name": "read_boundary_scope",
+          "kind": "fn",
+          "startLine": 114,
+          "endLine": 158,
+          "tokens": 548
+        },
+        {
+          "name": "read_string_scope",
+          "kind": "fn",
+          "startLine": 159,
+          "endLine": 177,
+          "tokens": 208
+        },
+        {
+          "name": "read_integer_scope",
+          "kind": "fn",
+          "startLine": 178,
+          "endLine": 195,
+          "tokens": 184
+        },
+        {
+          "name": "read_float_scope",
+          "kind": "fn",
+          "startLine": 196,
+          "endLine": 218,
+          "tokens": 275
+        },
+        {
+          "name": "add_boundary_shape",
+          "kind": "fn",
+          "startLine": 219,
+          "endLine": 263,
+          "tokens": 571
+        },
+        {
+          "name": "read_layer_scope",
+          "kind": "fn",
+          "startLine": 264,
+          "endLine": 343,
+          "tokens": 913
+        },
+        {
+          "name": "read_via_padstacks",
+          "kind": "fn",
+          "startLine": 344,
+          "endLine": 388,
+          "tokens": 526
+        },
+        {
+          "name": "read_scope",
+          "kind": "fn",
+          "startLine": 389,
+          "endLine": 571,
+          "tokens": 2315
+        },
+        {
+          "name": "read_on_off_scope",
+          "kind": "fn",
+          "startLine": 572,
+          "endLine": 585,
+          "tokens": 141
+        },
+        {
+          "name": "read_control_scope",
+          "kind": "fn",
+          "startLine": 586,
+          "endLine": 612,
+          "tokens": 278
+        },
+        {
+          "name": "read_flip_style_rotate_first",
+          "kind": "fn",
+          "startLine": 613,
+          "endLine": 628,
+          "tokens": 164
+        },
+        {
+          "name": "read_snap_angle",
+          "kind": "fn",
+          "startLine": 629,
+          "endLine": 650,
+          "tokens": 275
+        },
+        {
+          "name": "area_first_layer",
+          "kind": "fn",
+          "startLine": 651,
+          "endLine": 672,
+          "tokens": 347
+        },
+        {
+          "name": "insert_keepout",
+          "kind": "fn",
+          "startLine": 673,
+          "endLine": 752,
+          "tokens": 930
+        },
+        {
+          "name": "insert_keepout_item",
+          "kind": "fn",
+          "startLine": 753,
+          "endLine": 787,
+          "tokens": 348
+        },
+        {
+          "name": "add_plane_net",
+          "kind": "fn",
+          "startLine": 788,
+          "endLine": 814,
+          "tokens": 366
+        },
+        {
+          "name": "insert_plane",
+          "kind": "fn",
+          "startLine": 815,
+          "endLine": 884,
+          "tokens": 967
+        },
+        {
+          "name": "insert_missing_power_planes",
+          "kind": "fn",
+          "startLine": 885,
+          "endLine": 922,
+          "tokens": 402
+        },
+        {
+          "name": "create_board",
+          "kind": "fn",
+          "startLine": 923,
+          "endLine": 1094,
+          "tokens": 2074
+        },
+        {
+          "name": "update_board_rules",
+          "kind": "fn",
+          "startLine": 1095,
+          "endLine": 1176,
+          "tokens": 928
+        },
+        {
+          "name": "set_clearance_rule",
+          "kind": "fn",
+          "startLine": 1177,
+          "endLine": 1292,
+          "tokens": 1209
+        },
+        {
+          "name": "contains_wire_clearance_pair",
+          "kind": "fn",
+          "startLine": 1293,
+          "endLine": 1300,
+          "tokens": 80
+        },
+        {
+          "name": "create_default_clearance_classes",
+          "kind": "fn",
+          "startLine": 1301,
+          "endLine": 1310,
+          "tokens": 129
+        },
+        {
+          "name": "append_clearance_class",
+          "kind": "fn",
+          "startLine": 1311,
+          "endLine": 1337,
+          "tokens": 341
+        },
+        {
+          "name": "separate_holes",
+          "kind": "fn",
+          "startLine": 1338,
+          "endLine": 1373,
+          "tokens": 338
+        },
+        {
+          "name": "OutlineShape",
+          "kind": "class",
+          "startLine": 1374,
+          "endLine": 1380,
+          "tokens": 39
+        },
+        {
+          "name": "OutlineShape",
+          "kind": "section",
+          "startLine": 1381,
+          "endLine": 2700,
+          "tokens": 16154
+        }
+      ]
+    },
+    "logs/M2-T13/golden-regen-diff.py": {
+      "description": "T13 golden-regen verification: the T13-regenerated",
+      "tokens": 672,
+      "hash": "2271c44d1528b542",
+      "size": 2356,
+      "mtimeMs": 1789506601362.3315,
+      "updatedAt": "2026-09-15T21:10:01.456Z",
+      "source": "hook"
+    },
+    "logs/M2-T13/perf-notes.md": {
+      "description": "M2-T13 perf notes — `dsn compare` before/after investigation",
+      "tokens": 969,
+      "hash": "0c6f95a0ba4c9fc8",
+      "size": 3926,
+      "mtimeMs": 1789506632281.4277,
+      "updatedAt": "2026-09-15T21:10:32.384Z",
       "source": "hook"
     }
   },
