@@ -1896,3 +1896,141 @@ description: chronological action log per session, consolidated weekly
 | 01:04 | Edited rust/crates/epic-board/src/board.rs | 4→5 lines | ~79 |
 | 01:06 | Edited rust/harness/oracle/ContactsSpike.java | added 1 condition(s) | ~236 |
 | 01:06 | Edited rust/harness/oracle/ContactsSpike.java | modified signature() | ~281 |
+| 02:03 | Created rust/harness/oracle/CombineSpike.java | — | ~9620 |
+| 02:03 | Edited rust/harness/oracle/CombineSpike.java | 5→5 lines | ~72 |
+| 02:04 | Edited rust/harness/oracle/CombineSpike.java | added 2 import(s) | ~58 |
+| 02:04 | Edited rust/harness/oracle/CombineSpike.java | added 1 import(s) | ~92 |
+| 02:04 | Edited rust/harness/oracle/CombineSpike.java | inline fix | ~21 |
+| 02:50 | Edited rust/harness/oracle/CombineSpike.java | modified probe() | ~82 |
+| 02:50 | Edited rust/harness/oracle/CombineSpike.java | 9→14 lines | ~235 |
+| 02:50 | Edited rust/harness/oracle/CombineSpike.java | modified cornersOfPoly() | ~105 |
+| 02:50 | Edited rust/harness/oracle/CombineSpike.java | modified caseC3() | ~295 |
+| 02:51 | Edited rust/harness/oracle/CombineSpike.java | modified caseC3() | ~181 |
+| 02:51 | Edited rust/harness/oracle/CombineSpike.java | added 2 condition(s) | ~609 |
+| 03:19 | Edited rust/crates/epic-board/src/board.rs | modified trace_half_width() | ~351 |
+| 03:19 | Edited rust/crates/epic-board/src/rules_surf.rs | modified ignore_cycles_with_areas() | ~229 |
+| 03:19 | Edited rust/crates/epic-board/src/lib.rs | expanded (+16 lines) | ~135 |
+| 03:20 | Edited rust/crates/epic-board/src/lib.rs | reduced (-11 lines) | ~62 |
+| 03:20 | Edited rust/crates/epic-board/src/contacts.rs | inline fix | ~24 |
+| 03:43 | Created rust/crates/epic-board/src/trace_ops.rs | — | ~21954 |
+| 03:55 | Edited rust/crates/epic-board/src/trace_ops.rs | modified first_common_layer() | ~121 |
+| 03:55 | Edited rust/crates/epic-board/src/trace_ops.rs | 5→4 lines | ~51 |
+| 03:55 | Edited rust/crates/epic-board/src/trace_ops.rs | modified item_normal_contacts() | ~348 |
+| 03:55 | Edited rust/crates/epic-board/src/trace_ops.rs | 13→14 lines | ~153 |
+| 03:55 | Edited rust/crates/epic-board/src/trace_ops.rs | 8→9 lines | ~86 |
+| 03:55 | Edited rust/crates/epic-board/src/trace_ops.rs | modified insert_trace_without_cleaning() | ~61 |
+| 03:56 | Edited rust/crates/epic-board/src/trace_ops.rs | 6→6 lines | ~83 |
+| 03:56 | Edited rust/crates/epic-board/src/trace_ops.rs | modified deletion_forbidden_per_kind() | ~352 |
+| 03:56 | Edited rust/crates/epic-board/src/trace_ops.rs | 5→5 lines | ~45 |
+| 03:56 | Edited rust/crates/epic-board/src/trace_ops.rs | modified y1_pure_square_walk_rows() | ~26 |
+| 03:57 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→7 lines | ~79 |
+| 03:57 | Edited rust/crates/epic-board/src/trace_ops.rs | 7→6 lines | ~68 |
+| 03:57 | Edited rust/crates/epic-board/src/trace_ops.rs | 10→10 lines | ~87 |
+| 03:57 | Edited rust/crates/epic-board/src/trace_ops.rs | 9→9 lines | ~72 |
+| 03:57 | Edited rust/crates/epic-board/src/trace_ops.rs | modified enumerate() | ~77 |
+| 03:58 | Edited rust/crates/epic-board/src/trace_ops.rs | 2→2 lines | ~37 |
+| 03:58 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→4 lines | ~52 |
+| 03:58 | Edited rust/crates/epic-board/src/trace_ops.rs | 6→6 lines | ~108 |
+| 03:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~13 |
+| 04:10 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+6 lines) | ~128 |
+| 04:11 | Edited rust/crates/epic-board/src/trace_ops.rs | modified insert() | ~380 |
+| 04:11 | Edited rust/crates/epic-board/src/trace_ops.rs | 1→2 lines | ~30 |
+| 04:12 | Edited rust/crates/epic-board/src/trace_ops.rs | 5→5 lines | ~32 |
+| 04:12 | Edited rust/crates/epic-board/src/trace_ops.rs | 5→5 lines | ~38 |
+| 04:12 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→3 lines | ~18 |
+| 04:16 | Edited rust/harness/oracle/CombineSpike.java | modified caseG() | ~855 |
+| 04:16 | Edited rust/harness/oracle/CombineSpike.java | 2→3 lines | ~17 |
+| 04:20 | Edited rust/crates/epic-board/src/board.rs | modified default() | ~330 |
+| 04:20 | Edited rust/crates/epic-board/src/board.rs | 2→7 lines | ~106 |
+| 04:20 | Edited rust/crates/epic-board/src/board.rs | modified rules() | ~150 |
+| 04:20 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+6 lines) | ~239 |
+| 04:21 | Edited rust/crates/epic-board/src/trace_ops.rs | 14→14 lines | ~241 |
+| 04:21 | Edited rust/crates/epic-board/src/trace_ops.rs | modified nets_normal() | ~67 |
+| 04:21 | Edited rust/harness/oracle/CombineSpike.java | 3→7 lines | ~131 |
+| 04:21 | Edited rust/harness/oracle/CombineSpike.java | modified Run() | ~268 |
+| 04:23 | Edited rust/crates/epic-board/src/trace_ops.rs | modified insert_trace_guards_burn_like_java() | ~1231 |
+| 04:26 | Edited rust/harness/oracle/CombineSpike.java | 4→6 lines | ~101 |
+| 04:32 | Edited rust/harness/oracle/CombineSpike.java | 7→7 lines | ~112 |
+| 04:34 | Edited rust/crates/epic-board/src/trace_ops.rs | modified d2_stage_probe() | ~284 |
+| 04:35 | Edited rust/crates/epic-board/src/trace_ops.rs | modified PROBE() | ~33 |
+| 04:36 | Edited rust/crates/epic-board/src/trace_ops.rs | modified dump_lines() | ~200 |
+| 04:39 | Edited rust/crates/epic-board/src/tree_manager.rs | modified insert_all_board_items() | ~216 |
+| 04:39 | Edited rust/crates/epic-board/src/tree_manager.rs | modified remove_all_board_items() | ~109 |
+| 04:39 | Edited rust/crates/epic-board/src/board.rs | modified iter_descending() | ~179 |
+| 04:41 | Edited rust/crates/epic-board/src/trace_ops.rs | removed 28 lines | ~16 |
+| 04:41 | Edited rust/crates/epic-board/src/trace_ops.rs | modified fresh() | ~1210 |
+| 04:42 | Edited rust/crates/epic-board/src/trace_ops.rs | modified d2_u_turn_replace_geometry_dump_is_byte_identical() | ~2609 |
+| 04:47 | Edited rust/crates/epic-board/src/tree_manager.rs | expanded (+29 lines) | ~504 |
+| 04:47 | Edited rust/crates/epic-board/src/tree_manager.rs | 18→14 lines | ~172 |
+| 04:48 | Edited rust/crates/epic-board/src/tree_manager.rs | 14→14 lines | ~177 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | modified is_cycle_recu() | ~82 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | modified enumerate() | ~112 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | unwrap() → expect() | ~75 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | modified corners_of() | ~32 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | modified leaf_rows_for() | ~208 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~10 |
+| 04:52 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~10 |
+| 05:00 | Edited rust/crates/epic-board/src/tree_manager.rs | modified insert_all_board_items() | ~674 |
+| 05:00 | Edited rust/crates/epic-board/src/tree_manager.rs | iter_ascending() → iter_descending() | ~123 |
+| 05:01 | Edited rust/crates/epic-board/src/tree_manager.rs | 7→8 lines | ~132 |
+| 05:01 | Edited rust/crates/epic-board/src/tree_manager.rs | 7→10 lines | ~110 |
+| 05:01 | Edited rust/crates/epic-board/src/tree_manager.rs | reduced (-18 lines) | ~192 |
+| 05:01 | Edited rust/crates/epic-board/src/trace_ops.rs | modified fresh() | ~307 |
+| 05:02 | Edited rust/crates/epic-board/src/board.rs | order() → time() | ~163 |
+| 05:12 | Created logs/M2-T12/dispatch-prompt.md | — | ~3403 |
+| 05:53 | Edited rust/harness/oracle/CombineSpike.java | modified insLayer() | ~181 |
+| 05:53 | Edited rust/harness/oracle/CombineSpike.java | added 2 condition(s) | ~1687 |
+| 05:54 | Edited rust/harness/oracle/CombineSpike.java | added 2 import(s) | ~52 |
+| 05:54 | Edited rust/harness/oracle/CombineSpike.java | expanded (+6 lines) | ~46 |
+| 05:54 | Edited rust/harness/oracle/CombineSpike.java | modified GATE() | ~290 |
+| 05:57 | Edited rust/harness/oracle/CombineSpike.java | modified caseDegen2() | ~773 |
+| 05:57 | Edited rust/harness/oracle/CombineSpike.java | 3→5 lines | ~24 |
+| 05:59 | Edited rust/crates/epic-board/src/trace_ops.rs | modified is_routable() | ~234 |
+| 05:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~17 |
+| 05:59 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→3 lines | ~51 |
+| 05:59 | Edited rust/crates/epic-board/src/trace_ops.rs | modified test() | ~30 |
+| 06:00 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+14 lines) | ~373 |
+| 06:00 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+7 lines) | ~203 |
+| 06:00 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+31 lines) | ~517 |
+| 06:00 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+7 lines) | ~181 |
+| 06:01 | Edited rust/crates/epic-board/src/trace_ops.rs | modified C4_POST_TREE() | ~266 |
+| 06:01 | Edited rust/crates/epic-board/src/trace_ops.rs | modified C5_POST_TREE() | ~249 |
+| 06:01 | Edited rust/crates/epic-board/src/trace_ops.rs | modified D1_POST_TREE() | ~243 |
+| 06:02 | Edited rust/crates/epic-board/src/trace_ops.rs | modified D3_POST_TREE() | ~292 |
+| 06:02 | Edited rust/crates/epic-board/src/trace_ops.rs | modified insert_nets() | ~2926 |
+| 06:03 | Edited rust/crates/epic-board/src/trace_ops.rs | rows() → leaves() | ~87 |
+| 06:04 | Edited rust/crates/epic-board/src/trace_ops.rs | modified Java() | ~298 |
+| 06:12 | Edited rust/harness/oracle/CombineSpike.java | modified probe() | ~237 |
+| 06:13 | Edited rust/harness/oracle/CombineSpike.java | modified caseDegen() | ~272 |
+| 06:13 | Edited rust/harness/oracle/CombineSpike.java | inline fix | ~23 |
+| 06:13 | Edited rust/harness/oracle/CombineSpike.java | 7→9 lines | ~126 |
+| 06:51 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→3 lines | ~44 |
+| 06:51 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→3 lines | ~44 |
+| 06:53 | Edited rust/harness/oracle/CombineSpike.java | modified GATE() | ~154 |
+| 06:53 | Edited rust/harness/oracle/CombineSpike.java | 7→3 lines | ~59 |
+| 06:53 | Edited rust/harness/oracle/CombineSpike.java | modified probe() | ~80 |
+| 06:53 | Edited rust/harness/oracle/CombineSpike.java | modified probe() | ~106 |
+| 06:53 | Edited rust/harness/oracle/CombineSpike.java | expanded (+22 lines) | ~403 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→3 lines | ~44 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→3 lines | ~44 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~19 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | "Trace.java:138-153" → "Trace.java:131-152" | ~18 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | "DrillItem.java:341-350" → "DrillItem.java:340-349" | ~18 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | "DrillItem.java:334-339" → "DrillItem.java:332-337" | ~19 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~19 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~17 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | 2→2 lines | ~24 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~17 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~19 |
+| 06:59 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+7 lines) | ~172 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+7 lines) | ~160 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→7 lines | ~115 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+16 lines) | ~269 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+10 lines) | ~143 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+12 lines) | ~165 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | 2→7 lines | ~126 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | modified insert_via_fixture() | ~475 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+8 lines) | ~188 |
+| 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+49 lines) | ~543 |
+| 07:02 | Edited rust/crates/epic-board/src/board.rs | 2→2 lines | ~35 |
+| 07:02 | Edited rust/crates/epic-board/src/contacts.rs | modified indexed() | ~159 |

@@ -1,1535 +1,1552 @@
 {
- "version": 1,
- "bugs": [
-  {
-   "id": "design-001",
-   "ts": "2026-09-11T21:05:00",
-   "file": "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md",
-   "kind": "design-correction",
-   "summary": "M3 exit criterion was absolute (Tier A 100%/0 viol) but Java baseline itself hits 97.8% clean on Tier A; changed to relative gates (completion >= Java, violations <= Java per fixture).",
-   "status": "fixed"
-  },
-  {
-   "id": "design-002",
-   "ts": "2026-09-11T21:05:00",
-   "file": "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md",
-   "kind": "design-correction",
-   "summary": "Parity oracle pinned to Java engine built from this tree at baseline commit e7f9bdf1 (was ambiguous 'the Java engine').",
-   "status": "fixed"
-  },
-  {
-   "id": "plan-003",
-   "ts": "2026-09-12T04:20:00",
-   "file": "docs/superpowers/plans/2026-09-11-epicrouter-m0-rust-scaffold-and-baselines.md",
-   "kind": "plan-bug",
-   "error_message": "Tier C listed KiCad_10_demos/video.dsn and vme-wren.dsn, which do not exist (only .dsn_disabled variants; upstream 39c0f633 disabled them for timing out)",
-   "root_cause": "Planning-time recon used `ls | head -12`, truncating the directory listing and hiding the _disabled suffixes on those two files; metadata.yaml is stale for them",
-   "fix": "Dropped both fixtures (23-fixture matrix, Tier C = bm04 + CM5_MINIMA_3 + LimeSDR); plan amended; exclusion documented in tiers.yaml header",
-   "tags": [
-    "recon-discipline",
-    "truncated-output",
-    "m0"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": "bug-004",
-   "timestamp": "2026-09-12T03:52:09.892Z",
-   "error_message": "Wrong reference: tiers should be manifest",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "Used \"tiers\" instead of \"manifest\"",
-   "fix": "Changed tiers \u2192 manifest",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T03:52:09.892Z"
-  },
-  {
-   "id": "bug-005",
-   "timestamp": "2026-09-12T04:08:09.018Z",
-   "error_message": "Significant refactor of manifest.rs",
-   "file": "rust/harness/src/manifest.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 6\u21923 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T04:08:09.018Z"
-  },
-  {
-   "id": "bug-006",
-   "timestamp": "2026-09-12T04:10:56.671Z",
-   "error_message": "Wrong reference: tiers should be oracle",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "Used \"tiers\" instead of \"oracle\"",
-   "fix": "Changed tiers \u2192 oracle",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T04:10:56.671Z"
-  },
-  {
-   "id": "bug-007",
-   "ts": "2026-09-11T22:21:00",
-   "file": "rust/harness/src/oracle.rs",
-   "kind": "runtime-bug",
-   "summary": "Oracle smoke: manifest.json never written despite exit 0 and SES saved. Root cause: with DISPLAY set and gui.enabled true in user config, -de/-do batch runs are intercepted by the GUI auto-start flow (GuiManager.initializeGUI -> BoardExportActions save, log line \"Saving '<path>'...\") and Freerouting.initializeCli (the only reader of routerSettings.resultJsonPath) never executes. Fix: append --gui.enabled=false and --api_server.enabled=false to the oracle argv, mirroring scripts/benchmark/lib/BenchmarkRunner.ps1; verified headless CLI then writes the manifest (bm08: COMPLETED, exit 0).",
-   "status": "fixed"
-  },
-  {
-   "id": "bug-008",
-   "timestamp": "2026-09-12T04:43:25.175Z",
-   "error_message": "Significant refactor of tiers.rs",
-   "file": "rust/harness/src/tiers.rs",
-   "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 30\u219247 lines (5 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T04:43:25.175Z"
-  },
-  {
-   "id": "bug-009",
-   "timestamp": "2026-09-12T04:44:27.820Z",
-   "error_message": "Wrong reference: manifest should be baseline",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "Used \"manifest\" instead of \"baseline\"",
-   "fix": "Changed manifest \u2192 baseline",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T04:44:27.820Z"
-  },
-  {
-   "id": "bug-010",
-   "timestamp": "2026-09-12T05:06:37.062Z",
-   "error_message": "Wrong reference: Result should be Context",
-   "file": "rust/harness/src/baseline.rs",
-   "root_cause": "Used \"Result\" instead of \"Context\"",
-   "fix": "Changed Result \u2192 Context",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T05:06:37.062Z"
-  },
-  {
-   "id": "bug-011",
-   "timestamp": "2026-09-12T05:06:59.978Z",
-   "error_message": "Significant refactor of baseline.rs",
-   "file": "rust/harness/src/baseline.rs",
-   "root_cause": "17 lines replaced/restructured",
-   "fix": "Rewrote 19\u21923 lines (17 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T05:06:59.978Z"
-  },
-  {
-   "id": "bug-012",
-   "timestamp": "2026-09-12T05:07:37.677Z",
-   "error_message": "Significant refactor of main.rs",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 54\u219294 lines (8 removed) | Also: let mut captured = 0usize;; for fixture in &tier.fixtures {",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 2,
-   "last_seen": "2026-09-12T05:08:34.928Z"
-  },
-  {
-   "id": "bug-013",
-   "timestamp": "2026-09-12T05:14:19.829Z",
-   "error_message": "Significant refactor of main.rs",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 3\u219272 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T05:14:19.829Z"
-  },
-  {
-   "id": "bug-014",
-   "timestamp": "2026-09-12T05:30:34.655Z",
-   "error_message": "Significant refactor of baseline.rs",
-   "file": "rust/harness/src/baseline.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 15\u219217 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T05:30:34.655Z"
-  },
-  {
-   "id": "bug-015",
-   "timestamp": "2026-09-12T08:20:58.927Z",
-   "error_message": "Wrong operator: != should be ==",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "Used \"!=\" instead of \"==\"",
-   "fix": "Changed operator != \u2192 ==",
-   "tags": [
-    "auto-detected",
-    "operator-fix",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:20:58.927Z"
-  },
-  {
-   "id": "bug-016",
-   "timestamp": "2026-09-12T08:21:04.153Z",
-   "error_message": "Wrong reference: List should be exits",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "Used \"List\" instead of \"exits\"",
-   "fix": "Changed List \u2192 exits",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:21:04.153Z"
-  },
-  {
-   "id": "bug-017",
-   "timestamp": "2026-09-12T08:21:27.219Z",
-   "error_message": "Significant refactor of main.rs",
-   "file": "rust/harness/src/main.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 20\u219230 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:21:27.219Z"
-  },
-  {
-   "id": "bug-018",
-   "timestamp": "2026-09-12T08:54:34.637Z",
-   "error_message": "Significant refactor of lib.rs",
-   "file": "rust/crates/epic-geometry/src/lib.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 16\u219224 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:54:34.637Z"
-  },
-  {
-   "id": "bug-019",
-   "timestamp": "2026-09-12T08:57:12.821Z",
-   "error_message": "Significant refactor of rounding.rs",
-   "file": "rust/crates/epic-geometry/src/rounding.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 11\u219215 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:57:12.821Z"
-  },
-  {
-   "id": "bug-020",
-   "timestamp": "2026-09-12T08:57:18.561Z",
-   "error_message": "Significant refactor of side.rs",
-   "file": "rust/crates/epic-geometry/src/side.rs",
-   "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 28\u219246 lines (5 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:57:18.561Z"
-  },
-  {
-   "id": "bug-021",
-   "timestamp": "2026-09-12T08:57:34.855Z",
-   "error_message": "Significant refactor of big_int_aux.rs",
-   "file": "rust/crates/epic-geometry/src/big_int_aux.rs",
-   "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 23\u219267 lines (10 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T08:57:34.855Z"
-  },
-  {
-   "id": "bug-022",
-   "timestamp": "2026-09-12T08:57:43.583Z",
-   "error_message": "Significant refactor of java_random.rs",
-   "file": "rust/crates/epic-geometry/src/java_random.rs",
-   "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 28\u219241 lines (8 removed) | Also: fn seed_scramble_matches_public_spec() {; // new Random(0): (0 ^ 0x5DEECE66D) & (2^48 - 1) =",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 2,
-   "last_seen": "2026-09-12T08:58:28.780Z"
-  },
-  {
-   "id": "bug-023",
-   "timestamp": "2026-09-12T09:08:53.544Z",
-   "error_message": "Significant refactor of rounding.rs",
-   "file": "rust/crates/epic-geometry/src/rounding.rs",
-   "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 10\u219217 lines (8 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T09:08:53.544Z"
-  },
-  {
-   "id": "bug-024",
-   "timestamp": "2026-09-12T09:10:48+00:00",
-   "error_message": "Plan trap T1 specified Math.round as floor(x+0.5); that formula mis-rounds 0.49999999999999994 to 1 while Java 25 Math.round returns 0",
-   "file": "rust/crates/epic-geometry/src/rounding.rs",
-   "root_cause": "The T1 trap was written from the classic Java idiom, but JDK 7+ changed Math.round to a bit-exact implementation (JDK-6430675): closest long, ties toward +infinity, without the double-rounding artifact of x+0.5",
-   "fix": "java_round implemented via exact fractional-part comparison (frac = d - d.floor(); frac >= 0.5 -> floor+1), jshell-pinned (0.49999999999999994 -> 0); plan T1 row + snippet amended (commit 0f37cee8); implementer proved 0.49999999999999994 is the ONLY divergent double (verified at 1.5/2.5/4.5/2^23 scales)",
-   "tags": [
-    "parity",
-    "floating-point",
-    "java-rounding",
-    "m1a",
-    "plan-trap"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T09:10:48+00:00"
-  },
-  {
-   "id": "bug-025",
-   "timestamp": "2026-09-12T10:02:18.357Z",
-   "error_message": "Significant refactor of big_int_aux.rs",
-   "file": "rust/crates/epic-geometry/src/big_int_aux.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 5\u21924 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:02:18.357Z"
-  },
-  {
-   "id": "bug-026",
-   "timestamp": "2026-09-12T10:02:52.525Z",
-   "error_message": "Significant refactor of int_vector.rs",
-   "file": "rust/crates/epic-geometry/src/int_vector.rs",
-   "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 11\u21924 lines (5 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:02:52.525Z"
-  },
-  {
-   "id": "bug-027",
-   "timestamp": "2026-09-12T10:25:42.178Z",
-   "error_message": "Wrong operator: <= should be !=",
-   "file": "rust/crates/epic-geometry/src/vector.rs",
-   "root_cause": "Used \"<=\" instead of \"!=\"",
-   "fix": "Changed operator <= \u2192 !=",
-   "tags": [
-    "auto-detected",
-    "operator-fix",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:25:42.178Z"
-  },
-  {
-   "id": "bug-028",
-   "timestamp": "2026-09-12T10:25:56.453Z",
-   "error_message": "Significant refactor of vector.rs",
-   "file": "rust/crates/epic-geometry/src/vector.rs",
-   "root_cause": "16 lines replaced/restructured",
-   "fix": "Rewrote 44\u219224 lines (16 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:25:56.453Z"
-  },
-  {
-   "id": "bug-029",
-   "timestamp": "2026-09-12T10:29:03.260Z",
-   "error_message": "Significant refactor of lib.rs",
-   "file": "rust/crates/epic-geometry/src/lib.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 14\u219233 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:29:03.260Z"
-  },
-  {
-   "id": "bug-030",
-   "timestamp": "2026-09-12T10:32:08.981Z",
-   "error_message": "Wrong reference: big_integer_double_value should be big_integer_int_value",
-   "file": "rust/crates/epic-geometry/src/vector.rs",
-   "root_cause": "Used \"big_integer_double_value\" instead of \"big_integer_int_value\"",
-   "fix": "Changed big_integer_double_value \u2192 big_integer_int_value",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:32:08.981Z"
-  },
-  {
-   "id": "bug-031",
-   "timestamp": "2026-09-12T10:33:17.142Z",
-   "error_message": "Significant refactor of point.rs",
-   "file": "rust/crates/epic-geometry/src/point.rs",
-   "root_cause": "6 lines replaced/restructured",
-   "fix": "Rewrote 9\u219210 lines (6 removed) | Also: /// `translateBy(Vector)` double dispatch).; match (self, vector) {",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 2,
-   "last_seen": "2026-09-12T10:34:00.077Z"
-  },
-  {
-   "id": "bug-032",
-   "timestamp": "2026-09-12T10:34:02.379Z",
-   "error_message": "Significant refactor of rational_point.rs",
-   "file": "rust/crates/epic-geometry/src/rational_point.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 15\u219210 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:34:02.379Z"
-  },
-  {
-   "id": "bug-033",
-   "timestamp": "2026-09-12T10:35:46.473Z",
-   "error_message": "Significant refactor of vector.rs",
-   "file": "rust/crates/epic-geometry/src/vector.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 12\u219220 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T10:35:46.473Z"
-  },
-  {
-   "id": "bug-034",
-   "timestamp": "2026-09-12T11:14:49.953Z",
-   "error_message": "Significant refactor of rational_point.rs",
-   "file": "rust/crates/epic-geometry/src/rational_point.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 4\u21925 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T11:14:49.953Z"
-  },
-  {
-   "id": "bug-035",
-   "timestamp": "2026-09-12T11:15:45.596Z",
-   "error_message": "Significant refactor of float_point.rs",
-   "file": "rust/crates/epic-geometry/src/float_point.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 4\u21926 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T11:15:45.596Z"
-  },
-  {
-   "id": "bug-036",
-   "timestamp": "2026-09-12T11:45:18.612Z",
-   "error_message": "Significant refactor of rational_vector.rs",
-   "file": "rust/crates/epic-geometry/src/rational_vector.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 8\u219213 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T11:45:18.612Z"
-  },
-  {
-   "id": "bug-037",
-   "timestamp": "2026-09-12T12:11:12.642Z",
-   "error_message": "Significant refactor of int_direction.rs",
-   "file": "rust/crates/epic-geometry/src/int_direction.rs",
-   "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 26\u219236 lines (10 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T12:11:12.642Z"
-  },
-  {
-   "id": "bug-038",
-   "timestamp": "2026-09-12T12:33:30.341Z",
-   "error_message": "Incorrect value in code",
-   "file": "rust/crates/epic-geometry/src/rational_point.rs",
-   "root_cause": "Had `surroundingBox`",
-   "fix": "Changed to `surroundingOctagon`",
-   "tags": [
-    "auto-detected",
-    "wrong-value",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T12:33:30.341Z"
-  },
-  {
-   "id": "bug-039",
-   "timestamp": "2026-09-12T12:35:43.823Z",
-   "error_message": "Significant refactor of int_box.rs",
-   "file": "rust/crates/epic-geometry/src/int_box.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 14\u219221 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T12:35:43.823Z"
-  },
-  {
-   "id": "bug-040",
-   "timestamp": "2026-09-12T12:37:26.000Z",
-   "error_message": "int_box.rs nearest_border_projections test failed: expected second projection (9,0), got (9,10)",
-   "file": "rust/crates/epic-geometry/src/int_box.rs",
-   "root_cause": "Port dropped the LIVE store second_min_diff = lower_vertical_difference in the first else-if of nearestBorderProjections; the stale second_min_diff let the upper-vertical branch steal the second slot. The analogous store in the last else-if is a genuine dead store in Java and was correctly omitted to avoid unused_assignments.",
-   "fix": "Restored second_min_diff = lower_vertical_difference in the lower-vertical else-if; pinned the branch with the jshell result nearestBorderProjections((9,2),2) -> [(10,2),(9,0)].",
-   "tags": [
-    "port-parity",
-    "tdd-caught",
-    "jshell-pin",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T12:37:26.000Z"
-  },
-  {
-   "id": "bug-041",
-   "timestamp": "2026-09-12T12:58:30.580Z",
-   "error_message": "Incorrect value in code",
-   "file": "rust/crates/epic-geometry/src/int_box.rs",
-   "root_cause": "Had `RegularTileShape boundingShape(ShapeBoundingDirec",
-   "fix": "Changed to `RegularTileShape union(RegularTileShape)`",
-   "tags": [
-    "auto-detected",
-    "wrong-value",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T12:58:30.580Z"
-  },
-  {
-   "id": "bug-042",
-   "timestamp": "2026-09-12T13:30:37.515Z",
-   "error_message": "Significant refactor of int_octagon.rs",
-   "file": "rust/crates/epic-geometry/src/int_octagon.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 4\u21923 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T13:30:37.515Z"
-  },
-  {
-   "id": "bug-043",
-   "timestamp": "2026-09-12T13:30:53.753Z",
-   "error_message": "Incorrect value in code",
-   "file": "rust/crates/epic-geometry/src/rational_point.rs",
-   "root_cause": "Had `surroundingOctagon`",
-   "fix": "Changed to `sideOf(Line)`",
-   "tags": [
-    "auto-detected",
-    "wrong-value",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T13:30:53.753Z"
-  },
-  {
-   "id": "bug-044",
-   "timestamp": "2026-09-12T13:37:09.912Z",
-   "error_message": "Incorrect value in code",
-   "file": "rust/crates/epic-geometry/src/int_octagon.rs",
-   "root_cause": "Had `RegularTileShape`",
-   "fix": "Changed to `Side::Positive`",
-   "tags": [
-    "auto-detected",
-    "wrong-value",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T13:37:09.912Z"
-  },
-  {
-   "id": "bug-045",
-   "timestamp": "2026-09-12T07:47:53",
-   "error_message": "int_octagon tests failed: 6 pin mismatches incl. border_line_side_of_branches (method has no Java counterpart)",
-   "file": "rust/crates/epic-geometry/src/int_octagon.rs",
-   "root_cause": "Invented a borderLineSideOf(FloatPoint,int,double) method (real Java API is sideOfBorderLine(int,int,int) only), and cutout test pins were reconstructed from memory with receiver/argument order flipped (expected pieces lay inside the cutter instead of inside d); normalize 'post-merge EMPTY' input did not actually produce EMPTY",
-   "fix": "jshell reflection battery (setAccessible on package-private cutoutFrom overloads) captured oracle truth for 8 disputed cases; deleted the invented method; replaced pins with oracle output; new post-merge EMPTY pin o(0,0,2,10,3,4,0,6)->EMPTY; all 204 tests green",
-   "tags": [
-    "jshell",
-    "pin-oracle",
-    "int_octagon",
-    "m1a"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T07:47:53"
-  },
-  {
-   "id": "bug-046",
-   "timestamp": "2026-09-12T14:20:47.898Z",
-   "error_message": "Wrong reference: ceil should be floor",
-   "file": "rust/crates/epic-geometry/src/int_octagon.rs",
-   "root_cause": "Used \"ceil\" instead of \"floor\"",
-   "fix": "Changed ceil \u2192 floor",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T14:20:47.898Z"
-  },
-  {
-   "id": "bug-047",
-   "timestamp": "2026-09-12T14:56:23.809Z",
-   "error_message": "Wrong reference: big_integer_int_value should be big_abs",
-   "file": "rust/crates/epic-geometry/src/line.rs",
-   "root_cause": "Used \"big_integer_int_value\" instead of \"big_abs\"",
-   "fix": "Changed big_integer_int_value \u2192 big_abs",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T14:56:23.809Z"
-  },
-  {
-   "id": "bug-048",
-   "timestamp": "2026-09-12T15:21:42.817Z",
-   "error_message": "Significant refactor of line_segment.rs",
-   "file": "rust/crates/epic-geometry/src/line_segment.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 6\u21928 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T15:21:42.817Z"
-  },
-  {
-   "id": "bug-049",
-   "timestamp": "2026-09-12T15:21:48.935Z",
-   "error_message": "Significant refactor of float_line.rs",
-   "file": "rust/crates/epic-geometry/src/float_line.rs",
-   "root_cause": "5 lines replaced/restructured",
-   "fix": "Rewrote 7\u21926 lines (5 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T15:21:48.935Z"
-  },
-  {
-   "id": "bug-050",
-   "timestamp": "2026-09-12T15:24:01.060Z",
-   "error_message": "Wrong reference: tmp1 should be tmp2",
-   "file": "rust/crates/epic-geometry/src/line.rs",
-   "root_cause": "Used \"tmp1\" instead of \"tmp2\"",
-   "fix": "Changed tmp1 \u2192 tmp2",
-   "tags": [
-    "auto-detected",
-    "wrong-reference",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T15:24:01.060Z"
-  },
-  {
-   "id": "bug-051",
-   "timestamp": "2026-09-12T15:25:17.000Z",
-   "error_message": "PP2r pin mismatch: Rust RationalPoint perpendicular_projection returned Int(2,-1), oracle returns Int(3,-1)",
-   "file": "rust/crates/epic-geometry/src/line.rs",
-   "root_cause": "Port bug in perpendicular_projection_rational: projX numerator used det*vx*z (copied from the neighboring projY term) where Java RationalPoint.java:253 uses det*vy*z. The projY +det*vx*z sign (vs IntPoint's -det*vx) is a genuine upstream divergence and stays bug-compatible (trap T16)",
-   "fix": "Changed the projX det term from v.x to v.y in perpendicular_projection_rational; pinned both projections (PP1/PP2r) and appended trap T16 to the M1a plan",
-   "tags": [
-    "m1a",
-    "geometry-kernel",
-    "bit-parity",
-    "wrong-reference",
-    "oracle-pin"
-   ],
-   "related_bugs": [
-    "bug-024"
-   ],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T15:25:17.000Z"
-  },
-  {
-   "id": "bug-052",
-   "timestamp": "2026-09-12T15:25:17.000Z",
-   "error_message": "Upstream (Freerouting e7f9bdf1): stairApproximation45 produces wrong 45-degree stair x coordinates for non-45 segments",
-   "file": "src/main/java/app/freerouting/geometry/planar/LineSegment.java",
-   "root_cause": "LineSegment.java:432 calls functionValueApprox(currentY) in the function-of-y branch instead of functionInYValueApprox - the x-function is fed a y coordinate. Reproduced bug-compatibly in rust line_segment.rs stair_approximation_45 (trap T17); pin ST2 covers it",
-   "fix": "No fix (frozen oracle): transliterated the defect verbatim with a comment at the call site; documented as plan trap T17",
-   "tags": [
-    "upstream-defect",
-    "m1a",
-    "geometry-kernel",
-    "bug-compatible"
-   ],
-   "related_bugs": [
-    "bug-051"
-   ],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T15:25:17.000Z"
-  },
-  {
-   "id": "bug-053",
-   "timestamp": "2026-09-12T15:52:11.098Z",
-   "error_message": "Significant refactor of line.rs",
-   "file": "rust/crates/epic-geometry/src/line.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 4\u21925 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T15:52:11.098Z"
-  },
-  {
-   "id": "bug-054",
-   "timestamp": "2026-09-12T16:41:37.244Z",
-   "error_message": "Significant refactor of simplex.rs",
-   "file": "rust/crates/epic-geometry/src/simplex.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 3\u21924 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T16:41:37.244Z"
-  },
-  {
-   "id": "bug-055",
-   "timestamp": "2026-09-12T17:54:50.779Z",
-   "error_message": "Wrong condition in logic",
-   "file": "rust/crates/epic-geometry/src/shape.rs",
-   "root_cause": "Condition was: if (shape_corner_is_bounded(shape, current_ind)",
-   "fix": "Changed to: if (!shape_corner_is_bounded(shape, current_ind)",
-   "tags": [
-    "auto-detected",
-    "logic-fix",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T17:54:50.779Z"
-  },
-  {
-   "id": "bug-056",
-   "timestamp": "2026-09-12T17:54:58.887Z",
-   "error_message": "Significant refactor of shape.rs",
-   "file": "rust/crates/epic-geometry/src/shape.rs",
-   "root_cause": "7 lines replaced/restructured",
-   "fix": "Rewrote 15\u219234 lines (7 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T17:54:58.887Z"
-  },
-  {
-   "id": "bug-057",
-   "timestamp": "2026-09-12T17:59:40.242Z",
-   "error_message": "Significant refactor of line.rs",
-   "file": "rust/crates/epic-geometry/src/line.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 4\u21923 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T17:59:40.242Z"
-  },
-  {
-   "id": "bug-058",
-   "timestamp": "2026-09-12T17:59:45.754Z",
-   "error_message": "Incorrect value in code",
-   "file": "rust/crates/epic-geometry/src/float_point.rs",
-   "root_cause": "Had `toString(Locale, ...)`",
-   "fix": "Changed to `FloatLine`",
-   "tags": [
-    "auto-detected",
-    "wrong-value",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T17:59:45.754Z"
-  },
-  {
-   "id": "bug-059",
-   "timestamp": "2026-09-12T18:15:41.299Z",
-   "error_message": "Significant refactor of point.rs",
-   "file": "rust/crates/epic-geometry/src/point.rs",
-   "root_cause": "2 lines replaced/restructured",
-   "fix": "Rewrote 3\u21925 lines (2 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T18:15:41.299Z"
-  },
-  {
-   "id": "bug-060",
-   "timestamp": "2026-09-12T18:54:20.342Z",
-   "error_message": "Significant refactor of line_segment.rs",
-   "file": "rust/crates/epic-geometry/src/line_segment.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 5\u21928 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T18:54:20.342Z"
-  },
-  {
-   "id": "bug-061",
-   "timestamp": "2026-09-12T19:08:41.843Z",
-   "error_message": "Significant refactor of float_point.rs",
-   "file": "rust/crates/epic-geometry/src/float_point.rs",
-   "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 15\u21926 lines (8 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T19:08:41.843Z"
-  },
-  {
-   "id": "bug-062",
-   "timestamp": "2026-09-12T19:32:46.745Z",
-   "error_message": "Wrong condition in logic",
-   "file": "rust/crates/epic-geometry/src/tile_shape.rs",
-   "root_cause": "Condition was: if ((!self.corner_is_bounded(current_ind)",
-   "fix": "Changed to: if (!self.corner_is_bounded(current_ind)",
-   "tags": [
-    "auto-detected",
-    "logic-fix",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T19:32:46.745Z"
-  },
-  {
-   "id": "bug-063",
-   "timestamp": "2026-09-12T19:37:13.000Z",
-   "error_message": "P12 cutout pin diverged: Rust Simplex.cutout_from_simplex produced 7 pieces vs oracle 5 (corners 1/2 got 2 zero-length division lines instead of 1)",
-   "file": "rust/crates/epic-geometry/src/simplex.rs",
-   "root_cause": [
-    "Simplex.calcDivisionLines mixes TWO Java Direction-comparison flavors, and the port initially conflated them. (1) The NULL guards use reference equality: currentProjectionDir == Direction.NULL is true only for the shared constant that Point.perpendicularDirection returns in its collinear branch; translating that as == on IntDirection failed because IntDirection PartialEq mirrors Java .equals (collinear side + positive projection) under which distinct NULL instances are UNEQUAL \u2014 so the zero direction never matched and the guards never fired (the original 7-vs-5 piece divergence). (2) The final comparison Simplex.java:1137 is firstProjectionDir.equals(secondProjectionDir) \u2014 VALUE equality, NOT reference ==; an interim fix translated it as an object-identity flag, which was a misreading (caught in the Task 7 spec review): an identity flag diverges from .equals whenever the two directions are value-equal but distinct objects, which is reachable with raw parallel same-direction outer line pairs."
-   ],
-   "fix": [
-    "NULL guards now use IntDirection::is_null() (zero-vector check; sound because the shared constant is the only zero direction those call sites can produce). The final comparison is plain Rust first_projection_dir == second_projection_dir, which IS Java .equals (T9 contract). Oracle pin PB9 (raw outer simplex with a duplicated same-direction bottom line, sharp inner triangle corner (4,0)) drives the second-division scan through the value-equal twin and pins the 2-division-line outcome."
-   ],
-   "tags": [
-    "parity",
-    "direction",
-    "reference-equality",
-    "simplex",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T19:37:13.000Z"
-  },
-  {
-   "id": "bug-064",
-   "timestamp": "2026-09-12T20:00:53.396Z",
-   "error_message": "Significant refactor of simplex.rs",
-   "file": "rust/crates/epic-geometry/src/simplex.rs",
-   "root_cause": "9 lines replaced/restructured",
-   "fix": "Rewrote 12\u21923 lines (9 removed) | Also: // true while currentSecondProjectionDir is the sa; // as currentProjectionDir (Java identity, see abo",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 2,
-   "last_seen": "2026-09-12T20:00:56.270Z"
-  },
-  {
-   "id": "bug-065",
-   "timestamp": "2026-09-12T20:59:45.591Z",
-   "error_message": "Significant refactor of shape.rs",
-   "file": "rust/crates/epic-geometry/src/shape.rs",
-   "root_cause": "9 lines replaced/restructured",
-   "fix": "Rewrote 15\u21926 lines (9 removed) | Also: let mut x = 0.0f64;; let mut y = 0.0f64; | Also: let corner_count = self.border_line_count();; let mut x = 0.0f64; | Also: let corner_count = shape.border_line_count();; let current = shape",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 4,
-   "last_seen": "2026-09-12T21:00:03.467Z"
-  },
-  {
-   "id": "bug-066",
-   "timestamp": "2026-09-12T21:00:10.216Z",
-   "error_message": "Significant refactor of regular_tile_shape.rs",
-   "file": "rust/crates/epic-geometry/src/regular_tile_shape.rs",
-   "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 14\u21924 lines (10 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T21:00:10.216Z"
-  },
-  {
-   "id": "bug-067",
-   "timestamp": "2026-09-12T21:00:30.618Z",
-   "error_message": "Significant refactor of simplex.rs",
-   "file": "rust/crates/epic-geometry/src/simplex.rs",
-   "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 14\u21926 lines (10 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T21:00:30.618Z"
-  },
-  {
-   "id": "bug-068",
-   "timestamp": "2026-09-12T21:12:09.000Z",
-   "error_message": "P12 cutout pin passed with wrong wall-anchor literals: right-wall lines pinned as (6,-5)->(6,6)/(6,6)->(6,-5) while the oracle produces (6,0)->(6,6)/(6,6)->(6,0)",
-   "file": "rust/crates/epic-geometry/src/simplex.rs",
-   "root_cause": "Two stacked defects, both in the TEST not the port. (1) The pin literals were mis-transcribed (memory-reconstructed, failure mode 1 of the cerebrum rule) \u2014 stage-by-stage instrumentation (throwaway tests/p12_debug.rs) plus a live jar re-capture (P12b) proved the Rust cutout pipeline carries original border-line anchors EXACTLY like Java: IntOctagon.cutoutFrom(Simplex) = toSimplex().cutoutFrom(simplex) passes the simplex param through verbatim, and IntOctagon.toSimplex/borderLine rebuild fresh unit-anchored lines in BOTH languages. (2) The wrong literals were invisible because Line equality is ANCHOR-BLIND in both languages (Java Line.equals compares supporting line + direction, Rust == mirrors it), so assert_eq! on Line values cannot detect an anchor divergence \u2014 a new trap class, ledgered as T20 (anchor identity is observable parity only through endpoint pairs, which is what the differential corpus serializes).",
-   "fix": "Re-pinned P12 with the true P12b jar values (pieces 0/1/2 right-wall anchors (6,0)); converted the P12 and PB9 piece loops to anchor-strict assertions comparing (&line.a, &line.b) endpoint pairs; documented the correction in the pin docs and appended trap T20 to the M1a plan.",
-   "tags": [
-    "oracle-pin",
-    "parity",
-    "epic-geometry",
-    "T20",
-    "anchor-identity"
-   ],
-   "related_bugs": [
-    "bug-045",
-    "bug-063"
-   ],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T21:12:09.000Z"
-  },
-  {
-   "id": "bug-069",
-   "timestamp": "2026-09-12T21:27:16.110Z",
-   "error_message": "Significant refactor of polyline.rs",
-   "file": "rust/crates/epic-geometry/src/polyline.rs",
-   "root_cause": "3 lines replaced/restructured",
-   "fix": "Rewrote 7\u219211 lines (3 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T21:27:16.110Z"
-  },
-  {
-   "id": "bug-070",
-   "timestamp": "2026-09-12T21:31:55.021Z",
-   "error_message": "Significant refactor of polygon_shape.rs",
-   "file": "rust/crates/epic-geometry/src/polygon_shape.rs",
-   "root_cause": "6 lines replaced/restructured",
-   "fix": "Rewrote 14\u21927 lines (6 removed) | Also: let mut current_polygon = polygon;; if polygon.winding_number_after_closing() < 0 { | Also: if piece.intersects(&TileShape::RegularTileShape(; match circle.bounding_tile() {",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 3,
-   "last_seen": "2026-09-12T21:32:04.773Z"
-  },
-  {
-   "id": "bug-071",
-   "timestamp": "2026-09-12T21:35:15.948Z",
-   "error_message": "Significant refactor of shape.rs",
-   "file": "rust/crates/epic-geometry/src/shape.rs",
-   "root_cause": "8 lines replaced/restructured",
-   "fix": "Rewrote 12\u219218 lines (8 removed) | Also: /// Clones the referenced shape into an owned [`Ti; /// The no-th border line of the referenced shape.",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 2,
-   "last_seen": "2026-09-12T21:35:39.834Z"
-  },
-  {
-   "id": "bug-072",
-   "timestamp": "2026-09-12T21:42:12.072Z",
-   "error_message": "Significant refactor of tile_shape.rs",
-   "file": "rust/crates/epic-geometry/src/tile_shape.rs",
-   "root_cause": "10 lines replaced/restructured",
-   "fix": "Rewrote 10\u219213 lines (10 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T21:42:12.072Z"
-  },
-  {
-   "id": "bug-073",
-   "timestamp": "2026-09-12T22:01:04.578Z",
-   "error_message": "Significant refactor of circle.rs",
-   "file": "rust/crates/epic-geometry/src/circle.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 7\u21927 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T22:01:04.578Z"
-  },
-  {
-   "id": "bug-074",
-   "timestamp": "2026-09-12T22:06:42.316Z",
-   "error_message": "Significant refactor of tile_shape.rs",
-   "file": "rust/crates/epic-geometry/src/tile_shape.rs",
-   "root_cause": "4 lines replaced/restructured",
-   "fix": "Rewrote 4\u21923 lines (4 removed)",
-   "tags": [
-    "auto-detected",
-    "refactor",
-    "rs"
-   ],
-   "related_bugs": [],
-   "occurrences": 1,
-   "last_seen": "2026-09-12T22:06:42.316Z"
-  },
-  {
-   "id": "bug-075",
-   "date": "2026-09-12",
-   "error_message": "PENT pin failed: TileShape.entrance_points returned [] instead of [(1,6),(1,2)] for the 3-line cross polyline; PCUT consequently produced 1 piece instead of 2.",
-   "root_cause": "Port misremembered the Java loop bound as lineCount()-1 (=> lines.length-2) during a deferred-ledger closure, emulating an off-by-one that does not exist. Java TileShape.entrancePoints (TileShape.java:872) bounds on the RAW line array: lineIndex < polyline.lines.length - 1 (=> lines.length-1). For a 3-line polyline the only segment line (index 1) was never scanned, so no intersections were found.",
-   "fix": "Changed the Rust bound from wrapping_sub(2) to wrapping_sub(1) with the Java line citation in the comment; pins PENT/PCUT now pass against the jshell-captured oracle. Note the dedup predicate (pair != prev pair) is logically equivalent to Java's (lineNo != prevLineNo || edgeNo != prevEdgeNo), so only the bound was wrong.",
-   "tags": [
-    "m1a",
-    "task8",
-    "port-bug",
-    "off-by-one",
-    "oracle-pin-caught",
-    "tile_shape.rs"
-   ]
-  },
-  {
-   "id": "bug-076",
-   "date": "2026-09-12",
-   "error_message": "Task 8 mutation test: swapping Polyline::new's filter/removeOverlaps order survived every existing pin (POVL1 included) \u2014 the T10 ctor-order branch had no observing test.",
-   "root_cause": "Pin-failure mode: branch never executes. POVL1's 5-line input has no consecutive-parallel pair, so under the swapped order removeOverlaps produced the same output as the true order and the mutation was invisible.",
-   "fix": "Added jshell-pinned POVL2 on A=(0,0)-(10,0), P=(2,3)-(12,3), A'=A, C=(0,0)-(7,7), D=(0,0)-(0,10): the filter drops P and A' before removeOverlaps (oracle [A,C,D]); the swapped order yields [P,C,D]. Mutant applied -> povl2_filter_before_overlap_order_pin failed with first line (2,3)-(12,3) -> reverted -> green.",
-   "tags": [
-    "m1a/task8",
-    "pin-gap",
-    "branch-never-executes",
-    "trap-t10",
-    "polyline.rs",
-    "mutation-verified"
-   ]
-  },
-  {
-   "id": "bug-077",
-   "date": "2026-09-12",
-   "error_message": "Task 8 mutation test: Random(99) -> Random(100) in PolygonShape::split_to_convex survived PSP1 \u2014 the ear-split seed had no observing test.",
-   "root_cause": "Pin-failure mode: degenerate input where the seeded term can't influence the outcome. PSP1's L-shape has a single concave corner, so any nextIntBound draw scans to the same split and every seed is equivalent.",
-   "fix": "Kept PSP1 as a result pin (comment reworded) and added jshell-pinned PSP2 on a 13-corner chamfered plus (4 concavities, ambiguous decomposition): seed 99 draw 1 vs seed 100 draw 12 select different concavities. Mutant SEED 99->100 -> psp2_split_to_convex_seed_pin failed (IntBox (10,0)-(30,10) vs oracle octagon) -> reverted -> green.",
-   "tags": [
-    "m1a/task8",
-    "pin-gap",
-    "degenerate-input",
-    "trap-d6",
-    "trap-d7",
-    "polygon_shape.rs",
-    "mutation-verified"
-   ]
-  },
-  {
-   "id": "bug-078",
-   "date": "2026-09-12",
-   "error_message": "Task 9 review mutation test: corpus.rs edge-case stride `i % 9 == 0` -> `i % 8 == 0` rewrote the committed corpus definition and passed the ENTIRE test suite + CI \u2014 the central deliverable (corpus artifacts) had no automated pin.",
-   "root_cause": "Mutation-survivor class: deliverable artifact with no automated pin. generate_is_deterministic_per_seed only checked self-consistency (two runs, same seed), which holds under any deterministic generator change; nothing asserted generate(seed 20260912, 200) against the committed rust/harness/corpus/geometry-cases.jsonl.",
-   "fix": "Added corpus::tests::generate_matches_committed_corpus pinning generate output byte-identical to the committed artifact via env!(CARGO_MANIFEST_DIR) (cwd-independent); mutant re-applied -> test FAILED; reverted -> green. Task 10 will add the compare-vs-committed-golden pin once the 5 known port divergences are fixed.",
-   "tags": [
-    "m1a",
-    "corpus",
-    "mutation-survivor",
-    "pin",
-    "test-gap"
-   ]
-  },
-  {
-   "id": "bug-079",
-   "date": "2026-09-12",
-   "error_message": "Corpus cases seg-000020/000093/000125 (line_segment.sort_endpoints_in_xy) and seg-000151 (line_segment.intersection) mismatched: Rust serialized {\"kind\":\"RustPanic\"} where the Java oracle produced a sorted LineSegment / a 1-cut LineList.",
-   "root_cause": "T22-class port divergence, not an upstream bug: Java LineSegment.startPoint()/endPoint() call middle.intersection(closingLine), which NEVER returns null \u2014 for a closing line parallel to the middle line it returns the infinite RationalPoint(isX, isY, 0), and every downstream consumer (sortEndpointsInXY, intersection, borderIntersections) keeps computing through it with exact cross-multiplied compareXY/sideOf. The Rust port instead panicked at start_point/end_point (precondition the oracle does not have) and skipped the parallel candidate in border_intersections (a documented Task-6 divergence). Confirmed via jshell: seg-000020 sp = RationalPoint(822986573811360, 822986573811360, 0), seg-000093 sp = RationalPoint(0, -34839094706, 0), seg-000125 ep = RationalPoint(0, 1791925913988, 0).",
-   "fix": "Added Line::intersection_point (Java Line.intersection verbatim, returns the infinite RationalPoint for det==0) and rewrote Line::intersection as a thin Option wrapper (None iff infinite) for the corpus Infinity encoding. LineSegment.start_point/end_point/border_intersections now consume intersection_point only \u2014 no panics, no skips; the Task-6 divergence note is closed. Jar-captured pins: INF1, SORT-INF1/2/3, CMP-INF1/2, I-INF (line.rs, line_segment.rs). 200-case compare went 195/200 -> 200/200.",
-   "tags": [
-    "m1a",
-    "geometry",
-    "parity",
-    "trap-T22",
-    "corpus"
-   ]
-  },
-  {
-   "id": "bug-080",
-   "date": "2026-09-12",
-   "error_message": "Corpus case ipt-000140 (intpoint.difference_by, a=[-2583,-185824083], b=[721500227,26196855]): Rust returned RationalVector{z=1} where Java returned IntVector.",
-   "root_cause": "T23-class HARNESS bug (not a port bug): GeometryCorpusOracle.pt()/points() construct RAW new IntPoint(x, y), but the Rust harness arg builder called Point::get_instance(x, y), which boxes a RationalPoint above \u00b1CRIT_INT (2^25). RationalPoint.differenceBy then took the rational path in the Rust evaluator while the oracle ran IntPoint.differenceBy (which returns IntVector directly \u2014 verified via jshell; there is no z-divides-evenly promotion site to port).",
-   "fix": "corpus.rs args_point and the tileshape.from_points points builder now construct Point::Int(IntPoint::new(...)) mirroring the oracle constructor-for-constructor; Vector args stay Vector::get_instance because the oracle's vec() really does call Vector.getInstance. Trap T23 recorded in the plan trap table.",
-   "tags": [
-    "m1a",
-    "geometry",
-    "parity",
-    "trap-T23",
-    "corpus",
-    "harness"
-   ]
-  },
-  {
-   "id": "bug-081",
-   "error_message": "simplex::tests::get_instance_sort_is_stable_for_equal_compare_to panicked: survivor 2 not found in input: Line { a: Int(774978817,1997027347), b: Int(774977195,1997025725) }",
-   "root_cause": "Test-formulation bug, not a port bug: check (b) of the sort-stability invariant demanded the survivors form a greedy IN-ORDER subsequence of the input, but the generated fans use strides [0,1,3,2] mod 8 and therefore wrap \u2014 the input is NOT sorted, while Simplex.getInstance always outputs in compareTo order. Java never derives lines (Simplex.java:46-51 copies references, removeRedundantLines :884 only skips/shifts references), so the true contract is: endpoint-exact MEMBERSHIP in the input (order-free) + sorted output + ties (compareTo == Equal) keeping their input RELATIVE order (TimSort stability survives removal-only pruning). A doc-comment-only edit had also shifted the panic line number, initially masking that the failing code was unchanged.",
-   "fix": "Replaced the greedy cursor with (b) input.iter().position endpoint-exact membership per survivor and (c) pairwise tie-order check: for output i<j with compare_to == Equal, first_pos[i] < first_pos[j]. Green over 10k seeded fans (0x5EED_C0DE_1234_567D). Lesson: when a panic message survives a fix byte-identical, diff the algorithm, not the line number.",
-   "tags": [
-    "m1a",
-    "epic-geometry",
-    "simplex",
-    "invariant-formulation",
-    "timsort-stability"
-   ]
-  },
-  {
-   "id": "bug-082",
-   "error_message": "Task 8: 5 bare-class network tests failed parse (read_scope false at the dispatch EOF arm) while the jar returns RESULT Success for the same fixtures",
-   "root_cause": "Harness granularity mismatch, not a port bug: NetClass.readScope's bare-class seed consumes the class's own ')' and its loop break consumes the NETWORK's close; in a real file the network dispatch then breaks on the PCB's ')' and ScopeKeyword.readScope treats the resulting EOF as clean success (if (nextToken == null) return true). The test harness fed an isolated (network ...) with nothing after it, so the over-consumption hit EOF and killed the parse - a file shape the jar never ran. Corollary: two other failures were memory-reconstructed expectations (WIRE item-class slots, K2/K3 COUT ids) that fresh jar captures refuted (items via=3 pin=5 smd=4 area=6; COUT ids 16-19/25-28).",
-   "fix": "run_board formats '(network BODY))' - the trailing bracket emulates the pcb close (documented in the harness + module doc). The decisive evidence was a jshell probe driving SpecctraDsnStreamReader directly (/tmp/epic-t8-scanprobe2.jsh) to print the true post-nextStringList token stream instead of reconstructing JFlex internals.",
-   "tags": [
-    "parity",
-    "oracle",
-    "harness-granularity",
-    "memory-reconstructed-pin",
-    "t8",
-    "m1b"
-   ]
-  },
-  {
-   "id": "bug-083",
-   "ts": "2026-09-14T00:00:00",
-   "file": "rust/crates/epic-board/src/board.rs",
-   "kind": "parity-bug",
-   "error_message": "T1 quality review (04c37ac7) FINDING 1: Board::remove_item returned the removed ItemEntry with on_the_board still true, while Java leaves every removed item with onTheBoard == false",
-   "root_cause": "The flag flip on removal lives in SearchTreeManager.remove (SearchTreeManager.java:57-61: isOnTheBoard() guard then item.setOnTheBoard(false)), which BasicBoard.removeItem calls transitively - not in BoardItemRepository.removeItem where the revision bump (T69) lives. The port has no tree manager yet, so the side effect had no owner and the port dropped it.",
-   "fix": "Board::remove_item now clears entry.on_the_board on the returned entry (doc cites SearchTreeManager.java:61); the on_the_board pin extended to assert the removed entry carries on_the_board == false (watched it fail before the fix, pass after).",
-   "tags": [
-    "m2",
-    "epic-board",
-    "parity",
-    "on_the_board"
-   ]
-  },
-  {
-   "id": "bug-084",
-   "ts": "2026-09-14T00:00:00",
-   "file": "rust/crates/epic-board/src/board.rs",
-   "kind": "pin-gap",
-   "error_message": "T1 quality review (04c37ac7) FINDING 2: the generator-position pins could not discriminate set_next(last_assigned_item_id) from set_next(max live id) - every input had its burned id BELOW the max live id, so both seeds passed (anchor-blind agreement, cerebrum pin rule 4)",
-   "root_cause": "The in-crate burn DSN placed the closed (id-burning) wire before the open wire (burned 4 < live 5) and all three harness fixtures are unrouted with zero burns (last_assigned == max live), so no pin executed the branch where the two candidate seeds differ.",
-   "fix": "Reordered the DSN wiring so the closed wire is LAST - ids {1,2,3,4}, burned 5 ABOVE the max live id 4; the pin now asserts alloc_id() == 6. Mutation-verified: seeding from max live id fails the pin (alloc 5 != 6); reverted.",
-   "tags": [
-    "m2",
-    "epic-board",
-    "pin-gap",
-    "anchor-blind",
-    "mutation-verified"
-   ]
-  },
-  {
-   "id": "bug-085",
-   "ts": "2026-09-14T17:30:00",
-   "file": "rust/crates/epic-board/src/undo.rs",
-   "kind": "semantics-discovery",
-   "summary": "S13 spike line cancelled=[3:c0, 2:b0, 1:a0] restored=[2:b1] contradicted the predicted [2:b0, 1:a0, 3:c0]",
-   "root_cause": "saveForUndo sets oldNode.redoObject = liveNode AT CREATION (UndoableObjects.java:285); redo's delete-list walk can advance over that creation link (c0_old -> c-live at L1) AFTER the map-loop already restored 3:c1; the walk then removes 3:c1 from restored (List.remove first-occurrence), suppressing a duplicate cancel. Cancelled order = map-order swaps, then walk appends.",
-   "fix": "Walk ported verbatim; pinned in s13_redo_walk_advances_and_mutates_restored with mutation verification (walk <= flipped to < fails: duplicate 3:c0 cancel + 3:c1 surviving in restored). Module docs record two structural findings: the walk advances at most once (delete-list nodes only gain redoObject at creation) and popSnapshot re-link branch (:246-252) is dead code (disableRedo nulls the link or redo swaps the node out first).",
-   "tags": [
-    "m2",
-    "undo",
-    "t62",
-    "jar-spike",
-    "pins"
-   ]
-  },
-  {
-   "id": "bug-086",
-   "ts": "2026-09-14T17:30:00",
-   "file": "rust/crates/epic-board/src/undo.rs",
-   "kind": "test-fixture",
-   "summary": "undo pins s16_to_s18/s27_to_s30 failed with left=\"6:f0, 3:c0, 2:b1\" right=\"6:f0, 2:b1\" \u2014 port was correct",
-   "root_cause": "Fixture drift, not a port bug: s16_to_s18 omitted spike steps S5-S7 (c never deleted, legitimately visible); s27_to_s30 built a fresh stack instead of fast-forwarding the script to the post-S26 residual state the capture describes.",
-   "fix": "Fixtures now replay the spike script verbatim (same prefix as s19_to_s26). Also strengthened s2_to_s7_delete_dichotomy with a restore-content assertion: iter-only pins were anchor-blind to WHICH node delete pushes (< vs <=), suite caught it but the dedicated test did not.",
-   "tags": [
-    "m2",
-    "undo",
-    "test-fixtures",
-    "anchor-blind"
-   ]
-  },
-  {
-   "id": 87,
-   "date": "2026-09-14",
-   "error_message": "Mutation-verify round lost the uncommitted fix round: after flipping merge `<` to `<=` in pop_snapshot and confirming the p5 pin failed, `git checkout -- rust/crates/epic-board/src/undo.rs` restored the file to HEAD (9d8bfd7f), silently reverting ALL three uncommitted review-fix edits (module-doc rewrite, S11 dead-disjunct assert, p5 merge pin) along with the mutation.",
-   "root_cause": "git checkout -- restores to HEAD, not to the pre-mutation working state. When the mutation is applied on top of UNCOMMITTED work, checkout throws away both. The M1a/M1b mutation-verify habit was safe only because those rounds had committed the pins before mutating.",
-   "fix": "Re-applied the three edits from in-context copies (22/22 green again). New rule: on files with uncommitted work, revert a mutation by re-editing the single line back (Edit old<->new swap), or copy the file to /tmp before mutating and restore from the copy; reserve `git checkout --` for files whose only delta IS the mutation.",
-   "tags": [
-    "process",
-    "mutation-verify",
-    "git",
-    "m2"
-   ]
-  },
-  {
-   "id": 88,
-   "date": "2026-09-14",
-   "error_message": "T3 Components undo/redo was a silent no-op: after Components::rotate, undo() restored rotation 0.0 and redo() replayed nothing (test expected 30.0).",
-   "root_cause": "Java componentArr slot and the undo-map node reference ONE shared Component object (Components.java:36-65): saveForUndo clones into an old node but the LIVE node is the same instance the mutator writes, so the mutation is visible through both. The port mutated a clone in component_arr only, leaving the undo stack live node at the pre-mutation value, so undo swapped in a stale clone equal to the mutated state minus the mutation (undo restored nothing, redo re-applied nothing).",
-   "fix": "Added ComponentsUndoStack::get/value_mut (undo.rs, delegating to UndoableObjects) + Components::sync_live_undo_value(component_id) called after every component_arr mutation in r#move/turn_90_degree/rotate/change_side \u2014 clones the mutated arr value into the stack CURRENT node. Pinned by components_container_ids_lookup_and_undo_resync (rotate 30 -> undo restores -> redo replays -> next add id 3).",
-   "tags": [
-    "m2",
-    "epic-board",
-    "task3",
-    "t63",
-    "components",
-    "undo"
-   ]
-  },
-  {
-   "id": "bug-089",
-   "ts": "2026-09-14T23:55:00",
-   "file": "rust/crates/epic-board/src/tree_manager.rs",
-   "kind": "test-design",
-   "summary": "T58 rebuild pin was anchor-blind: make_compensation_layer_sensitive only sensitized the class-0 tree read v(1,0,l), but the compensation rebuild default tree is class 1 whose Issue575 comp (1000) is layer-INSENSITIVE, so removing insert_all clear_derived_data passed all tests. Pin failure mode (4) recurrence in own test.",
-   "root_cause": "Test helper tuned the matrix for the CLASS-0 tree of the reinsert test and reused it for the rebuild test without checking the discriminating form for the tree the rebuild actually constructs (class 1).",
-   "fix": "Helper now also sets v(1,1,1)=8000 (comp 1000 vs 4000 per layer) and the rebuild test asserts both comp values as in-test witnesses; mutation matrix verified: no-clear fails rebuild pin, both-clears-removed fails both, walk-only-removed passes (Java :191-199 walk is redundant with :228 \u2014 ported literally).",
-   "tags": [
-    "pin-failure-mode-4",
-    "anchor-blind",
-    "T58",
-    "clearDerivedData",
-    "mutation-verified"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": "bug-090",
-   "ts": "2026-09-14T23:56:00",
-   "file": "rust/crates/epic-board/src/tree_manager.rs",
-   "kind": "test-expectation",
-   "summary": "get_autoroute_tree flag pin asserted !is_on_the_board(via) on a from_ses_board board and failed: every parsed item is born on_the_board=true because from_ses_board inserts through insert_item (the POST-READ Java state).",
-   "root_cause": "Java parse-time inserts flow through SearchTreeManager.insert (flag true AND tree entries); the port conversion is a pure arena insert (flag true, NO tree entries) \u2014 flag=true therefore does not imply has-entries on a converted board.",
-   "fix": "Test forces via 815 to constructed-but-uninserted via the raw set_on_the_board seam, then pins that the bulk insert lands entries WITHOUT flipping the flag; divergence noted for Task 7 board integration.",
-   "tags": [
-    "on_the_board",
-    "from_ses_board",
-    "getAutorouteTree",
-    "T59",
-    "divergence"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": "bug-091",
-   "ts": "2026-09-14T23:57:00",
-   "file": "rust/crates/epic-board/src/tree_shapes.rs",
-   "kind": "test-expectation",
-   "summary": "generic_dispatch test expected box[...] under NINETY for a circle via \u2014 wrong: the BASE calculateTreeShapes always ends in enlarge(w) and IntBox.enlarge returns the bounding OCTAGON (diagonals at box corners); only ShapeSearchTree90Degree keeps boxes.",
-   "root_cause": "Reasoned from the subclass contract instead of the base method body (ShapeSearchTree.java:885-893 boundingBox then :899-905 enlarge).",
-   "fix": "Extended TreeShapesSpike with a RESTRICTION_SWEEP phase (NINETY/NONE at hc 0/200000), captured the true arms, pinned the octagons incl. an assert_ne! discriminating NINETY 1756968 vs FORTYFIVE 1758726 diagonals at hc=200000.",
-   "tags": [
-    "capture-over-memory",
-    "base-dispatch",
-    "enlarge-vs-offset",
-    "NINETY"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": "bug-092",
-   "ts": "2026-09-14T23:58:00",
-   "file": "rust/crates/epic-board/src/tree_shapes.rs",
-   "kind": "capture-provenance",
-   "summary": "1Bitsy test expected synthetic hole vias at ids 804/805 but the port allocated 477/478: the old capture was taken against reference-routed.dsn (803 items), not the unrouted.dsn the test parses (476 items).",
-   "root_cause": "Capture provenance was implicit; two DSN variants of the same fixture directory differ by 327 routed items.",
-   "fix": "Re-ran the spike on unrouted.dsn (items=476, matches committed golden dsn-0020; synthetic shape lines byte-identical, ids 477/478); test now pins item_count=476 + allocates through board.alloc_id so the id pin doubles as a T61 generator-continuation pin.",
-   "tags": [
-    "capture-provenance",
-    "fixture-variant",
-    "1Bitsy",
-    "T61"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": "bug-093",
-   "date": "2026-09-14",
-   "error_message": "cargo clippy E0599: no method named clone found for struct SearchTree (epic-index lib test, search_tree.rs:297)",
-   "root_cause": "Removed #[derive(Clone)] after grepping for users only in epic-board production code; the DEFINING crate own test module had a user (object_ids_are_unique... assert_eq!(a.clone().object_id(), ...)). Rust greps for API users must cover --all-targets (lib AND test cfg) of every crate in the workspace, including the defining crate.",
-   "fix": "Removed the circular clone-assertion instead (it tested Clone itself while asserting the aliasing hazard the reviewer flagged), kept Clone absent with a deliberate-absence note on the struct (b7cc8e04).",
-   "tags": [
-    "rust",
-    "derive-removal",
-    "grep-scope",
-    "all-targets",
-    "M2-T6"
-   ]
-  },
-  {
-   "id": "bug-094",
-   "date": "2026-09-14",
-   "error_message": "Task 7 port: SearchTreeManager::remove kept the per-item tree-SHAPE cache alive, so a remove+insert round trip (generateKeepoutOutside flip) served stale pre-flip LINE shapes instead of recomputing the AREA branch \u2014 jar capture disproved it (Issue575 post-flip area octagons differ in value from the parse-time line octagons; Issue054 132 -> 136 shapes).",
-   "root_cause": "Misread Java Item.clearSearchTreeEntries (Item.java:1078-1080) as clearing 'only entries': it sets searchTreesInfo = null, dropping the WHOLE container that holds both the leaf entries AND the precalculatedTreeShapes. Built a 'staleness quirk' narrative (generateKeepoutOutside reuses cached line shapes) without jar evidence; a dump through the REAL default tree object before AND after the flip exposed it (pin-failure-mode-6 discipline applied in reverse: the memoized getTreeShape channel is exactly where a wrong cache model hides).",
-   "fix": "Added Board::clear_search_tree_shapes (shape_precalc.remove) called from SearchTreeManager::remove; rewrote the generate_keepout_outside / set_outline_keepout_outside docs (remove+insert RE-COMPUTES the area branch); replaced the planned staleness pins with keepout_outside_reinsert_computes_the_area_branch and remove_clears_the_tree_shape_cache_between_out_and_in (both mutation-verified: deleting the clear call fails them with the stale line shapes resurfacing).",
-   "tags": [
-    "java-port",
-    "cache-invalidation",
-    "searchtree",
-    "jar-capture",
-    "M2-T7"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": 95,
-   "date": "2026-09-15",
-   "error_message": "cargo clippy -D warnings: usage of contains_key followed by insert on a BTreeMap (clippy::map_entry) in SearchTreeManager::stored_shape",
-   "root_cause": "T8 quality-review fix 3 asked for contains_key/insert/get to stop cloning the per-item Vec per candidate leaf; that exact shape is what clippy::map_entry rejects, while the ORIGINAL code's entry().or_insert_with().clone() was the very clone-per-hit being fixed. Two constraints pull opposite ways: avoid the Vec clone AND avoid contains_key+insert.",
-   "fix": "entry().or_insert_with(|| board.tree_shape_precalc(...)) WITHOUT the trailing .clone(): the Entry gives &Vec (a borrow, not a copy), and the &mut board precalc composes because shape_cache and board are disjoint borrows. Then .get(i).cloned().flatten() clones only the single stored shape.",
-   "tags": [
-    "clippy",
-    "map_entry",
-    "performance",
-    "borrow-checker",
-    "T8",
-    "quality-review"
-   ]
-  },
-  {
-   "id": "bug-096",
-   "ts": "2026-09-14T22:54:48",
-   "file": "rust/harness/src/index_corpus.rs",
-   "kind": "harness-bug",
-   "summary": "Index corpus (M2 T9): wc/cs replay rows ran with layer=-1, which zeroes ClearanceMatrix.maxValue(class, layer) row lookups \u2014 the with-clearance candidate window degenerated to exact tests and the T56 clearance-tie trap was silently inert (all cls rows empty).",
-   "root_cause": "Layer -1 reused from the plain query rows; the with-clearance core derives its window growth from the per-layer matrix row maxima, so a negative layer indexes no row and yields 0.",
-   "fix": "Both sides (index_corpus.rs + IndexOracle.java) now pass t_layer/sLayer for wc and check_shape rows; clear-tie wc cls-1 now returns both keepouts in tie order [[3,0],[2,0]] vs empty cls 0/2.",
-   "tags": [
-    "index-corpus",
-    "with-clearance",
-    "layer-convention",
-    "inert-trap",
-    "M2-T9"
-   ],
-   "status": "fixed"
-  },
-  {
-   "id": "bug-097",
-   "ts": "2026-09-15T00:27:55",
-   "file": "rust/crates/epic-board/src/contacts.rs",
-   "kind": "pin-discipline",
-   "summary": "M2 T10 contacts pin: pic trace 1372 corner assertion failed because the expected corner LIST was reconstructed from the M_PAIR narrative (assumed 2 corners) while the capture pins only first/last \u2014 the DSN wire is 3-corner (type protect = USER_FIXED, normalize no-op), so the port was right and the pin literal was inferred.",
-   "root_cause": "Expected value came from narrative inference, not from a capture row \u2014 the exact violation the 'jar-captured values only' rule exists for; capture lines pin first/last for M_Y, the full corner list only for M_X.",
-   "fix": "Re-pinned to exactly what the capture shows (first/last via M_Y row, full corners via M_X_CORNERS row); related: tests pinning absolute inserted ids 12..16 must replay the FULL spike insertion sequence since alloc_id is monotone (skipping A3/B3 shifted ids).",
-   "tags": [
-    "pins",
-    "capture-only-expected",
-    "normalizeAllTraces",
-    "M2-T10"
-   ],
-   "status": "fixed"
-  }
- ]
+  "version": 1,
+  "bugs": [
+    {
+      "id": "design-001",
+      "ts": "2026-09-11T21:05:00",
+      "file": "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md",
+      "kind": "design-correction",
+      "summary": "M3 exit criterion was absolute (Tier A 100%/0 viol) but Java baseline itself hits 97.8% clean on Tier A; changed to relative gates (completion >= Java, violations <= Java per fixture).",
+      "status": "fixed"
+    },
+    {
+      "id": "design-002",
+      "ts": "2026-09-11T21:05:00",
+      "file": "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md",
+      "kind": "design-correction",
+      "summary": "Parity oracle pinned to Java engine built from this tree at baseline commit e7f9bdf1 (was ambiguous 'the Java engine').",
+      "status": "fixed"
+    },
+    {
+      "id": "plan-003",
+      "ts": "2026-09-12T04:20:00",
+      "file": "docs/superpowers/plans/2026-09-11-epicrouter-m0-rust-scaffold-and-baselines.md",
+      "kind": "plan-bug",
+      "error_message": "Tier C listed KiCad_10_demos/video.dsn and vme-wren.dsn, which do not exist (only .dsn_disabled variants; upstream 39c0f633 disabled them for timing out)",
+      "root_cause": "Planning-time recon used `ls | head -12`, truncating the directory listing and hiding the _disabled suffixes on those two files; metadata.yaml is stale for them",
+      "fix": "Dropped both fixtures (23-fixture matrix, Tier C = bm04 + CM5_MINIMA_3 + LimeSDR); plan amended; exclusion documented in tiers.yaml header",
+      "tags": [
+        "recon-discipline",
+        "truncated-output",
+        "m0"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-004",
+      "timestamp": "2026-09-12T03:52:09.892Z",
+      "error_message": "Wrong reference: tiers should be manifest",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "Used \"tiers\" instead of \"manifest\"",
+      "fix": "Changed tiers → manifest",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T03:52:09.892Z"
+    },
+    {
+      "id": "bug-005",
+      "timestamp": "2026-09-12T04:08:09.018Z",
+      "error_message": "Significant refactor of manifest.rs",
+      "file": "rust/harness/src/manifest.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 6→3 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T04:08:09.018Z"
+    },
+    {
+      "id": "bug-006",
+      "timestamp": "2026-09-12T04:10:56.671Z",
+      "error_message": "Wrong reference: tiers should be oracle",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "Used \"tiers\" instead of \"oracle\"",
+      "fix": "Changed tiers → oracle",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T04:10:56.671Z"
+    },
+    {
+      "id": "bug-007",
+      "ts": "2026-09-11T22:21:00",
+      "file": "rust/harness/src/oracle.rs",
+      "kind": "runtime-bug",
+      "summary": "Oracle smoke: manifest.json never written despite exit 0 and SES saved. Root cause: with DISPLAY set and gui.enabled true in user config, -de/-do batch runs are intercepted by the GUI auto-start flow (GuiManager.initializeGUI -> BoardExportActions save, log line \"Saving '<path>'...\") and Freerouting.initializeCli (the only reader of routerSettings.resultJsonPath) never executes. Fix: append --gui.enabled=false and --api_server.enabled=false to the oracle argv, mirroring scripts/benchmark/lib/BenchmarkRunner.ps1; verified headless CLI then writes the manifest (bm08: COMPLETED, exit 0).",
+      "status": "fixed"
+    },
+    {
+      "id": "bug-008",
+      "timestamp": "2026-09-12T04:43:25.175Z",
+      "error_message": "Significant refactor of tiers.rs",
+      "file": "rust/harness/src/tiers.rs",
+      "root_cause": "5 lines replaced/restructured",
+      "fix": "Rewrote 30→47 lines (5 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T04:43:25.175Z"
+    },
+    {
+      "id": "bug-009",
+      "timestamp": "2026-09-12T04:44:27.820Z",
+      "error_message": "Wrong reference: manifest should be baseline",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "Used \"manifest\" instead of \"baseline\"",
+      "fix": "Changed manifest → baseline",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T04:44:27.820Z"
+    },
+    {
+      "id": "bug-010",
+      "timestamp": "2026-09-12T05:06:37.062Z",
+      "error_message": "Wrong reference: Result should be Context",
+      "file": "rust/harness/src/baseline.rs",
+      "root_cause": "Used \"Result\" instead of \"Context\"",
+      "fix": "Changed Result → Context",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T05:06:37.062Z"
+    },
+    {
+      "id": "bug-011",
+      "timestamp": "2026-09-12T05:06:59.978Z",
+      "error_message": "Significant refactor of baseline.rs",
+      "file": "rust/harness/src/baseline.rs",
+      "root_cause": "17 lines replaced/restructured",
+      "fix": "Rewrote 19→3 lines (17 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T05:06:59.978Z"
+    },
+    {
+      "id": "bug-012",
+      "timestamp": "2026-09-12T05:07:37.677Z",
+      "error_message": "Significant refactor of main.rs",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "8 lines replaced/restructured",
+      "fix": "Rewrote 54→94 lines (8 removed) | Also: let mut captured = 0usize;; for fixture in &tier.fixtures {",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-09-12T05:08:34.928Z"
+    },
+    {
+      "id": "bug-013",
+      "timestamp": "2026-09-12T05:14:19.829Z",
+      "error_message": "Significant refactor of main.rs",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 3→72 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T05:14:19.829Z"
+    },
+    {
+      "id": "bug-014",
+      "timestamp": "2026-09-12T05:30:34.655Z",
+      "error_message": "Significant refactor of baseline.rs",
+      "file": "rust/harness/src/baseline.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 15→17 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T05:30:34.655Z"
+    },
+    {
+      "id": "bug-015",
+      "timestamp": "2026-09-12T08:20:58.927Z",
+      "error_message": "Wrong operator: != should be ==",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "Used \"!=\" instead of \"==\"",
+      "fix": "Changed operator != → ==",
+      "tags": [
+        "auto-detected",
+        "operator-fix",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:20:58.927Z"
+    },
+    {
+      "id": "bug-016",
+      "timestamp": "2026-09-12T08:21:04.153Z",
+      "error_message": "Wrong reference: List should be exits",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "Used \"List\" instead of \"exits\"",
+      "fix": "Changed List → exits",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:21:04.153Z"
+    },
+    {
+      "id": "bug-017",
+      "timestamp": "2026-09-12T08:21:27.219Z",
+      "error_message": "Significant refactor of main.rs",
+      "file": "rust/harness/src/main.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 20→30 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:21:27.219Z"
+    },
+    {
+      "id": "bug-018",
+      "timestamp": "2026-09-12T08:54:34.637Z",
+      "error_message": "Significant refactor of lib.rs",
+      "file": "rust/crates/epic-geometry/src/lib.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 16→24 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:54:34.637Z"
+    },
+    {
+      "id": "bug-019",
+      "timestamp": "2026-09-12T08:57:12.821Z",
+      "error_message": "Significant refactor of rounding.rs",
+      "file": "rust/crates/epic-geometry/src/rounding.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 11→15 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:57:12.821Z"
+    },
+    {
+      "id": "bug-020",
+      "timestamp": "2026-09-12T08:57:18.561Z",
+      "error_message": "Significant refactor of side.rs",
+      "file": "rust/crates/epic-geometry/src/side.rs",
+      "root_cause": "5 lines replaced/restructured",
+      "fix": "Rewrote 28→46 lines (5 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:57:18.561Z"
+    },
+    {
+      "id": "bug-021",
+      "timestamp": "2026-09-12T08:57:34.855Z",
+      "error_message": "Significant refactor of big_int_aux.rs",
+      "file": "rust/crates/epic-geometry/src/big_int_aux.rs",
+      "root_cause": "10 lines replaced/restructured",
+      "fix": "Rewrote 23→67 lines (10 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T08:57:34.855Z"
+    },
+    {
+      "id": "bug-022",
+      "timestamp": "2026-09-12T08:57:43.583Z",
+      "error_message": "Significant refactor of java_random.rs",
+      "file": "rust/crates/epic-geometry/src/java_random.rs",
+      "root_cause": "8 lines replaced/restructured",
+      "fix": "Rewrote 28→41 lines (8 removed) | Also: fn seed_scramble_matches_public_spec() {; // new Random(0): (0 ^ 0x5DEECE66D) & (2^48 - 1) =",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-09-12T08:58:28.780Z"
+    },
+    {
+      "id": "bug-023",
+      "timestamp": "2026-09-12T09:08:53.544Z",
+      "error_message": "Significant refactor of rounding.rs",
+      "file": "rust/crates/epic-geometry/src/rounding.rs",
+      "root_cause": "8 lines replaced/restructured",
+      "fix": "Rewrote 10→17 lines (8 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T09:08:53.544Z"
+    },
+    {
+      "id": "bug-024",
+      "timestamp": "2026-09-12T09:10:48+00:00",
+      "error_message": "Plan trap T1 specified Math.round as floor(x+0.5); that formula mis-rounds 0.49999999999999994 to 1 while Java 25 Math.round returns 0",
+      "file": "rust/crates/epic-geometry/src/rounding.rs",
+      "root_cause": "The T1 trap was written from the classic Java idiom, but JDK 7+ changed Math.round to a bit-exact implementation (JDK-6430675): closest long, ties toward +infinity, without the double-rounding artifact of x+0.5",
+      "fix": "java_round implemented via exact fractional-part comparison (frac = d - d.floor(); frac >= 0.5 -> floor+1), jshell-pinned (0.49999999999999994 -> 0); plan T1 row + snippet amended (commit 0f37cee8); implementer proved 0.49999999999999994 is the ONLY divergent double (verified at 1.5/2.5/4.5/2^23 scales)",
+      "tags": [
+        "parity",
+        "floating-point",
+        "java-rounding",
+        "m1a",
+        "plan-trap"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T09:10:48+00:00"
+    },
+    {
+      "id": "bug-025",
+      "timestamp": "2026-09-12T10:02:18.357Z",
+      "error_message": "Significant refactor of big_int_aux.rs",
+      "file": "rust/crates/epic-geometry/src/big_int_aux.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 5→4 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:02:18.357Z"
+    },
+    {
+      "id": "bug-026",
+      "timestamp": "2026-09-12T10:02:52.525Z",
+      "error_message": "Significant refactor of int_vector.rs",
+      "file": "rust/crates/epic-geometry/src/int_vector.rs",
+      "root_cause": "5 lines replaced/restructured",
+      "fix": "Rewrote 11→4 lines (5 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:02:52.525Z"
+    },
+    {
+      "id": "bug-027",
+      "timestamp": "2026-09-12T10:25:42.178Z",
+      "error_message": "Wrong operator: <= should be !=",
+      "file": "rust/crates/epic-geometry/src/vector.rs",
+      "root_cause": "Used \"<=\" instead of \"!=\"",
+      "fix": "Changed operator <= → !=",
+      "tags": [
+        "auto-detected",
+        "operator-fix",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:25:42.178Z"
+    },
+    {
+      "id": "bug-028",
+      "timestamp": "2026-09-12T10:25:56.453Z",
+      "error_message": "Significant refactor of vector.rs",
+      "file": "rust/crates/epic-geometry/src/vector.rs",
+      "root_cause": "16 lines replaced/restructured",
+      "fix": "Rewrote 44→24 lines (16 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:25:56.453Z"
+    },
+    {
+      "id": "bug-029",
+      "timestamp": "2026-09-12T10:29:03.260Z",
+      "error_message": "Significant refactor of lib.rs",
+      "file": "rust/crates/epic-geometry/src/lib.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 14→33 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:29:03.260Z"
+    },
+    {
+      "id": "bug-030",
+      "timestamp": "2026-09-12T10:32:08.981Z",
+      "error_message": "Wrong reference: big_integer_double_value should be big_integer_int_value",
+      "file": "rust/crates/epic-geometry/src/vector.rs",
+      "root_cause": "Used \"big_integer_double_value\" instead of \"big_integer_int_value\"",
+      "fix": "Changed big_integer_double_value → big_integer_int_value",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:32:08.981Z"
+    },
+    {
+      "id": "bug-031",
+      "timestamp": "2026-09-12T10:33:17.142Z",
+      "error_message": "Significant refactor of point.rs",
+      "file": "rust/crates/epic-geometry/src/point.rs",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 9→10 lines (6 removed) | Also: /// `translateBy(Vector)` double dispatch).; match (self, vector) {",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-09-12T10:34:00.077Z"
+    },
+    {
+      "id": "bug-032",
+      "timestamp": "2026-09-12T10:34:02.379Z",
+      "error_message": "Significant refactor of rational_point.rs",
+      "file": "rust/crates/epic-geometry/src/rational_point.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 15→10 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:34:02.379Z"
+    },
+    {
+      "id": "bug-033",
+      "timestamp": "2026-09-12T10:35:46.473Z",
+      "error_message": "Significant refactor of vector.rs",
+      "file": "rust/crates/epic-geometry/src/vector.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 12→20 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T10:35:46.473Z"
+    },
+    {
+      "id": "bug-034",
+      "timestamp": "2026-09-12T11:14:49.953Z",
+      "error_message": "Significant refactor of rational_point.rs",
+      "file": "rust/crates/epic-geometry/src/rational_point.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 4→5 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T11:14:49.953Z"
+    },
+    {
+      "id": "bug-035",
+      "timestamp": "2026-09-12T11:15:45.596Z",
+      "error_message": "Significant refactor of float_point.rs",
+      "file": "rust/crates/epic-geometry/src/float_point.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 4→6 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T11:15:45.596Z"
+    },
+    {
+      "id": "bug-036",
+      "timestamp": "2026-09-12T11:45:18.612Z",
+      "error_message": "Significant refactor of rational_vector.rs",
+      "file": "rust/crates/epic-geometry/src/rational_vector.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 8→13 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T11:45:18.612Z"
+    },
+    {
+      "id": "bug-037",
+      "timestamp": "2026-09-12T12:11:12.642Z",
+      "error_message": "Significant refactor of int_direction.rs",
+      "file": "rust/crates/epic-geometry/src/int_direction.rs",
+      "root_cause": "10 lines replaced/restructured",
+      "fix": "Rewrote 26→36 lines (10 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T12:11:12.642Z"
+    },
+    {
+      "id": "bug-038",
+      "timestamp": "2026-09-12T12:33:30.341Z",
+      "error_message": "Incorrect value in code",
+      "file": "rust/crates/epic-geometry/src/rational_point.rs",
+      "root_cause": "Had `surroundingBox`",
+      "fix": "Changed to `surroundingOctagon`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T12:33:30.341Z"
+    },
+    {
+      "id": "bug-039",
+      "timestamp": "2026-09-12T12:35:43.823Z",
+      "error_message": "Significant refactor of int_box.rs",
+      "file": "rust/crates/epic-geometry/src/int_box.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 14→21 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T12:35:43.823Z"
+    },
+    {
+      "id": "bug-040",
+      "timestamp": "2026-09-12T12:37:26.000Z",
+      "error_message": "int_box.rs nearest_border_projections test failed: expected second projection (9,0), got (9,10)",
+      "file": "rust/crates/epic-geometry/src/int_box.rs",
+      "root_cause": "Port dropped the LIVE store second_min_diff = lower_vertical_difference in the first else-if of nearestBorderProjections; the stale second_min_diff let the upper-vertical branch steal the second slot. The analogous store in the last else-if is a genuine dead store in Java and was correctly omitted to avoid unused_assignments.",
+      "fix": "Restored second_min_diff = lower_vertical_difference in the lower-vertical else-if; pinned the branch with the jshell result nearestBorderProjections((9,2),2) -> [(10,2),(9,0)].",
+      "tags": [
+        "port-parity",
+        "tdd-caught",
+        "jshell-pin",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T12:37:26.000Z"
+    },
+    {
+      "id": "bug-041",
+      "timestamp": "2026-09-12T12:58:30.580Z",
+      "error_message": "Incorrect value in code",
+      "file": "rust/crates/epic-geometry/src/int_box.rs",
+      "root_cause": "Had `RegularTileShape boundingShape(ShapeBoundingDirec",
+      "fix": "Changed to `RegularTileShape union(RegularTileShape)`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T12:58:30.580Z"
+    },
+    {
+      "id": "bug-042",
+      "timestamp": "2026-09-12T13:30:37.515Z",
+      "error_message": "Significant refactor of int_octagon.rs",
+      "file": "rust/crates/epic-geometry/src/int_octagon.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 4→3 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T13:30:37.515Z"
+    },
+    {
+      "id": "bug-043",
+      "timestamp": "2026-09-12T13:30:53.753Z",
+      "error_message": "Incorrect value in code",
+      "file": "rust/crates/epic-geometry/src/rational_point.rs",
+      "root_cause": "Had `surroundingOctagon`",
+      "fix": "Changed to `sideOf(Line)`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T13:30:53.753Z"
+    },
+    {
+      "id": "bug-044",
+      "timestamp": "2026-09-12T13:37:09.912Z",
+      "error_message": "Incorrect value in code",
+      "file": "rust/crates/epic-geometry/src/int_octagon.rs",
+      "root_cause": "Had `RegularTileShape`",
+      "fix": "Changed to `Side::Positive`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T13:37:09.912Z"
+    },
+    {
+      "id": "bug-045",
+      "timestamp": "2026-09-12T07:47:53",
+      "error_message": "int_octagon tests failed: 6 pin mismatches incl. border_line_side_of_branches (method has no Java counterpart)",
+      "file": "rust/crates/epic-geometry/src/int_octagon.rs",
+      "root_cause": "Invented a borderLineSideOf(FloatPoint,int,double) method (real Java API is sideOfBorderLine(int,int,int) only), and cutout test pins were reconstructed from memory with receiver/argument order flipped (expected pieces lay inside the cutter instead of inside d); normalize 'post-merge EMPTY' input did not actually produce EMPTY",
+      "fix": "jshell reflection battery (setAccessible on package-private cutoutFrom overloads) captured oracle truth for 8 disputed cases; deleted the invented method; replaced pins with oracle output; new post-merge EMPTY pin o(0,0,2,10,3,4,0,6)->EMPTY; all 204 tests green",
+      "tags": [
+        "jshell",
+        "pin-oracle",
+        "int_octagon",
+        "m1a"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T07:47:53"
+    },
+    {
+      "id": "bug-046",
+      "timestamp": "2026-09-12T14:20:47.898Z",
+      "error_message": "Wrong reference: ceil should be floor",
+      "file": "rust/crates/epic-geometry/src/int_octagon.rs",
+      "root_cause": "Used \"ceil\" instead of \"floor\"",
+      "fix": "Changed ceil → floor",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T14:20:47.898Z"
+    },
+    {
+      "id": "bug-047",
+      "timestamp": "2026-09-12T14:56:23.809Z",
+      "error_message": "Wrong reference: big_integer_int_value should be big_abs",
+      "file": "rust/crates/epic-geometry/src/line.rs",
+      "root_cause": "Used \"big_integer_int_value\" instead of \"big_abs\"",
+      "fix": "Changed big_integer_int_value → big_abs",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T14:56:23.809Z"
+    },
+    {
+      "id": "bug-048",
+      "timestamp": "2026-09-12T15:21:42.817Z",
+      "error_message": "Significant refactor of line_segment.rs",
+      "file": "rust/crates/epic-geometry/src/line_segment.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 6→8 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T15:21:42.817Z"
+    },
+    {
+      "id": "bug-049",
+      "timestamp": "2026-09-12T15:21:48.935Z",
+      "error_message": "Significant refactor of float_line.rs",
+      "file": "rust/crates/epic-geometry/src/float_line.rs",
+      "root_cause": "5 lines replaced/restructured",
+      "fix": "Rewrote 7→6 lines (5 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T15:21:48.935Z"
+    },
+    {
+      "id": "bug-050",
+      "timestamp": "2026-09-12T15:24:01.060Z",
+      "error_message": "Wrong reference: tmp1 should be tmp2",
+      "file": "rust/crates/epic-geometry/src/line.rs",
+      "root_cause": "Used \"tmp1\" instead of \"tmp2\"",
+      "fix": "Changed tmp1 → tmp2",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T15:24:01.060Z"
+    },
+    {
+      "id": "bug-051",
+      "timestamp": "2026-09-12T15:25:17.000Z",
+      "error_message": "PP2r pin mismatch: Rust RationalPoint perpendicular_projection returned Int(2,-1), oracle returns Int(3,-1)",
+      "file": "rust/crates/epic-geometry/src/line.rs",
+      "root_cause": "Port bug in perpendicular_projection_rational: projX numerator used det*vx*z (copied from the neighboring projY term) where Java RationalPoint.java:253 uses det*vy*z. The projY +det*vx*z sign (vs IntPoint's -det*vx) is a genuine upstream divergence and stays bug-compatible (trap T16)",
+      "fix": "Changed the projX det term from v.x to v.y in perpendicular_projection_rational; pinned both projections (PP1/PP2r) and appended trap T16 to the M1a plan",
+      "tags": [
+        "m1a",
+        "geometry-kernel",
+        "bit-parity",
+        "wrong-reference",
+        "oracle-pin"
+      ],
+      "related_bugs": [
+        "bug-024"
+      ],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T15:25:17.000Z"
+    },
+    {
+      "id": "bug-052",
+      "timestamp": "2026-09-12T15:25:17.000Z",
+      "error_message": "Upstream (Freerouting e7f9bdf1): stairApproximation45 produces wrong 45-degree stair x coordinates for non-45 segments",
+      "file": "src/main/java/app/freerouting/geometry/planar/LineSegment.java",
+      "root_cause": "LineSegment.java:432 calls functionValueApprox(currentY) in the function-of-y branch instead of functionInYValueApprox - the x-function is fed a y coordinate. Reproduced bug-compatibly in rust line_segment.rs stair_approximation_45 (trap T17); pin ST2 covers it",
+      "fix": "No fix (frozen oracle): transliterated the defect verbatim with a comment at the call site; documented as plan trap T17",
+      "tags": [
+        "upstream-defect",
+        "m1a",
+        "geometry-kernel",
+        "bug-compatible"
+      ],
+      "related_bugs": [
+        "bug-051"
+      ],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T15:25:17.000Z"
+    },
+    {
+      "id": "bug-053",
+      "timestamp": "2026-09-12T15:52:11.098Z",
+      "error_message": "Significant refactor of line.rs",
+      "file": "rust/crates/epic-geometry/src/line.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 4→5 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T15:52:11.098Z"
+    },
+    {
+      "id": "bug-054",
+      "timestamp": "2026-09-12T16:41:37.244Z",
+      "error_message": "Significant refactor of simplex.rs",
+      "file": "rust/crates/epic-geometry/src/simplex.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 3→4 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T16:41:37.244Z"
+    },
+    {
+      "id": "bug-055",
+      "timestamp": "2026-09-12T17:54:50.779Z",
+      "error_message": "Wrong condition in logic",
+      "file": "rust/crates/epic-geometry/src/shape.rs",
+      "root_cause": "Condition was: if (shape_corner_is_bounded(shape, current_ind)",
+      "fix": "Changed to: if (!shape_corner_is_bounded(shape, current_ind)",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T17:54:50.779Z"
+    },
+    {
+      "id": "bug-056",
+      "timestamp": "2026-09-12T17:54:58.887Z",
+      "error_message": "Significant refactor of shape.rs",
+      "file": "rust/crates/epic-geometry/src/shape.rs",
+      "root_cause": "7 lines replaced/restructured",
+      "fix": "Rewrote 15→34 lines (7 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T17:54:58.887Z"
+    },
+    {
+      "id": "bug-057",
+      "timestamp": "2026-09-12T17:59:40.242Z",
+      "error_message": "Significant refactor of line.rs",
+      "file": "rust/crates/epic-geometry/src/line.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 4→3 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T17:59:40.242Z"
+    },
+    {
+      "id": "bug-058",
+      "timestamp": "2026-09-12T17:59:45.754Z",
+      "error_message": "Incorrect value in code",
+      "file": "rust/crates/epic-geometry/src/float_point.rs",
+      "root_cause": "Had `toString(Locale, ...)`",
+      "fix": "Changed to `FloatLine`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T17:59:45.754Z"
+    },
+    {
+      "id": "bug-059",
+      "timestamp": "2026-09-12T18:15:41.299Z",
+      "error_message": "Significant refactor of point.rs",
+      "file": "rust/crates/epic-geometry/src/point.rs",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 3→5 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T18:15:41.299Z"
+    },
+    {
+      "id": "bug-060",
+      "timestamp": "2026-09-12T18:54:20.342Z",
+      "error_message": "Significant refactor of line_segment.rs",
+      "file": "rust/crates/epic-geometry/src/line_segment.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 5→8 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T18:54:20.342Z"
+    },
+    {
+      "id": "bug-061",
+      "timestamp": "2026-09-12T19:08:41.843Z",
+      "error_message": "Significant refactor of float_point.rs",
+      "file": "rust/crates/epic-geometry/src/float_point.rs",
+      "root_cause": "8 lines replaced/restructured",
+      "fix": "Rewrote 15→6 lines (8 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T19:08:41.843Z"
+    },
+    {
+      "id": "bug-062",
+      "timestamp": "2026-09-12T19:32:46.745Z",
+      "error_message": "Wrong condition in logic",
+      "file": "rust/crates/epic-geometry/src/tile_shape.rs",
+      "root_cause": "Condition was: if ((!self.corner_is_bounded(current_ind)",
+      "fix": "Changed to: if (!self.corner_is_bounded(current_ind)",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T19:32:46.745Z"
+    },
+    {
+      "id": "bug-063",
+      "timestamp": "2026-09-12T19:37:13.000Z",
+      "error_message": "P12 cutout pin diverged: Rust Simplex.cutout_from_simplex produced 7 pieces vs oracle 5 (corners 1/2 got 2 zero-length division lines instead of 1)",
+      "file": "rust/crates/epic-geometry/src/simplex.rs",
+      "root_cause": [
+        "Simplex.calcDivisionLines mixes TWO Java Direction-comparison flavors, and the port initially conflated them. (1) The NULL guards use reference equality: currentProjectionDir == Direction.NULL is true only for the shared constant that Point.perpendicularDirection returns in its collinear branch; translating that as == on IntDirection failed because IntDirection PartialEq mirrors Java .equals (collinear side + positive projection) under which distinct NULL instances are UNEQUAL — so the zero direction never matched and the guards never fired (the original 7-vs-5 piece divergence). (2) The final comparison Simplex.java:1137 is firstProjectionDir.equals(secondProjectionDir) — VALUE equality, NOT reference ==; an interim fix translated it as an object-identity flag, which was a misreading (caught in the Task 7 spec review): an identity flag diverges from .equals whenever the two directions are value-equal but distinct objects, which is reachable with raw parallel same-direction outer line pairs."
+      ],
+      "fix": [
+        "NULL guards now use IntDirection::is_null() (zero-vector check; sound because the shared constant is the only zero direction those call sites can produce). The final comparison is plain Rust first_projection_dir == second_projection_dir, which IS Java .equals (T9 contract). Oracle pin PB9 (raw outer simplex with a duplicated same-direction bottom line, sharp inner triangle corner (4,0)) drives the second-division scan through the value-equal twin and pins the 2-division-line outcome."
+      ],
+      "tags": [
+        "parity",
+        "direction",
+        "reference-equality",
+        "simplex",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T19:37:13.000Z"
+    },
+    {
+      "id": "bug-064",
+      "timestamp": "2026-09-12T20:00:53.396Z",
+      "error_message": "Significant refactor of simplex.rs",
+      "file": "rust/crates/epic-geometry/src/simplex.rs",
+      "root_cause": "9 lines replaced/restructured",
+      "fix": "Rewrote 12→3 lines (9 removed) | Also: // true while currentSecondProjectionDir is the sa; // as currentProjectionDir (Java identity, see abo",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-09-12T20:00:56.270Z"
+    },
+    {
+      "id": "bug-065",
+      "timestamp": "2026-09-12T20:59:45.591Z",
+      "error_message": "Significant refactor of shape.rs",
+      "file": "rust/crates/epic-geometry/src/shape.rs",
+      "root_cause": "9 lines replaced/restructured",
+      "fix": "Rewrote 15→6 lines (9 removed) | Also: let mut x = 0.0f64;; let mut y = 0.0f64; | Also: let corner_count = self.border_line_count();; let mut x = 0.0f64; | Also: let corner_count = shape.border_line_count();; let current = shape",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-09-12T21:00:03.467Z"
+    },
+    {
+      "id": "bug-066",
+      "timestamp": "2026-09-12T21:00:10.216Z",
+      "error_message": "Significant refactor of regular_tile_shape.rs",
+      "file": "rust/crates/epic-geometry/src/regular_tile_shape.rs",
+      "root_cause": "10 lines replaced/restructured",
+      "fix": "Rewrote 14→4 lines (10 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T21:00:10.216Z"
+    },
+    {
+      "id": "bug-067",
+      "timestamp": "2026-09-12T21:00:30.618Z",
+      "error_message": "Significant refactor of simplex.rs",
+      "file": "rust/crates/epic-geometry/src/simplex.rs",
+      "root_cause": "10 lines replaced/restructured",
+      "fix": "Rewrote 14→6 lines (10 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T21:00:30.618Z"
+    },
+    {
+      "id": "bug-068",
+      "timestamp": "2026-09-12T21:12:09.000Z",
+      "error_message": "P12 cutout pin passed with wrong wall-anchor literals: right-wall lines pinned as (6,-5)->(6,6)/(6,6)->(6,-5) while the oracle produces (6,0)->(6,6)/(6,6)->(6,0)",
+      "file": "rust/crates/epic-geometry/src/simplex.rs",
+      "root_cause": "Two stacked defects, both in the TEST not the port. (1) The pin literals were mis-transcribed (memory-reconstructed, failure mode 1 of the cerebrum rule) — stage-by-stage instrumentation (throwaway tests/p12_debug.rs) plus a live jar re-capture (P12b) proved the Rust cutout pipeline carries original border-line anchors EXACTLY like Java: IntOctagon.cutoutFrom(Simplex) = toSimplex().cutoutFrom(simplex) passes the simplex param through verbatim, and IntOctagon.toSimplex/borderLine rebuild fresh unit-anchored lines in BOTH languages. (2) The wrong literals were invisible because Line equality is ANCHOR-BLIND in both languages (Java Line.equals compares supporting line + direction, Rust == mirrors it), so assert_eq! on Line values cannot detect an anchor divergence — a new trap class, ledgered as T20 (anchor identity is observable parity only through endpoint pairs, which is what the differential corpus serializes).",
+      "fix": "Re-pinned P12 with the true P12b jar values (pieces 0/1/2 right-wall anchors (6,0)); converted the P12 and PB9 piece loops to anchor-strict assertions comparing (&line.a, &line.b) endpoint pairs; documented the correction in the pin docs and appended trap T20 to the M1a plan.",
+      "tags": [
+        "oracle-pin",
+        "parity",
+        "epic-geometry",
+        "T20",
+        "anchor-identity"
+      ],
+      "related_bugs": [
+        "bug-045",
+        "bug-063"
+      ],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T21:12:09.000Z"
+    },
+    {
+      "id": "bug-069",
+      "timestamp": "2026-09-12T21:27:16.110Z",
+      "error_message": "Significant refactor of polyline.rs",
+      "file": "rust/crates/epic-geometry/src/polyline.rs",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 7→11 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T21:27:16.110Z"
+    },
+    {
+      "id": "bug-070",
+      "timestamp": "2026-09-12T21:31:55.021Z",
+      "error_message": "Significant refactor of polygon_shape.rs",
+      "file": "rust/crates/epic-geometry/src/polygon_shape.rs",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 14→7 lines (6 removed) | Also: let mut current_polygon = polygon;; if polygon.winding_number_after_closing() < 0 { | Also: if piece.intersects(&TileShape::RegularTileShape(; match circle.bounding_tile() {",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-09-12T21:32:04.773Z"
+    },
+    {
+      "id": "bug-071",
+      "timestamp": "2026-09-12T21:35:15.948Z",
+      "error_message": "Significant refactor of shape.rs",
+      "file": "rust/crates/epic-geometry/src/shape.rs",
+      "root_cause": "8 lines replaced/restructured",
+      "fix": "Rewrote 12→18 lines (8 removed) | Also: /// Clones the referenced shape into an owned [`Ti; /// The no-th border line of the referenced shape.",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-09-12T21:35:39.834Z"
+    },
+    {
+      "id": "bug-072",
+      "timestamp": "2026-09-12T21:42:12.072Z",
+      "error_message": "Significant refactor of tile_shape.rs",
+      "file": "rust/crates/epic-geometry/src/tile_shape.rs",
+      "root_cause": "10 lines replaced/restructured",
+      "fix": "Rewrote 10→13 lines (10 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T21:42:12.072Z"
+    },
+    {
+      "id": "bug-073",
+      "timestamp": "2026-09-12T22:01:04.578Z",
+      "error_message": "Significant refactor of circle.rs",
+      "file": "rust/crates/epic-geometry/src/circle.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 7→7 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T22:01:04.578Z"
+    },
+    {
+      "id": "bug-074",
+      "timestamp": "2026-09-12T22:06:42.316Z",
+      "error_message": "Significant refactor of tile_shape.rs",
+      "file": "rust/crates/epic-geometry/src/tile_shape.rs",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 4→3 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "rs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-09-12T22:06:42.316Z"
+    },
+    {
+      "id": "bug-075",
+      "date": "2026-09-12",
+      "error_message": "PENT pin failed: TileShape.entrance_points returned [] instead of [(1,6),(1,2)] for the 3-line cross polyline; PCUT consequently produced 1 piece instead of 2.",
+      "root_cause": "Port misremembered the Java loop bound as lineCount()-1 (=> lines.length-2) during a deferred-ledger closure, emulating an off-by-one that does not exist. Java TileShape.entrancePoints (TileShape.java:872) bounds on the RAW line array: lineIndex < polyline.lines.length - 1 (=> lines.length-1). For a 3-line polyline the only segment line (index 1) was never scanned, so no intersections were found.",
+      "fix": "Changed the Rust bound from wrapping_sub(2) to wrapping_sub(1) with the Java line citation in the comment; pins PENT/PCUT now pass against the jshell-captured oracle. Note the dedup predicate (pair != prev pair) is logically equivalent to Java's (lineNo != prevLineNo || edgeNo != prevEdgeNo), so only the bound was wrong.",
+      "tags": [
+        "m1a",
+        "task8",
+        "port-bug",
+        "off-by-one",
+        "oracle-pin-caught",
+        "tile_shape.rs"
+      ]
+    },
+    {
+      "id": "bug-076",
+      "date": "2026-09-12",
+      "error_message": "Task 8 mutation test: swapping Polyline::new's filter/removeOverlaps order survived every existing pin (POVL1 included) — the T10 ctor-order branch had no observing test.",
+      "root_cause": "Pin-failure mode: branch never executes. POVL1's 5-line input has no consecutive-parallel pair, so under the swapped order removeOverlaps produced the same output as the true order and the mutation was invisible.",
+      "fix": "Added jshell-pinned POVL2 on A=(0,0)-(10,0), P=(2,3)-(12,3), A'=A, C=(0,0)-(7,7), D=(0,0)-(0,10): the filter drops P and A' before removeOverlaps (oracle [A,C,D]); the swapped order yields [P,C,D]. Mutant applied -> povl2_filter_before_overlap_order_pin failed with first line (2,3)-(12,3) -> reverted -> green.",
+      "tags": [
+        "m1a/task8",
+        "pin-gap",
+        "branch-never-executes",
+        "trap-t10",
+        "polyline.rs",
+        "mutation-verified"
+      ]
+    },
+    {
+      "id": "bug-077",
+      "date": "2026-09-12",
+      "error_message": "Task 8 mutation test: Random(99) -> Random(100) in PolygonShape::split_to_convex survived PSP1 — the ear-split seed had no observing test.",
+      "root_cause": "Pin-failure mode: degenerate input where the seeded term can't influence the outcome. PSP1's L-shape has a single concave corner, so any nextIntBound draw scans to the same split and every seed is equivalent.",
+      "fix": "Kept PSP1 as a result pin (comment reworded) and added jshell-pinned PSP2 on a 13-corner chamfered plus (4 concavities, ambiguous decomposition): seed 99 draw 1 vs seed 100 draw 12 select different concavities. Mutant SEED 99->100 -> psp2_split_to_convex_seed_pin failed (IntBox (10,0)-(30,10) vs oracle octagon) -> reverted -> green.",
+      "tags": [
+        "m1a/task8",
+        "pin-gap",
+        "degenerate-input",
+        "trap-d6",
+        "trap-d7",
+        "polygon_shape.rs",
+        "mutation-verified"
+      ]
+    },
+    {
+      "id": "bug-078",
+      "date": "2026-09-12",
+      "error_message": "Task 9 review mutation test: corpus.rs edge-case stride `i % 9 == 0` -> `i % 8 == 0` rewrote the committed corpus definition and passed the ENTIRE test suite + CI — the central deliverable (corpus artifacts) had no automated pin.",
+      "root_cause": "Mutation-survivor class: deliverable artifact with no automated pin. generate_is_deterministic_per_seed only checked self-consistency (two runs, same seed), which holds under any deterministic generator change; nothing asserted generate(seed 20260912, 200) against the committed rust/harness/corpus/geometry-cases.jsonl.",
+      "fix": "Added corpus::tests::generate_matches_committed_corpus pinning generate output byte-identical to the committed artifact via env!(CARGO_MANIFEST_DIR) (cwd-independent); mutant re-applied -> test FAILED; reverted -> green. Task 10 will add the compare-vs-committed-golden pin once the 5 known port divergences are fixed.",
+      "tags": [
+        "m1a",
+        "corpus",
+        "mutation-survivor",
+        "pin",
+        "test-gap"
+      ]
+    },
+    {
+      "id": "bug-079",
+      "date": "2026-09-12",
+      "error_message": "Corpus cases seg-000020/000093/000125 (line_segment.sort_endpoints_in_xy) and seg-000151 (line_segment.intersection) mismatched: Rust serialized {\"kind\":\"RustPanic\"} where the Java oracle produced a sorted LineSegment / a 1-cut LineList.",
+      "root_cause": "T22-class port divergence, not an upstream bug: Java LineSegment.startPoint()/endPoint() call middle.intersection(closingLine), which NEVER returns null — for a closing line parallel to the middle line it returns the infinite RationalPoint(isX, isY, 0), and every downstream consumer (sortEndpointsInXY, intersection, borderIntersections) keeps computing through it with exact cross-multiplied compareXY/sideOf. The Rust port instead panicked at start_point/end_point (precondition the oracle does not have) and skipped the parallel candidate in border_intersections (a documented Task-6 divergence). Confirmed via jshell: seg-000020 sp = RationalPoint(822986573811360, 822986573811360, 0), seg-000093 sp = RationalPoint(0, -34839094706, 0), seg-000125 ep = RationalPoint(0, 1791925913988, 0).",
+      "fix": "Added Line::intersection_point (Java Line.intersection verbatim, returns the infinite RationalPoint for det==0) and rewrote Line::intersection as a thin Option wrapper (None iff infinite) for the corpus Infinity encoding. LineSegment.start_point/end_point/border_intersections now consume intersection_point only — no panics, no skips; the Task-6 divergence note is closed. Jar-captured pins: INF1, SORT-INF1/2/3, CMP-INF1/2, I-INF (line.rs, line_segment.rs). 200-case compare went 195/200 -> 200/200.",
+      "tags": [
+        "m1a",
+        "geometry",
+        "parity",
+        "trap-T22",
+        "corpus"
+      ]
+    },
+    {
+      "id": "bug-080",
+      "date": "2026-09-12",
+      "error_message": "Corpus case ipt-000140 (intpoint.difference_by, a=[-2583,-185824083], b=[721500227,26196855]): Rust returned RationalVector{z=1} where Java returned IntVector.",
+      "root_cause": "T23-class HARNESS bug (not a port bug): GeometryCorpusOracle.pt()/points() construct RAW new IntPoint(x, y), but the Rust harness arg builder called Point::get_instance(x, y), which boxes a RationalPoint above ±CRIT_INT (2^25). RationalPoint.differenceBy then took the rational path in the Rust evaluator while the oracle ran IntPoint.differenceBy (which returns IntVector directly — verified via jshell; there is no z-divides-evenly promotion site to port).",
+      "fix": "corpus.rs args_point and the tileshape.from_points points builder now construct Point::Int(IntPoint::new(...)) mirroring the oracle constructor-for-constructor; Vector args stay Vector::get_instance because the oracle's vec() really does call Vector.getInstance. Trap T23 recorded in the plan trap table.",
+      "tags": [
+        "m1a",
+        "geometry",
+        "parity",
+        "trap-T23",
+        "corpus",
+        "harness"
+      ]
+    },
+    {
+      "id": "bug-081",
+      "error_message": "simplex::tests::get_instance_sort_is_stable_for_equal_compare_to panicked: survivor 2 not found in input: Line { a: Int(774978817,1997027347), b: Int(774977195,1997025725) }",
+      "root_cause": "Test-formulation bug, not a port bug: check (b) of the sort-stability invariant demanded the survivors form a greedy IN-ORDER subsequence of the input, but the generated fans use strides [0,1,3,2] mod 8 and therefore wrap — the input is NOT sorted, while Simplex.getInstance always outputs in compareTo order. Java never derives lines (Simplex.java:46-51 copies references, removeRedundantLines :884 only skips/shifts references), so the true contract is: endpoint-exact MEMBERSHIP in the input (order-free) + sorted output + ties (compareTo == Equal) keeping their input RELATIVE order (TimSort stability survives removal-only pruning). A doc-comment-only edit had also shifted the panic line number, initially masking that the failing code was unchanged.",
+      "fix": "Replaced the greedy cursor with (b) input.iter().position endpoint-exact membership per survivor and (c) pairwise tie-order check: for output i<j with compare_to == Equal, first_pos[i] < first_pos[j]. Green over 10k seeded fans (0x5EED_C0DE_1234_567D). Lesson: when a panic message survives a fix byte-identical, diff the algorithm, not the line number.",
+      "tags": [
+        "m1a",
+        "epic-geometry",
+        "simplex",
+        "invariant-formulation",
+        "timsort-stability"
+      ]
+    },
+    {
+      "id": "bug-082",
+      "error_message": "Task 8: 5 bare-class network tests failed parse (read_scope false at the dispatch EOF arm) while the jar returns RESULT Success for the same fixtures",
+      "root_cause": "Harness granularity mismatch, not a port bug: NetClass.readScope's bare-class seed consumes the class's own ')' and its loop break consumes the NETWORK's close; in a real file the network dispatch then breaks on the PCB's ')' and ScopeKeyword.readScope treats the resulting EOF as clean success (if (nextToken == null) return true). The test harness fed an isolated (network ...) with nothing after it, so the over-consumption hit EOF and killed the parse - a file shape the jar never ran. Corollary: two other failures were memory-reconstructed expectations (WIRE item-class slots, K2/K3 COUT ids) that fresh jar captures refuted (items via=3 pin=5 smd=4 area=6; COUT ids 16-19/25-28).",
+      "fix": "run_board formats '(network BODY))' - the trailing bracket emulates the pcb close (documented in the harness + module doc). The decisive evidence was a jshell probe driving SpecctraDsnStreamReader directly (/tmp/epic-t8-scanprobe2.jsh) to print the true post-nextStringList token stream instead of reconstructing JFlex internals.",
+      "tags": [
+        "parity",
+        "oracle",
+        "harness-granularity",
+        "memory-reconstructed-pin",
+        "t8",
+        "m1b"
+      ]
+    },
+    {
+      "id": "bug-083",
+      "ts": "2026-09-14T00:00:00",
+      "file": "rust/crates/epic-board/src/board.rs",
+      "kind": "parity-bug",
+      "error_message": "T1 quality review (04c37ac7) FINDING 1: Board::remove_item returned the removed ItemEntry with on_the_board still true, while Java leaves every removed item with onTheBoard == false",
+      "root_cause": "The flag flip on removal lives in SearchTreeManager.remove (SearchTreeManager.java:57-61: isOnTheBoard() guard then item.setOnTheBoard(false)), which BasicBoard.removeItem calls transitively - not in BoardItemRepository.removeItem where the revision bump (T69) lives. The port has no tree manager yet, so the side effect had no owner and the port dropped it.",
+      "fix": "Board::remove_item now clears entry.on_the_board on the returned entry (doc cites SearchTreeManager.java:61); the on_the_board pin extended to assert the removed entry carries on_the_board == false (watched it fail before the fix, pass after).",
+      "tags": [
+        "m2",
+        "epic-board",
+        "parity",
+        "on_the_board"
+      ]
+    },
+    {
+      "id": "bug-084",
+      "ts": "2026-09-14T00:00:00",
+      "file": "rust/crates/epic-board/src/board.rs",
+      "kind": "pin-gap",
+      "error_message": "T1 quality review (04c37ac7) FINDING 2: the generator-position pins could not discriminate set_next(last_assigned_item_id) from set_next(max live id) - every input had its burned id BELOW the max live id, so both seeds passed (anchor-blind agreement, cerebrum pin rule 4)",
+      "root_cause": "The in-crate burn DSN placed the closed (id-burning) wire before the open wire (burned 4 < live 5) and all three harness fixtures are unrouted with zero burns (last_assigned == max live), so no pin executed the branch where the two candidate seeds differ.",
+      "fix": "Reordered the DSN wiring so the closed wire is LAST - ids {1,2,3,4}, burned 5 ABOVE the max live id 4; the pin now asserts alloc_id() == 6. Mutation-verified: seeding from max live id fails the pin (alloc 5 != 6); reverted.",
+      "tags": [
+        "m2",
+        "epic-board",
+        "pin-gap",
+        "anchor-blind",
+        "mutation-verified"
+      ]
+    },
+    {
+      "id": "bug-085",
+      "ts": "2026-09-14T17:30:00",
+      "file": "rust/crates/epic-board/src/undo.rs",
+      "kind": "semantics-discovery",
+      "summary": "S13 spike line cancelled=[3:c0, 2:b0, 1:a0] restored=[2:b1] contradicted the predicted [2:b0, 1:a0, 3:c0]",
+      "root_cause": "saveForUndo sets oldNode.redoObject = liveNode AT CREATION (UndoableObjects.java:285); redo's delete-list walk can advance over that creation link (c0_old -> c-live at L1) AFTER the map-loop already restored 3:c1; the walk then removes 3:c1 from restored (List.remove first-occurrence), suppressing a duplicate cancel. Cancelled order = map-order swaps, then walk appends.",
+      "fix": "Walk ported verbatim; pinned in s13_redo_walk_advances_and_mutates_restored with mutation verification (walk <= flipped to < fails: duplicate 3:c0 cancel + 3:c1 surviving in restored). Module docs record two structural findings: the walk advances at most once (delete-list nodes only gain redoObject at creation) and popSnapshot re-link branch (:246-252) is dead code (disableRedo nulls the link or redo swaps the node out first).",
+      "tags": [
+        "m2",
+        "undo",
+        "t62",
+        "jar-spike",
+        "pins"
+      ]
+    },
+    {
+      "id": "bug-086",
+      "ts": "2026-09-14T17:30:00",
+      "file": "rust/crates/epic-board/src/undo.rs",
+      "kind": "test-fixture",
+      "summary": "undo pins s16_to_s18/s27_to_s30 failed with left=\"6:f0, 3:c0, 2:b1\" right=\"6:f0, 2:b1\" — port was correct",
+      "root_cause": "Fixture drift, not a port bug: s16_to_s18 omitted spike steps S5-S7 (c never deleted, legitimately visible); s27_to_s30 built a fresh stack instead of fast-forwarding the script to the post-S26 residual state the capture describes.",
+      "fix": "Fixtures now replay the spike script verbatim (same prefix as s19_to_s26). Also strengthened s2_to_s7_delete_dichotomy with a restore-content assertion: iter-only pins were anchor-blind to WHICH node delete pushes (< vs <=), suite caught it but the dedicated test did not.",
+      "tags": [
+        "m2",
+        "undo",
+        "test-fixtures",
+        "anchor-blind"
+      ]
+    },
+    {
+      "id": 87,
+      "date": "2026-09-14",
+      "error_message": "Mutation-verify round lost the uncommitted fix round: after flipping merge `<` to `<=` in pop_snapshot and confirming the p5 pin failed, `git checkout -- rust/crates/epic-board/src/undo.rs` restored the file to HEAD (9d8bfd7f), silently reverting ALL three uncommitted review-fix edits (module-doc rewrite, S11 dead-disjunct assert, p5 merge pin) along with the mutation.",
+      "root_cause": "git checkout -- restores to HEAD, not to the pre-mutation working state. When the mutation is applied on top of UNCOMMITTED work, checkout throws away both. The M1a/M1b mutation-verify habit was safe only because those rounds had committed the pins before mutating.",
+      "fix": "Re-applied the three edits from in-context copies (22/22 green again). New rule: on files with uncommitted work, revert a mutation by re-editing the single line back (Edit old<->new swap), or copy the file to /tmp before mutating and restore from the copy; reserve `git checkout --` for files whose only delta IS the mutation.",
+      "tags": [
+        "process",
+        "mutation-verify",
+        "git",
+        "m2"
+      ]
+    },
+    {
+      "id": 88,
+      "date": "2026-09-14",
+      "error_message": "T3 Components undo/redo was a silent no-op: after Components::rotate, undo() restored rotation 0.0 and redo() replayed nothing (test expected 30.0).",
+      "root_cause": "Java componentArr slot and the undo-map node reference ONE shared Component object (Components.java:36-65): saveForUndo clones into an old node but the LIVE node is the same instance the mutator writes, so the mutation is visible through both. The port mutated a clone in component_arr only, leaving the undo stack live node at the pre-mutation value, so undo swapped in a stale clone equal to the mutated state minus the mutation (undo restored nothing, redo re-applied nothing).",
+      "fix": "Added ComponentsUndoStack::get/value_mut (undo.rs, delegating to UndoableObjects) + Components::sync_live_undo_value(component_id) called after every component_arr mutation in r#move/turn_90_degree/rotate/change_side — clones the mutated arr value into the stack CURRENT node. Pinned by components_container_ids_lookup_and_undo_resync (rotate 30 -> undo restores -> redo replays -> next add id 3).",
+      "tags": [
+        "m2",
+        "epic-board",
+        "task3",
+        "t63",
+        "components",
+        "undo"
+      ]
+    },
+    {
+      "id": "bug-089",
+      "ts": "2026-09-14T23:55:00",
+      "file": "rust/crates/epic-board/src/tree_manager.rs",
+      "kind": "test-design",
+      "summary": "T58 rebuild pin was anchor-blind: make_compensation_layer_sensitive only sensitized the class-0 tree read v(1,0,l), but the compensation rebuild default tree is class 1 whose Issue575 comp (1000) is layer-INSENSITIVE, so removing insert_all clear_derived_data passed all tests. Pin failure mode (4) recurrence in own test.",
+      "root_cause": "Test helper tuned the matrix for the CLASS-0 tree of the reinsert test and reused it for the rebuild test without checking the discriminating form for the tree the rebuild actually constructs (class 1).",
+      "fix": "Helper now also sets v(1,1,1)=8000 (comp 1000 vs 4000 per layer) and the rebuild test asserts both comp values as in-test witnesses; mutation matrix verified: no-clear fails rebuild pin, both-clears-removed fails both, walk-only-removed passes (Java :191-199 walk is redundant with :228 — ported literally).",
+      "tags": [
+        "pin-failure-mode-4",
+        "anchor-blind",
+        "T58",
+        "clearDerivedData",
+        "mutation-verified"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-090",
+      "ts": "2026-09-14T23:56:00",
+      "file": "rust/crates/epic-board/src/tree_manager.rs",
+      "kind": "test-expectation",
+      "summary": "get_autoroute_tree flag pin asserted !is_on_the_board(via) on a from_ses_board board and failed: every parsed item is born on_the_board=true because from_ses_board inserts through insert_item (the POST-READ Java state).",
+      "root_cause": "Java parse-time inserts flow through SearchTreeManager.insert (flag true AND tree entries); the port conversion is a pure arena insert (flag true, NO tree entries) — flag=true therefore does not imply has-entries on a converted board.",
+      "fix": "Test forces via 815 to constructed-but-uninserted via the raw set_on_the_board seam, then pins that the bulk insert lands entries WITHOUT flipping the flag; divergence noted for Task 7 board integration.",
+      "tags": [
+        "on_the_board",
+        "from_ses_board",
+        "getAutorouteTree",
+        "T59",
+        "divergence"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-091",
+      "ts": "2026-09-14T23:57:00",
+      "file": "rust/crates/epic-board/src/tree_shapes.rs",
+      "kind": "test-expectation",
+      "summary": "generic_dispatch test expected box[...] under NINETY for a circle via — wrong: the BASE calculateTreeShapes always ends in enlarge(w) and IntBox.enlarge returns the bounding OCTAGON (diagonals at box corners); only ShapeSearchTree90Degree keeps boxes.",
+      "root_cause": "Reasoned from the subclass contract instead of the base method body (ShapeSearchTree.java:885-893 boundingBox then :899-905 enlarge).",
+      "fix": "Extended TreeShapesSpike with a RESTRICTION_SWEEP phase (NINETY/NONE at hc 0/200000), captured the true arms, pinned the octagons incl. an assert_ne! discriminating NINETY 1756968 vs FORTYFIVE 1758726 diagonals at hc=200000.",
+      "tags": [
+        "capture-over-memory",
+        "base-dispatch",
+        "enlarge-vs-offset",
+        "NINETY"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-092",
+      "ts": "2026-09-14T23:58:00",
+      "file": "rust/crates/epic-board/src/tree_shapes.rs",
+      "kind": "capture-provenance",
+      "summary": "1Bitsy test expected synthetic hole vias at ids 804/805 but the port allocated 477/478: the old capture was taken against reference-routed.dsn (803 items), not the unrouted.dsn the test parses (476 items).",
+      "root_cause": "Capture provenance was implicit; two DSN variants of the same fixture directory differ by 327 routed items.",
+      "fix": "Re-ran the spike on unrouted.dsn (items=476, matches committed golden dsn-0020; synthetic shape lines byte-identical, ids 477/478); test now pins item_count=476 + allocates through board.alloc_id so the id pin doubles as a T61 generator-continuation pin.",
+      "tags": [
+        "capture-provenance",
+        "fixture-variant",
+        "1Bitsy",
+        "T61"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-093",
+      "date": "2026-09-14",
+      "error_message": "cargo clippy E0599: no method named clone found for struct SearchTree (epic-index lib test, search_tree.rs:297)",
+      "root_cause": "Removed #[derive(Clone)] after grepping for users only in epic-board production code; the DEFINING crate own test module had a user (object_ids_are_unique... assert_eq!(a.clone().object_id(), ...)). Rust greps for API users must cover --all-targets (lib AND test cfg) of every crate in the workspace, including the defining crate.",
+      "fix": "Removed the circular clone-assertion instead (it tested Clone itself while asserting the aliasing hazard the reviewer flagged), kept Clone absent with a deliberate-absence note on the struct (b7cc8e04).",
+      "tags": [
+        "rust",
+        "derive-removal",
+        "grep-scope",
+        "all-targets",
+        "M2-T6"
+      ]
+    },
+    {
+      "id": "bug-094",
+      "date": "2026-09-14",
+      "error_message": "Task 7 port: SearchTreeManager::remove kept the per-item tree-SHAPE cache alive, so a remove+insert round trip (generateKeepoutOutside flip) served stale pre-flip LINE shapes instead of recomputing the AREA branch — jar capture disproved it (Issue575 post-flip area octagons differ in value from the parse-time line octagons; Issue054 132 -> 136 shapes).",
+      "root_cause": "Misread Java Item.clearSearchTreeEntries (Item.java:1078-1080) as clearing 'only entries': it sets searchTreesInfo = null, dropping the WHOLE container that holds both the leaf entries AND the precalculatedTreeShapes. Built a 'staleness quirk' narrative (generateKeepoutOutside reuses cached line shapes) without jar evidence; a dump through the REAL default tree object before AND after the flip exposed it (pin-failure-mode-6 discipline applied in reverse: the memoized getTreeShape channel is exactly where a wrong cache model hides).",
+      "fix": "Added Board::clear_search_tree_shapes (shape_precalc.remove) called from SearchTreeManager::remove; rewrote the generate_keepout_outside / set_outline_keepout_outside docs (remove+insert RE-COMPUTES the area branch); replaced the planned staleness pins with keepout_outside_reinsert_computes_the_area_branch and remove_clears_the_tree_shape_cache_between_out_and_in (both mutation-verified: deleting the clear call fails them with the stale line shapes resurfacing).",
+      "tags": [
+        "java-port",
+        "cache-invalidation",
+        "searchtree",
+        "jar-capture",
+        "M2-T7"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": 95,
+      "date": "2026-09-15",
+      "error_message": "cargo clippy -D warnings: usage of contains_key followed by insert on a BTreeMap (clippy::map_entry) in SearchTreeManager::stored_shape",
+      "root_cause": "T8 quality-review fix 3 asked for contains_key/insert/get to stop cloning the per-item Vec per candidate leaf; that exact shape is what clippy::map_entry rejects, while the ORIGINAL code's entry().or_insert_with().clone() was the very clone-per-hit being fixed. Two constraints pull opposite ways: avoid the Vec clone AND avoid contains_key+insert.",
+      "fix": "entry().or_insert_with(|| board.tree_shape_precalc(...)) WITHOUT the trailing .clone(): the Entry gives &Vec (a borrow, not a copy), and the &mut board precalc composes because shape_cache and board are disjoint borrows. Then .get(i).cloned().flatten() clones only the single stored shape.",
+      "tags": [
+        "clippy",
+        "map_entry",
+        "performance",
+        "borrow-checker",
+        "T8",
+        "quality-review"
+      ]
+    },
+    {
+      "id": "bug-096",
+      "ts": "2026-09-14T22:54:48",
+      "file": "rust/harness/src/index_corpus.rs",
+      "kind": "harness-bug",
+      "summary": "Index corpus (M2 T9): wc/cs replay rows ran with layer=-1, which zeroes ClearanceMatrix.maxValue(class, layer) row lookups — the with-clearance candidate window degenerated to exact tests and the T56 clearance-tie trap was silently inert (all cls rows empty).",
+      "root_cause": "Layer -1 reused from the plain query rows; the with-clearance core derives its window growth from the per-layer matrix row maxima, so a negative layer indexes no row and yields 0.",
+      "fix": "Both sides (index_corpus.rs + IndexOracle.java) now pass t_layer/sLayer for wc and check_shape rows; clear-tie wc cls-1 now returns both keepouts in tie order [[3,0],[2,0]] vs empty cls 0/2.",
+      "tags": [
+        "index-corpus",
+        "with-clearance",
+        "layer-convention",
+        "inert-trap",
+        "M2-T9"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-097",
+      "ts": "2026-09-15T00:27:55",
+      "file": "rust/crates/epic-board/src/contacts.rs",
+      "kind": "pin-discipline",
+      "summary": "M2 T10 contacts pin: pic trace 1372 corner assertion failed because the expected corner LIST was reconstructed from the M_PAIR narrative (assumed 2 corners) while the capture pins only first/last — the DSN wire is 3-corner (type protect = USER_FIXED, normalize no-op), so the port was right and the pin literal was inferred.",
+      "root_cause": "Expected value came from narrative inference, not from a capture row — the exact violation the 'jar-captured values only' rule exists for; capture lines pin first/last for M_Y, the full corner list only for M_X.",
+      "fix": "Re-pinned to exactly what the capture shows (first/last via M_Y row, full corners via M_X_CORNERS row); related: tests pinning absolute inserted ids 12..16 must replay the FULL spike insertion sequence since alloc_id is monotone (skipping A3/B3 shifted ids).",
+      "tags": [
+        "pins",
+        "capture-only-expected",
+        "normalizeAllTraces",
+        "M2-T10"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-098",
+      "ts": "2026-09-15T11:04:32",
+      "file": "rust/crates/epic-board/src/tree_manager.rs",
+      "kind": "misdiagnosed-parity-bug",
+      "summary": "M2 T11: CombineSpike B_TREE baseline diverged from the port's post-parse tree; misdiagnosed as insertAllBoardItems walking ascending (creation order) — switching the walk to ascending broke ALL 33 T9 index goldens (trees[i].lines sha256) on the very next gate.",
+      "root_cause": "Java's `itemList` is NOT a list: UndoableObjects.java:21,37 backs it with a ConcurrentSkipListMap keyed by the Item, and Item.compareTo is other.id - id (Item.java:95-103), so the startReadObject walk (insertAllBoardItems :217-231, removeAllBoardItems :202-215, getAutorouteTree :163-170) yields DESCENDING id. The T11 capture exercised the OTHER path: the read inserts each item at creation (ascending on parsed boards) and CombineSpike never calls reinsertTreeItems. Two Java build orders, one port fill function — each oracle proved the opposite fix.",
+      "fix": "Split the fills: insert_all_board_items restored to the descending ConcurrentSkipListMap walk (rebuild path: reinsert_tree_items / set_clearance_compensation_used / clearance_value_changed — matches the T9 goldens), new insert_items_creation_order replays the read path ascending (trace_ops fresh() and future read integration). get_autoroute_tree's bulk insert already descended correctly. Both oracles green simultaneously: 33/33 index goldens + 153 epic-board tests incl. the 31-row B_TREE pin.",
+      "tags": [
+        "parity",
+        "build-order",
+        "skip-list-iteration",
+        "two-path",
+        "t11",
+        "pin-discipline"
+      ]
+    }
+  ]
 }
