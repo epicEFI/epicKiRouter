@@ -1283,6 +1283,237 @@
         "invariant-formulation",
         "timsort-stability"
       ]
+    },
+    {
+      "id": "bug-082",
+      "error_message": "Task 8: 5 bare-class network tests failed parse (read_scope false at the dispatch EOF arm) while the jar returns RESULT Success for the same fixtures",
+      "root_cause": "Harness granularity mismatch, not a port bug: NetClass.readScope's bare-class seed consumes the class's own ')' and its loop break consumes the NETWORK's close; in a real file the network dispatch then breaks on the PCB's ')' and ScopeKeyword.readScope treats the resulting EOF as clean success (if (nextToken == null) return true). The test harness fed an isolated (network ...) with nothing after it, so the over-consumption hit EOF and killed the parse - a file shape the jar never ran. Corollary: two other failures were memory-reconstructed expectations (WIRE item-class slots, K2/K3 COUT ids) that fresh jar captures refuted (items via=3 pin=5 smd=4 area=6; COUT ids 16-19/25-28).",
+      "fix": "run_board formats '(network BODY))' - the trailing bracket emulates the pcb close (documented in the harness + module doc). The decisive evidence was a jshell probe driving SpecctraDsnStreamReader directly (/tmp/epic-t8-scanprobe2.jsh) to print the true post-nextStringList token stream instead of reconstructing JFlex internals.",
+      "tags": [
+        "parity",
+        "oracle",
+        "harness-granularity",
+        "memory-reconstructed-pin",
+        "t8",
+        "m1b"
+      ]
+    },
+    {
+      "id": "bug-083",
+      "ts": "2026-09-14T00:00:00",
+      "file": "rust/crates/epic-board/src/board.rs",
+      "kind": "parity-bug",
+      "error_message": "T1 quality review (04c37ac7) FINDING 1: Board::remove_item returned the removed ItemEntry with on_the_board still true, while Java leaves every removed item with onTheBoard == false",
+      "root_cause": "The flag flip on removal lives in SearchTreeManager.remove (SearchTreeManager.java:57-61: isOnTheBoard() guard then item.setOnTheBoard(false)), which BasicBoard.removeItem calls transitively - not in BoardItemRepository.removeItem where the revision bump (T69) lives. The port has no tree manager yet, so the side effect had no owner and the port dropped it.",
+      "fix": "Board::remove_item now clears entry.on_the_board on the returned entry (doc cites SearchTreeManager.java:61); the on_the_board pin extended to assert the removed entry carries on_the_board == false (watched it fail before the fix, pass after).",
+      "tags": [
+        "m2",
+        "epic-board",
+        "parity",
+        "on_the_board"
+      ]
+    },
+    {
+      "id": "bug-084",
+      "ts": "2026-09-14T00:00:00",
+      "file": "rust/crates/epic-board/src/board.rs",
+      "kind": "pin-gap",
+      "error_message": "T1 quality review (04c37ac7) FINDING 2: the generator-position pins could not discriminate set_next(last_assigned_item_id) from set_next(max live id) - every input had its burned id BELOW the max live id, so both seeds passed (anchor-blind agreement, cerebrum pin rule 4)",
+      "root_cause": "The in-crate burn DSN placed the closed (id-burning) wire before the open wire (burned 4 < live 5) and all three harness fixtures are unrouted with zero burns (last_assigned == max live), so no pin executed the branch where the two candidate seeds differ.",
+      "fix": "Reordered the DSN wiring so the closed wire is LAST - ids {1,2,3,4}, burned 5 ABOVE the max live id 4; the pin now asserts alloc_id() == 6. Mutation-verified: seeding from max live id fails the pin (alloc 5 != 6); reverted.",
+      "tags": [
+        "m2",
+        "epic-board",
+        "pin-gap",
+        "anchor-blind",
+        "mutation-verified"
+      ]
+    },
+    {
+      "id": "bug-085",
+      "ts": "2026-09-14T17:30:00",
+      "file": "rust/crates/epic-board/src/undo.rs",
+      "kind": "semantics-discovery",
+      "summary": "S13 spike line cancelled=[3:c0, 2:b0, 1:a0] restored=[2:b1] contradicted the predicted [2:b0, 1:a0, 3:c0]",
+      "root_cause": "saveForUndo sets oldNode.redoObject = liveNode AT CREATION (UndoableObjects.java:285); redo's delete-list walk can advance over that creation link (c0_old -> c-live at L1) AFTER the map-loop already restored 3:c1; the walk then removes 3:c1 from restored (List.remove first-occurrence), suppressing a duplicate cancel. Cancelled order = map-order swaps, then walk appends.",
+      "fix": "Walk ported verbatim; pinned in s13_redo_walk_advances_and_mutates_restored with mutation verification (walk <= flipped to < fails: duplicate 3:c0 cancel + 3:c1 surviving in restored). Module docs record two structural findings: the walk advances at most once (delete-list nodes only gain redoObject at creation) and popSnapshot re-link branch (:246-252) is dead code (disableRedo nulls the link or redo swaps the node out first).",
+      "tags": [
+        "m2",
+        "undo",
+        "t62",
+        "jar-spike",
+        "pins"
+      ]
+    },
+    {
+      "id": "bug-086",
+      "ts": "2026-09-14T17:30:00",
+      "file": "rust/crates/epic-board/src/undo.rs",
+      "kind": "test-fixture",
+      "summary": "undo pins s16_to_s18/s27_to_s30 failed with left=\"6:f0, 3:c0, 2:b1\" right=\"6:f0, 2:b1\" \u2014 port was correct",
+      "root_cause": "Fixture drift, not a port bug: s16_to_s18 omitted spike steps S5-S7 (c never deleted, legitimately visible); s27_to_s30 built a fresh stack instead of fast-forwarding the script to the post-S26 residual state the capture describes.",
+      "fix": "Fixtures now replay the spike script verbatim (same prefix as s19_to_s26). Also strengthened s2_to_s7_delete_dichotomy with a restore-content assertion: iter-only pins were anchor-blind to WHICH node delete pushes (< vs <=), suite caught it but the dedicated test did not.",
+      "tags": [
+        "m2",
+        "undo",
+        "test-fixtures",
+        "anchor-blind"
+      ]
+    },
+    {
+      "id": 87,
+      "date": "2026-09-14",
+      "error_message": "Mutation-verify round lost the uncommitted fix round: after flipping merge `<` to `<=` in pop_snapshot and confirming the p5 pin failed, `git checkout -- rust/crates/epic-board/src/undo.rs` restored the file to HEAD (9d8bfd7f), silently reverting ALL three uncommitted review-fix edits (module-doc rewrite, S11 dead-disjunct assert, p5 merge pin) along with the mutation.",
+      "root_cause": "git checkout -- restores to HEAD, not to the pre-mutation working state. When the mutation is applied on top of UNCOMMITTED work, checkout throws away both. The M1a/M1b mutation-verify habit was safe only because those rounds had committed the pins before mutating.",
+      "fix": "Re-applied the three edits from in-context copies (22/22 green again). New rule: on files with uncommitted work, revert a mutation by re-editing the single line back (Edit old<->new swap), or copy the file to /tmp before mutating and restore from the copy; reserve `git checkout --` for files whose only delta IS the mutation.",
+      "tags": [
+        "process",
+        "mutation-verify",
+        "git",
+        "m2"
+      ]
+    },
+    {
+      "id": 88,
+      "date": "2026-09-14",
+      "error_message": "T3 Components undo/redo was a silent no-op: after Components::rotate, undo() restored rotation 0.0 and redo() replayed nothing (test expected 30.0).",
+      "root_cause": "Java componentArr slot and the undo-map node reference ONE shared Component object (Components.java:36-65): saveForUndo clones into an old node but the LIVE node is the same instance the mutator writes, so the mutation is visible through both. The port mutated a clone in component_arr only, leaving the undo stack live node at the pre-mutation value, so undo swapped in a stale clone equal to the mutated state minus the mutation (undo restored nothing, redo re-applied nothing).",
+      "fix": "Added ComponentsUndoStack::get/value_mut (undo.rs, delegating to UndoableObjects) + Components::sync_live_undo_value(component_id) called after every component_arr mutation in r#move/turn_90_degree/rotate/change_side \u2014 clones the mutated arr value into the stack CURRENT node. Pinned by components_container_ids_lookup_and_undo_resync (rotate 30 -> undo restores -> redo replays -> next add id 3).",
+      "tags": [
+        "m2",
+        "epic-board",
+        "task3",
+        "t63",
+        "components",
+        "undo"
+      ]
+    },
+    {
+      "id": "bug-089",
+      "ts": "2026-09-14T23:55:00",
+      "file": "rust/crates/epic-board/src/tree_manager.rs",
+      "kind": "test-design",
+      "summary": "T58 rebuild pin was anchor-blind: make_compensation_layer_sensitive only sensitized the class-0 tree read v(1,0,l), but the compensation rebuild default tree is class 1 whose Issue575 comp (1000) is layer-INSENSITIVE, so removing insert_all clear_derived_data passed all tests. Pin failure mode (4) recurrence in own test.",
+      "root_cause": "Test helper tuned the matrix for the CLASS-0 tree of the reinsert test and reused it for the rebuild test without checking the discriminating form for the tree the rebuild actually constructs (class 1).",
+      "fix": "Helper now also sets v(1,1,1)=8000 (comp 1000 vs 4000 per layer) and the rebuild test asserts both comp values as in-test witnesses; mutation matrix verified: no-clear fails rebuild pin, both-clears-removed fails both, walk-only-removed passes (Java :191-199 walk is redundant with :228 \u2014 ported literally).",
+      "tags": [
+        "pin-failure-mode-4",
+        "anchor-blind",
+        "T58",
+        "clearDerivedData",
+        "mutation-verified"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-090",
+      "ts": "2026-09-14T23:56:00",
+      "file": "rust/crates/epic-board/src/tree_manager.rs",
+      "kind": "test-expectation",
+      "summary": "get_autoroute_tree flag pin asserted !is_on_the_board(via) on a from_ses_board board and failed: every parsed item is born on_the_board=true because from_ses_board inserts through insert_item (the POST-READ Java state).",
+      "root_cause": "Java parse-time inserts flow through SearchTreeManager.insert (flag true AND tree entries); the port conversion is a pure arena insert (flag true, NO tree entries) \u2014 flag=true therefore does not imply has-entries on a converted board.",
+      "fix": "Test forces via 815 to constructed-but-uninserted via the raw set_on_the_board seam, then pins that the bulk insert lands entries WITHOUT flipping the flag; divergence noted for Task 7 board integration.",
+      "tags": [
+        "on_the_board",
+        "from_ses_board",
+        "getAutorouteTree",
+        "T59",
+        "divergence"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-091",
+      "ts": "2026-09-14T23:57:00",
+      "file": "rust/crates/epic-board/src/tree_shapes.rs",
+      "kind": "test-expectation",
+      "summary": "generic_dispatch test expected box[...] under NINETY for a circle via \u2014 wrong: the BASE calculateTreeShapes always ends in enlarge(w) and IntBox.enlarge returns the bounding OCTAGON (diagonals at box corners); only ShapeSearchTree90Degree keeps boxes.",
+      "root_cause": "Reasoned from the subclass contract instead of the base method body (ShapeSearchTree.java:885-893 boundingBox then :899-905 enlarge).",
+      "fix": "Extended TreeShapesSpike with a RESTRICTION_SWEEP phase (NINETY/NONE at hc 0/200000), captured the true arms, pinned the octagons incl. an assert_ne! discriminating NINETY 1756968 vs FORTYFIVE 1758726 diagonals at hc=200000.",
+      "tags": [
+        "capture-over-memory",
+        "base-dispatch",
+        "enlarge-vs-offset",
+        "NINETY"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-092",
+      "ts": "2026-09-14T23:58:00",
+      "file": "rust/crates/epic-board/src/tree_shapes.rs",
+      "kind": "capture-provenance",
+      "summary": "1Bitsy test expected synthetic hole vias at ids 804/805 but the port allocated 477/478: the old capture was taken against reference-routed.dsn (803 items), not the unrouted.dsn the test parses (476 items).",
+      "root_cause": "Capture provenance was implicit; two DSN variants of the same fixture directory differ by 327 routed items.",
+      "fix": "Re-ran the spike on unrouted.dsn (items=476, matches committed golden dsn-0020; synthetic shape lines byte-identical, ids 477/478); test now pins item_count=476 + allocates through board.alloc_id so the id pin doubles as a T61 generator-continuation pin.",
+      "tags": [
+        "capture-provenance",
+        "fixture-variant",
+        "1Bitsy",
+        "T61"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": "bug-093",
+      "date": "2026-09-14",
+      "error_message": "cargo clippy E0599: no method named clone found for struct SearchTree (epic-index lib test, search_tree.rs:297)",
+      "root_cause": "Removed #[derive(Clone)] after grepping for users only in epic-board production code; the DEFINING crate own test module had a user (object_ids_are_unique... assert_eq!(a.clone().object_id(), ...)). Rust greps for API users must cover --all-targets (lib AND test cfg) of every crate in the workspace, including the defining crate.",
+      "fix": "Removed the circular clone-assertion instead (it tested Clone itself while asserting the aliasing hazard the reviewer flagged), kept Clone absent with a deliberate-absence note on the struct (b7cc8e04).",
+      "tags": [
+        "rust",
+        "derive-removal",
+        "grep-scope",
+        "all-targets",
+        "M2-T6"
+      ]
+    },
+    {
+      "id": "bug-094",
+      "date": "2026-09-14",
+      "error_message": "Task 7 port: SearchTreeManager::remove kept the per-item tree-SHAPE cache alive, so a remove+insert round trip (generateKeepoutOutside flip) served stale pre-flip LINE shapes instead of recomputing the AREA branch \u2014 jar capture disproved it (Issue575 post-flip area octagons differ in value from the parse-time line octagons; Issue054 132 -> 136 shapes).",
+      "root_cause": "Misread Java Item.clearSearchTreeEntries (Item.java:1078-1080) as clearing 'only entries': it sets searchTreesInfo = null, dropping the WHOLE container that holds both the leaf entries AND the precalculatedTreeShapes. Built a 'staleness quirk' narrative (generateKeepoutOutside reuses cached line shapes) without jar evidence; a dump through the REAL default tree object before AND after the flip exposed it (pin-failure-mode-6 discipline applied in reverse: the memoized getTreeShape channel is exactly where a wrong cache model hides).",
+      "fix": "Added Board::clear_search_tree_shapes (shape_precalc.remove) called from SearchTreeManager::remove; rewrote the generate_keepout_outside / set_outline_keepout_outside docs (remove+insert RE-COMPUTES the area branch); replaced the planned staleness pins with keepout_outside_reinsert_computes_the_area_branch and remove_clears_the_tree_shape_cache_between_out_and_in (both mutation-verified: deleting the clear call fails them with the stale line shapes resurfacing).",
+      "tags": [
+        "java-port",
+        "cache-invalidation",
+        "searchtree",
+        "jar-capture",
+        "M2-T7"
+      ],
+      "status": "fixed"
+    },
+    {
+      "id": 95,
+      "date": "2026-09-15",
+      "error_message": "cargo clippy -D warnings: usage of contains_key followed by insert on a BTreeMap (clippy::map_entry) in SearchTreeManager::stored_shape",
+      "root_cause": "T8 quality-review fix 3 asked for contains_key/insert/get to stop cloning the per-item Vec per candidate leaf; that exact shape is what clippy::map_entry rejects, while the ORIGINAL code's entry().or_insert_with().clone() was the very clone-per-hit being fixed. Two constraints pull opposite ways: avoid the Vec clone AND avoid contains_key+insert.",
+      "fix": "entry().or_insert_with(|| board.tree_shape_precalc(...)) WITHOUT the trailing .clone(): the Entry gives &Vec (a borrow, not a copy), and the &mut board precalc composes because shape_cache and board are disjoint borrows. Then .get(i).cloned().flatten() clones only the single stored shape.",
+      "tags": [
+        "clippy",
+        "map_entry",
+        "performance",
+        "borrow-checker",
+        "T8",
+        "quality-review"
+      ]
+    },
+    {
+      "id": "bug-096",
+      "ts": "2026-09-14T22:54:48",
+      "file": "rust/harness/src/index_corpus.rs",
+      "kind": "harness-bug",
+      "summary": "Index corpus (M2 T9): wc/cs replay rows ran with layer=-1, which zeroes ClearanceMatrix.maxValue(class, layer) row lookups \u2014 the with-clearance candidate window degenerated to exact tests and the T56 clearance-tie trap was silently inert (all cls rows empty).",
+      "root_cause": "Layer -1 reused from the plain query rows; the with-clearance core derives its window growth from the per-layer matrix row maxima, so a negative layer indexes no row and yields 0.",
+      "fix": "Both sides (index_corpus.rs + IndexOracle.java) now pass t_layer/sLayer for wc and check_shape rows; clear-tie wc cls-1 now returns both keepouts in tie order [[3,0],[2,0]] vs empty cls 0/2.",
+      "tags": [
+        "index-corpus",
+        "with-clearance",
+        "layer-convention",
+        "inert-trap",
+        "M2-T9"
+      ],
+      "status": "fixed"
     }
   ]
 }
