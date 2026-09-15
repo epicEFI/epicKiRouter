@@ -1086,26 +1086,32 @@ pub fn insert_trace_without_cleaning(
 ///
 /// Per segment `i` (the loop bound is `i < lines.len() - 2`, INT
 /// arithmetic — segments of a trace with n stored lines are
-/// `0..n-3`): the clip bbox filter first (`:471-476`, an
+/// `0..n-3`): the clip bbox filter first (`:475-480`, an
 /// [`IntOctagon::intersects_box`] against the segment bounding box),
 /// then the receiver's tree shape for segment i — Java
-/// `getTreeShape`, which returns NULL once the trace has been
-/// REMOVED (its `searchTreesInfo` was dropped) and the 3-arg tree
-/// query on a null shape returns nothing — so a removed receiver
-/// falls through the remaining segments without action and ends in
-/// `result.add(this)` (the drill-split tail).
+/// `getTreeShape` (`Item.java:213-226`) delegates to
+/// `getPrecalculatedTreeShapes` (`Item.java:228-239`), which
+/// RECALCULATES via `calculateTreeShapes` when the info is absent —
+/// removal neither nulls the board field nor permanently drops the
+/// shapes, so a REMOVED receiver still queries tree entries. The
+/// empty result for such a receiver comes from the loop-top
+/// `!isOnTheBoard()` guard (`:488-491`), NOT from a null-shape
+/// query; the `result.add(this)` tail (`:682-684`) is reachable only
+/// when the removal happens at the walk's LAST entry — DRL1
+/// (last-entry, `[dead this]` size=1) vs DRL2 (first-entry, size=0)
+/// pin both.
 ///
 /// The ENTRY walk is a Java `Iterator` over a snapshot collection
 /// that is RE-FILLED in place after the first successful found-split
-/// (`:529-536` — "reread the overlapping tree entries and reset the
+/// (`:583-590` — "reread the overlapping tree entries and reset the
 /// iterator, because the board has changed"); the port walks an
 /// index over a re-queried [`Vec`]. The on-board check sits at the
 /// TOP of every entry iteration, BEFORE fetching the next entry
-/// (`:519-522`) — the DRL2 early-empty path (drill split as the
+/// (`:488-491`) — the DRL2 early-empty path (drill split as the
 /// FIRST entry: the removal happens mid-iteration, the next
 /// iteration returns the still-empty result).
 ///
-/// Per entry: own-entry skips first (`:542-558` — the
+/// Per entry: own-entry skips first (`:496-515` — the
 /// `[i-1, i+1]` neighbour window, then the zero-length corner
 /// equality, `i < foundIdx ? corner(i+1)==corner(foundIdx) :
 /// corner(foundIdx+1)==corner(i)`), the raw `sharesNet` gate (no
@@ -1114,18 +1120,18 @@ pub fn insert_trace_without_cleaning(
 /// [`LineSegment::intersection`] — the FOUND segment is the RECEIVER
 /// of the query, so the returned line is the CURRENT segment's
 /// middle; the own split flips the receivers), `DrillItem` — the
-/// Java `instanceof DrillItem` catches Pin AND Via (`:600-606`): a
+/// Java `instanceof DrillItem` catches Pin AND Via (`:654-660`): a
 /// perpendicular split through the drill center is executed with the
 /// result DISCARDED and `ownTraceSplit` stays false (DRL1: the
 /// deleted receiver itself ends up in the result; DRL2: early empty
 /// return) — and `ConductionArea` with the `!isUserFixed()` +
-/// ignore-cycles + BOTH-endpoint-contact guards (`:607-622`, AR1).
+/// ignore-cycles + BOTH-endpoint-contact guards (`:661-676`, AR1).
 /// The cycle removal after any split is TWO-PASS over `splitPieces`
-/// then `result` (`:560-596`) — "remove cycles in the own split
+/// then `result` (`:614-650`) — "remove cycles in the own split
 /// pieces last to preserve them, if possible".
 ///
 /// `board.additionalUpdateAfterChange` for results larger than one
-/// (`:631-635`) is observer-surface (D12) and not ported.
+/// (`:685-689`) is observer-surface (D12) and not ported.
 pub fn split_clip(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -1139,10 +1145,10 @@ pub fn split_clip(
         // recursion (`:606-609`) calls `.split(clipShape)` on pieces
         // the found-trace split has just deleted (X4: piece 12 dies in
         // A's found-trace split before its own recursion runs). Java
-        // answers through the loop-top guard (`!isOnTheBoard()` ->
-        // `return result`) — an EMPTY collection; the
-        // `result.add(this)` tail is never reached. The arena lookup
-        // losing the item is exactly that state (X4L same).
+        // answers through the loop-top guard (`:488-491`,
+        // `!isOnTheBoard()` -> `return result`) — an EMPTY collection;
+        // the `result.add(this)` tail is never reached. The arena
+        // lookup losing the item is exactly that state (X4L same).
         None => return Vec::new(),
     };
     if !nets_normal(&nets) {
@@ -1161,12 +1167,17 @@ pub fn split_clip(
                 continue;
             }
         }
-        // Java `getTreeShape(defaultTree, i)`: null once the receiver
-        // was removed (the drill path), and a null-shape tree query
-        // returns nothing (`ShapeSearchTree.java:394-397`) — so the
-        // remaining segments fall through silently. The Rust shape
-        // cache is refilled on demand, which Java does NOT do for the
-        // removed receiver, hence the explicit on-board gate.
+        // Java `getTreeShape(defaultTree, i)` RECALCULATES the shapes
+        // when the searchTreesInfo is absent (`Item.java:228-239`) and
+        // a removed receiver's object survives removal, so Java still
+        // runs the entry query for a dead receiver — the walk then
+        // dies at the loop-top `!isOnTheBoard()` guard (`:488-491`)
+        // before any entry is processed. The Rust arena drops removed
+        // items, so `tree_shape_precalc` has nothing to compute from;
+        // the explicit on-board gate short-circuits to the same
+        // observable empty return. (A null-shape query would return
+        // nothing — `ShapeSearchTree.java:392-394` — but that branch
+        // is not how Java exits here.)
         let current_shape = if board.is_on_the_board(trace_id) {
             let object_id = manager.default_tree().object_id();
             let tree = manager.default_tree();
@@ -1361,7 +1372,7 @@ pub fn split_clip(
     }
     if result.len() > 1 {
         // board.additionalUpdateAfterChange(currentItem) for every
-        // result item (:631-635) — observer surface, D12.
+        // result item (:685-689) — observer surface, D12.
     }
     result
 }
@@ -1454,7 +1465,8 @@ fn split_at_line(
         return None;
     }
     // Java reads `clearanceClassIndex()` on the trace OBJECT AFTER the
-    // removal (`:740`/`:748`) — but removal only detaches the object,
+    // removal (`:741`, reads at `:749`/`:757`) — but removal only
+    // detaches the object,
     // its field survives. The arena lookup would return None here, so
     // the value is captured BEFORE the removal instead (same value).
     let clearance_class = board.item_clearance_class(trace_id).unwrap_or(0);

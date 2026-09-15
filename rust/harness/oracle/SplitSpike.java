@@ -5,7 +5,7 @@
 // :768-792, PolylineTrace.normalize :801 →
 // PolylineTraceNormalization.normalize (MAX_NORMALIZATION_DEPTH 16),
 // plus the support seams BasicBoard.pickItems (BasicBoard.java:1087)
-// and geometry.planar.Polyline.split (Polyline.java:751-822) /
+// and geometry.planar.Polyline.split (Polyline.java:758-835) /
 // LineSegment.intersection (LineSegment.java:229-278)).
 //
 // Same harness pattern as CombineSpike (T11): the ContactsSpike PURE

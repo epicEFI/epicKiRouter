@@ -272,7 +272,7 @@ impl Polyline {
     /// Splits this polyline at the line with index `line_index` into
     /// two by inserting `end_line` as the concluding line of the first
     /// split piece and as the start line of the second split piece
-    /// (Java `Polyline.split(int, Line)`, `Polyline.java:758-829`).
+    /// (Java `Polyline.split(int, Line)`, `Polyline.java:758-835`).
     /// `end_line` and the line with index `line_index` must not be
     /// parallel. The order of the lines in the two result pieces is
     /// preserved. `1 <= line_index <= lines.len() - 2`. `None` where
@@ -1188,7 +1188,7 @@ mod tests {
 
     // -----------------------------------------------------------------
     // Polyline.split(int, Line) — the Java trap surface
-    // (Polyline.java:758-829). Jar-verified against SplitSpike's X1
+    // (Polyline.java:758-835). Jar-verified against SplitSpike's X1
     // rows: an interior split receives the OTHER segment's middle line
     // (receiver-asymmetric LineSegment.intersection), never a line
     // parallel to the perpendicular end phantoms.
