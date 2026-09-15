@@ -42,11 +42,23 @@
 //!    by descending id (fallback: the first netted item — e.g. the
 //!    via on `drill-inflate`), `N` = the first 3 items by descending
 //!    id, `S` = a scripted 2-point trace at the bbox center (width =
-//!    `hw`, empty net list, class 1, unfixed).
+//!    `hw`, empty net list, class 1 clamped to the class count — see
+//!    the insert site, unfixed).
 //!    Phases: `rmT` (manager-remove T), `insS` (insert S, dump its
 //!    shapes per tree), `rmS` (manager-remove S, then
 //!    `validate_entries` on the first 5 items that still HAVE
 //!    entries).
+//!    Id-burn hazard (dsn-0151): Java's read ends with
+//!    `board.normalizeAllTraces()` (`Wiring.java:347`), which can
+//!    SPLIT a trace at an interior same-net contact and burn an item
+//!    id; the Rust reader defers normalization, so the sides' id
+//!    generators can disagree on a fixture containing that construct.
+//!    `facts.s_id` (the scripted trace's allocated id) is the drift
+//!    detector: a future fixture hitting the hazard diverges as a
+//!    self-explaining `facts.s_id` row instead of a cryptic
+//!    `queries[i].e` mismatch that reads as an index bug. Shaping
+//!    rule for new stressors: keep scripted wires clear of interior
+//!    same-net contacts (no trace-pin crossings).
 //! 6. Query set per tree (cc1 + cc2): the anchor's first/second
 //!    non-null tree shapes (`own0`/`own1`), `own0` translated by
 //!    (+hw, 0) / (0, −hw) (`xlate+hw`/`xlate-hw`), and the
@@ -134,8 +146,8 @@ pub enum IndexCommand {
     },
     /// Replay every manifest fixture with the Rust port and diff the
     /// record field-for-field against the committed golden
-    /// (java-free, CI-able). Prints at most 20 mismatches per
-    /// fixture; exits 1 on any.
+    /// (java-free, CI-able). Prints every differing field for at most
+    /// 20 divergent fixtures in full; exits 1 on any.
     Compare {
         #[arg(long, default_value = "harness/corpus/index-manifest.jsonl")]
         manifest: PathBuf,
@@ -300,6 +312,12 @@ pub struct FactsRecord {
     /// The scripted pre-steps applied before the build (e.g.
     /// `"setHoleClearance=2500"`).
     pub pre: Vec<String>,
+    /// The scripted trace S's ALLOCATED id — the id-generator drift
+    /// detector for the dsn-0151 id-burn hazard (Java's
+    /// normalizeAllTraces can burn ids at parse; the Rust reader
+    /// defers): a disagreeing fixture diverges HERE, self-explaining,
+    /// instead of as a cryptic `queries[i].e` mismatch.
+    pub s_id: Option<i64>,
 }
 
 /// One tree dump: the canonical structure lines, digested (sha256 of
@@ -686,7 +704,7 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
     let class_names = board.rules().clearance.names.clone();
     let bbox = board.bounding_box();
     let plan = plan_replay(&board, bbox.as_ref());
-    let facts = FactsRecord {
+    let mut facts = FactsRecord {
         items: board.item_count() as i64,
         layers: board.rules().clearance.layer_count() as i64,
         classes: class_names,
@@ -743,12 +761,16 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
                 .and_then(|n| n.to_str())
                 .unwrap_or(""),
         ),
+        s_id: None,
     };
 
     // Tree build sequence: cc0 dump, compensation rebuild, cc1 dump,
-    // autoroute, cc2 dump.
+    // autoroute, cc2 dump. Each tree's dump_lines() is computed ONCE
+    // (quality round NIT: the digest and the stored lines shared a
+    // second identical walk).
     let mut trees = Vec::new();
-    let (n0, sha0, head0) = dump_digest(&manager.trees()[0].min_area_tree().dump_lines());
+    let lines0 = manager.trees()[0].min_area_tree().dump_lines();
+    let (n0, sha0, head0) = dump_digest(&lines0);
     trees.push(TreeRecord {
         phase: "cc0".to_string(),
         key: manager.trees()[0].key(),
@@ -759,10 +781,11 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
         lines: None,
     });
     if n0 <= 200 {
-        trees[0].lines = Some(manager.trees()[0].min_area_tree().dump_lines());
+        trees[0].lines = Some(lines0);
     }
     manager.set_clearance_compensation_used(&mut board, true);
-    let (n1, sha1, head1) = dump_digest(&manager.trees()[0].min_area_tree().dump_lines());
+    let lines1 = manager.trees()[0].min_area_tree().dump_lines();
+    let (n1, sha1, head1) = dump_digest(&lines1);
     trees.push(TreeRecord {
         phase: "cc1".to_string(),
         key: manager.trees()[0].key(),
@@ -770,14 +793,14 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
         n: n1,
         sha256: sha1,
         head: head1,
-        lines: if n1 <= 200 {
-            Some(manager.trees()[0].min_area_tree().dump_lines())
-        } else {
-            None
-        },
+        lines: None,
     });
+    if n1 <= 200 {
+        trees[1].lines = Some(lines1);
+    }
     let ar = manager.get_autoroute_tree(&mut board, 2);
-    let (n2, sha2, head2) = dump_digest(&manager.trees()[ar].min_area_tree().dump_lines());
+    let lines2 = manager.trees()[ar].min_area_tree().dump_lines();
+    let (n2, sha2, head2) = dump_digest(&lines2);
     trees.push(TreeRecord {
         phase: "cc2".to_string(),
         key: manager.trees()[ar].key(),
@@ -785,12 +808,11 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
         n: n2,
         sha256: sha2,
         head: head2,
-        lines: if n2 <= 200 {
-            Some(manager.trees()[ar].min_area_tree().dump_lines())
-        } else {
-            None
-        },
+        lines: None,
     });
+    if n2 <= 200 {
+        trees[2].lines = Some(lines2);
+    }
 
     // The query set per tree, computed once post-build.
     let query_trees = [
@@ -859,6 +881,21 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
     let mut sshapes = Vec::new();
     if let Some((cx, cy)) = plan.s_center {
         let s_id = board.alloc_id();
+        // The id-burn drift detector (the module-doc hazard note): a
+        // future fixture where the sides' id generators disagree shows
+        // as a facts.s_id divergence, not a cryptic queries[i].e one.
+        facts.s_id = Some(i64::from(s_id.get()));
+        // Java's repository insert clamps an out-of-range clearance
+        // class to 0 with a log-only warn (BoardItemRepository.java:
+        // 146-153, reached through insertTraceWithoutCleaning); the
+        // port's Board::insert_item is the raw arena insert with NO
+        // clamp, so the harness applies the same clamp itself — on a
+        // 1-class fixture the scripted class 1 lands at 0 on BOTH
+        // sides instead of diverging loudly-and-misleadingly. Every
+        // current fixture carries >= 2 classes (min observed 2), so
+        // the clamp never fires on the committed corpus.
+        let class_count = board.rules().clearance.names.len() as i32;
+        let s_class = if class_count <= 1 { 0 } else { 1 };
         board.insert_item(ItemEntry {
             id: s_id,
             data: ItemData::Trace {
@@ -870,7 +907,7 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
                 ]),
             },
             nets: Vec::new(),
-            clearance_class: 1,
+            clearance_class: s_class,
             component_id: 0,
             fixed: FixedState::Unfixed,
             on_the_board: false,
@@ -1089,8 +1126,22 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
     );
 
     // Compile the package-declared oracle into a temp classes dir.
+    // Every bail from here to the post-wait cleanup goes through
+    // `cleanup_temps` (quality round NIT: the javac-failure and
+    // spawn-failure paths leaked the PID-namespaced temp dirs).
     let classes_dir =
         std::env::temp_dir().join(format!("epic-index-oracle-classes-{}", std::process::id()));
+    let jvm_manifest =
+        std::env::temp_dir().join(format!("epic-index-manifest-{}.jsonl", std::process::id()));
+    let stderr_path = std::env::temp_dir().join(format!(
+        "epic-index-oracle-stderr-{}.log",
+        std::process::id()
+    ));
+    fn cleanup_temps(classes_dir: &Path, jvm_manifest: &Path, stderr_path: &Path) {
+        let _ = std::fs::remove_file(jvm_manifest);
+        let _ = std::fs::remove_dir_all(classes_dir);
+        let _ = std::fs::remove_file(stderr_path);
+    }
     std::fs::create_dir_all(&classes_dir)
         .with_context(|| format!("creating {}", classes_dir.display()))?;
     let compile = std::process::Command::new(&javac)
@@ -1101,14 +1152,14 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
         .arg(&oracle_src)
         .output()
         .with_context(|| format!("running javac on {}", oracle_src.display()))?;
-    anyhow::ensure!(
-        compile.status.success(),
-        "javac failed:\n{}",
-        String::from_utf8_lossy(&compile.stderr)
-    );
+    if !compile.status.success() {
+        cleanup_temps(&classes_dir, &jvm_manifest, &stderr_path);
+        bail!(
+            "javac failed:\n{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+    }
 
-    let jvm_manifest =
-        std::env::temp_dir().join(format!("epic-index-manifest-{}.jsonl", std::process::id()));
     {
         let mut file = std::fs::File::create(&jvm_manifest)
             .with_context(|| format!("creating {}", jvm_manifest.display()))?;
@@ -1121,12 +1172,13 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
             .with_context(|| format!("writing {}", jvm_manifest.display()))?;
         }
     }
-    let stderr_path = std::env::temp_dir().join(format!(
-        "epic-index-oracle-stderr-{}.log",
-        std::process::id()
-    ));
 
     let classpath = format!("{}:{}", jar.display(), classes_dir.display());
+    let stderr_file = std::fs::File::create(&stderr_path)
+        .with_context(|| format!("creating {}", stderr_path.display()))
+        .inspect_err(|_| {
+            cleanup_temps(&classes_dir, &jvm_manifest, &stderr_path);
+        })?;
     let mut child = std::process::Command::new(&java)
         .arg(format!("-Xmx{jvm_xmx}"))
         // Locale-pinned (tr-TR lesson, dsn corpus).
@@ -1138,16 +1190,22 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
         .arg(&jvm_manifest)
         .current_dir(repo_root)
         .stdout(std::process::Stdio::piped())
-        .stderr(
-            std::fs::File::create(&stderr_path)
-                .with_context(|| format!("creating {}", stderr_path.display()))?,
-        )
+        .stderr(stderr_file)
         .spawn()
-        .with_context(|| format!("spawning {} with the index oracle", java.display()))?;
+        .with_context(|| format!("spawning {} with the index oracle", java.display()))
+        .inspect_err(|_| {
+            cleanup_temps(&classes_dir, &jvm_manifest, &stderr_path);
+        })?;
 
     // Byte-wise read of `{"id"` lines (binary-fixture lesson, dsn
     // corpus).
-    let stdout = child.stdout.take().context("oracle stdout not captured")?;
+    let stdout = child
+        .stdout
+        .take()
+        .context("oracle stdout not captured")
+        .inspect_err(|_| {
+            cleanup_temps(&classes_dir, &jvm_manifest, &stderr_path);
+        })?;
     let mut fresh_lines = Vec::new();
     {
         let mut reader = std::io::BufReader::new(stdout);
@@ -1156,7 +1214,10 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
             raw.clear();
             let read = reader
                 .read_until(b'\n', &mut raw)
-                .context("reading oracle stdout")?;
+                .context("reading oracle stdout")
+                .inspect_err(|_| {
+                    cleanup_temps(&classes_dir, &jvm_manifest, &stderr_path);
+                })?;
             if read == 0 {
                 break;
             }
@@ -1167,7 +1228,12 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
         }
     }
     drop(child.stderr.take());
-    let status = child.wait().context("waiting for the oracle")?;
+    let status = child
+        .wait()
+        .context("waiting for the oracle")
+        .inspect_err(|_| {
+            cleanup_temps(&classes_dir, &jvm_manifest, &stderr_path);
+        })?;
     let _ = std::fs::remove_file(&jvm_manifest);
     let _ = std::fs::remove_dir_all(&classes_dir);
     if !status.success() {
@@ -1298,7 +1364,36 @@ pub fn diff_records(gold: &GoldenRecord, rust: &GoldenRecord) -> Vec<(String, St
     diff(&mut out, "id", &gold.id, &rust.id);
     diff(&mut out, "file", &gold.file, &rust.file);
     diff(&mut out, "result", &gold.result, &rust.result);
-    diff(&mut out, "facts", &gold.facts, &rust.facts);
+    // Per-field facts paths (quality round MINOR): the blob diff put
+    // every drift detector (hw, median_w, net_a, net_b, snap, pre)
+    // past the 160-char truncate — two visually identical strings.
+    match (&gold.facts, &rust.facts) {
+        (Some(g), Some(r)) => {
+            diff(&mut out, "facts.items", &g.items, &r.items);
+            diff(&mut out, "facts.layers", &g.layers, &r.layers);
+            diff(&mut out, "facts.classes", &g.classes, &r.classes);
+            diff(&mut out, "facts.bbox", &g.bbox, &r.bbox);
+            diff(&mut out, "facts.t_id", &g.t_id, &r.t_id);
+            diff(&mut out, "facts.t_kind", &g.t_kind, &r.t_kind);
+            diff(&mut out, "facts.t_layer", &g.t_layer, &r.t_layer);
+            diff(&mut out, "facts.t_hw", &g.t_hw, &r.t_hw);
+            diff(&mut out, "facts.t_net", &g.t_net, &r.t_net);
+            diff(&mut out, "facts.n_ids", &g.n_ids, &r.n_ids);
+            diff(&mut out, "facts.hw", &g.hw, &r.hw);
+            diff(&mut out, "facts.median_w", &g.median_w, &r.median_w);
+            diff(&mut out, "facts.net_a", &g.net_a, &r.net_a);
+            diff(&mut out, "facts.net_b", &g.net_b, &r.net_b);
+            diff(&mut out, "facts.snap", &g.snap, &r.snap);
+            diff(&mut out, "facts.pre", &g.pre, &r.pre);
+            diff(&mut out, "facts.s_id", &g.s_id, &r.s_id);
+        }
+        (None, None) => {}
+        (g, r) => out.push((
+            "facts".to_string(),
+            g.is_some().to_string(),
+            r.is_some().to_string(),
+        )),
+    }
 
     match (&gold.trees, &rust.trees) {
         (Some(g), Some(r)) => {
@@ -1317,9 +1412,12 @@ pub fn diff_records(gold: &GoldenRecord, rust: &GoldenRecord) -> Vec<(String, St
                 diff(&mut out, &format!("{at}.n"), &gt.n, &rt.n);
                 diff(&mut out, &format!("{at}.sha256"), &gt.sha256, &rt.sha256);
                 diff(&mut out, &format!("{at}.head"), &gt.head, &rt.head);
-                if gt.lines.is_some() && rt.lines.is_some() {
-                    diff(&mut out, &format!("{at}.lines"), &gt.lines, &rt.lines);
-                }
+                // The Option is diffed DIRECTLY (quality round
+                // IMPORTANT): the old some/some guard made a nulled or
+                // truncated golden `lines` a silent skip — a proven
+                // false PASS on committed-golden integrity, and
+                // compare is the golden's only CI guard.
+                diff(&mut out, &format!("{at}.lines"), &gt.lines, &rt.lines);
             }
         }
         (None, None) => {}
@@ -1551,7 +1649,7 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path) -> Result<()> {
             .collect::<Vec<_>>()
             .join(", ");
         bail!(
-            "index compare: {mismatches}/{} fixture(s) diverge (first-section census: {census})",
+            "index compare: {mismatches}/{} fixture(s) diverge (first-diff census: {census})",
             entries.len()
         );
     }
@@ -1673,6 +1771,13 @@ mod pins {
         let odd = IntBox::new(IntPoint::new(-3, -4), IntPoint::new(4, 5));
         // (-3 + 7/2, -4 + 9/2) — truncation toward zero like Java.
         assert_eq!(box_center(&odd), (0, 0));
+        // The discriminating anchor (quality round MINOR-4: the two
+        // above agree with the naive (ll+ur)/2): sum negative, odd
+        // span — naive (-1001+1000)/2 = -1/2 = 0 (Java truncates
+        // toward zero), the ported ll + (ur-ll)/2 = -1001 + 2001/2
+        // = -1.
+        let neg = IntBox::new(IntPoint::new(-1001, -1001), IntPoint::new(1000, 1000));
+        assert_eq!(box_center(&neg), (-1, -1));
     }
 
     /// Pre-steps are keyed by fixture FILE name only.
@@ -1741,5 +1846,270 @@ mod pins {
             line,
             "field order must match the Java emitter"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Committed-artifact guard pins (quality round)
+    // -----------------------------------------------------------------
+
+    /// Loads the committed golden records (strict per line; a line
+    /// that fails to parse is SKIPPED so a single malformed record
+    /// reports as the missing fixture below, not a test panic here).
+    fn committed_golden() -> Vec<GoldenRecord> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus/index-golden.jsonl");
+        std::fs::read_to_string(&path)
+            .expect("committed golden readable")
+            .lines()
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect()
+    }
+
+    fn golden_for(name: &str) -> GoldenRecord {
+        committed_golden()
+            .into_iter()
+            .find(|record| record.file.ends_with(name))
+            .unwrap_or_else(|| panic!("no committed golden for {name}"))
+    }
+
+    fn tree_ns(record: &GoldenRecord) -> Vec<i64> {
+        record
+            .trees
+            .as_ref()
+            .expect("trees")
+            .iter()
+            .map(|tree| tree.n)
+            .collect()
+    }
+
+    fn query_row(
+        record: &GoldenRecord,
+        phase: &str,
+        tag: &str,
+        key_suffix: &str,
+        ig: &[i64],
+    ) -> QueryRecord {
+        record
+            .queries
+            .as_ref()
+            .and_then(|queries| {
+                queries.iter().find(|q| {
+                    q.phase == phase && q.tag == tag && q.key.ends_with(key_suffix) && q.ig == ig
+                })
+            })
+            .cloned()
+            .unwrap_or_else(|| panic!("no {phase}/{tag}/{key_suffix}/ig={ig:?} row"))
+    }
+
+    /// IMPORTANT (quality round): a committed golden whose `lines`
+    /// field is nulled must be REPORTED — compare is the golden's only
+    /// CI guard, and the old some/some guard made the null a silent
+    /// skip (the reviewer proved a false PASS by nulling idx-0005's
+    /// 103-line array).
+    #[test]
+    fn a_nulled_lines_field_is_reported_as_a_divergence() {
+        let mut gold = committed_golden()
+            .into_iter()
+            .find(|record| {
+                record
+                    .trees
+                    .as_ref()
+                    .is_some_and(|trees| trees.iter().any(|tree| tree.lines.is_some()))
+            })
+            .expect("a golden record with committed lines");
+        let rust = gold.clone();
+        let index = gold
+            .trees
+            .as_ref()
+            .expect("trees")
+            .iter()
+            .position(|tree| tree.lines.is_some())
+            .expect("a lines-bearing tree");
+        gold.trees.as_mut().expect("trees")[index].lines = None;
+        let diffs = diff_records(&gold, &rust);
+        assert!(
+            diffs
+                .iter()
+                .any(|(field, _, _)| field == &format!("trees[{index}].lines")),
+            "the nulled lines must surface as trees[{index}].lines, got {diffs:?}"
+        );
+    }
+
+    /// MINOR-2 (quality round): the COMMITTED manifest is fresh — a
+    /// fixture added to tiers.yaml or the stressor dir without
+    /// `index manifest` + `index golden` would otherwise be silently
+    /// ungated by CI (dsn-corpus convention, `dsn_corpus.rs`).
+    #[test]
+    fn committed_manifest_regenerates_byte_identical() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let committed = std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus/index-manifest.jsonl"),
+        )
+        .expect("committed index manifest");
+        let regenerated = build_manifest_bytes(&root).expect("manifest regeneration");
+        assert_eq!(
+            regenerated, committed,
+            "index manifest regeneration drifted from the committed file — run \
+             `epic-harness index manifest` then `index golden`"
+        );
+    }
+
+    /// MINOR-7 (quality round): the crafted-trap TREE facts, asserted
+    /// against the committed golden — a legitimate golden regen that
+    /// accidentally loses a trap fails HERE instead of silently
+    /// keeping CI green. Values verified anchor-blind in the Task 9
+    /// fix round and re-extracted from the committed goldens.
+    #[test]
+    fn committed_golden_holds_the_tree_fact_traps() {
+        // drill-inflate: the scripted hole clearance + the
+        // hole-inflated shape count.
+        let record = golden_for("drill-inflate.dsn");
+        assert_eq!(
+            record.facts.as_ref().expect("facts").pre,
+            vec!["setHoleClearance=2500"]
+        );
+        assert_eq!(tree_ns(&record), vec![39, 39, 39]);
+
+        // sectioning: only the compensated cc1 tree splits the grid.
+        let record = golden_for("sectioning.dsn");
+        assert_eq!(tree_ns(&record), vec![21, 25, 21]);
+
+        // asym-classes: 4 classes and per-class compensation changes
+        // the dump.
+        let record = golden_for("asym-classes.dsn");
+        assert_eq!(
+            record.facts.as_ref().expect("facts").classes,
+            vec!["null", "default", "CB", "CC"]
+        );
+        let trees = record.trees.expect("trees");
+        assert_ne!(
+            trees[0].sha256, trees[1].sha256,
+            "cc0 vs cc1 must differ under asymmetric classes"
+        );
+
+        // deg90: the autoroute tree switches to the 90-degree variant.
+        let record = golden_for("deg90.dsn");
+        assert_eq!(
+            record.trees.expect("trees")[2].key,
+            "ShapeSearchTree90Degree_Orthogonal_cc2"
+        );
+
+        // sym-tie: BOTH mirrored equal-area keepout leaves (obj=2 and
+        // obj=3) in every dump, in the pinned tie order (the trace
+        // first, keepout 3, the outline windows, keepout 2 last).
+        let record = golden_for("sym-tie.dsn");
+        for tree in record.trees.expect("trees") {
+            let lines = tree.lines.expect("sym-tie is small enough for full lines");
+            let leaf = |obj: i64| {
+                lines
+                    .iter()
+                    .any(|line| line.trim_start().starts_with(&format!("L obj={obj} idx=")))
+            };
+            assert!(leaf(2), "{} misses the obj=2 keepout", tree.phase);
+            assert!(leaf(3), "{} misses the obj=3 keepout", tree.phase);
+            let order: Vec<i64> = lines
+                .iter()
+                .filter(|line| line.trim_start().starts_with("L obj="))
+                .map(|line| {
+                    line.trim_start()["L obj=".len()..]
+                        .split_whitespace()
+                        .next()
+                        .and_then(|id| id.parse().ok())
+                        .unwrap_or(-1)
+                })
+                .collect();
+            assert_eq!(&order[..2], &[4, 3], "{} tie order", tree.phase);
+        }
+    }
+
+    /// MINOR-7 (quality round): the crafted-trap QUERY rows, against
+    /// the committed golden (same rationale as the tree-fact traps).
+    #[test]
+    fn committed_golden_holds_the_query_row_traps() {
+        // stale-bounds: the ctrbox window opens only while S is live
+        // (0/12 -> 12/12 -> 0/12 across the phases).
+        let record = golden_for("stale-bounds.dsn");
+        for (phase, expect) in [("rmT", 0), ("insS", 12), ("rmS", 0)] {
+            let rows: Vec<&QueryRecord> = record
+                .queries
+                .as_ref()
+                .expect("queries")
+                .iter()
+                .filter(|q| q.phase == phase && q.tag == "ctrbox")
+                .collect();
+            assert_eq!(rows.len(), 12, "{phase} ctrbox rows (2 trees x 6 igs)");
+            assert_eq!(
+                rows.iter().filter(|q| !q.e.is_empty()).count(),
+                expect,
+                "{phase} non-empty ctrbox rows"
+            );
+        }
+
+        // oct-touch: the exact 45-degree boundary contact — own0
+        // INCLUDED, xlate-hw EXCLUDED, xlate+hw INCLUDED (cc2, rmT,
+        // no ignore nets).
+        let record = golden_for("oct-touch.dsn");
+        assert_eq!(
+            query_row(&record, "rmT", "own0", "_cc2", &[]).e,
+            vec![(2, 0)]
+        );
+        assert_eq!(
+            query_row(&record, "rmT", "xlate-hw", "_cc2", &[]).e,
+            Vec::<(i64, i64)>::new()
+        );
+        assert_eq!(
+            query_row(&record, "rmT", "xlate+hw", "_cc2", &[]).e,
+            vec![(2, 0)]
+        );
+
+        // multi-net: the ANY-net ignore semantics, both directions —
+        // the 2-net pin survives exactly when NO ignored net is
+        // carried (net 0 never ignores).
+        let record = golden_for("multi-net.dsn");
+        for (ig, expected) in [
+            (vec![], vec![(2, 0)]),
+            (vec![0], vec![(2, 0)]),
+            (vec![9999], vec![(2, 0)]),
+            (vec![2], Vec::<(i64, i64)>::new()),
+            (vec![1], Vec::<(i64, i64)>::new()),
+            (vec![2, 1], Vec::<(i64, i64)>::new()),
+        ] {
+            assert_eq!(
+                query_row(&record, "rmT", "ctrbox", "_cc1", &ig).e,
+                expected,
+                "ig {ig:?}"
+            );
+        }
+
+        // clear-tie: the equal-clearance keepouts tie in descending
+        // order at class 1; classes 0 and 2 are the empty contrast.
+        let record = golden_for("clear-tie.dsn");
+        for row in record.wc.expect("wc") {
+            if row.tag != "ctrbox" {
+                continue;
+            }
+            let expected = if row.cls == 1 {
+                vec![(3, 0), (2, 0)]
+            } else {
+                Vec::new()
+            };
+            assert_eq!(row.e, expected, "cls {} ig {:?}", row.cls, row.ig);
+        }
+
+        // empty-tree: the ONLY non-empty rows are insS x ctrbox (the
+        // scripted trace found through the emptied tree).
+        let record = golden_for("empty-tree.dsn");
+        let queries = record.queries.expect("queries");
+        let non_empty = queries.iter().filter(|q| !q.e.is_empty()).count();
+        assert_eq!(non_empty, 12, "exactly the 12 insS x ctrbox rows");
+        for q in &queries {
+            assert_eq!(
+                !q.e.is_empty(),
+                q.phase == "insS" && q.tag == "ctrbox",
+                "phase {} tag {} key {}",
+                q.phase,
+                q.tag,
+                q.key
+            );
+        }
     }
 }

@@ -21,7 +21,10 @@
 // Input: one {"id":"idx-NNNN","path":"repo/relative.dsn"} per line.
 // Output: ONE JSONL result line per fixture (stdout lines starting
 // with {"id" are the results; the jar's FRLogger noise is interleaved
-// and dropped by the reader).
+// and dropped by the reader). An evaluate-time throwable emits a
+// full-null "EvalError" record and the batch CONTINUES (DsnParseOracle
+// discipline — the Rust side never emits that string, so compare
+// flags it loudly); a malformed manifest line is a named exit 3.
 //
 // The protocol per fixture (both sides identical — see the Rust
 // module docs):
@@ -65,7 +68,12 @@ import app.freerouting.io.BoardReadResult;
 import app.freerouting.io.specctra.DsnReader;
 import app.freerouting.rules.BoardRules;
 import app.freerouting.rules.ClearanceMatrix;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -442,7 +450,6 @@ public final class IndexOracle {
     facts.raw(",\"net_b\":").num(netB);
     facts.raw(",\"snap\":").str(snap);
     facts.raw(",\"pre\":").strArray(pre);
-    facts.raw("}");
 
     // ---- tree build sequence ------------------------------------------
     ShapeSearchTree cc0 = board.searchTreeManager.getDefaultTree();
@@ -710,9 +717,17 @@ public final class IndexOracle {
         validated++;
       }
       val.raw("]");
+
+      // s_id LAST in facts (both sides): the scripted trace's
+      // allocated id — the dsn-0151 id-burn drift detector (a future
+      // fixture where the sides' generators disagree diverges HERE
+      // instead of as a cryptic queries[i].e mismatch).
+      facts.raw(",\"s_id\":").num(s.getId());
     } else {
       queries.append("]");
+      facts.raw(",\"s_id\":").nul();
     }
+    facts.raw("}");
 
     return new Json()
         .raw("{\"id\":")
@@ -811,31 +826,65 @@ public final class IndexOracle {
   // entry
   // ---------------------------------------------------------------------
 
-  static String jsonField(String line, String name) {
-    String needle = "\"" + name + "\":\"";
-    int at = line.indexOf(needle);
-    if (at < 0) {
-      return null;
-    }
-    int start = at + needle.length();
-    int end = line.indexOf('"', start);
-    return end < 0 ? null : line.substring(start, end);
-  }
-
   public static void main(String[] args) throws Exception {
-    List<String> lines = Files.readAllLines(Paths.get(args[0]));
+    if (args.length != 1) {
+      System.err.println("usage: IndexOracle <manifest.jsonl>");
+      System.exit(2);
+    }
+    List<String> lines = Files.readAllLines(Paths.get(args[0]), StandardCharsets.UTF_8);
+    BufferedWriter out =
+        new BufferedWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8));
     for (String line : lines) {
       String trimmed = line.trim();
       if (trimmed.isEmpty()) {
         continue;
       }
-      String id = jsonField(trimmed, "id");
-      String path = jsonField(trimmed, "path");
-      if (id == null || path == null) {
-        throw new IllegalStateException("bad manifest line: " + trimmed);
+      String id = null;
+      String path = null;
+      try {
+        JsonObject entry = JsonParser.parseString(trimmed).getAsJsonObject();
+        id = entry.get("id").getAsString();
+        path = entry.get("path").getAsString();
+      } catch (RuntimeException e) {
+        out.flush();
+        // Named-exit manifest-error path (DsnParseOracle convention):
+        // name the id when the line parsed far enough to yield one;
+        // otherwise the raw line, truncated.
+        if (id != null) {
+          System.err.println("manifest format error for case id " + id + ": " + e);
+        } else {
+          String raw = trimmed.length() <= 120 ? trimmed : trimmed.substring(0, 120) + "...";
+          System.err.println("manifest format error on line '" + raw + "': " + e);
+        }
+        System.exit(3);
+        return;
       }
-      byte[] bytes = Files.readAllBytes(Paths.get(path));
-      System.out.println(evaluateFixture(id, path, bytes));
+      String record;
+      try {
+        byte[] bytes = Files.readAllBytes(Paths.get(path));
+        record = evaluateFixture(id, path, bytes);
+      } catch (Throwable t) {
+        // Per-fixture capture (DsnParseOracle discipline): one bad
+        // fixture must not kill the batch. The record carries the
+        // FULL null-field shape so the Rust reader parses it, with a
+        // result string the Rust side NEVER emits — the committed
+        // line fails compare loudly instead of truncating the capture.
+        System.err.println("evaluate error for case id " + id + ": " + t);
+        record =
+            "{\"id\":\""
+                + Json.esc(id)
+                + "\",\"file\":\""
+                + Json.esc(path)
+                + "\",\"result\":\"EvalError\",\"facts\":null,\"trees\":null,"
+                + "\"sshapes\":null,\"queries\":null,\"wc\":null,\"ob\":null,\"ic\":null,"
+                + "\"cs\":null,\"val\":null}";
+      }
+      out.write(record);
+      out.write("\n");
+      // Flush per case: interleaved logger noise keeps result lines
+      // atomic (M1a bug-078 lesson).
+      out.flush();
     }
+    out.flush();
   }
 }
