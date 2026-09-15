@@ -385,7 +385,7 @@ impl SearchTreeManager {
     // -----------------------------------------------------------------
     // The overlap query family (M2 Task 8; Java
     // ShapeSearchTree.java:390-570 + BasicBoard.checkShape
-    // :952-981). The candidate/geometry halves live in epic-index
+    // :957-981). The candidate/geometry halves live in epic-index
     // ([`SearchTree::query_candidates`],
     // [`SearchTree::entry_intersects`],
     // [`SearchTree::clearance_candidates`],
@@ -410,7 +410,7 @@ impl SearchTreeManager {
     /// * `layer < 0` OR the stored shape's layer equals `layer`
     ///   (`currentObject.shapeLayer(shapeIndex)`),
     /// * the item `isObstacle` for EVERY ignore net — note the
-    ///   inverted Java loop (`:415-419`): ONE non-obstacle net
+    ///   inverted Java loop (`:412-417`): ONE non-obstacle net
     ///   ignores the whole item, and net 0 never ignores
     ///   ([`Board::item_is_obstacle`]),
     /// * the exact test: the T53 octagon-skip when both shapes are
@@ -625,7 +625,7 @@ impl SearchTreeManager {
         )
     }
 
-    /// Java `BasicBoard.checkShape` (`BasicBoard.java:952-981`): can
+    /// Java `BasicBoard.checkShape` (`BasicBoard.java:957-981`): can
     /// a shape with `net_numbers` and `clearance_class` go on
     /// `layer` without a clearance violation? Per convex piece:
     /// the board bounding-box containment, then the with-clearance

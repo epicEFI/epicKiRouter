@@ -136,14 +136,15 @@ pub struct SearchTree {
     /// Process-unique identity (Java object reference).
     object_id: u64,
     /// Java `EntrySortedByClearance.lastGeneratedEntryId`
-    /// (`ShapeSearchTree.java:1145`): the STATIC tie counter behind the
+    /// (`ShapeSearchTree.java:55`): the STATIC tie counter behind the
     /// with-clearance query's sort order. Java's is a static field on
     /// the inner class (one counter for ALL trees of the JVM); the M2
     /// decision is TREE-OWNED persistent state — the observable is the
     /// WITHIN-QUERY tie (equal clearances come out in construction
     /// order, i.e. descending item id on a board), which a per-tree
     /// counter reproduces exactly. The `Integer.MAX_VALUE` wrap-to-0
-    /// quirk (`:1146-1149`) is ported but deliberately NOT pinned: the
+    /// quirk (`:1144-1148`, the wrap-reset assignment inside the
+    /// constructor) is ported but deliberately NOT pinned: the
     /// wrap needs 2^31 prior queries.
     last_generated_entry_id: i32,
 }
@@ -406,8 +407,8 @@ impl SearchTree {
 
         let mut result = Vec::new();
         let mut current_half_clearance = 0;
-        // Java :474: the initial offset shape is the RAW query — NOT
-        // enlarge(0).
+        // Java :490-491: the initial offset shape is the RAW query —
+        // NOT enlarge(0).
         let mut current_offset_shape = query.clone();
         for (clearance, _entry_id, index) in sorted {
             let (leaf, _leaf_clearance, stored) = &candidates[index];
@@ -750,7 +751,7 @@ mod tests {
         assert!(hits.is_empty(), "half 5+5 does not reach a gap of 11");
 
         // clearance 1 (half 0 — Java int division): the RAW query
-        // against the raw stored shape (Java :474 keeps the
+        // against the raw stored shape (Java :490-491 keeps the
         // un-enlarged start); gap 1 stays a gap.
         let hits = tree.clearance_test(&query, &[(leaf_of(4), 1, stored.clone())]);
         assert!(hits.is_empty(), "clearance 1 → half 0 → raw vs raw");
