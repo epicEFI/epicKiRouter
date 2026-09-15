@@ -89,7 +89,7 @@
 //!
 //! # The connection walk (NONE-only form)
 //!
-//! `getConnectionItems` (`Item.java:736-815`) seeds with the item's
+//! `getConnectionItems` (`Item.java:746-825`) seeds with the item's
 //! normal contacts, requires a `normalContactPoint` against the
 //! receiver, applies the EXACTLY-ONE-CONTACT contract at the receiver
 //! corner (trace receivers only:
@@ -320,14 +320,14 @@ fn contact_kind(board: &Board, id: ItemId) -> ContactKind {
 /// Java `Item.normalContactPoint(Item)` over the dispatch chain —
 /// `null` = `None`. Per pair:
 ///
-/// * Trace ↔ Trace (`Trace.java:138-153`): EXACT layer equality
+/// * Trace ↔ Trace (`Trace.java:131-152`): EXACT layer equality
 ///   first; then `contactAtFirstCorner` / `contactAtLastCorner` —
 ///   exactly one of the two must hold (both = null, the doubled-back
 ///   Y7 case; neither = null, the mid-corner Y1 case); the answer is
 ///   the receiver's first or last corner respectively.
-/// * Drill ↔ Trace (`DrillItem.java:341-350`): sharesLayer and the
+/// * Drill ↔ Trace (`DrillItem.java:340-349`): sharesLayer and the
 ///   drill center ON a trace endpoint → the center.
-/// * Drill ↔ Drill (`DrillItem.java:334-339`): sharesLayer and equal
+/// * Drill ↔ Drill (`DrillItem.java:332-337`): sharesLayer and equal
 ///   centers → the receiver's center (after the dispatch swap, the
 ///   SECOND argument's).
 /// * Anything else: `None` (the `Item` default, `:620-623`).
@@ -446,7 +446,7 @@ pub fn item_normal_contacts(
     }
 }
 
-/// Java `Item.getConnectionItems()` (`Item.java:736-815`) — the fork-
+/// Java `Item.getConnectionItems()` (`Item.java:746-825`) — the fork-
 /// terminated connected walk (module docs). Descending ids (the
 /// `TreeSet` under `Item.compareTo`).
 pub fn get_connection_items(
@@ -463,25 +463,25 @@ pub fn get_connection_items(
         Some(ItemData::Trace { .. })
     );
     for mut current in item_normal_contacts(manager, board, item_id) {
-        // The arrival point against the RECEIVER (:765-769).
+        // The arrival point against the RECEIVER (:753-757).
         let Some(mut prev_contact_point) = normal_contact_point(board, item_id, current) else {
             continue;
         };
         let mut prev_contact_layer = first_common_layer(board, item_id, current);
         // The exactly-one-contact contract, TRACE receivers only
-        // (:770-778).
+        // (:758-766).
         if receiver_is_trace
             && contacts::normal_contacts(manager, board, item_id, &prev_contact_point, false).len()
                 != 1
         {
             continue;
         }
-        // The walk (:780-823): forks and dead ends terminate.
+        // The walk (:770-822): forks and dead ends terminate.
         loop {
             if !is_routable(board, current) {
                 break;
             }
-            // The Via stop options (:783-792) are VIA / FANOUT_VIA;
+            // The Via stop options (:775-783) are VIA / FANOUT_VIA;
             // this surface only produces NONE, which never stops —
             // the branch is unreachable and absent (isFanoutVia = M3).
             result.insert(Reverse(current));
@@ -489,6 +489,13 @@ pub fn get_connection_items(
             let mut fork_found = false;
             for tmp_contact in item_normal_contacts(manager, board, current) {
                 let tmp_layer = first_common_layer(board, current, tmp_contact);
+                // Java's `tmpLayer < 0 → continue` guard (:796-797) is
+                // structurally unreachable ON THE WALK — every walked
+                // pair came out of a layer-matched contact set, so the
+                // two layer intervals overlap — but it is kept as a
+                // literal port of the shape; the -1 branch of
+                // [`first_common_layer`] itself is pinned instead by
+                // the capture's R2_FCL_AB row (the R2 test).
                 if tmp_layer < 0 {
                     continue;
                 }
@@ -968,7 +975,14 @@ fn combine_at_end(
 
 /// Java `PolylineTrace.combine()` (`:175-192`): the loop — start
 /// first each iteration, on-board rechecked (the shrink rule can
-/// remove the receiver mid-loop).
+/// remove the receiver mid-loop). The START-first order is
+/// observable: D3 is the HALF-ORDER witness (mutation check —
+/// flipping the loop to end-first rotates the ring's corner list to
+/// `[10000,10000 30000,10000 30000,30000 10000,30000 10000,10000]`
+/// and fails `d3_closed_ring_through_the_start_half`); the C3/C5
+/// final pins are order-INsensitive (opposite-end joins commute on
+/// those shapes), so D3 is the only test that catches a swapped
+/// loop.
 pub fn combine(manager: &mut SearchTreeManager, board: &mut Board, trace_id: ItemId) -> bool {
     let mut something_changed = false;
     while board.is_on_the_board(trace_id)
@@ -1313,7 +1327,12 @@ mod tests {
     /// items: component attachment (pin 3), USER_FIXED-or-stronger
     /// (outline 1 / keepout 2 are SYSTEM_FIXED), plain conduction area
     /// 6 on a signal layer NOT forbidden, plain trace E NOT forbidden.
-    /// Capture contrast: `R5_CONTACTS ... bForbidden=true`.
+    /// Capture contrast: `R5_CONTACTS ... bForbidden=true`. The
+    /// NON-signal-layer conduction-area branch (the `!is_signal`
+    /// arm) is deliberately UNPINNED here: the PURE board declares
+    /// only signal layers, and adding a plane layer to the fixture
+    /// would re-index every baseline item/tree row this file pins —
+    /// construction is disproportionate to the branch's risk.
     #[test]
     fn deletion_forbidden_per_kind() {
         let (mut manager, mut board) = fresh();
@@ -1583,6 +1602,22 @@ mod tests {
         assert_eq!(manager.default_tree().leaf_count(), 18, "C2 post leaves");
         let survivor = leaf_rows_for(&manager, a);
         assert_eq!(survivor.len(), 2, "a 3-corner trace carries 2 leaves");
+        // The two `C2_POST_TREE_ROW` leaf rows (capture, prefix
+        // stripped), pinned as a SORTED SET — D18: Java took
+        // MERGE_ENTRIES here, so only the geometry-derived leaf rows
+        // are stable, not their position in the I-node history.
+        let mut got_leaves: Vec<String> =
+            survivor.iter().map(|row| row.trim().to_owned()).collect();
+        got_leaves.sort();
+        let mut expected_leaves: Vec<&str> = vec![
+            "L obj=10 idx=0 oct[9875 29875 30125 30125 -20177 177 39823 60177]",
+            "L obj=10 idx=1 oct[29875 29875 30125 50125 -20177 177 59823 80177]",
+        ];
+        expected_leaves.sort_unstable();
+        assert_eq!(
+            got_leaves, expected_leaves,
+            "C2_POST_TREE_ROW survivors (sorted set)"
+        );
     }
 
     /// C3 — reverse start-join, then the loop joins the parse trace E
@@ -1858,6 +1893,12 @@ mod tests {
             board.get(a).is_some() && board.get(b).is_some(),
             "R2 both alive"
         );
+        // The disjoint-interval -1 branch of firstCommonLayer —
+        // capture `R2_FCL_AB -1` (the ONLY cross-layer pair on this
+        // board; the walk's `tmp_layer < 0` guard never sees it,
+        // because walked pairs always come from layer-matched
+        // contact sets).
+        assert_eq!(first_common_layer(&mut board, a, b), -1, "R2_FCL_AB -1");
     }
 
     /// R3 — fixed mismatch refuses (SHOVE_FIXED != UNFIXED) — but a
@@ -1890,6 +1931,15 @@ mod tests {
             board.get(a).is_some() && board.get(b).is_some(),
             "R3 both alive"
         );
+        // Capture `R3_B_USER_FIXED false B_FORBIDDEN false`:
+        // SHOVE_FIXED does NOT count as user-fixed and is NOT
+        // deletion-forbidden — a port mutant gating on
+        // `>= ShoveFixed` flips the first probe.
+        assert!(
+            !is_user_fixed(board.get(b).expect("R3 b alive")),
+            "R3_B_USER_FIXED false (SHOVE_FIXED < USER_FIXED)"
+        );
+        assert!(!is_deletion_forbidden(&board, b), "R3_B_FORBIDDEN false");
     }
 
     /// R4 — SAME fixed state COMBINES (the gate is equality, not
@@ -2205,7 +2255,11 @@ mod tests {
     /// atStart-normal reverse=false skipLine=false, and the final
     /// corners pin that: `D3_A_ALIVE true corners=[10000,30000
     /// 10000,10000 30000,10000 30000,30000 10000,30000]`,
-    /// `D3_B_ALIVE false`.
+    /// `D3_B_ALIVE false`. This test is also the combine-loop
+    /// HALF-ORDER witness: an end-first loop rotates the survivor to
+    /// `[10000,10000 30000,10000 30000,30000 10000,30000
+    /// 10000,10000]` (mutation-verified — see [`combine`]'s docs);
+    /// the C3/C5 shapes cannot catch that swap.
     #[test]
     fn d3_closed_ring_through_the_start_half() {
         let (mut manager, mut board) = fresh();
@@ -2687,6 +2741,50 @@ mod tests {
         .expect("insert succeeded")
     }
 
+    /// The spike's `board.insertVia(via.getPadstack(), center, ...)`:
+    /// clone via 5's padstack record into a NEW via at `center` and
+    /// run the same alloc → insert → tree-broadcast path the trace
+    /// helpers use (the port's `insertVia` facade is M3; the quality
+    /// probes only need the item + index state). PAD_C600 spans ONE
+    /// layer, so Java's splitTraces tail is a no-op for these probe
+    /// placements — no trace crosses the touched centers, nothing
+    /// above moves.
+    fn insert_via_fixture(
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        center: IntPoint,
+        nets: &[i32],
+    ) -> ItemId {
+        let template = ItemId::new(5);
+        let (padstack_no, attach_smd_allowed, clearance_class) = match board.get(template) {
+            Some(entry) => match &entry.data {
+                ItemData::Via {
+                    padstack_no,
+                    attach_smd_allowed,
+                    ..
+                } => (*padstack_no, *attach_smd_allowed, entry.clearance_class),
+                _ => unreachable!("template 5 is the parse via"),
+            },
+            None => unreachable!("template 5 is the parse via"),
+        };
+        let id = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id,
+            data: ItemData::Via {
+                center,
+                padstack_no,
+                attach_smd_allowed,
+            },
+            nets: nets.to_vec(),
+            clearance_class,
+            component_id: 0,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        manager.insert(board, id);
+        id
+    }
+
     /// PINWALK — the isRoutable KIND gate. The base `Item.isRoutable()`
     /// returns FALSE (`Item.java:908-910`); only `Trace`
     /// (`Trace.java:206-209`) and `Via` (`Via.java:147-150`) override
@@ -2701,7 +2799,15 @@ mod tests {
     /// `PINWALK_FROM_VIA [11:T,5:V]`, `PINWALK_POST_ITEM` for every id
     /// 1..11 (all walks read-only). A port that treats ANY item with
     /// nets as routable returns `[10,3]` / `[10,3]` / `[11,5,3]` here;
-    /// a gate that forgets VIA returns `[10]` on the last probe.
+    /// a gate that forgets VIA returns `[10]` on the last probe. The
+    /// APPENDED probes (capture `PINWALK_VIA2_ID 12` …
+    /// `PINWALK_NETLESS_ID 14 ROUTABLE false`) close the gate's other
+    /// blind spots: via 12 at via 5's own center exercises the
+    /// Drill↔Drill dispatch (dead on a one-via board) and shows the
+    /// via's contact set growing; traces 13/14 prove the two
+    /// NON-kind clauses — a port gating on kind ALONE marks the
+    /// USER_FIXED trace routable, a port gating on nets ALONE marks
+    /// the netless trace routable.
     #[test]
     fn pin_routable_kind_gate() {
         let (mut manager, mut board) = fresh();
@@ -2758,6 +2864,55 @@ mod tests {
                 "PINWALK_POST_ITEM id={id} alive"
             );
         }
+        // Quality-round probes (MINOR 3a/3c), after the pinned rows
+        // above: a SECOND via at via 5's own center, a USER_FIXED
+        // same-net trace and a NETLESS trace.
+        let via2 = insert_via_fixture(
+            &mut manager,
+            &mut board,
+            IntPoint::new(40_000, 40_000),
+            &[1],
+        );
+        assert_eq!(via2.get(), 12, "PINWALK_VIA2_ID 12");
+        assert_eq!(
+            normal_contact_point(&mut board, ItemId::new(5), via2),
+            Some(ip(40_000, 40_000)),
+            "PINWALK_DRILL_DRILL_NCP 40000,40000"
+        );
+        assert_eq!(
+            raw(&item_normal_contacts(&manager, &mut board, via2)),
+            vec![11, 5],
+            "PINWALK_VIA2_CONTACTS [11:T,5:V]"
+        );
+        assert_eq!(
+            raw(&item_normal_contacts(&manager, &mut board, ItemId::new(5))),
+            vec![12, 11],
+            "PINWALK_VIA_CONTACTS_NOW [12:V,11:T]"
+        );
+        let fixed_trace = insert_with(
+            &mut manager,
+            &mut board,
+            &[(75_000, 45_000), (85_000, 45_000)],
+            0,
+            0,
+            FixedState::UserFixed,
+        );
+        assert_eq!(fixed_trace.get(), 13, "PINWALK_FIXED_ID 13");
+        assert!(
+            !is_routable(&board, fixed_trace),
+            "PINWALK_FIXED_ID 13 ROUTABLE false (kind right, USER_FIXED clause)"
+        );
+        let netless_trace = insert_nets(
+            &mut manager,
+            &mut board,
+            &[(75_000, 50_000), (85_000, 50_000)],
+            &[],
+        );
+        assert_eq!(netless_trace.get(), 14, "PINWALK_NETLESS_ID 14");
+        assert!(
+            !is_routable(&board, netless_trace),
+            "PINWALK_NETLESS_ID 14 ROUTABLE false (kind right, netCount clause)"
+        );
     }
 
     /// DEGEN — two single-segment traces joined end-to-end do NOT

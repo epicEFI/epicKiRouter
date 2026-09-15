@@ -62,6 +62,12 @@
 //          corners, contact sets, and the pairwise
 //          firstCommonLayer/normalContactPoint values, so the port
 //          can reproduce the walk's input state exactly.
+//   G    — the insertTraceWithoutCleaning guards: 1-corner input (no
+//          id burned), doubled-back input (polygon collapse, still no
+//          burn), closed ring UNFIXED (refused AFTER the ctor — the id
+//          IS burned, shown by the witness gap) vs USER_FIXED
+//          (inserts), and the BasicBoard half-width accumulators vs
+//          the BoardRules getters.
 //   PINWALK — the isRoutable KIND GATE (fix round): a pin is never
 //          routable (base-class false; only Trace/Via override), so
 //          the connection walk EXCLUDES the pin and STOPS there,
@@ -616,6 +622,9 @@ public final class CombineSpike {
         + " B_START_CONTACTS " + endContacts(b, true));
     System.out.println("R2_COMBINE " + a.combine() + " " + b.combine());
     System.out.println("R2_A_ALIVE " + a.isOnTheBoard() + " B_ALIVE " + b.isOnTheBoard());
+    // Quality-round probe (MINOR 3b): the disjoint-interval -1 branch
+    // of firstCommonLayer — the ONLY cross-layer pair on this board.
+    System.out.println("R2_FCL_AB " + a.firstCommonLayer(b));
   }
 
   static void caseR3() {
@@ -629,6 +638,11 @@ public final class CombineSpike {
     System.out.println("R3_CONTACTS " + endContacts(a, false));
     System.out.println("R3_COMBINE " + a.combine());
     System.out.println("R3_A_ALIVE " + a.isOnTheBoard() + " B_ALIVE " + b.isOnTheBoard());
+    // Quality-round probe (MINOR 3d): SHOVE_FIXED does NOT count as
+    // user-fixed and is not deletion-forbidden — a port mutant using
+    // >= SHOVE_FIXED would flip the first field.
+    System.out.println("R3_B_USER_FIXED " + b.isUserFixed() + " B_FORBIDDEN "
+        + b.isDeletionForbidden());
   }
 
   static void caseR4() {
@@ -871,10 +885,6 @@ public final class CombineSpike {
   }
 
   // ---------------------------------------------------------------------
-  // main
-  // ---------------------------------------------------------------------
-
-  // ---------------------------------------------------------------------
   // G: the insertTraceWithoutCleaning guards (BasicBoard.java:179-207)
   // ---------------------------------------------------------------------
 
@@ -977,6 +987,28 @@ public final class CombineSpike {
     System.out.println("PINWALK_FROM_PIN " + items(pin.getConnectionItems()));
     System.out.println("PINWALK_FROM_VIA " + items(via.getConnectionItems()));
     dumpItems(board, "PINWALK_POST");
+    // Quality-round probes (MINOR 3a/3c), appended AFTER the pinned
+    // rows above: a SECOND via at via's own center (the Drill↔Drill
+    // equal-centers contact — a one-via board leaves that dispatch
+    // dead), a USER_FIXED same-net trace and a NETLESS trace (the two
+    // non-kind clauses of the routable gate). PAD_C600 spans ONE
+    // layer, so insertVia's splitTraces tail never runs (the
+    // fromLayer..toLayer range is empty) and no trace crosses the
+    // touched centers — nothing above moves.
+    Via via2 = board.insertVia(via.getPadstack(), ip(40000, 40000), via.netNumbers,
+        via.clearanceClassIndex(), FixedState.UNFIXED, false);
+    PolylineTrace fixedTrace = insFixed(board, t, new Point[] {ip(75000, 45000),
+        ip(85000, 45000)}, FixedState.USER_FIXED);
+    PolylineTrace netlessTrace = insNet(board, t, new Point[] {ip(75000, 50000),
+        ip(85000, 50000)}, new int[0]);
+    System.out.println("PINWALK_VIA2_ID " + via2.getId());
+    System.out.println("PINWALK_DRILL_DRILL_NCP " + xy(via.normalContactPoint(via2)));
+    System.out.println("PINWALK_VIA2_CONTACTS " + items(via2.getNormalContacts()));
+    System.out.println("PINWALK_VIA_CONTACTS_NOW " + items(via.getNormalContacts()));
+    System.out.println("PINWALK_FIXED_ID " + fixedTrace.getId() + " ROUTABLE "
+        + fixedTrace.isRoutable());
+    System.out.println("PINWALK_NETLESS_ID " + netlessTrace.getId() + " ROUTABLE "
+        + netlessTrace.isRoutable());
   }
 
   /**

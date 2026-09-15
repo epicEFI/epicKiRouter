@@ -659,7 +659,7 @@ impl Board {
         Some(*half_width)
     }
 
-    /// Java `PolylineTrace.setPolyline` (`PolylineTrace.java:569-572`
+    /// Java `PolylineTrace.setPolyline` (`PolylineTrace.java:127-130`
     /// — `this.lines = pPolyline` alone). The write half of
     /// [`Board::trace_polyline`]; the id is PRESERVED (Java mutates the
     /// object). The surrounding remove/clear/insert choreography is

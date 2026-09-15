@@ -384,7 +384,14 @@ mod tests {
   )\n\
 )\n";
 
-    /// The default-tree manager over the board's items.
+    /// The default-tree manager over the board's items. Deliberately
+    /// still the REBUILD fill (`insert_all_board_items`, descending
+    /// id) — NOT the read-path `insert_items_creation_order` the
+    /// trace_ops fixtures use: the contacts pins are order-INdependent
+    /// (both fills produce identical contact answers; only tree
+    /// skeletons differ), so this seam stays on the rebuild path. Do
+    /// not "harmonize" in either direction without re-checking the T9
+    /// rebuild goldens and the T11 read-path baseline.
     fn indexed(board: &mut Board) -> SearchTreeManager {
         let mut manager = SearchTreeManager::new();
         manager.insert_all_board_items(board);
