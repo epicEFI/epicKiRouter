@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-15T21:53:50.772Z",
-    "fileCount": 532,
+    "lastScanned": "2026-09-15T23:50:27.254Z",
+    "fileCount": 541,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "413840d1dcee3241d9cbd3927713d6b3f3d213bf2c717aca970fa6c9c88bb65e",
-    "storeUpdatedAt": "2026-09-15T21:53:50.780Z",
-    "rootHash": "0d1513f844df66b1"
+    "renderedHash": "4c59889e9cb7d873110a05ebdfda13f589f9f117fcb5a2cf345f1ba4e10cb53b",
+    "storeUpdatedAt": "2026-09-15T23:50:27.262Z",
+    "rootHash": "fe827f8c37bf6056"
   },
   "files": {
     ".dockerignore": {
@@ -156,12 +156,12 @@
     },
     ".github/workflows/rust-check.yml": {
       "description": "\", \".github/workflows/rust-check.yml\"]",
-      "tokens": 497,
-      "hash": "ae8a7e80f048af0e",
-      "size": 1742,
-      "mtimeMs": 1789447970198.3281,
-      "updatedAt": "2026-09-15T18:00:00.019Z",
-      "source": "scan"
+      "tokens": 569,
+      "hash": "9ef95576e50a39d8",
+      "size": 1996,
+      "mtimeMs": 1789513435351.553,
+      "updatedAt": "2026-09-15T23:03:55.440Z",
+      "source": "hook"
     },
     ".github/workflows/stale.yml": {
       "description": "This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.",
@@ -4638,222 +4638,222 @@
     },
     "rust/crates/epic-board/src/trace_ops.rs": {
       "description": "The trace COMBINE seam (M2 Task 11): Java `PolylineTrace.combine`",
-      "tokens": 61416,
-      "hash": "d61041b8e893c871",
-      "size": 230832,
-      "mtimeMs": 1789498344277.8274,
-      "updatedAt": "2026-09-15T18:52:24.374Z",
+      "tokens": 62296,
+      "hash": "44fd22a8d00519a5",
+      "size": 234146,
+      "mtimeMs": 1789516179258.9714,
+      "updatedAt": "2026-09-15T23:49:39.363Z",
       "source": "hook",
       "symbols": [
         {
           "name": "contains_net",
           "kind": "fn",
-          "startLine": 201,
-          "endLine": 208,
+          "startLine": 213,
+          "endLine": 220,
           "tokens": 78
         },
         {
           "name": "nets_equal",
           "kind": "fn",
-          "startLine": 209,
-          "endLine": 216,
+          "startLine": 221,
+          "endLine": 228,
           "tokens": 75
         },
         {
           "name": "nets_normal",
           "kind": "fn",
-          "startLine": 217,
-          "endLine": 223,
+          "startLine": 229,
+          "endLine": 235,
           "tokens": 71
         },
         {
           "name": "is_user_fixed",
           "kind": "fn",
-          "startLine": 224,
-          "endLine": 234,
+          "startLine": 236,
+          "endLine": 246,
           "tokens": 142
         },
         {
           "name": "is_deletion_forbidden",
           "kind": "fn",
-          "startLine": 235,
-          "endLine": 262,
+          "startLine": 247,
+          "endLine": 274,
           "tokens": 321
         },
         {
           "name": "is_routable",
           "kind": "fn",
-          "startLine": 263,
-          "endLine": 277,
+          "startLine": 275,
+          "endLine": 289,
           "tokens": 157
         },
         {
           "name": "first_common_layer",
           "kind": "fn",
-          "startLine": 278,
-          "endLine": 308,
+          "startLine": 290,
+          "endLine": 320,
           "tokens": 307
         },
         {
           "name": "ContactKind",
           "kind": "class",
-          "startLine": 309,
-          "endLine": 314,
+          "startLine": 321,
+          "endLine": 326,
           "tokens": 16
         },
         {
           "name": "contact_kind",
           "kind": "fn",
-          "startLine": 315,
-          "endLine": 339,
+          "startLine": 327,
+          "endLine": 351,
           "tokens": 342
         },
         {
           "name": "normal_contact_point",
           "kind": "fn",
-          "startLine": 340,
-          "endLine": 404,
+          "startLine": 352,
+          "endLine": 416,
           "tokens": 775
         },
         {
           "name": "drill_item_contacts",
           "kind": "fn",
-          "startLine": 405,
-          "endLine": 439,
+          "startLine": 417,
+          "endLine": 451,
           "tokens": 342
         },
         {
           "name": "item_normal_contacts",
           "kind": "fn",
-          "startLine": 440,
-          "endLine": 454,
+          "startLine": 452,
+          "endLine": 466,
           "tokens": 151
         },
         {
           "name": "get_connection_items",
           "kind": "fn",
-          "startLine": 455,
-          "endLine": 540,
+          "startLine": 467,
+          "endLine": 552,
           "tokens": 1086
         },
         {
           "name": "is_cycle",
           "kind": "fn",
-          "startLine": 541,
-          "endLine": 581,
+          "startLine": 553,
+          "endLine": 593,
           "tokens": 443
         },
         {
           "name": "is_cycle_recu",
           "kind": "fn",
-          "startLine": 582,
-          "endLine": 633,
+          "startLine": 594,
+          "endLine": 645,
           "tokens": 449
         },
         {
           "name": "get_trace_tail",
           "kind": "fn",
-          "startLine": 634,
-          "endLine": 680,
+          "startLine": 646,
+          "endLine": 692,
           "tokens": 437
         },
         {
           "name": "remove_item_through_repository",
           "kind": "fn",
-          "startLine": 681,
-          "endLine": 688,
-          "tokens": 64
+          "startLine": 693,
+          "endLine": 704,
+          "tokens": 70
         },
         {
           "name": "remove_items",
           "kind": "fn",
-          "startLine": 689,
-          "endLine": 706,
+          "startLine": 705,
+          "endLine": 722,
           "tokens": 245
         },
         {
           "name": "remove_if_cycle",
           "kind": "fn",
-          "startLine": 707,
-          "endLine": 762,
+          "startLine": 723,
+          "endLine": 778,
           "tokens": 557
         },
         {
           "name": "trace_facts",
           "kind": "fn",
-          "startLine": 763,
-          "endLine": 786,
+          "startLine": 779,
+          "endLine": 802,
           "tokens": 195
         },
         {
           "name": "replace_geometry",
           "kind": "fn",
-          "startLine": 787,
-          "endLine": 801,
+          "startLine": 803,
+          "endLine": 817,
           "tokens": 126
         },
         {
           "name": "combine_at_start",
           "kind": "fn",
-          "startLine": 802,
-          "endLine": 898,
+          "startLine": 818,
+          "endLine": 914,
           "tokens": 1054
         },
         {
           "name": "combine_at_end",
           "kind": "fn",
-          "startLine": 899,
-          "endLine": 988,
+          "startLine": 915,
+          "endLine": 1004,
           "tokens": 936
         },
         {
           "name": "combine",
           "kind": "fn",
-          "startLine": 989,
-          "endLine": 1024,
+          "startLine": 1005,
+          "endLine": 1040,
           "tokens": 529
         },
         {
           "name": "insert_trace_without_cleaning",
           "kind": "fn",
-          "startLine": 1025,
-          "endLine": 1134,
+          "startLine": 1041,
+          "endLine": 1150,
           "tokens": 1509
         },
         {
           "name": "split_clip",
           "kind": "fn",
-          "startLine": 1135,
-          "endLine": 1393,
-          "tokens": 3489
+          "startLine": 1151,
+          "endLine": 1407,
+          "tokens": 3484
         },
         {
           "name": "segment_at",
           "kind": "fn",
-          "startLine": 1394,
-          "endLine": 1410,
+          "startLine": 1408,
+          "endLine": 1424,
           "tokens": 154
         },
         {
           "name": "drill_center",
           "kind": "fn",
-          "startLine": 1411,
-          "endLine": 1423,
+          "startLine": 1425,
+          "endLine": 1437,
           "tokens": 166
         },
         {
           "name": "split_at_point",
           "kind": "fn",
-          "startLine": 1424,
-          "endLine": 1457,
+          "startLine": 1438,
+          "endLine": 1471,
           "tokens": 421
         },
         {
           "name": "split_at_line",
           "kind": "fn",
-          "startLine": 1458,
-          "endLine": 5497,
-          "tokens": 48177
+          "startLine": 1472,
+          "endLine": 5584,
+          "tokens": 48951
         }
       ]
     },
@@ -5584,109 +5584,109 @@
     },
     "rust/crates/epic-board/src/board.rs": {
       "description": "The live board: the item arena, the id generator, and the",
-      "tokens": 19127,
-      "hash": "daf906637db9f7f5",
-      "size": 71916,
-      "mtimeMs": 1789503974112.0603,
-      "updatedAt": "2026-09-15T20:26:14.212Z",
+      "tokens": 20039,
+      "hash": "ef9747b6a3d5b739",
+      "size": 75360,
+      "mtimeMs": 1789516178776.9707,
+      "updatedAt": "2026-09-15T23:49:38.866Z",
       "source": "hook",
       "symbols": [
         {
           "name": "ItemEntry",
           "kind": "class",
-          "startLine": 64,
-          "endLine": 80,
+          "startLine": 65,
+          "endLine": 81,
           "tokens": 163
         },
         {
           "name": "ItemEntry",
           "kind": "section",
-          "startLine": 81,
-          "endLine": 98,
+          "startLine": 82,
+          "endLine": 99,
           "tokens": 207
         },
         {
           "name": "BoardCommunication",
           "kind": "class",
-          "startLine": 99,
-          "endLine": 108,
+          "startLine": 100,
+          "endLine": 109,
           "tokens": 102
         },
         {
           "name": "BoardCommunication",
           "kind": "section",
-          "startLine": 109,
-          "endLine": 120,
+          "startLine": 110,
+          "endLine": 121,
           "tokens": 85
         },
         {
           "name": "BoardCommunication",
           "kind": "section",
-          "startLine": 121,
-          "endLine": 149,
+          "startLine": 122,
+          "endLine": 150,
           "tokens": 345
         },
         {
           "name": "TraceHalfWidthRange",
           "kind": "class",
-          "startLine": 150,
-          "endLine": 156,
+          "startLine": 151,
+          "endLine": 157,
           "tokens": 68
         },
         {
           "name": "TraceHalfWidthRange",
           "kind": "section",
-          "startLine": 157,
-          "endLine": 169,
+          "startLine": 158,
+          "endLine": 170,
           "tokens": 115
         },
         {
           "name": "Board",
           "kind": "class",
-          "startLine": 170,
-          "endLine": 219,
-          "tokens": 729
+          "startLine": 171,
+          "endLine": 231,
+          "tokens": 948
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 220,
-          "endLine": 1088,
-          "tokens": 10414
+          "startLine": 232,
+          "endLine": 1153,
+          "tokens": 11162
         },
         {
           "name": "convert_item",
           "kind": "fn",
-          "startLine": 1089,
-          "endLine": 1219,
+          "startLine": 1154,
+          "endLine": 1284,
           "tokens": 1575
         },
         {
           "name": "fixed_from_ir",
           "kind": "fn",
-          "startLine": 1220,
-          "endLine": 1233,
+          "startLine": 1285,
+          "endLine": 1298,
           "tokens": 172
         },
         {
           "name": "obstacle_kind_from_ir",
           "kind": "fn",
-          "startLine": 1234,
-          "endLine": 1244,
+          "startLine": 1299,
+          "endLine": 1309,
           "tokens": 140
         },
         {
           "name": "board_shape_from_ir",
           "kind": "fn",
-          "startLine": 1245,
-          "endLine": 1253,
+          "startLine": 1310,
+          "endLine": 1318,
           "tokens": 111
         },
         {
           "name": "area_from_ir",
           "kind": "fn",
-          "startLine": 1254,
-          "endLine": 1723,
+          "startLine": 1319,
+          "endLine": 1788,
           "tokens": 5428
         }
       ]
@@ -6168,6 +6168,617 @@
       "mtimeMs": 1789506632281.4277,
       "updatedAt": "2026-09-15T21:10:32.384Z",
       "source": "hook"
+    },
+    "rust/harness/oracle/UndoOracle.java": {
+      "description": "The reflectively-read private `stackLevel` of an undo list.",
+      "tokens": 7522,
+      "hash": "264c531edb75a641",
+      "size": 28244,
+      "mtimeMs": 1789516190311.9915,
+      "updatedAt": "2026-09-15T23:49:50.422Z",
+      "source": "hook"
+    },
+    "logs/M2-T15/dispatch-prompt.md": {
+      "description": "M2 Task 15 — T40 snappedEndpoint + contacts provider + write_net enum (D23/D24)",
+      "tokens": 2939,
+      "hash": "31f01415544d724f",
+      "size": 11857,
+      "mtimeMs": 1789511253209.7522,
+      "updatedAt": "2026-09-15T22:27:33.300Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/undo.rs": {
+      "description": "The `UndoableObjects` level-stack container (T62) and the minimal",
+      "tokens": 11939,
+      "hash": "aeb80cbfb714c3a8",
+      "size": 44922,
+      "mtimeMs": 1789511885988.2705,
+      "updatedAt": "2026-09-15T22:38:06.085Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "Node",
+          "kind": "class",
+          "startLine": 103,
+          "endLine": 114,
+          "tokens": 101
+        },
+        {
+          "name": "UndoableObjects",
+          "kind": "class",
+          "startLine": 115,
+          "endLine": 128,
+          "tokens": 142
+        },
+        {
+          "name": "UndoableObjects",
+          "kind": "section",
+          "startLine": 129,
+          "endLine": 424,
+          "tokens": 3448
+        },
+        {
+          "name": "UndoableObjects",
+          "kind": "section",
+          "startLine": 425,
+          "endLine": 442,
+          "tokens": 217
+        },
+        {
+          "name": "ComponentsUndoStack",
+          "kind": "class",
+          "startLine": 443,
+          "endLine": 448,
+          "tokens": 48
+        },
+        {
+          "name": "ComponentsUndoStack",
+          "kind": "section",
+          "startLine": 449,
+          "endLine": 518,
+          "tokens": 588
+        },
+        {
+          "name": "ComponentsUndoStack",
+          "kind": "section",
+          "startLine": 519,
+          "endLine": 1043,
+          "tokens": 6604
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/components.rs": {
+      "description": "Components, the board-side library mirror, and PIN PLACEMENT",
+      "tokens": 20603,
+      "hash": "117b89ca66035d0a",
+      "size": 77434,
+      "mtimeMs": 1789511632887.5369,
+      "updatedAt": "2026-09-15T22:33:52.986Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "java_to_radians",
+          "kind": "fn",
+          "startLine": 99,
+          "endLine": 113,
+          "tokens": 202
+        },
+        {
+          "name": "BoardPadstack",
+          "kind": "class",
+          "startLine": 114,
+          "endLine": 133,
+          "tokens": 232
+        },
+        {
+          "name": "BoardPadstack",
+          "kind": "section",
+          "startLine": 134,
+          "endLine": 252,
+          "tokens": 1460
+        },
+        {
+          "name": "parse_name_number",
+          "kind": "fn",
+          "startLine": 253,
+          "endLine": 263,
+          "tokens": 103
+        },
+        {
+          "name": "BoardPackagePin",
+          "kind": "class",
+          "startLine": 264,
+          "endLine": 281,
+          "tokens": 215
+        },
+        {
+          "name": "BoardPackage",
+          "kind": "class",
+          "startLine": 282,
+          "endLine": 288,
+          "tokens": 57
+        },
+        {
+          "name": "BoardPackage",
+          "kind": "section",
+          "startLine": 289,
+          "endLine": 302,
+          "tokens": 143
+        },
+        {
+          "name": "BoardLibrary",
+          "kind": "class",
+          "startLine": 303,
+          "endLine": 309,
+          "tokens": 64
+        },
+        {
+          "name": "BoardLibrary",
+          "kind": "section",
+          "startLine": 310,
+          "endLine": 367,
+          "tokens": 662
+        },
+        {
+          "name": "package_pin_from_ir",
+          "kind": "fn",
+          "startLine": 368,
+          "endLine": 385,
+          "tokens": 196
+        },
+        {
+          "name": "Component",
+          "kind": "class",
+          "startLine": 386,
+          "endLine": 405,
+          "tokens": 222
+        },
+        {
+          "name": "Component",
+          "kind": "section",
+          "startLine": 406,
+          "endLine": 566,
+          "tokens": 1712
+        },
+        {
+          "name": "Components",
+          "kind": "class",
+          "startLine": 567,
+          "endLine": 576,
+          "tokens": 116
+        },
+        {
+          "name": "Components",
+          "kind": "section",
+          "startLine": 577,
+          "endLine": 773,
+          "tokens": 2234
+        },
+        {
+          "name": "resolve_package_pin",
+          "kind": "fn",
+          "startLine": 774,
+          "endLine": 801,
+          "tokens": 322
+        },
+        {
+          "name": "pin_relative_location",
+          "kind": "fn",
+          "startLine": 802,
+          "endLine": 842,
+          "tokens": 464
+        },
+        {
+          "name": "pin_first_layer",
+          "kind": "fn",
+          "startLine": 843,
+          "endLine": 856,
+          "tokens": 182
+        },
+        {
+          "name": "pin_last_layer",
+          "kind": "fn",
+          "startLine": 857,
+          "endLine": 869,
+          "tokens": 154
+        },
+        {
+          "name": "padstack_layer",
+          "kind": "fn",
+          "startLine": 870,
+          "endLine": 891,
+          "tokens": 285
+        },
+        {
+          "name": "pin_shape",
+          "kind": "fn",
+          "startLine": 892,
+          "endLine": 964,
+          "tokens": 773
+        },
+        {
+          "name": "pin_center",
+          "kind": "fn",
+          "startLine": 965,
+          "endLine": 998,
+          "tokens": 417
+        },
+        {
+          "name": "shape_turn_90_degree",
+          "kind": "fn",
+          "startLine": 999,
+          "endLine": 1011,
+          "tokens": 169
+        },
+        {
+          "name": "shape_rotate_approx",
+          "kind": "fn",
+          "startLine": 1012,
+          "endLine": 1025,
+          "tokens": 170
+        },
+        {
+          "name": "shape_mirror_vertical",
+          "kind": "fn",
+          "startLine": 1026,
+          "endLine": 1040,
+          "tokens": 180
+        },
+        {
+          "name": "shape_translate_by",
+          "kind": "fn",
+          "startLine": 1041,
+          "endLine": 1049,
+          "tokens": 122
+        },
+        {
+          "name": "shape_contains_inside",
+          "kind": "fn",
+          "startLine": 1050,
+          "endLine": 1063,
+          "tokens": 202
+        },
+        {
+          "name": "shape_centre_of_gravity",
+          "kind": "fn",
+          "startLine": 1064,
+          "endLine": 1787,
+          "tokens": 9533
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/undo_facade.rs": {
+      "description": "The board-level undo/redo/snapshot FACADE — Java",
+      "tokens": 6116,
+      "hash": "7e206859c5b12645",
+      "size": 23018,
+      "mtimeMs": 1789516131945.8867,
+      "updatedAt": "2026-09-15T23:48:52.034Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "UndoOutcome",
+          "kind": "class",
+          "startLine": 101,
+          "endLine": 119,
+          "tokens": 251
+        },
+        {
+          "name": "Board",
+          "kind": "section",
+          "startLine": 120,
+          "endLine": 517,
+          "tokens": 4789
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/lib.rs": {
+      "description": "Board model: items, ids, undo, rules, layers, components (M2). The",
+      "tokens": 634,
+      "hash": "b75c69ed4224fadc",
+      "size": 2388,
+      "mtimeMs": 1789511841733.1106,
+      "updatedAt": "2026-09-15T22:37:21.825Z",
+      "source": "hook"
+    },
+    "rust/harness/src/undo_corpus.rs": {
+      "description": "Undo/snapshot parity corpus (M2 Task 14): the snapshot/undo/redo",
+      "tokens": 14454,
+      "hash": "bfa7f93c55e2ad40",
+      "size": 54310,
+      "mtimeMs": 1789516227152.0588,
+      "updatedAt": "2026-09-15T23:50:27.254Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "UndoCommand",
+          "kind": "class",
+          "startLine": 125,
+          "endLine": 155,
+          "tokens": 358
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 156,
+          "endLine": 173,
+          "tokens": 232
+        },
+        {
+          "name": "ManifestEntry",
+          "kind": "class",
+          "startLine": 174,
+          "endLine": 183,
+          "tokens": 116
+        },
+        {
+          "name": "build_manifest",
+          "kind": "fn",
+          "startLine": 184,
+          "endLine": 228,
+          "tokens": 440
+        },
+        {
+          "name": "build_manifest_bytes",
+          "kind": "fn",
+          "startLine": 229,
+          "endLine": 242,
+          "tokens": 120
+        },
+        {
+          "name": "load_manifest",
+          "kind": "fn",
+          "startLine": 243,
+          "endLine": 257,
+          "tokens": 152
+        },
+        {
+          "name": "manifest",
+          "kind": "fn",
+          "startLine": 258,
+          "endLine": 286,
+          "tokens": 330
+        },
+        {
+          "name": "UndoFacts",
+          "kind": "class",
+          "startLine": 287,
+          "endLine": 312,
+          "tokens": 290
+        },
+        {
+          "name": "DigestRecord",
+          "kind": "class",
+          "startLine": 313,
+          "endLine": 349,
+          "tokens": 464
+        },
+        {
+          "name": "StepRecord",
+          "kind": "class",
+          "startLine": 350,
+          "endLine": 362,
+          "tokens": 103
+        },
+        {
+          "name": "UndoRecord",
+          "kind": "class",
+          "startLine": 363,
+          "endLine": 381,
+          "tokens": 229
+        },
+        {
+          "name": "Script",
+          "kind": "class",
+          "startLine": 382,
+          "endLine": 389,
+          "tokens": 59
+        },
+        {
+          "name": "InsertPlan",
+          "kind": "class",
+          "startLine": 390,
+          "endLine": 402,
+          "tokens": 118
+        },
+        {
+          "name": "derive_script",
+          "kind": "fn",
+          "startLine": 403,
+          "endLine": 454,
+          "tokens": 482
+        },
+        {
+          "name": "query_box",
+          "kind": "fn",
+          "startLine": 455,
+          "endLine": 469,
+          "tokens": 121
+        },
+        {
+          "name": "digest",
+          "kind": "fn",
+          "startLine": 470,
+          "endLine": 549,
+          "tokens": 772
+        },
+        {
+          "name": "hex_sha256",
+          "kind": "fn",
+          "startLine": 550,
+          "endLine": 556,
+          "tokens": 76
+        },
+        {
+          "name": "evaluate_rust",
+          "kind": "fn",
+          "startLine": 557,
+          "endLine": 811,
+          "tokens": 2404
+        },
+        {
+          "name": "golden",
+          "kind": "fn",
+          "startLine": 812,
+          "endLine": 1027,
+          "tokens": 2291
+        },
+        {
+          "name": "ensure_alignment",
+          "kind": "fn",
+          "startLine": 1028,
+          "endLine": 1054,
+          "tokens": 215
+        },
+        {
+          "name": "json_string",
+          "kind": "fn",
+          "startLine": 1055,
+          "endLine": 1058,
+          "tokens": 40
+        },
+        {
+          "name": "truncate",
+          "kind": "fn",
+          "startLine": 1059,
+          "endLine": 1073,
+          "tokens": 131
+        },
+        {
+          "name": "diff_records",
+          "kind": "fn",
+          "startLine": 1074,
+          "endLine": 1200,
+          "tokens": 1354
+        },
+        {
+          "name": "compare",
+          "kind": "fn",
+          "startLine": 1201,
+          "endLine": 1439,
+          "tokens": 2742
+        }
+      ]
+    },
+    "rust/harness/src/main.rs": {
+      "description": "Differential parity + benchmark harness for the EpicRouter rewrite",
+      "tokens": 5620,
+      "hash": "cefd2b0b44ef566c",
+      "size": 21102,
+      "mtimeMs": 1789512849987.088,
+      "updatedAt": "2026-09-15T22:54:10.083Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "Cli",
+          "kind": "class",
+          "startLine": 36,
+          "endLine": 49,
+          "tokens": 102
+        },
+        {
+          "name": "Command",
+          "kind": "class",
+          "startLine": 50,
+          "endLine": 94,
+          "tokens": 450
+        },
+        {
+          "name": "main",
+          "kind": "fn",
+          "startLine": 95,
+          "endLine": 101,
+          "tokens": 34
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 102,
+          "endLine": 268,
+          "tokens": 2160
+        },
+        {
+          "name": "list_tiers",
+          "kind": "fn",
+          "startLine": 269,
+          "endLine": 285,
+          "tokens": 179
+        },
+        {
+          "name": "resolve_tiers_path",
+          "kind": "fn",
+          "startLine": 286,
+          "endLine": 301,
+          "tokens": 167
+        },
+        {
+          "name": "select_tiers",
+          "kind": "fn",
+          "startLine": 302,
+          "endLine": 318,
+          "tokens": 196
+        },
+        {
+          "name": "load_baseline_record",
+          "kind": "fn",
+          "startLine": 319,
+          "endLine": 345,
+          "tokens": 313
+        },
+        {
+          "name": "capture_tier",
+          "kind": "fn",
+          "startLine": 346,
+          "endLine": 534,
+          "tokens": 2099
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/tree_manager.rs": {
+      "description": "The search-tree manager: which trees exist, and how items enter",
+      "tokens": 25989,
+      "hash": "c1077cdbd6ef8595",
+      "size": 97800,
+      "mtimeMs": 1789516201019.011,
+      "updatedAt": "2026-09-15T23:50:01.123Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "SearchTreeManager",
+          "kind": "class",
+          "startLine": 67,
+          "endLine": 81,
+          "tokens": 197
+        },
+        {
+          "name": "SearchTreeManager",
+          "kind": "section",
+          "startLine": 82,
+          "endLine": 858,
+          "tokens": 9542
+        },
+        {
+          "name": "max_clearance_offset",
+          "kind": "fn",
+          "startLine": 859,
+          "endLine": 865,
+          "tokens": 84
+        },
+        {
+          "name": "tile_contained_in_box",
+          "kind": "fn",
+          "startLine": 866,
+          "endLine": 872,
+          "tokens": 73
+        },
+        {
+          "name": "SearchTreeManager",
+          "kind": "section",
+          "startLine": 873,
+          "endLine": 2350,
+          "tokens": 17117
+        }
+      ]
     }
   },
   "preamble": [

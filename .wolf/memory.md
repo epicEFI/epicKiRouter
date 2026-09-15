@@ -2156,3 +2156,83 @@ description: chronological action log per session, consolidated weekly
 | 15:46 | Edited rust/crates/epic-board/src/normalize_all.rs | inline fix | ~20 |
 | 15:46 | Edited rust/crates/epic-board/src/normalize_all.rs | inline fix | ~15 |
 | 15:53 | Edited rust/crates/epic-board/src/normalize_all.rs | 3→5 lines | ~87 |
+| 16:16 | Created rust/harness/oracle/UndoOracle.java | — | ~7592 |
+| 16:21 | Edited rust/harness/oracle/UndoOracle.java | 13→10 lines | ~142 |
+| 16:22 | Edited rust/harness/oracle/UndoOracle.java | modified treePairLines() | ~204 |
+| 16:22 | Edited rust/harness/oracle/UndoOracle.java | modified of() | ~288 |
+| 16:22 | Edited rust/harness/oracle/UndoOracle.java | modified getId() | ~223 |
+| 16:22 | Edited rust/harness/oracle/UndoOracle.java | modified FacadeUndoResult() | ~461 |
+| 16:22 | Edited rust/harness/oracle/UndoOracle.java | modified for() | ~84 |
+| 16:23 | Edited rust/harness/oracle/UndoOracle.java | reduced (-6 lines) | ~426 |
+| 16:23 | Edited rust/harness/oracle/UndoOracle.java | modified raw() | ~20 |
+| 16:24 | Edited rust/harness/oracle/UndoOracle.java | 2→3 lines | ~44 |
+| 16:24 | Edited rust/harness/oracle/UndoOracle.java | 3→3 lines | ~21 |
+| 16:24 | Edited rust/harness/oracle/UndoOracle.java | digestJson() → digestBody() | ~79 |
+| 16:24 | Edited rust/harness/oracle/UndoOracle.java | digestJson() → digestBody() | ~150 |
+| 16:24 | Edited rust/harness/oracle/UndoOracle.java | 7→5 lines | ~39 |
+| 16:25 | Edited rust/harness/oracle/UndoOracle.java | 4→3 lines | ~18 |
+| 16:27 | Created logs/M2-T15/dispatch-prompt.md | — | ~3135 |
+| 16:33 | Edited rust/crates/epic-board/src/undo.rs | modified count() | ~105 |
+| 16:33 | Edited rust/crates/epic-board/src/components.rs | modified generate_snapshot() | ~131 |
+| 16:34 | Edited rust/crates/epic-board/src/board.rs | expanded (+9 lines) | ~221 |
+| 16:34 | Edited rust/crates/epic-board/src/undo.rs | modified new() | ~103 |
+| 16:34 | Edited rust/crates/epic-board/src/undo.rs | modified default() | ~139 |
+| 16:34 | Edited rust/crates/epic-board/src/board.rs | modified insert_item() | ~289 |
+| 16:34 | Edited rust/crates/epic-board/src/board.rs | modified remove_item() | ~506 |
+| 16:35 | Edited rust/crates/epic-board/src/board.rs | modified mirror_node() | ~422 |
+| 16:35 | Edited rust/crates/epic-board/src/board.rs | modified set_trace_polyline() | ~248 |
+| 16:35 | Edited rust/crates/epic-board/src/board.rs | modified map() | ~39 |
+| 16:35 | Edited rust/crates/epic-board/src/board.rs | added 1 import(s) | ~96 |
+| 16:35 | Edited rust/crates/epic-board/src/board.rs | 4→3 lines | ~52 |
+| 16:35 | Edited rust/crates/epic-board/src/board.rs | modified alloc_id() | ~88 |
+| 16:36 | Created rust/crates/epic-board/src/undo_facade.rs | — | ~2858 |
+| 16:37 | Edited rust/crates/epic-board/src/undo_facade.rs | 12→10 lines | ~149 |
+| 16:37 | Edited rust/crates/epic-board/src/undo_facade.rs | 6→5 lines | ~43 |
+| 16:37 | Edited rust/crates/epic-board/src/undo_facade.rs | reduced (-10 lines) | ~54 |
+| 16:37 | Edited rust/crates/epic-board/src/lib.rs | 4→5 lines | ~26 |
+| 16:37 | Edited rust/crates/epic-board/src/trace_ops.rs | 4→2 lines | ~31 |
+| 16:37 | Edited rust/crates/epic-board/src/trace_ops.rs | modified insert_trace() | ~354 |
+| 16:38 | Edited rust/crates/epic-board/src/undo.rs | modified new() | ~47 |
+| 16:47 | Edited rust/crates/epic-board/src/trace_ops.rs | modified remove_item_through_repository() | ~32 |
+| 16:51 | Created rust/harness/src/undo_corpus.rs | — | ~13460 |
+| 16:52 | Edited rust/harness/src/main.rs | modified corpus() | ~62 |
+| 16:52 | Edited rust/harness/src/main.rs | modified corpus() | ~107 |
+| 16:52 | Edited rust/harness/src/main.rs | expanded (+6 lines) | ~142 |
+| 16:52 | Edited rust/harness/src/main.rs | 3→4 lines | ~79 |
+| 16:52 | Edited rust/harness/src/main.rs | 4→6 lines | ~114 |
+| 16:52 | Edited rust/harness/src/undo_corpus.rs | inline fix | ~12 |
+| 16:52 | Edited rust/harness/src/undo_corpus.rs | added 1 import(s) | ~28 |
+| 16:53 | Edited rust/harness/src/undo_corpus.rs | 5→5 lines | ~48 |
+| 16:53 | Edited rust/harness/src/undo_corpus.rs | inline fix | ~24 |
+| 16:53 | Edited rust/harness/src/undo_corpus.rs | inline fix | ~24 |
+| 16:54 | Edited rust/harness/src/main.rs | 7→5 lines | ~66 |
+| 16:57 | Edited rust/crates/epic-board/src/undo_facade.rs | 7→2 lines | ~21 |
+| 16:57 | Edited rust/harness/src/undo_corpus.rs | expanded (+16 lines) | ~310 |
+| 16:59 | Edited rust/crates/epic-board/src/undo_facade.rs | modified trace_entry() | ~3105 |
+| 16:59 | Edited rust/crates/epic-board/src/undo_facade.rs | 6→9 lines | ~111 |
+| 17:03 | Edited rust/crates/epic-board/src/undo_facade.rs | 6→1 lines | ~19 |
+| 17:03 | Edited .github/workflows/rust-check.yml | 5→10 lines | ~142 |
+| 17:05 | Edited rust/crates/epic-board/src/trace_ops.rs | 4→4 lines | ~71 |
+| 17:06 | Edited rust/harness/src/undo_corpus.rs | modified evaluate_rust_is_deterministic() | ~149 |
+| 17:06 | Edited rust/harness/src/undo_corpus.rs | modified tree_pairs_threshold_contract() | ~160 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | modified undo() | ~340 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | inline fix | ~20 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | 3→7 lines | ~116 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | 2→2 lines | ~30 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | inline fix | ~20 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | 3→3 lines | ~49 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | 2→2 lines | ~33 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | inline fix | ~19 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | 2→2 lines | ~35 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | "BasicBoard.java:1234-1243" → "BasicBoard.java:1234-1241" | ~15 |
+| 17:48 | Edited rust/crates/epic-board/src/undo_facade.rs | modified modified_item_sits_in_both_lists_and_lands_on_the_restored_value() | ~609 |
+| 17:49 | Edited rust/crates/epic-board/src/board.rs | 4→4 lines | ~64 |
+| 17:49 | Edited rust/crates/epic-board/src/board.rs | 3→4 lines | ~60 |
+| 17:49 | Edited rust/crates/epic-board/src/board.rs | 5→7 lines | ~115 |
+| 17:49 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~21 |
+| 17:49 | Edited rust/harness/oracle/UndoOracle.java | 2→2 lines | ~35 |
+| 17:50 | Edited rust/crates/epic-board/src/tree_manager.rs | 5→6 lines | ~108 |
+| 17:50 | Edited rust/harness/src/undo_corpus.rs | expanded (+6 lines) | ~119 |
+| 17:50 | Edited rust/harness/src/undo_corpus.rs | modified evaluate_rust_is_deterministic() | ~328 |
+| 17:50 | Edited rust/harness/src/undo_corpus.rs | modified tree_pairs_threshold_contract() | ~461 |
+| 17:50 | Edited rust/harness/src/undo_corpus.rs | 2→6 lines | ~106 |

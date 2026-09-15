@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-15T21:53:50.772Z
-> Files: 532 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-15T23:50:27.254Z
+> Files: 541 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -50,7 +50,7 @@
 - `gradle-build-on-pr.yml` — CI: Build the source on PR (~374 tok)
 - `gui-a11y.yml` — CI: GUI accessibility tests (~462 tok)
 - `pre-commit.yml` — CI: pre-commit (~466 tok)
-- `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~497 tok)
+- `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~569 tok)
 - `stale.yml` — This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time. (~540 tok)
 
 ## .remember/
@@ -556,11 +556,20 @@
 
 - `dispatch-prompt.md` — M2 Task 14 — Undo parity corpus: UndoOracle + java-free CI gate (~2249 tok)
 
+## logs/M2-T15/
+
+- `dispatch-prompt.md` — M2 Task 15 — T40 snappedEndpoint + contacts provider + write_net enum (D23/D24) (~2939 tok)
+
 ## rust/crates/epic-board/src/
 
-- `board.rs` — The live board: the item arena, the id generator, and the (~19127 tok)
+- `board.rs` — The live board: the item arena, the id generator, and the (~20039 tok)
+- `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~20603 tok)
+- `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~634 tok)
 - `normalize_all.rs` — The per-net normalize DRIVER — Java `BasicBoard.normalizeAllTraces` (~10138 tok)
-- `trace_ops.rs` — The trace COMBINE seam (M2 Task 11): Java `PolylineTrace.combine` (~61416 tok)
+- `trace_ops.rs` — The trace COMBINE seam (M2 Task 11): Java `PolylineTrace.combine` (~62296 tok)
+- `tree_manager.rs` — The search-tree manager: which trees exist, and how items enter (~25989 tok)
+- `undo_facade.rs` — The board-level undo/redo/snapshot FACADE — Java (~6116 tok)
+- `undo.rs` — The `UndoableObjects` level-stack container (T62) and the minimal (~11939 tok)
 
 ## rust/crates/epic-dsn/src/
 
@@ -581,8 +590,11 @@
 - `DsnParseOracle.java` — The SES reserved-character set (`SesWriter.java:62`). (~5552 tok)
 - `NormalizeAllSpike.java` — The id-4 parse trace as the insert template; falls back to the (~6749 tok)
 - `SplitSpike.java` — SplitSpike.java — jar spike for M2 Task 12 (the trace SPLIT + (~12619 tok)
+- `UndoOracle.java` — The reflectively-read private `stackLevel` of an undo list. (~7522 tok)
 
 ## rust/harness/src/
 
 - `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~16017 tok)
 - `dsn_digest.rs` — Canonical geometry digest for the DSN parse-parity gate (M1b Task 4; (~10322 tok)
+- `main.rs` — Differential parity + benchmark harness for the EpicRouter rewrite (~5620 tok)
+- `undo_corpus.rs` — Undo/snapshot parity corpus (M2 Task 14): the snapshot/undo/redo (~14454 tok)
