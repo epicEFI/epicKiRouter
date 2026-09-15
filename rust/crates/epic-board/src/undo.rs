@@ -478,6 +478,14 @@ impl<T: Clone + PartialEq> ComponentsUndoStack<T> {
         self.count
     }
 
+    /// Java `stackLevel` of the wrapped list — the components-side
+    /// level the Task 14 digest reads (Java reads it reflectively;
+    /// here the accessor is the API).
+    #[must_use]
+    pub fn stack_level(&self) -> usize {
+        self.undo_list.stack_level()
+    }
+
     pub fn undo(&mut self) -> Option<(Vec<T>, Vec<T>)> {
         self.undo_list.undo()
     }

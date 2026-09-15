@@ -44,6 +44,7 @@ use crate::items::drill::DrillPrecalc;
 use crate::items::{Area, BoardItemType, BoardShape, FixedState, ItemData, ObstacleKind};
 use crate::layers::LayerStructure;
 use crate::rules_surf::BoardRules;
+use crate::undo::UndoableObjects;
 
 /// One arena entry: the Java `Item` base-class fields plus the
 /// per-kind payload. `on_the_board` mirrors `Item.onTheBoard`
@@ -169,7 +170,7 @@ impl Default for TraceHalfWidthRange {
 #[derive(Clone, Debug, Default)]
 pub struct Board {
     /// The items keyed by DESCENDING id (module docs, D25/T60).
-    items: BTreeMap<Reverse<ItemId>, ItemEntry>,
+    pub(crate) items: BTreeMap<Reverse<ItemId>, ItemEntry>,
     /// The id generator (Java `board.communication.idGenerator`).
     id_generator: ItemIdGenerator,
     /// Java `BasicBoard.revision` — bumped per insert and remove (T69).
@@ -194,7 +195,7 @@ pub struct Board {
     /// Java `board.layerStructure`.
     layers: LayerStructure,
     /// Java `board.components` (with its own undo stack, T63).
-    components: Components,
+    pub(crate) components: Components,
     /// Java `board.library` — the padstack/package registries the pin
     /// resolution reads.
     library: BoardLibrary,
@@ -212,9 +213,18 @@ pub struct Board {
     /// Undo policy: Java's undo restores FRESH item copies (the −1
     /// sentinels come back with the copy, so the spans recompute);
     /// this memo lives OUTSIDE the entries and would survive a
-    /// restore — when Board-level undo lands, the restore path must
-    /// drop the restored id's entry here.
-    drill_precalc: BTreeMap<ItemId, DrillPrecalc>,
+    /// restore — the facade undo/redo restore path drops the restored
+    /// id's entry here (Task 14).
+    pub(crate) drill_precalc: BTreeMap<ItemId, DrillPrecalc>,
+    /// Java `BasicBoard.itemList` — the `UndoableObjects` level stack
+    /// (Task 14). The arena (`items`) stays the live storage; every
+    /// entry change is MIRRORED into the undo node so a node value
+    /// always equals the arena entry (Java shares the object, so its
+    /// node is live by construction). Filled by [`Board::insert_item`]
+    /// (Java `BoardItemRepository.insertItem` → `itemList.insert`),
+    /// drained by [`Board::remove_item`] (→ `itemList.delete`), and
+    /// replayed by the facade in [`crate::undo_facade`].
+    pub(crate) item_undo: UndoableObjects<Reverse<ItemId>, ItemEntry>,
 }
 
 impl Board {
@@ -227,7 +237,6 @@ impl Board {
     /// Allocates the next item id — the item-CONSTRUCTION counterpart
     /// of Java's `board.communication.idGenerator.newId()` call inside
     /// `Item`'s constructor (`Item.java:86-90`).
-    ///
     /// # Burn semantics (T61)
     ///
     /// Allocation is NOT part of insertion: an id handed out here and
@@ -240,12 +249,24 @@ impl Board {
         self.id_generator.new_id()
     }
 
+    /// Java `ItemIdGenerator.maxGeneratedId()` — the watermark the
+    /// Task 14 digest reads as `next_id` (the id-burn channel).
+    #[must_use]
+    pub fn max_generated_id(&self) -> u32 {
+        self.id_generator.max_generated_id()
+    }
+
     /// Inserts a constructed entry. The id must have come from
     /// [`Board::alloc_id`] (or a parse IR) and must be free — Java's
     /// map would silently replace a duplicate key, which this port
     /// treats as the programming error it is. Bumps the revision (T69)
     /// and sets the entry's `on_the_board` flag (`Item.java:63-64`).
     /// Does NOT touch the generator: insertion consumes no id.
+    ///
+    /// Task 14: also inserts into the undo list (Java
+    /// `BoardItemRepository.insertItem` → `itemList.insert(item)`,
+    /// `BoardItemRepository.java:141` — `insert` disables redo and
+    /// creates the node at the current level).
     pub fn insert_item(&mut self, mut entry: ItemEntry) {
         assert!(
             !self.items.contains_key(&Reverse(entry.id)),
@@ -253,7 +274,9 @@ impl Board {
             entry.id.get()
         );
         entry.on_the_board = true;
-        self.items.insert(Reverse(entry.id), entry);
+        let key = Reverse(entry.id);
+        self.items.insert(key, entry.clone());
+        self.item_undo.insert(key, entry);
         self.revision += 1;
     }
 
@@ -266,6 +289,14 @@ impl Board {
     /// (`SearchTreeManager.java:61`, `item.setOnTheBoard(false)` behind
     /// the `isOnTheBoard()` guard); until the tree manager exists this
     /// method owns the side effect. A no-op on a foreign id.
+    ///
+    /// Task 14: also deletes from the undo list (Java
+    /// `BoardItemRepository.removeItem` → `itemList.delete(item)`,
+    /// `BoardItemRepository.java:190` — the level-dichotomy delete).
+    /// By the time this runs, the tree-manager half has already
+    /// flipped the flag through [`Board::set_on_the_board`], so the
+    /// node value carries `on_the_board == false` into the delete
+    /// list exactly like Java's live object.
     pub fn remove_item(&mut self, id: ItemId) -> Option<ItemEntry> {
         let mut removed = self.items.remove(&Reverse(id));
         if let Some(entry) = removed.as_mut() {
@@ -278,6 +309,7 @@ impl Board {
             // Java item re-inserted by undo keeps its precalculated
             // span (remove does not call clearDerivedData).
             self.shape_precalc.remove(&id);
+            self.item_undo.delete(&Reverse(id));
             self.revision += 1;
         }
         removed
@@ -499,21 +531,40 @@ impl Board {
         }
     }
 
+    /// Mirrors the arena entry into the undo node — the value-clone
+    /// counterpart of Java's SHARED-object node (Java's
+    /// `UndoableObjectNode.object` IS the live item, so every field
+    /// write is visible through the node by construction; the port's
+    /// node is a snapshot, so every arena mutation writes through).
+    /// `save_for_undo` stays at the JAVA call sites only — see
+    /// [`Board::set_trace_polyline`].
+    fn mirror_node(&mut self, id: ItemId) {
+        if let Some(entry) = self.items.get(&Reverse(id)).cloned()
+            && let Some(node) = self.item_undo.value_mut(&Reverse(id))
+        {
+            *node = entry;
+        }
+    }
+
     /// Java `Item.setOnTheBoard(boolean)` (`Item.java:248`): the raw
     /// flag write the search-tree manager performs after broadcasting
-    /// an insert/remove (`SearchTreeManager.java:43` / `:61`).
+    /// an insert/remove (`SearchTreeManager.java:43` / `:61`). No
+    /// `saveForUndo` on the Java path — the flag write rides on the
+    /// live object; the node mirror keeps the port's snapshot equal.
     pub fn set_on_the_board(&mut self, id: ItemId, value: bool) {
         if let Some(entry) = self.items.get_mut(&Reverse(id)) {
             entry.on_the_board = value;
         }
+        self.mirror_node(id);
     }
 
     /// Java `Item.setFixedState(FixedState)` (`Item.java:891-893`):
-    /// the plain setter.
+    /// the plain setter (no `saveForUndo` on the Java path).
     pub fn set_item_fixed(&mut self, id: ItemId, fixed: FixedState) {
         if let Some(entry) = self.items.get_mut(&Reverse(id)) {
             entry.fixed = fixed;
         }
+        self.mirror_node(id);
     }
 
     /// Java `Item.isOnTheBoard()`.
@@ -677,6 +728,15 @@ impl Board {
     /// in the ported surface. A non-trace id is left untouched (Java
     /// cannot even express the call — the receiver type guards it).
     pub fn set_trace_polyline(&mut self, id: ItemId, lines: Polyline) {
+        // Java saves the trace at EVERY geometry-replacement site —
+        // `PolylineTrace.replaceGeometry` (`:951`), `combine`'s two
+        // branches (`:279` / `:403`), and the fast-cutout path
+        // (`ShapeTraceEntries.java:113`) — and all of them funnel
+        // through this mutator in the port. `saveForUndo` is
+        // idempotent per level (`UndoableObjects.java:285-291`: a
+        // no-op once `node.level == stackLevel`), so folding the save
+        // HERE is behavior-identical.
+        self.item_undo.save_for_undo(&Reverse(id));
         let Some(entry) = self.items.get_mut(&Reverse(id)) else {
             return;
         };
@@ -687,6 +747,7 @@ impl Board {
         {
             *stored_lines = lines;
         }
+        self.mirror_node(id);
     }
 
     /// Java `ObstacleArea.getLayer()` for an OBSTACLE or CONDUCTION
@@ -832,6 +893,7 @@ impl Board {
         {
             *keepout_outside_outline = value;
         }
+        self.mirror_node(id);
     }
 
     /// The shape half of Java `Item.clearSearchTreeEntries()`

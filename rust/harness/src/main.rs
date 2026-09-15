@@ -22,6 +22,10 @@ mod oracle;
 // SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
 mod ses_compare;
 mod tiers;
+// Undo/snapshot parity corpus (M2 Task 14): the scripted replay of
+// snapshot/insert/remove/undo/redo/pop through the board facade, Java
+// goldens, java-free CI compare.
+mod undo_corpus;
 
 use baseline::BaselineRecord;
 use oracle::OracleRun;
@@ -78,6 +82,14 @@ enum Command {
         #[command(subcommand)]
         cmd: index_corpus::IndexCommand,
     },
+    /// Undo/snapshot parity corpus (M2 Task 14): the scripted
+    /// snapshot/insert/remove/undo/redo/pop replay on tier + stressor
+    /// fixtures, Java-oracle goldens, and a java-free compare (the CI
+    /// gate).
+    Undo {
+        #[command(subcommand)]
+        cmd: undo_corpus::UndoCommand,
+    },
 }
 
 fn main() {
@@ -104,6 +116,12 @@ fn run() -> Result<()> {
         // never needs one.
         return index_corpus::run(cmd, &cli.jvm_xmx);
     }
+    if let Command::Undo { cmd } = cli.command {
+        // Same shape as the index pipeline: tiers.yaml read at
+        // manifest time, JVM resolved lazily — `undo compare` never
+        // needs one.
+        return undo_corpus::run(cmd, &cli.jvm_xmx);
+    }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
     let tier_file = TierFile::load(&tiers_path)?;
@@ -112,9 +130,10 @@ fn run() -> Result<()> {
     let jar = oracle::jar_path(&repo_root);
 
     match cli.command {
-        // Index/Corpus/Dsn returned before the tier/JVM resolution
-        // above; this arm only satisfies the match.
+        // Index/Undo/Corpus/Dsn returned before the tier/JVM
+        // resolution above; this arm only satisfies the match.
         Command::Index { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::Undo { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {

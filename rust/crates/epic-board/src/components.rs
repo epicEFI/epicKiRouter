@@ -644,6 +644,14 @@ impl Components {
         self.undo_list.generate_snapshot();
     }
 
+    /// The components-side `stackLevel` (`Components.undoList.stackLevel`
+    /// — Java reads the private field reflectively in the Task 14
+    /// oracle; the port exposes it).
+    #[must_use]
+    pub fn stack_level(&self) -> usize {
+        self.undo_list.stack_level()
+    }
+
     /// Java `Components.undo(observers)` (`:113-119`): the stack undo,
     /// then the arr re-sync from the VISIBLE undo entries.
     pub fn undo(&mut self) -> bool {

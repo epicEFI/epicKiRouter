@@ -690,7 +690,11 @@ pub fn get_trace_tail(
 /// (`:170-199`): the deletion-forbidden skip comes FIRST (a forbidden
 /// item keeps its slot AND its tree entries), then the tree removal,
 /// then the list delete.
-fn remove_item_through_repository(manager: &mut SearchTreeManager, board: &mut Board, id: ItemId) {
+pub fn remove_item_through_repository(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+) {
     if is_deletion_forbidden(board, id) {
         return;
     }
@@ -1607,6 +1611,40 @@ fn split_inside_drill_pad_prohibited(
 // ---------------------------------------------------------------------------
 // normalize (PolylineTraceNormalization.java)
 // ---------------------------------------------------------------------------
+
+/// Java `BasicBoard.insertTrace(Polyline, ...)` (`BasicBoard.java:209-242`)
+/// — the CLEANING insert: [`insert_trace_without_cleaning`], then
+/// `newTrace.normalize(clipShape)` with `clipShape = null` (the
+/// `changedArea` lives on `RoutingBoard` only; a headless `BasicBoard`
+/// leaves it null, and the port has no changed-area machinery). The
+/// Java try/catch demotes a normalization panic to an FRLogger.warn +
+/// debug line (D12 log-only); the port has no panic path in
+/// [`normalize`] and returns its `bool` — the CALLER's result, not
+/// the wrapper's, mirrors Java (whose insertTrace returns void).
+#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+pub fn insert_trace(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    polyline: Polyline,
+    layer: i32,
+    half_width: i32,
+    nets: &[i32],
+    clearance_class: i32,
+    fixed: FixedState,
+) -> Option<ItemId> {
+    let new_trace = insert_trace_without_cleaning(
+        manager,
+        board,
+        polyline,
+        layer,
+        half_width,
+        nets,
+        clearance_class,
+        fixed,
+    )?;
+    let _changed = normalize(manager, board, new_trace, None);
+    Some(new_trace)
+}
 
 /// Java `PolylineTraceNormalization.MAX_NORMALIZATION_DEPTH`.
 pub(crate) const MAX_NORMALIZATION_DEPTH: i32 = 16;

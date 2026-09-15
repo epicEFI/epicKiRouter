@@ -46,3 +46,8 @@ jobs:
       - run: cargo run -q -p epic-harness -- index compare
         env:
           EPIC_SKIP_GRADLE: "1"
+      # M2 snapshot/undo parity: scripted snapshot/insert/remove/undo/redo/
+      # pop replay vs committed Java-oracle goldens — java-free compare.
+      - run: cargo run -q -p epic-harness -- undo compare
+        env:
+          EPIC_SKIP_GRADLE: "1"

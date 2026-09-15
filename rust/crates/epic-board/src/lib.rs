@@ -45,6 +45,7 @@ pub mod trace_ops;
 pub mod tree_manager;
 pub mod tree_shapes;
 pub mod undo;
+pub mod undo_facade;
 
 #[cfg(test)]
 pub(crate) mod test_util;
