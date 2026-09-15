@@ -255,7 +255,10 @@ impl SearchTree {
         self.tree.leaf_count()
     }
 
-    /// The underlying BVH (read access for query surfaces, Task 8).
+    /// The underlying BVH. Not used by any production query (they go
+    /// through the query surfaces above); exposed as read access for
+    /// the M2 T9 epic-harness white-box dumps that need to walk leaves
+    /// directly.
     #[must_use]
     pub fn min_area_tree(&self) -> &MinAreaTree {
         &self.tree
@@ -412,8 +415,11 @@ impl SearchTree {
         let mut current_offset_shape = query.clone();
         for (clearance, _entry_id, index) in sorted {
             let (leaf, _leaf_clearance, stored) = &candidates[index];
-            // Java int division (clearances are non-negative, so this
-            // is floor like Java's truncation).
+            // Rust `/` and Java int `/` both truncate toward zero —
+            // identical results for EVERY sign combination, so the
+            // port is exact by construction (the clearances here are
+            // non-negative regardless). Do not "fix" this into a
+            // flooring divide; that would diverge on negatives.
             let tmp_half_clearance = clearance / 2;
             if tmp_half_clearance != current_half_clearance {
                 current_half_clearance = tmp_half_clearance;
@@ -439,8 +445,9 @@ impl SearchTree {
     /// NullPointerException`) and a NULL SLOT (a copper-less padstack
     /// layer) NPEs at `currentLeaf.shapeIndexInObject`. The port
     /// treats a `None` slot as SKIPPED (null leaves carry no shape
-    /// index to check); the absent-array case is the caller's
-    /// [`crate::board`]-side `Option`.
+    /// index to check); the absent-array case is the caller-side
+    /// `Option` (epic-board holds the entry arrays as
+    /// `Option<Vec<Option<NodeIdx>>>`).
     pub fn validate_entries(&self, entries: &[Option<NodeIdx>]) -> bool {
         entries.iter().enumerate().all(|(index, slot)| {
             slot.is_none_or(|node| {

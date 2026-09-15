@@ -396,11 +396,18 @@ impl SearchTreeManager {
 
     /// The tree index of a [`NodeIdx`]/key row's item — object keys
     /// ARE item ids on this manager's trees (the broadcast insert
-    /// keys leaves by `u64::from(id.get())`); out-of-range keys have
-    /// no item and no layer/nets (Java's cast `(Item)` would throw).
-    fn item_of_key(key: u64) -> ItemId {
-        ItemId::new(u32::try_from(key).unwrap_or(u32::MAX))
+    /// keys leaves by `u64::from(id.get())`); a key outside the u32
+    /// range belongs to no item (Java's cast `(Item)` would throw) —
+    /// `None`, never a sentinel id that could alias a real item.
+    fn item_of_key(key: u64) -> Option<ItemId> {
+        u32::try_from(key).ok().map(ItemId::new)
     }
+
+    /// Slot 0 of `trees` is the DEFAULT tree (module invariant; pinned
+    /// by `slot_zero_is_the_default_tree_through_every_manager_mutation`).
+    /// [`Self::default_tree`] hands out the reference; query methods
+    /// that take a `tree_index` use this constant for the same slot.
+    const DEFAULT_TREE_INDEX: usize = 0;
 
     /// Java `overlappingTreeEntries(shape, layer, ignoreNetNos, list)`
     /// (`ShapeSearchTree.java:390-434`) — the plain query on tree
@@ -437,7 +444,9 @@ impl SearchTreeManager {
         let mut shape_cache: BTreeMap<ItemId, Vec<Option<TileShape>>> = BTreeMap::new();
         let mut result = Vec::new();
         for leaf in candidates {
-            let id = Self::item_of_key(leaf.object_key);
+            let Some(id) = Self::item_of_key(leaf.object_key) else {
+                continue;
+            };
             if Self::leaf_filtered(board, id, leaf.shape_index_in_object, layer, ignore_nets) {
                 continue;
             }
@@ -479,7 +488,9 @@ impl SearchTreeManager {
     ) -> Vec<ItemId> {
         let mut objects: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
         for entry in self.overlapping_tree_entries(board, tree_index, shape, layer, ignore_nets) {
-            objects.insert(Reverse(Self::item_of_key(entry.object_key)));
+            if let Some(id) = Self::item_of_key(entry.object_key) {
+                objects.insert(Reverse(id));
+            }
         }
         objects.into_iter().map(|Reverse(id)| id).collect()
     }
@@ -517,7 +528,9 @@ impl SearchTreeManager {
         let mut shape_cache: BTreeMap<ItemId, Vec<Option<TileShape>>> = BTreeMap::new();
         let mut rows: Vec<(LeafEntry, i32, TileShape)> = Vec::new();
         for leaf in candidates {
-            let id = Self::item_of_key(leaf.object_key);
+            let Some(id) = Self::item_of_key(leaf.object_key) else {
+                continue;
+            };
             if Self::leaf_filtered(board, id, leaf.shape_index_in_object, layer, ignore_nets) {
                 continue;
             }
@@ -596,7 +609,9 @@ impl SearchTreeManager {
         );
         let mut objects: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
         for entry in entries {
-            objects.insert(Reverse(Self::item_of_key(entry.object_key)));
+            if let Some(id) = Self::item_of_key(entry.object_key) {
+                objects.insert(Reverse(id));
+            }
         }
         objects.into_iter().map(|Reverse(id)| id).collect()
     }
@@ -635,7 +650,11 @@ impl SearchTreeManager {
     /// DIVERGENCE: a failed convex split (Java's null
     /// `splitToConvex`) would NPE at `tiles.length`; the port treats
     /// it as vacuously insertable — unreachable through parsed boards
-    /// whose areas always split.
+    /// whose areas always split. Likewise, a `None` board bounding box
+    /// (Java's `final IntBox boundingBox` field is only null before
+    /// the reader sets it, and `isContainedIn(null)` would NPE) skips
+    /// the containment check instead of rejecting — unreachable
+    /// post-parse, where the DSN reader always assigns the box.
     pub fn check_shape(
         &mut self,
         board: &mut Board,
@@ -654,7 +673,7 @@ impl SearchTreeManager {
             }
             let obstacles = self.overlapping_objects_with_clearance(
                 board,
-                0,
+                Self::DEFAULT_TREE_INDEX,
                 tile,
                 layer,
                 net_numbers,
@@ -724,12 +743,14 @@ impl SearchTreeManager {
         compensated_class: i32,
         shape_index: u32,
     ) -> Option<TileShape> {
-        let shapes = shape_cache
-            .entry(id)
-            .or_insert_with(|| {
-                board.tree_shape_precalc(id, tree_object_id, variant, compensated_class)
-            })
-            .clone();
+        // Fill once per item per query, then BORROW: cloning the whole
+        // Vec on every leaf hit would allocate per candidate (an item
+        // with many shapes pays once per hit, not once per query).
+        // `board` and `shape_cache` are disjoint borrows, so the
+        // entry API composes with the `&mut board` precalc.
+        let shapes = shape_cache.entry(id).or_insert_with(|| {
+            board.tree_shape_precalc(id, tree_object_id, variant, compensated_class)
+        });
         shapes.get(shape_index as usize).cloned().flatten()
     }
 
@@ -1590,13 +1611,21 @@ mod tests {
         );
     }
 
-    /// **Section B — the T57 compensated dispatch** (Issue575, the
-    /// same query): with the default class-0 tree the 4-arg form
+    /// **Sections B + B2 — the T57 compensated dispatch** (Issue575,
+    /// the same query): with the default class-0 tree the 4-arg form
     /// dispatches to the with-clearance CORE and agrees with it row
-    /// for row (`B4_CC0_DISPATCH` == `B5_CC0_CORE`); after the flag
-    /// flip rebuilds a class-1 tree, the same 4-arg call dispatches
-    /// to the PLAIN query (`B4_CC1_DISPATCH` == `B_PLAIN_CC1`). The
-    /// clearance annotation row (`B5_CC0_CLEARANCES`, all `cls=1
+    /// for row (`B4_CC0_DISPATCH` == `B5_CC0_CORE`); on the autoroute
+    /// class-1 tree — TREE flag true, MANAGER flag false (`B2_TREE`)
+    /// — it dispatches PLAIN (`B2_4ARG_DISPATCH` == `B2_PLAIN`);
+    /// after the flag flip rebuilds a class-1 default, the same 4-arg
+    /// call dispatches to the PLAIN query (`B4_CC1_DISPATCH` ==
+    /// `B_PLAIN_CC1`). On THIS query the plain and core result sets
+    /// COINCIDE in both flag states (the capture shows all three
+    /// forms equal), so these rows pin the flag VALUES and the result
+    /// SETS, not the branch choice — the discriminating rows (plain
+    /// != core) live in the section-G test
+    /// `with_clearance_dispatch_discriminates_plain_from_core`.
+    /// The clearance annotation row (`B5_CC0_CLEARANCES`, all `cls=1
     /// c=2016`) pins the margin read the core sorted by.
     #[test]
     fn with_clearance_dispatch_follows_the_tree_flag() {
@@ -1634,6 +1663,67 @@ mod tests {
             expected,
             "B5_CC0_CORE"
         );
+        // overlappingItemsWithClearance — the instanceof-Item filter
+        // is the objects form verbatim on this manager; pinned on the
+        // B query (T8 quality review MINOR: the method had no caller
+        // and no pin).
+        let items: Vec<u32> = manager
+            .overlapping_items_with_clearance(&mut board, 0, &query, 0, &[], 1)
+            .iter()
+            .map(|id| id.get())
+            .collect();
+        assert_eq!(
+            items,
+            [815, 787, 785, 771],
+            "the items form of the B4_CC0 query"
+        );
+
+        // B2 — the FLAG-SOURCE rows, before the flip (the flip would
+        // rebuild the tree list after): the autoroute class-1 tree
+        // carries a true TREE flag while the manager (default tree)
+        // flag stays false. The dispatch must read the TREE's flag —
+        // but all three query forms coincide on this query (capture
+        // `B2_*`), so this block pins the flag values and the plain
+        // SET; the branch discrimination is section G.
+        let ar1 = manager.get_autoroute_tree(&mut board, 1);
+        assert_ne!(ar1, 0);
+        assert!(
+            manager.trees[ar1].is_clearance_compensation_used(),
+            "B2_TREE treeFlag — the class-1 tree's derived flag"
+        );
+        assert!(
+            !manager.default_tree().is_clearance_compensation_used(),
+            "B2_TREE managerFlag — still off"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                ar1,
+                &query,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "B2_4ARG_DISPATCH — tree flag true, manager flag false"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, ar1, &query, 0, &[])),
+            expected,
+            "B2_PLAIN"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                ar1,
+                &query,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "B2_CORE — coincides (capture); the discriminator is section G"
+        );
 
         // The flip: a NEW class-1 default tree — the dispatch now
         // takes the plain branch and still agrees.
@@ -1656,6 +1746,214 @@ mod tests {
             entries_string(&manager.overlapping_tree_entries(&mut board, 0, &query, 0, &[])),
             expected,
             "B_PLAIN_CC1"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &query,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "B5_CC1_CORE — coincides too (capture); the divergence witness is section G"
+        );
+    }
+
+    /// **Section G — the DISCRIMINATING T57 dispatch rows** (crafted
+    /// board, the sweep query riding the trace octagon's diagonal
+    /// face; `/tmp/epic-t8-query.out`). On the section-B query plain
+    /// and core coincide, so those rows cannot fail a WRONG dispatch;
+    /// here the two branches genuinely diverge at the sweep flip
+    /// points, on every tree state:
+    ///
+    /// * `G_CC0 d=90/95` (default class-0 tree, flag false): the
+    ///   4-arg dispatch takes the CORE — 4ARG == CORE == `[(4#0)]`
+    ///   != PLAIN == `[]`. An INVERTED condition or an always-plain
+    ///   port returns `[]` and fails.
+    /// * `G_AR1 d=95/100` (autoroute class-1 tree: TREE flag true,
+    ///   MANAGER flag false): the dispatch takes the PLAIN branch —
+    ///   4ARG == PLAIN == `[]` != CORE == `[(4#0)]`. A manager-flag
+    ///   or always-core port returns `[(4#0)]` and fails.
+    /// * `G_CC1 d=95/100` (default tree rebuilt class-1, both flags
+    ///   true): the same plain dispatch, re-pinning the flag-on
+    ///   default.
+    #[test]
+    fn with_clearance_dispatch_discriminates_plain_from_core() {
+        let sweep = |d: i32| oct_of(40_000 + d, 40_001 + d, 40_100 + d, 40_101 + d);
+        let hit = "[(4#0)]";
+        let none = "[]";
+        let mut board = parse_dsn_text(CRAFTED_DSN);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+
+        // G_T0 — default class-0 tree: treeFlag=false managerFlag=false.
+        assert!(!manager.default_tree().is_clearance_compensation_used());
+        // G_CC0 d=90: plain has already dropped out; the dispatch must
+        // follow the CORE.
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                0,
+                &sweep(90),
+                0,
+                &[],
+                1
+            )),
+            hit,
+            "G_CC0 d=90 4ARG — the core branch (flag off)"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &sweep(90), 0, &[])),
+            none,
+            "G_CC0 d=90 PLAIN — dropped out"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &sweep(90),
+                0,
+                &[],
+                1
+            )),
+            hit,
+            "G_CC0 d=90 CORE — still reaches (contrast witness)"
+        );
+        // G_CC0 d=100: the core's own reach ends (the T56 truncation
+        // flip, pinned in detail by the section-C test).
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                0,
+                &sweep(100),
+                0,
+                &[],
+                1
+            )),
+            none,
+            "G_CC0 d=100 4ARG — the core reach ends"
+        );
+
+        // G_T1 — the autoroute class-1 tree: treeFlag=true,
+        // managerFlag=false. The ONLY state separating the two flag
+        // sources.
+        let ar1 = manager.get_autoroute_tree(&mut board, 1);
+        assert_ne!(ar1, 0);
+        assert!(manager.trees[ar1].is_clearance_compensation_used());
+        assert!(!manager.default_tree().is_clearance_compensation_used());
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                ar1,
+                &sweep(95),
+                0,
+                &[],
+                1
+            )),
+            none,
+            "G_AR1 d=95 4ARG — PLAIN despite the manager flag being off"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, ar1, &sweep(95), 0, &[])),
+            none,
+            "G_AR1 d=95 PLAIN"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                ar1,
+                &sweep(95),
+                0,
+                &[],
+                1
+            )),
+            hit,
+            "G_AR1 d=95 CORE — would hit; a manager-flag dispatch returns it"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                ar1,
+                &sweep(100),
+                0,
+                &[],
+                1
+            )),
+            none,
+            "G_AR1 d=100 4ARG — same regime, more margin"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                ar1,
+                &sweep(100),
+                0,
+                &[],
+                1
+            )),
+            hit,
+            "G_AR1 d=100 CORE"
+        );
+        // G_AR1 d=105: everything ends on the compensated trees.
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                ar1,
+                &sweep(105),
+                0,
+                &[],
+                1
+            )),
+            none,
+            "G_AR1 d=105 4ARG"
+        );
+
+        // G_T2 — the flag flip rebuilds a class-1 DEFAULT tree; both
+        // flags true, dispatch still plain.
+        manager.set_clearance_compensation_used(&mut board, true);
+        assert!(manager.default_tree().is_clearance_compensation_used());
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                0,
+                &sweep(95),
+                0,
+                &[],
+                1
+            )),
+            none,
+            "G_CC1 d=95 4ARG — the plain branch on the rebuilt tree"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &sweep(95), 0, &[])),
+            none,
+            "G_CC1 d=95 PLAIN"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &sweep(95),
+                0,
+                &[],
+                1
+            )),
+            hit,
+            "G_CC1 d=95 CORE — contrast witness on the default tree"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                0,
+                &sweep(105),
+                0,
+                &[],
+                1
+            )),
+            none,
+            "G_CC1 d=105 4ARG"
         );
     }
 

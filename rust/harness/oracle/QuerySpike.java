@@ -275,6 +275,27 @@ public final class QuerySpike {
     System.out.println("A_OBJECTS box layer=-1 " + objects(tree.overlappingObjects(qBox, -1)));
   }
 
+  /** The T57 dispatch trap case: an AUTOROUTE class-1 tree while the
+   * MANAGER flag is OFF — the tree's derived flag is what the dispatch
+   * must read (treeFlag=true, managerFlag=false). A manager-flag port
+   * takes the core branch here and diverges from the plain rows. */
+  static void sectionB2(BasicBoard board) {
+    System.out.println("--B2-- T57 dispatch on an autoroute class-1 tree, manager flag OFF");
+    ShapeSearchTree t1 = board.searchTreeManager.getAutorouteTree(1);
+    System.out.println("B2_TREE class=" + t1.getClass().getSimpleName()
+        + " cc=" + t1.compensatedClearanceClassNo
+        + " treeFlag=" + t1.isClearanceCompensationUsed()
+        + " managerFlag=" + board.searchTreeManager.isClearanceCompensationUsed());
+    Via via = (Via) board.getItem(815);
+    IntPoint c = centerOf(via);
+    IntBox qBox = new IntBox(new IntPoint(c.x - 150, c.y - 150), new IntPoint(c.x + 150, c.y + 150));
+    System.out.println("B2_QBOX " + fmt(qBox));
+    System.out.println("B2_4ARG_DISPATCH " + entries(
+        new LinkedList<>(t1.overlappingTreeEntriesWithClearance(qBox, 0, new int[0], 1))));
+    System.out.println("B2_PLAIN         " + entries(plainEntries(t1, qBox, 0, new int[0])));
+    System.out.println("B2_CORE          " + entries(coreEntries(t1, qBox, 0, new int[0], 1)));
+  }
+
   static void sectionB(BasicBoard board) {
     System.out.println("--B-- T57 dispatch, same query, both flag states");
     ShapeSearchTree tree = board.searchTreeManager.getDefaultTree();
@@ -316,6 +337,12 @@ public final class QuerySpike {
     List<ShapeTree.TreeEntry> plain = plainEntries(newTree, qBox, 0, new int[0]);
     System.out.println("B4_CC1_DISPATCH " + entries(d4b));
     System.out.println("B_PLAIN_CC1      " + entries(plain));
+    // The DIVERGENCE witness: the 5-arg core on the compensated tree
+    // would double-compensate (the offset window AND the stored shapes
+    // already carry the compensation), so it must NOT agree with the
+    // dispatched/plain rows on this dense fixture. A dispatch pin that
+    // only checks dispatch == plain == core is anchor-blind.
+    System.out.println("B5_CC1_CORE      " + entries(coreEntries(newTree, qBox, 0, new int[0], 1)));
   }
 
   static void sectionE(BasicBoard board) {
@@ -491,6 +518,61 @@ public final class QuerySpike {
         + entries(plainEntries(t45, q, -1, new int[0])));
   }
 
+  /** Section G — the DISCRIMINATING T57 rows. On the via-815 query of
+   * sections B/B2 the plain, dispatched, and core forms all coincide
+   * (captured there), so those rows cannot fail a wrong dispatch. Here
+   * the crafted board's sweep query marches up the trace octagon's
+   * diagonal face: plain drops out when the query's x+y min passes the
+   * STORED urx, core drops out `clearance' later — and on the
+   * compensated trees the stored urx itself is widened, so their
+   * flip points sit at larger d. The rows where plain != core on each
+   * tree state are the dispatch pin. */
+  static void sectionG() {
+    BasicBoard board = parseDsnText(CRAFTED_DSN, "t8-query.dsn");
+    System.out.println("--G-- T57 discriminating dispatch rows (plain != core)");
+    ShapeSearchTree t0 = board.searchTreeManager.getDefaultTree();
+    System.out.println("G_T0 cc=" + t0.compensatedClearanceClassNo
+        + " treeFlag=" + t0.isClearanceCompensationUsed()
+        + " managerFlag=" + board.searchTreeManager.isClearanceCompensationUsed());
+    for (int d = 85; d <= 115; d += 5) {
+      IntOctagon q = sweepQuery(d);
+      System.out.println("G_CC0 d=" + d + " 4ARG=" + entries(new LinkedList<>(
+          t0.overlappingTreeEntriesWithClearance(q, 0, new int[0], 1)))
+          + " PLAIN=" + entries(plainEntries(t0, q, 0, new int[0]))
+          + " CORE=" + entries(coreEntries(t0, q, 0, new int[0], 1)));
+    }
+    ShapeSearchTree t1 = board.searchTreeManager.getAutorouteTree(1);
+    System.out.println("G_T1 cc=" + t1.compensatedClearanceClassNo
+        + " treeFlag=" + t1.isClearanceCompensationUsed()
+        + " managerFlag=" + board.searchTreeManager.isClearanceCompensationUsed());
+    for (int d = 85; d <= 115; d += 5) {
+      IntOctagon q = sweepQuery(d);
+      System.out.println("G_AR1 d=" + d + " 4ARG=" + entries(new LinkedList<>(
+          t1.overlappingTreeEntriesWithClearance(q, 0, new int[0], 1)))
+          + " PLAIN=" + entries(plainEntries(t1, q, 0, new int[0]))
+          + " CORE=" + entries(coreEntries(t1, q, 0, new int[0], 1)));
+    }
+    board.searchTreeManager.setClearanceCompensationUsed(true);
+    ShapeSearchTree t2 = board.searchTreeManager.getDefaultTree();
+    System.out.println("G_T2 cc=" + t2.compensatedClearanceClassNo
+        + " treeFlag=" + t2.isClearanceCompensationUsed()
+        + " managerFlag=" + board.searchTreeManager.isClearanceCompensationUsed());
+    for (int d = 85; d <= 115; d += 5) {
+      IntOctagon q = sweepQuery(d);
+      System.out.println("G_CC1 d=" + d + " 4ARG=" + entries(new LinkedList<>(
+          t2.overlappingTreeEntriesWithClearance(q, 0, new int[0], 1)))
+          + " PLAIN=" + entries(plainEntries(t2, q, 0, new int[0]))
+          + " CORE=" + entries(coreEntries(t2, q, 0, new int[0], 1)));
+    }
+  }
+
+  /** The section-C sweep query at offset d: a 100x100 box riding the
+   * trace's diagonal end, y-shifted by 1 (the C sweep's parity form). */
+  static IntOctagon sweepQuery(int d) {
+    return new IntBox(new IntPoint(40000 + d, 40001 + d),
+        new IntPoint(40100 + d, 40101 + d)).boundingOctagon();
+  }
+
   static void sectionF() {
     // A FRESH parse: sectionC's matrix edit (v(1,1,0)=20000) would
     // move every checkShape clearance window to 24000 and swallow the
@@ -525,6 +607,9 @@ public final class QuerySpike {
         Paths.get(path).getFileName().toString());
     if (board != null) {
       sectionA(board);
+      // B2 first: getAutorouteTree(1) must run while the manager flag is
+      // still OFF; sectionB's flip would rebuild the tree list after.
+      sectionB2(board);
       sectionB(board);
       sectionE(board);
     }
@@ -533,6 +618,7 @@ public final class QuerySpike {
       sectionC(crafted);
       sectionD(crafted);
       sectionF();
+      sectionG();
     }
   }
 }
