@@ -55,9 +55,10 @@
 //          (:776): the split point is inside the OTHER-net pin's pad,
 //          but padFound never fires → the split PROCEEDS (both traces
 //          split at the crossing).
-//   PAD2 — ALLOWED at the pin CENTER: a same-net trace's endpoint at
-//          the split point returns false (allowed) before the pad
-//          flag matters.
+//   PAD2 — the split point is the pin's center, but the pin is
+//          FOREIGN (net OTHER): sharesNet gates it out before the
+//          center-allow can run; the split is allowed by the same-net
+//          trace endpoint clause (PAD6 is the true center-allow pin).
 //   PAD3 — ALLOWED via a foreign... same-net trace ENDPOINT at the
 //          split point (contrast witness for PAD1).
 //   PAD4 — THE PRECEDENCE QUIRK (:785-786): `currentTrace != this &&
@@ -92,10 +93,12 @@
 //          else-if, gated on !isDeletionForbidden).
 //   NORM3 — the recursion: split → piece combines a neighbor →
 //          normalize(piece, depth+1) — the merged survivor.
-//   NORM4 — the depth cap: a staircase chain driving
-//          normalizationDepth past 16 (each level splits at a via
-//          crossing and combines the next collinear extension); the
-//          cap debug line + a stable second pass.
+//   NORM4 — a staircase cascade that keeps normalize recursion well
+//          under the cap (depth 16 in PASS 1; each level splits at a
+//          via crossing and combines the next collinear extension)
+//          plus a stable SECOND PASS over the survivors. The cap
+//          itself is NOT reachable here: its only trace is Java's
+//          FRLogger.debug, which JUL drops below the console level.
 //   NORM5A/B/C — the size!=1 contract: no-op → false; the
 //          last-entry drill split returns [deleted this] (size 1)
 //          → normalize FALSE while DELETING the trace; the first-
@@ -1026,6 +1029,54 @@ public final class SplitSpike {
     System.out.println("PICK_EMPTY " + items(board.pickItems(ip(0, 0), 0, null)));
   }
 
+  /** REQ1 — the requery APPEND semantics vs no-requery (mutation M5:
+   * deleting the requery entirely passed every earlier pin). A U-trace
+   * B (legs at x=25000 and x=65000) crosses A twice; the FIRST found
+   * split removes B, so only the RE-QUERY's appended piece entries can
+   * trigger the split at the SECOND crossing. Java: requery appends
+   * into the SAME accumulated list (ShapeSearchTree's walk only adds,
+   * :437-438 — no clear) and rewinds to the head (:586-588): stale
+   * entries re-walk as refused nulls, then the pieces' entries split
+   * the second crossing. No-requery would leave B in 2 pieces; Java's
+   * append gives 3. */
+  static void caseReq1() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace b = ins(board, t, new Point[] {ip(25000, 20000), ip(25000, 50000),
+      ip(65000, 50000), ip(65000, 20000)});
+    PolylineTrace a = ins(board, t, new Point[] {ip(20000, 30000), ip(90000, 30000)});
+    System.out.println("--REQ1-- requery second-crossing U B=" + b.getId()
+        + " A=" + a.getId() + " corners=" + cornersOf(a));
+    Collection<PolylineTrace> pieces = a.split((IntOctagon) null);
+    dumpSplitPieces(pieces, "REQ1_RESULT");
+    dumpItems(board, "REQ1_POST");
+    witness(board, t, "REQ1");
+  }
+
+  /** REQ2 — append-and-rewind vs REPLACE (the quality-round finding):
+   * the same U as REQ1 but A runs through the TEMPLATE via 5 at
+   * (40000,40000). Java: the first found split requeries (append) and
+   * rewinds; the re-walked OLD prefix reaches the via BEFORE the
+   * appended piece entries, the drill split removes the receiver, and
+   * the walk dies at the next loop-top — the second crossing is never
+   * split (the piece entries sit at the list TAIL, behind the via).
+   * A REPLACE requery would inline the pieces in fresh tree order and
+   * (piece-before-via) split the second crossing — different ids and
+   * post items. */
+  static void caseReq2() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace b = ins(board, t, new Point[] {ip(25000, 20000), ip(25000, 50000),
+      ip(65000, 50000), ip(65000, 20000)});
+    PolylineTrace a = ins(board, t, new Point[] {ip(20000, 40000), ip(90000, 40000)});
+    System.out.println("--REQ2-- append-vs-replace via-later U B=" + b.getId()
+        + " A=" + a.getId() + " corners=" + cornersOf(a));
+    Collection<PolylineTrace> pieces = a.split((IntOctagon) null);
+    dumpSplitPieces(pieces, "REQ2_RESULT");
+    dumpItems(board, "REQ2_POST");
+    witness(board, t, "REQ2");
+  }
+
   public static void main(String[] args) throws Exception {
     sectionB();
     caseX1();
@@ -1055,6 +1106,8 @@ public final class SplitSpike {
     caseNorm5a();
     caseNorm5b();
     caseNorm5c();
+    caseReq1();
+    caseReq2();
     sectionPick();
     System.out.println("--DONE--");
   }

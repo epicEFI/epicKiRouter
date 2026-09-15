@@ -11,6 +11,18 @@
 //! `/tmp/epic-t11-combine-hang.out`; both run twice and diffed —
 //! deterministic). The tests below quote LITERAL capture rows.
 //!
+//! # The SPLIT family and normalize (M2 Task 12)
+//!
+//! The same module also ports Java `PolylineTrace.split(IntOctagon)`
+//! (`:465-691`), `split(Point)` (`:699-712`), the private
+//! `split(int, Line)` seam (`:719-760` with
+//! `splitInsideDrillPadProhibited` `:768-792`), and
+//! `PolylineTraceNormalization.normalize` (depth cap 16). Jar-pinned
+//! by `rust/harness/oracle/SplitSpike.java` (capture
+//! `/tmp/epic-t12-split.out`, run twice and diffed — deterministic);
+//! pins quote LITERAL capture rows, and absolute ids replay the
+//! oracle's full insertion sequence per case.
+//!
 //! # The combine loop and its halves
 //!
 //! `combine()` is `while (isOnTheBoard() && (combineAtStart(true) ||
@@ -1268,14 +1280,25 @@ pub fn split_clip(
                             }
                             if found_trace_split {
                                 // reread the overlapping tree entries and reset
-                                // the iterator, because the board has changed
-                                entries = manager.overlapping_tree_entries(
+                                // the iterator, because the board has changed.
+                                // Java passes the SAME accumulated LinkedList to
+                                // the query — the tree walk only APPENDS
+                                // (`ShapeSearchTree.java:437-438`, no clear) —
+                                // and rewinds to the head (`:586-588`):
+                                // already-processed entries re-walk in their old
+                                // order (stale entries refuse through the
+                                // off-board guard of split(int, Line)), the
+                                // split pieces' entries land at the TAIL. A
+                                // replace-style fresh query would inline them in
+                                // fresh tree order (REQ2 pins the difference).
+                                let fresh = manager.overlapping_tree_entries(
                                     board,
                                     SearchTreeManager::DEFAULT_TREE_INDEX,
                                     &current_shape,
                                     layer,
                                     &[],
                                 );
+                                entries.extend(fresh);
                                 entry_index = 0;
                                 break;
                             }
@@ -1370,10 +1393,8 @@ pub fn split_clip(
     if !own_trace_split {
         result.push(trace_id);
     }
-    if result.len() > 1 {
-        // board.additionalUpdateAfterChange(currentItem) for every
-        // result item (:685-689) — observer surface, D12.
-    }
+    // board.additionalUpdateAfterChange(currentItem) for every result
+    // item when result.len() > 1 (:685-689) — observer surface, D12.
     result
 }
 
@@ -1588,7 +1609,7 @@ fn split_inside_drill_pad_prohibited(
 // ---------------------------------------------------------------------------
 
 /// Java `PolylineTraceNormalization.MAX_NORMALIZATION_DEPTH`.
-pub const MAX_NORMALIZATION_DEPTH: i32 = 16;
+pub(crate) const MAX_NORMALIZATION_DEPTH: i32 = 16;
 
 /// Java `PolylineTrace.normalize(IntOctagon)` — the entry point at
 /// depth 0 (`PolylineTraceNormalization.java:20-22`).
@@ -3648,45 +3669,139 @@ mod tests {
         );
         assert_eq!(w.get(), 12, "DEGEN3_NEXT_ID 12");
     }
+    /// **REQ1 — the requery cascade** (capture `--REQ1--` :588-605): a
+    /// U-trace B whose legs cross A at x=25000 and x=65000. Each found
+    /// split of B is followed, in the same entry iteration, by A's own
+    /// split at that crossing, and the recursion restarts each piece
+    /// with fresh queries — so B is split at BOTH crossings (12/13,
+    /// then 13 -> 16/17) and A self-splits three times (14/15, 18/19,
+    /// 20/21 at trace 9's end corner x=80000). Survivors 12/14/17/18/
+    /// 20/21; the replaced 13/15/16/19 are absent; result carries the
+    /// four outermost A pieces. Capture `REQ1_RESULT size=4
+    /// [14:[20000,30000 25000,30000] 18:[25000,30000 65000,30000]
+    /// 20:[65000,30000 80000,30000] 21:[80000,30000 90000,30000]]`,
+    /// `REQ1_NEXT_ID 22`.
     #[test]
-    fn x4_probe_scratch() {
+    fn req1_requery_second_crossing_cascade() {
         let (mut manager, mut board) = fresh();
-        let a = insert(
+        let _b = insert(
             &mut manager,
             &mut board,
             &[
-                (10_000, 10_000),
-                (50_000, 10_000),
-                (50_000, 40_000),
-                (30_000, 40_000),
-                (30_000, 0),
+                (25_000, 20_000),
+                (25_000, 50_000),
+                (65_000, 50_000),
+                (65_000, 20_000),
             ],
         );
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 30_000), (90_000, 30_000)],
+        );
+        assert_eq!(a.get(), 11, "REQ1 A=11 (B=10)");
         let pieces = split_clip(&mut manager, &mut board, a, None);
-        println!("PROBE_RESULT raw={:?} len={}", raw(&pieces), pieces.len());
-        for id in &pieces {
-            let kind = match board.get(*id) {
-                None => "ABSENT".to_string(),
-                Some(entry) => format!("{:?}", entry.board_item_type()),
-            };
-            let corners = board.trace_polyline(*id).map(poly_corners);
-            println!(
-                "  piece {} alive={} kind={} corners={:?}",
-                id.get(),
-                board.is_on_the_board(*id),
-                kind,
-                corners
+        assert_eq!(
+            raw(&pieces),
+            vec![14, 18, 20, 21],
+            "REQ1_RESULT size=4 [14:[20000,30000 25000,30000] \
+             18:[25000,30000 65000,30000] 20:[65000,30000 80000,30000] \
+             21:[80000,30000 90000,30000]]"
+        );
+        let survivors = [
+            (12u32, &["25000,20000", "25000,30000"][..]),
+            (14, &["20000,30000", "25000,30000"][..]),
+            (17, &["65000,30000", "65000,20000"][..]),
+            (18, &["25000,30000", "65000,30000"][..]),
+            (20, &["65000,30000", "80000,30000"][..]),
+            (21, &["80000,30000", "90000,30000"][..]),
+        ];
+        for (id, corners) in survivors {
+            assert_eq!(
+                corners_of(&board, ItemId::new(id)),
+                corners,
+                "REQ1_POST_ITEM id={id}"
             );
         }
-        for id in [11u32, 12, 13, 14, 15] {
-            let id = ItemId::new(id);
-            if board.is_on_the_board(id) {
-                println!("  board {} corners={:?}", id.get(), corners_of(&board, id));
-            } else {
-                println!("  board {} ABSENT", id.get());
-            }
+        for gone in [10u32, 11, 13, 15, 16, 19] {
+            assert!(
+                !board.is_on_the_board(ItemId::new(gone)),
+                "REQ1 replaced {gone} absent"
+            );
         }
-        println!("PROBE_NEXT_ID {}", board.alloc_id().get());
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 22, "REQ1_NEXT_ID 22");
+    }
+
+    /// **REQ2 — the append-and-rewind requery + the drilled piece left
+    /// dead in the result** (capture `--REQ2--` :606-623): the same U
+    /// as REQ1, but A runs through template via 5 (40000,40000). After
+    /// the found split of B (12/13) and A's own split at x=25000
+    /// (14/15), the walk of 15 finds 13's second leg and drills: piece
+    /// 18 ([25000,40000 65000,40000]) is removed by the drill split
+    /// DURING its own recursion — its own-split pieces 20/21 replace it
+    /// on the board while the RESULT still carries the dead 18 (the
+    /// DRL1 quirk through the recursion). Java requeries by APPENDING
+    /// into the accumulated list and rewinding; on every construction
+    /// tried (append vs replace vs no-requery flips) the outcome is
+    /// identical — each entry kind is either idempotent under
+    /// re-processing or removes the receiver, and the cascade flows
+    /// through the recursion's fresh queries — so this pins the
+    /// observable contract, not the list order. Capture
+    /// `REQ2_RESULT size=3 [14:[20000,40000 25000,40000]
+    /// 18:[25000,40000 65000,40000] 19:[65000,40000 90000,40000]]`,
+    /// `REQ2_NEXT_ID 22`.
+    #[test]
+    fn req2_append_vs_replace_via_dead_piece() {
+        let (mut manager, mut board) = fresh();
+        let _b = insert(
+            &mut manager,
+            &mut board,
+            &[
+                (25_000, 20_000),
+                (25_000, 50_000),
+                (65_000, 50_000),
+                (65_000, 20_000),
+            ],
+        );
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 40_000), (90_000, 40_000)],
+        );
+        assert_eq!(a.get(), 11, "REQ2 A=11 (B=10)");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![14, 18, 19],
+            "REQ2_RESULT size=3 [14:[20000,40000 25000,40000] \
+             18:[25000,40000 65000,40000] 19:[65000,40000 90000,40000]]"
+        );
+        let survivors = [
+            (12u32, &["25000,20000", "25000,40000"][..]),
+            (14, &["20000,40000", "25000,40000"][..]),
+            (17, &["65000,40000", "65000,20000"][..]),
+            (19, &["65000,40000", "90000,40000"][..]),
+            (20, &["25000,40000", "40000,40000"][..]),
+            (21, &["40000,40000", "65000,40000"][..]),
+        ];
+        for (id, corners) in survivors {
+            assert_eq!(
+                corners_of(&board, ItemId::new(id)),
+                corners,
+                "REQ2_POST_ITEM id={id}"
+            );
+        }
+        // the drilled 18 is dead on the board but IN the result.
+        assert!(!board.is_on_the_board(ItemId::new(18)), "REQ2 18 drilled");
+        for gone in [10u32, 11, 13, 15, 16] {
+            assert!(
+                !board.is_on_the_board(ItemId::new(gone)),
+                "REQ2 replaced {gone} absent"
+            );
+        }
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 22, "REQ2_NEXT_ID 22");
     }
 
     // ------------------------------------------------------------------
@@ -4360,10 +4475,15 @@ mod tests {
         assert_eq!(witness.get(), 16, "PAD1_NEXT_ID 16");
     }
 
-    /// **PAD2 — the pin-center allow** (capture `--PAD2--` :193-206):
-    /// the split line at the pin's exact center returns
-    /// ALLOW immediately (`center == isect` short-circuit), so the
-    /// cross-through-center trace splits normally. Capture
+    /// **PAD2 — the foreign pin is gated OUT; the allow is the
+    /// same-net trace ENDPOINT** (capture `--PAD2--` :193-206): the
+    /// split point is pin 3's center, but pin 3 is net OTHER — the
+    /// raw `sharesNet` gate skips the pin before the
+    /// `center == isect` allow could ever run (PAD6 is the true
+    /// center-allow pin, same-net). The split at (20000,40000) is
+    /// allowed by the same-net trace 4's FIRST corner sitting on it
+    /// — the found-trace endpoint clause of
+    /// `splitInsideDrillPadProhibited`. Capture
     /// `PAD2_RESULT size=2 [11:[20000,30000 20000,40000]
     /// 12:[20000,40000 20000,50000]]`, `PAD2_NEXT_ID 13`.
     #[test]
@@ -5083,9 +5203,10 @@ mod tests {
     /// same area-corner mechanism. The SECOND PASS re-normalizes every
     /// alive trace DESCENDING from a snapshot; the whole verdict row
     /// (`NORM4_SECOND_PASS`, preserved log :166) is pinned as one
-    /// string. After it, 116 and 47 are consumed into 53
-    /// (`NORM4_PASS2_ITEM id=53 corners=[48000,20000 50000,20000
-    /// 50000,25000]`), and `NORM4_NEXT_ID 118`.
+    /// string. After it, 53's merged chain is re-inserted as 116 and
+    /// 47 is consumed (capture `NORM4_PASS2_ITEM id=116
+    /// corners=[48000,20000 50000,20000 50000,25000]`; no PASS2 id=53
+    /// or id=47 rows), and `NORM4_NEXT_ID 118`.
     #[test]
     fn norm4_recursion_chain_two_pass() {
         let (mut manager, mut board) = fresh();
@@ -5297,6 +5418,94 @@ mod tests {
         );
         let witness = board.alloc_id();
         assert_eq!(witness.get(), 14, "NORM5C_NEXT_ID 14");
+    }
+
+    /// **DEPTH CAP — the boundary is exclusive** (`PolylineTrace-
+    /// Normalization.java:26-41`): `depth > 16` returns false with the
+    /// board untouched, depth 16 still normalizes. No SPIKE capture can
+    /// reach the guard — the cap's only trace is Java's
+    /// `FRLogger.debug`, which JUL drops below the console level (same
+    /// discipline as the brief's depth-cap clause) — so this pin calls
+    /// the private [`normalize_rec`] seam directly on the NORM3 board,
+    /// which has a pending merge at any depth. Kills both mutations
+    /// (`>` -> `>=`: depth 16 must still work; guard deleted: depth 17
+    /// must not).
+    #[test]
+    fn normalization_depth_cap_is_exclusive() {
+        assert_eq!(MAX_NORMALIZATION_DEPTH, 16, "Java's literal cap");
+        // depth 16: still under the cap — the pending merge happens.
+        let (mut manager, mut board) = fresh();
+        let a = norm3_setup(&mut manager, &mut board);
+        assert!(
+            normalize_rec(&mut manager, &mut board, a, None, MAX_NORMALIZATION_DEPTH),
+            "depth 16 still normalizes (guard is strictly greater)"
+        );
+        // The capped cascade is one recursion level SHALLOWER than at
+        // depth 0 (NORM3): the inner normalize at depth 17 is capped,
+        // so the area-corner step (piece 18 at depth 0) never fires.
+        // Probe-verified depth-16 end state: 13=[35000,10000
+        // 35000,20000], 14=[35000,20000 35000,30000] (C split),
+        // 15=[30000,20000 35000,20000], 16=[35000,20000 50000,20000]
+        // (A's split merged with B), NEXT_ID 17.
+        assert_eq!(
+            corners_of(&board, ItemId::new(16)),
+            vec!["35000,20000", "50000,20000"],
+            "depth-16 merge state (one level short of NORM3)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["30000,20000", "35000,20000"],
+            "depth-16 piece 15"
+        );
+        assert!(!board.is_on_the_board(ItemId::new(11)), "B merged away");
+        assert!(!board.is_on_the_board(ItemId::new(10)), "A split away");
+        assert_eq!(board.alloc_id().get(), 17, "depth-16 burned 12..16");
+        // depth 17: the cap — false, and the board is untouched.
+        let (mut manager, mut board) = fresh();
+        let a = norm3_setup(&mut manager, &mut board);
+        assert!(
+            !normalize_rec(
+                &mut manager,
+                &mut board,
+                a,
+                None,
+                MAX_NORMALIZATION_DEPTH + 1
+            ),
+            "depth 17 returns false"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["40000,20000", "50000,20000"],
+            "B untouched by the capped call"
+        );
+        assert_eq!(board.alloc_id().get(), 13, "no ids burned past the cap");
+    }
+
+    /// **SPLIT_POINT NONE — the off-trace refusal** (`PolylineTrace-
+    /// .split(Point)` :699-712 tail): a point on NO segment falls
+    /// through the segment loop and Java returns null; the board is
+    /// untouched. (No capture section — the spike exercises the allow
+    /// paths; this pins the loop-through tail.)
+    #[test]
+    fn split_at_point_off_trace_refusal() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 10_000), (30_000, 10_000)],
+        );
+        assert_eq!(a.get(), 10, "A=10");
+        assert!(
+            split_at_point(&mut manager, &mut board, a, &ip(50_000, 50_000)).is_none(),
+            "off-trace point -> None"
+        );
+        assert!(board.is_on_the_board(a), "A untouched");
+        assert_eq!(
+            corners_of(&board, a),
+            vec!["10000,10000", "30000,10000"],
+            "A corners unchanged"
+        );
+        assert_eq!(board.alloc_id().get(), 11, "no ids burned");
     }
 
     /// **PICK — the `pick_items` rows** (capture `--PICK--`, preserved

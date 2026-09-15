@@ -1210,9 +1210,9 @@ mod tests {
         assert_eq!(second.lines.len(), 3);
     }
 
-    /// The guard ladder: out-of-range indices, a parallel end line,
-    /// and the touch-only rejects at both polyline end points
-    /// (Java `:753-760` / `:764-771`, precedence
+    /// The guard ladder: out-of-range indices (`:759-762`), a parallel
+    /// end line (`:763-765`), and the touch-only rejects at both
+    /// polyline end points (`:800-805`, precedence
     /// `(li == 1 && first) || (li >= len - 2 && last)`).
     #[test]
     fn split_guards_reject() {
@@ -1237,7 +1237,7 @@ mod tests {
         assert!(pl.split(1, &at_last).is_none(), "touch at the last corner");
     }
 
-    /// The zero-length skips (`:773-794`): an end line through
+    /// The zero-length skips (`:806-827`): an end line through
     /// `corner(lineIndex - 1)` omits it from the first piece (which
     /// then collapses and rejects the split), an end line through
     /// `corner(lineIndex)` omits it from the second piece — the

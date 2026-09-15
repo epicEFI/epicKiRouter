@@ -27,7 +27,11 @@
 //! [`trace_ops`] — the trace COMBINE seam (`PolylineTrace.combine`
 //! and the join halves) plus the cycle-removal closure
 //! (`removeIfCycle`/`getTraceTail`/`isCycle`/`getConnectionItems`),
-//! jar-pinned by `rust/harness/oracle/CombineSpike.java`.
+//! jar-pinned by `rust/harness/oracle/CombineSpike.java`. Task 12
+//! completes the module with the trace SPLIT family
+//! (`split(IntOctagon)`/`split(Point)`/`split(int, Line)` +
+//! `splitInsideDrillPadProhibited`) and `normalize` (depth cap 16),
+//! jar-pinned by `rust/harness/oracle/SplitSpike.java`.
 
 pub mod board;
 pub mod components;
