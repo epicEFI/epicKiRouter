@@ -1,0 +1,24 @@
+(pcb oct-touch.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 60000))
+    (keepout (circle F.Cu 2000 10000 3000))
+    (keepout (circle F.Cu 2000 12829 3000))
+    (rule (width 250) (clearance 14))
+  )
+  (placement)
+  (library)
+  (network
+    (net SN)
+  )
+  (wiring
+    (wire (path F.Cu 250  1500 1950 9511 1950) (net SN))
+  )
+)

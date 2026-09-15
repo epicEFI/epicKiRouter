@@ -41,3 +41,8 @@ jobs:
       - run: cargo run -q -p epic-harness -- dsn ses-compare
         env:
           EPIC_SKIP_GRADLE: "1"
+      # M2 index parity: tree dumps + query replay vs committed Java-oracle
+      # goldens (tier fixtures + stressors) — java-free compare.
+      - run: cargo run -q -p epic-harness -- index compare
+        env:
+          EPIC_SKIP_GRADLE: "1"

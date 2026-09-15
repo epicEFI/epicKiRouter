@@ -1,0 +1,24 @@
+(pcb sym-tie.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 60000))
+    (keepout (rect F.Cu 20000 25000 30000 35000))
+    (keepout (rect F.Cu 70000 25000 80000 35000))
+    (rule (width 250) (clearance 14))
+  )
+  (placement)
+  (library)
+  (network
+    (net SN)
+  )
+  (wiring
+    (wire (path F.Cu 250  10000 30000 90000 30000) (net SN))
+  )
+)

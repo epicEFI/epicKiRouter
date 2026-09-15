@@ -1,0 +1,36 @@
+(pcb multi-net.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 60000))
+    (rule (width 250) (clearance 14))
+  )
+  (placement
+    (component PAD
+      (place U1 50000 30000 front 0)
+    )
+  )
+  (library
+    (image PAD
+      (pin CirclePad_F_800_um 1 0 0)
+    )
+    (padstack CirclePad_F_800_um
+      (shape (circle F.Cu 800))
+      (attach off)
+    )
+  )
+  (network
+    (net NA (pins U1-1))
+    (net NB (pins U1-1))
+  )
+  (wiring
+    (wire (path F.Cu 250  10000 10000 30000 10000) (net NA))
+    (wire (path F.Cu 250  10000 50000 30000 50000) (net NB))
+  )
+)

@@ -13,6 +13,10 @@ mod corpus;
 // subcommands' goldens/compare since Task 11.
 mod dsn_corpus;
 mod dsn_digest;
+// Index parity corpus (M2 Task 9): tier + stressor fixtures replayed
+// through the landed search-tree surface, Java goldens, java-free CI
+// compare.
+mod index_corpus;
 mod manifest;
 mod oracle;
 // SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
@@ -67,6 +71,13 @@ enum Command {
         #[command(subcommand)]
         cmd: dsn_corpus::DsnCommand,
     },
+    /// Index parity corpus (M2 Task 9): tree dumps + the replay query
+    /// script on tier + stressor fixtures, Java-oracle goldens, and a
+    /// java-free compare (the CI gate).
+    Index {
+        #[command(subcommand)]
+        cmd: index_corpus::IndexCommand,
+    },
 }
 
 fn main() {
@@ -87,6 +98,12 @@ fn run() -> Result<()> {
         // generation) and needs no eager JVM resolution.
         return dsn_corpus::run(cmd, &cli.jvm_xmx);
     }
+    if let Command::Index { cmd } = cli.command {
+        // The index pipeline reads tiers.yaml itself (manifest
+        // generation) and resolves the JVM lazily — `index compare`
+        // never needs one.
+        return index_corpus::run(cmd, &cli.jvm_xmx);
+    }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
     let tier_file = TierFile::load(&tiers_path)?;
@@ -95,6 +112,9 @@ fn run() -> Result<()> {
     let jar = oracle::jar_path(&repo_root);
 
     match cli.command {
+        // Index/Corpus/Dsn returned before the tier/JVM resolution
+        // above; this arm only satisfies the match.
+        Command::Index { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {

@@ -1,0 +1,29 @@
+(pcb drill-inflate.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer In1.Cu (type signal))
+    (layer In2.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 60000))
+    (rule (width 250) (clearance 14))
+  )
+  (placement)
+  (library
+    (padstack Via_800:300_um
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+    )
+  )
+  (network
+    (net VN)
+  )
+  (wiring
+    (via Via_800:300_um 50000 30000 (net VN))
+  )
+)
