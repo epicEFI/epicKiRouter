@@ -66,12 +66,26 @@
 //! # The shrink rule and the loop's on-board recheck
 //!
 //! After replacing the geometry, Java removes the receiver when
-//! `this.lines.lines.length < 3` (a single-segment leftover) and then
+//! `this.lines.lines.length < 3` (`:324-327` / `:448-451`) and then
 //! ALWAYS removes the joined trace — through the REPOSITORY
 //! (`BoardItemRepository.removeItem`, `:170-199`), whose
 //! deletion-forbidden skip (`:189`) comes first, so a forbidden item
-//! silently stays. The `isOnTheBoard()` recheck in the combine loop
-//! exists for exactly the self-removal case.
+//! silently stays. The `< 3` count is NOT a "single-segment
+//! leftover" from ordinary joins: a constructed `Polyline` carries
+//! corners+1 stored lines, so even two single-segment traces joined
+//! end-to-end give 3 lines and ONE merged survivor (capture
+//! `DEGEN_PRED ... joinedLen=3`, `DEGEN_A_ALIVE true corners=
+//! [60000,30000 85000,30000]`). The rule fires when the ctor
+//! DEGENERATED the join — a join path that spikes out and back (the
+//! other trace retracing the receiver EXACTLY) cleans to the EMPTY
+//! polyline: capture `DEGEN2_PRED_START ... newCount=5 joinedLen=0
+//! joinedCorners=NONE survivor=EMPTY`, `DEGEN2_COMBINE true`,
+//! `DEGEN2_A_ALIVE false B_ALIVE false`, tree back to the 31-row
+//! baseline, `DEGEN2_NEXT_ID 12` (both ids burned). An OVERRUN (a
+//! collinear extension past the retrace) keeps 3 lines and merges
+//! instead: `DEGEN3_A_ALIVE true corners=[10000,10000 0,10000]`.
+//! The `isOnTheBoard()` recheck in the combine loop exists for
+//! exactly the self-removal case.
 //!
 //! # The connection walk (NONE-only form)
 //!
@@ -80,11 +94,18 @@
 //! receiver, applies the EXACTLY-ONE-CONTACT contract at the receiver
 //! corner (trace receivers only:
 //! `getNormalContacts(prevPoint, false).size() != 1` skips the
-//! branch), then walks: each step demands `isRoutable`, stops at vias
-//! whose `StopConnectionOption` is VIA/FANOUT_VIA (the port's surface
-//! only produces NONE, which never stops — the check is unreachable
-//! and absent; `isFanoutVia` is M3), and continues to the unique next
-//! contact whose (layer, point) differs from the arrival pair. A NULL
+//! branch), then walks: each step demands `isRoutable` — a KIND
+//! gate: the base `Item.isRoutable()` is FALSE (`Item.java:908-910`),
+//! only `Trace`/`Via` override it, so a PIN is never routable and the
+//! walk both EXCLUDES it from the result set and STOPS there, while a
+//! via IS walked into (capture `PINWALK_ROUTABLE pin=false via=true
+//! trace=true`; `PINWALK_FROM_TRACE_A [10:T]`,
+//! `PINWALK_FROM_PIN [10:T]`, `PINWALK_FROM_VIA [11:T,5:V]`) — stops
+//! at vias whose `StopConnectionOption` is VIA/FANOUT_VIA (the
+//! port's surface only produces NONE, which never stops — the check
+//! is unreachable and absent; `isFanoutVia` is M3), and continues to
+//! the unique next contact whose (layer, point) differs from the
+//! arrival pair. A NULL
 //! contact point mid-walk, or a SECOND new contact, is a fork: the
 //! branch ends. Arrival-skip compares against the PREVIOUS point —
 //! two new contacts at the SAME point are a fork, not a skip. The
@@ -108,6 +129,37 @@
 //! connection set, then — for each endpoint that had NO tail before —
 //! re-queries [`get_trace_tail`] and removes THAT tail's connection
 //! set too (Y7: the phase-2 pass eats the partner trace).
+//!
+//! # The tailAtEndpointBefore flag is structurally always false
+//!
+//! Java queries `getTraceTail(endpoint)` BEFORE the removal and
+//! gates the phase-2 pass on `!tailAtEndpointBefore[i]`
+//! (`:1352-1358`). That flag can never be true on a reachable board,
+//! so the gate is always taken (Y2 pins the before-queries null on
+//! both endpoints; Y7 pins the pass firing; Y5 pins the tail
+//! predicate itself on non-cycle endpoints). The argument, in two
+//! steps:
+//!
+//! 1. `isCycle() == true` implies BOTH endpoint contact sets of the
+//!    cycle trace are non-empty. The isOverlap shortcut needs the
+//!    start and end contact sets to INTERSECT (both non-empty). The
+//!    DFS closes only through the OPPOSITE endpoint: the seed
+//!    endpoint's contacts are all pre-seeded into the shared visited
+//!    set (and recurse with `comeFrom == the receiver`, so their
+//!    back-edge to the receiver is comeFrom-skipped before the
+//!    search-item check — Y3), so the search item can only be
+//!    re-discovered as a contact of a walked item at the other
+//!    endpoint's corner.
+//! 2. `getTraceTail(location)` returns a trace only when the matching
+//!    endpoint contact set is EMPTY. Any same-net, same-layer trace
+//!    whose endpoint sits at a cycle trace's endpoint contacts the
+//!    cycle trace there (corner-to-corner, layer-exact, net-shared) —
+//!    its set is non-empty. And the cycle trace's own endpoint sets
+//!    are non-empty by step 1.
+//!
+//! The tempting self-tail construction (a free end on the cycle
+//! trace, cycle closing through the other end) is impossible for the
+//! same reason: a free end cannot close a cycle (step 1).
 //!
 //! # Not ported (GUI/undo anchors, T14)
 //!
@@ -196,16 +248,27 @@ pub fn is_deletion_forbidden(board: &Board, id: ItemId) -> bool {
     }
 }
 
-/// Java `Item.isRoutable()` (`Item.java:855-858`):
-/// `!isUserFixed() && netCount() > 0`.
+/// Java `Item.isRoutable()` — the BASE class returns FALSE
+/// (`Item.java:908-910`); only `Trace` (`Trace.java:206-209`) and
+/// `Via` (`Via.java:147-150`) override it with
+/// `!isUserFixed() && netCount() > 0`. A PIN is therefore NEVER
+/// routable, whatever its nets: the connection walk EXCLUDES it from
+/// the result set and STOPS when it is the next hop, while a via IS
+/// routable and is walked into (capture `PINWALK_ROUTABLE
+/// pin=false via=true trace=true`, `PINWALK_FROM_TRACE_A [10:T]`,
+/// `PINWALK_FROM_PIN [10:T]`, `PINWALK_FROM_VIA [11:T,5:V]`).
 fn is_routable(board: &Board, id: ItemId) -> bool {
     match board.get(id) {
-        Some(entry) => !is_user_fixed(entry) && !entry.nets.is_empty(),
+        Some(entry) => {
+            matches!(entry.data, ItemData::Trace { .. } | ItemData::Via { .. })
+                && !is_user_fixed(entry)
+                && !entry.nets.is_empty()
+        }
         None => false,
     }
 }
 
-/// Java `Item.firstCommonLayer(Item)` (`Item.java:355-370`):
+/// Java `Item.firstCommonLayer(Item)` (`Item.java:324-332`):
 /// `max(firstLayer) > min(lastLayer)` means disjoint intervals → -1,
 /// else the shared first layer. A missing id yields -1 (Java would
 /// NPE; unreachable through the walk).
@@ -624,6 +687,13 @@ fn remove_items(manager: &mut SearchTreeManager, board: &mut Board, items: &[Ite
 /// removed, then — per endpoint that had NO tail BEFORE the removal —
 /// the (new) tail's connection set is removed too (Y7). Returns
 /// whether a cycle was found and removed.
+///
+/// `tail_at_endpoint_before` is structurally always false (module
+/// docs: both endpoint contact sets are non-empty whenever
+/// `isCycle()` held, so [`get_trace_tail`] can never hit at either
+/// endpoint) — the flag is kept because it is a literal port of the
+/// Java shape, and its inputs are pinned by Y2 (`Y2_TAIL_BEFORE
+/// e0=null e1=null`).
 pub fn remove_if_cycle(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -801,9 +871,9 @@ fn combine_at_start(
     let joined = Polyline::new(new_lines);
     let joined_line_count = joined.lines.len();
     replace_geometry(manager, board, trace_id, joined);
-    // The shrink rule (:304-307) — a single-segment leftover removes
-    // the receiver ITSELF (through the repository, so a
-    // deletion-forbidden receiver would survive).
+    // The shrink rule (:324-327) — a degenerated (empty) joined
+    // polyline removes the receiver ITSELF (through the repository, so
+    // a deletion-forbidden receiver would survive).
     if joined_line_count < 3 {
         remove_item_through_repository(manager, board, trace_id);
     }
@@ -876,7 +946,7 @@ fn combine_at_end(
     if a_array.len() < 2 || other_lines.len() < 2 {
         return false;
     }
-    // The mirrored skip test (:394-396): the RECEIVER's
+    // The mirrored skip test (:415): the RECEIVER's
     // second-to-last line against the other's second line.
     let skip_line = a_array[a_array.len() - 2].is_equal_or_opposite(&other_lines[1]);
     let new_count = a_array.len() + other_lines.len() - 2 - usize::from(skip_line);
@@ -1589,6 +1659,20 @@ mod tests {
         );
         assert!(board.get(b).is_none());
         assert!(board.get(c).is_none());
+        // C4_POST_TREE (capture `--C4_TREE--`, `C4_POST_TREE lines=33`):
+        // 16 baseline + 3 inserted - 2 removed = 17 leaves; the merged
+        // survivor carries ONE leaf row.
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            17,
+            "C4_POST_TREE leaves"
+        );
+        let survivor = leaf_rows_for(&manager, a);
+        assert_eq!(survivor.len(), 1, "C4 survivor leaf count");
+        assert!(
+            survivor[0].ends_with("oct[9875 49875 70125 50125 -40177 20177 59823 120177]"),
+            "C4_POST_TREE_ROW survivor: {survivor:?}"
+        );
     }
 
     /// C5 — both ends. Capture: `C5_PRED_START ... survivor=[10000,20000
@@ -1624,6 +1708,19 @@ mod tests {
         );
         assert!(board.get(b1).is_none());
         assert!(board.get(b2).is_none());
+        // C5_POST_TREE (capture `--C5_TREE--`, `C5_POST_TREE lines=33`):
+        // 17 leaves, one merged survivor leaf.
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            17,
+            "C5_POST_TREE leaves"
+        );
+        let survivor = leaf_rows_for(&manager, a);
+        assert_eq!(survivor.len(), 1, "C5 survivor leaf count");
+        assert!(
+            survivor[0].ends_with("oct[9875 19875 70125 20125 -10177 50177 29823 90177]"),
+            "C5_POST_TREE_ROW survivor: {survivor:?}"
+        );
     }
 
     /// C6 — two-contact refusal. Capture: `C6_END_CONTACTS
@@ -1896,6 +1993,19 @@ mod tests {
             "D1_A_ALIVE corners"
         );
         assert!(board.get(b).is_none(), "D1_B_ALIVE false");
+        // D1_POST_TREE (capture `--D1_TREE--`, `D1_POST_TREE lines=33`):
+        // 17 leaves, one merged survivor leaf.
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            17,
+            "D1_POST_TREE leaves"
+        );
+        let survivor = leaf_rows_for(&manager, a);
+        assert_eq!(survivor.len(), 1, "D1 survivor leaf count");
+        assert!(
+            survivor[0].ends_with("oct[9875 9875 20125 10125 -177 10177 19823 30177]"),
+            "D1_POST_TREE_ROW survivor: {survivor:?}"
+        );
     }
 
     /// D2 — the U-turn, the REPLACE_GEOMETRY witness: Java itself took
@@ -2128,6 +2238,34 @@ mod tests {
             "D3_A_ALIVE corners — the ring opens and closes at the join corner"
         );
         assert!(board.get(b).is_none(), "D3_B_ALIVE false");
+        // D3_POST_TREE (capture `--D3_TREE--`, `D3_POST_TREE lines=39`):
+        // 16 baseline leaves + the ring's FOUR survivor leaves (idx
+        // 0..3, pinned byte-for-tail below) = 20.
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            20,
+            "D3_POST_TREE leaves"
+        );
+        let survivor = leaf_rows_for(&manager, a);
+        assert_eq!(survivor.len(), 4, "D3 survivor leaf count");
+        // D3 is a MERGE_ENTRIES case in Java (D18): the I-node topology
+        // may differ from the port's replaceGeometry history, so the
+        // four leaf rows are pinned as a SORTED SET — the row TEXTS are
+        // the capture's, the order is history-dependent.
+        let mut got_leaves: Vec<String> =
+            survivor.iter().map(|row| row.trim().to_owned()).collect();
+        got_leaves.sort();
+        let mut expected_leaves: Vec<&str> = vec![
+            "L obj=10 idx=3 oct[9875 29875 30125 30125 -20177 177 39823 60177]",
+            "L obj=10 idx=0 oct[9875 9875 10125 30125 -20177 177 19823 40177]",
+            "L obj=10 idx=1 oct[9875 9875 30125 10125 -177 20177 19823 40177]",
+            "L obj=10 idx=2 oct[29875 9875 30125 30125 -177 20177 39823 60177]",
+        ];
+        expected_leaves.sort_unstable();
+        assert_eq!(
+            got_leaves, expected_leaves,
+            "D3_POST_TREE_ROW survivors (sorted set)"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -2516,5 +2654,253 @@ mod tests {
             &[(60_000, 20_000), (65_000, 20_000)],
         );
         assert_eq!(w.get(), 12, "Y7_WITNESS_ID 12");
+    }
+
+    // ------------------------------------------------------------------
+    // Fix round (spec review of 333f5499): PINWALK / DEGEN / DEGEN2 /
+    // DEGEN3 — capture `/tmp/epic-t11-combine.out` `--PINWALK--`,
+    // `--DEGEN--`, `--DEGEN2--`, `--DEGEN3--` sections.
+    // ------------------------------------------------------------------
+
+    /// The spike's insNet: an insert carrying ANOTHER item's net
+    /// numbers (the pin-routability case needs an OTHER-net trace).
+    fn insert_nets(
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        corners: &[(i32, i32)],
+        nets: &[i32],
+    ) -> ItemId {
+        let template = ItemId::new(4);
+        let layer = board.trace_layer(template).expect("parse trace 4");
+        let half_width = board.trace_half_width(template).expect("parse trace 4");
+        let clearance_class = board.item_clearance_class(template).expect("parse trace 4");
+        insert_trace_without_cleaning(
+            manager,
+            board,
+            poly(corners),
+            layer,
+            half_width,
+            nets,
+            clearance_class,
+            FixedState::Unfixed,
+        )
+        .expect("insert succeeded")
+    }
+
+    /// PINWALK — the isRoutable KIND gate. The base `Item.isRoutable()`
+    /// returns FALSE (`Item.java:908-910`); only `Trace`
+    /// (`Trace.java:206-209`) and `Via` (`Via.java:147-150`) override
+    /// it — a same-net PIN is a contact the walk touches, but the walk
+    /// must EXCLUDE it from the result set AND stop when it is the
+    /// next hop, while a via IS walked into. The contrast lives on one
+    /// board: A (id 10) carries the PIN's net (2) and ends at the pin;
+    /// B (id 11) carries MINE (1) and ends at the via. Capture:
+    /// `PINWALK_NETS pin=2 a=2 b=1 via=1`, `PINWALK_ROUTABLE pin=false
+    /// via=true trace=true`, `PINWALK_A_CONTACTS [3:P]`,
+    /// `PINWALK_FROM_TRACE_A [10:T]`, `PINWALK_FROM_PIN [10:T]`,
+    /// `PINWALK_FROM_VIA [11:T,5:V]`, `PINWALK_POST_ITEM` for every id
+    /// 1..11 (all walks read-only). A port that treats ANY item with
+    /// nets as routable returns `[10,3]` / `[10,3]` / `[11,5,3]` here;
+    /// a gate that forgets VIA returns `[10]` on the last probe.
+    #[test]
+    fn pin_routable_kind_gate() {
+        let (mut manager, mut board) = fresh();
+        let pin_nets = board.get(ItemId::new(3)).expect("parse pin 3").nets.clone();
+        assert_eq!(pin_nets, vec![2], "PINWALK_NETS pin=2");
+        let a = insert_nets(
+            &mut manager,
+            &mut board,
+            &[(20_000, 40_000), (20_000, 30_000)],
+            &pin_nets,
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(40_000, 40_000), (50_000, 40_000)],
+        );
+        assert_eq!([a.get(), b.get()], [10, 11], "PINWALK A=10 B=11");
+        // PINWALK_ROUTABLE pin=false via=true trace=true.
+        assert!(
+            !is_routable(&board, ItemId::new(3)),
+            "PINWALK_ROUTABLE pin=false"
+        );
+        assert!(
+            is_routable(&board, ItemId::new(5)),
+            "PINWALK_ROUTABLE via=true"
+        );
+        assert!(is_routable(&board, a), "PINWALK_ROUTABLE trace=true");
+        // PINWALK_A_CONTACTS [3:P] — the pin IS in the contact set the
+        // walk consumes.
+        assert_eq!(
+            raw(&contacts::all_contacts(&manager, &mut board, a)),
+            vec![3],
+            "PINWALK_A_CONTACTS [3:P]"
+        );
+        assert_eq!(
+            raw(&get_connection_items(&manager, &mut board, a)),
+            vec![10],
+            "PINWALK_FROM_TRACE_A [10:T] (pin touched, excluded, walk stopped)"
+        );
+        assert_eq!(
+            raw(&get_connection_items(&manager, &mut board, ItemId::new(3))),
+            vec![10],
+            "PINWALK_FROM_PIN [10:T] (result.add(this) is isRoutable-gated)"
+        );
+        assert_eq!(
+            raw(&get_connection_items(&manager, &mut board, ItemId::new(5))),
+            vec![11, 5],
+            "PINWALK_FROM_VIA [11:T,5:V] (a via IS routable and lands in the set)"
+        );
+        // PINWALK_POST dump: every item survives (read-only walks).
+        for id in 1..=11 {
+            assert!(
+                board.get(ItemId::new(id)).is_some(),
+                "PINWALK_POST_ITEM id={id} alive"
+            );
+        }
+    }
+
+    /// DEGEN — two single-segment traces joined end-to-end do NOT
+    /// collapse: a constructed `Polyline` carries corners+1 stored
+    /// lines, so the join gives 3 lines and ONE merged survivor. (The
+    /// review round predicted both traces would vanish here — the jar
+    /// disagreed; spike-vs-recon correction.) Capture:
+    /// `DEGEN_PRED branch=MERGE_ENTRIES atStart=false reverse=false
+    /// skipLine=true newCount=3 joinedLen=3 joinedCorners=2
+    /// survivor=[60000,30000 85000,30000]`, `DEGEN_COMBINE true`,
+    /// `DEGEN_A_ALIVE true B_ALIVE false`, `DEGEN_POST_TREE lines=33`
+    /// with the obj=10 leaf `oct[59875 29875 85125 30125 29823 55177
+    /// 89823 115177]`, `DEGEN_NEXT_ID 12`.
+    #[test]
+    fn single_segment_join_merges_and_survives() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(60_000, 30_000), (70_000, 30_000)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(70_000, 30_000), (85_000, 30_000)],
+        );
+        assert_eq!([a.get(), b.get()], [10, 11], "DEGEN A=10 B=11");
+        assert!(combine(&mut manager, &mut board, a), "DEGEN_COMBINE true");
+        assert_eq!(
+            corners_of(&board, a),
+            vec!["60000,30000", "85000,30000"],
+            "DEGEN_A_ALIVE corners"
+        );
+        assert!(board.get(b).is_none(), "DEGEN_B_ALIVE false");
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            17,
+            "DEGEN_POST_TREE leaves (16 baseline + merged - removed)"
+        );
+        let survivor = leaf_rows_for(&manager, a);
+        assert_eq!(survivor.len(), 1, "DEGEN survivor leaf count");
+        assert!(
+            survivor[0].ends_with("oct[59875 29875 85125 30125 29823 55177 89823 115177]"),
+            "DEGEN_POST_TREE_ROW survivor: {survivor:?}"
+        );
+        let w = insert(
+            &mut manager,
+            &mut board,
+            &[(60_000, 35_000), (65_000, 35_000)],
+        );
+        assert_eq!(w.get(), 12, "DEGEN_NEXT_ID 12 (no id reuse)");
+    }
+
+    /// DEGEN2 — the TRUE degenerate collapse: B retraces A exactly
+    /// (the L and its reverse), so the joined path spikes out and
+    /// back and the canonicalizing ctor cleans it to the EMPTY
+    /// polyline (`joinedLen=0 < 3`): the shrink rule removes the
+    /// RECEIVER and then ALWAYS the other trace — nothing survives,
+    /// the tree is back to the parse baseline, and the combine loop's
+    /// `isOnTheBoard()` recheck ends the loop. Capture:
+    /// `DEGEN2_PRED_START branch=REPLACE_GEOMETRY atStart=true
+    /// reverse=false skipLine=true newCount=5 joinedLen=0
+    /// joinedCorners=NONE survivor=EMPTY` (PRED_END identical),
+    /// `DEGEN2_COMBINE true`, `DEGEN2_A_ALIVE false B_ALIVE false`,
+    /// `DEGEN2_POST_TREE lines=31` (the 31-row baseline), the POST
+    /// dump without ids 10/11, `DEGEN2_NEXT_ID 12` (both burned).
+    #[test]
+    fn degenerate_collapse_removes_both() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 10_000), (30_000, 10_000), (30_000, 30_000)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 30_000), (30_000, 10_000), (10_000, 10_000)],
+        );
+        assert_eq!([a.get(), b.get()], [10, 11], "DEGEN2 A=10 B=11");
+        assert!(combine(&mut manager, &mut board, a), "DEGEN2_COMBINE true");
+        assert!(
+            board.get(a).is_none(),
+            "DEGEN2_A_ALIVE false (removed by the shrink rule)"
+        );
+        assert!(board.get(b).is_none(), "DEGEN2_B_ALIVE false");
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            16,
+            "DEGEN2_POST_TREE back to the parse baseline"
+        );
+        assert_eq!(board.item_count(), 9, "DEGEN2_POST: 9 parse + 2 - 2");
+        let w = insert(
+            &mut manager,
+            &mut board,
+            &[(60_000, 35_000), (65_000, 35_000)],
+        );
+        assert_eq!(w.get(), 12, "DEGEN2_NEXT_ID 12 (both ids burned)");
+    }
+
+    /// DEGEN3 — the boundary: B doubles back over A's vertical leg
+    /// and OVERRUNS past A's first corner (collinear extension, not
+    /// an exact retrace). The ctor keeps 3 lines (the overrun is real
+    /// geometry), so the shrink rule does NOT fire — A survives
+    /// carrying the merged overrun. The START half REFUSES (zero
+    /// contacts at A's first corner; its `joinedLen=0` PRED row is an
+    /// artifact — branchPred probes the arithmetic without the
+    /// contact gate), so the END half's merge runs. Capture:
+    /// `DEGEN3_PRED_END ... newCount=5 joinedLen=3 joinedCorners=2
+    /// survivor=[10000,10000 0,10000]`, `DEGEN3_COMBINE true`,
+    /// `DEGEN3_A_ALIVE true corners=[10000,10000 0,10000] B_ALIVE
+    /// false`, `DEGEN3_NEXT_ID 12`.
+    #[test]
+    fn degenerate_overrun_merges_instead() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 10_000), (30_000, 10_000), (30_000, 30_000)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 30_000), (30_000, 10_000), (0, 10_000)],
+        );
+        assert_eq!([a.get(), b.get()], [10, 11], "DEGEN3 A=10 B=11");
+        assert!(combine(&mut manager, &mut board, a), "DEGEN3_COMBINE true");
+        assert_eq!(
+            corners_of(&board, a),
+            vec!["10000,10000", "0,10000"],
+            "DEGEN3_A_ALIVE corners (the overrun survivor)"
+        );
+        assert!(board.get(b).is_none(), "DEGEN3_B_ALIVE false");
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            17,
+            "DEGEN3 post leaves (16 baseline + merged - removed)"
+        );
+        let w = insert(
+            &mut manager,
+            &mut board,
+            &[(60_000, 35_000), (65_000, 35_000)],
+        );
+        assert_eq!(w.get(), 12, "DEGEN3_NEXT_ID 12");
     }
 }

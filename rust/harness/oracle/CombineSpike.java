@@ -62,6 +62,24 @@
 //          corners, contact sets, and the pairwise
 //          firstCommonLayer/normalContactPoint values, so the port
 //          can reproduce the walk's input state exactly.
+//   PINWALK — the isRoutable KIND GATE (fix round): a pin is never
+//          routable (base-class false; only Trace/Via override), so
+//          the connection walk EXCLUDES the pin and STOPS there,
+//          while a via IS routable and lands in the result set.
+//   DEGEN — the single-segment join probe (fix round): two
+//          single-segment traces joined carry 3 stored lines
+//          (corners+1) and MERGE — ONE survivor. SPIKE-VS-RECON
+//          CORRECTION: the review's both-removed prediction was wrong.
+//   DEGEN2 — the TRUE shrink-rule collapse (fix round): B retraces A
+//          exactly, the joined ctor cleans to the EMPTY polyline
+//          (joinedLen=0 < 3) → the receiver AND the other trace are
+//          removed, the tree back to the 31-row baseline, both ids
+//          burned.
+//   DEGEN3 — the overrun boundary (fix round): the retrace extends
+//          past A's first corner — 3 real lines survive the ctor, the
+//          merge runs and A lives on shrunk to the overrun.
+//   *_TREE — post-combine default-tree dumps for C4/C5/D1/D3 (fix
+//          round MINOR 2; setups identical to the original cases).
 //
 // BRANCH_PRED rows mirror combineAtStart/End's join arithmetic from
 // PUBLIC inputs (polyline().lines, getSearchTreeEntries) and call the
@@ -81,7 +99,9 @@ import app.freerouting.board.model.items.ConductionArea;
 import app.freerouting.board.model.items.DrillItem;
 import app.freerouting.board.model.items.Item;
 import app.freerouting.board.model.items.ObstacleArea;
+import app.freerouting.board.model.items.Pin;
 import app.freerouting.board.model.items.Trace;
+import app.freerouting.board.model.items.Via;
 import app.freerouting.board.model.structure.BoardOutline;
 import app.freerouting.board.model.structure.FixedState;
 import app.freerouting.board.trace.PolylineTrace;
@@ -244,6 +264,14 @@ public final class CombineSpike {
       int layer) {
     return board.insertTraceWithoutCleaning(new Polyline(corners), layer,
         tmpl.getHalfWidth(), tmpl.netNumbers, tmpl.clearanceClassIndex(), FixedState.UNFIXED);
+  }
+
+  /** insNet: an insert carrying ANOTHER item's net numbers (the
+   * pin-routability case needs an OTHER-net trace). */
+  static PolylineTrace insNet(BasicBoard board, PolylineTrace tmpl, Point[] corners,
+      int[] nets) {
+    return board.insertTraceWithoutCleaning(new Polyline(corners), tmpl.getLayer(),
+        tmpl.getHalfWidth(), nets, tmpl.clearanceClassIndex(), FixedState.UNFIXED);
   }
 
   // ---------------------------------------------------------------------
@@ -901,6 +929,188 @@ public final class CombineSpike {
     System.out.println("G_MAX_TRACE_HW " + board.rules.getMaxTraceHalfWidth());
   }
 
+  // ---------------------------------------------------------------------
+  // Fix-round additions (spec review of 333f5499): the isRoutable kind
+  // gate (MAJOR 1), the degenerate collapse (MAJOR 2), and the missing
+  // post-combine tree dumps (MINOR 2). All APPENDED — every row above
+  // this point is byte-identical to the pre-fix capture.
+  // ---------------------------------------------------------------------
+
+  /**
+   * PINWALK — the isRoutable kind-gate witness. Item.isRoutable()
+   * returns FALSE in the BASE class (Item.java:908-910); only Trace
+   * (Trace.java:206-209) and Via (Via.java:147-150) override it — a
+   * PIN is never routable no matter its nets. Three probes: (1) the
+   * OTHER-net trace A (id 10) touches same-net pin 3 — the walk
+   * reaches the pin (it IS a contact) but must EXCLUDE it and STOP;
+   * (2) walking FROM the pin — result.add(this) is gated on
+   * isRoutable, so the pin's own walk still returns only A; (3)
+   * walking FROM the via — a Via IS routable (the override), so the
+   * via lands IN the result set: the kind gate is Trace|Via, not
+   * trace-only. All walks are read-only; every item survives.
+   */
+  static void casePinWalk() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    Pin pin = null;
+    Via via = null;
+    for (Item item : board.getItems()) {
+      if (item instanceof Pin p) {
+        pin = p;
+      }
+      if (item instanceof Via v) {
+        via = v;
+      }
+    }
+    PolylineTrace a = insNet(board, t, new Point[] {ip(20000, 40000), ip(20000, 30000)},
+        pin.netNumbers);
+    PolylineTrace b = ins(board, t, new Point[] {ip(40000, 40000), ip(50000, 40000)});
+    System.out.println("--PINWALK-- routable kind gate PIN=" + pin.getId()
+        + " A=" + a.getId() + " (pin's net) B=" + b.getId() + " VIA=" + via.getId());
+    System.out.println("PINWALK_NETS pin=" + pin.netNumbers[0] + " a=" + a.netNumbers[0]
+        + " b=" + b.netNumbers[0] + " via=" + via.netNumbers[0]);
+    System.out.println("PINWALK_ROUTABLE pin=" + pin.isRoutable() + " via=" + via.isRoutable()
+        + " trace=" + a.isRoutable());
+    System.out.println("PINWALK_A_CONTACTS " + items(a.getNormalContacts(a.firstCorner(),
+        false)));
+    System.out.println("PINWALK_FROM_TRACE_A " + items(a.getConnectionItems()));
+    System.out.println("PINWALK_FROM_PIN " + items(pin.getConnectionItems()));
+    System.out.println("PINWALK_FROM_VIA " + items(via.getConnectionItems()));
+    dumpItems(board, "PINWALK_POST");
+  }
+
+  /**
+   * DEGEN — the single-segment join probe. SPIKE-VS-RECON CORRECTION:
+   * the review predicted two collinear single-segment (2-line) traces
+   * joined end-to-end would drop below 3 lines and lose BOTH traces —
+   * the jar disagrees: a constructed Polyline stores corners+1 lines,
+   * so the join holds 3 lines (DEGEN_PRED joinedLen=3) and ONE merged
+   * survivor (DEGEN_A_ALIVE true, B removed). The shrink rule
+   * (PolylineTrace.java:324-327 / :448-451) only fires when the ctor
+   * DEGENERATES the join — DEGEN2 constructs that case (joinedLen=0,
+   * both removed).
+   */
+  static void caseDegen() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(60000, 30000), ip(70000, 30000)});
+    PolylineTrace b = ins(board, t, new Point[] {ip(70000, 30000), ip(85000, 30000)});
+    System.out.println("--DEGEN-- single-segment join A=" + a.getId() + " B=" + b.getId()
+        + " (3 stored lines after the join: MERGES, one survivor)");
+    System.out.println("DEGEN_PRED " + branchPred(board, a, b, false));
+    System.out.println("DEGEN_COMBINE " + a.combine());
+    System.out.println("DEGEN_A_ALIVE " + a.isOnTheBoard() + " B_ALIVE " + b.isOnTheBoard());
+    dumpItems(board, "DEGEN_POST");
+    dumpTree(board, "DEGEN_POST");
+    PolylineTrace w = ins(board, t, new Point[] {ip(60000, 35000), ip(65000, 35000)});
+    System.out.println("DEGEN_NEXT_ID " + w.getId() + " (B's 11 burned, A kept 10)");
+  }
+
+  /**
+   * DEGEN2 — the zero-area double-back probe: B retraces BOTH of A's
+   * legs in reverse (the L and its mirror). The exactly-once contract
+   * holds at the shared corner; the join produces a spike path (out
+   * and back) whose Polyline ctor cleanup EMPTIES it — joinedLen 0
+   * < 3 fires the shrink rule and removes BOTH traces (capture:
+   * DEGEN2_PRED joinedLen=0 survivor=EMPTY, both ALIVE false, tree
+   * back to the 31-row baseline, NEXT_ID 12).
+   */
+  static void caseDegen2() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(10000, 10000), ip(30000, 10000),
+      ip(30000, 30000)});
+    PolylineTrace b = ins(board, t, new Point[] {ip(30000, 30000), ip(30000, 10000),
+      ip(10000, 10000)});
+    System.out.println("--DEGEN2-- zero-area double-back A=" + a.getId() + " B=" + b.getId()
+        + " (B is A reversed: joined ctor may empty → both removed)");
+    System.out.println("DEGEN2_PRED_START " + branchPred(board, a, b, true));
+    System.out.println("DEGEN2_PRED_END " + branchPred(board, a, b, false));
+    System.out.println("DEGEN2_COMBINE " + a.combine());
+    System.out.println("DEGEN2_A_ALIVE " + a.isOnTheBoard()
+        + (a.isOnTheBoard() ? " corners=" + cornersOf(a) : " (removed)")
+        + " B_ALIVE " + b.isOnTheBoard());
+    dumpItems(board, "DEGEN2_POST");
+    dumpTree(board, "DEGEN2_POST");
+    PolylineTrace w = ins(board, t, new Point[] {ip(60000, 35000), ip(65000, 35000)});
+    System.out.println("DEGEN2_NEXT_ID " + w.getId());
+  }
+
+  /**
+   * DEGEN3 — the overrun variant: B doubles back over A's vertical
+   * leg and then OVERRUNS past A's first corner (collinear extension,
+   * not an exact retrace). Probes whether the ctor cleanup differs
+   * from DEGEN2's exact retrace.
+   */
+  static void caseDegen3() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(10000, 10000), ip(30000, 10000),
+      ip(30000, 30000)});
+    PolylineTrace b = ins(board, t, new Point[] {ip(30000, 30000), ip(30000, 10000),
+      ip(0, 10000)});
+    System.out.println("--DEGEN3-- double-back + overrun A=" + a.getId() + " B=" + b.getId());
+    System.out.println("DEGEN3_PRED_START " + branchPred(board, a, b, true));
+    System.out.println("DEGEN3_PRED_END " + branchPred(board, a, b, false));
+    System.out.println("DEGEN3_COMBINE " + a.combine());
+    System.out.println("DEGEN3_A_ALIVE " + a.isOnTheBoard()
+        + (a.isOnTheBoard() ? " corners=" + cornersOf(a) : " (removed)")
+        + " B_ALIVE " + b.isOnTheBoard());
+    dumpItems(board, "DEGEN3_POST");
+    dumpTree(board, "DEGEN3_POST");
+    PolylineTrace w = ins(board, t, new Point[] {ip(60000, 35000), ip(65000, 35000)});
+    System.out.println("DEGEN3_NEXT_ID " + w.getId());
+  }
+
+  /**
+   * C4/C5/D1/D3 post-combine tree dumps (MINOR 2): the original cases
+   * printed only PRED/POST_ITEM rows; these siblings repeat the setup
+   * EXACTLY and dump the default tree after combine() — the D18-safe
+   * leaf-level pins for the remaining merge cases.
+   */
+  static void caseC4Tree() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(10000, 50000), ip(30000, 50000)});
+    PolylineTrace b = ins(board, t, new Point[] {ip(30000, 50000), ip(50000, 50000)});
+    PolylineTrace c = ins(board, t, new Point[] {ip(50000, 50000), ip(70000, 50000)});
+    System.out.println("--C4_TREE-- post-combine tree (setup = caseC4)");
+    System.out.println("C4_TREE_COMBINE " + a.combine());
+    dumpTree(board, "C4_POST");
+  }
+
+  static void caseC5Tree() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(30000, 20000), ip(50000, 20000)});
+    PolylineTrace b1 = ins(board, t, new Point[] {ip(10000, 20000), ip(30000, 20000)});
+    PolylineTrace b2 = ins(board, t, new Point[] {ip(50000, 20000), ip(70000, 20000)});
+    System.out.println("--C5_TREE-- post-combine tree (setup = caseC5)");
+    System.out.println("C5_TREE_COMBINE " + a.combine());
+    dumpTree(board, "C5_POST");
+  }
+
+  static void caseD1Tree() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(10000, 10000), ip(30000, 10000)});
+    PolylineTrace b = ins(board, t, new Point[] {ip(30000, 10000), ip(20000, 10000)});
+    System.out.println("--D1_TREE-- post-combine tree (setup = caseD1)");
+    System.out.println("D1_TREE_COMBINE " + a.combine());
+    dumpTree(board, "D1_POST");
+  }
+
+  static void caseD3Tree() {
+    BasicBoard board = fresh();
+    PolylineTrace t = tmpl(board);
+    PolylineTrace a = ins(board, t, new Point[] {ip(10000, 10000), ip(30000, 10000),
+      ip(30000, 30000), ip(10000, 30000)});
+    PolylineTrace b = ins(board, t, new Point[] {ip(10000, 30000), ip(10000, 10000)});
+    System.out.println("--D3_TREE-- post-combine tree (setup = caseD3)");
+    System.out.println("D3_TREE_COMBINE " + a.combine());
+    dumpTree(board, "D3_POST");
+  }
+
   public static void main(String[] args) throws Exception {
     if (args.length >= 1 && args[0].equals("hangprobe")) {
       caseY1HangProbe();
@@ -929,6 +1139,14 @@ public final class CombineSpike {
     caseY6();
     caseY7();
     caseG();
+    casePinWalk();
+    caseDegen();
+    caseDegen2();
+    caseDegen3();
+    caseC4Tree();
+    caseC5Tree();
+    caseD1Tree();
+    caseD3Tree();
     System.out.println("--DONE--");
   }
 }
