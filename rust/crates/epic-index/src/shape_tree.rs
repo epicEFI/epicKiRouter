@@ -54,6 +54,16 @@ impl NodeIdx {
     pub fn index(self) -> usize {
         self.0 as usize
     }
+
+    /// A node index from its raw slab position — TEST-ONLY
+    /// construction (production leaves come from
+    /// [`ShapeTree::push_leaf`], which owns the numbering). The
+    /// with-clearance sift ignores the node handle, so its unit tests
+    /// synthesize rows.
+    #[cfg(test)]
+    pub(crate) fn from_index(index: usize) -> NodeIdx {
+        NodeIdx(index as u32)
+    }
 }
 
 /// One leaf or inner node (Java `ShapeTree.TreeNode` + subclasses).

@@ -20,5 +20,5 @@ pub mod search_tree;
 pub mod shape_tree;
 
 pub use min_area_tree::MinAreaTree;
-pub use search_tree::{SearchTree, SearchTreeVariant};
+pub use search_tree::{SearchTree, SearchTreeVariant, TreeEntry};
 pub use shape_tree::{LeafEntry, Node, NodeIdx, NodeKind, ShapeTree, format_bounds, intersects};

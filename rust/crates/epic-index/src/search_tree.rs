@@ -22,13 +22,15 @@
 //! included); the directions hull is applied HERE, exactly where Java
 //! applies it inside `ShapeTree.insert`.
 
+use std::cmp::Ordering as CmpOrdering;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::shape::ShapeBoundingDirections;
 use epic_geometry::tile_shape::TileShape;
 
 use crate::MinAreaTree;
-use crate::shape_tree::NodeIdx;
+use crate::shape_tree::{LeafEntry, NodeIdx, NodeKind};
 
 /// The source of Java's tree OBJECT IDENTITY. `ItemSearchTreesInfo`
 /// keys an item's per-tree entries and shapes by `tree == tree`
@@ -102,6 +104,19 @@ impl SearchTreeVariant {
     }
 }
 
+/// One query hit — Java `ShapeTree.TreeEntry` (`ShapeTree.java:158-168`)
+/// minus the object reference: the caller's opaque object key plus the
+/// shape index. The Java entry carries `(object, shapeIndexInObject)`;
+/// the index crate never sees objects, so `object_key` is the handle
+/// the CALLER resolves (epic-board: `ItemId`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TreeEntry {
+    /// Java `TreeEntry.object` (as the caller's object key).
+    pub object_key: u64,
+    /// Java `TreeEntry.shapeIndexInObject`.
+    pub shape_index_in_object: u32,
+}
+
 /// A configured search tree (Java `ShapeSearchTree` and subclasses).
 // Deliberately NOT `Clone`: a copy would alias `object_id`, and tree
 // entries are identity-keyed (Java reference equality) — a cloned tree
@@ -120,6 +135,17 @@ pub struct SearchTree {
     pub compensated_clearance_class: i32,
     /// Process-unique identity (Java object reference).
     object_id: u64,
+    /// Java `EntrySortedByClearance.lastGeneratedEntryId`
+    /// (`ShapeSearchTree.java:1145`): the STATIC tie counter behind the
+    /// with-clearance query's sort order. Java's is a static field on
+    /// the inner class (one counter for ALL trees of the JVM); the M2
+    /// decision is TREE-OWNED persistent state — the observable is the
+    /// WITHIN-QUERY tie (equal clearances come out in construction
+    /// order, i.e. descending item id on a board), which a per-tree
+    /// counter reproduces exactly. The `Integer.MAX_VALUE` wrap-to-0
+    /// quirk (`:1146-1149`) is ported but deliberately NOT pinned: the
+    /// wrap needs 2^31 prior queries.
+    last_generated_entry_id: i32,
 }
 
 impl SearchTree {
@@ -134,6 +160,7 @@ impl SearchTree {
             variant,
             compensated_clearance_class,
             object_id: SEARCH_TREE_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
+            last_generated_entry_id: 0,
         }
     }
 
@@ -231,6 +258,203 @@ impl SearchTree {
     #[must_use]
     pub fn min_area_tree(&self) -> &MinAreaTree {
         &self.tree
+    }
+
+    // -----------------------------------------------------------------
+    // The overlap query family (M2 Task 8; Java
+    // ShapeSearchTree.java:390-570). The CANDIDATE halves live here;
+    // the object/layer/net filters and the stored-shape fetch live
+    // caller-side in epic-board (D17 — this crate sees no items).
+    // -----------------------------------------------------------------
+
+    /// The candidate half of Java `overlappingTreeEntries`
+    /// (`ShapeSearchTree.java:399-405`): the query hulled into this
+    /// tree's bounding directions, then the leaves whose stored BOUNDS
+    /// intersect that hull — in the `TreeSet<Leaf>` order (the
+    /// caller-supplied object comparator, then shape index ASC, dedup;
+    /// [`MinAreaTree::overlaps`]).
+    ///
+    /// `None` = the query is not bounded in this tree's directions
+    /// (Java warns "shape not bounded" and returns an empty result).
+    ///
+    /// NOTE (brief correction): the entries do NOT come out in raw
+    /// DFS order — Java collects the candidates into a `TreeSet<Leaf>`
+    /// BEFORE the per-leaf loop (`:404`), so the result order IS the
+    /// sorted order. Capture: `A_LEAVES box
+    /// [(815#0),(815#1),(787#0),(786#0),...]` — descending item id.
+    pub fn query_candidates<CMP>(&self, shape: &TileShape, cmp: CMP) -> Option<Vec<LeafEntry>>
+    where
+        CMP: Fn(u64, u64) -> CmpOrdering,
+    {
+        let directions = self.variant.bounding_directions();
+        let bounds = shape.bounding_shape(&directions)?;
+        Some(self.tree.overlaps(&bounds, cmp))
+    }
+
+    /// The exact-test half of Java `overlappingTreeEntries`
+    /// (`ShapeSearchTree.java:421-433`) — the **T53 octagon-skip**:
+    ///
+    /// * if the QUERY shape is an `IntOctagon` AND the stored shape is
+    ///   an `IntOctagon`, the candidate pass already proved overlap
+    ///   (the 45-degree hull of an octagon IS the octagon), so the
+    ///   intersection test is SKIPPED and the entry counts as a hit —
+    ///   even when the two octagons are actually DISJOINT corner
+    ///   regions within overlapping bounding hulls (capture section D:
+    ///   query `oct[800 800 1000 1000 ...]` against the stored
+    ///   `oct[0 0 1000 1000 ... 0 1500]` — `intersects` is false, the
+    ///   query still returns the entry),
+    /// * otherwise the stored shape's exact `intersects` against the
+    ///   query (Java's receiver order: `currentShape.intersects(shape)`).
+    ///
+    /// The skip is unobservable through every PRODUCTION tree
+    /// configuration (a 45-degree tree's octagon bounds make
+    /// candidate ⟺ exact for octagon queries; a 90-degree tree never
+    /// stores octagons) — it fires only where a NON-45-degree tree
+    /// holds a genuine octagon leaf, which the epic-index test below
+    /// constructs directly.
+    #[must_use]
+    pub fn entry_intersects(query: &TileShape, stored: &TileShape) -> bool {
+        if matches!(
+            (query, stored),
+            (
+                TileShape::RegularTileShape(RegularTileShape::IntOctagon(_)),
+                TileShape::RegularTileShape(RegularTileShape::IntOctagon(_))
+            )
+        ) {
+            return true;
+        }
+        stored.intersects(query)
+    }
+
+    /// The candidate half of Java
+    /// `overlappingTreeEntriesWithClearance` (`:456-467`): the query
+    /// hull (falling back to `fallback_bounds` — Java
+    /// `board.getBoundingBox()` — when the query is unbounded; Java
+    /// warns first), offset by `max_clearance`, then the sorted
+    /// candidates. `max_clearance` arrives pre-truncated (Java
+    /// `(int)(1.2 * maxValue)` — the epic-board wrapper owns the
+    /// arithmetic).
+    ///
+    /// An unbounded query with no fallback yields no candidates.
+    pub fn clearance_candidates<CMP>(
+        &self,
+        shape: &TileShape,
+        max_clearance: i32,
+        fallback_bounds: Option<&RegularTileShape>,
+        cmp: CMP,
+    ) -> Vec<LeafEntry>
+    where
+        CMP: Fn(u64, u64) -> CmpOrdering,
+    {
+        let directions = self.variant.bounding_directions();
+        let bounds = shape
+            .bounding_shape(&directions)
+            .or(fallback_bounds.cloned());
+        let Some(bounds) = bounds else {
+            return Vec::new();
+        };
+        let offset_bounds = bounds.offset(f64::from(max_clearance));
+        self.tree.overlaps(&offset_bounds, cmp)
+    }
+
+    /// The sift half of Java `overlappingTreeEntriesWithClearance`
+    /// (`:469-507`): the candidates (each with its clearance value
+    /// and its STORED shape) sorted by
+    /// `EntrySortedByClearance.compareTo` — clearance ASC, tie
+    /// `entryId` ASC (`:1152-1159`) — then the half-clearance
+    /// stepping walk:
+    ///
+    /// ```text
+    /// currentHalfClearance = 0, currentOffsetShape = the RAW query
+    /// for each entry (clearance order):
+    ///     if clearance/2 != currentHalfClearance:          // Java int /2
+    ///         currentHalfClearance = clearance/2
+    ///         currentOffsetShape = query.enlarge(half)
+    ///     accept iff currentOffsetShape.intersects(stored.enlarge(half))
+    /// ```
+    ///
+    /// The `enlarge`s take the half clearance as DOUBLE (Java's int
+    /// argument promotes through `enlarge(double)`), and the query
+    /// starts UN-enlarged — an entry whose half-clearance is 0 is
+    /// tested raw-vs-raw.
+    ///
+    /// The tie counter is this tree's persistent
+    /// [`SearchTree::last_generated_entry_id`] — ids are allocated in
+    /// the candidates' arrival order, so equal-clearance entries keep
+    /// their candidate (descending-id) order. Mutation-verified: an
+    /// ascending-id tie sort fails the capture pin below.
+    pub fn clearance_test(
+        &mut self,
+        query: &TileShape,
+        candidates: &[(LeafEntry, i32, TileShape)],
+    ) -> Vec<TreeEntry> {
+        // The TreeSet sort keys: (clearance, entryId). entryIds are
+        // allocated HERE, in candidate arrival order — the only order
+        // Java can construct them in.
+        let mut sorted: Vec<(i32, i32, usize)> = Vec::with_capacity(candidates.len());
+        for (index, (_, clearance, _)) in candidates.iter().enumerate() {
+            self.last_generated_entry_id = if self.last_generated_entry_id == i32::MAX {
+                0
+            } else {
+                self.last_generated_entry_id + 1
+            };
+            sorted.push((*clearance, self.last_generated_entry_id, index));
+        }
+        // (clearance, entryId) is a total order — ids are unique — so
+        // an unstable sort cannot reorder ties arbitrarily.
+        sorted.sort_unstable();
+
+        let mut result = Vec::new();
+        let mut current_half_clearance = 0;
+        // Java :474: the initial offset shape is the RAW query — NOT
+        // enlarge(0).
+        let mut current_offset_shape = query.clone();
+        for (clearance, _entry_id, index) in sorted {
+            let (leaf, _leaf_clearance, stored) = &candidates[index];
+            // Java int division (clearances are non-negative, so this
+            // is floor like Java's truncation).
+            let tmp_half_clearance = clearance / 2;
+            if tmp_half_clearance != current_half_clearance {
+                current_half_clearance = tmp_half_clearance;
+                current_offset_shape = query.enlarge(f64::from(tmp_half_clearance));
+            }
+            let stored_offset = stored.enlarge(f64::from(current_half_clearance));
+            if current_offset_shape.intersects(&stored_offset) {
+                result.push(TreeEntry {
+                    object_key: leaf.object_key,
+                    shape_index_in_object: leaf.shape_index_in_object,
+                });
+            }
+        }
+        result
+    }
+
+    /// Java `ShapeSearchTree.validateEntries(Item)`
+    /// (`:1120-1130`): every stored leaf's `shapeIndexInObject` equals
+    /// its slot index in the entry array.
+    ///
+    /// DIVERGENCE: Java dereferences the array unguarded — an item
+    /// with NO entry array NPEs (capture `E_ABSENT id=384 →
+    /// NullPointerException`) and a NULL SLOT (a copper-less padstack
+    /// layer) NPEs at `currentLeaf.shapeIndexInObject`. The port
+    /// treats a `None` slot as SKIPPED (null leaves carry no shape
+    /// index to check); the absent-array case is the caller's
+    /// [`crate::board`]-side `Option`.
+    pub fn validate_entries(&self, entries: &[Option<NodeIdx>]) -> bool {
+        entries.iter().enumerate().all(|(index, slot)| {
+            slot.is_none_or(|node| {
+                match &self.tree.base.node(node).kind {
+                    NodeKind::Leaf {
+                        shape_index_in_object,
+                        ..
+                    } => *shape_index_in_object as usize == index,
+                    // An inner node in an entry slot is corrupt data,
+                    // not an index mismatch — Java's field read would
+                    // silently read garbage; treat as inconsistent.
+                    NodeKind::Inner { .. } => false,
+                }
+            })
+        })
     }
 }
 
@@ -338,5 +562,232 @@ mod tests {
         // Remove skips the null slot and empties the tree.
         fortyfive.remove(&entries);
         assert_eq!(fortyfive.leaf_count(), 0);
+    }
+
+    // -----------------------------------------------------------------
+    // Task 8 — the overlap query family
+    // (/tmp/epic-t8-query.out, the QuerySpike capture)
+    // -----------------------------------------------------------------
+
+    /// The capture's octagon field order: `oct[lx ly rx uy ulx lrx llx
+    /// urx]`.
+    fn oct_shape(o: epic_geometry::int_octagon::IntOctagon) -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntOctagon(o))
+    }
+
+    /// **T53 — the octagon-skip** (`ShapeSearchTree.java:421-427`),
+    /// capture section D: an OCTAGON query against an OCTAGON leaf in
+    /// a NON-45-degree tree returns the entry even when the two
+    /// octagons are DISJOINT (`D_Q_INTERSECTS_O false`,
+    /// `D_ENTRIES oct-query → [(7#0)]`), while the same-region BOX
+    /// query against the same leaf returns NOTHING
+    /// (`D_ENTRIES box-query → []`). The skip condition is the
+    /// mutation target: an exact-test-always port fails the first
+    /// assertion, an always-skip port fails the second.
+    #[test]
+    fn octagon_skip_returns_disjoint_candidates_but_not_boxes() {
+        // The spike's stored octagon O = oct[0 0 1000 1000 -500 500 0 1500]
+        // in a REAL ShapeSearchTree90Degree (orthogonal directions, so
+        // the leaf bounds are O's bounding box, not O itself).
+        let stored = oct_shape(epic_geometry::int_octagon::IntOctagon::new(
+            0, 0, 1000, 1000, -500, 500, 0, 1500,
+        ));
+        let mut ninety = SearchTree::new(SearchTreeVariant::NinetyDegree, 0);
+        ninety.insert(7, &[Some(stored.clone())]);
+
+        // Q: the bounding octagon of box[800 800 1000 1000] — its bbox
+        // shares the corner region with O's leaf bounds, but its region
+        // (x+y >= 1600) misses O's diagonal face (x+y <= 1500).
+        let query_box = box_shape(800, 800, 1000, 1000);
+        let query_oct = query_box.bounding_octagon().expect("bounded box");
+        let query_oct = TileShape::RegularTileShape(RegularTileShape::IntOctagon(query_oct));
+
+        // The witness: the exact test is FALSE...
+        assert!(
+            !query_oct.intersects(&stored),
+            "D_Q_INTERSECTS_O false — the shapes are disjoint"
+        );
+        // ...the octagon query still yields the leaf...
+        let candidates = ninety
+            .query_candidates(&query_oct, |a, b| b.cmp(&a))
+            .expect("bounded query");
+        assert_eq!(
+            candidates.len(),
+            1,
+            "the corner region overlaps the leaf bounds"
+        );
+        assert_eq!(candidates[0].object_key, 7);
+        assert!(
+            SearchTree::entry_intersects(&query_oct, &stored),
+            "the skip fires"
+        );
+        // ...and the BOX query over the same region does not (no skip,
+        // the exact test runs and rejects).
+        let candidates = ninety
+            .query_candidates(&query_box, |a, b| b.cmp(&a))
+            .expect("bounded query");
+        assert_eq!(candidates.len(), 1, "the box is a candidate too");
+        assert!(
+            !SearchTree::entry_intersects(&query_box, &stored),
+            "D_ENTRIES box-query → [] — no octagon query, no skip"
+        );
+
+        // The genuinely-overlapping control (D_CTRL): both query forms
+        // hit.
+        let control = box_shape(0, 0, 200, 200);
+        assert!(SearchTree::entry_intersects(&control, &stored));
+        let control_oct = TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            control.bounding_octagon().expect("bounded box"),
+        ));
+        assert!(SearchTree::entry_intersects(&control_oct, &stored));
+
+        // The production-tree control (D_ENTRIES_45 → []): in a
+        // 45-degree tree the leaf bounds ARE the octagon, so the
+        // disjoint octagon query never even becomes a candidate — the
+        // skip is unreachable there.
+        let mut fortyfive = SearchTree::new(SearchTreeVariant::FortyfiveDegree, 0);
+        fortyfive.insert(8, &[Some(stored.clone())]);
+        let candidates = fortyfive
+            .query_candidates(&query_oct, |a, b| b.cmp(&a))
+            .expect("bounded query");
+        assert!(
+            candidates.is_empty(),
+            "D_ENTRIES_45 oct-query → [] — the 45-degree hull is the octagon itself"
+        );
+    }
+
+    /// **The tie order of the with-clearance sift**
+    /// (`EntrySortedByClearance.compareTo`, `:1152-1159`; capture
+    /// `C_TIE layer=0 nets=[] → [(3#0),(2#0),(1#0)]` and
+    /// `C_TIE_AGAIN → [(3#0),(2#0),(1#0)]`): equal clearances come out
+    /// in CANDIDATE ARRIVAL order (entryIds are allocated in that
+    /// order and compared ASCENDING) — on a board that is descending
+    /// item id. A port sorting ties by item id ASCENDING fails the
+    /// first assertion; a port whose counter resets per query fails
+    /// the AGAIN form only if it also reorders — the arrival-order
+    /// pin covers both.
+    #[test]
+    fn clearance_tie_keeps_candidate_arrival_order() {
+        let query = box_shape(0, 0, 100, 100);
+        let shape_of = |key: u64| box_shape((key as i32) * 10, 0, (key as i32) * 10 + 5, 5);
+        let row = |key: u64| {
+            (
+                LeafEntry {
+                    node: NodeIdx::from_index(0),
+                    object_key: key,
+                    shape_index_in_object: 0,
+                    bounds: RegularTileShape::IntBox(IntBox::from_corners(0, 0, 1, 1)),
+                },
+                5,
+                shape_of(key),
+            )
+        };
+        // Descending arrival (the board order): stays descending.
+        let mut tree = SearchTree::new(SearchTreeVariant::Generic, 0);
+        let hits = tree.clearance_test(&query, &[row(3), row(2), row(1)]);
+        assert_eq!(
+            hits.iter().map(|h| h.object_key).collect::<Vec<_>>(),
+            vec![3, 2, 1],
+            "C_TIE → [(3#0),(2#0),(1#0)] — arrival order under ties"
+        );
+        // Ascending arrival: stays ascending (ids follow arrival).
+        let hits = tree.clearance_test(&query, &[row(1), row(2), row(3)]);
+        assert_eq!(
+            hits.iter().map(|h| h.object_key).collect::<Vec<_>>(),
+            vec![1, 2, 3],
+            "the counter allocates in ARRIVAL order, not key order"
+        );
+        // Unequal clearances sort by clearance ASC regardless of
+        // arrival: (2, c=9) then (1, c=4) comes out [1, 2].
+        let mut one = row(1);
+        one.1 = 4;
+        let mut two = row(2);
+        two.1 = 9;
+        let hits = tree.clearance_test(&query, &[two, one]);
+        assert_eq!(
+            hits.iter().map(|h| h.object_key).collect::<Vec<_>>(),
+            vec![1, 2],
+            "clearance ASC dominates the tie id"
+        );
+    }
+
+    /// **The half-clearance stepping** (`:470-507`): each entry is
+    /// tested with the query enlarged by THAT entry's `clearance / 2`
+    /// (Java int division — clearance 1 means half 0, the RAW query),
+    /// and the stored shape enlarged by the SAME half — the effective
+    /// reach is the SUM of the halves. A port testing raw-vs-raw (no
+    /// enlarge) rejects the first row; a port enlarging by the FULL
+    /// clearance accepts the second; a port enlarging by 1 on a
+    /// clearance-1 entry accepts the third.
+    #[test]
+    fn clearance_test_enlarges_both_sides_by_the_half_clearance() {
+        let query = box_shape(0, 0, 100, 100);
+        let leaf_of = |key: u64| LeafEntry {
+            node: NodeIdx::from_index(0),
+            object_key: key,
+            shape_index_in_object: 0,
+            bounds: RegularTileShape::IntBox(IntBox::from_corners(0, 0, 1, 1)),
+        };
+        // Gap 1 along x, vertically centered (out of the octagon
+        // corner-cut regions). Raw: disjoint.
+        let stored = box_shape(101, 40, 106, 60);
+        assert!(!query.intersects(&stored), "the raw shapes are disjoint");
+
+        // clearance 30 (half 15): reach 15+15 = 30 > gap 1 — accept.
+        let mut tree = SearchTree::new(SearchTreeVariant::Generic, 0);
+        let hits = tree.clearance_test(&query, &[(leaf_of(1), 30, stored.clone())]);
+        assert_eq!(hits.len(), 1, "half 15 reaches across the gap");
+
+        // clearance 10 (half 5): reach 10 — still > 1, accept (the
+        // sum-of-halves semantics); the REJECT discriminator needs a
+        // gap beyond the reach, below.
+        let hits = tree.clearance_test(&query, &[(leaf_of(2), 10, stored.clone())]);
+        assert_eq!(hits.len(), 1, "both sides enlarge — 5+5 > 1");
+
+        // Gap 11 vs reach 10: rejected.
+        let far = box_shape(111, 40, 116, 60);
+        let hits = tree.clearance_test(&query, &[(leaf_of(3), 10, far)]);
+        assert!(hits.is_empty(), "half 5+5 does not reach a gap of 11");
+
+        // clearance 1 (half 0 — Java int division): the RAW query
+        // against the raw stored shape (Java :474 keeps the
+        // un-enlarged start); gap 1 stays a gap.
+        let hits = tree.clearance_test(&query, &[(leaf_of(4), 1, stored.clone())]);
+        assert!(hits.is_empty(), "clearance 1 → half 0 → raw vs raw");
+
+        // clearance 2 (half 1): reach 2 > gap 1 — the touching face
+        // accepts (closed shapes).
+        let hits = tree.clearance_test(&query, &[(leaf_of(5), 2, stored)]);
+        assert_eq!(hits.len(), 1, "half 1+1 reaches across the gap of 1");
+    }
+
+    /// `validateEntries` (`:1120-1130`): aligned entries validate,
+    /// a slot swap does not, null slots are skipped (the documented
+    /// divergence — Java NPEs on them), and an absent list is
+    /// vacuously true.
+    #[test]
+    fn validate_entries_checks_slot_alignment_and_skips_nulls() {
+        let mut tree = SearchTree::new(SearchTreeVariant::Generic, 0);
+        let entries = tree.insert(
+            9,
+            &[
+                Some(box_shape(0, 0, 5, 5)),
+                None,
+                Some(box_shape(7, 7, 8, 8)),
+            ],
+        );
+        assert_eq!(entries.len(), 3);
+        assert!(tree.validate_entries(&entries), "aligned by construction");
+        // Swap slots 0 and 2 — the capture's E_POISONED form.
+        let mut poisoned = entries.clone();
+        poisoned.swap(0, 2);
+        assert!(
+            !tree.validate_entries(&poisoned),
+            "E_POISONED — a swapped slot has the wrong shapeIndexInObject"
+        );
+        assert!(
+            tree.validate_entries(&[]),
+            "an empty list is vacuously true"
+        );
     }
 }

@@ -440,7 +440,7 @@ pub fn max_tree_shape_width(board: &Board) -> f64 {
 ///
 /// `None` mirrors Java's null (the polygon split failed) — the
 /// caller's `new TileShape[0]` turns it into "no tree entries".
-fn area_split_to_convex(area: &Area) -> Option<Vec<TileShape>> {
+pub(crate) fn area_split_to_convex(area: &Area) -> Option<Vec<TileShape>> {
     let shape_split = |shape: &BoardShape| -> Option<Vec<TileShape>> {
         match shape {
             BoardShape::Tile(tile) => Some(tile.split_to_convex()),

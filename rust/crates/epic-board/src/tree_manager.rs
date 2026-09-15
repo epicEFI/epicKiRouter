@@ -41,17 +41,22 @@
 //!
 //! The trace-entry surgery members (`mergeEntriesInFront`,
 //! `mergeEntriesAtEnd`, `changeEntries`, `reuseEntriesAfterCutout`,
-//! `:237-284`) need the trace shape surface — Task 7.
-//! `validateEntries` (`:69-78`) is a debug checker and lands with
-//! the query surface (Task 8).
+//! `:237-284`) need the trace shape surface — a later M2 task.
+//! `validateEntries` (`:69-78`) and the overlap query family
+//! (`ShapeSearchTree.java:390-570`, `BasicBoard.checkShape`) are
+//! Task 8 — see the query section of the impl.
 
-use std::collections::BTreeMap;
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet};
 
-use epic_index::{NodeIdx, SearchTree, SearchTreeVariant};
+use epic_geometry::int_box::IntBox;
+use epic_geometry::regular_tile_shape::RegularTileShape;
+use epic_geometry::tile_shape::TileShape;
+use epic_index::{LeafEntry, NodeIdx, SearchTree, SearchTreeVariant, TreeEntry};
 
 use crate::board::Board;
 use crate::id::ItemId;
-use crate::items::ItemData;
+use crate::items::{Area, ItemData};
 use crate::rules_surf::AngleRestriction;
 
 /// Manages the search trees used in the auto-router (Java
@@ -375,6 +380,415 @@ impl SearchTreeManager {
                 .or_default()
                 .insert(object_id, leaves);
         }
+    }
+
+    // -----------------------------------------------------------------
+    // The overlap query family (M2 Task 8; Java
+    // ShapeSearchTree.java:390-570 + BasicBoard.checkShape
+    // :952-981). The candidate/geometry halves live in epic-index
+    // ([`SearchTree::query_candidates`],
+    // [`SearchTree::entry_intersects`],
+    // [`SearchTree::clearance_candidates`],
+    // [`SearchTree::clearance_test`]); the filters and the
+    // stored-shape fetch — the parts that read ITEMS and RULES —
+    // live here (D17).
+    // -----------------------------------------------------------------
+
+    /// The tree index of a [`NodeIdx`]/key row's item — object keys
+    /// ARE item ids on this manager's trees (the broadcast insert
+    /// keys leaves by `u64::from(id.get())`); out-of-range keys have
+    /// no item and no layer/nets (Java's cast `(Item)` would throw).
+    fn item_of_key(key: u64) -> ItemId {
+        ItemId::new(u32::try_from(key).unwrap_or(u32::MAX))
+    }
+
+    /// Java `overlappingTreeEntries(shape, layer, ignoreNetNos, list)`
+    /// (`ShapeSearchTree.java:390-434`) — the plain query on tree
+    /// `tree_index`: the candidates in `TreeSet<Leaf>` order
+    /// (descending item id), each kept iff
+    ///
+    /// * `layer < 0` OR the stored shape's layer equals `layer`
+    ///   (`currentObject.shapeLayer(shapeIndex)`),
+    /// * the item `isObstacle` for EVERY ignore net — note the
+    ///   inverted Java loop (`:415-419`): ONE non-obstacle net
+    ///   ignores the whole item, and net 0 never ignores
+    ///   ([`Board::item_is_obstacle`]),
+    /// * the exact test: the T53 octagon-skip when both shapes are
+    ///   octagons, else `stored.intersects(query)`
+    ///   ([`SearchTree::entry_intersects`]).
+    ///
+    /// The result order is the SORTED candidate order (descending
+    /// item id, shape index ASC) — Java appends into that order
+    /// (`:404`, brief correction: not raw DFS order).
+    pub fn overlapping_tree_entries(
+        &self,
+        board: &mut Board,
+        tree_index: usize,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+    ) -> Vec<TreeEntry> {
+        let tree = &self.trees[tree_index];
+        let Some(candidates) = tree.query_candidates(shape, Self::descending_keys) else {
+            // Java :401-403: a shape not bounded in the tree's
+            // directions warns and returns nothing.
+            return Vec::new();
+        };
+        let mut shape_cache: BTreeMap<ItemId, Vec<Option<TileShape>>> = BTreeMap::new();
+        let mut result = Vec::new();
+        for leaf in candidates {
+            let id = Self::item_of_key(leaf.object_key);
+            if Self::leaf_filtered(board, id, leaf.shape_index_in_object, layer, ignore_nets) {
+                continue;
+            }
+            let stored = Self::stored_shape(
+                board,
+                &mut shape_cache,
+                id,
+                tree.object_id(),
+                tree.variant,
+                tree.compensated_clearance_class,
+                leaf.shape_index_in_object,
+            );
+            let Some(stored) = stored else {
+                // A null slot holds no leaf, so a surviving candidate
+                // always resolves — unreachable, skipped defensively.
+                continue;
+            };
+            if SearchTree::entry_intersects(shape, &stored) {
+                result.push(TreeEntry {
+                    object_key: leaf.object_key,
+                    shape_index_in_object: leaf.shape_index_in_object,
+                });
+            }
+        }
+        result
+    }
+
+    /// Java `overlappingObjects` (`:355-374`) — the entry query's
+    /// objects, deduped in `TreeSet<SearchTreeObject>` order
+    /// (descending item id). The 2-arg Java form is
+    /// `ignore_nets = &[]`.
+    pub fn overlapping_objects(
+        &self,
+        board: &mut Board,
+        tree_index: usize,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+    ) -> Vec<ItemId> {
+        let mut objects: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
+        for entry in self.overlapping_tree_entries(board, tree_index, shape, layer, ignore_nets) {
+            objects.insert(Reverse(Self::item_of_key(entry.object_key)));
+        }
+        objects.into_iter().map(|Reverse(id)| id).collect()
+    }
+
+    /// Java `overlappingTreeEntriesWithClearance` — the 5-arg CORE
+    /// (`:443-507`), without the compensation dispatch: candidates
+    /// against the query hull OFFSET by
+    /// [`max_clearance_offset`](`max_clearance_offset`)`(
+    /// maxValue(clearance_class, layer))`, the same layer/ignore-net
+    /// filters, each surviving candidate's clearance
+    /// `getValue(clearance_class, item_class, layer, add_margin)` —
+    /// then the half-clearance sift ([`SearchTree::clearance_test`]).
+    ///
+    /// An unbounded query falls back to the board's bounding box
+    /// (Java `:458-461`).
+    pub fn overlapping_tree_entries_with_clearance_core(
+        &mut self,
+        board: &mut Board,
+        tree_index: usize,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+        clearance_class: i32,
+    ) -> Vec<TreeEntry> {
+        let max_clearance =
+            max_clearance_offset(board.rules().clearance.max_value(clearance_class, layer));
+        let fallback = board.bounding_box().map(RegularTileShape::IntBox);
+        let tree = &self.trees[tree_index];
+        let candidates = tree.clearance_candidates(
+            shape,
+            max_clearance,
+            fallback.as_ref(),
+            Self::descending_keys,
+        );
+        let mut shape_cache: BTreeMap<ItemId, Vec<Option<TileShape>>> = BTreeMap::new();
+        let mut rows: Vec<(LeafEntry, i32, TileShape)> = Vec::new();
+        for leaf in candidates {
+            let id = Self::item_of_key(leaf.object_key);
+            if Self::leaf_filtered(board, id, leaf.shape_index_in_object, layer, ignore_nets) {
+                continue;
+            }
+            let Some(item_class) = board.item_clearance_class(id) else {
+                continue;
+            };
+            let clearance =
+                board
+                    .rules()
+                    .clearance
+                    .get_value_opt(clearance_class, item_class, layer, true);
+            let stored = Self::stored_shape(
+                board,
+                &mut shape_cache,
+                id,
+                tree.object_id(),
+                tree.variant,
+                tree.compensated_clearance_class,
+                leaf.shape_index_in_object,
+            );
+            let Some(stored) = stored else {
+                continue;
+            };
+            rows.push((leaf, clearance, stored));
+        }
+        self.trees[tree_index].clearance_test(shape, &rows)
+    }
+
+    /// Java `overlappingTreeEntriesWithClearance` — the 4-arg
+    /// DISPATCHING form (`:514-524`) — **T57**: when the TREE's
+    /// compensation flag is set (`compensatedClearanceClassNo > 0`,
+    /// `:95-97` — the tree property, not the manager flag) the
+    /// compensation already lives in the stored shapes and the PLAIN
+    /// query runs; otherwise the 5-arg core.
+    pub fn overlapping_tree_entries_with_clearance(
+        &mut self,
+        board: &mut Board,
+        tree_index: usize,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+        clearance_class: i32,
+    ) -> Vec<TreeEntry> {
+        if self.trees[tree_index].is_clearance_compensation_used() {
+            self.overlapping_tree_entries(board, tree_index, shape, layer, ignore_nets)
+        } else {
+            self.overlapping_tree_entries_with_clearance_core(
+                board,
+                tree_index,
+                shape,
+                layer,
+                ignore_nets,
+                clearance_class,
+            )
+        }
+    }
+
+    /// Java `overlappingObjectsWithClearance` (`:530-549`) — the
+    /// objects of the dispatching entry query, deduped descending.
+    pub fn overlapping_objects_with_clearance(
+        &mut self,
+        board: &mut Board,
+        tree_index: usize,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+        clearance_class: i32,
+    ) -> Vec<ItemId> {
+        let entries = self.overlapping_tree_entries_with_clearance(
+            board,
+            tree_index,
+            shape,
+            layer,
+            ignore_nets,
+            clearance_class,
+        );
+        let mut objects: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
+        for entry in entries {
+            objects.insert(Reverse(Self::item_of_key(entry.object_key)));
+        }
+        objects.into_iter().map(|Reverse(id)| id).collect()
+    }
+
+    /// Java `overlappingItemsWithClearance` (`:557-569`) — the
+    /// instanceof-`Item` filter over the object query. Every object
+    /// in these trees IS an item (the manager only inserts board
+    /// items), so this is the objects form verbatim; kept as its own
+    /// method for call-site parity with the Java surface.
+    pub fn overlapping_items_with_clearance(
+        &mut self,
+        board: &mut Board,
+        tree_index: usize,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+        clearance_class: i32,
+    ) -> Vec<ItemId> {
+        self.overlapping_objects_with_clearance(
+            board,
+            tree_index,
+            shape,
+            layer,
+            ignore_nets,
+            clearance_class,
+        )
+    }
+
+    /// Java `BasicBoard.checkShape` (`BasicBoard.java:952-981`): can
+    /// a shape with `net_numbers` and `clearance_class` go on
+    /// `layer` without a clearance violation? Per convex piece:
+    /// the board bounding-box containment, then the with-clearance
+    /// object query on the DEFAULT tree, then Java's re-check that
+    /// some obstacle stays an obstacle for EVERY net (`:972-977`).
+    ///
+    /// DIVERGENCE: a failed convex split (Java's null
+    /// `splitToConvex`) would NPE at `tiles.length`; the port treats
+    /// it as vacuously insertable — unreachable through parsed boards
+    /// whose areas always split.
+    pub fn check_shape(
+        &mut self,
+        board: &mut Board,
+        shape: &Area,
+        layer: i32,
+        net_numbers: &[i32],
+        clearance_class: i32,
+    ) -> bool {
+        let Some(tiles) = crate::tree_shapes::area_split_to_convex(shape) else {
+            return true;
+        };
+        let bounding_box = board.bounding_box();
+        for tile in &tiles {
+            if bounding_box.is_some_and(|bounds| !tile_contained_in_box(tile, &bounds)) {
+                return false;
+            }
+            let obstacles = self.overlapping_objects_with_clearance(
+                board,
+                0,
+                tile,
+                layer,
+                net_numbers,
+                clearance_class,
+            );
+            for object in obstacles {
+                let is_obstacle = net_numbers
+                    .iter()
+                    .all(|net| board.item_is_obstacle(object, *net));
+                if is_obstacle {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Java `SearchTreeManager.validateEntries(Item)`
+    /// (`SearchTreeManager.java:69-79`): AND over every live tree's
+    /// check. An item with NO entries for a tree is SKIPPED for that
+    /// tree — Java's `getSearchTreeEntries` null makes it NPE
+    /// (capture `E_ABSENT id=384 → NullPointerException`); the port
+    /// treats the absent list as vacuously true (documented
+    /// divergence — the poisoned-slot case, which Java DOES check, is
+    /// pinned below).
+    pub fn validate_entries(&self, id: ItemId) -> bool {
+        let mut result = true;
+        for tree in &self.trees {
+            let Some(entries) = self.tree_entries(id, tree.object_id()) else {
+                continue;
+            };
+            if !tree.validate_entries(entries) {
+                result = false;
+            }
+        }
+        result
+    }
+
+    /// The layer/ignore-net filter shared by the plain and
+    /// with-clearance cores (Java `:411-420` / `:477-486`).
+    fn leaf_filtered(
+        board: &mut Board,
+        id: ItemId,
+        shape_index: u32,
+        layer: i32,
+        ignore_nets: &[i32],
+    ) -> bool {
+        let index = i32::try_from(shape_index).unwrap_or(i32::MAX);
+        if layer >= 0 && board.item_shape_layer(id, index) != Some(layer) {
+            return true;
+        }
+        !ignore_nets
+            .iter()
+            .all(|net| board.item_is_obstacle(id, *net))
+    }
+
+    /// The stored tree shape of one candidate — through the same
+    /// identity-keyed per-tree cache the insert filled
+    /// (`Item.getTreeShape(tree, index)`), with a local per-call map
+    /// so an item with several leaves fetches once.
+    fn stored_shape(
+        board: &mut Board,
+        shape_cache: &mut BTreeMap<ItemId, Vec<Option<TileShape>>>,
+        id: ItemId,
+        tree_object_id: u64,
+        variant: SearchTreeVariant,
+        compensated_class: i32,
+        shape_index: u32,
+    ) -> Option<TileShape> {
+        let shapes = shape_cache
+            .entry(id)
+            .or_insert_with(|| {
+                board.tree_shape_precalc(id, tree_object_id, variant, compensated_class)
+            })
+            .clone();
+        shapes.get(shape_index as usize).cloned().flatten()
+    }
+
+    /// The `TreeSet<Leaf>` object order: Java `Leaf.compareTo`
+    /// (`ShapeTree.java:217-223`) delegates to the object's
+    /// `compareTo` — `Item.compareTo` is descending id
+    /// (`Item.java:95-103`) — so the board trees' candidates come
+    /// out descending by item key (capture `A_LEAVES`).
+    fn descending_keys(a: u64, b: u64) -> std::cmp::Ordering {
+        b.cmp(&a)
+    }
+
+    /// The white-box poison seam for the validateEntries pin —
+    /// swaps two entry slots of `id` in the tree with the given
+    /// object id (the spike's `arr[0] ↔ arr[1]` swap; a Java test
+    /// would mutate the package-private array directly).
+    #[cfg(test)]
+    pub(crate) fn swap_tree_entries_for_test(
+        &mut self,
+        id: ItemId,
+        tree_object_id: u64,
+        i: usize,
+        j: usize,
+    ) {
+        if let Some(slots) = self
+            .entries
+            .get_mut(&id)
+            .and_then(|by_tree| by_tree.get_mut(&tree_object_id))
+            && i < slots.len()
+            && j < slots.len()
+        {
+            slots.swap(i, j);
+        }
+    }
+}
+
+/// Java `ShapeSearchTree` `:462`: `maxClearance = (int)(1.2 *
+/// clMatrix.maxValue(clearanceClassIndex, layer))` — the DOUBLE
+/// product TRUNCATED toward zero. `1.2` in binary64 sits slightly
+/// BELOW 1.2, but every MULTIPLE OF 5 rounds back up to the exact
+/// integer (relative deficit 3.7e-17 < half an ulp), so the corpus
+/// values (2000 → 2400, capture `B_FLAG`/`C_TIE_SETUP`) truncate
+/// exactly; a NON-multiple discriminates: 14 → 16.8 → **16**
+/// (capture `C_T56`; rounding would give 17).
+///
+/// Rust `as` saturates where Java's `(int)` wrap-casts at ±2^31 —
+/// identical for every real clearance magnitude.
+#[must_use]
+pub fn max_clearance_offset(max_value: i32) -> i32 {
+    (1.2_f64 * f64::from(max_value)) as i32
+}
+
+/// `TileShape.isContainedIn(IntBox)` — the checkShape containment
+/// (`BasicBoard.java:962`); a simplex is inside an axis box iff its
+/// bounding box is (its extreme points ARE its vertices).
+fn tile_contained_in_box(tile: &TileShape, r#box: &IntBox) -> bool {
+    match tile {
+        TileShape::RegularTileShape(regular) => regular.is_contained_in_box(r#box),
+        TileShape::Simplex(_) => tile.bounding_box().is_contained_in(r#box),
     }
 }
 
@@ -1082,6 +1496,502 @@ mod tests {
             board.tree_shape_precalc(outline, object_id, SearchTreeVariant::Generic, 0),
             expected,
             "remove must drop the shape cache — the re-insert recomputes"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Task 8 — the overlap query family
+    // (/tmp/epic-t8-query.out, the QuerySpike capture)
+    // -----------------------------------------------------------------
+
+    /// Renders an entry list in the capture's `(id#idx,...)` form.
+    fn entries_string(entries: &[TreeEntry]) -> String {
+        let rows: Vec<String> = entries
+            .iter()
+            .map(|entry| format!("({}#{})", entry.object_key, entry.shape_index_in_object))
+            .collect();
+        format!("[{}]", rows.join(","))
+    }
+
+    /// The capture's via-815 query box (`A_QBOX`).
+    fn via815_query() -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::from_corners(
+            1_312_600, -728_275, 1_312_900, -727_975,
+        )))
+    }
+
+    /// **Section A — the plain entry query** (Issue575, default tree):
+    /// the candidate ORDER (descending item id, `TreeSet<Leaf>` —
+    /// `A_LEAVES`), the layer filter (`A_ENTRIES layer=0/1`), the
+    /// ignore-net filter including the net-0 quirk
+    /// (`A_ENTRIES nets=[1]/[0]/[9999]`), and `overlappingObjects`
+    /// (`A_OBJECTS`). A port returning DFS order, ascending ids, or
+    /// treating net 0 as a real net fails distinct rows here.
+    #[test]
+    fn plain_entry_query_matches_the_capture() {
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let query = via815_query();
+
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &query, -1, &[])),
+            "[(815#0),(815#1),(787#0),(786#0),(785#0),(784#0),(775#0),(771#0)]",
+            "A_ENTRIES box layer=-1 nets=[] — the sorted candidate order"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &query, 0, &[])),
+            "[(815#0),(787#0),(785#0),(771#0)]",
+            "A_ENTRIES box layer=0 nets=[]"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &query, 1, &[])),
+            "[(815#1),(786#0),(784#0),(775#0)]",
+            "A_ENTRIES box layer=1 nets=[] — the via's second shape and the layer-1 items"
+        );
+        // The ignore-net filter: net 1 ignores every candidate (they
+        // all carry it); net 0 never ignores (the containsNet guard).
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &query, -1, &[1])),
+            "[]",
+            "A_ENTRIES box layer=-1 nets=[1]"
+        );
+        for foreign_net in [0, 9999] {
+            assert_eq!(
+                entries_string(&manager.overlapping_tree_entries(
+                    &mut board,
+                    0,
+                    &query,
+                    -1,
+                    &[foreign_net]
+                )),
+                "[(815#0),(815#1),(787#0),(786#0),(785#0),(784#0),(775#0),(771#0)]",
+                "A_ENTRIES box layer=-1 nets=[{foreign_net}] — net 0 is never contained"
+            );
+        }
+
+        // overlappingObjects: deduped, descending id (TreeSet under
+        // Item.compareTo).
+        let objects: Vec<u32> = manager
+            .overlapping_objects(&mut board, 0, &query, 0, &[])
+            .iter()
+            .map(|id| id.get())
+            .collect();
+        assert_eq!(objects, vec![815, 787, 785, 771], "A_OBJECTS box layer=0");
+        let objects: Vec<u32> = manager
+            .overlapping_objects(&mut board, 0, &query, -1, &[])
+            .iter()
+            .map(|id| id.get())
+            .collect();
+        assert_eq!(
+            objects,
+            vec![815, 787, 786, 785, 784, 775, 771],
+            "A_OBJECTS box layer=-1 — the via's two entries collapse to one object"
+        );
+    }
+
+    /// **Section B — the T57 compensated dispatch** (Issue575, the
+    /// same query): with the default class-0 tree the 4-arg form
+    /// dispatches to the with-clearance CORE and agrees with it row
+    /// for row (`B4_CC0_DISPATCH` == `B5_CC0_CORE`); after the flag
+    /// flip rebuilds a class-1 tree, the same 4-arg call dispatches
+    /// to the PLAIN query (`B4_CC1_DISPATCH` == `B_PLAIN_CC1`). The
+    /// clearance annotation row (`B5_CC0_CLEARANCES`, all `cls=1
+    /// c=2016`) pins the margin read the core sorted by.
+    #[test]
+    fn with_clearance_dispatch_follows_the_tree_flag() {
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let query = via815_query();
+
+        // The core's clearance inputs (capture B5_CC0_CLEARANCES):
+        // class 1 items read getValue(1, 1, 0, add_margin) = 2016.
+        assert_eq!(board.rules().clearance.get_value_opt(1, 1, 0, true), 2016);
+
+        let expected = "[(815#0),(787#0),(785#0),(771#0)]";
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                0,
+                &query,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "B4_CC0_DISPATCH — flag off: the with-clearance core"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &query,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "B5_CC0_CORE"
+        );
+
+        // The flip: a NEW class-1 default tree — the dispatch now
+        // takes the plain branch and still agrees.
+        assert!(!manager.default_tree().is_clearance_compensation_used());
+        manager.set_clearance_compensation_used(&mut board, true);
+        assert!(manager.default_tree().is_clearance_compensation_used());
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance(
+                &mut board,
+                0,
+                &query,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "B4_CC1_DISPATCH — flag on: the plain query on the compensated tree"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries(&mut board, 0, &query, 0, &[])),
+            expected,
+            "B_PLAIN_CC1"
+        );
+    }
+
+    /// **Section E — validateEntries** (Issue575 via 815): aligned
+    /// entries validate (`E_TRUE`), a slot swap poisons BOTH the
+    /// tree-side and the manager-side checks (`E_POISONED`), the
+    /// restore heals (`E_RESTORED`), and an item with NO entries
+    /// (the component outline 384) is vacuously true — Java NPEs
+    /// there (`E_ABSENT`), the port's documented divergence.
+    #[test]
+    fn validate_entries_poisons_and_restores() {
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let via = ItemId::new(815);
+        let object_id = manager.default_tree().object_id();
+        assert_eq!(
+            manager
+                .tree_entries(via, object_id)
+                .map(<[Option<NodeIdx>]>::len),
+            Some(2),
+            "E_ARRAY len=2 — the via spans two layers"
+        );
+        assert!(manager.validate_entries(via), "E_TRUE");
+        manager.swap_tree_entries_for_test(via, object_id, 0, 1);
+        assert!(!manager.validate_entries(via), "E_POISONED");
+        manager.swap_tree_entries_for_test(via, object_id, 0, 1);
+        assert!(manager.validate_entries(via), "E_RESTORED");
+        // The absent case: the component outline carries no tree
+        // entries (ComponentOutline returns no shapes).
+        let outline_item = ItemId::new(384);
+        assert!(manager.tree_entries(outline_item, object_id).is_none());
+        assert!(
+            manager.validate_entries(outline_item),
+            "E_ABSENT — Java NPEs; the port treats the absent list as vacuously true"
+        );
+    }
+
+    /// The crafted board of sections C/D/F — the same DSN text the
+    /// Java spike parsed (both readers must agree on it).
+    const CRAFTED_DSN: &str = r#"(pcb t8-query.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 60000))
+    (keepout (rect F.Cu 10000 10000 30000 20000))
+    (keepout (rect F.Cu 70000 10000 90000 20000))
+    (rule (width 250) (clearance 14))
+  )
+  (placement)
+  (library)
+  (network
+    (net T8NET)
+  )
+  (wiring
+    (wire (path F.Cu 250  10000 10000 40000 40000) (net T8NET))
+  )
+)
+"#;
+
+    /// Parses crafted DSN text through the epic-dsn reader.
+    fn parse_dsn_text(dsn: &str) -> Board {
+        let mut ses = SesBoard::new();
+        match read_board(dsn.as_bytes(), &mut ses) {
+            DsnReadResult::Success { warnings } => {
+                assert!(warnings.is_empty(), "crafted DSN: {warnings:?}");
+            }
+            other => panic!("expected Success for the crafted DSN, got {other:?}"),
+        }
+        Board::from_ses_board(&ses)
+    }
+
+    /// The bounding octagon of a box (the spike's query form).
+    fn oct_of(x0: i32, y0: i32, x1: i32, y1: i32) -> TileShape {
+        let box_shape = TileShape::RegularTileShape(RegularTileShape::IntBox(
+            IntBox::from_corners(x0, y0, x1, y1),
+        ));
+        TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            box_shape.bounding_octagon().expect("a box is bounded"),
+        ))
+    }
+
+    /// **T56 — the `(int)(1.2 * maxValue)` truncation** (capture
+    /// section C): the sweep of octagon queries marching up the
+    /// 45-degree trace's diagonal face flips from `[(4#0)]` to `[]`
+    /// between d=99 and d=100 — exactly the TRUNCATED offset (16 →
+    /// diagonal shift 23); a ROUNDED port (17 → 24) keeps the trace
+    /// at d=100. The y base is shifted by 1 so the two regimes differ
+    /// on this row (B = urx_trace − (x0+y0_query) even).
+    #[test]
+    fn clearance_offset_truncation_flips_between_two_regimes() {
+        let mut board = parse_dsn_text(CRAFTED_DSN);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+
+        // The facts (C_FACTS / C_T56): 4 items, maxValue(1,0) = 14,
+        // (int)(1.2*14) = 16 (a rounded port gives 17).
+        assert_eq!(board.item_count(), 4);
+        assert_eq!(board.rules().clearance.max_value(1, 0), 14);
+        assert_eq!(max_clearance_offset(14), 16);
+        assert_eq!(max_clearance_offset(2000), 2400, "C_T56_EXTRA");
+
+        for (d, expected) in [(60, "[(4#0)]"), (99, "[(4#0)]"), (100, "[]"), (130, "[]")] {
+            let query = oct_of(40_000 + d, 40_001 + d, 40_100 + d, 40_101 + d);
+            assert_eq!(
+                entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                    &mut board,
+                    0,
+                    &query,
+                    0,
+                    &[],
+                    1
+                )),
+                expected,
+                "C_SWEEP d={d} — the truncation discriminator row is d=100"
+            );
+        }
+    }
+
+    /// **T56 arithmetic, checked value by value** (multiples of 5
+    /// round back to the exact integer through binary64; the others
+    /// truncate below the rounded value).
+    #[test]
+    fn max_clearance_offset_truncates_like_java() {
+        assert_eq!(max_clearance_offset(0), 0);
+        assert_eq!(max_clearance_offset(5), 6);
+        assert_eq!(max_clearance_offset(14), 16, "16.7999... -> 16, not 17");
+        assert_eq!(max_clearance_offset(15), 18);
+        assert_eq!(
+            max_clearance_offset(17),
+            20,
+            "20.4 -> 20 (the round agrees)"
+        );
+        assert_eq!(max_clearance_offset(2000), 2400, "capture C_T56_EXTRA");
+        assert_eq!(max_clearance_offset(20_000), 24_000, "capture C_TIE_SETUP");
+    }
+
+    /// **The tie order and the ignore/layer filters on the crafted
+    /// board** (capture `C_TIE*` and `C_IGNORE*`): with the matrix
+    /// blown up to 20000 the mid-board query reaches BOTH keepouts
+    /// and the outline — all class 1, equal clearances — and the
+    /// result is the descending-id arrival order
+    /// `[(3#0),(2#0),(1#0)]`, IDENTICALLY on the second call
+    /// (`C_TIE_AGAIN`); layer 1 gives nothing. The on-trace query
+    /// shows the ignore filter on a net-carrying item: the trace (net
+    /// T8NET=1) drops under `nets=[1]`, stays under `nets=[0]`.
+    #[test]
+    fn tie_order_and_ignore_nets_match_the_capture() {
+        let mut board = parse_dsn_text(CRAFTED_DSN);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        // The spike's matrix edit AFTER the insert — the stored tree
+        // shapes keep their parse-time geometry; only the query-side
+        // windows and clearances change.
+        board.rules_mut().clearance.set_value(1, 1, 0, 20_000);
+        assert_eq!(
+            board.rules().clearance.max_value(1, 0),
+            20_000,
+            "C_TIE_SETUP"
+        );
+        assert_eq!(max_clearance_offset(20_000), 24_000);
+
+        let mid = oct_of(49_500, 14_000, 50_500, 16_000);
+        let expected = "[(3#0),(2#0),(1#0)]";
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &mid,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "C_TIE layer=0 nets=[] — equal clearances keep the descending-id arrival order"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &mid,
+                0,
+                &[],
+                1
+            )),
+            expected,
+            "C_TIE_AGAIN — the tie order is stable across queries"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &mid,
+                1,
+                &[],
+                1
+            )),
+            "[]",
+            "C_TIE layer=1 — the keepouts and the trace are layer 0"
+        );
+
+        let on_trace = oct_of(29_750, 29_750, 30_250, 30_250);
+        assert_eq!(
+            board.get(ItemId::new(4)).expect("the trace").nets,
+            vec![1],
+            "C_TRACE_NET n=1"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &on_trace,
+                0,
+                &[],
+                1
+            )),
+            "[(4#0),(2#0)]",
+            "C_IGNORE nets=[] — the trace and the near keepout"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &on_trace,
+                0,
+                &[1],
+                1
+            )),
+            "[(2#0)]",
+            "C_IGNORE nets=[1] — the net-1 trace is not an obstacle for its own net"
+        );
+        assert_eq!(
+            entries_string(&manager.overlapping_tree_entries_with_clearance_core(
+                &mut board,
+                0,
+                &on_trace,
+                0,
+                &[0],
+                1
+            )),
+            "[(4#0),(2#0)]",
+            "C_IGNORE nets=[0] — net 0 never ignores"
+        );
+    }
+
+    /// **Section F — checkShape** (a FRESH parse — the section-C
+    /// matrix edit would swallow the near/far cases): the bbox
+    /// containment reject, the obstacle reject with its layer
+    /// specificity, the ignore-net accept on the trace, and the
+    /// free-space accept — the six `F_CASE` rows.
+    #[test]
+    fn check_shape_matches_the_capture() {
+        let mut board = parse_dsn_text(CRAFTED_DSN);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let box_area = |x0: i32, y0: i32, x1: i32, y1: i32| Area {
+            border: crate::items::BoardShape::Tile(TileShape::RegularTileShape(
+                RegularTileShape::IntBox(IntBox::from_corners(x0, y0, x1, y1)),
+            )),
+            holes: Vec::new(),
+        };
+        assert_eq!(
+            board.bounding_box(),
+            Some(IntBox::from_corners(-1000, -1000, 101_000, 61_000)),
+            "F_BBOX"
+        );
+        // Over the board edge: the containment reject.
+        assert!(
+            !manager.check_shape(
+                &mut board,
+                &box_area(99_000, 10_000, 102_000, 20_000),
+                0,
+                &[],
+                1
+            ),
+            "F_CASE over-edge"
+        );
+        // Over the keepout: layer 0 rejects, layer 1 is free.
+        assert!(
+            !manager.check_shape(
+                &mut board,
+                &box_area(18_000, 14_000, 22_000, 16_000),
+                0,
+                &[],
+                1
+            ),
+            "F_CASE over-keepout layer=0"
+        );
+        assert!(
+            manager.check_shape(
+                &mut board,
+                &box_area(18_000, 14_000, 22_000, 16_000),
+                1,
+                &[],
+                1
+            ),
+            "F_CASE over-keepout layer=1 — the keepout lives on F.Cu only"
+        );
+        // Free space.
+        assert!(
+            manager.check_shape(
+                &mut board,
+                &box_area(45_000, 30_000, 46_000, 31_000),
+                0,
+                &[],
+                1
+            ),
+            "F_CASE free"
+        );
+        // Over the trace: a foreign net rejects, the trace's own net
+        // is not an obstacle for itself.
+        assert!(
+            !manager.check_shape(
+                &mut board,
+                &box_area(30_000, 30_000, 30_500, 30_500),
+                0,
+                &[],
+                1
+            ),
+            "F_CASE over-trace nets=[]"
+        );
+        assert!(
+            manager.check_shape(
+                &mut board,
+                &box_area(30_000, 30_000, 30_500, 30_500),
+                0,
+                &[1],
+                1
+            ),
+            "F_CASE over-trace nets=[1] — same-net overlap is allowed"
         );
     }
 }

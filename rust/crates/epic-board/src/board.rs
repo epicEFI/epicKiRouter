@@ -577,6 +577,72 @@ impl Board {
         }
     }
 
+    /// Java `SearchTreeObject.shapeLayer(int)` — the layer of shape
+    /// slot `index` of the item, per the kind overrides the query
+    /// family's layer filter reads (`ShapeSearchTree.java:411`):
+    ///
+    /// * pins and vias: [`Board::drill_shape_layer`] (the span clamp,
+    ///   `DrillItem.java:147-153` — memoized, hence `&mut self`),
+    /// * traces: the trace's layer (`Trace.java:333-335`),
+    /// * obstacle and conduction areas: the stored single layer
+    ///   (`ObstacleArea.java:279-281`),
+    /// * component outlines: the stored layer
+    ///   (`ComponentOutline.java:125-127`),
+    /// * board outlines: `index * layer_count / tileShapeCount()`
+    ///   (`BoardOutline.java:70-82`) — INTEGER division over the
+    ///   outline's OWN shape count (line branch: `lineCount x
+    ///   layerCount`; keepout-area branch: convex pieces x
+    ///   layerCount, 0 on a failed split).
+    pub fn item_shape_layer(&mut self, id: ItemId, index: i32) -> Option<i32> {
+        match self.get(id).map(|entry| &entry.data) {
+            Some(ItemData::Pin { .. }) | Some(ItemData::Via { .. }) => {
+                self.drill_shape_layer(id, index)
+            }
+            Some(ItemData::Trace { .. }) => self.trace_layer(id),
+            Some(ItemData::ObstacleArea { .. }) | Some(ItemData::ConductionArea { .. }) => {
+                self.area_layer(id)
+            }
+            Some(ItemData::ComponentOutline { layer, .. }) => Some(*layer),
+            Some(ItemData::BoardOutline { .. }) => {
+                let layer_count = self.layers().layers.len() as i32;
+                let keepout_outside = self.outline_keepout_outside_generated(id)?;
+                let shape_count = if keepout_outside {
+                    let area = self.outline_keepout_area(id)?;
+                    crate::tree_shapes::area_split_to_convex(&area)
+                        .map_or(0, |pieces| pieces.len() as i32 * layer_count)
+                } else {
+                    let shapes = self.outline_shapes(id)?;
+                    crate::items::outline::line_count(shapes) as i32 * layer_count
+                };
+                Some(if shape_count > 0 {
+                    index * layer_count / shape_count
+                } else {
+                    0
+                })
+            }
+            Some(ItemData::Other) | None => None,
+        }
+    }
+
+    /// Java `Item.isObstacle(int netNumber)` (`Item.java:162-164`) =
+    /// `!containsNet(netNumber)`, with `containsNet`'s guard
+    /// (`Item.java:149-152`): a net number `<= 0` NEVER counts as
+    /// contained — so net 0 (and negatives) make EVERY item an
+    /// obstacle and never ignore one (capture
+    /// `A_ENTRIES ... nets=[0]` → the full list, like `nets=[9999]`).
+    /// A foreign id has no nets to share — an obstacle, mirroring the
+    /// net-less item.
+    #[must_use]
+    pub fn item_is_obstacle(&self, id: ItemId, net_number: i32) -> bool {
+        if net_number <= 0 {
+            return true;
+        }
+        match self.get(id) {
+            Some(entry) => !entry.nets.contains(&net_number),
+            None => true,
+        }
+    }
+
     /// Java `ConductionArea.getArea()` for a CONDUCTION item — the
     /// STORED area, verbatim: a parse-time conduction area always
     /// carries identity placement fields, so the inherited
