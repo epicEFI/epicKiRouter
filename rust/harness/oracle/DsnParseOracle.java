@@ -191,9 +191,11 @@ public class DsnParseOracle {
   // The Success digest record (schema: plan :105-119, dsn_digest.rs).
   // -------------------------------------------------------------------------
 
-  /** Fills {@code result} (id/file already added by {@link #evaluateCase}). */
-  static JsonObject successRecord(
-      JsonObject result, BasicBoard board, List<String> warnings) {
+  /** The `stats` object (T13: extracted from successRecord — the SAME
+   * builder feeds {@code stats} and the new {@code post_stats}; the two
+   * must be value-identical because the second normalizeAllTraces call
+   * is a fixpoint by construction). */
+  static JsonObject buildStats(BasicBoard board) {
     JsonObject stats = new JsonObject();
     stats.addProperty("layers", board.getLayerCount());
     stats.addProperty("items", board.getItems().size());
@@ -214,8 +216,14 @@ public class DsnParseOracle {
     stats.addProperty("nets", board.rules.nets.maxNetNumber());
     stats.addProperty("traces", traces);
     stats.addProperty("vias", vias);
+    return stats;
+  }
+
+  /** Fills {@code result} (id/file already added by {@link #evaluateCase}). */
+  static JsonObject successRecord(
+      JsonObject result, BasicBoard board, List<String> warnings) {
     result.addProperty("result", "Success");
-    result.add("stats", stats);
+    result.add("stats", buildStats(board));
     result.addProperty("geometry_sha256", geometrySha256(board));
     result.add("clearance", clearanceOut(board));
     JsonArray netTable = new JsonArray();
@@ -240,6 +248,16 @@ public class DsnParseOracle {
     result.addProperty("unit", board.communication.unit.name());
     result.addProperty("resolution", board.communication.resolution);
     result.addProperty("snap_angle", snapAngleOut(board.rules.getTraceAngleRestriction()));
+    // T13 post-normalize fields: the read path already ended its wiring
+    // scope with normalizeAllTraces (Wiring.java:343-353), so
+    // stats/geometry above are ALREADY post-normalize; this explicit
+    // SECOND call runs from the fixpoint (the CA6 spike pin: result
+    // false) and re-digests — post_stats == stats and
+    // post_geometry_sha256 == geometry_sha256 for every fixture, the
+    // goldens' ENCODED idempotence claim.
+    board.normalizeAllTraces();
+    result.add("post_stats", buildStats(board));
+    result.addProperty("post_geometry_sha256", geometrySha256(board));
     return result;
   }
 

@@ -690,6 +690,12 @@ fn insert_trace(
         layer_no,
         half_width,
         corners,
+        // T13: the reader-constructed polyline is carried VERBATIM —
+        // the live board must store exactly Java's parse-time polyline,
+        // and it is NOT re-derivable from the rounded corner list (the
+        // `PolylinePath` branch keeps duplicate corners that
+        // `Polyline::from_points`' Polygon dedup would drop; dsn-0061).
+        polyline: polyline.clone(),
         nets,
         clearance_class,
         fixed,
@@ -1463,6 +1469,29 @@ mod tests {
             vec![(2, 0, 625, vec![[20000, 10000], [20000, 20000]],)]
         );
         assert_eq!(max_id(&board), 2);
+    }
+
+    /// T13 IR invariant: the carried polyline is the source of truth and
+    /// the rounded `corners` view is derived from it at the single
+    /// construction site (`insert_trace`). The `polyline_path` branch is
+    /// the case the digest corpus proved load-bearing (dsn-0061/0063: the
+    /// reader's `Polyline(Line[])` keeps corners `from_points` would
+    /// dedup, and the live board must store the reader's polyline
+    /// verbatim).
+    #[test]
+    fn trace_ir_corners_are_the_rounded_polyline_view() {
+        let (result, board) = run(PLPATH_DSN);
+        assert!(matches!(
+            result,
+            crate::reader::DsnReadResult::Success { .. }
+        ));
+        let count = traces(&board).len();
+        assert_eq!(count, 1, "PLPATH_DSN parses exactly one trace");
+        for (_, trace) in traces(&board) {
+            let derived: Vec<IntPoint> =
+                trace.polyline.corners().iter().map(corner_to_int).collect();
+            assert_eq!(trace.corners, derived, "trace {}", trace.layer_no);
+        }
     }
 
     /// Jar /tmp/epic-t9-fresh.out CASE npefold: wiring before structure —

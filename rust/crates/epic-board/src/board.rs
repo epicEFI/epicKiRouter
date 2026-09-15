@@ -1027,15 +1027,20 @@ impl Board {
     ///   `KeepoutKindIr` maps to the three Java `ObstacleArea`
     ///   subclasses exactly as the readers chose them
     ///   (`Structure.java:926-933`, `Network.java:1080-1149`).
-    /// - Trace polylines are rebuilt from the IR's (rounded) corner
-    ///   list with `Polyline::from_points` — the inverse of Java's
-    ///   `new Polyline(polygon)` (`Wiring.java:531`); for the
-    ///   `PolylinePath` path (`Wiring.java:562`, `new Polyline(lines)`)
-    ///   the interior corners are identical and the end lines take the
-    ///   canonical perpendicular directions. Corner rounding itself is
-    ///   the DOCUMENTED M1b divergence (`scope/wiring.rs` module docs:
-    ///   Java keeps exact rationals; the port rounds at parse), not
-    ///   re-derived here.
+    /// - Trace polylines are the IR's reader-constructed polylines
+    ///   carried VERBATIM (T13): the reader builds them exactly like
+    ///   Java's two read branches — `new Polyline(polygon)`
+    ///   (`Wiring.java:531`) and `new Polyline(lines)` with the
+    ///   parallel-line filter (`Wiring.java:562`) — so the live board
+    ///   stores Java's parse-time polyline without re-derivation.
+    ///   Re-deriving from the corner list would run the `Polygon` dedup,
+    ///   which the `PolylinePath` branch never does: a duplicated
+    ///   trailing corner (dsn-0061/0063, provably part of Java's board
+    ///   state — the pre-T13 golden hash matched the verbatim corner
+    ///   list) would be dropped. Corner rounding itself is the
+    ///   DOCUMENTED M1b divergence (`scope/wiring.rs` module docs: Java
+    ///   keeps exact rationals; the port rounds at parse), unchanged
+    ///   here.
     #[must_use]
     pub fn from_ses_board(ses: &SesBoard) -> Self {
         let mut board = Board::new();
@@ -1089,7 +1094,13 @@ fn convert_item(item: &ItemIr) -> Option<ItemEntry> {
             data: ItemData::Trace {
                 layer: trace.layer_no,
                 half_width: trace.half_width,
-                lines: polyline_from_corners(&trace.corners),
+                // T13: the reader's Java-constructed polyline, carried
+                // through the IR VERBATIM (the `TraceIr::polyline` field
+                // docs). Re-deriving from the corner list would apply the
+                // `Polygon` dedup, which Java's `PolylinePath` read branch
+                // never does — duplicate trailing corners (dsn-0061/0063)
+                // are part of Java's parse-time board state.
+                lines: trace.polyline.clone(),
             },
             nets: trace.nets.clone(),
             clearance_class: trace.clearance_class,
@@ -1245,18 +1256,6 @@ fn area_from_ir(area: &AreaIr) -> Area {
         border: board_shape_from_ir(&area.border),
         holes: area.holes.iter().map(board_shape_from_ir).collect(),
     }
-}
-
-/// Rebuilds a trace polyline from the IR's corner list — see
-/// [`Board::from_ses_board`] for the constructor contract.
-fn polyline_from_corners(
-    corners: &[epic_geometry::int_point::IntPoint],
-) -> epic_geometry::polyline::Polyline {
-    let points: Vec<epic_geometry::point::Point> = corners
-        .iter()
-        .map(|&corner| epic_geometry::point::Point::Int(corner))
-        .collect();
-    epic_geometry::polyline::Polyline::from_points(&points)
 }
 
 #[cfg(test)]

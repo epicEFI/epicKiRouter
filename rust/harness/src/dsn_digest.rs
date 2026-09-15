@@ -66,6 +66,27 @@
 //!
 //! `geometry_sha256` is the lowercase SHA-256 hex over the UTF-8 text.
 //!
+//! ## The Board-side twin (T13)
+//!
+//! The Java oracle digests `success.board()` — the LIVE BOARD after the
+//! read, i.e. AFTER the in-wiring-scope `normalizeAllTraces()`
+//! (`Wiring.java:343-353`) has run. The SesBoard-side
+//! `canonical_geometry_text` below digests the parser IR — PRE — and
+//! matches it only on fixtures where normalize is a no-op (1,331 of
+//! 1,332; dsn-0151 is the exception the M2 divergence ledger carried).
+//! T13 moves the Rust `stats` + `geometry_sha256` to the POST-normalize
+//! [`epic_board::board::Board`]: the digest pipeline builds the Board,
+//! fills the trees the read-path way
+//! (`SearchTreeManager::insert_items_creation_order` — ASCENDING), runs
+//! `epic_board::normalize_all::normalize_all_traces`, and digests
+//! through [`canonical_geometry_text_board`] — the same line format,
+//! over the Board's LIVE items (`entry.on_the_board`; Java
+//! `board.getItems()` is live-only, which is why the oracle's `items`
+//! stat reads 2 on dsn-0151 while the Rust arena keeps every parsed
+//! id). The SesBoard twin stays: the IR remains the source for every
+//! other golden field, and the two twins must agree byte-for-byte on a
+//! no-op-normalize board — the 1,332 compare asserts it empirically.
+//!
 //! ## Warning normalization (D12)
 //!
 //! [`normalize_warning_digits`] replaces every `[0-9]+` run with `#` —
@@ -73,11 +94,19 @@
 //! warning strings are captured in goldens but compared only in
 //! normalized form.
 
+use epic_board::board::Board;
+use epic_board::items::ItemData;
+// Test-only since T13: the SesBoard-twin renderer below is the pins'
+// PRE-normalize comparison source; the pipeline digests the Board twin.
+#[cfg(test)]
 use epic_dsn::ses_board::{ItemIr, SesBoard};
 use epic_dsn::shape::BoardShape;
-use epic_dsn::sink::{AreaIr, FixedStateIr};
+use epic_dsn::sink::AreaIr;
+#[cfg(test)]
+use epic_dsn::sink::FixedStateIr;
 use epic_dsn::write_scope::quote_java_identifier;
 use epic_geometry::float_point::FloatPoint;
+use epic_geometry::point::Point;
 use epic_geometry::polygon_shape::PolygonShape;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::rounding::java_round;
@@ -101,7 +130,10 @@ pub fn normalize_warning_digits(warning: &str) -> String {
     out
 }
 
-/// `FixedState` token (the enum's ordinal order).
+/// `FixedState` token (the enum's ordinal order). TEST-ONLY since T13:
+/// the only remaining caller is the SesBoard twin below (the compare
+/// pipeline digests the Board twin's `board_fixed_token`).
+#[cfg(test)]
 fn fixed_token(fixed: FixedStateIr) -> &'static str {
     match fixed {
         FixedStateIr::Unfixed => "unfixed",
@@ -184,9 +216,12 @@ fn encode_area(area: &AreaIr) -> String {
     out
 }
 
-/// The canonical geometry text (module docs): descending board id, one
-/// line per trace/via/keepout/conduction area, `\n`-terminated including
-/// the last line.
+/// The canonical geometry text over the SesBoard IR (module docs):
+/// descending board id, one line per trace/via/keepout/conduction area,
+/// `\n`-terminated including the last line. TEST-ONLY since T13 — the
+/// PRE-normalize twin the pins compare against (the digest pipeline and
+/// every other consumer moved to [`canonical_geometry_text_board`]).
+#[cfg(test)]
 pub fn canonical_geometry_text(board: &SesBoard) -> String {
     let mut text = String::new();
     for item in board.items.iter().rev() {
@@ -264,9 +299,162 @@ pub fn canonical_geometry_text(board: &SesBoard) -> String {
     text
 }
 
-/// Lowercase SHA-256 hex over the UTF-8 canonical text.
+/// Lowercase SHA-256 hex over the UTF-8 canonical text. TEST-ONLY since
+/// T13 (the SesBoard twin's hash — see [`canonical_geometry_text`]).
+#[cfg(test)]
 pub fn geometry_sha256(board: &SesBoard) -> String {
     sha256_hex(canonical_geometry_text(board).as_bytes())
+}
+
+/// epic-board's `BoardShape` -> the IR `BoardShape` the encoders take —
+/// a mechanical variant mirror over SHARED geometry types (`TileShape`,
+/// `PolygonShape`, `Circle` are `epic_geometry` types in both crates; no
+/// coordinate or structural conversion happens).
+fn board_shape_to_ir(shape: &epic_board::items::BoardShape) -> BoardShape {
+    match shape {
+        epic_board::items::BoardShape::Tile(tile) => BoardShape::Tile(tile.clone()),
+        epic_board::items::BoardShape::PolygonShape(polygon) => {
+            BoardShape::PolygonShape(polygon.clone())
+        }
+        epic_board::items::BoardShape::Circle(circle) => BoardShape::Circle(*circle),
+    }
+}
+
+/// epic-board's `Area` -> the IR `AreaIr` (same border + holes order).
+fn board_area_to_ir(area: &epic_board::items::Area) -> AreaIr {
+    AreaIr {
+        border: board_shape_to_ir(&area.border),
+        holes: area.holes.iter().map(board_shape_to_ir).collect(),
+    }
+}
+
+/// The `FixedState` token over the BOARD's enum (same ordinal order as
+/// the IR enum — both mirror Java's `FixedState`).
+fn board_fixed_token(fixed: epic_board::items::FixedState) -> &'static str {
+    match fixed {
+        epic_board::items::FixedState::Unfixed => "unfixed",
+        epic_board::items::FixedState::ShoveFixed => "shove_fixed",
+        epic_board::items::FixedState::UserFixed => "user_fixed",
+        epic_board::items::FixedState::SystemFixed => "system_fixed",
+    }
+}
+
+/// The Board-side twin of `canonical_geometry_text` — the POST-normalize
+/// digest source (module docs, "The Board-side twin"). The same T/V/K/A
+/// line format over the Board's LIVE items in descending-id order; a
+/// trace's corners come off the stored `Polyline`, a keepout's shape is
+/// the T49 ABSOLUTE area (`Board::obstacle_area` — Java
+/// `ObstacleArea.getArea()`), a conduction area's shape is the STORED
+/// area verbatim (identity placement at parse — the `conduction_area`
+/// accessor docs), and a via's padstack name resolves through the board
+/// library (`<unresolved <no>>` for the parse-unreachable out-of-range
+/// number, same discipline as the SesBoard twin).
+pub fn canonical_geometry_text_board(board: &Board, string_quote: &str) -> String {
+    let mut text = String::new();
+    for entry in board.iter_descending() {
+        if !entry.on_the_board {
+            continue; // Java getItems() is live-only
+        }
+        match &entry.data {
+            ItemData::Trace {
+                layer,
+                half_width,
+                lines,
+            } => {
+                text.push_str(&format!(
+                    "T {} {} {} {}",
+                    entry.id.get(),
+                    layer,
+                    half_width,
+                    board_fixed_token(entry.fixed)
+                ));
+                for corner in lines.corners() {
+                    match corner {
+                        Point::Int(point) => {
+                            text.push_str(&format!(" {} {}", point.x, point.y));
+                        }
+                        Point::Rational(_) => {
+                            // Parse-produced corners are exact ints; the
+                            // canon's rounding contract is Math.round on
+                            // the float view (java_round), as the oracle's
+                            // coordinateOut does.
+                            let float = corner.to_float();
+                            text.push_str(&format!(
+                                " {} {}",
+                                java_round(float.x),
+                                java_round(float.y)
+                            ));
+                        }
+                    }
+                }
+                text.push('\n');
+            }
+            ItemData::Via {
+                center,
+                padstack_no,
+                ..
+            } => {
+                let padstack: String = board
+                    .library()
+                    .padstack(*padstack_no)
+                    .map(|pad| pad.name.clone())
+                    .unwrap_or_else(|| format!("<unresolved {}>", padstack_no));
+                text.push_str(&format!(
+                    "V {} {} {} {} {}\n",
+                    entry.id.get(),
+                    quote_java_identifier(&padstack, string_quote),
+                    center.x,
+                    center.y,
+                    board_fixed_token(entry.fixed)
+                ));
+            }
+            ItemData::ObstacleArea { layer, .. } => {
+                // The T49 absolute area (`Board::obstacle_area`); a None
+                // here would be a Board/entry invariant break — the item
+                // passed the on-the-board + kind gate, so the area is
+                // computable. expect() keeps the harness fail-loud.
+                let absolute = board.obstacle_area(entry.id).expect("keepout area");
+                text.push_str(&format!(
+                    "K {} {} {} {} {}\n",
+                    entry.id.get(),
+                    layer,
+                    entry.clearance_class,
+                    board_fixed_token(entry.fixed),
+                    encode_area(&board_area_to_ir(&absolute))
+                ));
+            }
+            ItemData::ConductionArea { layer, area, .. } => {
+                // Parse-time conduction areas are identity-placed; the
+                // STORED area is the Java getArea() (accessor docs).
+                text.push_str(&format!(
+                    "A {} {} {} {}",
+                    entry.id.get(),
+                    layer,
+                    entry.clearance_class,
+                    board_fixed_token(entry.fixed)
+                ));
+                text.push_str(&format!(" {}", entry.nets.len()));
+                for net in &entry.nets {
+                    text.push(' ');
+                    text.push_str(&net.to_string());
+                }
+                text.push(' ');
+                text.push_str(&encode_area(&board_area_to_ir(area)));
+                text.push('\n');
+            }
+            // id-consuming, line-free (module docs)
+            ItemData::Pin { .. }
+            | ItemData::ComponentOutline { .. }
+            | ItemData::BoardOutline { .. }
+            | ItemData::Other => {}
+        }
+    }
+    text
+}
+
+/// Lowercase SHA-256 hex over the Board-side canonical text (T13).
+pub fn geometry_sha256_board(board: &Board, string_quote: &str) -> String {
+    sha256_hex(canonical_geometry_text_board(board, string_quote).as_bytes())
 }
 
 /// Lowercase SHA-256 hex over raw bytes — shared by the digest and the
@@ -406,6 +594,10 @@ mod tests {
             layer_no: 0,
             half_width: 625,
             corners: vec![IntPoint::new(20_000, 50_000), IntPoint::new(80_000, 50_000)],
+            polyline: TraceIr::polyline_of_corners(&[
+                IntPoint::new(20_000, 50_000),
+                IntPoint::new(80_000, 50_000),
+            ]),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::UserFixed,
@@ -414,6 +606,10 @@ mod tests {
             layer_no: 0,
             half_width: 625,
             corners: vec![IntPoint::new(20_000, 51_000), IntPoint::new(80_000, 51_000)],
+            polyline: TraceIr::polyline_of_corners(&[
+                IntPoint::new(20_000, 51_000),
+                IntPoint::new(80_000, 51_000),
+            ]),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::SystemFixed,
@@ -507,6 +703,36 @@ mod tests {
         assert_eq!(
             geometry_sha256(&board),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    /// THE T13 twin pin: the SesBoard twin ([`canonical_geometry_text`],
+    /// the PRE-normalize IR view) and the Board twin
+    /// ([`canonical_geometry_text_board`], the POST-normalize live-board
+    /// view) must agree byte-for-byte on a no-op-normalize board (module
+    /// docs, "The Board-side twin"; the 1,332-fixture compare asserts it
+    /// empirically, this pin locks the spike). The spike board's parse
+    /// traces are parallel (no combine), pin-anchored at distinct pins
+    /// (no cycle), and the via is a mid-span contact (no crossing split),
+    /// so `normalize_all_traces` is a no-op — asserted.
+    #[test]
+    fn board_twin_matches_ses_twin_on_a_noop_normalize_board() {
+        let ses = spike_board();
+        let mut board = epic_board::board::Board::from_ses_board(&ses);
+        let mut manager = epic_board::tree_manager::SearchTreeManager::new();
+        manager.insert_items_creation_order(&mut board);
+        assert!(
+            !epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board),
+            "the spike board must be a normalize no-op for the twin pin"
+        );
+        assert_eq!(
+            canonical_geometry_text(&ses),
+            canonical_geometry_text_board(&board, &ses.metadata.string_quote),
+            "the twins must render the same geometry on a no-op board"
+        );
+        assert_eq!(
+            geometry_sha256(&ses),
+            geometry_sha256_board(&board, &ses.metadata.string_quote)
         );
     }
 

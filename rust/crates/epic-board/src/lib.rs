@@ -39,6 +39,7 @@ pub mod contacts;
 pub mod id;
 pub mod items;
 pub mod layers;
+pub mod normalize_all;
 pub mod rules_surf;
 pub mod trace_ops;
 pub mod tree_manager;

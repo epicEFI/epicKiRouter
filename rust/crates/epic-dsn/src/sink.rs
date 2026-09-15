@@ -62,6 +62,7 @@ use crate::shape::BoardShape;
 use crate::state::{AngleRestriction, ComponentLocation};
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
+use epic_geometry::polyline::Polyline;
 
 /// Java `FixedState` (`board/model/items/FixedState.java`): enum order
 /// UNFIXED, SHOVE_FIXED, USER_FIXED, SYSTEM_FIXED (ordinal order is
@@ -520,14 +521,47 @@ pub struct TraceIr {
     /// Java `Trace.get_half_width()` — `(int) Math.round(dsnToBoard(width
     /// / 2))` is a READER computation (`Wiring.java:454`).
     pub half_width: i32,
-    /// The corner sequence (board coordinates, file order).
+    /// The corner sequence (board coordinates, file order) — the ROUNDED
+    /// view of [`TraceIr::polyline`]'s corners (`corner_to_int`), and the
+    /// source the SES writer + the harness digest twin read. Kept
+    /// alongside the polyline so the M1b byte contracts read the exact
+    /// field they always have.
     pub corners: Vec<IntPoint>,
+    /// The polyline the reader constructed the JAVA way — `Polyline(Polygon)`
+    /// for the `polygon` wire branch (`Wiring.java:531`) and
+    /// `Polyline(Line[])` (parallel-filtered, T10) for the `polyline_path`
+    /// branch (`Wiring.java:562`) — carried VERBATIM because the live
+    /// board must store exactly Java's parse-time polyline. T13: this is
+    /// NOT re-derivable from `corners` — `Polyline::from_points` would run
+    /// the `Polygon` dedup, which the `PolylinePath` branch never does, so
+    /// a duplicated trailing corner (dsn-0061/0063: Java's board keeps
+    /// `...C C`) would be dropped and every downstream corner view would
+    /// diverge from the oracle.
+    pub polyline: Polyline,
     /// Java `Trace.netNumbers` (the wire's single net).
     pub nets: Vec<i32>,
     /// Java clearance class index.
     pub clearance_class: i32,
     /// T36: `(type route)` -> USER_FIXED, `(type fix)` -> SYSTEM_FIXED.
     pub fixed: FixedStateIr,
+}
+
+impl TraceIr {
+    /// Builds the polyline for a hand-built corner list — `Polyline::
+    /// from_points` (Java `Polyline(Point[])` over the `Polygon`
+    /// normalization). FOR TEST LITERALS AND HAND-BUILT IRs ONLY: the
+    /// wire read path (`scope/wiring.rs::insert_trace`) must carry the
+    /// reader's Java-constructed polyline instead — this helper applies
+    /// the `Polygon` dedup, which the `PolylinePath` read branch never
+    /// does (the [`TraceIr::polyline`] field docs).
+    pub fn polyline_of_corners(corners: &[IntPoint]) -> Polyline {
+        Polyline::from_points(
+            &corners
+                .iter()
+                .map(|&corner| epic_geometry::point::Point::Int(corner))
+                .collect::<Vec<_>>(),
+        )
+    }
 }
 
 /// Java `Via` parse subset (`Wiring.java:706` `insertVia(padstack, loc,

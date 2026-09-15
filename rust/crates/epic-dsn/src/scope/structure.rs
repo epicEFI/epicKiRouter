@@ -2629,6 +2629,10 @@ mod tests {
             layer_no: 2,
             half_width: 500,
             corners: vec![IntPoint::new(20_000, 20_000), IntPoint::new(30_000, 20_000)],
+            polyline: TraceIr::polyline_of_corners(&[
+                IntPoint::new(20_000, 20_000),
+                IntPoint::new(30_000, 20_000),
+            ]),
             nets: vec![2],
             clearance_class: 1,
             fixed: FixedStateIr::UserFixed,

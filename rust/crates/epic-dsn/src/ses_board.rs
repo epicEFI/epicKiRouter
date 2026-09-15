@@ -1275,6 +1275,10 @@ mod tests {
             layer_no: 0,
             half_width: 625,
             corners: vec![IntPoint::new(20_000, 50_000), IntPoint::new(80_000, 50_000)],
+            polyline: TraceIr::polyline_of_corners(&[
+                IntPoint::new(20_000, 50_000),
+                IntPoint::new(80_000, 50_000),
+            ]),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::UserFixed,
@@ -1283,6 +1287,10 @@ mod tests {
             layer_no: 0,
             half_width: 625,
             corners: vec![IntPoint::new(20_000, 51_000), IntPoint::new(80_000, 51_000)],
+            polyline: TraceIr::polyline_of_corners(&[
+                IntPoint::new(20_000, 51_000),
+                IntPoint::new(80_000, 51_000),
+            ]),
             nets: vec![1],
             clearance_class: 1,
             fixed: FixedStateIr::SystemFixed,

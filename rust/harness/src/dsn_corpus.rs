@@ -7,15 +7,18 @@
 //! `rust/harness/oracle/DsnParseOracle.java`, which must byte-match the
 //! canonical geometry text and the D12 warning normalization.
 //!
-//! ## The divergence ledger (Task 12)
+//! ## The divergence ledger (Task 12 — RETIRED by M2 Task 13, D22)
 //!
-//! [`DIVERGENCE_LEDGER`] holds the fixtures whose Java goldens encode Java
-//! board machinery deliberately NOT ported in M1b (documented divergence
-//! accounting per the Task 12 brief — NEVER a comparator weakening). The
-//! fixture is still fully parsed and diffed; an entry only reclassifies a
-//! mismatch when every differing field is in its `allowed_fields`, any
-//! other divergence fails, and a ledgered fixture that MATCHES fails as a
-//! stale entry that must be pruned. Every branch is pinned in [`pins`].
+//! [`DIVERGENCE_LEDGER`] held the fixtures whose Java goldens encode Java
+//! board machinery deliberately NOT ported yet (documented divergence
+//! accounting — NEVER a comparator weakening): an entry reclassified a
+//! mismatch only when every differing field was in its `allowed_fields`,
+//! any other divergence failed, and a ledgered fixture that MATCHED
+//! failed as a stale entry to prune. Its one entry — dsn-0151, the
+//! M1b-shaped `normalizeAllTraces` gap — died with the T13 port (the
+//! Rust digest is now post-normalize like the oracle; the StaleMatch
+//! rule fired and the entry was pruned; see the const docs). The
+//! classify machinery remains generic, pinned over synthetic entries.
 //!
 //! ## Manifest path determinism (the plan's "abs_path", interpreted)
 //!
@@ -38,8 +41,11 @@ use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 use serde::{Deserialize, Serialize};
 
+use epic_board::board::Board;
+use epic_board::items::ItemData;
+use epic_board::tree_manager::SearchTreeManager;
 use epic_dsn::reader::{DsnReadResult, read_board};
-use epic_dsn::ses_board::{ItemIr, SesBoard};
+use epic_dsn::ses_board::SesBoard;
 use epic_dsn::state::{AngleRestriction, Unit};
 
 // ---------------------------------------------------------------------------
@@ -405,23 +411,68 @@ pub struct GoldenRecord {
     pub resolution: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snap_angle: Option<String>,
+    /// T13 post-normalize fields: the SECOND `normalizeAllTraces` call's
+    /// re-digest. By construction a fixpoint — `post_stats == stats` and
+    /// `post_geometry_sha256 == geometry_sha256` for every fixture — the
+    /// goldens' ENCODED idempotence claim. Appended AFTER snap_angle on
+    /// both sides (Gson insertion order / Rust struct order).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_stats: Option<StatsRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_geometry_sha256: Option<String>,
+}
+
+/// The `stats` builder over the POST-normalize Board — the mirror of
+/// `DsnParseOracle.buildStats` (T13). Java counts `board.getItems()`
+/// (LIVE items only — the on-the-board filter; dsn-0151 reads items=2,
+/// not the parsed item total), and `nets` is
+/// `rules.nets.maxNetNumber()` (Java `DsnParseOracle.java:214`) — NOT a
+/// net-table length (the T13 trap note: sparse net numbers diverge).
+fn board_stats(board: &Board) -> StatsRecord {
+    let mut items = 0i64;
+    let mut pads = 0i64;
+    let mut traces = 0i64;
+    let mut vias = 0i64;
+    for entry in board.iter_descending() {
+        if !entry.on_the_board {
+            continue; // Java getItems() is live-only
+        }
+        items += 1;
+        match entry.data {
+            ItemData::Pin { .. } => pads += 1,
+            ItemData::Trace { .. } => traces += 1,
+            ItemData::Via { .. } => vias += 1,
+            _ => {}
+        }
+    }
+    StatsRecord {
+        layers: i64::try_from(board.layers().layers.len()).expect("layer count fits i64"),
+        items,
+        components: i64::from(board.components().count()),
+        pads,
+        nets: i64::from(board.rules().nets.max_net_number()),
+        traces,
+        vias,
+    }
 }
 
 /// Builds the digest record for a parsed board (mirror of
 /// `DsnParseOracle.successRecord`; every field is defined identically on
 /// both sides — `stats` counts, layer-0 clearance matrix, net/layer
 /// tables, D12 warnings, unit/resolution/snap angle).
-fn success_record(id: &str, path: &str, board: &SesBoard, warnings: &[String]) -> GoldenRecord {
-    let layers = board
-        .layers
-        .as_ref()
-        .map(|ls| i64::try_from(ls.layers.len()).expect("layer count fits i64"))
-        .unwrap_or(0);
-    let count = |wanted: &dyn Fn(&ItemIr) -> bool| -> i64 {
-        i64::try_from(board.items.iter().filter(|item| wanted(item)).count())
-            .expect("item count fits i64")
-    };
-    let clearance_ir = &board.rules.clearance;
+///
+/// T13: `stats` + `geometry_sha256` are sourced from the POST-normalize
+/// Board — the Java oracle digests `success.board()` AFTER the read's
+/// in-scope `normalizeAllTraces()` (Wiring.java:343-353), so the Rust
+/// side replays exactly that: `Board::from_ses_board` → the READ-path
+/// tree fill (`insert_items_creation_order`, ASCENDING — the T11
+/// two-path record; the DESCENDING rebuild fill is a different skeleton)
+/// → `normalize_all_traces` → digest. `post_stats` +
+/// `post_geometry_sha256` then run the SECOND call (the fixpoint the
+/// goldens encode). Every OTHER field stays on the SesBoard IR —
+/// unchanged code paths, unchanged values.
+fn success_record(id: &str, path: &str, ses: &SesBoard, warnings: &[String]) -> GoldenRecord {
+    let clearance_ir = &ses.rules.clearance;
     let class_count = clearance_ir.names.len();
     let clearance = ClearanceRecord {
         classes: clearance_ir.names.clone(),
@@ -444,25 +495,30 @@ fn success_record(id: &str, path: &str, board: &SesBoard, warnings: &[String]) -
             })
             .collect(),
     };
+    let string_quote = ses.metadata.string_quote.clone();
+    let mut board = Board::from_ses_board(ses);
+    let mut manager = SearchTreeManager::new();
+    manager.insert_items_creation_order(&mut board);
+    // The in-read call (Wiring.java:343-353) — Java's parse already ran
+    // it before successRecord saw the board.
+    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+    let stats = board_stats(&board);
+    let geometry = crate::dsn_digest::geometry_sha256_board(&board, &string_quote);
+    // The SECOND call — the explicit fixpoint re-digest the post_ fields
+    // make (the oracle's `board.normalizeAllTraces()` in successRecord).
+    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+    let post_stats = board_stats(&board);
+    let post_geometry = crate::dsn_digest::geometry_sha256_board(&board, &string_quote);
     GoldenRecord {
         id: id.to_string(),
         file: path.to_string(),
         result: "Success".to_string(),
-        stats: Some(StatsRecord {
-            layers,
-            items: i64::try_from(board.items.len()).expect("item count fits i64"),
-            components: i64::try_from(board.components.len()).expect("component count fits i64"),
-            pads: count(&|item| matches!(item, ItemIr::Pin { .. })),
-            nets: i64::try_from(board.nets.len()).expect("net count fits i64"),
-            traces: count(&|item| matches!(item, ItemIr::Trace { .. })),
-            vias: count(&|item| matches!(item, ItemIr::Via { .. })),
-        }),
-        geometry_sha256: Some(crate::dsn_digest::geometry_sha256(board)),
+        stats: Some(stats),
+        geometry_sha256: Some(geometry),
         clearance: Some(clearance),
-        net_table: Some(board.nets.iter().map(|net| net.name.clone()).collect()),
+        net_table: Some(ses.nets.iter().map(|net| net.name.clone()).collect()),
         layer_table: Some(
-            board
-                .layers
+            ses.layers
                 .as_ref()
                 .map(|ls| {
                     ls.layers
@@ -482,7 +538,7 @@ fn success_record(id: &str, path: &str, board: &SesBoard, warnings: &[String]) -
                 .collect(),
         ),
         unit: Some(
-            match board.metadata.unit {
+            match ses.metadata.unit {
                 Unit::Mil => "MIL",
                 Unit::Inch => "INCH",
                 Unit::Mm => "MM",
@@ -490,15 +546,17 @@ fn success_record(id: &str, path: &str, board: &SesBoard, warnings: &[String]) -
             }
             .to_string(),
         ),
-        resolution: Some(i64::from(board.metadata.resolution)),
+        resolution: Some(i64::from(ses.metadata.resolution)),
         snap_angle: Some(
-            match board.rules.trace_angle_restriction {
+            match ses.rules.trace_angle_restriction {
                 AngleRestriction::None => "none",
                 AngleRestriction::FortyfiveDegree => "45",
                 AngleRestriction::NinetyDegree => "90",
             }
             .to_string(),
         ),
+        post_stats: Some(post_stats),
+        post_geometry_sha256: Some(post_geometry),
     }
 }
 
@@ -516,6 +574,8 @@ fn result_only(id: &str, path: &str, result: &str) -> GoldenRecord {
         unit: None,
         resolution: None,
         snap_angle: None,
+        post_stats: None,
+        post_geometry_sha256: None,
     }
 }
 
@@ -640,6 +700,13 @@ fn diff_records(gold: &GoldenRecord, rust: &GoldenRecord) -> Vec<(&'static str, 
     diff(&mut out, "unit", &gold.unit, &rust.unit);
     diff(&mut out, "resolution", &gold.resolution, &rust.resolution);
     diff(&mut out, "snap_angle", &gold.snap_angle, &rust.snap_angle);
+    diff(&mut out, "post_stats", &gold.post_stats, &rust.post_stats);
+    diff(
+        &mut out,
+        "post_geometry_sha256",
+        &gold.post_geometry_sha256,
+        &rust.post_geometry_sha256,
+    );
     out
 }
 
@@ -855,10 +922,19 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, set: &str, jvm_xmx: &st
 /// `allowed_fields`; anything else fails the compare. A ledgered fixture
 /// that unexpectedly MATCHES also fails (stale entry to prune).
 ///
-/// Task 12 census lead #2 (plan `:274-276`): beyond dsn-0151 nothing was
-/// ledger-eligible — after the T49 fix every remaining fixture was fixed in
-/// the parser, so this list is expected to shrink to empty in M2 when
-/// `normalizeAllTraces` lands and this entry is pruned.
+/// RETIRED (M2 Task 13, decision D22): the ledger's one entry — dsn-0151
+/// (`fixtures/Issue723-CombineStackOverflow.dsn`, "Java ends the wiring
+/// read with board.normalizeAllTraces() (Wiring.java:345-353), combining
+/// the file's 4,000 collinear wire segments into one trace with a fresh
+/// id (stats items=2, traces=1); deliberately NOT ported in M1b — board
+/// machinery scheduled for M2 (plan :38, decision D11)", trap
+/// "T39-adjacent divergence class (plan D11)", allowed fields
+/// stats + geometry_sha256) — died with the T13 port: the Rust digest
+/// now sources stats/geometry from the post-normalize Board exactly like
+/// the Java oracle, dsn-0151 matches on EVERY field, the StaleMatch rule
+/// fired on the pre-prune compare, and the entry was pruned. The list is
+/// expected to stay empty; the classify machinery below remains generic
+/// (pinned over synthetic entries) for any future documented divergence.
 struct LedgerEntry {
     /// The manifest fixture id.
     id: &'static str,
@@ -870,24 +946,15 @@ struct LedgerEntry {
     allowed_fields: &'static [&'static str],
 }
 
-const DIVERGENCE_LEDGER: &[LedgerEntry] = &[LedgerEntry {
-    id: "dsn-0151",
-    reason: "Java ends the wiring read with board.normalizeAllTraces() \
-             (Wiring.java:345-353), combining the file's 4,000 collinear \
-             wire segments into one trace with a fresh id (stats items=2, \
-             traces=1); deliberately NOT ported in M1b — board machinery \
-             scheduled for M2 (plan :38, decision D11)",
-    trap: "T39-adjacent divergence class (plan D11)",
-    allowed_fields: &["stats", "geometry_sha256"],
-}];
+const DIVERGENCE_LEDGER: &[LedgerEntry] = &[];
 
-fn ledger_entry(id: &str) -> Option<&'static LedgerEntry> {
-    DIVERGENCE_LEDGER.iter().find(|entry| entry.id == id)
+fn ledger_entry<'a>(ledger: &'a [LedgerEntry], id: &str) -> Option<&'a LedgerEntry> {
+    ledger.iter().find(|entry| entry.id == id)
 }
 
 /// The verdict for one fixture's diff against the ledger (pure — pinned in
 /// [`pins`], every branch executed there).
-enum LedgerVerdict {
+enum LedgerVerdict<'a> {
     /// The fixture matches AND is ledgered — a stale entry (compare fails).
     StaleMatch,
     /// The fixture matches and is not ledgered — the normal green path.
@@ -895,13 +962,17 @@ enum LedgerVerdict {
     /// Ledgered and every differing field is in `allowed_fields`.
     Covered,
     /// Ledgered but some differing field is NOT in `allowed_fields`.
-    Outside(&'static LedgerEntry, Vec<&'static str>),
+    Outside(&'a LedgerEntry, Vec<&'static str>),
     /// No ledger entry — a plain mismatch.
     Unledgered,
 }
 
-fn ledger_classify(id: &str, diffs: &[(&'static str, String, String)]) -> LedgerVerdict {
-    match (diffs.is_empty(), ledger_entry(id)) {
+fn ledger_classify<'a>(
+    ledger: &'a [LedgerEntry],
+    id: &str,
+    diffs: &[(&'static str, String, String)],
+) -> LedgerVerdict<'a> {
+    match (diffs.is_empty(), ledger_entry(ledger, id)) {
         (true, Some(_)) => LedgerVerdict::StaleMatch,
         (true, None) => LedgerVerdict::Match,
         (false, None) => LedgerVerdict::Unledgered,
@@ -957,7 +1028,7 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
         let diffs = diff_records(gold, &actual);
         let tally = per_set.entry(set_name).or_insert((0, 0));
         tally.0 += 1;
-        match ledger_classify(&entry.id, &diffs) {
+        match ledger_classify(DIVERGENCE_LEDGER, &entry.id, &diffs) {
             LedgerVerdict::Match => tally.1 += 1,
             LedgerVerdict::StaleMatch => {
                 // A ledgered fixture that now matches means the
@@ -974,7 +1045,8 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path, set: &str) -> Resul
                 // printed, not a failure.
                 tally.1 += 1;
                 ledgered_ids.push(entry.id.as_str());
-                let ledger = ledger_entry(&entry.id).expect("Covered implies ledgered");
+                let ledger =
+                    ledger_entry(DIVERGENCE_LEDGER, &entry.id).expect("Covered implies ledgered");
                 println!(
                     "{} LEDGERED DIVERGENCE ({} differing field(s): {}):",
                     entry.id,
@@ -1135,64 +1207,83 @@ mod pins {
         assert!(SetSel::parse("bogus").is_err());
     }
 
-    /// The ledger's committed content (doc-of-record): exactly the
-    /// dsn-0151 normalizeAllTraces entry, and its id must exist in the
-    /// committed manifest (a renamed fixture would strand the entry).
-    /// The anchor PARSES the manifest (load_manifest) and checks the
-    /// id set — a byte-substring scan would falsely anchor dsn-0151
-    /// inside a hypothetical dsn-01510 or a path string.
+    /// The ledger's committed content (doc-of-record): EMPTY — retired by
+    /// M2 Task 13 (D22). The dsn-0151 normalizeAllTraces entry died with
+    /// the port: the Rust digest now sources stats/geometry from the
+    /// post-normalize Board exactly like the Java oracle, the fixture
+    /// matches on EVERY field, and the StaleMatch rule fired on the
+    /// pre-prune compare (the retirement demonstration). A re-landed
+    /// entry without a real divergence fails the compare as stale — the
+    /// prune direction is one-way.
     #[test]
-    fn ledger_contents_are_pinned_and_manifest_anchored() {
-        assert_eq!(DIVERGENCE_LEDGER.len(), 1);
-        let entry = &DIVERGENCE_LEDGER[0];
-        assert_eq!(entry.id, "dsn-0151");
-        assert_eq!(entry.allowed_fields, &["stats", "geometry_sha256"]);
-        assert!(entry.reason.contains("normalizeAllTraces"));
-        let manifest = load_manifest(&corpus_path("dsn-manifest.jsonl")).expect("manifest");
-        let manifest_ids: Vec<&str> = manifest.iter().map(|e| e.id.as_str()).collect();
-        assert!(
-            manifest_ids.contains(&entry.id),
-            "ledger id {} must exist in the committed manifest",
-            entry.id
+    fn divergence_ledger_is_retired() {
+        assert_eq!(
+            DIVERGENCE_LEDGER.len(),
+            0,
+            "the M1b divergence ledger was retired by T13 (dsn-0151 matches on every field); \
+             a new entry requires a documented divergence and a fresh census"
         );
+    }
+
+    /// A synthetic ledger entry exercising the same shape the retired
+    /// dsn-0151 entry had (id + stats/geometry allowance), so the
+    /// classify machinery stays pinned without pinning any real
+    /// divergence.
+    fn synthetic_ledger() -> Vec<LedgerEntry> {
+        vec![LedgerEntry {
+            id: "syn-0151",
+            reason: "synthetic entry for the verdict-branch pins",
+            trap: "none",
+            allowed_fields: &["stats", "geometry_sha256"],
+        }]
     }
 
     fn diff(field: &'static str) -> (&'static str, String, String) {
         (field, "g".to_string(), "r".to_string())
     }
 
-    /// EVERY ledger verdict branch, driven with synthetic diffs
-    /// (branch-executing per the cerebrum pin rules): green match,
-    /// stale match (compare must fail), covered divergence, divergence
-    /// outside the allowance, and the unledgered mismatch.
+    /// EVERY ledger verdict branch, driven with synthetic diffs against
+    /// the SYNTHETIC ledger (branch-executing per the cerebrum pin
+    /// rules): green match, stale match (compare must fail), covered
+    /// divergence, divergence outside the allowance, and the unledgered
+    /// mismatch. Plus the empty-ledger degenerate: with the ledger
+    /// retired, EVERYTHING classifies Match/Unledgered.
     #[test]
     fn ledger_verdict_branches_are_exhaustive() {
+        let ledger = synthetic_ledger();
         // Green: no diff, no entry.
         assert!(matches!(
-            ledger_classify("dsn-0002", &[]),
+            ledger_classify(&ledger, "dsn-0002", &[]),
             LedgerVerdict::Match
         ));
-        // Stale: the ledgered fixture MATCHES — compare must fail on it.
+        // Stale: the ledgered fixture MATCHES — compare must fail on it
+        // (the exact verdict dsn-0151 produced on the pre-prune compare).
         assert!(matches!(
-            ledger_classify("dsn-0151", &[]),
+            ledger_classify(&ledger, "syn-0151", &[]),
             LedgerVerdict::StaleMatch
         ));
-        // Covered: the exact Task-12 divergence shape (stats + geometry).
+        // Covered: the exact retired-entry divergence shape (stats +
+        // geometry).
         assert!(matches!(
-            ledger_classify("dsn-0151", &[diff("stats"), diff("geometry_sha256")]),
+            ledger_classify(
+                &ledger,
+                "syn-0151",
+                &[diff("stats"), diff("geometry_sha256")]
+            ),
             LedgerVerdict::Covered
         ));
         // Outside: the ledger never whitewashes a result flip or any
         // third field.
         let LedgerVerdict::Outside(entry, uncovered) =
-            ledger_classify("dsn-0151", &[diff("result")])
+            ledger_classify(&ledger, "syn-0151", &[diff("result")])
         else {
             panic!("a result flip must be Outside the allowance");
         };
-        assert_eq!(entry.id, "dsn-0151");
+        assert_eq!(entry.id, "syn-0151");
         assert_eq!(uncovered, vec!["result"]);
         let LedgerVerdict::Outside(_, uncovered) = ledger_classify(
-            "dsn-0151",
+            &ledger,
+            "syn-0151",
             &[diff("stats"), diff("geometry_sha256"), diff("warnings_n")],
         ) else {
             panic!("a partially-covered diff must be Outside the allowance");
@@ -1200,7 +1291,17 @@ mod pins {
         assert_eq!(uncovered, vec!["warnings_n"]);
         // Unledgered: any other fixture diverging is a plain mismatch.
         assert!(matches!(
-            ledger_classify("dsn-0042", &[diff("stats")]),
+            ledger_classify(&ledger, "dsn-0042", &[diff("stats")]),
+            LedgerVerdict::Unledgered
+        ));
+        // The retired (empty) ledger: matches stay green, mismatches are
+        // plain — no entry can ever classify again.
+        assert!(matches!(
+            ledger_classify(DIVERGENCE_LEDGER, "syn-0151", &[]),
+            LedgerVerdict::Match
+        ));
+        assert!(matches!(
+            ledger_classify(DIVERGENCE_LEDGER, "syn-0151", &[diff("stats")]),
             LedgerVerdict::Unledgered
         ));
     }
@@ -1251,6 +1352,16 @@ mod comparator_pins {
             unit: Some("UM".to_string()),
             resolution: Some(10),
             snap_angle: Some("45".to_string()),
+            post_stats: Some(StatsRecord {
+                layers: 4,
+                items: 120,
+                components: 10,
+                pads: 80,
+                nets: 12,
+                traces: 30,
+                vias: 2,
+            }),
+            post_geometry_sha256: Some("ab".repeat(32)),
         }
     }
 
@@ -1314,6 +1425,12 @@ mod comparator_pins {
         assert_field_discriminated("unit", |r| r.unit = Some("MIL".to_string()));
         assert_field_discriminated("resolution", |r| r.resolution = Some(100));
         assert_field_discriminated("snap_angle", |r| r.snap_angle = Some("90".to_string()));
+        assert_field_discriminated("post_stats", |r| {
+            r.post_stats.as_mut().expect("post_stats present").items += 1;
+        });
+        assert_field_discriminated("post_geometry_sha256", |r| {
+            r.post_geometry_sha256 = Some("ef".repeat(32));
+        });
     }
 
     /// A pair of identical records yields an empty diff (no false
