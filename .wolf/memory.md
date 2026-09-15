@@ -2034,3 +2034,53 @@ description: chronological action log per session, consolidated weekly
 | 07:01 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+49 lines) | ~543 |
 | 07:02 | Edited rust/crates/epic-board/src/board.rs | 2→2 lines | ~35 |
 | 07:02 | Edited rust/crates/epic-board/src/contacts.rs | modified indexed() | ~159 |
+| 07:12 | Edited logs/M2-T12/dispatch-prompt.md | 5→5 lines | ~67 |
+| 07:51 | Created rust/harness/oracle/SplitSpike.java | — | ~10166 |
+| 07:56 | Edited rust/harness/oracle/SplitSpike.java | 3→2 lines | ~31 |
+| 07:56 | Edited rust/harness/oracle/SplitSpike.java | inline fix | ~7 |
+| 07:56 | Edited rust/harness/oracle/SplitSpike.java | inline fix | ~13 |
+| 09:15 | Edited rust/harness/oracle/SplitSpike.java | modified QUIRK() | ~380 |
+| 09:15 | Edited rust/harness/oracle/SplitSpike.java | modified false() | ~149 |
+| 09:15 | Edited rust/harness/oracle/SplitSpike.java | modified fresh() | ~548 |
+| 09:16 | Edited rust/harness/oracle/SplitSpike.java | modified casePad5() | ~440 |
+| 09:16 | Edited rust/harness/oracle/SplitSpike.java | 5→7 lines | ~30 |
+| 09:26 | Edited rust/harness/oracle/SplitSpike.java | added 3 condition(s) | ~523 |
+| 09:26 | Edited rust/harness/oracle/SplitSpike.java | 2→3 lines | ~14 |
+| 09:41 | Edited rust/crates/epic-geometry/src/polyline.rs | added 1 condition(s) | ~933 |
+| 09:41 | Edited rust/crates/epic-geometry/src/polyline.rs | modified transforms_preserve_length() | ~1353 |
+| 09:42 | Edited rust/crates/epic-geometry/src/polyline.rs | modified Some() | ~180 |
+| 09:43 | Edited rust/crates/epic-board/src/tree_manager.rs | modified overlapping_objects() | ~497 |
+| 09:43 | Edited rust/crates/epic-board/src/tree_manager.rs | added 1 import(s) | ~45 |
+| 09:49 | Edited rust/crates/epic-board/src/trace_ops.rs | added optional chaining | ~6454 |
+| 09:55 | Edited rust/crates/epic-board/src/trace_ops.rs | added 3 import(s) | ~78 |
+| 09:55 | Edited rust/crates/epic-board/src/tree_manager.rs | modified item_of_key() | ~34 |
+| 09:55 | Edited rust/crates/epic-board/src/trace_ops.rs | item_of_entry_key() → item_of_key() | ~36 |
+| 09:56 | Edited rust/crates/epic-board/src/trace_ops.rs | 14→15 lines | ~203 |
+| 09:56 | Edited rust/crates/epic-board/src/trace_ops.rs | is_user_fixed() → is_some_and() | ~68 |
+| 09:56 | Edited rust/crates/epic-board/src/trace_ops.rs | modified trace_facts() | ~112 |
+| 09:56 | Edited rust/crates/epic-board/src/trace_ops.rs | 7→6 lines | ~46 |
+| 09:56 | Edited rust/crates/epic-board/src/trace_ops.rs | try_into() → try_from() | ~211 |
+| 09:56 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~12 |
+| 09:57 | Edited rust/crates/epic-board/src/trace_ops.rs | 2→2 lines | ~22 |
+| 09:57 | Edited rust/crates/epic-board/src/board.rs | modified set_on_the_board() | ~179 |
+| 10:16 | Edited rust/crates/epic-board/src/trace_ops.rs | 3→7 lines | ~126 |
+| 10:16 | Edited rust/crates/epic-board/src/rules_surf.rs | 5→7 lines | ~66 |
+| 10:16 | Edited rust/crates/epic-board/src/rules_surf.rs | modified ignore_cycles_with_areas() | ~250 |
+| 10:16 | Edited rust/crates/epic-board/src/rules_surf.rs | modified default() | ~73 |
+| 10:42 | Edited rust/crates/epic-board/src/trace_ops.rs | modified fresh_pad() | ~17644 |
+| 10:47 | Edited rust/crates/epic-board/src/trace_ops.rs | modified facts() | ~201 |
+| 11:27 | Edited rust/crates/epic-board/src/trace_ops.rs | modified trace_facts() | ~185 |
+| 11:44 | Created logs/M2-T13/dispatch-prompt.md | — | ~3917 |
+| 12:08 | Edited rust/crates/epic-board/src/trace_ops.rs | modified corner() | ~778 |
+| 12:08 | Edited rust/crates/epic-board/src/trace_ops.rs | 6→11 lines | ~197 |
+| 12:08 | Edited rust/crates/epic-board/src/trace_ops.rs | 9→9 lines | ~154 |
+| 12:08 | Edited rust/crates/epic-board/src/trace_ops.rs | inline fix | ~16 |
+| 12:08 | Edited rust/crates/epic-board/src/trace_ops.rs | ":740" → ":749" | ~19 |
+| 12:08 | Edited rust/crates/epic-board/src/trace_ops.rs | 2→3 lines | ~45 |
+| 12:15 | Created logs/M2-T14/dispatch-prompt.md | — | ~2399 |
+| 12:17 | Edited rust/crates/epic-board/src/trace_ops.rs | 1→5 lines | ~35 |
+| 12:18 | Edited rust/crates/epic-board/src/trace_ops.rs | 7→7 lines | ~78 |
+| 12:39 | Edited rust/harness/oracle/SplitSpike.java | modified head() | ~698 |
+| 12:39 | Edited rust/harness/oracle/SplitSpike.java | 2→4 lines | ~19 |
+| 12:43 | Edited rust/crates/epic-board/src/trace_ops.rs | modified head() | ~409 |
+| 12:52 | Edited rust/crates/epic-board/src/trace_ops.rs | modified 0() | ~293 |
