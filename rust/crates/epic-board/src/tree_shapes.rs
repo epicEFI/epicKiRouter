@@ -44,7 +44,6 @@
 
 use epic_geometry::circle::Circle;
 use epic_geometry::float_point::FloatPoint;
-use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
@@ -243,7 +242,11 @@ pub fn drill_hole_clearance_delta(
 ///
 /// Returns an empty list for a non-drill id (Java's
 /// `DrillItem`-typed parameter cannot express that; the id simply
-/// names no drill item on the board).
+/// names no drill item on the board) or a drill id whose CENTER does
+/// not resolve (an unplaced pin — a Java `Pin` always carries its
+/// component, so `getCenter()` never fails there; the port refuses to
+/// fabricate origin geometry, unlike the self-neutralizing
+/// [`EMPTY_PADSTACK`] below).
 #[must_use]
 pub fn drill_tree_shapes(
     board: &mut Board,
@@ -254,6 +257,12 @@ pub fn drill_tree_shapes(
     let Some(count) = board.drill_tile_shape_count(id) else {
         return Vec::new();
     };
+    // Resolve the center ONCE up front (T6 quality review MINOR-2): a
+    // drill id whose center does not resolve yields NO shapes rather
+    // than silently offsetting at the origin.
+    let Some(center) = board.drill_center(id) else {
+        return Vec::new();
+    };
     let count = count.max(0) as usize;
     let mut result = Vec::with_capacity(count);
     for index in 0..count {
@@ -262,9 +271,7 @@ pub fn drill_tree_shapes(
         if current.is_none() {
             // The synthesized drill-hole obstacle (:878-880) — for a
             // copper-less layer when the hole-clearance rule is on.
-            if let (Some(padstack), Some(center)) =
-                (board.drill_padstack(id), board.drill_center(id))
-            {
+            if let Some(padstack) = board.drill_padstack(id) {
                 current = drill_hole_obstacle(board.rules().hole_clearance, padstack, &center);
             }
         }
@@ -282,7 +289,7 @@ pub fn drill_tree_shapes(
                 + drill_hole_clearance_delta(
                     rules,
                     board.drill_padstack(id).unwrap_or(&EMPTY_PADSTACK),
-                    &board.drill_center(id).unwrap_or(Point::Int(IntPoint::ZERO)),
+                    &center,
                     Some(&current),
                     item_class,
                     compensated_class,
@@ -385,6 +392,7 @@ mod tests {
     use crate::rules_surf::ClearanceMatrix;
     use epic_dsn::reader::{DsnReadResult, read_board};
     use epic_dsn::ses_board::SesBoard;
+    use epic_geometry::int_point::IntPoint;
 
     // -----------------------------------------------------------------
     // Capture-driven pins (TreeShapesSpike, the frozen jar)

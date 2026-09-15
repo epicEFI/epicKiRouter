@@ -103,13 +103,17 @@ impl SearchTreeVariant {
 }
 
 /// A configured search tree (Java `ShapeSearchTree` and subclasses).
-#[derive(Clone, Debug)]
+// Deliberately NOT `Clone`: a copy would alias `object_id`, and tree
+// entries are identity-keyed (Java reference equality) — a cloned tree
+// handed to a manager would corrupt the entry bookkeeping (T6 quality
+// review NIT-3).
+#[derive(Debug)]
 pub struct SearchTree {
     /// The min-area BVH (T5).
     tree: MinAreaTree,
     /// The Java subclass this tree mirrors.
     pub variant: SearchTreeVariant,
-    /// Java `compensatedClearanceClassNo` (`ShapeSearchTree.java:70`)
+    /// Java `compensatedClearanceClassNo` (`ShapeSearchTree.java:61`)
     /// — a plain class NUMBER here; the rules semantics (the
     /// compensation formula, `ShapeSearchTree.java:104-114`) live in
     /// epic-board.
@@ -293,8 +297,6 @@ mod tests {
         let b = SearchTree::new(SearchTreeVariant::Generic, 0);
         assert_eq!(a.key(), b.key());
         assert_ne!(a.object_id(), b.object_id(), "same key, distinct trees");
-        // A clone shares the id (it is the same logical tree snapshot).
-        assert_eq!(a.clone().object_id(), a.object_id());
     }
 
     /// The insert contract (`ShapeTree.java:31-60`): an empty shape

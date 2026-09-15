@@ -56,7 +56,7 @@ use crate::rules_surf::AngleRestriction;
 /// Manages the search trees used in the auto-router (Java
 /// `SearchTreeManager`): creation, per-item insertion/removal across
 /// ALL trees, and the rule-change rebuilds.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SearchTreeManager {
     /// The live trees. Slot 0 is ALWAYS the default tree (module
     /// docs); Java's `compensatedSearchTrees` list with
@@ -463,6 +463,52 @@ mod tests {
         assert!(!manager.is_clearance_compensation_used());
         assert_eq!(manager.default_tree().compensated_clearance_class, 0);
         assert_ne!(manager.default_tree().object_id(), rebuilt_id);
+    }
+
+    /// **NIT-2 defensive pin** (T6 quality review): Java `remove` is
+    /// guarded by `isOnTheBoard()` (`SearchTreeManager.java:48-50`) —
+    /// an item force-flagged OFF the board after a bulk insert is
+    /// SKIPPED by the broadcast remove and keeps its leaves. Pinned so
+    /// a later unguarded "fix" cannot silently change tree-contents
+    /// parity.
+    #[test]
+    fn remove_skips_an_item_forced_off_the_board() {
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let leaves = manager.default_tree().leaf_count();
+        let via = ItemId::new(815);
+        board.set_on_the_board(via, false);
+        manager.remove(&mut board, via);
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            leaves,
+            "the isOnTheBoard guard makes remove a no-op (Java :48-50)"
+        );
+    }
+
+    /// **NIT-2 defensive pin** (T6 quality review): a DOUBLE insert
+    /// leaks leaves — the second insert's `setSearchTreeEntries`
+    /// (`ShapeTree.java:31-42`) OVERWRITES the stored entries, so the
+    /// later remove takes out only the second set; the first insert's
+    /// leaves remain. Java has the identical leak; pinned so a later
+    /// "fix" cannot silently change it. Via 815 has copper on BOTH
+    /// layers — two tree shapes per insert.
+    #[test]
+    fn double_insert_leaks_the_first_inserts_leaves() {
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        let via = ItemId::new(815);
+        manager.insert(&mut board, via);
+        assert_eq!(manager.default_tree().leaf_count(), 2);
+        manager.insert(&mut board, via);
+        assert_eq!(manager.default_tree().leaf_count(), 4);
+        manager.remove(&mut board, via);
+        assert_eq!(
+            manager.default_tree().leaf_count(),
+            2,
+            "only the second insert's entries are removed — the first set leaks"
+        );
     }
 
     /// `clearanceValueChanged` `:111-119`: drops non-default-CLASS

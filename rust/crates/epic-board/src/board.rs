@@ -410,15 +410,19 @@ impl Board {
         }
     }
 
-    /// Java `DrillItem.shapeLayer(index)` (`DrillItem.java:145-152`):
-    /// `min(index, lastLayer - firstLayer) + firstLayer` — the clamp is
-    /// against the ITEM span (memoized like Java's
-    /// `firstLayer()`/`lastLayer()` calls; for a back-side pin this is
-    /// NOT the padstack span).
+    /// Java `DrillItem.shapeLayer(index)` (`DrillItem.java:147-153`):
+    /// `max(index, 0)` FIRST (`:148`), then `min(index, lastLayer -
+    /// firstLayer)`, plus `firstLayer` — the clamp is against the ITEM
+    /// span (memoized like Java's `firstLayer()`/`lastLayer()` calls;
+    /// for a back-side pin this is NOT the padstack span). A negative
+    /// index lands on the FIRST layer, never `first - 1` (T6 quality
+    /// review MINOR-1: the port originally dropped the max clamp —
+    /// unreachable from Task 6's call sites, but Tasks 7-8 reuse this
+    /// on the shape-index path).
     pub fn drill_shape_layer(&mut self, id: ItemId, index: i32) -> Option<i32> {
         let first = self.drill_first_layer(id)?;
         let last = self.drill_last_layer(id)?;
-        Some(first + index.min(last - first))
+        Some(first + index.max(0).min(last - first))
     }
 
     /// Java `DrillItem.tileShapeCount()` (`DrillItem.java:202-208`) —
@@ -1162,6 +1166,24 @@ mod tests {
         assert_eq!(board.drill_min_width(id), Some(15_240.0));
         assert_eq!(board.drill_first_layer(id), Some(0));
         assert_eq!(board.drill_last_layer(id), Some(1));
+    }
+
+    /// `DrillItem.java:148`: a NEGATIVE index clamps to the FIRST
+    /// layer — `max(index, 0)` runs BEFORE the span clamp — so
+    /// `shapeLayer(-1)` is layer 0, not −1; an index past the span
+    /// clamps to the last. Pin 41 (span 0..1): a port without the max
+    /// clamp returns −1 here.
+    #[test]
+    fn drill_shape_layer_clamps_negative_and_overflow_indices() {
+        let mut board = bm08_board();
+        let id = ItemId::new(41);
+        assert_eq!(board.drill_shape_layer(id, 0), Some(0));
+        assert_eq!(
+            board.drill_shape_layer(id, -1),
+            Some(0),
+            "max(index, 0) at DrillItem.java:148"
+        );
+        assert_eq!(board.drill_shape_layer(id, 5), Some(1), "span clamp");
     }
 
     // Imports for the via wrapper pin below.

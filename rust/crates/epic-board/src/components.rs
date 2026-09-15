@@ -127,7 +127,7 @@ pub struct BoardPadstack {
     /// only the declaration exists), so it is `false` for every parsed
     /// board; [`crate::tree_shapes`] reads it for the
     /// `drillHoleClearanceDelta` copper-radius arm
-    /// (`ShapeSearchTree.java:1055-1057`).
+    /// (`ShapeSearchTree.java:1049-1050`).
     pub hole_only: bool,
 }
 
