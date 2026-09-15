@@ -1,6 +1,8 @@
 //! The per-item tree shapes and the clearance arithmetic behind them
-//! (M2 Task 6): the T54 compensation formula and the T55 drill-hole
-//! inflation, plus the three-variant drill dispatch.
+//! (M2 Tasks 6-7): the T54 compensation formula, the T55 drill-hole
+//! inflation, the three-variant drill dispatch, and the Task 7
+//! per-kind construction for traces, obstacle/conduction areas, board
+//! outlines and component outlines.
 //!
 //! Java anchors: `board/searchtree/ShapeSearchTree.java` —
 //! `clearanceCompensationValue` `:104-114` (T54),
@@ -8,9 +10,19 @@
 //! the angle restriction is read at CALL time),
 //! `drillHoleObstacle` `:1012-1028` and `drillHoleClearanceDelta`
 //! `:1035-1074` (T55), `DRILL_HOLE_CLEARANCE_MARGIN = 10` `:52` —
+//! the Task 7 family `calculateTreeShapes(ObstacleArea)` `:908-938`
+//! (convex division + `enlarge` + `divideIntoSections` under the
+//! `maxTreeShapeWidth` RESOLUTION CLAMP `:916-920`),
+//! `calculateTreeShapes(BoardOutline)` `:940-990` (line branch +
+//! keepout-area branch), `calculateTreeShapes(PolylineTrace)`
+//! `:992-1004` (`offsetShape` at `halfWidth + compensation`) —
 //! plus the subclass overrides
 //! `ShapeSearchTree45Degree.java:488-519` (`isIntBox` swap + `offset`)
-//! and `ShapeSearchTree90Degree.java:434-462` (box + `offset`).
+//! and `ShapeSearchTree90Degree.java:434-462` (box + `offset`), and
+//! the 45°/90° OBSTACLE and OUTLINE post-processing
+//! (`ShapeSearchTree45Degree.java:521-541`,
+//! `ShapeSearchTree90Degree.java:464-484`) plus the 90° trace
+//! `offsetBox` swap (`:486-490`).
 //!
 //! ## Why this lives in epic-board, not epic-index (D17)
 //!
@@ -19,7 +31,7 @@
 //! GENERIC index crate receives the finished shapes as opaque
 //! `Option<TileShape>` lists; it never sees a rule.
 //!
-//! ## Ground truth (jar spike)
+//! ## Ground truth (jar spikes)
 //!
 //! `rust/harness/oracle/TreeShapesSpike.java` drove the frozen jar
 //! over `fixtures/Issue575-drc_dev-board_4_hole_clearance_violations.dsn`
@@ -33,14 +45,12 @@
 //! branches no corpus fixture reaches (DSN-exported padstacks define
 //! every layer). The tests quote those lines.
 //!
-//! ## Scope
-//!
-//! Drill items (pins and vias) only. The other item kinds' shape
-//! surfaces (`calculateTreeShapes(ObstacleArea/BoardOutline/
-//! PolylineTrace)`) are Task 7; until then
-//! [`item_tree_shapes`] returns an EMPTY list for them, which stores
-//! no tree entries (Java `ShapeTree.insert`'s `shapeCount <= 0`
-//! early-out) — a documented, explicit gap, not a silent one.
+//! Task 7 added the per-kind dumps (`/tmp/epic-t7-shapes.out`): trace,
+//! obstacle, conduction, component-outline and board-outline items
+//! across the five tree configurations on Issue575 +
+//! Issue054-tairakb, the SECTIONING fixture (a keepout larger than
+//! the 50000 threshold) and the RESOLUTION-CLAMP fixture
+//! (`(resolution um 1)` → threshold 12700) — see the tests.
 
 use epic_geometry::circle::Circle;
 use epic_geometry::float_point::FloatPoint;
@@ -53,7 +63,7 @@ use epic_index::SearchTreeVariant;
 use crate::board::Board;
 use crate::components::BoardPadstack;
 use crate::id::ItemId;
-use crate::items::{BoardShape, ItemData};
+use crate::items::{Area, BoardShape, ItemData};
 use crate::rules_surf::{AngleRestriction, BoardRules, DEFAULT_CLEARANCE_CLASS};
 
 /// Java `ShapeSearchTree.DRILL_HOLE_CLEARANCE_MARGIN` (`:52`).
@@ -339,12 +349,24 @@ pub fn drill_tree_shapes(
 
 /// The per-item tree-shape entry point the tree manager broadcasts
 /// (Java `ShapeTree.insert(Storable)` reaching
-/// `item.getShapeCount()` and the per-kind `calculateTreeShapes`).
+/// `item.treeShapeCount(tree)` and the per-kind `calculateTreeShapes`
+/// — `Item.getPrecalculatedTreeShapes`'s lazy compute, `Item.java:228-238`).
 ///
-/// Drill items (pins, vias) -> [`drill_tree_shapes`]; every other kind
-/// -> an EMPTY list (no tree entries — Java's `shapeCount <= 0`
-/// early-out) until Task 7 delivers the obstacle/outline/trace shape
-/// surfaces. This is the task's documented scope boundary.
+/// The dispatch (Java's virtual `calculateTreeShapes`):
+///
+/// * pins and vias -> [`drill_tree_shapes`] (the `DrillItem` entry),
+/// * traces -> [`trace_tree_shapes`] (`ShapeSearchTree.java:992-1004`),
+/// * obstacle areas — plain, via and component keepouts alike — and
+///   CONDUCTION areas -> [`obstacle_tree_shapes`] (`:908-938`; Java's
+///   `ConductionArea` extends `ObstacleArea` and overrides NOTHING on
+///   this path, and a parse-time conduction area's placement is the
+///   identity so its stored area is `getArea()` verbatim),
+/// * board outlines -> [`outline_tree_shapes`] (`:940-990`),
+/// * COMPONENT outlines -> an EMPTY list (Java
+///   `ComponentOutline.calculateTreeShapes` returns `new
+///   TileShape[0]`, `ComponentOutline.java:135-137` — no tree entries,
+///   Java's `shapeCount <= 0` early-out),
+/// * a foreign id -> an empty list (no item, no shapes).
 #[must_use]
 pub fn item_tree_shapes(
     board: &mut Board,
@@ -352,15 +374,282 @@ pub fn item_tree_shapes(
     compensated_class: i32,
     id: ItemId,
 ) -> Vec<Option<TileShape>> {
-    let is_drill = matches!(
-        board.get(id).map(|entry| &entry.data),
-        Some(ItemData::Pin { .. }) | Some(ItemData::Via { .. })
-    );
-    if is_drill {
-        drill_tree_shapes(board, variant, compensated_class, id)
-    } else {
-        Vec::new()
+    match board.get(id).map(|entry| &entry.data) {
+        Some(ItemData::Pin { .. }) | Some(ItemData::Via { .. }) => {
+            drill_tree_shapes(board, variant, compensated_class, id)
+        }
+        Some(ItemData::Trace { .. }) => trace_tree_shapes(board, variant, compensated_class, id),
+        Some(ItemData::ObstacleArea { .. }) | Some(ItemData::ConductionArea { .. }) => {
+            obstacle_tree_shapes(board, variant, compensated_class, id)
+        }
+        Some(ItemData::BoardOutline { .. }) => {
+            outline_tree_shapes(board, variant, compensated_class, id)
+        }
+        // ComponentOutline: Java returns new TileShape[0].
+        Some(ItemData::ComponentOutline { .. }) | None => Vec::new(),
+        // The unclassified fallback kind never reaches the tree.
+        Some(ItemData::Other) => Vec::new(),
     }
+}
+
+/// Java `ShapeSearchTree.calculateTreeShapes(ObstacleArea)`
+/// `:916-920` — the sectioning threshold of the obstacle path:
+///
+/// ```text
+/// 50000, clamped by min(500 * getResolution(MIL), 50000)
+///          but ONLY when a host CAD was recorded
+/// ```
+///
+/// `getResolution(MIL)` converts the board resolution into mils
+/// (`Unit.scale(resolution, MIL, unit)`), so the clamp BITES exactly
+/// when `500 * resolution-in-mils < 50000`:
+///
+/// * the corpus `(resolution um 10)` boards: 500 × 25.4 = 127000 ->
+///   the CAP wins, threshold 50000 (jar-verified,
+///   `/tmp/epic-t7-probe.out`),
+/// * a `(resolution um 1)` board: 500 × 25.4 = 12700 -> the CLAMP
+///   wins, threshold 12700 — an 8× finer sectioning grid than the
+///   naive constant,
+/// * the DSN default `(resolution mil 100)`: 500 × 100 = 50000 —
+///   both agree,
+/// * a board with no host CAD (`hostCadExists()` false): the
+///   constant 50000 regardless of resolution.
+pub fn max_tree_shape_width(board: &Board) -> f64 {
+    let mut width = 50_000.0;
+    if board.communication().host_cad_exists() {
+        width = (500.0 * board.communication().resolution_mil()).min(width);
+    }
+    width
+}
+
+/// The per-shape arm dispatch of `Area.splitToConvex()` over
+/// epic-board's [`Area`] — Java's border impls:
+/// `TileShape.splitToConvex` = `[this]` (convex by construction),
+/// `PolygonShape.splitToConvex` = the seeded recursive split (null on
+/// failure), `Circle.splitToConvex` = `[boundingTile]`, and a
+/// holed area = Java `PolylineArea.splitToConvex` (`PolylineArea.java:150-181`):
+/// border pieces, then every convex HOLE piece cut out of every
+/// divide piece, keeping only dimension-2 results.
+///
+/// `None` mirrors Java's null (the polygon split failed) — the
+/// caller's `new TileShape[0]` turns it into "no tree entries".
+fn area_split_to_convex(area: &Area) -> Option<Vec<TileShape>> {
+    let shape_split = |shape: &BoardShape| -> Option<Vec<TileShape>> {
+        match shape {
+            BoardShape::Tile(tile) => Some(tile.split_to_convex()),
+            BoardShape::PolygonShape(polygon) => polygon.split_to_convex(),
+            BoardShape::Circle(circle) => Some(circle.split_to_convex()),
+        }
+    };
+    if area.holes.is_empty() {
+        return shape_split(&area.border);
+    }
+    let mut pieces = shape_split(&area.border)?;
+    for hole in &area.holes {
+        let hole_dimension = match hole {
+            BoardShape::Tile(tile) => tile.dimension(),
+            BoardShape::PolygonShape(polygon) => polygon.dimension(),
+            BoardShape::Circle(_) => 2,
+        };
+        if hole_dimension < 2 {
+            // Java: FRLogger.warn("dimension 2 for hole expected") and
+            // skips the hole (log-only, D12).
+            continue;
+        }
+        for hole_piece in shape_split(hole)? {
+            let mut next_pieces = Vec::new();
+            for divide_piece in &pieces {
+                for cut in divide_piece.cutout(&hole_piece) {
+                    if cut.dimension() == 2 {
+                        next_pieces.push(cut);
+                    }
+                }
+            }
+            pieces = next_pieces;
+        }
+    }
+    Some(pieces)
+}
+
+/// The obstacle post-processing of the 45°/90° subclass overrides:
+/// every shape through `boundingOctagon()` (`ShapeSearchTree45Degree
+/// .java:521-530`) / `boundingBox()` (`ShapeSearchTree90Degree.java:
+/// 464-484`) — applied to BOTH the obstacle and the outline results
+/// (`result[i] != null` guard: a `None` slot stays `None`).
+fn bounding_post_process(
+    shapes: Vec<Option<TileShape>>,
+    variant: SearchTreeVariant,
+) -> Vec<Option<TileShape>> {
+    match variant {
+        SearchTreeVariant::Generic => shapes,
+        SearchTreeVariant::FortyfiveDegree => shapes
+            .into_iter()
+            .map(|shape| {
+                shape.and_then(|shape| {
+                    shape.bounding_octagon().map(|octagon| {
+                        TileShape::RegularTileShape(RegularTileShape::IntOctagon(octagon))
+                    })
+                })
+            })
+            .collect(),
+        SearchTreeVariant::NinetyDegree => shapes
+            .into_iter()
+            .map(|shape| shape.map(|shape| box_tile(shape.bounding_box())))
+            .collect(),
+    }
+}
+
+/// Java `ShapeSearchTree.calculateTreeShapes(ObstacleArea)`
+/// `:908-938` (+ the 45°/90° overrides): convex division, per-piece
+/// `enlarge(offsetWidth)`, `divideIntoSections(maxTreeShapeWidth)`,
+/// and the subclass bounding pass.
+///
+/// `offsetWidth` is [`clearance_compensation_value`] at the AREA's
+/// single layer (`obstacleArea.getLayer()`); the section threshold is
+/// [`max_tree_shape_width`] — the resolution clamp the corpus um-10
+/// boards do NOT reach (127000 > 50000) but a um-1 board does.
+fn obstacle_tree_shapes(
+    board: &mut Board,
+    variant: SearchTreeVariant,
+    compensated_class: i32,
+    id: ItemId,
+) -> Vec<Option<TileShape>> {
+    // Conduction areas read their STORED area (identity placement —
+    // the Board::obstacle_area docs); obstacle areas go through the
+    // placement-resolved getArea() chain.
+    let area = match board.get(id).map(|entry| &entry.data) {
+        Some(ItemData::ConductionArea { area, .. }) => Some(area.clone()),
+        _ => board.obstacle_area(id),
+    };
+    let Some(area) = area else {
+        return Vec::new();
+    };
+    let Some(convex_shapes) = area_split_to_convex(&area) else {
+        // Java :913-915 — a null split yields new TileShape[0].
+        return Vec::new();
+    };
+    let layer = board.area_layer(id).unwrap_or(0);
+    let item_class = board.item_clearance_class(id).unwrap_or(0);
+    let max_width = max_tree_shape_width(board);
+    let mut tree_shapes: Vec<Option<TileShape>> = Vec::new();
+    for convex in convex_shapes {
+        let offset_width =
+            clearance_compensation_value(board.rules(), item_class, compensated_class, layer);
+        let enlarged = convex.enlarge(f64::from(offset_width));
+        tree_shapes.extend(
+            enlarged
+                .divide_into_sections(max_width)
+                .into_iter()
+                .map(Some),
+        );
+    }
+    bounding_post_process(tree_shapes, variant)
+}
+
+/// Java `ShapeSearchTree.calculateTreeShapes(BoardOutline)`
+/// `:940-990` (+ the 45°/90° overrides), both branches:
+///
+/// * **flag set** (`generateKeepoutOutside(true)`): the convex
+///   division of the outside-the-outline [`keepout
+///   area`](`crate::items::outline::keepout_area`), each piece
+///   enlarged by the LAYER's compensation — LAYER-major, one pass per
+///   layer, NO sectioning (`:945-964`);
+/// * **flag clear** (every parse): the LINE keepout —
+///   [`crate::items::outline::line_keepout_tiles`] with the
+///   rules-driven compensation closure (`:965-987`; the geometry is
+///   Task 4's, pinned there against the bm08 capture; the closure is
+///   the Task 7 half).
+fn outline_tree_shapes(
+    board: &mut Board,
+    variant: SearchTreeVariant,
+    compensated_class: i32,
+    id: ItemId,
+) -> Vec<Option<TileShape>> {
+    let Some(keepout_outside) = board.outline_keepout_outside_generated(id) else {
+        return Vec::new();
+    };
+    let item_class = board.item_clearance_class(id).unwrap_or(0);
+    let layer_count = board.layers().layers.len();
+    if keepout_outside {
+        let Some(area) = board.outline_keepout_area(id) else {
+            return Vec::new();
+        };
+        let Some(convex_shapes) = area_split_to_convex(&area) else {
+            return Vec::new();
+        };
+        let mut tree_shapes = Vec::new();
+        for layer_index in 0..layer_count {
+            let offset_width = clearance_compensation_value(
+                board.rules(),
+                item_class,
+                compensated_class,
+                layer_index as i32,
+            );
+            for convex in &convex_shapes {
+                tree_shapes.push(Some(convex.enlarge(f64::from(offset_width))));
+            }
+        }
+        bounding_post_process(tree_shapes, variant)
+    } else {
+        let Some(shapes) = board.outline_shapes(id) else {
+            return Vec::new();
+        };
+        let shapes = shapes.to_vec();
+        let cmp = |layer: i32| {
+            clearance_compensation_value(board.rules(), item_class, compensated_class, layer)
+        };
+        let tiles = crate::items::outline::line_keepout_tiles(
+            &shapes,
+            layer_count,
+            crate::items::outline::half_width(),
+            cmp,
+        );
+        bounding_post_process(tiles, variant)
+    }
+}
+
+/// Java `ShapeSearchTree.calculateTreeShapes(PolylineTrace)`
+/// `:992-1004`: one shape per interior line window at
+/// `halfWidth + compensation(layer)` — `Polyline.offsetShape` for the
+/// base and 45-degree trees (the 45° subclass does NOT override
+/// `offsetShape`, `ShapeSearchTree.java:1079-1081`), `Polyline.
+/// offsetBox` for the 90-degree tree (`ShapeSearchTree90Degree.java:
+/// 488-490`).
+fn trace_tree_shapes(
+    board: &mut Board,
+    variant: SearchTreeVariant,
+    compensated_class: i32,
+    id: ItemId,
+) -> Vec<Option<TileShape>> {
+    let Some(lines) = board.trace_polyline(id) else {
+        return Vec::new();
+    };
+    let lines = lines.clone();
+    let Some(layer) = board.trace_layer(id) else {
+        return Vec::new();
+    };
+    let Some(half_width) = board.trace_half_width(id) else {
+        return Vec::new();
+    };
+    let item_class = board.item_clearance_class(id).unwrap_or(0);
+    let offset_width = half_width
+        + clearance_compensation_value(board.rules(), item_class, compensated_class, layer);
+    let count = crate::items::trace::tile_shape_count(&lines);
+    (0..count)
+        .map(|index| {
+            let index = i32::try_from(index).unwrap_or(i32::MAX);
+            match variant {
+                SearchTreeVariant::NinetyDegree => {
+                    lines.offset_box(offset_width, index).map(box_tile)
+                }
+                // The base tree's offsetShape == the 45-degree
+                // subclass's (no override).
+                SearchTreeVariant::Generic | SearchTreeVariant::FortyfiveDegree => {
+                    lines.offset_shape(offset_width, index)
+                }
+            }
+        })
+        .collect()
 }
 
 /// A never-mutated empty padstack standing in for Java's null
@@ -429,12 +718,21 @@ mod tests {
     /// Renders a tile in the spike's capture format (`oct[...]` /
     /// `box[...]`, the exact `fmt` helper of
     /// `rust/harness/oracle/TreeShapesSpike.java`) so assertions quote
-    /// the capture lines verbatim.
+    /// the capture lines verbatim. A Simplex shape renders through its
+    /// bounding octagon, exactly like the spike's `fmt`.
     fn capture_string(shape: &TileShape) -> String {
-        let TileShape::RegularTileShape(regular) = shape else {
-            panic!("a drill tree shape is always regular, got {shape:?}");
-        };
-        epic_index::format_bounds(regular)
+        match shape {
+            TileShape::RegularTileShape(regular) => epic_index::format_bounds(regular),
+            TileShape::Simplex(_) => {
+                let octagon = shape
+                    .bounding_octagon()
+                    .expect("a bounded simplex has a bounding octagon");
+                format!(
+                    "tile[{}]",
+                    epic_index::format_bounds(&RegularTileShape::IntOctagon(octagon))
+                )
+            }
+        }
     }
 
     /// The captured Issue575 lines — VIA 815 (class 1,
@@ -665,6 +963,414 @@ mod tests {
             capture_string(shapes[1].as_ref().expect("hole layer")),
             "oct[795990 -404010 804010 -395990 1194329 1205672 394329 405672]",
             "hc=2500 base0 holeViaC0 hole layer — delta 2510, the 1-off diagonal (capture)"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Task 7 capture pins — the per-kind construction
+    // (/tmp/epic-t7-shapes.out, the KIND_SHAPES lines)
+    // -----------------------------------------------------------------
+
+    /// The Issue575 TRACE and OBSTACLE captures: trace id 790 (class 1,
+    /// single window) and keepout id 285 (class 1, LAYER 1 — a
+    /// 180000x59500 box that sections into a 4x2 grid).
+    #[test]
+    fn issue575_trace_and_obstacle_shapes_match_the_jar_capture() {
+        let mut board = parse_board(ISSUE575);
+        let trace = ItemId::new(790);
+        let obstacle = ItemId::new(285);
+
+        // The trace: offsetShape at halfWidth + comp — the base and
+        // 45-degree trees share the path (no override), the 90-degree
+        // tree takes offsetBox.
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, trace);
+        assert_eq!(shapes.len(), 1, "a single-segment trace has one window");
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("window")),
+            "oct[1336840 -430900 1358500 -428900 1766326 1788814 906526 929014]",
+            "base0 trace 790 (capture)"
+        );
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::NinetyDegree, 0, trace);
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("window")),
+            "box[1336840 -430900 1358500 -428900]",
+            "deg900 trace 790 — offsetBox, the three-line window's bounding box (capture)"
+        );
+        // comp(1, 1, 0) = 1000: the base and 45-degree trees agree.
+        for variant in [
+            SearchTreeVariant::Generic,
+            SearchTreeVariant::FortyfiveDegree,
+        ] {
+            let shapes = item_tree_shapes(&mut board, variant, 1, trace);
+            assert_eq!(
+                capture_string(shapes[0].as_ref().expect("window")),
+                "oct[1335840 -431900 1359500 -427900 1764912 1790228 905112 930428]",
+                "cc1 {variant:?} trace 790 (capture)"
+            );
+        }
+
+        // The obstacle: convex division ([this] for the tile border),
+        // enlarge(0), divideIntoSections(50000) — the 4x2 grid.
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, obstacle);
+        let expected_sections = [
+            "box[1180000 -414500 1225000 -384750]",
+            "box[1225000 -414500 1270000 -384750]",
+            "box[1270000 -414500 1315000 -384750]",
+            "box[1315000 -414500 1360000 -384750]",
+            "box[1180000 -384750 1225000 -355000]",
+            "box[1225000 -384750 1270000 -355000]",
+            "box[1270000 -384750 1315000 -355000]",
+            "box[1315000 -384750 1360000 -355000]",
+        ];
+        assert_eq!(shapes.len(), expected_sections.len(), "the 4x2 grid");
+        for (shape, expected) in shapes.iter().zip(expected_sections) {
+            assert_eq!(
+                capture_string(shape.as_ref().expect("section")),
+                expected,
+                "base0 obstacle 285 section (capture)"
+            );
+        }
+        // The 90-degree post-process keeps the boxes verbatim.
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::NinetyDegree, 0, obstacle);
+        for (shape, expected) in shapes.iter().zip(expected_sections) {
+            assert_eq!(
+                capture_string(shape.as_ref().expect("section")),
+                expected,
+                "deg900 obstacle 285 — boundingBox of a box (capture)"
+            );
+        }
+        // The 45-degree post-process: boundingOctagon of each section
+        // (the box hull octagon, diagonals at the corners).
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::FortyfiveDegree, 0, obstacle);
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("section")),
+            "oct[1180000 -414500 1225000 -384750 1564750 1639500 765500 840250]",
+            "deg450 obstacle 285 section 0 (capture)"
+        );
+        assert_eq!(
+            capture_string(shapes[7].as_ref().expect("section")),
+            "oct[1315000 -384750 1360000 -355000 1670000 1744750 930250 1005000]",
+            "deg450 obstacle 285 section 7 (capture)"
+        );
+        // comp(1, 1, 1) = 1000 on the keepout's layer: enlarge BEFORE
+        // the post-process — the enlarged box's octagon diagonals
+        // (1563750/764086...) are NOT the box-then-octagon's
+        // (1564750/765500...): the order is the discriminator.
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::FortyfiveDegree, 1, obstacle);
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("section")),
+            "oct[1179000 -415500 1224500 -384750 1563750 1640000 764086 839750]",
+            "deg451 obstacle 285 section 0 — enlarge(1000) then boundingOctagon (capture)"
+        );
+        assert_eq!(
+            capture_string(shapes[7].as_ref().expect("section")),
+            "oct[1315500 -384750 1361000 -354000 1669500 1745750 930750 1006414]",
+            "deg451 obstacle 285 section 7 (capture)"
+        );
+    }
+
+    /// The Issue575 BOARD-OUTLINE line-branch capture: lineCount 4 x 2
+    /// layers, the Task 4 window geometry at halfWidth 100 + the
+    /// compensation closure (base0 comp 0, deg451 comp 1000 per layer).
+    #[test]
+    fn issue575_outline_line_shapes_match_the_jar_capture() {
+        let mut board = parse_board(ISSUE575);
+        let outline = ItemId::new(1);
+
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, outline);
+        let base0 = [
+            "oct[1124900 -933100 1415100 -932900 2057859 2348141 191859 482141]",
+            "oct[1414900 -933100 1415100 -413900 1828859 2348141 481859 1001141]",
+            "oct[1124900 -414100 1415100 -413900 1538859 1829141 710859 1001141]",
+            "oct[1124900 -933100 1125100 -413900 1538859 2058141 191859 711141]",
+        ];
+        assert_eq!(shapes.len(), 8, "lineCount 4 x layerCount 2");
+        for (layer, window) in shapes.chunks(4).enumerate() {
+            for (shape, expected) in window.iter().zip(base0) {
+                assert_eq!(
+                    capture_string(shape.as_ref().expect("window")),
+                    expected,
+                    "base0 outline layer {layer} (capture)"
+                );
+            }
+        }
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::FortyfiveDegree, 1, outline);
+        let deg451 = [
+            "oct[1123900 -934100 1416100 -931900 2056444 2349556 190444 483556]",
+            "oct[1413900 -934100 1416100 -412900 1827444 2349556 480444 1002556]",
+            "oct[1123900 -415100 1416100 -412900 1537444 1830556 709444 1002556]",
+            "oct[1123900 -934100 1126100 -412900 1537444 2059556 190444 712556]",
+        ];
+        for (shape, expected) in shapes.iter().take(4).zip(deg451) {
+            assert_eq!(
+                capture_string(shape.as_ref().expect("window")),
+                expected,
+                "deg451 outline layer 0 — comp 1000 into the closure (capture)"
+            );
+        }
+    }
+
+    /// The Issue054-tairakb fixture (the CONDUCTION-area board).
+    const ISSUE054: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/Issue054-tairakb.dsn"
+    );
+
+    /// The Issue054 CONDUCTION capture (plane id 3, class 1, layer 1 —
+    /// a big polygon border that convex-divides and sections into
+    /// 1046 SIMPLEX pieces) and the small polygon keepout 5847 (one
+    /// convex piece, no sectioning). The plane drives the whole
+    /// obstacle path — polygon split, enlarge, sectioning, and all
+    /// three variant post-processes — at scale.
+    #[test]
+    fn issue054_conduction_and_obstacle_shapes_match_the_jar_capture() {
+        let mut board = parse_board(ISSUE054);
+        let conduction = ItemId::new(3);
+        let obstacle = ItemId::new(5847);
+
+        // The conduction plane: 1046 sections in every variant (the
+        // sectioning never changes the COUNT; the post-process only
+        // rewraps each shape).
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, conduction);
+        assert_eq!(shapes.len(), 1046, "capture: n=1046");
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("section")),
+            "tile[oct[1514877 -1671208 1516460 -1670897 3185774 3187668 -156020 -154437]]",
+            "base0 conduction 3 section 0 — a Simplex rendered by its bounding octagon (capture)"
+        );
+        assert_eq!(
+            capture_string(shapes[1].as_ref().expect("section")),
+            "tile[oct[1516460 -1680910 1565938 -1670897 3187357 3246848 -154748 -104959]]",
+            "base0 conduction 3 section 1 (capture)"
+        );
+        // The 45-degree post-process: the Simplex BECOMES its bounding
+        // octagon (same ints as the tile[...] rendering).
+        let shapes = item_tree_shapes(
+            &mut board,
+            SearchTreeVariant::FortyfiveDegree,
+            0,
+            conduction,
+        );
+        assert_eq!(shapes.len(), 1046);
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("section")),
+            "oct[1514877 -1671208 1516460 -1670897 3185774 3187668 -156020 -154437]",
+            "deg450 conduction 3 section 0 — boundingOctagon of the Simplex (capture)"
+        );
+        // The 90-degree post-process: the bounding box.
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::NinetyDegree, 0, conduction);
+        assert_eq!(shapes.len(), 1046);
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("section")),
+            "box[1514877 -1671208 1516460 -1670897]",
+            "deg900 conduction 3 section 0 — boundingBox of the Simplex (capture)"
+        );
+        // comp(1, 1, 1) = 1001: every section enlarges by 1001 before
+        // the post-process.
+        let shapes = item_tree_shapes(
+            &mut board,
+            SearchTreeVariant::FortyfiveDegree,
+            1,
+            conduction,
+        );
+        assert_eq!(shapes.len(), 1046);
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("section")),
+            "oct[1514454 -1672215 1516395 -1671834 3186288 3188610 -157380 -155439]",
+            "deg451 conduction 3 section 0 — enlarge(1001) + octagon (capture)"
+        );
+        assert_eq!(
+            capture_string(shapes[1].as_ref().expect("section")),
+            "oct[1516395 -1681927 1565925 -1671834 3188229 3247852 -155820 -105909]",
+            "deg451 conduction 3 section 1 (capture)"
+        );
+
+        // The polygon keepout 5847: ONE convex piece below the
+        // sectioning threshold.
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, obstacle);
+        assert_eq!(shapes.len(), 1, "capture: n=1");
+        assert_eq!(
+            capture_string(shapes[0].as_ref().expect("piece")),
+            "oct[915950 -588750 933950 -570750 1491973 1517428 332473 357928]",
+            "base0 obstacle 5847 — the polygon's convex piece (capture)"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Task 7 capture pins — the sectioning threshold
+    // (/tmp/epic-t7-shapes.out, the three crafted COMM boards)
+    // -----------------------------------------------------------------
+
+    /// `(resolution um 10)` + host CAD — the corpus situation: 500 x
+    /// 254 = 127000, the CAP wins (threshold 50000).
+    const T7_SECTION_DSN: &str = r#"(pcb t7-section.dsn
+  (parser
+    (host_cad KICAD)
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 14000 8000))
+    (keepout (rect F.Cu 0 0 12000 6000))
+    (rule (width 250) (clearance 200))
+  )
+  (placement)
+  (library)
+  (network
+    (net T7NET)
+  )
+)
+"#;
+
+    /// `(resolution um 1)` + host CAD — the CLAMP: 500 x 25.4 =
+    /// 12700 < 50000, the clamp wins (threshold 12700).
+    const T7_CLAMP_DSN: &str = r#"(pcb t7-clamp.dsn
+  (parser
+    (host_cad KICAD)
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 140000 80000))
+    (keepout (rect F.Cu 0 0 120000 60000))
+    (rule (width 250) (clearance 200))
+  )
+  (placement)
+  (library)
+  (network
+    (net T7NET)
+  )
+)
+"#;
+
+    /// `(resolution um 1)` with NO host CAD — the GUARD: the min is
+    /// skipped entirely, threshold 50000 even at um 1.
+    const T7_NOHOST_DSN: &str = r#"(pcb t7-nohost.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 140000 80000))
+    (keepout (rect F.Cu 0 0 120000 60000))
+    (rule (width 250) (clearance 200))
+  )
+  (placement)
+  (library)
+  (network
+    (net T7NET)
+  )
+)
+"#;
+
+    /// Parses crafted DSN text through the epic-dsn reader (the same
+    /// strings the Java spike parsed — both readers must agree).
+    fn parse_dsn_text(dsn: &str) -> Board {
+        let mut ses = SesBoard::new();
+        match read_board(dsn.as_bytes(), &mut ses) {
+            DsnReadResult::Success { warnings } => {
+                assert!(warnings.is_empty(), "crafted DSN: {warnings:?}");
+            }
+            other => panic!("expected Success for the crafted DSN, got {other:?}"),
+        }
+        Board::from_ses_board(&ses)
+    }
+
+    /// **The resolution clamp of the sectioning threshold**
+    /// (`ShapeSearchTree.java:916-920`), jar-captured on three crafted
+    /// boards whose keepout INTERNAL box is identical (120000x60000)
+    /// and whose only differences are the clamp inputs:
+    ///
+    /// * SECTION (um 10 + host CAD): threshold 50000 -> a 3x2 grid
+    ///   (sections 40000x30000),
+    /// * CLAMP (um 1 + host CAD): threshold 12700 -> a 10x5 grid of
+    ///   12000x12000 sections — 50 shapes,
+    /// * NOHOST (um 1, NO host CAD): the guard skips the min ->
+    ///   threshold 50000 -> the SAME 3x2 grid as SECTION.
+    ///
+    /// CLAMP-vs-NOHOST isolates the `hostCadExists()` guard;
+    /// SECTION-vs-CLAMP isolates the resolution arithmetic — the forms
+    /// where a wrong threshold, a dropped guard, or a hardcoded 50000
+    /// all differ from the capture.
+    #[test]
+    fn sectioning_threshold_follows_the_resolution_clamp() {
+        let section = parse_dsn_text(T7_SECTION_DSN);
+        let clamp = parse_dsn_text(T7_CLAMP_DSN);
+        let nohost = parse_dsn_text(T7_NOHOST_DSN);
+
+        // The COMM facts (capture: resMil 254.0 / 25.4 / 25.4; the
+        // thresholds 50000.0 / 12700.0 / 50000.0 — the spike's
+        // threshold line prints the FORMULA, the section grid shows
+        // the APPLIED value, which is what these assertions pin).
+        assert!(section.communication().host_cad_exists());
+        assert!(clamp.communication().host_cad_exists());
+        assert!(!nohost.communication().host_cad_exists());
+        assert_eq!(section.communication().resolution_mil(), 254.0);
+        assert_eq!(clamp.communication().resolution_mil(), 25.4);
+        assert_eq!(nohost.communication().resolution_mil(), 25.4);
+        assert_eq!(max_tree_shape_width(&section), 50_000.0);
+        assert_eq!(max_tree_shape_width(&clamp), 12_700.0);
+        assert_eq!(
+            max_tree_shape_width(&nohost),
+            50_000.0,
+            "no host CAD -> the constant, the min never applies"
+        );
+
+        // The keepout is item id 2 on every crafted board (outline 1,
+        // keepout 2 — items=2 in the capture).
+        let keepout = ItemId::new(2);
+        let grid = |board: &mut Board| {
+            item_tree_shapes(board, SearchTreeVariant::Generic, 0, keepout)
+                .into_iter()
+                .map(|shape| capture_string(shape.as_ref().expect("section")))
+                .collect::<Vec<_>>()
+        };
+
+        let section_grid = grid(&mut { section.clone() });
+        let expected_grid = [
+            "box[0 0 40000 30000]",
+            "box[40000 0 80000 30000]",
+            "box[80000 0 120000 30000]",
+            "box[0 30000 40000 60000]",
+            "box[40000 30000 80000 60000]",
+            "box[80000 30000 120000 60000]",
+        ];
+        assert_eq!(
+            section_grid, expected_grid,
+            "SECTION: the 3x2 grid (capture)"
+        );
+
+        let clamp_grid = grid(&mut { clamp.clone() });
+        assert_eq!(clamp_grid.len(), 50, "CLAMP: the 10x5 grid (capture n=50)");
+        assert_eq!(
+            clamp_grid[0], "box[0 0 12000 12000]",
+            "CLAMP first (capture)"
+        );
+        assert_eq!(
+            clamp_grid[1], "box[12000 0 24000 12000]",
+            "CLAMP second (capture)"
+        );
+        assert_eq!(
+            clamp_grid[49], "box[108000 48000 120000 60000]",
+            "CLAMP last (capture)"
+        );
+
+        let nohost_grid = grid(&mut { nohost.clone() });
+        assert_eq!(
+            nohost_grid, expected_grid,
+            "NOHOST: the same 3x2 grid as SECTION — only the host-CAD guard differs"
         );
     }
 
@@ -923,19 +1629,64 @@ mod tests {
         assert_eq!(drill_hole_obstacle(100, &zero, &center), None);
     }
 
-    /// The dispatcher: drill items dispatch, every other kind is the
-    /// documented Task-7 empty list.
+    /// The dispatcher (Java's virtual `calculateTreeShapes`): every
+    /// kind routes to its per-kind construction — drill (the via's
+    /// padstack span), trace (one shape per interior line window),
+    /// obstacle area, conduction area, board outline (lineCount x
+    /// layerCount line-keepout tiles) — EXCEPT the component outline,
+    /// where Java returns `new TileShape[0]`
+    /// (`ComponentOutline.java:135-137`): no shapes, hence no tree
+    /// entries, while the item still goes on the board.
     #[test]
-    fn item_tree_shapes_dispatches_drill_items_only() {
+    fn item_tree_shapes_dispatches_per_kind() {
         let mut board = parse_board(ISSUE575);
-        // A drill item: non-empty.
+        // Drill: the via's padstack span (2 layers of copper).
         let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, ItemId::new(815));
         assert_eq!(shapes.len(), 2, "the via's padstack span");
-        // The outline (id 1 on every parse): empty until Task 7.
+        // The trace (id 790 on the parse): one tile per interior line
+        // window (>= 1 for any real trace — a plain segment has one).
+        let trace_lines = board.trace_polyline(ItemId::new(790)).expect("trace");
+        let expected = crate::items::trace::tile_shape_count(trace_lines);
+        assert!(expected >= 1, "a trace has at least one line window");
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, ItemId::new(790));
+        assert_eq!(shapes.len(), expected, "trace: one shape per window");
+        // The obstacle area (first keepout id 285): convex division +
+        // sectioning — non-empty; the exact section count is
+        // threshold-dependent (the capture pins below quote it from
+        // the jar).
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, ItemId::new(285));
+        assert!(
+            !shapes.is_empty(),
+            "obstacle: the keepout carries convex-section shapes"
+        );
+        // The board outline (id 1 on every parse): lineCount x
+        // layerCount line-keepout tiles.
+        let line_count = crate::items::outline::line_count(
+            board
+                .outline_shapes(ItemId::new(1))
+                .expect("outline shapes"),
+        );
+        assert!(line_count >= 4, "a closed polygon outline");
         let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, ItemId::new(1));
+        assert_eq!(
+            shapes.len(),
+            line_count * board.layers().layers.len(),
+            "outline: the line keepout, layer-major"
+        );
+        // The component outline (first id 384): EMPTY — Java's
+        // new TileShape[0].
+        let shapes = item_tree_shapes(&mut board, SearchTreeVariant::Generic, 0, ItemId::new(384));
         assert!(
             shapes.is_empty(),
-            "non-drill kinds carry no shapes yet (Task 7)"
+            "ComponentOutline.calculateTreeShapes returns new TileShape[0]"
+        );
+        assert_eq!(
+            board
+                .get(ItemId::new(384))
+                .expect("component outline 384")
+                .board_item_type(),
+            crate::items::BoardItemType::ComponentOutline,
+            "sanity: 384 is a component outline"
         );
         // A foreign id: empty.
         let shapes = item_tree_shapes(

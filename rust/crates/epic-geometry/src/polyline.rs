@@ -21,10 +21,12 @@
 //!   ports; they do not change any oracle behavior).
 //!
 //! Deferral ledger (Task 8): `combine`, `split`, `skipLines`,
-//! `offsetBox`, `nearestPointApprox`, `distance`, `projectionLine` and
-//! `shorten` are not ported yet — they belong to the M2 autoroute
-//! surface and are re-ledgered there. `offsetShapes` /
-//! `offsetShape(int, int)` are ported (Task 8 scope).
+//! `nearestPointApprox`, `distance`, `projectionLine` and `shorten`
+//! are not ported yet — they belong to the M2 autoroute surface and
+//! are re-ledgered there. `offsetShapes` / `offsetShape(int, int)` are
+//! ported (Task 8 scope), and `offsetBox` lands with the M2 Task 7
+//! search-tree shapes (the 90-degree tree's trace path,
+//! `ShapeSearchTree90Degree.offsetShape`).
 
 use crate::direction::Direction;
 use crate::float_point::FloatPoint;
@@ -495,6 +497,36 @@ impl Polyline {
             .next()
     }
 
+    /// Calculates for the `no`-th line segment a BOX shape around
+    /// this line where the border lines have the distance
+    /// `half_width` from the center line (Java `offsetBox(int, int)`
+    /// `Polyline.java:531-534`):
+    /// `new LineSegment(this, no + 1).boundingBox().offset(halfWidth)`
+    /// — the 3-line window `(lines[no], lines[no+1], lines[no+2])`,
+    /// its float-intersection floor/ceil bounding box, inflated by
+    /// `half_width` on all four sides. `None` where Java's
+    /// from-polyline `LineSegment` construction warns (and would
+    /// NPE): `no` out of the `0..=lines.len() - 3` range.
+    ///
+    /// Unlike [`Polyline::offset_shape`] the box is NOT cut at the
+    /// diagonal end lines — a 45-degree trace segment gets the
+    /// FULL box under the 90-degree tree (jar-pinned in the M2 Task 7
+    /// tree-shape captures).
+    pub fn offset_box(&self, half_width: i32, no: i32) -> Option<IntBox> {
+        if no < 0 || no > self.lines.len() as i32 - 3 {
+            // Java: FRLogger.warn("LineSegment from Polyline: no out of
+            // range") — then boundingBox() of the null-line segment NPEs;
+            // the guard here is the caller-facing null.
+            return None;
+        }
+        let segment = LineSegment::new(
+            self.lines[no as usize].clone(),
+            self.lines[no as usize + 1].clone(),
+            self.lines[no as usize + 2].clone(),
+        );
+        Some(segment.bounding_box().offset(f64::from(half_width)))
+    }
+
     /// Returns the polyline translated by vector (Java `translateBy`).
     pub fn translate_by(&self, vector: &Vector) -> Polyline {
         if *vector == Vector::ZERO {
@@ -749,6 +781,68 @@ mod tests {
         assert!(!pl.is_point());
         assert!(pl.is_orthogonal());
         assert!(pl.is_multiple_of_45_degree());
+    }
+
+    /// `offsetBox` (`Polyline.java:531-534`): the 3-line window's
+    /// floor/ceil bounding box inflated by `half_width` on all four
+    /// sides — the 90-degree tree's trace shape. For the FLAT
+    /// segments of the L-shape the box is the exact segment box
+    /// inflated; the range guard mirrors `offsetShape`'s
+    /// (`0..=lines.len() - 3`, the Java warn-and-NPE window).
+    #[test]
+    fn offset_box_is_the_window_box_inflated() {
+        let pl = from_int_corners(&[(0, 0), (10, 0), (10, 10)]);
+        // Window 0: segment (0,0)-(10,0), offset 2 on every side.
+        assert_eq!(
+            pl.offset_box(2, 0),
+            Some(IntBox::new(IntPoint::new(-2, -2), IntPoint::new(12, 2)))
+        );
+        // Window 1: segment (10,0)-(10,10).
+        assert_eq!(
+            pl.offset_box(2, 1),
+            Some(IntBox::new(IntPoint::new(8, -2), IntPoint::new(12, 12)))
+        );
+        // Zero width: the raw window box; out of range: None.
+        assert_eq!(
+            pl.offset_box(0, 0),
+            Some(IntBox::new(IntPoint::new(0, 0), IntPoint::new(10, 0)))
+        );
+        assert_eq!(pl.offset_box(1, 2), None);
+        assert_eq!(pl.offset_box(1, -1), None);
+    }
+
+    /// `offsetBox` vs `offsetShape` on a 45-degree segment — the
+    /// discriminating form: the BOX keeps the full corner squares the
+    /// octagon-cut `offsetShape` shears off, so the two must DIFFER
+    /// (a port that routes the 90-degree tree through `offsetShape`
+    /// fails here even though both share the same bounding box).
+    #[test]
+    fn offset_box_differs_from_offset_shape_on_diagonals() {
+        let pl = from_int_corners(&[(0, 0), (7, 7)]);
+        let box_shape = pl.offset_box(1, 0).expect("the single window");
+        assert_eq!(
+            box_shape,
+            IntBox::new(IntPoint::new(-1, -1), IntPoint::new(8, 8)),
+            "the exact diagonal segment box inflated by 1"
+        );
+        let oct_shape = pl
+            .offset_shape(1, 0)
+            .expect("offsetShape keeps the same window");
+        // Same bounding box, DIFFERENT shape: the octagon shears the
+        // corner triangles the box keeps.
+        assert_eq!(
+            oct_shape.bounding_box(),
+            TileShape::RegularTileShape(crate::regular_tile_shape::RegularTileShape::IntBox(
+                box_shape
+            ))
+            .bounding_box(),
+            "control: both share the bounding box"
+        );
+        assert!(
+            !oct_shape.contains_point(&p(7, -1)) || !oct_shape.contains_point(&p(-1, 7)),
+            "the octagon must shear at least one corner the box keeps — \\
+            a shape-equal port fails this anchor-blind form"
+        );
     }
 
     /// Invariant (Task 10): the normalizing Polyline constructor is

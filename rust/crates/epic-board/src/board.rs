@@ -31,8 +31,12 @@ use std::collections::BTreeMap;
 use epic_dsn::ses_board::{ItemIr, SesBoard};
 use epic_dsn::shape::BoardShape as IrBoardShape;
 use epic_dsn::sink::{AreaIr, FixedStateIr, KeepoutKindIr};
+use epic_dsn::state::Unit as DsnUnit;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::point::Point;
+use epic_geometry::polyline::Polyline;
+use epic_geometry::tile_shape::TileShape;
+use epic_index::SearchTreeVariant;
 
 use crate::components::{BoardLibrary, Components, pin_center, pin_relative_location};
 use crate::id::{ItemId, ItemIdGenerator};
@@ -82,6 +86,56 @@ impl ItemEntry {
     }
 }
 
+/// Java `board.communication` (`board/state/Communication.java`) —
+/// the unit / resolution / host-CAD facts the parse carried. Only the
+/// pieces the board model itself reads: the id generator lives in its
+/// own field, the observers/host-version are GUI/API-side.
+///
+/// Defaults mirror Java's no-arg `Communication()` (MIL, resolution
+/// 1, no host CAD); a parsed board overwrites all three from the DSN
+/// `(parser ... (host_cad ...))` / `(resolution ...)` / `(unit ...)`
+/// scopes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoardCommunication {
+    /// Java `Communication.unit`.
+    pub unit: DsnUnit,
+    /// Java `Communication.resolution` (in [`BoardCommunication::unit`]).
+    pub resolution: i32,
+    /// Java `specctraParserInfo.hostCad` (None where the parser scope
+    /// carried no host — `hostCadExists()` is false then).
+    pub host_cad: Option<String>,
+}
+
+impl Default for BoardCommunication {
+    /// Java `Communication()` `:23-30`: `unit = Unit.MIL`,
+    /// `resolution = 1`, no specctra parser info.
+    fn default() -> Self {
+        Self {
+            unit: DsnUnit::Mil,
+            resolution: 1,
+            host_cad: None,
+        }
+    }
+}
+
+impl BoardCommunication {
+    /// Java `Communication.getResolution(Unit.MIL)`
+    /// (`Communication.java:64-72`): `Unit.scale(resolution, MIL,
+    /// unit)` — the resolution CONVERTED to mils, the unit the
+    /// search-tree threshold reads.
+    #[must_use]
+    pub fn resolution_mil(&self) -> f64 {
+        DsnUnit::scale(f64::from(self.resolution), DsnUnit::Mil, self.unit)
+    }
+
+    /// Java `Communication.hostCadExists()`: true iff a host CAD was
+    /// recorded.
+    #[must_use]
+    pub fn host_cad_exists(&self) -> bool {
+        self.host_cad.is_some()
+    }
+}
+
 /// The live board model (Java `BasicBoard`'s item-list face plus the
 /// rules / layers / components / library read surfaces, M2 Task 3).
 #[derive(Clone, Debug, Default)]
@@ -92,6 +146,16 @@ pub struct Board {
     id_generator: ItemIdGenerator,
     /// Java `BasicBoard.revision` — bumped per insert and remove (T69).
     revision: u64,
+    /// Java `board.communication` — the unit / resolution / host-CAD
+    /// facts the parse carried (M2 Task 7: the search-tree shape
+    /// threshold is resolution-dependent).
+    communication: BoardCommunication,
+    /// The per-item per-tree SHAPE cache (Java
+    /// `Item.searchTreesInfo`'s `precalculatedTreeShapes`, identity-
+    /// keyed per tree — M2 Task 7). Cleared per item by
+    /// [`Board::clear_derived_data`], exactly Java
+    /// `ItemSearchTreesInfo.clearPrecalculatedTreeShapes`.
+    shape_precalc: BTreeMap<ItemId, BTreeMap<u64, Vec<Option<TileShape>>>>,
     /// Java `board.rules` (`BasicBoard.rules`, a `BoardRules`).
     rules: BoardRules,
     /// Java `board.layerStructure`.
@@ -311,17 +375,19 @@ impl Board {
         Some(min_width)
     }
 
-    /// Java `DrillItem.clearDerivedData()` (`DrillItem.java:390-395`)
-    /// — clears the LAYER SPAN only. `precalculatedMinWidth` is never
-    /// reset in Java (not by this, not by the geometry mutators that
-    /// all route here), so a moved drill keeps its stale width; the
-    /// port reproduces the asymmetry exactly (pinned white-box in the
+    /// Java `Item.clearDerivedData()` (`Item.java:1104-1109`) + the
+    /// `DrillItem` override (`DrillItem.java:390-395`): drops the
+    /// item's WHOLE per-tree shape cache
+    /// ([`ItemSearchTreesInfo.clearPrecalculatedTreeShapes`]) and the
+    /// drill LAYER SPAN. `precalculatedMinWidth` is never reset in
+    /// Java (not by this, not by the geometry mutators that all route
+    /// here), so a moved drill keeps its stale width; the port
+    /// reproduces the asymmetry exactly (pinned white-box in the
     /// tests below — `drill_precalc_clear_derived_data_keeps_min_width`).
-    /// Java's override also runs `super.clearDerivedData()` first
-    /// (`Item.clearDerivedData` resets `searchTreesInfo`) — that half
-    /// lands with the search-tree surface (M2 Tasks 6-8); this method
-    /// owns the DrillItem span only.
+    /// The tree-manager side keeps LEAF entries in its own map (Java
+    /// `clearSearchTreeEntries` is a separate, remove-side call).
     pub fn clear_derived_data(&mut self, id: ItemId) {
+        self.shape_precalc.remove(&id);
         if let Some(precalc) = self.drill_precalc.get_mut(&id) {
             precalc.first_layer = None;
             precalc.last_layer = None;
@@ -443,6 +509,182 @@ impl Board {
     #[cfg(test)]
     pub(crate) fn drill_precalc_mut(&mut self, id: ItemId) -> Option<&mut DrillPrecalc> {
         self.drill_precalc.get_mut(&id)
+    }
+
+    // -----------------------------------------------------------------
+    // M2 Task 7: the per-kind shape inputs (trace / obstacle /
+    // conduction / outline) and the per-tree SHAPE cache.
+    // -----------------------------------------------------------------
+
+    /// Java `board.communication` — the unit / resolution / host-CAD
+    /// facts ([`BoardCommunication`]).
+    #[must_use]
+    pub fn communication(&self) -> &BoardCommunication {
+        &self.communication
+    }
+
+    /// Java `PolylineTrace.polyline()` for a TRACE item — the stored
+    /// corner polyline (`None` for a non-trace id).
+    #[must_use]
+    pub fn trace_polyline(&self, id: ItemId) -> Option<&Polyline> {
+        let entry = self.get(id)?;
+        let ItemData::Trace { lines, .. } = &entry.data else {
+            return None;
+        };
+        Some(lines)
+    }
+
+    /// Java `Trace.get_layer()` for a TRACE item.
+    #[must_use]
+    pub fn trace_layer(&self, id: ItemId) -> Option<i32> {
+        let entry = self.get(id)?;
+        let ItemData::Trace { layer, .. } = &entry.data else {
+            return None;
+        };
+        Some(*layer)
+    }
+
+    /// Java `Trace.get_half_width()` for a TRACE item.
+    #[must_use]
+    pub fn trace_half_width(&self, id: ItemId) -> Option<i32> {
+        let entry = self.get(id)?;
+        let ItemData::Trace { half_width, .. } = &entry.data else {
+            return None;
+        };
+        Some(*half_width)
+    }
+
+    /// Java `ObstacleArea.getLayer()` for an OBSTACLE or CONDUCTION
+    /// area item — the stored single layer both kinds carry (`None`
+    /// for anything else, including component outlines whose layer
+    /// has different semantics).
+    #[must_use]
+    pub fn area_layer(&self, id: ItemId) -> Option<i32> {
+        let entry = self.get(id)?;
+        match &entry.data {
+            ItemData::ObstacleArea { layer, .. } | ItemData::ConductionArea { layer, .. } => {
+                Some(*layer)
+            }
+            _ => None,
+        }
+    }
+
+    /// Java `ConductionArea.getArea()` for a CONDUCTION item — the
+    /// STORED area, verbatim: a parse-time conduction area always
+    /// carries identity placement fields, so the inherited
+    /// `ObstacleArea.getArea()` transform is the identity (the
+    /// [`Board::obstacle_area`] docs pin the same split). `None` for
+    /// a non-conduction id.
+    #[must_use]
+    pub fn conduction_area(&self, id: ItemId) -> Option<Area> {
+        let entry = self.get(id)?;
+        let ItemData::ConductionArea { area, .. } = &entry.data else {
+            return None;
+        };
+        Some(area.clone())
+    }
+
+    /// Java `BoardOutline.getShape(i)` backing — the outline's shapes
+    /// (`None` for a non-outline id).
+    #[must_use]
+    pub fn outline_shapes(&self, id: ItemId) -> Option<&[BoardShape]> {
+        let entry = self.get(id)?;
+        let ItemData::BoardOutline { shapes, .. } = &entry.data else {
+            return None;
+        };
+        Some(shapes)
+    }
+
+    /// Java `BoardOutline.keepoutOutsideOutlineGenerated()`
+    /// (`BoardOutline.java:226-228`) — `None` for a non-outline id.
+    #[must_use]
+    pub fn outline_keepout_outside_generated(&self, id: ItemId) -> Option<bool> {
+        let entry = self.get(id)?;
+        let ItemData::BoardOutline {
+            keepout_outside_outline,
+            ..
+        } = &entry.data
+        else {
+            return None;
+        };
+        Some(*keepout_outside_outline)
+    }
+
+    /// The flag half of Java `BoardOutline.generateKeepoutOutside`
+    /// (`BoardOutline.java:238`) — flips `keepoutOutsideOutline` with
+    /// NO derived-data clear of its own. The remove/reinsert half lives
+    /// with the tree manager
+    /// ([`crate::tree_manager::SearchTreeManager::generate_keepout_outside`])
+    /// and RE-COMPUTES the shapes: Java's `remove` nulls the item's
+    /// whole `searchTreesInfo` (see [`Board::clear_search_tree_shapes`]),
+    /// so the re-insert runs the AREA branch fresh (jar-verified on
+    /// Issue575 and Issue054 — the post-flip shapes differ from the
+    /// parse-time line shapes, `Item.java:1078-1080`).
+    pub fn set_outline_keepout_outside(&mut self, id: ItemId, value: bool) {
+        if let Some(ItemData::BoardOutline {
+            keepout_outside_outline,
+            ..
+        }) = self
+            .items
+            .get_mut(&Reverse(id))
+            .map(|entry| &mut entry.data)
+        {
+            *keepout_outside_outline = value;
+        }
+    }
+
+    /// The shape half of Java `Item.clearSearchTreeEntries()`
+    /// (`Item.java:1078-1080`): Java sets `searchTreesInfo = null`,
+    /// dropping the container that holds BOTH the per-tree leaf
+    /// entries AND the precalculated tree shapes — so the next shape
+    /// query recomputes. The leaf-entry half lives manager-side
+    /// ([`crate::tree_manager::SearchTreeManager::remove`], which calls
+    /// this); unlike [`Board::clear_derived_data`] this is the REMOVE
+    /// side's whole-container drop, not the mutator path's
+    /// shapes-only clear.
+    ///
+    /// Divergence fixed in Task 7: the port first kept the shape cache
+    /// alive across remove (a "staleness quirk" reading of
+    /// `clearSearchTreeEntries` that cleared "only entries"); the jar
+    /// capture disproved it — flipping `generateKeepoutOutside` on
+    /// Issue054 re-inserted the outline with 136 AREA shapes where the
+    /// parse had cached 132 line shapes
+    /// (`/tmp/epic-t7-shapes.out`, the `KEEPOUT_OUTLINE` sequence).
+    pub fn clear_search_tree_shapes(&mut self, id: ItemId) {
+        self.shape_precalc.remove(&id);
+    }
+
+    /// Java `Item.getPrecalculatedTreeShapes(tree)` + the lazy
+    /// `calculateTreeShapes` fill (`Item.java:228-238`): the item's
+    /// tree shapes for the tree with the given OBJECT identity —
+    /// served from the [`Board::shape_precalc`] cache, computed
+    /// through [`crate::tree_shapes::item_tree_shapes`] on a miss.
+    ///
+    /// Keyed by tree identity (never by configuration): a re-created
+    /// tree with the same variant and class is a CACHE MISS, exactly
+    /// like Java's `tree == tree` reference walk through
+    /// `ItemSearchTreesInfo`. Invalidated per item by
+    /// [`Board::clear_derived_data`].
+    pub fn tree_shape_precalc(
+        &mut self,
+        id: ItemId,
+        tree_object_id: u64,
+        variant: SearchTreeVariant,
+        compensated_class: i32,
+    ) -> Vec<Option<TileShape>> {
+        if let Some(cached) = self
+            .shape_precalc
+            .get(&id)
+            .and_then(|by_tree| by_tree.get(&tree_object_id))
+        {
+            return cached.clone();
+        }
+        let shapes = crate::tree_shapes::item_tree_shapes(self, variant, compensated_class, id);
+        self.shape_precalc
+            .entry(id)
+            .or_default()
+            .insert(tree_object_id, shapes.clone());
+        shapes
     }
 
     /// The fresh-computation half of [`Board::drill_first_layer`].
@@ -623,6 +865,11 @@ impl Board {
             ses.metadata.flip_style.as_deref() == Some("rotate_first"),
         );
         board.library = BoardLibrary::from_ir(&ses.padstacks, &ses.packages);
+        board.communication = BoardCommunication {
+            unit: ses.metadata.unit,
+            resolution: ses.metadata.resolution,
+            host_cad: ses.metadata.host_cad.clone(),
+        };
         // The outline-derived bounding box (T43) — set by create_board
         // before any item is inserted; None only on a board without a
         // boundary (Java leaves the field null there).

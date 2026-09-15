@@ -132,8 +132,15 @@ impl SearchTreeManager {
     /// Java `remove(Item)` `:47-62`. Guarded by `isOnTheBoard()`:
     /// removing an item that is not on the board is a no-op.
     /// Otherwise each live tree drops the item's entries (identity
-    /// lookup), the item's WHOLE entry map goes (Java
-    /// `clearSearchTreeEntries()`), and the flag clears.
+    /// lookup), and Java's `item.clearSearchTreeEntries()`
+    /// (`Item.java:1078-1080`) sets `searchTreesInfo = null` — the
+    /// container holding BOTH the leaf entries AND the precalculated
+    /// tree shapes — so the port drops its entry map AND the item's
+    /// shape cache ([`Board::clear_search_tree_shapes`]); then the
+    /// flag clears. A later insert therefore RE-COMPUTES the shapes
+    /// (jar-verified: the keepoutOutside flip re-inserts the outline
+    /// with fresh AREA shapes, see
+    /// [`SearchTreeManager::generate_keepout_outside`]).
     pub fn remove(&mut self, board: &mut Board, id: ItemId) {
         if !board.is_on_the_board(id) {
             return;
@@ -148,6 +155,7 @@ impl SearchTreeManager {
             }
         }
         self.entries.remove(&id);
+        board.clear_search_tree_shapes(id);
         board.set_on_the_board(id, false);
     }
 
@@ -255,6 +263,31 @@ impl SearchTreeManager {
             .retain(|tree| tree.object_id() == default_object_id);
     }
 
+    /// Java `BoardOutline.generateKeepoutOutside(boolean)`
+    /// (`BoardOutline.java:234-244`): the same-value early-out, the
+    /// flag flip, then a REMOVE + INSERT of the outline item through
+    /// the manager — with NO `clearDerivedData` of its own. The
+    /// re-insert still computes the AREA branch: Java's remove nulls
+    /// the whole `searchTreesInfo` (`Item.java:1078-1080`), so the
+    /// shape cache does not survive the round trip (the Task 7 jar
+    /// capture — `/tmp/epic-t7-shapes.out`, `KEEPOUT_OUTLINE` — shows
+    /// the post-flip default tree carrying the area shapes: 8 fresh
+    /// octagons on Issue575 where the parse cached 8 LINE octagons of
+    /// different values, and 136 vs 132 shapes on Issue054). Pinned in
+    /// the tests (`keepout_outside_reinsert_computes_the_area_branch`,
+    /// `remove_clears_the_tree_shape_cache_between_out_and_in`).
+    pub fn generate_keepout_outside(&mut self, board: &mut Board, id: ItemId, value: bool) {
+        if board.outline_keepout_outside_generated(id) == Some(value) {
+            // Java :235-237.
+            return;
+        }
+        board.set_outline_keepout_outside(id, value);
+        // Java :239-244 — board/manager null checks are structural
+        // here (the port's manager always has its board argument).
+        self.remove(board, id);
+        self.insert(board, id);
+    }
+
     /// Java `reinsertTreeItems()` `:186-200` — **T58**. Remove all,
     /// clear every item's derived data (the drill-span memo the tree
     /// shapes consumed — without the clear, re-insertion reuses the
@@ -303,12 +336,16 @@ impl SearchTreeManager {
         }
     }
 
-    /// The single-tree half of the broadcast insert: compute the
-    /// item's shapes for THIS tree's configuration and store the
-    /// returned leaves under the tree's object id (replacing any
-    /// previous entries of the pair — Java's
-    /// `setSearchTreeEntries` replaces). An empty shape list stores
-    /// nothing (Java's `shapeCount <= 0` early-out).
+    /// The single-tree half of the broadcast insert: fetch the item's
+    /// shapes for THIS tree through the per-item per-tree SHAPE CACHE
+    /// (Java `Item.getTreeShape(tree, i)` lazily computing through
+    /// `getPrecalculatedTreeShapes` inside `ShapeTree.insert`,
+    /// `Item.java:228-238` — the cache is identity-keyed and cleared
+    /// by [`Board::clear_derived_data`]) and store the returned
+    /// leaves under the tree's object id (replacing any previous
+    /// entries of the pair — Java's `setSearchTreeEntries` replaces).
+    /// An empty shape list stores nothing (Java's `shapeCount <= 0`
+    /// early-out).
     fn insert_into_tree(&mut self, board: &mut Board, id: ItemId, tree_index: usize) {
         let (variant, compensated_class, object_id) = {
             let tree = &self.trees[tree_index];
@@ -318,7 +355,7 @@ impl SearchTreeManager {
                 tree.object_id(),
             )
         };
-        let shapes = crate::tree_shapes::item_tree_shapes(board, variant, compensated_class, id);
+        let shapes = board.tree_shape_precalc(id, object_id, variant, compensated_class);
         let leaves = self.trees[tree_index].insert(u64::from(id.get()), &shapes);
         if !leaves.is_empty() {
             self.entries
@@ -710,14 +747,38 @@ mod tests {
         assert!(board.is_on_the_board(via));
     }
 
-    /// The Task-7 scope boundary: non-drill kinds carry NO tree
-    /// entries (Java's `shapeCount <= 0` early-out) — but the
-    /// broadcast insert still flips their on-the-board flag (`:43`).
+    /// The empty-shape contract: a kind whose Java
+    /// `calculateTreeShapes` returns `new TileShape[0]` (the
+    /// COMPONENT outline, `ComponentOutline.java:135-137`) carries NO
+    /// tree entries (Java's `shapeCount <= 0` early-out) — but the
+    /// broadcast insert still flips its on-the-board flag (`:43`).
+    /// Since Task 7 the OTHER non-drill kinds (trace, obstacle,
+    /// outline) DO carry entries.
     #[test]
-    fn non_drill_items_carry_no_entries_but_still_get_the_flag() {
+    fn empty_shape_kinds_carry_no_entries_but_still_get_the_flag() {
         let mut board = parse_board(ISSUE575);
         let mut manager = SearchTreeManager::new();
         manager.insert_all_board_items(&mut board);
+        // The component outline (first id 384): no shapes, no entries.
+        let component_outline = ItemId::new(384);
+        assert_eq!(
+            board
+                .get(component_outline)
+                .expect("component outline 384")
+                .board_item_type(),
+            BoardItemType::ComponentOutline
+        );
+        assert!(
+            manager
+                .tree_entries(component_outline, manager.default_tree().object_id())
+                .is_none(),
+            "ComponentOutline: no shapes -> no entries"
+        );
+        assert!(
+            board.is_on_the_board(component_outline),
+            "the flag is set regardless of shape count"
+        );
+        // Task 7: the board outline (id 1) DOES carry entries now.
         let outline = ItemId::new(1);
         assert_eq!(
             board
@@ -729,12 +790,8 @@ mod tests {
         assert!(
             manager
                 .tree_entries(outline, manager.default_tree().object_id())
-                .is_none(),
-            "no shapes -> no entries"
-        );
-        assert!(
-            board.is_on_the_board(outline),
-            "the flag is set regardless of shape count"
+                .is_some(),
+            "the outline's line keepout has entries since Task 7"
         );
         // A foreign id has no entries either.
         assert!(
@@ -855,6 +912,164 @@ mod tests {
             manager.default_tree().min_area_tree().dump_lines(),
             clean.default_tree().min_area_tree().dump_lines(),
             "the insert_all clear must restore the fresh span before re-inserting"
+        );
+    }
+
+    /// Renders a tile in the spike's capture format (`oct[...]` /
+    /// `box[...]`) so assertions quote `/tmp/epic-t7-shapes.out`
+    /// verbatim.
+    fn fmt_tile(shape: &epic_geometry::tile_shape::TileShape) -> String {
+        let epic_geometry::tile_shape::TileShape::RegularTileShape(regular) = shape else {
+            panic!("the outline shapes of Issue575 are regular, got {shape:?}");
+        };
+        epic_index::format_bounds(regular)
+    }
+
+    /// **T7 — `generateKeepoutOutside` re-inserts the AREA branch**
+    /// (`BoardOutline.java:234-244`). The parse cached the outline's
+    /// LINE shapes in the default tree (the read inserts every item,
+    /// `BoardItemRepository.java:161`); the flip does remove+insert
+    /// with NO `clearDerivedData` — and STILL the shapes come back as
+    /// the keepout-AREA branch, because Java's remove nulls the whole
+    /// `searchTreesInfo` (`Item.java:1078-1080`). The capture
+    /// discriminates the branches by VALUE on this fixture (both are
+    /// 8 shapes: lineCount 4 x 2 layers vs 4 convex ring pieces x 2
+    /// layers; on Issue054 the counts also differ, 132 vs 136).
+    #[test]
+    fn keepout_outside_reinsert_computes_the_area_branch() {
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let outline = ItemId::new(1);
+        let object_id = manager.default_tree().object_id();
+
+        // The parse-time LINE shapes (capture: default-parse).
+        let line_shapes =
+            board.tree_shape_precalc(outline, object_id, SearchTreeVariant::Generic, 0);
+        assert_eq!(line_shapes.len(), 8, "lineCount 4 x layerCount 2");
+        assert_eq!(
+            fmt_tile(line_shapes[0].as_ref().expect("shape 0")),
+            "oct[1124900 -933100 1415100 -932900 2057859 2348141 191859 482141]",
+            "the LINE branch top window (capture)"
+        );
+        assert_eq!(
+            fmt_tile(line_shapes[7].as_ref().expect("shape 7")),
+            "oct[1124900 -933100 1125100 -413900 1538859 2058141 191859 711141]",
+            "the LINE branch left window (capture)"
+        );
+
+        manager.generate_keepout_outside(&mut board, outline, true);
+        assert_eq!(
+            board.outline_keepout_outside_generated(outline),
+            Some(true),
+            "the flag flipped"
+        );
+
+        // The SAME default tree identity now holds the AREA shapes
+        // (capture: default-after-flip == fresh45-after-flip).
+        let area_shapes =
+            board.tree_shape_precalc(outline, object_id, SearchTreeVariant::Generic, 0);
+        assert_eq!(area_shapes.len(), 8, "4 convex ring pieces x 2 layers");
+        assert_eq!(
+            fmt_tile(area_shapes[0].as_ref().expect("shape 0")),
+            "oct[1124000 -934000 1415000 -933000 2057000 2349000 190000 482000]",
+            "the AREA branch top piece (capture)"
+        );
+        assert_eq!(
+            fmt_tile(area_shapes[1].as_ref().expect("shape 1")),
+            "oct[1124000 -933000 1125000 -413000 1537000 2058000 191000 712000]",
+            "the AREA branch left piece (capture)"
+        );
+        // The two branches differ by VALUE on this fixture — the form
+        // where a port that reuses the stale line shapes fails.
+        assert_ne!(
+            fmt_tile(area_shapes[0].as_ref().expect("shape 0")),
+            fmt_tile(line_shapes[0].as_ref().expect("shape 0"))
+        );
+
+        // Reference: a board whose flag was set BEFORE any insert —
+        // the area shapes must be identical (same rules, same branch).
+        let mut reference_board = parse_board(ISSUE575);
+        reference_board.set_outline_keepout_outside(outline, true);
+        let mut reference = SearchTreeManager::new();
+        reference.insert_all_board_items(&mut reference_board);
+        let reference_object_id = reference.default_tree().object_id();
+        assert_eq!(
+            reference_board.tree_shape_precalc(
+                outline,
+                reference_object_id,
+                SearchTreeVariant::Generic,
+                0
+            ),
+            area_shapes,
+            "flip-after-insert == flag-before-insert (both area shapes)"
+        );
+        assert_eq!(
+            reference.default_tree().min_area_tree().dump_lines(),
+            manager.default_tree().min_area_tree().dump_lines(),
+            "the whole default tree agrees with the flag-before-insert reference"
+        );
+
+        // The same-value call is the early-out (Java :235-237): the
+        // entries survive untouched.
+        let leaves = manager.default_tree().leaf_count();
+        manager.generate_keepout_outside(&mut board, outline, true);
+        assert_eq!(manager.default_tree().leaf_count(), leaves);
+        assert_eq!(board.outline_keepout_outside_generated(outline), Some(true));
+    }
+
+    /// **T7 — remove drops the SHAPE cache** (`Item.java:1078-1080`,
+    /// `searchTreesInfo = null`): an insert after a remove must see
+    /// rule changes that happened in between. The discriminator makes
+    /// the outline's compensation LAYER-SENSITIVE (`v(1, 0, 1) =
+    /// 5000`): insert under the default rules, change the matrix,
+    /// remove + insert the outline — a port whose remove keeps the
+    /// shape cache reuses the comp-0 layer-1 LINE shapes and diverges
+    /// from the reference computed under the changed rules.
+    #[test]
+    fn remove_clears_the_tree_shape_cache_between_out_and_in() {
+        // The reference: shapes computed UNDER the changed rules.
+        let mut reference_board = parse_board(ISSUE575);
+        reference_board
+            .rules_mut()
+            .clearance
+            .set_value(1, 0, 1, 5000);
+        let mut reference = SearchTreeManager::new();
+        reference.insert_all_board_items(&mut reference_board);
+        let outline = ItemId::new(1);
+        let reference_object_id = reference.default_tree().object_id();
+        let expected = reference_board.tree_shape_precalc(
+            outline,
+            reference_object_id,
+            SearchTreeVariant::Generic,
+            0,
+        );
+        // The witness: layer 1 really is compensated differently now.
+        assert_eq!(
+            clearance_compensation_value(reference_board.rules(), 1, 0, 1),
+            5000,
+            "the discriminating compensation"
+        );
+
+        let mut board = parse_board(ISSUE575);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_all_board_items(&mut board);
+        let object_id = manager.default_tree().object_id();
+        // Sanity: the cached shapes are the DEFAULT-rules shapes (the
+        // layer-1 windows differ from the expected list).
+        let stale = board.tree_shape_precalc(outline, object_id, SearchTreeVariant::Generic, 0);
+        assert_ne!(
+            stale, expected,
+            "the default-rules shapes must differ from the changed-rules reference"
+        );
+
+        board.rules_mut().clearance.set_value(1, 0, 1, 5000);
+        manager.remove(&mut board, outline);
+        manager.insert(&mut board, outline);
+        assert_eq!(
+            board.tree_shape_precalc(outline, object_id, SearchTreeVariant::Generic, 0),
+            expected,
+            "remove must drop the shape cache — the re-insert recomputes"
         );
     }
 }

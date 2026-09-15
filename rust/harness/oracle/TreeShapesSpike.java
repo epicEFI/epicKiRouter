@@ -1,5 +1,8 @@
 // TreeShapesSpike.java — jar spike for M2 Task 6 (search-tree config,
-// clearance compensation, drill-hole inflation).
+// clearance compensation, drill-hole inflation) and Task 7 (the
+// per-kind construction: trace / obstacle / conduction / component
+// outline / board outline, the sectioning threshold, the keepoutOutside
+// branches).
 //
 // Lives OUTSIDE src/ (harness-side; the frozen Java tree is never
 // touched). Declares the app.freerouting.board.searchtree package for
@@ -41,10 +44,17 @@ package app.freerouting.board.searchtree;
 
 import app.freerouting.board.actions.ItemIdGenerator;
 import app.freerouting.board.facade.BasicBoard;
+import app.freerouting.board.model.items.ComponentOutline;
+import app.freerouting.board.model.items.ConductionArea;
 import app.freerouting.board.model.items.DrillItem;
+import app.freerouting.board.model.items.Item;
+import app.freerouting.board.model.items.ObstacleArea;
 import app.freerouting.board.model.items.Pin;
 import app.freerouting.board.model.items.Via;
 import app.freerouting.board.model.structure.AngleRestriction;
+import app.freerouting.board.model.structure.BoardOutline;
+import app.freerouting.board.model.structure.Unit;
+import app.freerouting.board.trace.PolylineTrace;
 import app.freerouting.core.library.Padstack;
 import app.freerouting.datastructures.IdGenerator;
 import app.freerouting.geometry.planar.Circle;
@@ -460,6 +470,307 @@ public final class TreeShapesSpike {
     }
     board.rules.setHoleClearance(0);
     board.rules.setTraceAngleRestriction(AngleRestriction.FORTYFIVE_DEGREE);
+
+    // ---- T7: the per-kind construction -------------------------------------
+    t7Phase(board);
+
+    // A second fixture (the conduction-area board): T7 phases only.
+    if (args.length >= 2) {
+      byte[] more = Files.readAllBytes(Paths.get(args[1]));
+      IdGenerator idGenerator2 = new ItemIdGenerator();
+      BoardReadResult read2 =
+          DsnReader.readBoard(
+              new ByteArrayInputStream(more),
+              null,
+              idGenerator2,
+              Paths.get(args[1]).getFileName().toString());
+      if (read2 instanceof BoardReadResult.Success success2) {
+        t7Phase(success2.board());
+      } else {
+        System.out.println("READ_FAILED2 " + read2);
+      }
+    }
+
+    // The crafted threshold boards (see the constants below).
+    t7Phase(parseDsn(T7_SECTION_DSN, "t7-section.dsn"));
+    t7Phase(parseDsn(T7_CLAMP_DSN, "t7-clamp.dsn"));
+    t7Phase(parseDsn(T7_NOHOST_DSN, "t7-nohost.dsn"));
+  }
+
+  // ---- T7: crafted boards ----------------------------------------------------
+  //
+  // The obstacle path's sectioning threshold is
+  //   50000, but min(500 * resolution-in-mils, 50000) when a host CAD
+  //   was recorded (ShapeSearchTree.java:916-920). Three boards hold the
+  //   keepout's INTERNAL box identical (120000x60000) and vary only the
+  //   clamp inputs:
+  //   * SECTION (um 10 + host CAD): resMil 254.0 -> 500x254 = 127000 ->
+  //     the CAP wins, threshold 50000 (the corpus um-10 situation),
+  //   * CLAMP (um 1 + host CAD): resMil 25.4 -> 500x25.4 = 12700 ->
+  //     the CLAMP wins, threshold 12700 — a finer section grid,
+  //   * NOHOST (um 1, NO host CAD): the guard skips the min entirely ->
+  //     threshold 50000 even at um 1.
+  // CLAMP vs NOHOST isolates the hostCadExists GUARD; SECTION vs CLAMP
+  // isolates the resolution ARITHMETIC.
+
+  private static final String T7_SECTION_DSN =
+      """
+      (pcb t7-section.dsn
+        (parser
+          (host_cad KICAD)
+          (string_quote ")
+          (space_in_quoted_tokens on)
+        )
+        (resolution um 10)
+        (unit um)
+        (structure
+          (layer F.Cu (type signal))
+          (layer B.Cu (type signal))
+          (boundary (rect pcb 0 0 14000 8000))
+          (keepout (rect F.Cu 0 0 12000 6000))
+          (rule (width 250) (clearance 200))
+        )
+        (placement)
+        (library)
+        (network
+          (net T7NET)
+        )
+      )
+      """;
+
+  private static final String T7_CLAMP_DSN =
+      """
+      (pcb t7-clamp.dsn
+        (parser
+          (host_cad KICAD)
+          (string_quote ")
+          (space_in_quoted_tokens on)
+        )
+        (resolution um 1)
+        (unit um)
+        (structure
+          (layer F.Cu (type signal))
+          (layer B.Cu (type signal))
+          (boundary (rect pcb 0 0 140000 80000))
+          (keepout (rect F.Cu 0 0 120000 60000))
+          (rule (width 250) (clearance 200))
+        )
+        (placement)
+        (library)
+        (network
+          (net T7NET)
+        )
+      )
+      """;
+
+  private static final String T7_NOHOST_DSN =
+      """
+      (pcb t7-nohost.dsn
+        (parser
+          (string_quote ")
+          (space_in_quoted_tokens on)
+        )
+        (resolution um 1)
+        (unit um)
+        (structure
+          (layer F.Cu (type signal))
+          (layer B.Cu (type signal))
+          (boundary (rect pcb 0 0 140000 80000))
+          (keepout (rect F.Cu 0 0 120000 60000))
+          (rule (width 250) (clearance 200))
+        )
+        (placement)
+        (library)
+        (network
+          (net T7NET)
+        )
+      )
+      """;
+
+  private static BasicBoard parseDsn(String dsn, String name) {
+    IdGenerator idGenerator = new ItemIdGenerator();
+    BoardReadResult read =
+        DsnReader.readBoard(new ByteArrayInputStream(dsn.getBytes()), null, idGenerator, name);
+    if (!(read instanceof BoardReadResult.Success success)) {
+      System.out.println("READ_FAILED " + name + " " + read);
+      return null;
+    }
+    return success.board();
+  }
+
+  /** Renders an item id for a T7_SELECT line (null-safe). */
+  private static String id(Item item) {
+    return item == null ? "none" : Integer.toString(item.getId());
+  }
+
+  private static void t7Phase(BasicBoard board) {
+    if (board == null) {
+      return;
+    }
+    // COMM facts — the resolution-clamp inputs of the obstacle threshold.
+    double resMil = board.communication.getResolution(Unit.MIL);
+    System.out.println(
+        "COMM items="
+            + board.getItems().size()
+            + " hostCadExists="
+            + board.communication.hostCadExists()
+            + " unit="
+            + board.communication.unit
+            + " resolution="
+            + board.communication.resolution
+            + " resMil="
+            + Double.toString(resMil)
+            + " threshold="
+            + Double.toString(Math.min(500 * resMil, 50000)));
+
+    // Per-kind probes (ConductionArea BEFORE ObstacleArea — it is a
+    // subclass; a fresh probe tree for the >=2-sections witness).
+    ShapeSearchTree probeTree =
+        new ShapeSearchTree(FortyfiveDegreeBoundingDirections.INSTANCE, board, 0);
+    PolylineTrace firstTrace = null;
+    PolylineTrace multiTrace = null;
+    ObstacleArea obstacle = null;
+    ObstacleArea sectionedObstacle = null;
+    ConductionArea conduction = null;
+    ComponentOutline componentOutline = null;
+    BoardOutline outline = null;
+    for (Item item : board.getItems()) {
+      if (item instanceof ConductionArea area) {
+        if (conduction == null) {
+          conduction = area;
+        }
+      } else if (item instanceof ObstacleArea obs) {
+        if (obstacle == null) {
+          obstacle = obs;
+        }
+        if (sectionedObstacle == null && obs.treeShapeCount(probeTree) >= 2) {
+          sectionedObstacle = obs;
+        }
+      } else if (item instanceof PolylineTrace trace) {
+        if (firstTrace == null) {
+          firstTrace = trace;
+        }
+        if (multiTrace == null && trace.tileShapeCount() >= 3) {
+          multiTrace = trace;
+        }
+      } else if (item instanceof ComponentOutline comp) {
+        if (componentOutline == null) {
+          componentOutline = comp;
+        }
+      } else if (item instanceof BoardOutline bo) {
+        if (outline == null) {
+          outline = bo;
+        }
+      }
+    }
+    System.out.println(
+        "T7_SELECT trace="
+            + id(firstTrace)
+            + " multiTrace="
+            + id(multiTrace)
+            + " obstacle="
+            + id(obstacle)
+            + " sectionedObstacle="
+            + id(sectionedObstacle)
+            + " conduction="
+            + id(conduction)
+            + " componentOutline="
+            + id(componentOutline)
+            + " outline="
+            + id(outline));
+    dumpKindAllTrees(
+        board,
+        firstTrace,
+        multiTrace,
+        obstacle,
+        sectionedObstacle,
+        conduction,
+        componentOutline,
+        outline);
+
+    // The keepoutOutside branches on a REAL parse: the read inserted the
+    // outline into the DEFAULT tree, so its line shapes are already
+    // cached; generateKeepoutOutside does remove+insert with NO
+    // derived-data clear (BoardOutline.java:234-244), so the default
+    // tree's re-read serves the STALE line shapes (pin-failure-mode 6),
+    // while a FRESH tree identity computes the AREA branch.
+    if (outline != null) {
+      ShapeSearchTree defaultTree = board.searchTreeManager.getDefaultTree();
+      System.out.println(
+          "KEEPOUT_OUTLINE id="
+              + outline.getId()
+              + " flag="
+              + outline.keepoutOutsideOutlineGenerated()
+              + " lineCount="
+              + outline.lineCount()
+              + " halfWidth="
+              + outline.getHalfWidth());
+      dumpKindShapes("default-parse", defaultTree, board, outline);
+      outline.generateKeepoutOutside(true);
+      dumpKindShapes("default-after-flip-stale", defaultTree, board, outline);
+      dumpKindShapes("fresh45-after-flip-area", new ShapeSearchTree45Degree(board, 0), board, outline);
+    }
+  }
+
+  /**
+   * Dumps a NON-DRILL item's tree shapes through the REAL cache path
+   * ({@code treeShapeCount(tree)} / {@code getTreeShape(tree, i)} — the
+   * public Item surface ShapeTree.insert itself calls), one line per
+   * shape: the layer and compensation the construction reads, and the
+   * exact shape.
+   */
+  private static void dumpKindShapes(
+      String treeLabel, ShapeSearchTree tree, BasicBoard board, Item item) {
+    if (item == null) {
+      return;
+    }
+    int n = item.treeShapeCount(tree);
+    System.out.println(
+        "KIND_SHAPES tree="
+            + tree.key
+            + " ("
+            + treeLabel
+            + ") kind="
+            + item.getClass().getSimpleName()
+            + " id="
+            + item.getId()
+            + " class="
+            + item.clearanceClassIndex()
+            + " n="
+            + n);
+    for (int i = 0; i < n; i++) {
+      int layer = item.shapeLayer(i);
+      int comp = tree.clearanceCompensationValue(item.clearanceClassIndex(), layer);
+      System.out.println(
+          "  i="
+              + i
+              + " layer="
+              + layer
+              + " comp="
+              + comp
+              + " treeShape="
+              + fmt(item.getTreeShape(tree, i)));
+    }
+  }
+
+  private static void dumpKindAllTrees(BasicBoard board, Item... targets) {
+    // The non-drill constructions read no hole clearance (the delta is
+    // drill-only) — a single pass at hc=0.
+    board.rules.setHoleClearance(0);
+    ShapeSearchTree base0 =
+        new ShapeSearchTree(FortyfiveDegreeBoundingDirections.INSTANCE, board, 0);
+    ShapeSearchTree45Degree deg450 = new ShapeSearchTree45Degree(board, 0);
+    ShapeSearchTree90Degree deg900 = new ShapeSearchTree90Degree(board, 0);
+    ShapeSearchTree45Degree deg451 = new ShapeSearchTree45Degree(board, 1);
+    ShapeSearchTree base1 =
+        new ShapeSearchTree(FortyfiveDegreeBoundingDirections.INSTANCE, board, 1);
+    String[] labels = {"base0", "deg450", "deg900", "deg451", "base1"};
+    ShapeSearchTree[] trees = {base0, deg450, deg900, deg451, base1};
+    for (int t = 0; t < trees.length; t++) {
+      for (Item item : targets) {
+        dumpKindShapes(labels[t], trees[t], board, item);
+      }
+    }
   }
 
   private static void dumpAllTrees(
