@@ -823,6 +823,7 @@ impl Default for SearchTreeManager {
 mod tests {
     use super::*;
     use crate::items::BoardItemType;
+    use crate::test_util::parse_board_from_path as parse_board;
     use crate::tree_shapes::clearance_compensation_value;
     use epic_dsn::reader::{DsnReadResult, read_board};
     use epic_dsn::ses_board::SesBoard;
@@ -835,17 +836,6 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../fixtures/Issue575-drc_dev-board_4_hole_clearance_violations.dsn"
     );
-
-    /// Parses a fixture through the epic-dsn reader and converts it.
-    fn parse_board(path: &str) -> Board {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let mut ses = SesBoard::new();
-        match read_board(bytes.as_slice(), &mut ses) {
-            DsnReadResult::Success { .. } => {}
-            other => panic!("expected Success for {path}, got {other:?}"),
-        }
-        Board::from_ses_board(&ses)
-    }
 
     /// Makes BOTH relevant tree classes' compensation LAYER-SENSITIVE
     /// on Issue575 — the property the stale-span pins need (a wrong

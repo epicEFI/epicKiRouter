@@ -695,6 +695,7 @@ mod tests {
     use crate::components::BoardLibrary;
     use crate::items::FixedState;
     use crate::rules_surf::ClearanceMatrix;
+    use crate::test_util::parse_board_from_path as parse_board;
     use epic_dsn::reader::{DsnReadResult, read_board};
     use epic_dsn::ses_board::SesBoard;
     use epic_geometry::int_point::IntPoint;
@@ -719,17 +720,6 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../scripts/benchmark/fixtures/PCBench/1Bitsy_1bitsy/unrouted.dsn"
     );
-
-    /// Parses a fixture through the epic-dsn reader and converts it.
-    fn parse_board(path: &str) -> Board {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let mut ses = SesBoard::new();
-        match read_board(bytes.as_slice(), &mut ses) {
-            DsnReadResult::Success { .. } => {}
-            other => panic!("expected Success for {path}, got {other:?}"),
-        }
-        Board::from_ses_board(&ses)
-    }
 
     /// Renders a tile in the spike's capture format (`oct[...]` /
     /// `box[...]`, the exact `fmt` helper of

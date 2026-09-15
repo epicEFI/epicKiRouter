@@ -316,8 +316,7 @@ mod tests {
     use super::*;
     use crate::board::ItemEntry;
     use crate::items::{BoardItemType, FixedState};
-    use epic_dsn::reader::{DsnReadResult, read_board};
-    use epic_dsn::ses_board::SesBoard;
+    use crate::test_util::{parse_board_from_path, parse_board_from_text};
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::polyline::Polyline;
 
@@ -384,27 +383,6 @@ mod tests {
     (wire (path F.Cu 250  80000 15000  80000 30000) (net MINE))\n\
   )\n\
 )\n";
-
-    /// Parses DSN text through the epic-dsn reader and converts it.
-    fn parse_text(text: &str) -> Board {
-        let mut ses = SesBoard::new();
-        match read_board(text.as_bytes(), &mut ses) {
-            DsnReadResult::Success { .. } => {}
-            other => panic!("expected Success, got {other:?}"),
-        }
-        Board::from_ses_board(&ses)
-    }
-
-    /// Parses a fixture file (the tree_manager test pattern).
-    fn parse_fixture(path: &str) -> Board {
-        let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("{path}: {e}"));
-        let mut ses = SesBoard::new();
-        match read_board(bytes.as_slice(), &mut ses) {
-            DsnReadResult::Success { .. } => {}
-            other => panic!("expected Success for {path}, got {other:?}"),
-        }
-        Board::from_ses_board(&ses)
-    }
 
     /// The default-tree manager over the board's items.
     fn indexed(board: &mut Board) -> SearchTreeManager {
@@ -503,7 +481,7 @@ mod tests {
     /// start=[1567:T,918:P] end=[1571:T]`, with `S_ALL` union rows.
     #[test]
     fn pic_start_end_and_union_contacts_match_the_capture() {
-        let mut board = parse_fixture(PIC_PROGRAMMER);
+        let mut board = parse_board_from_path(PIC_PROGRAMMER);
         let manager = indexed(&mut board);
 
         let trace_count = board
@@ -613,7 +591,7 @@ mod tests {
     /// `M_GUARD X=1376 point=1447800,-977900 point_form=[]`.
     #[test]
     fn pic_mid_corner_pair_and_guard() {
-        let mut board = parse_fixture(PIC_PROGRAMMER);
+        let mut board = parse_board_from_path(PIC_PROGRAMMER);
         let manager = indexed(&mut board);
 
         let (y, x) = (id(1372), id(1376));
@@ -670,7 +648,7 @@ mod tests {
     /// `P_PARSE_IDS E=4 F=7 F2=8 G=9 AREA=6`.
     #[test]
     fn pure_board_parse_state_matches_the_capture() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
 
         let e = id(4);
         assert_eq!(
@@ -739,7 +717,7 @@ mod tests {
     /// `P_FOREIGN_CANDIDATES point=20000,40000 layer=0 [4:T,3:P]`.
     #[test]
     fn foreign_net_contact_requires_ignore_net() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let manager = indexed(&mut board);
 
         let e = id(4);
@@ -780,7 +758,7 @@ mod tests {
     /// `P_AREA_CONTAINS area=6 F=true F2=true`.
     #[test]
     fn conduction_area_contacts_include_border_points() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let manager = indexed(&mut board);
 
         let contacts = start_contacts(&manager, &mut board, id(7));
@@ -820,7 +798,7 @@ mod tests {
     /// `P_KEEP_CANDIDATES point=80000,15000 layer=0 [9:T,2:K]`.
     #[test]
     fn keepout_is_candidate_but_never_contact() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let manager = indexed(&mut board);
 
         let g = id(9);
@@ -863,7 +841,7 @@ mod tests {
     /// `P_MID_CANDIDATES point=35000,55000 layer=0 [11:T,10:T]`.
     #[test]
     fn mid_corner_pair_is_excluded_by_the_kind_check() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let mut manager = indexed(&mut board);
 
         let a3 = insert_trace(
@@ -922,7 +900,7 @@ mod tests {
     /// `P_ORDER_CANDIDATES point=40000,40000 layer=0 [13:T,12:T,5:V]`.
     #[test]
     fn contacts_descend_by_id_with_via_and_trace_together() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let mut manager = indexed(&mut board);
 
         let (_, _, c3, d3) = insert_traps_through_d3(&mut board, &mut manager);
@@ -1006,7 +984,7 @@ mod tests {
     /// `P_UNION C3=12 all=[14:T,13:T,5:V]`.
     #[test]
     fn contacts_recompute_after_insertion_no_cache() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let mut manager = indexed(&mut board);
 
         // The full sequence through D3 so the ids match the capture.
@@ -1048,7 +1026,7 @@ mod tests {
     /// ta.sharesNetNo([1])=false ta.isObstacle(0)=true`.
     #[test]
     fn net_zero_traces_contact_each_other() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let mut manager = indexed(&mut board);
 
         // The full sequence through H so ta/tb land on 15/16.
@@ -1101,33 +1079,12 @@ mod tests {
     /// (lines 105-109), `PC1_MID_B3 11 ... start=[] end=[]` (103-104).
     #[test]
     fn compensation_flip_leaves_membership_unchanged() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
         let mut manager = indexed(&mut board);
 
-        let a3 = insert_trace(
-            &mut board,
-            &mut manager,
-            &[ip(30_000, 50_000), ip(35_000, 55_000), ip(40_000, 50_000)],
-            &[1],
-        );
-        let b3 = insert_trace(
-            &mut board,
-            &mut manager,
-            &[ip(35_000, 55_000), ip(35_000, 60_000)],
-            &[1],
-        );
-        let c3 = insert_trace(
-            &mut board,
-            &mut manager,
-            &[ip(40_000, 40_000), ip(50_000, 40_000)],
-            &[1],
-        );
-        let d3 = insert_trace(
-            &mut board,
-            &mut manager,
-            &[ip(60_000, 40_000), ip(40_000, 40_000)],
-            &[1],
-        );
+        // Full sequence (A3..H, ids 10..14) via the shared helper —
+        // same shape as the re-query test, same absolute ids.
+        let (a3, b3, c3, d3) = insert_traps_through_d3(&mut board, &mut manager);
         let h = insert_trace(
             &mut board,
             &mut manager,
@@ -1165,12 +1122,13 @@ mod tests {
     /// captured indirectly (pin 3 IS a contact of E's start under
     /// `ignore_net=true`, which requires `shares_layer(pin, trace)`),
     /// the cross-layer row by M_PAIR; the outline interval
-    /// `0..layerCount-1` is the Java constructor anchor
-    /// (`BoardOutline.java:29-48`) — unobservable through contacts
-    /// (outlines are never contacts), pinned at the accessor level.
+    /// `0..layerCount-1` is the `firstLayer()`/`lastLayer()`
+    /// override anchor (`BoardOutline.java:99-108`) — unobservable
+    /// through contacts (outlines are never contacts), pinned at the
+    /// accessor level.
     #[test]
     fn item_layer_spans_by_kind() {
-        let mut board = parse_text(PURE_DSN);
+        let mut board = parse_board_from_text(PURE_DSN);
 
         // Drill span (pin 3, via 5) and the flat kinds.
         for drill_id in [3u32, 5] {

@@ -165,8 +165,16 @@ public final class ContactsSpike {
     return result;
   }
 
-  /** The contact rows for one trace (prefix distinguishes re-dumps). */
+  /** The contact rows for one trace (prefix distinguishes re-dumps).
+   * Null-safe: a null trace (signature-map miss after a parse or
+   * normalize divergence) prints clean rows instead of an NPE that
+   * would truncate every later capture section. */
   static void dumpTraceRows(String prefix, PolylineTrace trace) {
+    if (trace == null) {
+      System.out.println(prefix + " id=null (lookup failed)");
+      System.out.println(prefix + "_ALL id=null (lookup failed)");
+      return;
+    }
     System.out.println(prefix + " " + trace.getId() + " " + trace.getLayer()
         + " first=" + xy(trace.firstCorner()) + " last=" + xy(trace.lastCorner())
         + " start=" + contacts(trace.getStartContacts())
@@ -422,10 +430,20 @@ public final class ContactsSpike {
     PolylineTrace a1 = bySignature.get("10000,10000|20000,20000|2");
     PolylineTrace a2 = bySignature.get("20000,20000|30000,10000|2");
     PolylineTrace b = bySignature.get("20000,20000|20000,30000|2");
+    // C's original signature (40000,40000 -> 50000,40000): absent
+    // post-normalize when removeIfCycle removed it. D's (60000,40000
+    // -> 40000,40000): the re-inserted copy, expected as id 14. Both
+    // INTERPOLATED so a divergence prints the real state, not the
+    // recorded narrative.
+    PolylineTrace cAfter = bySignature.get("40000,40000|50000,40000|2");
+    PolylineTrace dAfter = bySignature.get("60000,40000|40000,40000|2");
     System.out.println("C_NORMALIZE_SPLIT A=4 -> [" + idOf(a1) + " " + idOf(a2)
         + "] (the bent trace split where B's endpoint lands); "
-        + "C=6 removed by removeIfCycle, D=7 re-inserted as id 14 "
-        + "(classification: missing feature, ledgered dsn-0151 class)");
+        + (cAfter == null
+            ? "C=6 removed by removeIfCycle"
+            : "C=6 still present as id " + cAfter.getId())
+        + ", D=7 re-inserted as id " + idOf(dAfter)
+        + " (classification: missing feature, ledgered dsn-0151 class)");
     // B now contacts BOTH halves (each has (20000,20000) as its own
     // endpoint) — descending id, and never itself.
     dumpTraceRows("C_MID_B", b);

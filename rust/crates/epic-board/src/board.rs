@@ -352,9 +352,10 @@ impl Board {
     /// ([`Board::drill_first_layer`]), the flat kinds (Trace,
     /// ObstacleArea, ConductionArea, ComponentOutline) are
     /// `(layer, layer)`, and `BoardOutline` spans `0` to the layer
-    /// count minus one (its Java constructor hardcodes that interval,
-    /// `BoardOutline.java:29-48`). `None` for a missing id (Java
-    /// would NPE; unreachable through the contacts seam).
+    /// count minus one (the `firstLayer()`/`lastLayer()` overrides
+    /// hardcode that interval, `BoardOutline.java:99-108`). `None`
+    /// for a missing id (Java would NPE; unreachable through the
+    /// contacts seam).
     pub fn item_first_layer(&mut self, id: ItemId) -> Option<i32> {
         match &self.get(id)?.data {
             ItemData::Trace { layer, .. }

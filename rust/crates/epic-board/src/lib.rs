@@ -35,3 +35,6 @@ pub mod rules_surf;
 pub mod tree_manager;
 pub mod tree_shapes;
 pub mod undo;
+
+#[cfg(test)]
+pub(crate) mod test_util;
