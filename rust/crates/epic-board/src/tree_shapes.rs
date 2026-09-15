@@ -291,8 +291,15 @@ pub fn drill_tree_shapes(
             result.push(None);
             continue;
         };
-        let layer = board.drill_shape_layer(id, index).unwrap_or(0);
-        let item_class = board.item_clearance_class(id).unwrap_or(0);
+        // Structurally guaranteed: shapes resolved for this index means
+        // the drill span and the arena entry exist (T7 quality review
+        // NIT-3) — expect, never a silent 0.
+        let layer = board
+            .drill_shape_layer(id, index)
+            .expect("a drill item with shapes has a layer span");
+        let item_class = board
+            .item_clearance_class(id)
+            .expect("an arena entry always carries its clearance class");
         let offset_width = {
             let rules = board.rules();
             clearance_compensation_value(rules, item_class, compensated_class, layer)
@@ -528,8 +535,15 @@ fn obstacle_tree_shapes(
         // Java :913-915 — a null split yields new TileShape[0].
         return Vec::new();
     };
-    let layer = board.area_layer(id).unwrap_or(0);
-    let item_class = board.item_clearance_class(id).unwrap_or(0);
+    // Structurally guaranteed: the convex split resolved means the
+    // arena entry (and its area layer) exists (T7 quality review
+    // NIT-3).
+    let layer = board
+        .area_layer(id)
+        .expect("an area item with a convex split has a layer");
+    let item_class = board
+        .item_clearance_class(id)
+        .expect("an arena entry always carries its clearance class");
     let max_width = max_tree_shape_width(board);
     let mut tree_shapes: Vec<Option<TileShape>> = Vec::new();
     for convex in convex_shapes {
@@ -568,7 +582,9 @@ fn outline_tree_shapes(
     let Some(keepout_outside) = board.outline_keepout_outside_generated(id) else {
         return Vec::new();
     };
-    let item_class = board.item_clearance_class(id).unwrap_or(0);
+    let item_class = board
+        .item_clearance_class(id)
+        .expect("an arena entry always carries its clearance class");
     let layer_count = board.layers().layers.len();
     if keepout_outside {
         let Some(area) = board.outline_keepout_area(id) else {

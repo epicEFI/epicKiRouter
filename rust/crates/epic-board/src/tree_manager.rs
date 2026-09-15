@@ -51,6 +51,7 @@ use epic_index::{NodeIdx, SearchTree, SearchTreeVariant};
 
 use crate::board::Board;
 use crate::id::ItemId;
+use crate::items::ItemData;
 use crate::rules_surf::AngleRestriction;
 
 /// Manages the search trees used in the auto-router (Java
@@ -277,6 +278,17 @@ impl SearchTreeManager {
     /// the tests (`keepout_outside_reinsert_computes_the_area_branch`,
     /// `remove_clears_the_tree_shape_cache_between_out_and_in`).
     pub fn generate_keepout_outside(&mut self, board: &mut Board, id: ItemId, value: bool) {
+        // Java's method lives ON `BoardOutline` (`BoardOutline.java:234`)
+        // — a non-outline id cannot even call it. The flag guard alone
+        // would let a foreign id through to the broadcast insert (T7
+        // quality review NIT-2), so the kind check restores the type
+        // restriction.
+        if !matches!(
+            board.get(id).map(|entry| &entry.data),
+            Some(ItemData::BoardOutline { .. })
+        ) {
+            return;
+        }
         if board.outline_keepout_outside_generated(id) == Some(value) {
             // Java :235-237.
             return;

@@ -691,9 +691,14 @@ public final class TreeShapesSpike {
     // The keepoutOutside branches on a REAL parse: the read inserted the
     // outline into the DEFAULT tree, so its line shapes are already
     // cached; generateKeepoutOutside does remove+insert with NO
-    // derived-data clear (BoardOutline.java:234-244), so the default
-    // tree's re-read serves the STALE line shapes (pin-failure-mode 6),
-    // while a FRESH tree identity computes the AREA branch.
+    // derived-data clear (BoardOutline.java:234-244) — BUT the manager's
+    // remove NULLS the whole searchTreesInfo container
+    // (Item.java:1078-1080), so the post-flip default tree RECOMPUTES
+    // and serves the fresh AREA shapes, same as a fresh tree identity.
+    // Captured: Issue575 flips 8 line octagons -> 8 value-different
+    // area octagons; Issue054 flips 132 -> 136 shapes (bug-094: an
+    // earlier port reading assumed STALE line shapes here and was
+    // disproved by exactly this capture).
     if (outline != null) {
       ShapeSearchTree defaultTree = board.searchTreeManager.getDefaultTree();
       System.out.println(
@@ -707,7 +712,7 @@ public final class TreeShapesSpike {
               + outline.getHalfWidth());
       dumpKindShapes("default-parse", defaultTree, board, outline);
       outline.generateKeepoutOutside(true);
-      dumpKindShapes("default-after-flip-stale", defaultTree, board, outline);
+      dumpKindShapes("default-after-flip-area", defaultTree, board, outline);
       dumpKindShapes("fresh45-after-flip-area", new ShapeSearchTree45Degree(board, 0), board, outline);
     }
   }

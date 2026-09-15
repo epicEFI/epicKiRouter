@@ -237,6 +237,14 @@ impl Board {
         let mut removed = self.items.remove(&Reverse(id));
         if let Some(entry) = removed.as_mut() {
             entry.on_the_board = false;
+            // The per-tree SHAPE cache must not outlive the arena slot
+            // (T7 quality review NIT-4): in Java the item OBJECT goes
+            // unreachable with its caches when the list drops it. Ids
+            // are never reused, so this is pure hygiene against a
+            // future delete flow — but the DRILL-SPAN memo stays: a
+            // Java item re-inserted by undo keeps its precalculated
+            // span (remove does not call clearDerivedData).
+            self.shape_precalc.remove(&id);
             self.revision += 1;
         }
         removed
