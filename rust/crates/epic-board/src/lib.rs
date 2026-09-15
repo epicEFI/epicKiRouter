@@ -20,10 +20,14 @@
 //! T55 drill-hole inflation feeding a tree's per-item shapes,
 //! jar-pinned by `rust/harness/oracle/TreeShapesSpike.java`) and
 //! [`tree_manager`] (the tree set and the insert/remove/rebuild
-//! broadcast, T58/T59).
+//! broadcast, T58/T59). Task 10 adds [`contacts`] — the trace
+//! CONTACTS seam (`Trace.getNormalContacts` and its start/end/union
+//! wrappers), compute-on-demand over the query surface, jar-pinned
+//! by `rust/harness/oracle/ContactsSpike.java`.
 
 pub mod board;
 pub mod components;
+pub mod contacts;
 pub mod id;
 pub mod items;
 pub mod layers;

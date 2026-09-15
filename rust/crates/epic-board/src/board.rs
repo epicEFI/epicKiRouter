@@ -345,6 +345,43 @@ impl Board {
         Some(first_layer)
     }
 
+    /// Java `Item.firstLayer()` for every kind — the layer-interval
+    /// lower bound backing [`crate::contacts::items_share_layer`]
+    /// (`Item.sharesLayer`, `Item.java:313-318`). Per kind:
+    /// Pin/Via take the memoized padstack span
+    /// ([`Board::drill_first_layer`]), the flat kinds (Trace,
+    /// ObstacleArea, ConductionArea, ComponentOutline) are
+    /// `(layer, layer)`, and `BoardOutline` spans `0` to the layer
+    /// count minus one (its Java constructor hardcodes that interval,
+    /// `BoardOutline.java:29-48`). `None` for a missing id (Java
+    /// would NPE; unreachable through the contacts seam).
+    pub fn item_first_layer(&mut self, id: ItemId) -> Option<i32> {
+        match &self.get(id)?.data {
+            ItemData::Trace { layer, .. }
+            | ItemData::ObstacleArea { layer, .. }
+            | ItemData::ConductionArea { layer, .. }
+            | ItemData::ComponentOutline { layer, .. } => Some(*layer),
+            ItemData::Pin { .. } | ItemData::Via { .. } => self.drill_first_layer(id),
+            ItemData::BoardOutline { .. } => Some(0),
+            ItemData::Other => None,
+        }
+    }
+
+    /// Java `Item.lastLayer()` — the interval upper bound of
+    /// [`Board::item_first_layer`] (BoardOutline ends at the layer
+    /// count minus one).
+    pub fn item_last_layer(&mut self, id: ItemId) -> Option<i32> {
+        match &self.get(id)?.data {
+            ItemData::Trace { layer, .. }
+            | ItemData::ObstacleArea { layer, .. }
+            | ItemData::ConductionArea { layer, .. }
+            | ItemData::ComponentOutline { layer, .. } => Some(*layer),
+            ItemData::Pin { .. } | ItemData::Via { .. } => self.drill_last_layer(id),
+            ItemData::BoardOutline { .. } => Some(self.layers().layers.len() as i32 - 1),
+            ItemData::Other => None,
+        }
+    }
+
     /// Java `DrillItem.lastLayer()` (`DrillItem.java:174-185`) — the
     /// memoized counterpart of [`Board::drill_first_layer`].
     pub fn drill_last_layer(&mut self, id: ItemId) -> Option<i32> {

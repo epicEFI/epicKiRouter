@@ -407,7 +407,7 @@ impl SearchTreeManager {
     /// by `slot_zero_is_the_default_tree_through_every_manager_mutation`).
     /// [`Self::default_tree`] hands out the reference; query methods
     /// that take a `tree_index` use this constant for the same slot.
-    const DEFAULT_TREE_INDEX: usize = 0;
+    pub(crate) const DEFAULT_TREE_INDEX: usize = 0;
 
     /// Java `overlappingTreeEntries(shape, layer, ignoreNetNos, list)`
     /// (`ShapeSearchTree.java:390-434`) — the plain query on tree

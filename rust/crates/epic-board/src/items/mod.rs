@@ -37,6 +37,7 @@ use epic_geometry::circle::Circle;
 use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
+use epic_geometry::point::Point;
 use epic_geometry::polygon_shape::PolygonShape;
 use epic_geometry::polyline::Polyline;
 use epic_geometry::regular_tile_shape::RegularTileShape;
@@ -148,6 +149,36 @@ impl Area {
             border,
             holes: Vec::new(),
         }
+    }
+
+    /// Java `Area.contains(Point)` — the `ConductionArea` acceptance
+    /// test of the contacts seam (`Trace.getNormalContacts`,
+    /// `Trace.java:196-197`). Two shapes of "area" meet here:
+    ///
+    /// * a HOLE-FREE area is the boundary shape ITSELF (Java `Shape
+    ///   extends Area`; the parser returns `boundaryShape` directly
+    ///   when `holeCount == 0`, `io/specctra/parser/Shape.java:537-541`),
+    ///   so containment is the border's own `contains` — BORDER
+    ///   POINTS COUNT AS CONTAINED;
+    /// * a HOLED area is a `PolylineArea` (`PolylineArea.java:92-101`):
+    ///   the border must contain the point AND no hole may
+    ///   CONTAIN-INSIDE it — a point ON a hole's border stays IN the
+    ///   area (`containsInside`, not `contains`, on the holes).
+    #[must_use]
+    pub fn contains_point(&self, point: &Point) -> bool {
+        let border_contains = match &self.border {
+            BoardShape::Tile(tile) => tile.contains_point(point),
+            BoardShape::PolygonShape(polygon) => polygon.contains_point(point),
+            BoardShape::Circle(circle) => circle.contains_point(point),
+        };
+        if !border_contains {
+            return false;
+        }
+        self.holes.iter().all(|hole| !match hole {
+            BoardShape::Tile(tile) => tile.contains_inside(point),
+            BoardShape::PolygonShape(polygon) => polygon.contains_inside(point),
+            BoardShape::Circle(circle) => circle.contains_inside(point),
+        })
     }
 }
 
