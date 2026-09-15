@@ -508,6 +508,14 @@ impl Board {
         }
     }
 
+    /// Java `Item.setFixedState(FixedState)` (`Item.java:891-893`):
+    /// the plain setter.
+    pub fn set_item_fixed(&mut self, id: ItemId, fixed: FixedState) {
+        if let Some(entry) = self.items.get_mut(&Reverse(id)) {
+            entry.fixed = fixed;
+        }
+    }
+
     /// Java `Item.isOnTheBoard()`.
     #[must_use]
     pub fn is_on_the_board(&self, id: ItemId) -> bool {

@@ -269,6 +269,67 @@ impl Polyline {
         Polyline::new(reversed_lines)
     }
 
+    /// Splits this polyline at the line with index `line_index` into
+    /// two by inserting `end_line` as the concluding line of the first
+    /// split piece and as the start line of the second split piece
+    /// (Java `Polyline.split(int, Line)`, `Polyline.java:758-829`).
+    /// `end_line` and the line with index `line_index` must not be
+    /// parallel. The order of the lines in the two result pieces is
+    /// preserved. `1 <= line_index <= lines.len() - 2`. `None` where
+    /// Java returns null: out-of-range index, parallel end line, an
+    /// end line that only TOUCHES a polyline end point, or a piece
+    /// that collapses in the canonicalizing constructor (`isPoint`).
+    ///
+    /// The zero-length skips: when the new end corner equals
+    /// `corner(line_index - 1)` the first piece omits `end_line` (its
+    /// last segment would have length 0), and when it equals
+    /// `corner(line_index)` the second piece omits it. The touch-only
+    /// guard uses the JAVA operator precedence verbatim —
+    /// `(lineIndex == 1 && first) || (lineIndex >= length - 2 && last)`
+    /// — the two conjuncts bind tighter than the disjunction.
+    pub fn split(&self, line_index: i32, end_line: &Line) -> Option<[Polyline; 2]> {
+        let length = self.lines.len() as i32;
+        if line_index < 1 || line_index > length - 2 {
+            // Java: FRLogger.warn("Polyline.split: lineIndex out of range")
+            return None;
+        }
+        let index = line_index as usize;
+        if self.lines[index].is_parallel(end_line) {
+            return None;
+        }
+        // Java's `Line.intersection` never returns null (parallel pairs
+        // yield an infinite RationalPoint, excluded by the guard above);
+        // the Rust finite-point form maps the unreachable parallel case
+        // to `None`.
+        let new_end_corner = self.lines[index].intersection(end_line)?;
+        // No split, if endLine does not intersect, but touches
+        // only this Polyline at an end point.
+        if (line_index == 1 && self.first_corner().as_ref() == Some(&new_end_corner))
+            || (line_index >= length - 2 && self.last_corner().as_ref() == Some(&new_end_corner))
+        {
+            return None;
+        }
+        let mut first_piece: Vec<Line> = self.lines[..index + 1].to_vec();
+        if self.corner(line_index - 1).as_ref() != Some(&new_end_corner) {
+            // skip line segment of length 0 at the end of the first piece
+            first_piece.push(end_line.clone());
+        }
+        let mut second_piece: Vec<Line> = Vec::with_capacity(self.lines.len() - index + 1);
+        if self.corner(line_index).as_ref() == Some(&new_end_corner) {
+            // skip line segment of length 0 at the beginning of the
+            // second piece
+        } else {
+            second_piece.push(end_line.clone());
+        }
+        second_piece.extend_from_slice(&self.lines[index..]);
+        let result0 = Polyline::new(first_piece);
+        let result1 = Polyline::new(second_piece);
+        if result0.is_point() || result1.is_point() {
+            return None;
+        }
+        Some([result0, result1])
+    }
+
     /// Calculates the length of this polyline from `requested_from_corner`
     /// to `requested_to_corner` (Java `lengthApprox(int, int)`).
     pub fn length_approx(&self, requested_from_corner: i32, requested_to_corner: i32) -> f64 {
@@ -1123,5 +1184,96 @@ mod tests {
         assert_eq!(moved.corner(0).expect("exists"), p(5, -3));
         let turned = pl.turn_90_degree(1, &IntPoint::new(0, 0));
         assert_eq!(turned.length_approx_total(), 20.0);
+    }
+
+    // -----------------------------------------------------------------
+    // Polyline.split(int, Line) — the Java trap surface
+    // (Polyline.java:758-829). Jar-verified against SplitSpike's X1
+    // rows: an interior split receives the OTHER segment's middle line
+    // (receiver-asymmetric LineSegment.intersection), never a line
+    // parallel to the perpendicular end phantoms.
+    // -----------------------------------------------------------------
+
+    /// The X1 geometry: A = (3,2)-(5,2), split by B's vertical line
+    /// x=4 at line index 1. Both pieces keep their perpendicular
+    /// phantoms (3 lines each) — capture rows
+    /// `X1_RESULT size=2 [14:[30000,20000 40000,20000]
+    /// 15:[40000,20000 50000,20000]]`, scaled by 10.
+    #[test]
+    fn interior_split_keeps_both_pieces() {
+        let pl = from_int_corners(&[(30000, 20000), (50000, 20000)]);
+        let end_line = Line::new(p(40000, 10000), p(40000, 30000));
+        let [first, second] = pl.split(1, &end_line).expect("the X1 split succeeds");
+        assert_eq!(first.corners(), vec![p(30000, 20000), p(40000, 20000)]);
+        assert_eq!(second.corners(), vec![p(40000, 20000), p(50000, 20000)]);
+        assert_eq!(first.lines.len(), 3);
+        assert_eq!(second.lines.len(), 3);
+    }
+
+    /// The guard ladder: out-of-range indices, a parallel end line,
+    /// and the touch-only rejects at both polyline end points
+    /// (Java `:753-760` / `:764-771`, precedence
+    /// `(li == 1 && first) || (li >= len - 2 && last)`).
+    #[test]
+    fn split_guards_reject() {
+        let pl = from_int_corners(&[(30000, 20000), (50000, 20000)]);
+        let vert = Line::new(p(40000, 10000), p(40000, 30000));
+        let horiz = Line::new(p(10000, 20000), p(60000, 20000));
+        // Out of range: 0 and lines.length - 1.
+        assert!(pl.split(0, &vert).is_none(), "lineIndex < 1");
+        assert!(pl.split(2, &vert).is_none(), "lineIndex > length - 2");
+        // Parallel end line.
+        assert!(pl.split(1, &horiz).is_none());
+        // Touch-only at the first corner: lineIndex == 1 and the
+        // intersection equals corner 0.
+        let at_first = Line::new(p(30000, 10000), p(30000, 30000));
+        assert!(
+            pl.split(1, &at_first).is_none(),
+            "touch at the first corner"
+        );
+        // Touch-only at the last corner: lineIndex >= length - 2 and
+        // the intersection equals the last corner.
+        let at_last = Line::new(p(50000, 10000), p(50000, 30000));
+        assert!(pl.split(1, &at_last).is_none(), "touch at the last corner");
+    }
+
+    /// The zero-length skips (`:773-794`): an end line through
+    /// `corner(lineIndex - 1)` omits it from the first piece (which
+    /// then collapses and rejects the split), an end line through
+    /// `corner(lineIndex)` omits it from the second piece — the
+    /// split-at-existing-corner case yields an UNCHANGED tail piece.
+    #[test]
+    fn zero_length_skips() {
+        let pl = from_int_corners(&[(0, 0), (10000, 0), (10000, 5000), (20000, 5000)]);
+        // End line through corner(0) = (0,0) at lineIndex 1: the first
+        // piece skips the end line and collapses to 2 lines -> the
+        // whole split is None (the isPoint guard).
+        let through_first = Line::new(p(0, -1000), p(0, 5000));
+        assert!(
+            pl.split(1, &through_first).is_none(),
+            "corner(lineIndex - 1) skip collapses the first piece"
+        );
+        // End line through corner(1) = (10000,0) at lineIndex 1: the
+        // second piece is the unchanged tail lines[1..].
+        let through_corner1 = Line::new(p(10000, -1000), p(10000, 1000));
+        let [first, second] = pl
+            .split(1, &through_corner1)
+            .expect("corner split succeeds");
+        assert_eq!(first.corners(), vec![p(0, 0), p(10000, 0)]);
+        assert_eq!(
+            second.corners(),
+            vec![p(10000, 0), p(10000, 5000), p(20000, 5000)]
+        );
+    }
+
+    /// An interior perpendicular split of the L's vertical leg (not at
+    /// a corner): both pieces survive the canonicalizing constructor.
+    #[test]
+    fn interior_split_of_an_l_leg() {
+        let pl = from_int_corners(&[(0, 0), (10000, 0), (10000, 10000)]);
+        let mid = Line::new(p(0, 5000), p(20000, 5000));
+        let [first, second] = pl.split(2, &mid).expect("the leg split succeeds");
+        assert_eq!(first.corners(), vec![p(0, 0), p(10000, 0), p(10000, 5000)]);
+        assert_eq!(second.corners(), vec![p(10000, 5000), p(10000, 10000)]);
     }
 }

@@ -172,6 +172,9 @@
 use std::cmp::Reverse;
 use std::collections::BTreeSet;
 
+use epic_geometry::int_octagon::IntOctagon;
+use epic_geometry::line::Line;
+use epic_geometry::line_segment::LineSegment;
 use epic_geometry::point::Point;
 use epic_geometry::polyline::Polyline;
 use epic_geometry::regular_tile_shape::RegularTileShape;
@@ -1066,10 +1069,585 @@ pub fn insert_trace_without_cleaning(
     Some(id)
 }
 
+// ---------------------------------------------------------------------------
+// split (PolylineTrace.java:465-792) — the found/own seam
+// ---------------------------------------------------------------------------
+
+/// Java `PolylineTrace.split(IntOctagon)`
+/// (`PolylineTrace.java:465-691`): looks up traces intersecting this
+/// trace and splits them at the intersection points; on an overlap
+/// the traces are split at their first and last common point. Found
+/// cycles are removed. If nothing is split the result contains just
+/// `trace_id` — even when the trace was removed by a DRILL split and
+/// is off the board (`result.add(this)`, the DRL1 capture row
+/// `DRL1_RESULT size=1 [10:...]` + `DRL1_A_ON_BOARD false`).
+///
+/// # The loop shape (all traps jar-pinned by SplitSpike)
+///
+/// Per segment `i` (the loop bound is `i < lines.len() - 2`, INT
+/// arithmetic — segments of a trace with n stored lines are
+/// `0..n-3`): the clip bbox filter first (`:471-476`, an
+/// [`IntOctagon::intersects_box`] against the segment bounding box),
+/// then the receiver's tree shape for segment i — Java
+/// `getTreeShape`, which returns NULL once the trace has been
+/// REMOVED (its `searchTreesInfo` was dropped) and the 3-arg tree
+/// query on a null shape returns nothing — so a removed receiver
+/// falls through the remaining segments without action and ends in
+/// `result.add(this)` (the drill-split tail).
+///
+/// The ENTRY walk is a Java `Iterator` over a snapshot collection
+/// that is RE-FILLED in place after the first successful found-split
+/// (`:529-536` — "reread the overlapping tree entries and reset the
+/// iterator, because the board has changed"); the port walks an
+/// index over a re-queried [`Vec`]. The on-board check sits at the
+/// TOP of every entry iteration, BEFORE fetching the next entry
+/// (`:519-522`) — the DRL2 early-empty path (drill split as the
+/// FIRST entry: the removal happens mid-iteration, the next
+/// iteration returns the still-empty result).
+///
+/// Per entry: own-entry skips first (`:542-558` — the
+/// `[i-1, i+1]` neighbour window, then the zero-length corner
+/// equality, `i < foundIdx ? corner(i+1)==corner(foundIdx) :
+/// corner(foundIdx+1)==corner(i)`), the raw `sharesNet` gate (no
+/// `>0` guard — [`crate::contacts::shares_net_no`]), then the kind
+/// dispatch: `PolylineTrace` (found split with the receiver-asymmetric
+/// [`LineSegment::intersection`] — the FOUND segment is the RECEIVER
+/// of the query, so the returned line is the CURRENT segment's
+/// middle; the own split flips the receivers), `DrillItem` — the
+/// Java `instanceof DrillItem` catches Pin AND Via (`:600-606`): a
+/// perpendicular split through the drill center is executed with the
+/// result DISCARDED and `ownTraceSplit` stays false (DRL1: the
+/// deleted receiver itself ends up in the result; DRL2: early empty
+/// return) — and `ConductionArea` with the `!isUserFixed()` +
+/// ignore-cycles + BOTH-endpoint-contact guards (`:607-622`, AR1).
+/// The cycle removal after any split is TWO-PASS over `splitPieces`
+/// then `result` (`:560-596`) — "remove cycles in the own split
+/// pieces last to preserve them, if possible".
+///
+/// `board.additionalUpdateAfterChange` for results larger than one
+/// (`:631-635`) is observer-surface (D12) and not ported.
+pub fn split_clip(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    clip: Option<&IntOctagon>,
+) -> Vec<ItemId> {
+    let mut result: Vec<ItemId> = Vec::new();
+    let (polyline, layer, _half_width, nets, _fixed) = match trace_facts(board, trace_id) {
+        Some(facts) => facts,
+        // A REMOVED receiver is IN the contract: the own-split
+        // recursion (`:606-609`) calls `.split(clipShape)` on pieces
+        // the found-trace split has just deleted (X4: piece 12 dies in
+        // A's found-trace split before its own recursion runs). Java
+        // answers through the loop-top guard (`!isOnTheBoard()` ->
+        // `return result`) — an EMPTY collection; the
+        // `result.add(this)` tail is never reached. The arena lookup
+        // losing the item is exactly that state (X4L same).
+        None => return Vec::new(),
+    };
+    if !nets_normal(&nets) {
+        // only normal nets are split
+        result.push(trace_id);
+        return result;
+    }
+    let mut own_trace_split = false;
+    // Java: `i < this.lines.lines.length - 2` in INT arithmetic; the
+    // receiver's lines are stable through the loop (an own split
+    // breaks out, a found split never touches them).
+    for i in 0..polyline.lines.len().saturating_sub(2) {
+        if let Some(clip_shape) = clip {
+            let current_segment = segment_at(&polyline, i, trace_id, "split clip segment");
+            if !clip_shape.intersects_box(&current_segment.bounding_box()) {
+                continue;
+            }
+        }
+        // Java `getTreeShape(defaultTree, i)`: null once the receiver
+        // was removed (the drill path), and a null-shape tree query
+        // returns nothing (`ShapeSearchTree.java:394-397`) — so the
+        // remaining segments fall through silently. The Rust shape
+        // cache is refilled on demand, which Java does NOT do for the
+        // removed receiver, hence the explicit on-board gate.
+        let current_shape = if board.is_on_the_board(trace_id) {
+            let object_id = manager.default_tree().object_id();
+            let tree = manager.default_tree();
+            board
+                .tree_shape_precalc(
+                    trace_id,
+                    object_id,
+                    tree.variant,
+                    tree.compensated_clearance_class,
+                )
+                .get(i)
+                .cloned()
+                .flatten()
+        } else {
+            None
+        };
+        let Some(current_shape) = current_shape else {
+            continue;
+        };
+        let current_segment = segment_at(&polyline, i, trace_id, "split current segment");
+        // look for intersecting traces with the i-th line segment
+        let mut entries = manager.overlapping_tree_entries(
+            board,
+            SearchTreeManager::DEFAULT_TREE_INDEX,
+            &current_shape,
+            layer,
+            &[],
+        );
+        let mut entry_index = 0usize;
+        while entry_index < entries.len() {
+            if !board.is_on_the_board(trace_id) {
+                // this trace has been deleted in a cleanup operation
+                return result;
+            }
+            let found_entry = entries[entry_index];
+            entry_index += 1;
+            let Some(found_id) = SearchTreeManager::item_of_key(found_entry.object_key) else {
+                continue;
+            };
+            let found_idx = found_entry.shape_index_in_object as i32;
+            let found_nets = match board.get(found_id) {
+                Some(item) => item.nets.clone(),
+                None => continue,
+            };
+            if found_id == trace_id {
+                if found_idx >= i as i32 - 1 && found_idx <= i as i32 + 1 {
+                    // don't split own trace at this line or at neighbour lines
+                    continue;
+                }
+                // try to handle intermediate segments of length 0 by
+                // comparing end corners
+                if (i as i32) < found_idx {
+                    if polyline.corner(i as i32 + 1) == polyline.corner(found_idx) {
+                        continue;
+                    }
+                } else if polyline.corner(found_idx + 1) == polyline.corner(i as i32) {
+                    continue;
+                }
+            }
+            if !contacts::shares_net_no(&found_nets, &nets) {
+                continue;
+            }
+            let found_is_trace = matches!(
+                board.get(found_id).map(|entry| &entry.data),
+                Some(ItemData::Trace { .. })
+            );
+            if found_is_trace {
+                let found_lines = match board.trace_polyline(found_id) {
+                    Some(lines) => lines.clone(),
+                    None => continue,
+                };
+                let found_index = (found_entry.shape_index_in_object as usize)
+                    .min(found_lines.lines.len().saturating_sub(2));
+                let found_segment =
+                    segment_at(&found_lines, found_index, found_id, "split found segment");
+                let mut intersecting_lines = found_segment.intersection(&current_segment);
+                let mut split_pieces: Vec<ItemId> = Vec::new();
+                // try splitting the found trace first
+                let mut found_trace_split = false;
+                if found_id != trace_id {
+                    for line in &intersecting_lines {
+                        if let Some(pieces) =
+                            split_at_line(manager, board, found_id, found_index as i32 + 1, line)
+                        {
+                            for piece in pieces.into_iter().flatten() {
+                                found_trace_split = true;
+                                split_pieces.push(piece);
+                            }
+                            if found_trace_split {
+                                // reread the overlapping tree entries and reset
+                                // the iterator, because the board has changed
+                                entries = manager.overlapping_tree_entries(
+                                    board,
+                                    SearchTreeManager::DEFAULT_TREE_INDEX,
+                                    &current_shape,
+                                    layer,
+                                    &[],
+                                );
+                                entry_index = 0;
+                                break;
+                            }
+                        }
+                    }
+                    if !found_trace_split {
+                        split_pieces.push(found_id);
+                    }
+                }
+                // now try splitting the own trace — the RECEIVER flips
+                intersecting_lines = current_segment.intersection(&found_segment);
+                for line in &intersecting_lines {
+                    if let Some(pieces) =
+                        split_at_line(manager, board, trace_id, i as i32 + 1, line)
+                    {
+                        own_trace_split = true;
+                        // this trace was split itself into 2.
+                        if let Some(piece) = pieces[0] {
+                            result.extend(split_clip(manager, board, piece, clip));
+                        }
+                        if let Some(piece) = pieces[1] {
+                            result.extend(split_clip(manager, board, piece, clip));
+                        }
+                        break;
+                    }
+                }
+                if found_trace_split || own_trace_split {
+                    // something was split,
+                    // remove cycles containing a split piece
+                    // (Java pass 0 iterates splitPieces, pass 1 reassigns
+                    // the iterator over `result` — the two collections
+                    // are disjoint per pass).
+                    for piece in &split_pieces {
+                        remove_if_cycle(manager, board, *piece);
+                    }
+                    // remove cycles in the own split pieces last
+                    // to preserve them, if possible
+                    for piece in &result {
+                        remove_if_cycle(manager, board, *piece);
+                    }
+                }
+                if own_trace_split {
+                    break;
+                }
+            } else if matches!(
+                board.get(found_id).map(|entry| &entry.data),
+                Some(ItemData::Pin { .. }) | Some(ItemData::Via { .. })
+            ) {
+                // Java `instanceof DrillItem`: Pin AND Via.
+                let split_point = drill_center(board, found_id);
+                if let Some(split_point) = split_point
+                    && current_segment.contains(&split_point)
+                {
+                    let split_line = Line::new_with_direction(
+                        split_point,
+                        current_segment.get_line().direction().turn_45_degree(2),
+                    );
+                    // the split result is DISCARDED — ownTraceSplit
+                    // stays false (DRL1/DRL2).
+                    split_at_line(manager, board, trace_id, i as i32 + 1, &split_line);
+                }
+            } else if !board.get(trace_id).is_some_and(is_user_fixed)
+                && matches!(
+                    board.get(found_id).map(|entry| &entry.data),
+                    Some(ItemData::ConductionArea { .. })
+                )
+            {
+                let ignore_areas = board
+                    .get(trace_id)
+                    .and_then(|entry| entry.nets.first().copied())
+                    .and_then(|net_no| board.rules().nets.get(net_no).map(|net| net.net_class))
+                    .is_some_and(|class_no| {
+                        board
+                            .rules()
+                            .net_class(class_no)
+                            .is_some_and(NetClass::ignore_cycles_with_areas)
+                    });
+                let start = contacts::start_contacts(manager, board, trace_id);
+                let end = contacts::end_contacts(manager, board, trace_id);
+                if !ignore_areas && start.contains(&found_id) && end.contains(&found_id) {
+                    // this trace can be removed because of cycle with
+                    // conduction area
+                    remove_item_through_repository(manager, board, trace_id);
+                    return result;
+                }
+            }
+        }
+        if own_trace_split {
+            break;
+        }
+    }
+    if !own_trace_split {
+        result.push(trace_id);
+    }
+    if result.len() > 1 {
+        // board.additionalUpdateAfterChange(currentItem) for every
+        // result item (:631-635) — observer surface, D12.
+    }
+    result
+}
+
+/// The `LineSegment(lines, i + 1)` construction — the middle line is
+/// the i-th SEGMENT line. `context` only sharpens the unreachable
+/// out-of-range case (Java would throw).
+fn segment_at(lines: &Polyline, i: usize, id: ItemId, context: &str) -> LineSegment {
+    let end = i + 2;
+    assert!(
+        end < lines.lines.len(),
+        "segment {i} out of range for trace {} ({context})",
+        id.get()
+    );
+    LineSegment::new(
+        lines.lines[i].clone(),
+        lines.lines[i + 1].clone(),
+        lines.lines[end].clone(),
+    )
+}
+
+/// The center of a drill item (Java `DrillItem.getCenter()`): a Via
+/// stores its center; a Pin derives it from the component placement
+/// ([`Board::pin_center`]).
+fn drill_center(board: &Board, id: ItemId) -> Option<Point> {
+    match board.get(id).map(|entry| &entry.data) {
+        Some(ItemData::Via { center, .. }) => Some(Point::Int(*center)),
+        Some(ItemData::Pin { .. }) => board.pin_center(id),
+        _ => None,
+    }
+}
+
+/// Java `Trace.split(Point)` (`:699-712`): splits this trace into two
+/// at `point` — a PERPENDICULAR split line (`direction.turn45Degree(2)`)
+/// through the first segment containing the point. `None` where Java
+/// returns null (the point lies on no segment, or every candidate
+/// split was refused).
+pub fn split_at_point(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    point: &Point,
+) -> Option<[Option<ItemId>; 2]> {
+    let polyline = board.trace_polyline(trace_id)?.clone();
+    for i in 0..polyline.lines.len().saturating_sub(2) {
+        let current_segment = segment_at(&polyline, i, trace_id, "split at point");
+        if current_segment.contains(point) {
+            let split_line = Line::new_with_direction(
+                point.clone(),
+                current_segment.get_line().direction().turn_45_degree(2),
+            );
+            if let Some(result) = split_at_line(manager, board, trace_id, i as i32 + 1, &split_line)
+            {
+                return Some(result);
+            }
+        }
+    }
+    None
+}
+
+/// Java `PolylineTrace.split(int lineIndex, Line newEndLine)`
+/// (`:719-760`) — the private mutation seam. Guard ladder: off-board
+/// -> null; deletion-forbidden -> null (splitting would leave the
+/// original on the board AND insert duplicate pieces, so
+/// normalizeTraces would never converge); the polyline split -> null;
+/// the pad prohibition -> null. THEN remove + re-insert both pieces
+/// preserving layer, half width, nets, clearance class and fixed
+/// state. A piece can legitimately be `None` with the OTHER piece
+/// inserted (insertTraceWithoutCleaning refuses a closed piece below
+/// USER_FIXED and still burns the id — the PAD4 capture row
+/// `SPLIT_POINT [11:[...] null]`).
+fn split_at_line(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    line_index: i32,
+    new_end_line: &Line,
+) -> Option<[Option<ItemId>; 2]> {
+    if !board.is_on_the_board(trace_id) {
+        return None;
+    }
+    if is_deletion_forbidden(board, trace_id) {
+        return None;
+    }
+    let (polyline, layer, half_width, nets, fixed) = trace_facts(board, trace_id)?;
+    let split_polylines = polyline.split(line_index, new_end_line)?;
+    // Java also warns-and-returns on `splitPolylines.length != 2`;
+    // the Rust [`Polyline::split`] returns exactly two or `None`.
+    if split_inside_drill_pad_prohibited(manager, board, trace_id, line_index, new_end_line) {
+        return None;
+    }
+    // Java reads `clearanceClassIndex()` on the trace OBJECT AFTER the
+    // removal (`:740`/`:748`) — but removal only detaches the object,
+    // its field survives. The arena lookup would return None here, so
+    // the value is captured BEFORE the removal instead (same value).
+    let clearance_class = board.item_clearance_class(trace_id).unwrap_or(0);
+    remove_item_through_repository(manager, board, trace_id);
+    let piece0 = insert_trace_without_cleaning(
+        manager,
+        board,
+        split_polylines[0].clone(),
+        layer,
+        half_width,
+        &nets,
+        clearance_class,
+        fixed,
+    );
+    let piece1 = insert_trace_without_cleaning(
+        manager,
+        board,
+        split_polylines[1].clone(),
+        layer,
+        half_width,
+        &nets,
+        clearance_class,
+        fixed,
+    );
+    Some([piece0, piece1])
+}
+
+/// Java `splitInsideDrillPadProhibited(int, Line)` (`:768-792`): is
+/// the intersection of the `line_index`-th line with `line` inside
+/// the pad of a PIN? The split is allowed only at the pin CENTER or
+/// at a same-net trace ENDPOINT. Returns true (prohibited) when a
+/// same-net pin's pad was found without either allowance.
+///
+/// Bugs kept deliberately (jar-pinned PAD1-PAD6):
+/// * the kind test is `instanceof Pin` ONLY — a Via at the split
+///   point is IGNORED despite the Java doc comment saying "drill
+///   item";
+/// * the trace-endpoint precedence quirk: Java
+///   `currentTrace != this && first.equals(isect) || last.equals(isect)`
+///   parses as `(currentTrace != this && first.equals(isect)) ||
+///   last.equals(isect)` — the RECEIVER's OWN last corner at the
+///   intersection ALLOWS a split inside a foreign pin's pad (the
+///   PAD4 row `SPLIT_POINT [11:[...] null]` only exists through this
+///   quirk).
+/// * the net gate is the raw [`contacts::shares_net_no`] — a pin on a
+///   foreign net is skipped entirely (PAD1: the split PROCEEDS inside
+///   the foreign pad).
+fn split_inside_drill_pad_prohibited(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    line_index: i32,
+    line: &Line,
+) -> bool {
+    let Some(polyline) = board.trace_polyline(trace_id) else {
+        return false;
+    };
+    let polyline = polyline.clone();
+    let Some(index) = usize::try_from(line_index)
+        .ok()
+        .filter(|&idx| idx < polyline.lines.len())
+    else {
+        // Java would throw AIOOBE; unreachable through the callers.
+        return false;
+    };
+    // Java's Line.intersection never returns null (parallel pairs are
+    // excluded by the caller's isParallel guard); the finite form
+    // maps the unreachable parallel case to "not prohibited".
+    let Some(intersection) = polyline.lines[index].intersection(line) else {
+        return false;
+    };
+    let Some(layer) = board.trace_layer(trace_id) else {
+        return false;
+    };
+    let nets = match board.get(trace_id) {
+        Some(entry) => entry.nets.clone(),
+        None => return false,
+    };
+    let overlap_items = manager.pick_items(board, &intersection, layer);
+    let mut pad_found = false;
+    for item_id in overlap_items {
+        let (item_nets, item_is_pin, item_is_trace) = match board.get(item_id) {
+            Some(entry) => (
+                entry.nets.clone(),
+                matches!(entry.data, ItemData::Pin { .. }),
+                matches!(entry.data, ItemData::Trace { .. }),
+            ),
+            None => continue,
+        };
+        if !contacts::shares_net_no(&item_nets, &nets) {
+            continue;
+        }
+        if item_is_pin {
+            if let Some(center) = board.pin_center(item_id)
+                && center == intersection
+            {
+                return false; // split always at the center of a drill item.
+            }
+            pad_found = true;
+        } else if item_is_trace {
+            let (first, last) = match board.trace_polyline(item_id) {
+                Some(lines) => (first_corner(lines), last_corner(lines)),
+                None => (None, None),
+            };
+            // The precedence quirk above — parens are JAVA's, not the
+            // "obvious" reading.
+            if (item_id != trace_id && first.as_ref() == Some(&intersection))
+                || last.as_ref() == Some(&intersection)
+            {
+                return false;
+            }
+        }
+    }
+    pad_found
+}
+
+// ---------------------------------------------------------------------------
+// normalize (PolylineTraceNormalization.java)
+// ---------------------------------------------------------------------------
+
+/// Java `PolylineTraceNormalization.MAX_NORMALIZATION_DEPTH`.
+pub const MAX_NORMALIZATION_DEPTH: i32 = 16;
+
+/// Java `PolylineTrace.normalize(IntOctagon)` — the entry point at
+/// depth 0 (`PolylineTraceNormalization.java:20-22`).
+pub fn normalize(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    clip: Option<&IntOctagon>,
+) -> bool {
+    normalize_rec(manager, board, trace_id, clip, 0)
+}
+
+/// Java `PolylineTraceNormalization.normalize(trace, clip, depth)`
+/// (`:24-132`). `depth > 16` returns FALSE with the trace kept
+/// (`:26-41`; the FRLogger.debug line is D12) — STRICTLY greater:
+/// depth 16 still normalizes. The result starts as
+/// `splitPieces.size() != 1` and can only be forced true afterwards.
+/// Per piece, in split order: combine first, then — checked BEFORE
+/// the combine else-if — the degenerate removal (`cornerCount == 2`
+/// and `first == last`), gated on `!isDeletionForbidden` (a
+/// USER_FIXED degenerate is kept silently, NORM1; the UNFIXED one is
+/// removed, NORM2); else if combined, recurse at `depth + 1` and
+/// force the result true (NORM3). The observer brackets (`:49-57`,
+/// `:128-130`) are D12.
+fn normalize_rec(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    clip: Option<&IntOctagon>,
+    normalization_depth: i32,
+) -> bool {
+    if normalization_depth > MAX_NORMALIZATION_DEPTH {
+        // Java: FRLogger.debug("...max normalization depth...");
+        return false;
+    }
+    let split_pieces = split_clip(manager, board, trace_id, clip);
+    let mut result = split_pieces.len() != 1;
+    for piece_id in &split_pieces {
+        if !board.is_on_the_board(*piece_id) {
+            continue;
+        }
+        let trace_combined = combine(manager, board, *piece_id);
+        let degenerate = match board.trace_polyline(*piece_id) {
+            Some(lines) => {
+                lines.corner_count() == 2
+                    && first_corner(lines) == last_corner(lines)
+                    && first_corner(lines).is_some()
+            }
+            None => false,
+        };
+        if degenerate {
+            // remove trace with only 1 corner — only if deletion is
+            // allowed (checked BEFORE the combine else-if).
+            if !is_deletion_forbidden(board, *piece_id) {
+                remove_item_through_repository(manager, board, *piece_id);
+                result = true;
+            }
+            // Java: FRLogger.debug for the forbidden degenerate — D12.
+        } else if trace_combined {
+            normalize_rec(manager, board, *piece_id, clip, normalization_depth + 1);
+            result = true;
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_util::parse_board_from_text;
+    use epic_geometry::int_box::IntBox;
     use epic_geometry::int_point::IntPoint;
 
     /// The PURE crafted board — byte-identical to `PURE_DSN` in
@@ -3057,5 +3635,1690 @@ mod tests {
             &[(60_000, 35_000), (65_000, 35_000)],
         );
         assert_eq!(w.get(), 12, "DEGEN3_NEXT_ID 12");
+    }
+    #[test]
+    fn x4_probe_scratch() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[
+                (10_000, 10_000),
+                (50_000, 10_000),
+                (50_000, 40_000),
+                (30_000, 40_000),
+                (30_000, 0),
+            ],
+        );
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        println!("PROBE_RESULT raw={:?} len={}", raw(&pieces), pieces.len());
+        for id in &pieces {
+            let kind = match board.get(*id) {
+                None => "ABSENT".to_string(),
+                Some(entry) => format!("{:?}", entry.board_item_type()),
+            };
+            let corners = board.trace_polyline(*id).map(poly_corners);
+            println!(
+                "  piece {} alive={} kind={} corners={:?}",
+                id.get(),
+                board.is_on_the_board(*id),
+                kind,
+                corners
+            );
+        }
+        for id in [11u32, 12, 13, 14, 15] {
+            let id = ItemId::new(id);
+            if board.is_on_the_board(id) {
+                println!("  board {} corners={:?}", id.get(), corners_of(&board, id));
+            } else {
+                println!("  board {} ABSENT", id.get());
+            }
+        }
+        println!("PROBE_NEXT_ID {}", board.alloc_id().get());
+    }
+
+    // ------------------------------------------------------------------
+    // T12 — the split family. Jar-pinned by
+    // `rust/harness/oracle/SplitSpike.java` (capture
+    // `/tmp/epic-t12-split.out`, full verbatim copy in
+    // `.wolf/cache/bash/call_77b248d61e98472ba093a7da.log`; run twice
+    // and diffed — deterministic). Every expected value below is a
+    // LITERAL capture row (pin failure mode 8); absolute ids replay the
+    // oracle's FULL insertion sequence per case.
+    // ------------------------------------------------------------------
+
+    /// [`PURE_DSN`] with the PIN on net MINE (net 1) instead of OTHER —
+    /// byte-identical to `PURE_PAD_DSN` in `SplitSpike.java`. The parse
+    /// item set (ids 1..9) is unchanged; only the pin's net assignment
+    /// flips, which arms `splitInsideDrillPadProhibited`'s sharesNet
+    /// gate for PAD5/PAD6.
+    const PURE_PAD_DSN: &str = r#"(pcb t12-pad.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 60000))
+    (keepout (rect F.Cu 70000 10000 90000 20000))
+    (rule (width 250) (clearance 14))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 20000 40000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_C600
+      (shape (circle F.Cu 600 0 0))
+    )
+    (image CMP1
+      (pin PAD_C600 P1 0 0)
+    )
+  )
+  (network
+    (net MINE (pins CMP1-P1))
+    (net OTHER)
+  )
+  (wiring
+    (wire (path F.Cu 250  20000 40000  10000 40000) (net MINE))
+    (via PAD_C600 40000 40000 (net MINE))
+    (wire (rect F.Cu 50000 10000 60000 20000) (net MINE))
+    (wire (path F.Cu 250  55000 15000  55000 25000) (net MINE))
+    (wire (path F.Cu 250  50000 15000  50000 25000) (net MINE))
+    (wire (path F.Cu 250  80000 15000  80000 30000) (net MINE))
+  )
+)
+"#;
+
+    /// The PAD5/PAD6 board: same parse + creation-order tree fill as
+    /// [`fresh`] (the geometry and ids are identical, so the baseline
+    /// tree pins carry over; only the pin's net differs).
+    fn fresh_pad() -> (SearchTreeManager, Board) {
+        let mut board = parse_board_from_text(PURE_PAD_DSN);
+        assert_eq!(board.item_count(), 9, "PAD board count=9");
+        let mut manager = SearchTreeManager::new();
+        manager.insert_items_creation_order(&mut board);
+        (manager, board)
+    }
+
+    /// The capture's corner body of a RAW polyline (same format as
+    /// [`corners_of`]).
+    fn poly_corners(lines: &Polyline) -> Vec<String> {
+        lines
+            .corners()
+            .iter()
+            .map(|corner| match corner {
+                Point::Int(p) => format!("{},{}", p.x, p.y),
+                Point::Rational(_) => unreachable!("integer-board fixtures"),
+            })
+            .collect()
+    }
+
+    /// The spike's `new Line(...)`-built degenerate (`degeneratePoly`,
+    /// `SplitSpike.java:812-817`): an exact retrace whose constructor
+    /// normalization collapses to the 2-corner point polyline the
+    /// capture prints (`ctorCorners=[30000,20000 30000,20000]`).
+    fn degenerate_poly() -> Polyline {
+        Polyline::new(vec![
+            Line::new(ip(20_000, 20_000), ip(40_000, 20_000)),
+            Line::new(ip(30_000, 20_000), ip(30_000, 30_000)),
+            Line::new(ip(20_000, 20_000), ip(40_000, 20_000)),
+        ])
+    }
+
+    /// [`insert_with`] for a RAW polyline (NORM1/NORM2 insert the
+    /// collapsed degenerate directly).
+    fn insert_poly_fixed(
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        lines: Polyline,
+        fixed: FixedState,
+    ) -> ItemId {
+        let template = ItemId::new(4);
+        let layer = board.trace_layer(template).expect("parse trace 4");
+        let half_width = board.trace_half_width(template).expect("parse trace 4");
+        let nets = board.get(template).expect("parse trace 4").nets.clone();
+        let clearance_class = board.item_clearance_class(template).expect("parse trace 4");
+        insert_trace_without_cleaning(
+            manager,
+            board,
+            lines,
+            layer,
+            half_width,
+            &nets,
+            clearance_class,
+            fixed,
+        )
+        .expect("insert succeeded")
+    }
+
+    /// The capture's `dumpIsect` line body: `a=x,y b=x,y` (the `Line`
+    /// endpoints; the fields are public, the spike prints the same two
+    /// points).
+    fn line_pts(line: &Line) -> String {
+        let (a, b) = match (&line.a, &line.b) {
+            (Point::Int(a), Point::Int(b)) => (a, b),
+            _ => unreachable!("integer-board fixtures"),
+        };
+        format!("a={},{} b={},{}", a.x, a.y, b.x, b.y)
+    }
+
+    /// **X1 — the perpendicular cross** (capture `--X1--`, `/tmp/
+    /// epic-t12-split.out` :4-59). The receiver a (id 10) splits at the
+    /// found trace's segment → [14,15]; the found trace b (id 11)
+    /// splits FIRST (12,13) inside the same call; the receiver's end
+    /// corner (50000,20000) touches F2 (id 8), whose found split
+    /// fires the area-corner cascade — 8's lower half is cycle-removed
+    /// and the upper half survives as 17. The FULL 39-row post-split
+    /// tree dump is the byte pin (`X1_POST_TREE_ROW`, capture :20-58):
+    /// it fixes the survivor id set (no 8, 10, 11, 16, 18) and every
+    /// compensated octagon in one shot.
+    #[test]
+    fn x1_cross_split_with_tree() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 20_000), (50_000, 20_000)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(40_000, 10_000), (40_000, 30_000)],
+        );
+        assert_eq!(a.get(), 10, "X1 A=10");
+        assert_eq!(b.get(), 11, "X1 B=11");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![14, 15],
+            "X1_RESULT size=2 [14:[30000,20000 40000,20000] 15:[40000,20000 50000,20000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["30000,20000", "40000,20000"],
+            "X1_POST_ITEM id=14"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["40000,20000", "50000,20000"],
+            "X1_POST_ITEM id=15"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["40000,10000", "40000,20000"],
+            "X1_POST_ITEM id=12"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["40000,20000", "40000,30000"],
+            "X1_POST_ITEM id=13"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(17)),
+            vec!["50000,20000", "50000,25000"],
+            "X1_POST_ITEM id=17 — the cascade survivor"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        assert!(!board.is_on_the_board(b), "found trace 11 gone");
+        assert!(
+            !board.is_on_the_board(ItemId::new(8)),
+            "no X1_POST_ITEM id=8"
+        );
+        let dump = manager.default_tree().min_area_tree().dump_lines();
+        let expected: Vec<&str> = vec![
+            "I oct[-100 -100 100100 60100 -60141 100141 -141 160141]",
+            "    I oct[-100 -100 100100 100 -141 100141 -141 100141]",
+            "        L obj=1 idx=0 oct[-100 -100 100100 100 -141 100141 -141 100141]",
+            "        L obj=1 idx=4 oct[-100 -100 100100 100 -141 100141 -141 100141]",
+            "    I oct[-100 -100 100100 60100 -60141 100141 -141 160141]",
+            "        I oct[70000 -100 100100 60100 39859 100141 80000 160141]",
+            "            I oct[70000 -100 100100 60100 39859 100141 80000 160141]",
+            "                L obj=1 idx=1 oct[99900 -100 100100 60100 39859 100141 99859 160141]",
+            "                I oct[70000 10000 90000 30125 49823 80000 80000 110177]",
+            "                    L obj=2 idx=0 oct[70000 10000 90000 20000 50000 80000 80000 110000]",
+            "                    L obj=9 idx=0 oct[79875 14875 80125 30125 49823 65177 94823 110177]",
+            "            L obj=1 idx=5 oct[99900 -100 100100 60100 39859 100141 99859 160141]",
+            "        I oct[-100 -100 100100 60100 -60141 50000 -141 160141]",
+            "            I oct[-100 59900 100100 60100 -60141 40141 59859 160141]",
+            "                L obj=1 idx=2 oct[-100 59900 100100 60100 -60141 40141 59859 160141]",
+            "                L obj=1 idx=6 oct[-100 59900 100100 60100 -60141 40141 59859 160141]",
+            "            I oct[-100 -100 60000 60100 -60141 50000 -141 80425]",
+            "                I oct[-100 -100 60000 60100 -60141 50000 -141 80425]",
+            "                    L obj=1 idx=3 oct[-100 -100 100 60100 -60141 141 -141 60141]",
+            "                    I oct[9875 9875 60000 40300 -30177 50000 49823 80425]",
+            "                        I oct[19700 9875 60000 40300 -20424 50000 49823 80425]",
+            "                            I oct[19700 19875 40125 40300 -20424 20177 49823 60425]",
+            "                                L obj=3 idx=0 oct[19700 39700 20300 40300 -20424 -19575 59576 60425]",
+            "                                L obj=14 idx=0 oct[29875 19875 40125 20125 9823 20177 49823 60177]",
+            "                            I oct[39700 9875 60000 40300 -424 50000 49823 80425]",
+            "                                I oct[39700 19875 40300 40300 -424 20177 59823 80425]",
+            "                                    L obj=5 idx=0 oct[39700 39700 40300 40300 -424 425 79576 80425]",
+            "                                    L obj=13 idx=0 oct[39875 19875 40125 30125 9823 20177 59823 70177]",
+            "                                I oct[39875 9875 60000 25125 19823 50000 49823 80177]",
+            "                                    L obj=6 idx=0 oct[50000 10000 60000 20000 30000 50000 60000 80000]",
+            "                                    I oct[39875 9875 55125 25125 19823 40177 49823 80177]",
+            "                                        I oct[49875 14875 55125 25125 24823 40177 69823 80177]",
+            "                                            L obj=7 idx=0 oct[54875 14875 55125 25125 29823 40177 69823 80177]",
+            "                                            L obj=17 idx=0 oct[49875 19875 50125 25125 24823 30177 69823 75177]",
+            "                                        I oct[39875 9875 50125 20125 19823 30177 49823 70177]",
+            "                                            L obj=12 idx=0 oct[39875 9875 40125 20125 19823 30177 49823 60177]",
+            "                                            L obj=15 idx=0 oct[39875 19875 50125 20125 19823 30177 59823 70177]",
+            "                        L obj=4 idx=0 oct[9875 39875 20125 40125 -30177 -19823 49823 60177]",
+            "                L obj=1 idx=7 oct[-100 -100 100 60100 -60141 141 -141 60141]",
+        ];
+        assert_eq!(dump.len(), 39, "X1_POST_TREE lines=39");
+        let mismatches: Vec<String> = dump
+            .iter()
+            .zip(expected.iter())
+            .filter(|(got, want)| got.as_str() != **want)
+            .map(|(got, want)| format!("got {got:?}, want {want:?}"))
+            .collect();
+        assert!(
+            mismatches.is_empty(),
+            "X1_POST_TREE byte-compare: {mismatches:?}"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 18, "X1_NEXT_ID 18");
+    }
+
+    /// **X2 — the receiver-asymmetric `LineSegment::intersection`**
+    /// (capture `--X2--` :60-66). The FOUND branch queries
+    /// `found.intersection(current)` (the returned line is the CURRENT
+    /// segment's middle — capture `X2_CROSS_FOUND_FIRST`), the own
+    /// branch flips the receivers (`X2_CROSS_OWN`). On a collinear
+    /// OVERLAP both orders return the same two zero-length border
+    /// lines (rows 3-4); through a diagonal the perpendicular receiver
+    /// wins the whole other line in the found order and vice versa
+    /// (rows 5-6). Pure geometry — no board.
+    #[test]
+    fn x2_intersection_receiver_order() {
+        let seg_a = segment_at(
+            &poly(&[(30_000, 20_000), (50_000, 20_000)]),
+            0,
+            ItemId::new(1),
+            "X2",
+        );
+        let seg_b = segment_at(
+            &poly(&[(40_000, 10_000), (40_000, 30_000)]),
+            0,
+            ItemId::new(1),
+            "X2",
+        );
+        let found_first = seg_b.intersection(&seg_a);
+        assert_eq!(found_first.len(), 1, "X2_CROSS_FOUND_FIRST len=1");
+        assert_eq!(
+            line_pts(&found_first[0]),
+            "a=30000,20000 b=50000,20000",
+            "X2_CROSS_FOUND_FIRST"
+        );
+        let own = seg_a.intersection(&seg_b);
+        assert_eq!(own.len(), 1, "X2_CROSS_OWN len=1");
+        assert_eq!(
+            line_pts(&own[0]),
+            "a=40000,10000 b=40000,30000",
+            "X2_CROSS_OWN"
+        );
+
+        let seg_c = segment_at(
+            &poly(&[(20_000, 10_000), (50_000, 10_000)]),
+            0,
+            ItemId::new(1),
+            "X2",
+        );
+        let seg_d = segment_at(
+            &poly(&[(30_000, 10_000), (65_000, 10_000)]),
+            0,
+            ItemId::new(1),
+            "X2",
+        );
+        let overlap_found = seg_d.intersection(&seg_c);
+        let overlap_own = seg_c.intersection(&seg_d);
+        assert_eq!(overlap_found.len(), 2, "X2_OVERLAP_FOUND_FIRST len=2");
+        assert_eq!(
+            line_pts(&overlap_found[0]),
+            "a=30000,10000 b=30000,10001",
+            "X2_OVERLAP_FOUND_FIRST[0]"
+        );
+        assert_eq!(
+            line_pts(&overlap_found[1]),
+            "a=50000,10000 b=50000,9999",
+            "X2_OVERLAP_FOUND_FIRST[1]"
+        );
+        assert_eq!(overlap_own.len(), 2, "X2_OVERLAP_OWN len=2");
+        assert_eq!(
+            line_pts(&overlap_own[0]),
+            "a=30000,10000 b=30000,10001",
+            "X2_OVERLAP_OWN[0]"
+        );
+        assert_eq!(
+            line_pts(&overlap_own[1]),
+            "a=50000,10000 b=50000,9999",
+            "X2_OVERLAP_OWN[1]"
+        );
+
+        let diag = segment_at(
+            &poly(&[(60_000, 20_000), (70_000, 30_000)]),
+            0,
+            ItemId::new(1),
+            "X2",
+        );
+        let vert = segment_at(
+            &poly(&[(65_000, 15_000), (65_000, 35_000)]),
+            0,
+            ItemId::new(1),
+            "X2",
+        );
+        let diag_found = vert.intersection(&diag);
+        assert_eq!(diag_found.len(), 1, "X2_DIAG_FOUND_FIRST len=1");
+        assert_eq!(
+            line_pts(&diag_found[0]),
+            "a=60000,20000 b=70000,30000",
+            "X2_DIAG_FOUND_FIRST"
+        );
+        let diag_own = diag.intersection(&vert);
+        assert_eq!(diag_own.len(), 1, "X2_DIAG_OWN len=1");
+        assert_eq!(
+            line_pts(&diag_own[0]),
+            "a=65000,15000 b=65000,35000",
+            "X2_DIAG_OWN"
+        );
+    }
+
+    /// **X3 — the collinear overlap** (capture `--X3--` :67-81). The
+    /// found split of b (11) produces the duplicate-span piece 12,
+    /// which the two-pass cycle removal eats (RIC start∩end = {12's
+    /// trace contacts}); the receiver survives as [14,15] and the
+    /// found remainder keeps 13. Capture `X3_RESULT size=2
+    /// [14:[20000,10000 30000,10000] 15:[30000,10000 50000,10000]]`,
+    /// `X3_NEXT_ID 16` (12 burned, 13-15 live ids).
+    #[test]
+    fn x3_collinear_overlap_cycle_removal() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 10_000), (50_000, 10_000)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 10_000), (65_000, 10_000)],
+        );
+        assert_eq!(a.get(), 10, "X3 A=10");
+        assert_eq!(b.get(), 11, "X3 B=11");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![14, 15],
+            "X3_RESULT size=2 [14:[20000,10000 30000,10000] 15:[30000,10000 50000,10000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["20000,10000", "30000,10000"],
+            "X3_POST_ITEM id=14"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["30000,10000", "50000,10000"],
+            "X3_POST_ITEM id=15"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["50000,10000", "65000,10000"],
+            "X3_POST_ITEM id=13"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        assert!(!board.is_on_the_board(b), "found trace 11 gone");
+        assert!(
+            !board.is_on_the_board(ItemId::new(12)),
+            "no X3_POST_ITEM id=12 — the duplicate-span cycle piece"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 16, "X3_NEXT_ID 16");
+    }
+
+    /// **X4 — the self-cross** (capture `--X4--` :82-95): a 5-corner
+    /// trace whose last segment crosses its first; the found branch is
+    /// the trace ITSELF (own-entry skip via the corner-equality
+    /// forms), result is ONE piece plus the tail (14). Capture
+    /// `X4_RESULT size=1 [11:[10000,10000 30000,10000]]`,
+    /// `X4_NEXT_ID 15`.
+    #[test]
+    fn x4_self_split_reversal() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[
+                (10_000, 10_000),
+                (50_000, 10_000),
+                (50_000, 40_000),
+                (30_000, 40_000),
+                (30_000, 0),
+            ],
+        );
+        assert_eq!(a.get(), 10, "X4 A=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![11],
+            "X4_RESULT size=1 [11:[10000,10000 30000,10000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["10000,10000", "30000,10000"],
+            "X4_POST_ITEM id=11"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["30000,10000", "30000,0"],
+            "X4_POST_ITEM id=14"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 15, "X4_NEXT_ID 15");
+    }
+
+    /// **X4L — the loop trace** (capture `--X4L--` :96-109): a
+    /// 7-corner trace that retraces its own diagonal corner
+    /// (20000,20000 twice); the same self-split machinery cuts it at
+    /// the retrace corner. Capture `X4L_RESULT size=1
+    /// [11:[10000,10000 20000,20000]]`, `X4L_NEXT_ID 15`.
+    #[test]
+    fn x4l_loop_trace_split() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[
+                (10_000, 10_000),
+                (20_000, 20_000),
+                (30_000, 20_000),
+                (30_000, 30_000),
+                (20_000, 30_000),
+                (20_000, 20_000),
+                (10_000, 30_000),
+            ],
+        );
+        assert_eq!(a.get(), 10, "X4L L=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![11],
+            "X4L_RESULT size=1 [11:[10000,10000 20000,20000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["10000,10000", "20000,20000"],
+            "X4L_POST_ITEM id=11"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["20000,20000", "10000,30000"],
+            "X4L_POST_ITEM id=14"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 15, "X4L_NEXT_ID 15");
+    }
+
+    /// **DRL1 — the drill split through the VIA center** (capture
+    /// `--DRL1--` :110-160). The receiver a (id 10) crosses via 5's
+    /// center (40000,40000), the LAST overlapping entry; the drill
+    /// branch splits at the center with the perpendicular line and
+    /// DISCARDS the split result — `ownTraceSplit` stays false, so the
+    /// END tail re-adds the (now removed) receiver itself:
+    /// `DRL1_RESULT size=1 [10:[30000,40000 50000,40000]]` with
+    /// `DRL1_A_ON_BOARD false` — a dead id in the returned collection
+    /// (the Java DRL1 quirk, preserved verbatim). The FULL 35-row tree
+    /// (`DRL1_POST_TREE_ROW`, capture :125-159) pins the survivor
+    /// pieces 11/12 and every octagon.
+    #[test]
+    fn drl1_via_drill_split_keeps_dead_receiver_in_result() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 40_000), (50_000, 40_000)],
+        );
+        assert_eq!(a.get(), 10, "DRL1 A=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![10],
+            "DRL1_RESULT size=1 [10:[30000,40000 50000,40000]]"
+        );
+        assert!(!board.is_on_the_board(a), "DRL1_A_ON_BOARD false");
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["30000,40000", "40000,40000"],
+            "DRL1_POST_ITEM id=11"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["40000,40000", "50000,40000"],
+            "DRL1_POST_ITEM id=12"
+        );
+        let dump = manager.default_tree().min_area_tree().dump_lines();
+        let expected: Vec<&str> = vec![
+            "I oct[-100 -100 100100 60100 -60141 100141 -141 160141]",
+            "    I oct[-100 -100 100100 100 -141 100141 -141 100141]",
+            "        L obj=1 idx=0 oct[-100 -100 100100 100 -141 100141 -141 100141]",
+            "        L obj=1 idx=4 oct[-100 -100 100100 100 -141 100141 -141 100141]",
+            "    I oct[-100 -100 100100 60100 -60141 100141 -141 160141]",
+            "        I oct[70000 -100 100100 60100 39859 100141 80000 160141]",
+            "            I oct[70000 -100 100100 60100 39859 100141 80000 160141]",
+            "                L obj=1 idx=1 oct[99900 -100 100100 60100 39859 100141 99859 160141]",
+            "                I oct[70000 10000 90000 30125 49823 80000 80000 110177]",
+            "                    L obj=2 idx=0 oct[70000 10000 90000 20000 50000 80000 80000 110000]",
+            "                    L obj=9 idx=0 oct[79875 14875 80125 30125 49823 65177 94823 110177]",
+            "            L obj=1 idx=5 oct[99900 -100 100100 60100 39859 100141 99859 160141]",
+            "        I oct[-100 -100 100100 60100 -60141 50000 -141 160141]",
+            "            I oct[-100 59900 100100 60100 -60141 40141 59859 160141]",
+            "                L obj=1 idx=2 oct[-100 59900 100100 60100 -60141 40141 59859 160141]",
+            "                L obj=1 idx=6 oct[-100 59900 100100 60100 -60141 40141 59859 160141]",
+            "            I oct[-100 -100 60000 60100 -60141 50000 -141 90177]",
+            "                I oct[-100 -100 60000 60100 -60141 50000 -141 90177]",
+            "                    L obj=1 idx=3 oct[-100 -100 100 60100 -60141 141 -141 60141]",
+            "                    I oct[9875 10000 60000 40300 -30177 50000 49823 90177]",
+            "                        I oct[19700 10000 60000 40300 -20424 50000 59576 80425]",
+            "                            I oct[19700 39700 40125 40300 -20424 177 59576 80177]",
+            "                                L obj=3 idx=0 oct[19700 39700 20300 40300 -20424 -19575 59576 60425]",
+            "                                L obj=11 idx=0 oct[29875 39875 40125 40125 -10177 177 69823 80177]",
+            "                            I oct[39700 10000 60000 40300 -424 50000 60000 80425]",
+            "                                L obj=5 idx=0 oct[39700 39700 40300 40300 -424 425 79576 80425]",
+            "                                I oct[49875 10000 60000 25125 24823 50000 60000 80177]",
+            "                                    I oct[49875 10000 60000 25125 24823 50000 60000 80000]",
+            "                                        L obj=6 idx=0 oct[50000 10000 60000 20000 30000 50000 60000 80000]",
+            "                                        L obj=8 idx=0 oct[49875 14875 50125 25125 24823 35177 64823 75177]",
+            "                                    L obj=7 idx=0 oct[54875 14875 55125 25125 29823 40177 69823 80177]",
+            "                        I oct[9875 39875 50125 40125 -30177 10177 49823 90177]",
+            "                            L obj=4 idx=0 oct[9875 39875 20125 40125 -30177 -19823 49823 60177]",
+            "                            L obj=12 idx=0 oct[39875 39875 50125 40125 -177 10177 79823 90177]",
+            "                L obj=1 idx=7 oct[-100 -100 100 60100 -60141 141 -141 60141]",
+        ];
+        assert_eq!(dump.len(), 35, "DRL1_POST_TREE lines=35");
+        let mismatches: Vec<String> = dump
+            .iter()
+            .zip(expected.iter())
+            .filter(|(got, want)| got.as_str() != **want)
+            .map(|(got, want)| format!("got {got:?}, want {want:?}"))
+            .collect();
+        assert!(
+            mismatches.is_empty(),
+            "DRL1_POST_TREE byte-compare: {mismatches:?}"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 13, "DRL1_NEXT_ID 13");
+    }
+
+    /// **DRL2 — the drill split at the FIRST entry** (capture
+    /// `--DRL2--` :161-176): the new via 11 at (45000,40000) sits
+    /// before the old via 5 in the entry walk, so the drill branch
+    /// fires on it and the `break` skips via 5 entirely; the early
+    /// empty return gives `DRL2_RESULT size=0 []` (contrast DRL1's
+    /// [dead receiver]). Capture `DRL2_NEXT_ID 14`.
+    #[test]
+    fn drl2_first_entry_drill_split_empty_result() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 40_000), (50_000, 40_000)],
+        );
+        assert_eq!(a.get(), 10, "DRL2 A=10");
+        let via2 = insert_via_fixture(
+            &mut manager,
+            &mut board,
+            IntPoint::new(45_000, 40_000),
+            &[1],
+        );
+        assert_eq!(via2.get(), 11, "DRL2 via2=11");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(raw(&pieces), Vec::<u32>::new(), "DRL2_RESULT size=0 []");
+        assert!(!board.is_on_the_board(a), "DRL2_A_ON_BOARD false");
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["30000,40000", "45000,40000"],
+            "DRL2_POST_ITEM id=12"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["45000,40000", "50000,40000"],
+            "DRL2_POST_ITEM id=13"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 14, "DRL2_NEXT_ID 14");
+    }
+
+    /// **PAD1 — the FOREIGN pad does not prohibit** (capture `--PAD1--`
+    /// :177-192): the crossing trace b (11) is net MINE like the
+    /// receiver, but the PIN at (20000,40000) carries OTHER, so the
+    /// sharesNet gate never arms and the split at (20000,40250) —
+    /// inside the pad's 600 radius — proceeds. Capture
+    /// `PAD1_RESULT size=2 [14:[10000,40250 20000,40250]
+    /// 15:[20000,40250 30000,40250]]`, `PAD1_NEXT_ID 16`.
+    #[test]
+    fn pad1_foreign_pin_pad_split_proceeds() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 40_250), (30_000, 40_250)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 38_000), (20_000, 42_000)],
+        );
+        assert_eq!(a.get(), 10, "PAD1 A=10");
+        assert_eq!(b.get(), 11, "PAD1 B=11");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![14, 15],
+            "PAD1_RESULT size=2 [14:[10000,40250 20000,40250] 15:[20000,40250 30000,40250]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["10000,40250", "20000,40250"],
+            "PAD1_POST_ITEM id=14"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["20000,40250", "30000,40250"],
+            "PAD1_POST_ITEM id=15"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["20000,38000", "20000,40250"],
+            "PAD1_POST_ITEM id=12"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["20000,40250", "20000,42000"],
+            "PAD1_POST_ITEM id=13"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 16, "PAD1_NEXT_ID 16");
+    }
+
+    /// **PAD2 — the pin-center allow** (capture `--PAD2--` :193-206):
+    /// the split line at the pin's exact center returns
+    /// ALLOW immediately (`center == isect` short-circuit), so the
+    /// cross-through-center trace splits normally. Capture
+    /// `PAD2_RESULT size=2 [11:[20000,30000 20000,40000]
+    /// 12:[20000,40000 20000,50000]]`, `PAD2_NEXT_ID 13`.
+    #[test]
+    fn pad2_split_at_pin_center_allowed() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 30_000), (20_000, 50_000)],
+        );
+        assert_eq!(a.get(), 10, "PAD2 A=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![11, 12],
+            "PAD2_RESULT size=2 [11:[20000,30000 20000,40000] 12:[20000,40000 20000,50000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["20000,30000", "20000,40000"],
+            "PAD2_POST_ITEM id=11"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["20000,40000", "20000,50000"],
+            "PAD2_POST_ITEM id=12"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 13, "PAD2_NEXT_ID 13");
+    }
+
+    /// **PAD3 — the other-trace-endpoint allow** (capture `--PAD3--`
+    /// :207-221): the perpendicular trace u (11) ENDS at the split
+    /// point (20000,40250); the `(currentTrace != this &&
+    /// first.equals(isect)) || last.equals(isect)` clause allows the
+    /// split (the precedence quirk is exercised by PAD4's refusal).
+    /// Capture `PAD3_RESULT size=2 [12:[10000,40250 20000,40250]
+    /// 13:[20000,40250 30000,40250]]` with 11 intact,
+    /// `PAD3_NEXT_ID 14`.
+    #[test]
+    fn pad3_other_trace_endpoint_allows() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 40_250), (30_000, 40_250)],
+        );
+        let u = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 40_250), (20_000, 45_250)],
+        );
+        assert_eq!(a.get(), 10, "PAD3 A=10");
+        assert_eq!(u.get(), 11, "PAD3 U=11");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![12, 13],
+            "PAD3_RESULT size=2 [12:[10000,40250 20000,40250] 13:[20000,40250 30000,40250]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["10000,40250", "20000,40250"],
+            "PAD3_POST_ITEM id=12"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["20000,40250", "30000,40250"],
+            "PAD3_POST_ITEM id=13"
+        );
+        assert_eq!(
+            corners_of(&board, u),
+            vec!["20000,40250", "20000,45250"],
+            "PAD3_POST_ITEM id=11 intact"
+        );
+        assert!(board.is_on_the_board(u), "PAD3 id=11 alive");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 14, "PAD3_NEXT_ID 14");
+    }
+
+    /// **PAD4 — the precedence quirk with the refused closed piece**
+    /// (capture `--PAD4--` :222-234): w (id 10, net OTHER via
+    /// `insert_nets`) is a closed 5-corner ring whose LAST corner is
+    /// the split point (20000,40250). `Trace.split(Point)` splits the
+    /// FIRST containing segment into `[first_piece, rest]` — the first
+    /// piece [10000,40250..20000,40250] is allowed (its end corner
+    /// equals the isect), but the REST is the closed remainder whose
+    /// `Polyline.split` refuses → `PAD4_SPLIT_POINT
+    /// [11:[10000,40250 20000,40250] null]` and id 12 is burned by the
+    /// refused construction (`PAD4_NEXT_ID 13`).
+    #[test]
+    fn pad4_precedence_quirk_closed_piece_refused() {
+        let (mut manager, mut board) = fresh();
+        let w = insert_nets(
+            &mut manager,
+            &mut board,
+            &[
+                (10_000, 40_250),
+                (30_000, 40_250),
+                (30_000, 45_000),
+                (20_000, 45_000),
+                (20_000, 40_250),
+            ],
+            &[2],
+        );
+        assert_eq!(w.get(), 10, "PAD4 W=10 nets=[2]");
+        let pieces = split_at_point(&mut manager, &mut board, w, &ip(20_000, 40_250));
+        let [first, second] = pieces.expect("PAD4_SPLIT_POINT present");
+        assert_eq!(first.map(|id| id.get()), Some(11), "PAD4 first piece id=11");
+        assert_eq!(second, None, "PAD4 second piece null");
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["10000,40250", "20000,40250"],
+            "PAD4_POST_ITEM id=11"
+        );
+        assert!(!board.is_on_the_board(w), "receiver 10 gone");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 13, "PAD4_NEXT_ID 13 — id 12 burned");
+    }
+
+    /// **PAD5 — the REAL same-net pin-pad refusal** (capture `--PAD5--`
+    /// :235-249, on [`fresh_pad`]): the pin now carries MINE, the
+    /// sharesNet gate arms, the split point (20000,40250) is inside
+    /// the pad, and neither allow clause applies (not the center; the
+    /// found trace b's endpoints are NOT the isect) → the own split is
+    /// refused and the receiver comes back INTACT:
+    /// `PAD5_RESULT size=1 [10:[10000,40250 30000,40250]]`,
+    /// `PAD5_A_ON_BOARD true B_ON_BOARD true`, `PAD5_NEXT_ID 12` —
+    /// no piece ids allocated at all.
+    #[test]
+    fn pad5_same_net_pin_pad_refusal() {
+        let (mut manager, mut board) = fresh_pad();
+        assert_eq!(
+            board.get(ItemId::new(3)).expect("parse pin 3").nets,
+            vec![1],
+            "PAD5 pinNets=[1]"
+        );
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 40_250), (30_000, 40_250)],
+        );
+        let b = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 38_000), (20_000, 42_000)],
+        );
+        assert_eq!(a.get(), 10, "PAD5 A=10");
+        assert_eq!(b.get(), 11, "PAD5 B=11");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![10],
+            "PAD5_RESULT size=1 [10:[10000,40250 30000,40250]]"
+        );
+        assert!(board.is_on_the_board(a), "PAD5_A_ON_BOARD true");
+        assert!(board.is_on_the_board(b), "PAD5_B_ON_BOARD true");
+        assert_eq!(
+            corners_of(&board, a),
+            vec!["10000,40250", "30000,40250"],
+            "PAD5_POST_ITEM id=10 intact"
+        );
+        assert_eq!(
+            corners_of(&board, b),
+            vec!["20000,38000", "20000,42000"],
+            "PAD5_POST_ITEM id=11 intact"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 12, "PAD5_NEXT_ID 12");
+    }
+
+    /// **PAD6 — the center allow in the same-net board** (capture
+    /// `--PAD6--` :250-263): with the pin armed (net MINE), the split
+    /// AT the pin center still short-circuits to allow — the
+    /// `center == isect` check precedes any padFound effect. Capture
+    /// `PAD6_RESULT size=2 [11:[20000,30000 20000,40000]
+    /// 12:[20000,40000 20000,50000]]`, `PAD6_NEXT_ID 13`.
+    #[test]
+    fn pad6_same_net_pin_center_allow() {
+        let (mut manager, mut board) = fresh_pad();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(20_000, 30_000), (20_000, 50_000)],
+        );
+        assert_eq!(a.get(), 10, "PAD6 A=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![11, 12],
+            "PAD6_RESULT size=2 [11:[20000,30000 20000,40000] 12:[20000,40000 20000,50000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["20000,30000", "20000,40000"],
+            "PAD6_POST_ITEM id=11"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["20000,40000", "20000,50000"],
+            "PAD6_POST_ITEM id=12"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 13, "PAD6_NEXT_ID 13");
+    }
+
+    /// **AR1 — the area-cycle removal** (capture `--AR1--` :264-276):
+    /// both endpoints of a (10) contact conduction area 6, so after
+    /// the split the two-pass cycle removal eats every piece —
+    /// `AR1_RESULT size=0 []`, `AR1_A_ON_BOARD false`,
+    /// `AR1_NEXT_ID 11` (the piece ids were allocated then removed).
+    #[test]
+    fn ar1_area_cycle_removal() {
+        let (mut manager, mut board) = fresh();
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(50_500, 10_500), (59_500, 10_500)],
+        );
+        assert_eq!(a.get(), 10, "AR1 A=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(raw(&pieces), Vec::<u32>::new(), "AR1_RESULT size=0 []");
+        assert!(!board.is_on_the_board(a), "AR1_A_ON_BOARD false");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 11, "AR1_NEXT_ID 11");
+    }
+
+    /// **AR2 — the ignoreCyclesWithAreas contrast** (capture `--AR2--`
+    /// :277-290): flipping the net class flag (the GUI setter,
+    /// `NetClass.java:148`) before the split makes the cycle walk
+    /// ignore area contacts — the receiver survives UNCHANGED:
+    /// `AR2_RESULT size=1 [10:[50500,10500 59500,10500]]`,
+    /// `AR2_A_ON_BOARD true`, `AR2_NEXT_ID 11`. This is the pin that
+    /// requires the REAL `ignore_cycles_with_areas` field — a
+    /// hard-coded `false` stub passes AR1 and fails here.
+    #[test]
+    fn ar2_ignore_cycles_with_areas_keeps_trace() {
+        let (mut manager, mut board) = fresh();
+        let class_no = board.rules().nets.get(1).expect("net MINE").net_class;
+        board.rules_mut().net_classes[class_no as usize].set_ignore_cycles_with_areas(true);
+        assert!(
+            board.rules().net_classes[class_no as usize].ignore_cycles_with_areas,
+            "AR2 flipped: true"
+        );
+        let a = insert(
+            &mut manager,
+            &mut board,
+            &[(50_500, 10_500), (59_500, 10_500)],
+        );
+        assert_eq!(a.get(), 10, "AR2 A=10");
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![10],
+            "AR2_RESULT size=1 [10:[50500,10500 59500,10500]]"
+        );
+        assert!(board.is_on_the_board(a), "AR2_A_ON_BOARD true");
+        assert_eq!(
+            corners_of(&board, a),
+            vec!["50500,10500", "59500,10500"],
+            "AR2_POST_ITEM id=10 intact"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 11, "AR2_NEXT_ID 11");
+    }
+
+    /// **DEL1 — the deletion-forbidden refusal** (capture `--DEL1--`
+    /// :291-305): both the receiver u1 (10) and the found u2 (11) are
+    /// USER_FIXED; the found split refuses (`isDeletionForbidden`)
+    /// AND the own split refuses, so the receiver is returned intact:
+    /// `DEL1_RESULT size=1 [10:[10000,10000 30000,10000]]`, both
+    /// fixed states still USER_FIXED, `DEL1_NEXT_ID 12`.
+    #[test]
+    fn del1_deletion_forbidden_refusal() {
+        let (mut manager, mut board) = fresh();
+        let u1 = insert_with(
+            &mut manager,
+            &mut board,
+            &[(10_000, 10_000), (30_000, 10_000)],
+            0,
+            0,
+            FixedState::UserFixed,
+        );
+        let u2 = insert_with(
+            &mut manager,
+            &mut board,
+            &[(20_000, 8_000), (20_000, 12_000)],
+            0,
+            0,
+            FixedState::UserFixed,
+        );
+        assert_eq!(u1.get(), 10, "DEL1 U1=10");
+        assert_eq!(u2.get(), 11, "DEL1 U2=11");
+        let pieces = split_clip(&mut manager, &mut board, u1, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![10],
+            "DEL1_RESULT size=1 [10:[10000,10000 30000,10000]]"
+        );
+        assert!(board.is_on_the_board(u1), "receiver intact");
+        assert!(board.is_on_the_board(u2), "found intact");
+        assert_eq!(
+            board.get(u1).expect("u1").fixed,
+            FixedState::UserFixed,
+            "DEL1_U1_FIXED USER_FIXED"
+        );
+        assert_eq!(
+            board.get(u2).expect("u2").fixed,
+            FixedState::UserFixed,
+            "DEL1_U2_FIXED USER_FIXED"
+        );
+        assert_eq!(
+            corners_of(&board, u1),
+            vec!["10000,10000", "30000,10000"],
+            "DEL1_POST_ITEM id=10 intact"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 12, "DEL1_NEXT_ID 12");
+    }
+
+    /// **DEL2 — the mixed case** (capture `--DEL2--` :306-321): the
+    /// USER_FIXED found trace v (11) refuses ITS split, but the plain
+    /// receiver w (10) still splits around it — the found refusal is
+    /// per-trace, not a whole-call abort. Capture `DEL2_RESULT size=2
+    /// [12:[10000,20000 20000,20000] 13:[20000,20000 30000,20000]]`,
+    /// `DEL2_V_FIXED USER_FIXED V_ON_BOARD true`, `DEL2_NEXT_ID 14`.
+    #[test]
+    fn del2_mixed_fixed_found_refuses_receiver_splits() {
+        let (mut manager, mut board) = fresh();
+        let w = insert(
+            &mut manager,
+            &mut board,
+            &[(10_000, 20_000), (30_000, 20_000)],
+        );
+        let v = insert_with(
+            &mut manager,
+            &mut board,
+            &[(20_000, 18_000), (20_000, 22_000)],
+            0,
+            0,
+            FixedState::UserFixed,
+        );
+        assert_eq!(w.get(), 10, "DEL2 W=10");
+        assert_eq!(v.get(), 11, "DEL2 V=11");
+        let pieces = split_clip(&mut manager, &mut board, w, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![12, 13],
+            "DEL2_RESULT size=2 [12:[10000,20000 20000,20000] 13:[20000,20000 30000,20000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["10000,20000", "20000,20000"],
+            "DEL2_POST_ITEM id=12"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["20000,20000", "30000,20000"],
+            "DEL2_POST_ITEM id=13"
+        );
+        assert!(board.is_on_the_board(v), "DEL2 V_ON_BOARD true");
+        assert_eq!(
+            board.get(v).expect("v").fixed,
+            FixedState::UserFixed,
+            "DEL2_V_FIXED USER_FIXED"
+        );
+        assert!(!board.is_on_the_board(w), "receiver 10 gone");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 14, "DEL2_NEXT_ID 14");
+    }
+
+    /// Builds the three CLIP traces (the diagonal A crossing b and c)
+    /// and returns their ids — the shared setup of CLIP1/CLIP2
+    /// (capture `--CLIP1-- A=10 B=11 C=12`).
+    fn clip_setup(manager: &mut SearchTreeManager, board: &mut Board) -> ItemId {
+        let a = insert(
+            manager,
+            board,
+            &[(20_000, 20_000), (60_000, 20_000), (70_000, 30_000)],
+        );
+        let b = insert(manager, board, &[(40_000, 10_000), (40_000, 30_000)]);
+        let c = insert(manager, board, &[(65_000, 15_000), (65_000, 35_000)]);
+        assert_eq!(a.get(), 10, "CLIP A=10");
+        assert_eq!(b.get(), 11, "CLIP B=11");
+        assert_eq!(c.get(), 12, "CLIP C=12");
+        a
+    }
+
+    /// The clip octagon of CLIP1 — the bounding octagon of the box
+    /// 62000-68000 x 24000-28000 (spike `makeClip`).
+    fn clip_octagon() -> IntOctagon {
+        let tile = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::from_corners(
+            62_000, 24_000, 68_000, 28_000,
+        )));
+        tile.bounding_octagon().expect("a box is bounded")
+    }
+
+    /// **CLIP1 — the clip-restricted split** (capture `--CLIP1--`
+    /// :322-338): only the diagonal's segments INTERSECTING the clip
+    /// octagon are considered, so the receiver splits exactly at the
+    /// clip boundary corner (65000,25000) → [15,16]; c (12) still
+    /// splits there (its intersection lies inside the clip), b (11)
+    /// lies outside and stays whole. Capture `CLIP1_RESULT size=2
+    /// [15:[20000,20000 60000,20000 65000,25000]
+    /// 16:[65000,25000 70000,30000]]`, `CLIP1_NEXT_ID 17`.
+    #[test]
+    fn clip1_clip_restricted_split() {
+        let (mut manager, mut board) = fresh();
+        let a = clip_setup(&mut manager, &mut board);
+        let clip = clip_octagon();
+        let pieces = split_clip(&mut manager, &mut board, a, Some(&clip));
+        assert_eq!(
+            raw(&pieces),
+            vec![15, 16],
+            "CLIP1_RESULT size=2 [15:[20000,20000 60000,20000 65000,25000] 16:[65000,25000 70000,30000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["20000,20000", "60000,20000", "65000,25000"],
+            "CLIP1_POST_ITEM id=15"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(16)),
+            vec!["65000,25000", "70000,30000"],
+            "CLIP1_POST_ITEM id=16"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["65000,15000", "65000,25000"],
+            "CLIP1_POST_ITEM id=13"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["65000,25000", "65000,35000"],
+            "CLIP1_POST_ITEM id=14"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["40000,10000", "40000,30000"],
+            "CLIP1_POST_ITEM id=11 intact"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 17, "CLIP1_NEXT_ID 17");
+    }
+
+    /// **CLIP2 — the same board with NO clip** (capture `--CLIP2--`
+    /// :339-358): every crossing splits — the receiver lands in four
+    /// pieces (15, 19, 27, 28), and the found traces b/c contribute
+    /// 13/14 and 25/26 plus 18/22 from F2 and F. The full cascade is
+    /// the loop-order pin: each found split requeries and restarts
+    /// the segment walk. Capture `CLIP2_RESULT size=4
+    /// [15:[20000,20000 40000,20000] 19:[40000,20000 50000,20000]
+    /// 27:[55000,20000 60000,20000 65000,25000] 28:[65000,25000
+    /// 70000,30000]]`, `CLIP2_NEXT_ID 29`.
+    #[test]
+    fn clip2_no_clip_full_cascade() {
+        let (mut manager, mut board) = fresh();
+        let a = clip_setup(&mut manager, &mut board);
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![15, 19, 27, 28],
+            "CLIP2_RESULT size=4 [15:[20000,20000 40000,20000] 19:[40000,20000 50000,20000] 27:[55000,20000 60000,20000 65000,25000] 28:[65000,25000 70000,30000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["20000,20000", "40000,20000"],
+            "CLIP2_POST_ITEM id=15"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(19)),
+            vec!["40000,20000", "50000,20000"],
+            "CLIP2_POST_ITEM id=19"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(27)),
+            vec!["55000,20000", "60000,20000", "65000,25000"],
+            "CLIP2_POST_ITEM id=27"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(28)),
+            vec!["65000,25000", "70000,30000"],
+            "CLIP2_POST_ITEM id=28"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["40000,10000", "40000,20000"],
+            "CLIP2_POST_ITEM id=13"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["40000,20000", "40000,30000"],
+            "CLIP2_POST_ITEM id=14"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(18)),
+            vec!["50000,20000", "50000,25000"],
+            "CLIP2_POST_ITEM id=18"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(22)),
+            vec!["55000,20000", "55000,25000"],
+            "CLIP2_POST_ITEM id=22"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(25)),
+            vec!["65000,15000", "65000,25000"],
+            "CLIP2_POST_ITEM id=25"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(26)),
+            vec!["65000,25000", "65000,35000"],
+            "CLIP2_POST_ITEM id=26"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        assert!(
+            !board.is_on_the_board(ItemId::new(8)),
+            "no CLIP2_POST_ITEM id=8 — consumed by the cascade"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 29, "CLIP2_NEXT_ID 29");
+    }
+
+    /// **NORM1 — the degenerate USER_FIXED trace is KEPT** (capture
+    /// `--NORM1--` :359-373): the exact-retrace polyline collapses at
+    /// construction to the 2-corner point polyline
+    /// (`NORM1_INSERT id=10 corners=[30000,20000 30000,20000]`);
+    /// normalize's degenerate branch runs BEFORE the combine else-if,
+    /// but `isDeletionForbidden` (USER_FIXED) refuses the removal —
+    /// `NORM1_NORMALIZE false`, trace alive, `NORM1_NEXT_ID 11`.
+    #[test]
+    fn norm1_degenerate_user_fixed_kept() {
+        let (mut manager, mut board) = fresh();
+        let degenerate = degenerate_poly();
+        assert_eq!(
+            poly_corners(&degenerate),
+            vec!["30000,20000", "30000,20000"],
+            "NORM1 ctorCorners=[30000,20000 30000,20000]"
+        );
+        let d = insert_poly_fixed(&mut manager, &mut board, degenerate, FixedState::UserFixed);
+        assert_eq!(d.get(), 10, "NORM1_INSERT id=10");
+        assert_eq!(
+            corners_of(&board, d),
+            vec!["30000,20000", "30000,20000"],
+            "NORM1_INSERT corners"
+        );
+        assert_eq!(
+            board.get(d).expect("d").fixed,
+            FixedState::UserFixed,
+            "NORM1_INSERT fixed=USER_FIXED"
+        );
+        assert!(
+            !normalize(&mut manager, &mut board, d, None),
+            "NORM1_NORMALIZE false"
+        );
+        assert!(board.is_on_the_board(d), "NORM1_ALIVE true");
+        assert_eq!(
+            corners_of(&board, d),
+            vec!["30000,20000", "30000,20000"],
+            "NORM1_POST_ITEM id=10 corners intact"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 11, "NORM1_NEXT_ID 11");
+    }
+
+    /// **NORM2 — the degenerate UNFIXED trace is REMOVED** (capture
+    /// `--NORM2--` :374-386): same construction, fixed state flipped
+    /// to UNFIXED after the insert (`d.setFixedState`) — the
+    /// degenerate branch removes the trace and forces the verdict:
+    /// `NORM2_NORMALIZE true`, `NORM2_ALIVE false`, `NORM2_NEXT_ID 11`
+    /// (no piece ids — the removal burns nothing).
+    #[test]
+    fn norm2_degenerate_unfixed_removed() {
+        let (mut manager, mut board) = fresh();
+        let d = insert_poly_fixed(
+            &mut manager,
+            &mut board,
+            degenerate_poly(),
+            FixedState::UserFixed,
+        );
+        assert_eq!(d.get(), 10, "NORM2 id=10");
+        board.set_item_fixed(d, FixedState::Unfixed);
+        assert!(
+            normalize(&mut manager, &mut board, d, None),
+            "NORM2_NORMALIZE true"
+        );
+        assert!(!board.is_on_the_board(d), "NORM2_ALIVE false");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 11, "NORM2_NEXT_ID 11");
+    }
+
+    /// Builds the NORM3/NORM3P board: A (10) — B (11) joined at
+    /// (40000,20000), C (12) vertical through the joint, with F2 (8)
+    /// touching B's far end. Returns A.
+    fn norm3_setup(manager: &mut SearchTreeManager, board: &mut Board) -> ItemId {
+        let a = insert(manager, board, &[(30_000, 20_000), (40_000, 20_000)]);
+        let b = insert(manager, board, &[(40_000, 20_000), (50_000, 20_000)]);
+        let c = insert(manager, board, &[(35_000, 10_000), (35_000, 30_000)]);
+        assert_eq!(a.get(), 10, "NORM3 A=10");
+        assert_eq!(b.get(), 11, "NORM3 B=11");
+        assert_eq!(c.get(), 12, "NORM3 C=12");
+        a
+    }
+
+    /// **NORM3 — the recursion end state** (capture `--NORM3--`
+    /// :387-405). One `normalize(A)` call: the split of A at C
+    /// produces 15/16; combine(16) joins B's remainder; the found
+    /// split of F2 (8) fires the area-corner cascade (17 removed, 18
+    /// survives) and the recursion merges the chain into
+    /// `16=[35000,20000 50000,20000 50000,25000]`.
+    /// `NORM3_NORMALIZE true`, `NORM3_NEXT_ID 19`.
+    #[test]
+    fn norm3_recursion_end_state() {
+        let (mut manager, mut board) = fresh();
+        let a = norm3_setup(&mut manager, &mut board);
+        assert!(
+            normalize(&mut manager, &mut board, a, None),
+            "NORM3_NORMALIZE true"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(16)),
+            vec!["35000,20000", "50000,20000", "50000,25000"],
+            "NORM3_POST_ITEM id=16"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["30000,20000", "35000,20000"],
+            "NORM3_POST_ITEM id=15"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["35000,20000", "35000,30000"],
+            "NORM3_POST_ITEM id=14"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["35000,10000", "35000,20000"],
+            "NORM3_POST_ITEM id=13"
+        );
+        assert!(!board.is_on_the_board(a), "receiver 10 gone");
+        assert!(!board.is_on_the_board(ItemId::new(11)), "B=11 gone");
+        assert!(!board.is_on_the_board(ItemId::new(12)), "C=12 gone");
+        assert!(!board.is_on_the_board(ItemId::new(8)), "F2=8 gone");
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 19, "NORM3_NEXT_ID 19");
+    }
+
+    /// **NORM3P — the probe that isolates the area-corner cycle**
+    /// (capture `--NORM3P--`, preserved log :73-104). Same board, but
+    /// the recursion's steps replayed one at a time:
+    /// `NORM3P_SPLIT size=2 [15:... 16:[35000,20000 40000,20000]]`,
+    /// `NORM3P_COMBINE id=15 combined=false`,
+    /// `NORM3P_COMBINE id=16 combined=true` (16 becomes
+    /// [35000,20000 50000,20000]), `NORM3P_S16 size=1`,
+    /// `NORM3P_RIC id=16 removed=false alive=true` — 16 itself is NOT
+    /// a cycle — yet the split INSIDE it consumed F2 (8) and its lower
+    /// half (17): the AFTER_RIC dump lists 18 but neither 8 nor 17.
+    #[test]
+    fn norm3p_probe_area_corner_cycle() {
+        let (mut manager, mut board) = fresh();
+        let a = norm3_setup(&mut manager, &mut board);
+        let pieces = split_clip(&mut manager, &mut board, a, None);
+        assert_eq!(
+            raw(&pieces),
+            vec![15, 16],
+            "NORM3P_SPLIT size=2 [15:[30000,20000 35000,20000] 16:[35000,20000 40000,20000]]"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(16)),
+            vec!["35000,20000", "40000,20000"],
+            "NORM3P_SPLIT id=16"
+        );
+        assert!(
+            !combine(&mut manager, &mut board, ItemId::new(15)),
+            "NORM3P_COMBINE id=15 combined=false"
+        );
+        assert!(
+            combine(&mut manager, &mut board, ItemId::new(16)),
+            "NORM3P_COMBINE id=16 combined=true"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(16)),
+            vec!["35000,20000", "50000,20000"],
+            "NORM3P_COMBINE id=16 corners"
+        );
+        let s16 = split_clip(&mut manager, &mut board, ItemId::new(16), None);
+        assert_eq!(
+            raw(&s16),
+            vec![16],
+            "NORM3P_S16 size=1 [16:[35000,20000 50000,20000]]"
+        );
+        assert!(
+            !remove_if_cycle(&mut manager, &mut board, ItemId::new(16)),
+            "NORM3P_RIC id=16 removed=false alive=true"
+        );
+        assert!(board.is_on_the_board(ItemId::new(16)), "NORM3P_RIC alive");
+        assert_eq!(
+            corners_of(&board, ItemId::new(18)),
+            vec!["50000,20000", "50000,25000"],
+            "NORM3P_AFTER_RIC_ITEM id=18"
+        );
+        assert!(!board.is_on_the_board(ItemId::new(8)), "no AFTER_RIC id=8");
+        assert!(
+            !board.is_on_the_board(ItemId::new(17)),
+            "no AFTER_RIC id=17"
+        );
+        assert!(!board.is_on_the_board(ItemId::new(11)), "B=11 gone");
+        assert!(!board.is_on_the_board(ItemId::new(12)), "C=12 gone");
+    }
+
+    /// **NORM4 — the recursion chain across 36 inserted traces**
+    /// (capture `--NORM4--`, preserved log :105-224). The cascade
+    /// crosses every C×V intersection; pass 1's full dump (60 rows)
+    /// pins the survivor id set — its discriminating subset is
+    /// asserted here, including the absence of F2 (8) consumed by the
+    /// same area-corner mechanism. The SECOND PASS re-normalizes every
+    /// alive trace DESCENDING from a snapshot; the whole verdict row
+    /// (`NORM4_SECOND_PASS`, preserved log :166) is pinned as one
+    /// string. After it, 116 and 47 are consumed into 53
+    /// (`NORM4_PASS2_ITEM id=53 corners=[48000,20000 50000,20000
+    /// 50000,25000]`), and `NORM4_NEXT_ID 118`.
+    #[test]
+    fn norm4_recursion_chain_two_pass() {
+        let (mut manager, mut board) = fresh();
+        let z = insert(
+            &mut manager,
+            &mut board,
+            &[(15_000, 20_000), (17_000, 20_000)],
+        );
+        assert_eq!(z.get(), 10, "NORM4 Z=10");
+        for i in 1..=18 {
+            insert(
+                &mut manager,
+                &mut board,
+                &[(15_000 + 2_000 * i, 20_000), (17_000 + 2_000 * i, 20_000)],
+            );
+        }
+        for i in 1..=17 {
+            insert(
+                &mut manager,
+                &mut board,
+                &[(16_000 + 2_000 * i, 18_000), (16_000 + 2_000 * i, 22_000)],
+            );
+        }
+        assert_eq!(board.item_count(), 45, "NORM4 items=45");
+        assert!(
+            normalize(&mut manager, &mut board, z, None),
+            "NORM4_NORMALIZE true"
+        );
+        // PASS1 dump subset (preserved log :107-165).
+        assert_eq!(
+            corners_of(&board, ItemId::new(115)),
+            vec!["50000,20000", "50000,25000"],
+            "NORM4_PASS1_ITEM id=115"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(53)),
+            vec!["48000,20000", "50000,20000"],
+            "NORM4_PASS1_ITEM id=53"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(47)),
+            vec!["50000,20000", "50000,22000"],
+            "NORM4_PASS1_ITEM id=47"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(113)),
+            vec!["18000,20000", "20000,20000"],
+            "NORM4_PASS1_ITEM id=113"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(112)),
+            vec!["15000,20000", "18000,20000"],
+            "NORM4_PASS1_ITEM id=112"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(111)),
+            vec!["18000,20000", "18000,22000"],
+            "NORM4_PASS1_ITEM id=111"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(110)),
+            vec!["18000,18000", "18000,20000"],
+            "NORM4_PASS1_ITEM id=110"
+        );
+        assert!(!board.is_on_the_board(ItemId::new(8)), "no PASS1 id=8 row");
+        // SECOND PASS: snapshot of alive traces, descending, each
+        // normalize(None) — the spike walks the same snapshot (removed
+        // traces still get a call and return false, like Java's
+        // off-board split early-return).
+        let ids: Vec<ItemId> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }))
+            .map(|entry| entry.id)
+            .collect();
+        let mut verdicts: Vec<String> = Vec::new();
+        for id in ids {
+            let changed = normalize(&mut manager, &mut board, id, None);
+            verdicts.push(format!("{}={}", id.get(), changed));
+        }
+        assert_eq!(
+            verdicts.join(","),
+            "115=true,113=false,112=false,111=false,110=false,109=false,107=false,106=false,\
+             105=false,103=false,102=false,101=false,99=false,98=false,97=false,95=false,\
+             94=false,93=false,91=false,90=false,89=false,87=false,86=false,85=false,83=false,\
+             82=false,81=false,79=false,78=false,77=false,75=false,74=false,73=false,71=false,\
+             70=false,69=false,67=false,66=false,65=false,63=false,62=false,61=false,59=false,\
+             58=false,57=false,55=false,54=false,53=true,51=false,50=false,47=true,9=false,\
+             7=false,4=false",
+            "NORM4_SECOND_PASS (preserved log :166)"
+        );
+        // PASS2 dump facts (preserved log :167-223): the `53=true` /
+        // `47=true` verdicts mean 53 was REPLACED — its merged chain
+        // re-inserted as 116 — and 47 was consumed; the dump's tail is
+        // 116, ..., 51, 50, then 9 (no 53, no 47, no 8).
+        assert!(board.is_on_the_board(ItemId::new(116)), "PASS2 id=116");
+        assert_eq!(
+            corners_of(&board, ItemId::new(116)),
+            vec!["48000,20000", "50000,20000", "50000,25000"],
+            "NORM4_PASS2_ITEM id=116"
+        );
+        assert!(
+            !board.is_on_the_board(ItemId::new(53)),
+            "no PASS2 id=53 row"
+        );
+        assert!(
+            !board.is_on_the_board(ItemId::new(47)),
+            "no PASS2 id=47 row"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 118, "NORM4_NEXT_ID 118");
+    }
+
+    /// **NORM5A — the no-op normalize** (capture `--NORM5A--`
+    /// :225-227): a lone trace with no contacts — split size 1,
+    /// combine false, not degenerate → `NORM5A_NORMALIZE false`,
+    /// alive intact.
+    #[test]
+    fn norm5a_normalize_noop() {
+        let (mut manager, mut board) = fresh();
+        let k = insert(
+            &mut manager,
+            &mut board,
+            &[(60_000, 35_000), (65_000, 35_000)],
+        );
+        assert_eq!(k.get(), 10, "NORM5A K=10");
+        assert!(
+            !normalize(&mut manager, &mut board, k, None),
+            "NORM5A_NORMALIZE false"
+        );
+        assert!(board.is_on_the_board(k), "NORM5A_ALIVE true");
+        assert_eq!(
+            corners_of(&board, k),
+            vec!["60000,35000", "65000,35000"],
+            "NORM5A_ALIVE corners"
+        );
+    }
+
+    /// **NORM5B — the drill split under normalize** (capture
+    /// `--NORM5B--` :228-242): the trace crosses via 5's center; the
+    /// drill branch DISCARDS its split result, so splitPieces is just
+    /// [receiver] (size 1) and the verdict is FALSE even though the
+    /// board changed: `NORM5B_NORMALIZE false`,
+    /// `NORM5B_D_ALIVE false`, `NORM5B_NEXT_ID 13`.
+    #[test]
+    fn norm5b_drill_split_under_normalize() {
+        let (mut manager, mut board) = fresh();
+        let d = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 40_000), (50_000, 40_000)],
+        );
+        assert_eq!(d.get(), 10, "NORM5B D=10");
+        assert!(
+            !normalize(&mut manager, &mut board, d, None),
+            "NORM5B_NORMALIZE false"
+        );
+        assert!(!board.is_on_the_board(d), "NORM5B_D_ALIVE false");
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["30000,40000", "40000,40000"],
+            "NORM5B_POST_ITEM id=11"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["40000,40000", "50000,40000"],
+            "NORM5B_POST_ITEM id=12"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 13, "NORM5B_NEXT_ID 13");
+    }
+
+    /// **NORM5C — the drill split at the FIRST entry** (capture
+    /// `--NORM5C--` :243-258): with the new via 11 at (45000,40000)
+    /// present, the drill branch fires on the FIRST overlapping
+    /// entry; now the receiver's own split loop ALSO runs, the split
+    /// result has two pieces and the verdict is TRUE:
+    /// `NORM5C_NORMALIZE true`, `NORM5C_D_ALIVE false`,
+    /// `NORM5C_NEXT_ID 14`.
+    #[test]
+    fn norm5c_first_entry_drill_via() {
+        let (mut manager, mut board) = fresh();
+        let d = insert(
+            &mut manager,
+            &mut board,
+            &[(30_000, 40_000), (50_000, 40_000)],
+        );
+        assert_eq!(d.get(), 10, "NORM5C D=10");
+        let via2 = insert_via_fixture(
+            &mut manager,
+            &mut board,
+            IntPoint::new(45_000, 40_000),
+            &[1],
+        );
+        assert_eq!(via2.get(), 11, "NORM5C via2=11");
+        assert!(
+            normalize(&mut manager, &mut board, d, None),
+            "NORM5C_NORMALIZE true"
+        );
+        assert!(!board.is_on_the_board(d), "NORM5C_D_ALIVE false");
+        assert_eq!(
+            corners_of(&board, ItemId::new(12)),
+            vec!["30000,40000", "45000,40000"],
+            "NORM5C_POST_ITEM id=12"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(13)),
+            vec!["45000,40000", "50000,40000"],
+            "NORM5C_POST_ITEM id=13"
+        );
+        let witness = board.alloc_id();
+        assert_eq!(witness.get(), 14, "NORM5C_NEXT_ID 14");
+    }
+
+    /// **PICK — the `pick_items` rows** (capture `--PICK--`, preserved
+    /// log :259-264). The point query is the surrounding-box shape at
+    /// the given layer (0), or ALL layers at -1; the result walks
+    /// DESCENDING id. `PICK_EMPTY` pins the layer-0 outline-corner
+    /// miss down to the bare outline.
+    #[test]
+    fn pick_items_point_layers() {
+        let (manager, mut board) = fresh();
+        assert_eq!(
+            raw(&manager.pick_items(&mut board, &ip(20_000, 40_000), 0)),
+            vec![4, 3],
+            "PICK_PIN_CENTER [4:T,3:P]"
+        );
+        assert_eq!(
+            raw(&manager.pick_items(&mut board, &ip(40_000, 40_000), 0)),
+            vec![5],
+            "PICK_VIA_CENTER [5:V]"
+        );
+        assert_eq!(
+            raw(&manager.pick_items(&mut board, &ip(55_000, 15_000), 0)),
+            vec![7, 6],
+            "PICK_AREA [7:T,6:A]"
+        );
+        assert_eq!(
+            raw(&manager.pick_items(&mut board, &ip(20_000, 40_000), -1)),
+            vec![4, 3],
+            "PICK_ALL_LAYERS [4:T,3:P]"
+        );
+        assert_eq!(
+            raw(&manager.pick_items(&mut board, &ip(0, 0), 0)),
+            vec![1],
+            "PICK_EMPTY [1:BO]"
+        );
     }
 }

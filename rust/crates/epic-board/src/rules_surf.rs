@@ -473,20 +473,29 @@ pub struct NetClass {
     pub min_trace_length: f64,
     /// Java `maximumTraceLength`.
     pub max_trace_length: f64,
+    /// Java `ignoreCyclesWithAreas` (`NetClass.java:35`, ctor false).
+    pub ignore_cycles_with_areas: bool,
 }
 
 impl NetClass {
     /// Java `getIgnoreCyclesWithAreas()` (`NetClass.java:143` — the
     /// `private boolean ignoreCyclesWithAreas` field at `:35`, default
-    /// `false`). The setter (`:148`) is called ONLY from the GUI
-    /// (`WindowNetClasses.java:708`); the DSN reader never writes the
-    /// field, so every parsed board carries the default. The parse IR
-    /// (`epic_dsn` `NetClassIr`) accordingly has no column for it and
-    /// the read surface returns the parsed-board constant — the cycle
-    /// walk (`crate::trace_ops::is_cycle`) consumes exactly this.
+    /// `false`). The DSN reader never writes the field, so every
+    /// parsed board carries the ctor default (`NetClassIr` has no
+    /// column for it) — the cycle walk
+    /// (`crate::trace_ops::is_cycle`) consumes exactly this.
     #[must_use]
     pub fn ignore_cycles_with_areas(&self) -> bool {
-        false
+        self.ignore_cycles_with_areas
+    }
+
+    /// Java `setIgnoreCyclesWithAreas(boolean)` (`NetClass.java:148`):
+    /// the plain setter. Java's only production caller is the GUI
+    /// (`WindowNetClasses.java:708`); the trace-split tests reach it
+    /// the same way the SplitSpike did, to flip the flag before the
+    /// split (capture `AR2_*`).
+    pub fn set_ignore_cycles_with_areas(&mut self, value: bool) {
+        self.ignore_cycles_with_areas = value;
     }
 
     /// Java `getTraceHalfWidth(layer)` (`NetClass.java:94-101`): 0 for an
@@ -526,6 +535,9 @@ impl NetClass {
             shove_fixed: class.shove_fixed,
             min_trace_length: class.min_trace_length,
             max_trace_length: class.max_trace_length,
+            // The ctor default (`NetClass.java:35`): the parse IR has
+            // no column for the flag.
+            ignore_cycles_with_areas: false,
         }
     }
 }

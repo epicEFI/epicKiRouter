@@ -50,6 +50,7 @@ use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use epic_geometry::int_box::IntBox;
+use epic_geometry::point::Point;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
 use epic_index::{LeafEntry, NodeIdx, SearchTree, SearchTreeVariant, TreeEntry};
@@ -438,7 +439,7 @@ impl SearchTreeManager {
     /// keys leaves by `u64::from(id.get())`); a key outside the u32
     /// range belongs to no item (Java's cast `(Item)` would throw) —
     /// `None`, never a sentinel id that could alias a real item.
-    fn item_of_key(key: u64) -> Option<ItemId> {
+    pub(crate) fn item_of_key(key: u64) -> Option<ItemId> {
         u32::try_from(key).ok().map(ItemId::new)
     }
 
@@ -532,6 +533,22 @@ impl SearchTreeManager {
             }
         }
         objects.into_iter().map(|Reverse(id)| id).collect()
+    }
+
+    /// Java `BasicBoard.pickItems(Point, int, ItemSelectionFilter)`
+    /// (`BasicBoard.java:1087-1100`), the null-filter form: the
+    /// items whose shape on `layer` contains `location` — the query
+    /// shape is `TileShape.getInstance(point)` = the point's
+    /// SURROUNDING BOX (`TileShape.java:61-63`), a zero-size box.
+    /// The result is a Java `TreeSet<Item>` — DESCENDING id through
+    /// `Item.compareTo` — which is the [`SearchTreeManager::overlapping_objects`]
+    /// order verbatim (the SplitSpike capture `PICK_*` rows pin it).
+    /// The filter argument is not ported (no caller in the ported
+    /// surface needs it; Java applies it after the query).
+    pub fn pick_items(&self, board: &mut Board, location: &Point, layer: i32) -> Vec<ItemId> {
+        let point_shape =
+            TileShape::RegularTileShape(RegularTileShape::IntBox(location.surrounding_box()));
+        self.overlapping_objects(board, Self::DEFAULT_TREE_INDEX, &point_shape, layer, &[])
     }
 
     /// Java `overlappingTreeEntriesWithClearance` — the 5-arg CORE
