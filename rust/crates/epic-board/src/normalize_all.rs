@@ -45,24 +45,50 @@
 //!    loop between walks). Java-defensive; the port re-collects
 //!    plainly.
 //!
-//! ## Across-net processing order (the HashMap trap, resolved)
+//! ## Across-net processing order (the HashMap trap — TWO channels)
 //!
 //! Java groups into a `HashMap<Integer, ...>` and processes
 //! `tracesByNet.entrySet()` — an arbitrary order. The port uses a
-//! [`BTreeMap`] (ascending net number). The order is UNOBSERVABLE
-//! through board state: every effect of a net's loop stays inside that
-//! net — `split` skips `!sharesNet` items
-//! (`PolylineTrace.java:513-515`), `combine` requires `netsEqual`,
-//! contacts are queried with `ignoreNet = false` (same-net only), and
-//! `removeIfCycle` walks `getConnectionItems` over those same normal
-//! contacts. A multi-net trace (nets `[1,2]`) appears in two groups,
-//! but each group's processing of it is idempotent w.r.t. the other
-//! net's work — the normalizeall spike's isolation witness
-//! (`/tmp/epic-t13-normalize-all.out` `CA2_AGREE asc=true desc=true`:
-//! ascending-order and descending-order group processing end on the
-//! byte-identical board, and the real Java driver — whose small-Integer
-//! HashMap iterates ascending — agrees with both). If an observable
-//! cross-net channel ever appears, this module is WRONG and must stop.
+//! [`BTreeMap`] (ascending net number). Observability splits by channel:
+//!
+//! - **Geometry/contact state: order-unobservable.** Every effect of a
+//!   net's loop stays inside that net — `split` skips `!sharesNet`
+//!   items (`PolylineTrace.java:513-515`), `combine` requires
+//!   `netsEqual`, contacts are queried with `ignoreNet = false`
+//!   (same-net only), and `removeIfCycle` walks `getConnectionItems`
+//!   over those same normal contacts. A multi-net trace (nets `[1,2]`)
+//!   appears in two groups, but each group's processing of it is
+//!   idempotent w.r.t. the other net's work — the spike's fold-only
+//!   isolation witness (`/tmp/epic-t13-normalize-all.out`
+//!   `CA2_AGREE asc=true desc=true`).
+//! - **The shared ItemIdGenerator: order-OBSERVABLE once two or more
+//!   nets do id-allocating (split) work in the same call.** Split
+//!   pieces take generator ids in processing order, so ascending and
+//!   descending group orders end on boards with the SAME live id set
+//!   but a DIFFERENT id→geometry mapping — exactly what
+//!   `geometry_sha256` pins. The spike's CA7 characterization rows
+//!   prove it end-to-end: two nets, each a CA5-shaped crossing pair in
+//!   a disjoint region — `CA7_ORDER_DIFFER true` (ascending hands net
+//!   1's pieces ids 14-17 and net 2's 18-21; descending swaps them),
+//!   and `CA7_AGREE asc=true desc=false` (the real driver agrees with
+//!   the ascending twin only; the CA7 port test pins the ascending
+//!   id→corner rows literally).
+//!
+//! Ascending is still the correct choice in practice, for a reason
+//! about Java's `HashMap` over `Integer` keys: `Integer.hashCode` is
+//! the value itself, and with DENSE small keys 1..N the table capacity
+//! (grown at 0.75 load) always exceeds N, so every key lands in its own
+//! ascending bucket — the real driver iterates nets in ascending order,
+//! which is the order the BTreeMap mirrors. The exotic regime where
+//! this breaks (a BUCKET COLLISION chaining two nets into one slot,
+//! e.g. nets {1, 17} in a 16-slot table: 17 & 15 == 1, so 17 chains
+//! onto 1's bucket in INSERTION order — off the descending item walk,
+//! not net order) is guarded NOT by an argument
+//! here but by the 1,332-fixture golden corpus: any real board whose
+//! Java group order deviates from ascending fails the corpus compare,
+//! and the fix would be an order-replication in this module's grouping
+//! walk — not a re-architecture, since the geometry channel above
+//! stays order-free either way. Only the id channel is order-bound.
 
 use std::collections::BTreeMap;
 
@@ -84,7 +110,12 @@ use crate::tree_manager::SearchTreeManager;
 /// preclude. It is a hang guard, not a semantic step. Unlike the T12
 /// depth cap there is no private recursion seam to probe at the
 /// boundary (the counter lives in this module's only function), so the
-/// `>` discipline is pinned through [`iteration_cap_reached`].
+/// `>` discipline is pinned through [`iteration_cap_reached`]. The pin
+/// is seam-scoped, not driver-scoped: it covers the comparison and the
+/// literal ON the seam function — a mutant that stops CALLING
+/// [`iteration_cap_reached`] from [`normalize_all_traces`] passes these
+/// tests, and is accepted (the cap is a hang guard; the driver loop is
+/// otherwise covered by the CA fixtures).
 pub const MAX_NORMALIZE_ITERATIONS: i32 = 2000;
 
 /// The loop's cap test, extracted so the STRICTLY-GREATER comparison
@@ -393,8 +424,11 @@ mod tests {
     /// pair X,Y (nets [1,2]) — the fold happens in whichever group runs
     /// first; the other group's pass over it is a no-op. The port runs
     /// nets ASCENDING; the capture's twin_desc row (descending) and the
-    /// real driver agree on the byte-identical end board — the
-    /// isolation witness this module's docs lean on.
+    /// real driver agree on the byte-identical end board. SCOPE NOTE:
+    /// this is the geometry/contact-channel isolation witness for
+    /// FOLD-ONLY work — combine allocates no ids — so it says nothing
+    /// about the id channel; split work (id-allocating) is CA7's
+    /// characterization (see the module docs' two-channel section).
     #[test]
     fn ca2_two_nets_and_multi_net_pair_fold_order_independently() {
         let (mut manager, mut board) = fresh();
@@ -734,6 +768,123 @@ mod tests {
         )
         .expect("witness inserts");
         assert_eq!(witness.get(), 16, "CA5_NEXT_ID 16");
+    }
+
+    /// CA7 (`CA7_*` rows): the ID-CHANNEL characterization — two nets,
+    /// each a CA5-shaped crossing pair in a disjoint region (net 1 at
+    /// x=25000, net 2 at x=65000). Split work allocates generator ids,
+    /// so the across-net group order changes the id→geometry mapping:
+    /// the capture's twin_asc and twin_desc AFTER dumps share the live
+    /// id set {14..21} but swap which net's pieces hold ids 14-17
+    /// (`CA7_ORDER_DIFFER true`, `CA7_AGREE asc=true desc=false` — the
+    /// real Java driver, whose small-Integer HashMap iterates ascending,
+    /// matches twin_asc ONLY). This test pins the ASCENDING rows
+    /// literally — the driver order the port's BTreeMap mirrors. The
+    /// DESCENDING capture rows are honest characterization, not pins:
+    /// desc id=14..17 = net 2's pieces, desc id=18..21 = net 1's.
+    #[test]
+    fn ca7_two_nets_split_work_pins_ascending_id_mapping() {
+        let (mut manager, mut board) = fresh();
+        insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(25000, 20000), ip(25000, 35000)],
+            &[1],
+            FixedState::Unfixed,
+        );
+        insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(20000, 30000), ip(30000, 30000)],
+            &[1],
+            FixedState::Unfixed,
+        );
+        insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(65000, 20000), ip(65000, 35000)],
+            &[2],
+            FixedState::Unfixed,
+        );
+        insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(60000, 30000), ip(70000, 30000)],
+            &[2],
+            FixedState::Unfixed,
+        );
+        assert!(
+            normalize_all_traces(&mut manager, &mut board),
+            "CA7_DRIVER result=true"
+        );
+        assert_eq!(
+            trace_ids(&board),
+            vec![21, 20, 19, 18, 17, 16, 15, 14, 9, 8, 7, 4],
+            "CA7_ASC_AFTER: pieces 14-21, parse traces 4/7/8/9 survive"
+        );
+        // The ascending id→corner mapping, LITERAL from the
+        // CA7_ASC_AFTER capture rows: net 1's pieces take 14-17, net
+        // 2's take 18-21. A group-order mutant (descending) swaps the
+        // two nets' id blocks and fails exactly here.
+        assert_eq!(
+            corners_of(&board, ItemId::new(14)),
+            vec!["25000,20000", "25000,30000"],
+            "CA7_ASC_AFTER_ITEM id=14 (net 1 vertical-low)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(15)),
+            vec!["25000,30000", "25000,35000"],
+            "CA7_ASC_AFTER_ITEM id=15 (net 1 vertical-high)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(16)),
+            vec!["20000,30000", "25000,30000"],
+            "CA7_ASC_AFTER_ITEM id=16 (net 1 horizontal-left)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(17)),
+            vec!["25000,30000", "30000,30000"],
+            "CA7_ASC_AFTER_ITEM id=17 (net 1 horizontal-right)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(18)),
+            vec!["65000,20000", "65000,30000"],
+            "CA7_ASC_AFTER_ITEM id=18 (net 2 vertical-low)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(19)),
+            vec!["65000,30000", "65000,35000"],
+            "CA7_ASC_AFTER_ITEM id=19 (net 2 vertical-high)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(20)),
+            vec!["60000,30000", "65000,30000"],
+            "CA7_ASC_AFTER_ITEM id=20 (net 2 horizontal-left)"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(21)),
+            vec!["65000,30000", "70000,30000"],
+            "CA7_ASC_AFTER_ITEM id=21 (net 2 horizontal-right)"
+        );
+        assert_eq!(
+            board.get(ItemId::new(14)).expect("14").nets,
+            vec![1],
+            "CA7_ASC_AFTER_ITEM id=14 nets=[1]"
+        );
+        assert_eq!(
+            board.get(ItemId::new(18)).expect("18").nets,
+            vec![2],
+            "CA7_ASC_AFTER_ITEM id=18 nets=[2]"
+        );
+        let witness = insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(60000, 35000), ip(65000, 35000)],
+            &[1],
+            FixedState::Unfixed,
+        )
+        .expect("witness inserts");
+        assert_eq!(witness.get(), 22, "CA7_NEXT_ID 22");
     }
 
     /// CA6 (`CA6_*` rows): dsn-0151 itself

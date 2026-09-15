@@ -426,7 +426,7 @@ pub struct GoldenRecord {
 /// `DsnParseOracle.buildStats` (T13). Java counts `board.getItems()`
 /// (LIVE items only — the on-the-board filter; dsn-0151 reads items=2,
 /// not the parsed item total), and `nets` is
-/// `rules.nets.maxNetNumber()` (Java `DsnParseOracle.java:214`) — NOT a
+/// `rules.nets.maxNetNumber()` (Java `DsnParseOracle.java:216`) — NOT a
 /// net-table length (the T13 trap note: sparse net numbers diverge).
 fn board_stats(board: &Board) -> StatsRecord {
     let mut items = 0i64;
@@ -516,6 +516,14 @@ fn success_record(id: &str, path: &str, ses: &SesBoard, warnings: &[String]) -> 
         stats: Some(stats),
         geometry_sha256: Some(geometry),
         clearance: Some(clearance),
+        // KNOWN ASYMMETRY (T13 quality round): the net_table renders
+        // `ses.nets` in IR order, while `board_stats` above uses
+        // `max_net_number()`. On a fixture with SPARSE net numbers Java
+        // emits "" gap rows for the missing numbers here and Rust
+        // compacts them — the digest compare FAILS LOUDLY (never a
+        // silent pass), and no corpus fixture is sparse, so the 1,332
+        // corpus gate is the guard. If one ever appears, replicate
+        // Java's gap-row padding here.
         net_table: Some(ses.nets.iter().map(|net| net.name.clone()).collect()),
         layer_table: Some(
             ses.layers

@@ -65,11 +65,20 @@
 //          folding shape (combine folds a whole collinear chain inside
 //          one iteration), which is the mechanics dsn-0151's first
 //          call used.
+//   CA7  — the ID CHANNEL (quality-round characterization): two nets,
+//          each a CA5 crossing pair in a disjoint region. Split work
+//          ALLOCATES generator ids, so group order changes the
+//          id->geometry mapping (same live id set, different boards):
+//          CA7_ORDER_DIFFER true, CA7_AGREE asc=true desc=false (the
+//          driver, ascending like Java's small-Integer HashMap,
+//          matches twin_asc only). Both twins' AFTER dumps are
+//          captured; the port pins the ASCENDING rows literally.
 //
 // Output discipline: exact ints via field access, literal capture rows
 // only, descending-id dumps, no HashMap-order leakage into any row the
 // port pins (the only order-sensitive rows are the explicitly labeled
-// twin asc/desc counts, whose cross-order equality IS the claim).
+// twin asc/desc counts and CA7's id-mapping dumps, whose asc != desc
+// IS the documented id-channel claim).
 package app.freerouting.datastructures;
 
 import app.freerouting.board.actions.ItemIdGenerator;
@@ -491,6 +500,50 @@ public final class NormalizeAllSpike {
           ins(board, t, ip(20000, 30000), ip(30000, 30000));
           return board;
         });
+
+    // CA7 — THE ID CHANNEL (quality-round characterization): two nets,
+    // each a CA5-shaped crossing pair in a disjoint region (net 1 at
+    // x=25000, net 2 at x=65000 — both clear of the parse items and of
+    // each other). The split work ALLOCATES generator ids, so the
+    // across-net group order is OBSERVABLE in the id->geometry mapping
+    // (not in the live id set): ascending processes net 1 first and its
+    // pieces take the low ids; descending swaps them. The end boards
+    // therefore DIFFER across orders (CA7_ORDER_DIFFER true) while each
+    // order is internally consistent and the driver (ascending, like
+    // Java's small-Integer HashMap) agrees with twin_asc only
+    // (CA7_AGREE asc=true desc=false). The geometry/contact channel
+    // stays order-free — this case is the honest characterization the
+    // normalize_all module doc cites, NOT an isolation failure.
+    BoardBuilder buildC7 = () -> {
+      BasicBoard board = fresh();
+      PolylineTrace t = tmpl(board);
+      insNet(board, t, ip(25000, 20000), ip(25000, 35000), new int[] {1});
+      insNet(board, t, ip(20000, 30000), ip(30000, 30000), new int[] {1});
+      insNet(board, t, ip(65000, 20000), ip(65000, 35000), new int[] {2});
+      insNet(board, t, ip(60000, 30000), ip(70000, 30000), new int[] {2});
+      return board;
+    };
+    BasicBoard c7Asc = buildC7.build();
+    Map<Integer, Integer> c7AscCounts = new TreeMap<>();
+    boolean c7AscResult = twin(c7Asc, false, c7AscCounts);
+    String c7AscSig = signature(c7Asc);
+    BasicBoard c7Desc = buildC7.build();
+    Map<Integer, Integer> c7DescCounts = new TreeMap<>();
+    boolean c7DescResult = twin(c7Desc, true, c7DescCounts);
+    String c7DescSig = signature(c7Desc);
+    BasicBoard c7Drv = buildC7.build();
+    dumpItems(c7Drv, "CA7_BEFORE");
+    boolean c7DrvResult = c7Drv.normalizeAllTraces();
+    System.out.println("CA7_TWIN_ASC result=" + c7AscResult + " counts=" + c7AscCounts);
+    System.out.println("CA7_TWIN_DESC result=" + c7DescResult + " counts=" + c7DescCounts);
+    System.out.println("CA7_DRIVER result=" + c7DrvResult);
+    String c7DrvSig = signature(c7Drv);
+    System.out.println("CA7_AGREE asc=" + c7AscSig.equals(c7DrvSig)
+        + " desc=" + c7DescSig.equals(c7DrvSig));
+    System.out.println("CA7_ORDER_DIFFER " + !c7AscSig.equals(c7DescSig));
+    dumpItems(c7Asc, "CA7_ASC_AFTER");
+    dumpItems(c7Desc, "CA7_DESC_AFTER");
+    witness(c7Drv, tmpl(c7Drv), "CA7");
 
     // CA6 — dsn-0151 itself (the real fixture). The READ already ran
     // normalizeAllTraces inside the wiring scope; the captured rows are

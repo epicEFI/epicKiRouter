@@ -736,6 +736,78 @@ mod tests {
         );
     }
 
+    /// The Point::Rational corner branch of [`canonical_geometry_text_board`]
+    /// (:376-387, the only canon branch with no local pin before the T13
+    /// quality round). No public RationalPoint constructor exists (the
+    /// `pub(crate)` one mirrors Java's package-private constructor), so the
+    /// Rational corner is built INDIRECTLY: a `Polyline::new` of three
+    /// integer-endpoint lines whose CONSECUTIVE INTERSECTIONS are
+    /// non-integer rationals (`corners()` is exact intersection math),
+    /// stored verbatim through the public `insert_trace_without_cleaning`.
+    /// Java renders such a corner in `DsnParseOracle.coordinateOut`
+    /// (`:330-336`): `Math.round(corner.toFloat().x) + " " +
+    /// Math.round(corner.toFloat().y)` — floor(x + 0.5) per coordinate,
+    /// halves rounding UP (1.5 -> 2, 2.5 -> 3, 0.5 -> 1), which the pinned
+    /// line exercises in all three positions.
+    #[test]
+    fn board_twin_renders_rational_corners_via_java_round() {
+        use epic_board::items::FixedState;
+        use epic_board::trace_ops::insert_trace_without_cleaning;
+        use epic_geometry::line::Line;
+        use epic_geometry::polyline::Polyline;
+
+        let ses = spike_board();
+        let mut board = epic_board::board::Board::from_ses_board(&ses);
+        let mut manager = epic_board::tree_manager::SearchTreeManager::new();
+        manager.insert_items_creation_order(&mut board);
+        // L1 through (0,0)-(4,4): y = x; L2 through (3,0)-(0,3):
+        // x + y = 3; L3 through (4,2)-(2,0): y = x - 2. Pairwise
+        // non-parallel (Polyline::new's filters keep all three), so
+        // corners() = [L1∩L2, L2∩L3] = [(3/2, 3/2), (5/2, 1/2)].
+        let polyline = Polyline::new(vec![
+            Line::from_int_coords(0, 0, 4, 4),
+            Line::from_int_coords(3, 0, 0, 3),
+            Line::from_int_coords(4, 2, 2, 0),
+        ]);
+        assert_eq!(polyline.lines.len(), 3, "all three lines survive");
+        let id = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            polyline,
+            0,
+            0,
+            &[1],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("the crossing-line trace inserts");
+        // The corners REALLY are Rational — the branch under test is
+        // exercised, not silently rendering coincidentally-integral
+        // IntPoints.
+        let stored = board.trace_polyline(id).expect("stored polyline");
+        let corners = stored.corners();
+        assert_eq!(corners.len(), 2);
+        assert!(
+            corners
+                .iter()
+                .all(|corner| matches!(corner, Point::Rational(_))),
+            "both corners are Rational intersections"
+        );
+        // The pinned canon line: Math.round rendering of
+        // (3/2, 3/2) -> "2 2" and (5/2, 1/2) -> "3 1" (layer 0,
+        // half_width 0, unfixed).
+        let text = canonical_geometry_text_board(&board, &ses.metadata.string_quote);
+        let line = text
+            .lines()
+            .find(|line| line.starts_with(&format!("T {} ", id.get())))
+            .expect("the inserted trace renders");
+        assert_eq!(
+            line,
+            format!("T {} 0 0 unfixed 2 2 3 1", id.get()),
+            "coordinateOut form: Math.round per float coordinate"
+        );
+    }
+
     /// Every shape-encoding branch (module docs): box, octagon (Java
     /// field order), empty simplex (`n = 0`, the only parse-reachable
     /// simplex), polygon, circle, and a `(window)` hole. Format-defined
