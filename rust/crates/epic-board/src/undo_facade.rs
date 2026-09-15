@@ -1,27 +1,29 @@
 //! The board-level undo/redo/snapshot FACADE — Java
-//! `BasicBoard.undo(Set<Integer>)` (`BasicBoard.java:1234-1243`),
-//! `redo` (`:1247-1256`), `applyUndoRedoSideEffects`
-//! (`:1258-1287`), and the snapshot trio
+//! `BasicBoard.undo(Set<Integer>)` (`BasicBoard.java:1234-1241`),
+//! `redo` (`:1247-1254`), `applyUndoRedoSideEffects`
+//! (`:1256-1288`), and the snapshot trio
 //! `generateSnapshot`/`popSnapshot` via `BoardSnapshotManager`
-//! (`BoardSnapshotManager.java:75-84`). This module is the Task 14
+//! (`BoardSnapshotManager.java:75-83`). This module is the Task 14
 //! doc-of-record for the facade port; the corpus driver is
 //! `rust/harness/src/undo_corpus.rs` and the Java capture oracle is
 //! `rust/harness/oracle/UndoOracle.java`.
 //!
-//! ## The facade body (Java `:1234-1243`, ported 1:1)
+//! ## The facade body (Java `:1234-1241`, verbatim)
 //!
 //! ```java
 //! public boolean undo(Set<Integer> changedNets) {
-//!     this.components.undo(this.communication.observers);   // return IGNORED
-//!     LinkedList<UndoableObjects.Storable> cancelledObjects = new LinkedList<>();
-//!     LinkedList<UndoableObjects.Storable> restoredObjects = new LinkedList<>();
-//!     if (!this.itemList.undo(cancelledObjects, restoredObjects)) {
-//!         return false;
-//!     }
+//!     this.components.undo(this.communication.observers);
+//!     Collection<UndoableObjects.Storable> cancelledObjects = new LinkedList<>();
+//!     Collection<UndoableObjects.Storable> restoredObjects = new LinkedList<>();
+//!     boolean result = itemList.undo(cancelledObjects, restoredObjects);
 //!     applyUndoRedoSideEffects(cancelledObjects, restoredObjects, changedNets);
-//!     return true;
+//!     return result;
 //! }
 //! ```
+//!
+//! The port early-returns when the item undo fails; Java instead runs
+//! `applyUndoRedoSideEffects` over two EMPTY lists there — two
+//! zero-iteration walks, a no-op — so the shapes are equivalent.
 //!
 //! The order QUIRK is load-bearing and pinned: `components.undo` runs
 //! FIRST and its return value is ignored — on an empty ITEM stack the
@@ -31,7 +33,7 @@
 //! [`Components::undo`] before the item-list match and discards its
 //! `bool`.
 //!
-//! ## `applyUndoRedoSideEffects` (`:1258-1287`, shared by undo AND redo)
+//! ## `applyUndoRedoSideEffects` (`:1256-1288`, shared by undo AND redo)
 //!
 //! - **Cancelled, IN LIST ORDER**: `searchTreeManager.remove(item)`
 //!   (the `isOnTheBoard()` guard lives INSIDE the manager, ported at
@@ -56,8 +58,12 @@
 //!   nodes, whose mirror discipline ([`Board::mirror_node`]) keeps
 //!   them equal to the arena entries they replaced.
 //! - The DRILL-SPAN memo ([`Board::drill_precalc`]) is dropped for
-//!   every restored id (the struct-docs undo policy: Java's undo
-//!   restores fresh clones whose `-1` sentinels recompute the spans).
+//!   every restored id — behavior-neutral, because the memos are
+//!   pure functions of persistent state: Java's SWAP restores hand
+//!   back fresh clones (`-1` sentinels recompute), but a delete-list
+//!   restore returns the SAME instance with its memo intact — and
+//!   recompute equals keep either way (padstack-derived spans,
+//!   `DrillItem.java:163-184`).
 //! - `changedNets` is a `HashSet<Integer>` in Java; the facade
 //!   returns it SORTED + deduplicated ([`UndoOutcome::changed_nets`]),
 //!   which is exactly the digest's normalization
@@ -113,13 +119,13 @@ pub struct UndoOutcome {
 
 impl Board {
     /// Java `BasicBoard.generateSnapshot()` — pushes BOTH stacks
-    /// (`BoardSnapshotManager.java:75-80`).
+    /// (`BoardSnapshotManager.java:75-78`).
     pub fn generate_snapshot(&mut self) {
         self.item_undo.generate_snapshot();
         self.components.generate_snapshot();
     }
 
-    /// Java `BasicBoard.popSnapshot()` (`BoardSnapshotManager.java:82-84`)
+    /// Java `BasicBoard.popSnapshot()` (`BoardSnapshotManager.java:81-83`)
     /// — the ITEM list only; the components keep their level (the
     /// asymmetry pin).
     pub fn pop_snapshot(&mut self) -> bool {
@@ -141,8 +147,8 @@ impl Board {
     }
 
     /// Java `BasicBoard.undo(Set<Integer> changedNets)`
-    /// (`:1234-1243`) — see the module docs for the 1:1 body and the
-    /// order quirk.
+    /// (`:1234-1241`) — see the module docs for the verbatim body, the
+    /// early-return equivalence, and the order quirk.
     pub fn undo(&mut self, manager: &mut SearchTreeManager) -> UndoOutcome {
         // Java: `this.components.undo(...)` FIRST, return ignored —
         // it runs even when the item undo then fails.
@@ -159,7 +165,7 @@ impl Board {
     }
 
     /// Java `BasicBoard.redo(Set<Integer> changedNets)`
-    /// (`:1247-1256`) — the mirror body with `components.redo` /
+    /// (`:1247-1254`) — the mirror body with `components.redo` /
     /// `itemList.redo` and the SAME side-effect function.
     pub fn redo(&mut self, manager: &mut SearchTreeManager) -> UndoOutcome {
         self.components.redo();
@@ -174,7 +180,7 @@ impl Board {
         self.apply_undo_redo_side_effects(manager, cancelled, restored)
     }
 
-    /// Java `applyUndoRedoSideEffects` (`:1258-1287`) + the arena swap
+    /// Java `applyUndoRedoSideEffects` (`:1256-1288`) + the arena swap
     /// `itemList.undo/redo` already performed on the Java side. See
     /// the module docs for the phase walk.
     fn apply_undo_redo_side_effects(
@@ -289,7 +295,7 @@ mod tests {
 
     /// `BoardSnapshotManager` asymmetry: `generateSnapshot` pushes
     /// BOTH stacks but `popSnapshot` pops the ITEM list only
-    /// (`BoardSnapshotManager.java:75-84`) — the components keep
+    /// (`BoardSnapshotManager.java:75-83`) — the components keep
     /// their level. A port that pops both fails the last assert.
     #[test]
     fn pop_snapshot_pops_items_but_not_components() {
@@ -306,7 +312,7 @@ mod tests {
         );
     }
 
-    /// The order quirk (`BasicBoard.java:1234-1243`):
+    /// The order quirk (`BasicBoard.java:1234-1241`):
     /// `components.undo` runs FIRST and its return is ignored — on an
     /// empty ITEM stack the components level STILL MOVES while the
     /// board reports `false` (oracle capture `und-t01` steps n=12).
@@ -337,6 +343,14 @@ mod tests {
     /// value (the module-docs contract). The geometry save fires
     /// through [`Board::set_trace_polyline`] — Java's
     /// `PolylineTrace.replaceGeometry` site.
+    ///
+    /// The REDO half is the mirror_node witness: Java's current-level
+    /// undo node shares the LIVE instance, so the geometry mutation is
+    /// visible through it and redo re-lands the MUTATED polyline. A
+    /// port whose node stayed stale (the [`Board::mirror_node`] write
+    /// dropped from [`Board::set_trace_polyline`]) re-lands the
+    /// pre-mutation clone here — the undo-only asserts above cannot
+    /// see that mutant (the old clone IS the correct undo landing).
     #[test]
     fn modified_item_sits_in_both_lists_and_lands_on_the_restored_value() {
         let (mut board, ids) = board_with_traces([[1, 0], [2, 0], [3, 0]]);
@@ -347,13 +361,11 @@ mod tests {
             .trace_polyline(ids[2])
             .cloned()
             .expect("trace present");
-        board.set_trace_polyline(
-            ids[2],
-            Polyline::from_points(&[
-                Point::Int(IntPoint::new(9999, 0)),
-                Point::Int(IntPoint::new(9999, 1000)),
-            ]),
-        );
+        let mutated = Polyline::from_points(&[
+            Point::Int(IntPoint::new(9999, 0)),
+            Point::Int(IntPoint::new(9999, 1000)),
+        ]);
+        board.set_trace_polyline(ids[2], mutated.clone());
         let outcome = board.undo(&mut manager);
         assert!(outcome.changed);
         assert_eq!(ids_u32(&outcome.cancelled), vec![ids[2].get()]);
@@ -366,6 +378,12 @@ mod tests {
             board.trace_polyline(ids[2]),
             Some(&original),
             "the arena landed on the restored (pre-change) value"
+        );
+        board.redo(&mut manager);
+        assert_eq!(
+            board.trace_polyline(ids[2]),
+            Some(&mutated),
+            "redo re-lands the MUTATED geometry (the mirror_node write is load-bearing)"
         );
     }
 

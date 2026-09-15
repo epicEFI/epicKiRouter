@@ -210,11 +210,13 @@ pub struct Board {
     /// `ItemEntry` is the PERSISTENT payload only; see the
     /// [`ItemEntry`] docs).
     ///
-    /// Undo policy: Java's undo restores FRESH item copies (the −1
-    /// sentinels come back with the copy, so the spans recompute);
-    /// this memo lives OUTSIDE the entries and would survive a
-    /// restore — the facade undo/redo restore path drops the restored
-    /// id's entry here (Task 14).
+    /// Undo policy: the facade undo/redo restore path drops the
+    /// restored id's entry here (Task 14) — behavior-neutral either
+    /// way, because the memos are pure functions of persistent state:
+    /// Java's SWAP restores bring fresh clones (`-1` sentinels
+    /// recompute), while a delete-list restore keeps the SAME instance
+    /// with the memo intact (`DrillItem.java:163-184`) — recompute
+    /// equals keep.
     pub(crate) drill_precalc: BTreeMap<ItemId, DrillPrecalc>,
     /// Java `BasicBoard.itemList` — the `UndoableObjects` level stack
     /// (Task 14). The arena (`items`) stays the live storage; every
@@ -265,7 +267,7 @@ impl Board {
     ///
     /// Task 14: also inserts into the undo list (Java
     /// `BoardItemRepository.insertItem` → `itemList.insert(item)`,
-    /// `BoardItemRepository.java:141` — `insert` disables redo and
+    /// `BoardItemRepository.java:160` — `insert` disables redo and
     /// creates the node at the current level).
     pub fn insert_item(&mut self, mut entry: ItemEntry) {
         assert!(
@@ -292,7 +294,8 @@ impl Board {
     ///
     /// Task 14: also deletes from the undo list (Java
     /// `BoardItemRepository.removeItem` → `itemList.delete(item)`,
-    /// `BoardItemRepository.java:190` — the level-dichotomy delete).
+    /// `BoardItemRepository.java:193-194` — tree remove, then the
+    /// level-dichotomy delete).
     /// By the time this runs, the tree-manager half has already
     /// flipped the flag through [`Board::set_on_the_board`], so the
     /// node value carries `on_the_board == false` into the delete

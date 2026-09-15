@@ -1612,7 +1612,7 @@ fn split_inside_drill_pad_prohibited(
 // normalize (PolylineTraceNormalization.java)
 // ---------------------------------------------------------------------------
 
-/// Java `BasicBoard.insertTrace(Polyline, ...)` (`BasicBoard.java:209-242`)
+/// Java `BasicBoard.insertTrace(Polyline, ...)` (`BasicBoard.java:210-243`)
 /// — the CLEANING insert: [`insert_trace_without_cleaning`], then
 /// `newTrace.normalize(clipShape)` with `clipShape = null` (the
 /// `changedArea` lives on `RoutingBoard` only; a headless `BasicBoard`

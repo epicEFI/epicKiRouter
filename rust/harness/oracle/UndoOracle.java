@@ -375,7 +375,7 @@ public final class UndoOracle {
   }
 
   /** Verbatim copy of `BasicBoard.applyUndoRedoSideEffects`
-   * (BasicBoard.java:1258-1287) — board B's side-effect phase (the
+   * (BasicBoard.java:1256-1288) — board B's side-effect phase (the
    * facade does not expose the collections). `currentItem.board = this`
    * and `clearAutorouteInfo` are kept as the no-ops they are here (the
    * arena has no board back-pointer; autoroute info is not landed). */

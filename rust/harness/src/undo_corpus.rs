@@ -330,7 +330,11 @@ pub struct DigestRecord {
     /// The pair count.
     pub tree_n: i64,
     /// The pair set itself — full when ≤ 400 pairs, else `null` (the
-    /// sha carries the content either way).
+    /// sha carries the content either way). Accepted cliff: above the
+    /// threshold a first-divergence report degrades to sha-vs-sha
+    /// (no field-level witness); emitting a first-N sample would
+    /// change the digest schema on BOTH sides (oracle mirror + JVM
+    /// golden recapture) for a diagnostic-only gain.
     pub tree_pairs: Option<Vec<String>>,
     /// The corner query's object ids (descending), `None` on a
     /// traceless fixture.
@@ -512,7 +516,13 @@ fn digest(
     let query = qbox.map(|(box_, layer)| {
         let shape = TileShape::RegularTileShape(RegularTileShape::IntBox(*box_));
         manager
-            .overlapping_objects(board, 0, &shape, *layer, &[])
+            .overlapping_objects(
+                board,
+                SearchTreeManager::DEFAULT_TREE_INDEX,
+                &shape,
+                *layer,
+                &[],
+            )
             .into_iter()
             .map(|id| i64::from(id.get()))
             .collect::<Vec<_>>()
@@ -1363,12 +1373,14 @@ mod pins {
 
     /// The replay is deterministic: evaluating one real fixture twice
     /// yields byte-identical records (the no-JVM half of the
-    /// run-twice discipline). The fixture is the manifest's first
-    /// entry (the routing smoke-test board, stable on disk).
+    /// run-twice discipline). The fixture is the manifest's und-0028
+    /// (`rust/harness/fixtures/index-stress/empty-tree.dsn`): small,
+    /// and TRACE-BEARING, so the inserted-trace facts (`s_id`,
+    /// focused canon lines, the corner query) are exercised too.
     #[test]
     fn evaluate_rust_is_deterministic() {
         let repo_root = crate::oracle::find_repo_root().expect("repo root");
-        let path = "scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm01.dsn";
+        let path = "rust/harness/fixtures/index-stress/empty-tree.dsn";
         let bytes = std::fs::read(repo_root.join(path)).expect("fixture present");
         let first = evaluate_rust("und-det", path, &bytes);
         let second = evaluate_rust("und-det", path, &bytes);
@@ -1377,30 +1389,47 @@ mod pins {
             serde_json::to_string(&second).expect("serializes")
         );
         assert_eq!(first.result, "ok");
+        let facts = first.facts.expect("ok record carries facts");
+        assert!(
+            facts.t_id.is_some() && facts.s_id.is_some(),
+            "the fixture is trace-bearing (insert facts live)"
+        );
     }
 
     /// The digest's pair threshold: `tree_pairs` is full exactly when
-    /// `tree_n <= 400` (the sha carries the content either way). The
-    /// fixture is the manifest's first entry (the routing smoke-test
-    /// board, stable on disk).
+    /// `tree_n <= 400` (the sha carries the content either way). TWO
+    /// real manifest fixtures keep BOTH sides load-bearing: und-0028
+    /// (`index-stress/empty-tree.dsn`, every step ≤ 400 — an
+    /// always-None mutant dies here) and und-0001
+    /// (`DAC2020_bm01.dsn`, traceless, every step > 400 — an
+    /// always-Some mutant dies there).
     #[test]
     fn tree_pairs_threshold_contract() {
         let repo_root = crate::oracle::find_repo_root().expect("repo root");
-        let path = "scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm01.dsn";
-        let bytes = std::fs::read(repo_root.join(path)).expect("fixture present");
-        let record = evaluate_rust("und-thresh", path, &bytes);
-        let steps = record.steps.expect("ok record");
-        for step in &steps {
-            assert_eq!(
-                step.digest.tree_pairs.is_some(),
-                step.digest.tree_n <= 400,
-                "step {}: tree_n {} vs pairs presence",
-                step.n,
-                step.digest.tree_n
-            );
-            if let Some(pairs) = &step.digest.tree_pairs {
-                assert_eq!(pairs.len() as i64, step.digest.tree_n);
+        for (path, expect_some) in [
+            ("rust/harness/fixtures/index-stress/empty-tree.dsn", true),
+            (
+                "scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm01.dsn",
+                false,
+            ),
+        ] {
+            let bytes = std::fs::read(repo_root.join(path)).expect("fixture present");
+            let record = evaluate_rust("und-thresh", path, &bytes);
+            let steps = record.steps.expect("ok record");
+            for step in &steps {
+                assert_eq!(
+                    step.digest.tree_pairs.is_some(),
+                    step.digest.tree_n <= 400,
+                    "{path} step {}: tree_n {} vs pairs presence",
+                    step.n,
+                    step.digest.tree_n
+                );
+                if let Some(pairs) = &step.digest.tree_pairs {
+                    assert_eq!(pairs.len() as i64, step.digest.tree_n);
+                }
             }
+            let all_some = steps.iter().all(|step| step.digest.tree_pairs.is_some());
+            assert_eq!(all_some, expect_some, "{path}: the exercised side");
         }
     }
 }
