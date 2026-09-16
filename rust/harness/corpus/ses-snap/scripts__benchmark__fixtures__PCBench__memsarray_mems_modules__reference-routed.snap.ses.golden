@@ -1,0 +1,227 @@
+(session "reference-routed.ses"
+  (base_design "reference-routed.dsn")
+  (placement
+    (resolution um 10)
+    (component "mems_array:Castellated_Pad"
+      (place P4 370840 -391160 front 0)
+      (place P1 330200 -284480 front 0)
+      (place P3 330200 -391160 front 0)
+      (place P2 370840 -284480 front 0)
+    )
+    (component "mems_array:Mic-MEMS_Top_8_pins"
+      (place MIC1 350520 -337820 front 90)
+    )
+    (component "Capacitors_SMD:C_0805"
+      (place C1 312420 -337820 front 270)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.2")
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:400_um"
+        (shape
+          (circle F.Cu 6000 0 0)
+        )
+        (shape
+          (circle B.Cu 6000 0 0)
+        )
+        (attach off)
+      )
+      (padstack "Via[0-1]_762:508_um"
+        (shape
+          (circle F.Cu 7620 0 0)
+        )
+        (shape
+          (circle B.Cu 7620 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+      (net DGND
+        (via "Via[0-1]_762:508_um" 350520 -370840
+          (type protect)
+        )
+        (via "Via[0-1]_762:508_um" 312420 -370840
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            332770 -342070
+            332770 -337820
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            370840 -284480
+            370840 -314500
+            359770 -325570
+            350520 -325570
+          )
+          (type protect)
+        )
+        (wire
+          (path B.Cu 2540
+            370840 -284480
+            370840 -350520
+            350520 -370840
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            350520 -370840
+            350520 -350570
+          )
+          (type protect)
+        )
+        (wire
+          (path B.Cu 2540
+            350520 -370840
+            312420 -370840
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            312420 -370840
+            312420 -347820
+          )
+          (type protect)
+        )
+      )
+      (net DVDD
+        (wire
+          (path F.Cu 2540
+            343770 -333570
+            341270 -333570
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            343770 -333570
+            357270 -333570
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 1524
+            332820 -325120
+            339090 -331390
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            341270 -333570
+            339090 -331390
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 1524
+            332740 -325120
+            332820 -325120
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            332740 -325120
+            328750 -325120
+            326050 -327820
+            312420 -327820
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 5080
+            330200 -284480
+            330200 -286860
+            312420 -304640
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 5080
+            312420 -304640
+            312420 -327820
+          )
+          (type protect)
+        )
+      )
+      (net "/OUT"
+        (wire
+          (path F.Cu 2540
+            359770 -342070
+            363140 -345440
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 1524
+            368300 -350520
+            368220 -350520
+            363140 -345440
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            357270 -342070
+            359770 -342070
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            368300 -350520
+            370840 -353060
+            370840 -391160
+          )
+          (type protect)
+        )
+      )
+      (net "/CLK"
+        (wire
+          (path F.Cu 2540
+            341270 -342070
+            337820 -345520
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 1524
+            334010 -349250
+            334010 -349330
+            337820 -345520
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            343770 -342070
+            341270 -342070
+          )
+          (type protect)
+        )
+        (wire
+          (path F.Cu 2540
+            334010 -349250
+            330200 -353060
+            330200 -391160
+          )
+          (type protect)
+        )
+      )
+    )
+  )
+)

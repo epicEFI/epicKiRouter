@@ -749,6 +749,687 @@ pub fn compare(repo_root: &Path, tiers: &Path, golden: &Path) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// ses-snap (M2 Task 15): the ROUTED-fixture endpoint-snap corpus. The
+// tier A+B corpus above gates the parse-time writer (no-op snap); this
+// one gates the SAME writer wired to a live contacts provider over
+// boards whose wiring is already ROUTED (`reference-routed.dsn`).
+// ---------------------------------------------------------------------------
+
+/// The pinned corpus size — the manifest is committed, so a silent
+/// edit fails the inventory pin loudly.
+pub const SNAP_PINNED_CASE_COUNT: usize = 5;
+
+/// Where the ses-snap corpus lives (manifest + goldens + stats
+/// sidecar), relative to the repo root.
+pub const SNAP_CORPUS_DIR: &str = "rust/harness/corpus/ses-snap";
+
+/// One manifest row of `corpus/ses-snap/manifest.jsonl` (the exact
+/// JVM-manifest line shape `SesSnapOracle` reads).
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+struct SnapCase {
+    id: String,
+    /// Repo-relative fixture path (resolved against the oracle's
+    /// repo-root working directory at capture; against the repo root at
+    /// compare).
+    path: String,
+    /// The design FILE NAME both writers receive.
+    design: String,
+    /// The golden file name inside the corpus directory.
+    golden: String,
+}
+
+/// One committed per-fixture counter row of `corpus/ses-snap/stats.json`
+/// — the JAVA-side counters the java-free compare must reproduce from
+/// the Rust provider + rule (any drift = provider divergence). Field
+/// order == the sidecar's key order (the rewrite is diff-friendly).
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SnapStatsCase {
+    id: String,
+    /// The fixture's short label (selection-rule reporting; not
+    /// load-bearing for the compare).
+    fixture: String,
+    traces: u64,
+    /// The snap rule's INPUT surface: trace endpoints whose
+    /// provider-filtered drill list is non-empty. Non-vacuity gate:
+    /// must be > 0 on every fixture.
+    rule_reach: u64,
+    early_outs: u64,
+    /// CANARY: pinned to 0 — the inradius arm is unreachable through
+    /// real contacts (writer module docs). A jar change that makes
+    /// snapping live fails here loudly.
+    snap_fired: u64,
+    /// EXAMINED drill rows by kind (the `<= 0.5` break means a
+    /// multi-drill endpoint logs only its first row) — diagnostics for
+    /// the selection rule's pin/via coverage, Java-derived.
+    drill_contacts: DrillCounts,
+    /// Endpoints whose RAW contact set holds >= 2 drills (the
+    /// coincident via+pin shape — the provider-order pin's live
+    /// analog).
+    multi_drill_endpoints: u64,
+    bytes: u64,
+    sha256: String,
+}
+
+/// The `drillContacts` object of a stats row.
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
+struct DrillCounts {
+    pin: u64,
+    via: u64,
+}
+
+/// The committed `stats.json` document.
+#[derive(Debug, serde::Deserialize)]
+struct SnapStats {
+    cases: Vec<SnapStatsCase>,
+}
+
+/// Loads the committed manifest + stats sidecar and cross-checks the
+/// inventory (same ids, one golden per row, the pinned count).
+fn load_snap_corpus(repo_root: &Path) -> Result<(Vec<SnapCase>, SnapStats)> {
+    let dir = repo_root.join(SNAP_CORPUS_DIR);
+    anyhow::ensure!(
+        dir.is_dir(),
+        "ses-snap corpus directory missing at {}",
+        dir.display()
+    );
+    let manifest_bytes = std::fs::read(dir.join("manifest.jsonl"))
+        .with_context(|| format!("reading {}", dir.join("manifest.jsonl").display()))?;
+    let mut cases = Vec::new();
+    for line in String::from_utf8_lossy(&manifest_bytes).lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let case: SnapCase =
+            serde_json::from_str(line).with_context(|| format!("parsing manifest line {line}"))?;
+        cases.push(case);
+    }
+    anyhow::ensure!(
+        cases.len() == SNAP_PINNED_CASE_COUNT,
+        "ses-snap manifest holds {} case(s) — the pinned corpus size is {}",
+        cases.len(),
+        SNAP_PINNED_CASE_COUNT
+    );
+    let stats: SnapStats = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("stats.json"))
+            .with_context(|| format!("reading {}", dir.join("stats.json").display()))?,
+    )
+    .with_context(|| "parsing stats.json")?;
+    anyhow::ensure!(
+        stats.cases.len() == cases.len(),
+        "stats.json holds {} row(s) for {} manifest case(s)",
+        stats.cases.len(),
+        cases.len()
+    );
+    for (case, stats) in cases.iter().zip(&stats.cases) {
+        anyhow::ensure!(
+            case.id == stats.id,
+            "stats row id {} does not follow manifest id {} — regenerate stats with `dsn ses-snap-golden`",
+            stats.id,
+            case.id
+        );
+        let golden = dir.join(&case.golden);
+        anyhow::ensure!(
+            golden.is_file(),
+            "golden {} missing for {}",
+            golden.display(),
+            case.id
+        );
+        // The sidecar's bytes+sha pin the committed golden itself — a
+        // regenerated or hand-edited golden that missed the stats
+        // rewrite fails HERE, java-free.
+        let bytes =
+            std::fs::read(&golden).with_context(|| format!("reading {}", golden.display()))?;
+        anyhow::ensure!(
+            bytes.len() as u64 == stats.bytes,
+            "{}: golden holds {} byte(s), stats pins {} — regenerate stats with `dsn ses-snap-golden`",
+            case.id,
+            bytes.len(),
+            stats.bytes
+        );
+        let sha = sha256_hex(&bytes);
+        anyhow::ensure!(
+            sha == stats.sha256,
+            "{}: golden sha {} != stats sha {} — regenerate stats with `dsn ses-snap-golden`",
+            case.id,
+            sha,
+            stats.sha256
+        );
+    }
+    Ok((cases, stats))
+}
+
+/// `dsn ses-snap-golden`: run `SesSnapOracle` (one JVM, capture mode)
+/// over the COMMITTED manifest, cross-check every captured golden
+/// against the oracle's own sha256 + counters, and rewrite the corpus
+/// goldens and `stats.json` to exactly the captured inventory. Manual
+/// step (CI runs the java-free compare only).
+pub fn snap_golden(repo_root: &Path, jvm_xmx: &str) -> Result<()> {
+    let started = Instant::now();
+    let (cases, old_stats) = load_snap_corpus(repo_root)?;
+    let dir = repo_root.join(SNAP_CORPUS_DIR);
+
+    let java = crate::oracle::resolve_java()?;
+    let jar = crate::oracle::jar_path(repo_root);
+    anyhow::ensure!(
+        jar.is_file(),
+        "oracle jar missing at {} — build it once with `./gradlew executableJar`",
+        jar.display()
+    );
+    let oracle_src = repo_root.join("rust/harness/oracle/SesSnapOracle.java");
+    anyhow::ensure!(
+        oracle_src.is_file(),
+        "snap oracle evaluator missing at {}",
+        oracle_src.display()
+    );
+
+    let capture_dir =
+        std::env::temp_dir().join(format!("epic-ses-snap-capture-{}", std::process::id()));
+    if capture_dir.exists() {
+        std::fs::remove_dir_all(&capture_dir)
+            .with_context(|| format!("cleaning {}", capture_dir.display()))?;
+    }
+    std::fs::create_dir_all(&capture_dir)
+        .with_context(|| format!("creating {}", capture_dir.display()))?;
+    let jvm_manifest = std::env::temp_dir().join(format!(
+        "epic-ses-snap-manifest-{}.jsonl",
+        std::process::id()
+    ));
+    {
+        use std::io::Write as _;
+        let mut file = std::fs::File::create(&jvm_manifest)
+            .with_context(|| format!("creating {}", jvm_manifest.display()))?;
+        for case in &cases {
+            writeln!(
+                file,
+                "{}",
+                serde_json::to_string(case).expect("snap case serializes")
+            )
+            .with_context(|| format!("writing {}", jvm_manifest.display()))?;
+        }
+    }
+    let stderr_path = std::env::temp_dir().join(format!(
+        "epic-ses-snap-oracle-stderr-{}.log",
+        std::process::id()
+    ));
+
+    let mut child = std::process::Command::new(&java)
+        .arg(format!("-Xmx{jvm_xmx}"))
+        .arg("-Duser.language=en")
+        .arg("-Duser.country=US")
+        .arg("-cp")
+        .arg(&jar)
+        .arg(&oracle_src)
+        .arg("capture")
+        .arg(&jvm_manifest)
+        .arg(&capture_dir)
+        .current_dir(repo_root)
+        .stdout(std::process::Stdio::piped())
+        .stderr(
+            std::fs::File::create(&stderr_path)
+                .with_context(|| format!("creating {}", stderr_path.display()))?,
+        )
+        .spawn()
+        .with_context(|| format!("spawning {} with the SES snap oracle", java.display()))?;
+
+    // Only result lines start with `{"id"` (SNAPLOG diagnostics and
+    // FRLogger noise write to stdout in between); byte-wise read.
+    let stdout = child.stdout.take().context("oracle stdout not captured")?;
+    let mut fresh_lines = Vec::new();
+    {
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut raw = Vec::new();
+        loop {
+            raw.clear();
+            let read = reader
+                .read_until(b'\n', &mut raw)
+                .context("reading snap oracle stdout")?;
+            if read == 0 {
+                break;
+            }
+            if raw.starts_with(b"{\"id\"") {
+                let line = String::from_utf8_lossy(&raw);
+                fresh_lines.push(line.trim_end_matches(['\n', '\r']).to_string());
+            }
+        }
+    }
+    drop(child.stderr.take());
+    let status = child.wait().context("waiting for the snap oracle")?;
+    let _ = std::fs::remove_file(&jvm_manifest);
+    let stderr = std::fs::read_to_string(&stderr_path).unwrap_or_default();
+    let _ = std::fs::remove_file(&stderr_path);
+    if !status.success() {
+        bail!(
+            "snap oracle failed with {status} (captured {}/{} result line(s) before failure):\n{}",
+            fresh_lines.len(),
+            cases.len(),
+            stderr.trim_end()
+        );
+    }
+    anyhow::ensure!(
+        fresh_lines.len() == cases.len(),
+        "snap oracle produced {} result line(s) for {} case(s)",
+        fresh_lines.len(),
+        cases.len()
+    );
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct SnapOracleResult {
+        id: String,
+        #[serde(default)]
+        result: String,
+        #[serde(default)]
+        bytes: Option<u64>,
+        #[serde(default)]
+        sha256: Option<String>,
+        #[serde(default)]
+        traces: Option<u64>,
+        #[serde(default)]
+        rule_reach: Option<u64>,
+        #[serde(default)]
+        early_outs: Option<u64>,
+        #[serde(default)]
+        snap_fired: Option<u64>,
+        #[serde(default)]
+        contact_mismatches: Option<u64>,
+        #[serde(default)]
+        drill_contacts: Option<DrillCounts>,
+        #[serde(default)]
+        multi_drill_endpoints: Option<u64>,
+    }
+    let mut new_stats: Vec<SnapStatsCase> = Vec::with_capacity(cases.len());
+    for (index, line) in fresh_lines.iter().enumerate() {
+        let record: SnapOracleResult = serde_json::from_str(line)
+            .with_context(|| format!("parsing snap oracle result line {line}"))?;
+        let case = &cases[index];
+        anyhow::ensure!(
+            record.id == case.id,
+            "snap oracle returned id {} for case {} — machinery bug",
+            record.id,
+            case.id
+        );
+        anyhow::ensure!(
+            record.result == "Success",
+            "{} ({}) produced result {} — a routed corpus fixture regressed",
+            case.id,
+            case.path,
+            record.result
+        );
+        anyhow::ensure!(
+            record.contact_mismatches.unwrap_or(u64::MAX) == 0,
+            "{}: oracle reimplementation and jar snappedEndpoint disagree {} time(s)",
+            case.id,
+            record.contact_mismatches.unwrap_or_default()
+        );
+        // The counters a jar change would move first: the capture
+        // refuses to silently rewrite a corpus whose Java-side truth
+        // shifted (that is the sidecar's whole point).
+        let old = old_stats
+            .cases
+            .iter()
+            .find(|row| row.id == case.id)
+            .expect("load_snap_corpus checked id alignment");
+        for (label, fresh, pinned) in [
+            ("traces", record.traces, Some(old.traces)),
+            ("ruleReach", record.rule_reach, Some(old.rule_reach)),
+            ("earlyOuts", record.early_outs, Some(old.early_outs)),
+            ("snapFired", record.snap_fired, Some(old.snap_fired)),
+            (
+                "multiDrillEndpoints",
+                record.multi_drill_endpoints,
+                Some(old.multi_drill_endpoints),
+            ),
+            (
+                "drillContacts.pin",
+                record.drill_contacts.map(|counts| counts.pin),
+                Some(old.drill_contacts.pin),
+            ),
+            (
+                "drillContacts.via",
+                record.drill_contacts.map(|counts| counts.via),
+                Some(old.drill_contacts.via),
+            ),
+        ] {
+            anyhow::ensure!(
+                fresh == pinned,
+                "{}: Java-side {label} drifted {} -> {fresh:?} — the jar changed; update \
+                 stats.json deliberately (and re-audit the reachability note) before recapturing",
+                case.id,
+                pinned.unwrap_or_default()
+            );
+        }
+        let captured = capture_dir.join(&case.golden);
+        let bytes = std::fs::read(&captured).with_context(|| {
+            format!(
+                "reading captured {} (oracle reported Success but wrote nothing?)",
+                captured.display()
+            )
+        })?;
+        anyhow::ensure!(
+            bytes.len() as u64 == record.bytes.unwrap_or(u64::MAX),
+            "{}: captured byte count {} disagrees with the oracle's {}",
+            case.id,
+            bytes.len(),
+            record.bytes.unwrap_or_default()
+        );
+        let sha = sha256_hex(&bytes);
+        anyhow::ensure!(
+            Some(sha.as_str()) == record.sha256.as_deref(),
+            "{}: captured golden does not match the oracle's sha256 — partial write?",
+            case.id
+        );
+        new_stats.push(SnapStatsCase {
+            id: case.id.clone(),
+            fixture: old.fixture.clone(),
+            traces: record.traces.unwrap_or_default(),
+            rule_reach: record.rule_reach.unwrap_or_default(),
+            early_outs: record.early_outs.unwrap_or_default(),
+            snap_fired: record.snap_fired.unwrap_or_default(),
+            drill_contacts: record
+                .drill_contacts
+                .unwrap_or(DrillCounts { pin: 0, via: 0 }),
+            multi_drill_endpoints: record.multi_drill_endpoints.unwrap_or_default(),
+            bytes: record.bytes.unwrap_or_default(),
+            sha256: sha,
+        });
+    }
+    // Rewrite the corpus: goldens + stats sidecar.
+    for (case, stats) in cases.iter().zip(&new_stats) {
+        let captured = capture_dir.join(&case.golden);
+        let bytes = std::fs::read(&captured)
+            .with_context(|| format!("re-reading {}", captured.display()))?;
+        std::fs::write(dir.join(&case.golden), &bytes)
+            .with_context(|| format!("writing {}", dir.join(&case.golden).display()))?;
+        println!(
+            "{} {}: bytes={} sha={} traces={} ruleReach={} earlyOuts={} snapFired={}",
+            case.id,
+            stats.fixture,
+            stats.bytes,
+            &stats.sha256[..12],
+            stats.traces,
+            stats.rule_reach,
+            stats.early_outs,
+            stats.snap_fired
+        );
+    }
+    // The sidecar layout: a two-line header, then ONE LINE PER CASE
+    // (compact) — a fixture swap or counter drift is a one-line diff.
+    let mut stats_doc = String::new();
+    stats_doc.push_str("{\n");
+    stats_doc.push_str("  \"comment\": ");
+    stats_doc
+        .push_str(&serde_json::to_string(SIDECAR_COMMENT).expect("sidecar comment serializes"));
+    stats_doc.push_str(",\n  \"cases\": [\n");
+    for (index, stats) in new_stats.iter().enumerate() {
+        stats_doc.push_str("    ");
+        stats_doc.push_str(&serde_json::to_string(stats).expect("stats row serializes"));
+        if index + 1 < new_stats.len() {
+            stats_doc.push(',');
+        }
+        stats_doc.push('\n');
+    }
+    stats_doc.push_str("  ]\n}\n");
+    std::fs::write(dir.join("stats.json"), stats_doc)
+        .with_context(|| format!("writing {}", dir.join("stats.json").display()))?;
+    let _ = std::fs::remove_dir_all(&capture_dir);
+    println!(
+        "captured {} ses-snap golden(s) into {} in {:.1}s (java: {})",
+        cases.len(),
+        dir.display(),
+        started.elapsed().as_secs_f64(),
+        java.display()
+    );
+    Ok(())
+}
+
+/// The stats sidecar's provenance comment — VERBATIM the committed
+/// sidecar's text, so a no-drift recapture rewrites stats.json with a
+/// zero-byte diff.
+const SIDECAR_COMMENT: &str = "Per-fixture Java-oracle counters (SesSnapOracle \
+capture mode, run twice, byte-identical). ruleReach = trace endpoints whose \
+drill-contact list survives the instanceof + layer-span + null-shape filters \
+(the snap rule's INPUT surface); earlyOuts = rule-reach endpoints that \
+returned via the <=0.5 arm; snapFired = non-null snap results. The \
+snapFired=0 canary is EXPECTED (see writer.rs module docs: the inradius arm \
+is unreachable through Trace.getNormalContacts' class-strict DrillItem \
+acceptance) and is enforced loudly — a jar change that makes snapping live \
+fails the compare. drillContacts counts Pin/Via drill rows in the SNAPLOG \
+diagnostics (provider input rows, NOT endpoints); multiDrillEndpoints counts \
+endpoints whose raw contact set holds >= 2 drills.";
+
+/// The Rust-side counters for one fixture, computed the way the oracle
+/// defines them (provider lists + the pure rule) — parity with
+/// `stats.json` is itself a provider gate.
+#[derive(Debug, Default, PartialEq)]
+struct SnapCounters {
+    traces: u64,
+    rule_reach: u64,
+    early_outs: u64,
+    snap_fired: u64,
+}
+
+/// `dsn ses-snap-compare`: parse every routed fixture with epic-dsn,
+/// replay the T13 pipeline (board → read-path tree fill →
+/// normalizeAllTraces with a STABILITY assert), collect the provider,
+/// reproduce the Java counters, and byte-compare the wired writer
+/// (`write_session_with_contacts`) against the committed goldens.
+/// Java-free (CI gate).
+pub fn snap_compare(repo_root: &Path) -> Result<()> {
+    let started = Instant::now();
+    let (cases, stats) = load_snap_corpus(repo_root)?;
+    let dir = repo_root.join(SNAP_CORPUS_DIR);
+
+    use epic_board::board::Board;
+    use epic_board::normalize_all::normalize_all_traces;
+    use epic_board::session_contacts::SessionDrillContacts;
+    use epic_board::tree_manager::SearchTreeManager;
+    use epic_dsn::reader::{DsnReadResult, read_board};
+    use epic_dsn::ses::writer::{
+        SessionContacts, snapped_endpoint, write_session, write_session_with_contacts,
+    };
+    use epic_dsn::ses_board::{ItemIr, SesBoard};
+
+    let mut byte_equal = 0usize;
+    for (case, pinned) in cases.iter().zip(&stats.cases) {
+        let bytes = std::fs::read(repo_root.join(&case.path))
+            .with_context(|| format!("reading fixture {} ({})", case.path, case.id))?;
+        let mut ses = SesBoard::new();
+        if !matches!(read_board(&bytes, &mut ses), DsnReadResult::Success { .. }) {
+            bail!(
+                "{} ({}) no longer parses Success — corpus fixture regressed",
+                case.id,
+                case.path
+            );
+        }
+        let trace_count = ses
+            .items
+            .iter()
+            .filter(|item| matches!(item, ItemIr::Trace { .. }))
+            .count() as u64;
+
+        // The T13 pipeline: board mirror + read-path tree fill +
+        // normalizeAllTraces. The routed fixtures are all-USER_FIXED
+        // (`(type route)`), so normalize MUST be a no-op — asserted by
+        // snapshotting every trace's geometry before/after.
+        let trace_snapshot = |board: &Board| -> Vec<String> {
+            board
+                .iter_ascending()
+                .filter_map(|entry| match &entry.data {
+                    epic_board::items::ItemData::Trace {
+                        layer,
+                        half_width,
+                        lines,
+                    } => Some(format!(
+                        "{}|{layer}|{half_width}|{:?}",
+                        entry.id.get(),
+                        lines.corners()
+                    )),
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut board = Board::from_ses_board(&ses);
+        let before = trace_snapshot(&board);
+        let mut manager = SearchTreeManager::new();
+        manager.insert_items_creation_order(&mut board);
+        normalize_all_traces(&mut manager, &mut board);
+        let after = trace_snapshot(&board);
+        anyhow::ensure!(
+            before == after,
+            "{}: normalize_all_traces is NOT a no-op on this fixture — the golden was \
+             captured from Java's post-normalize board; the corpus rule requires \
+             normalize-stability (swap the fixture or re-audit)",
+            case.id
+        );
+
+        // The provider + counters, defined exactly as the oracle does.
+        let provider = SessionDrillContacts::collect(&manager, &mut board);
+        let mut counters = SnapCounters {
+            traces: trace_count,
+            ..SnapCounters::default()
+        };
+        for item in &ses.items {
+            let ItemIr::Trace { id, trace } = item else {
+                continue;
+            };
+            for (start_side, corner) in [
+                (true, trace.polyline.first_corner()),
+                (false, trace.polyline.last_corner()),
+            ] {
+                let Some(corner) = corner else {
+                    continue;
+                };
+                let drills = provider.endpoint_drills(*id, start_side);
+                if drills.is_empty() {
+                    continue;
+                }
+                counters.rule_reach += 1;
+                let corner_float = corner.to_float();
+                // The snap arm runs the PORTED rule; the early arm is
+                // derivable from it: a None verdict with a <=0.5 drill
+                // anywhere in the list is exactly the oracle's early-out
+                // verdict (a drill at <=0.5 AFTER a qualifier is
+                // unreachable — the qualifier returns Some first).
+                if snapped_endpoint(corner_float, drills).is_some() {
+                    counters.snap_fired += 1;
+                } else if drills
+                    .iter()
+                    .any(|drill| corner_float.distance(&drill.center) <= 0.5)
+                {
+                    counters.early_outs += 1;
+                }
+            }
+        }
+        // Counter parity with the committed Java truth (the provider
+        // gate: a contacts/provider divergence shows up here even when
+        // the bytes happen to match).
+        let got = format!(
+            "traces={} ruleReach={} earlyOuts={} snapFired={}",
+            counters.traces, counters.rule_reach, counters.early_outs, counters.snap_fired
+        );
+        let want = format!(
+            "traces={} ruleReach={} earlyOuts={} snapFired={}",
+            pinned.traces, pinned.rule_reach, pinned.early_outs, pinned.snap_fired
+        );
+        anyhow::ensure!(
+            got == want,
+            "{}: provider counters drifted — rust {got}, committed java {want}",
+            case.id
+        );
+        // Non-vacuity: the snap rule's INPUT surface must be non-empty
+        // (a green corpus over zero drill endpoints proves nothing).
+        anyhow::ensure!(
+            pinned.rule_reach > 0,
+            "{}: ruleReach == 0 — vacuous fixture, replace it (selection rule)",
+            case.id
+        );
+        // The canary: snapping is dead code upstream (writer module
+        // docs); a fire means the jar (or the port) changed the world.
+        anyhow::ensure!(
+            pinned.snap_fired == 0,
+            "{}: snapFired == {} — the endpoint snap FIRED; the reachability finding \
+             no longer holds, re-audit the corpus",
+            case.id,
+            pinned.snap_fired
+        );
+
+        // The wired writer vs the golden — byte-equal bar. The no-op
+        // delegation is cross-checked on every fixture for free (the
+        // snap never fires, so the 2-arg form must equal the wired
+        // form byte-for-byte).
+        let golden_bytes = std::fs::read(dir.join(&case.golden))
+            .with_context(|| format!("reading golden {} ({})", case.golden, case.id))?;
+        let wired = write_session_with_contacts(&ses, &case.design, &provider);
+        if wired.as_bytes() == golden_bytes.as_slice() {
+            anyhow::ensure!(
+                write_session(&ses, &case.design).as_bytes() == wired.as_bytes(),
+                "{}: the 2-arg writer diverged from the no-op-provider 3-arg form with \
+                 snapping dead — delegation leak",
+                case.id
+            );
+            byte_equal += 1;
+            println!(
+                "{} {}: byte-equal (traces={} ruleReach={} earlyOuts={} snapFired=0)",
+                case.id, pinned.fixture, counters.traces, counters.rule_reach, counters.early_outs
+            );
+            continue;
+        }
+        // Diagnostics reuse the canonical comparator; the gate still
+        // fails (the M1b bar is byte equality, T40 classifier stays).
+        let golden_tree = parse_sexpr(&String::from_utf8_lossy(&golden_bytes))
+            .with_context(|| format!("parsing golden {}", case.golden))?;
+        let rust_tree = parse_sexpr(&wired)
+            .with_context(|| format!("parsing the Rust emission for {}", case.path))?;
+        let mut all = Vec::new();
+        collect_divergences(
+            &golden_tree,
+            &rust_tree,
+            "session",
+            false,
+            &mut all,
+            usize::MAX,
+        );
+        let mut reported = Vec::new();
+        collect_divergences(
+            &golden_tree,
+            &rust_tree,
+            "session",
+            false,
+            &mut reported,
+            REPORT_DIVERGENCE_LIMIT,
+        );
+        println!(
+            "{} {}: NOT byte-equal ({} divergence(s), class {:?}):",
+            case.id,
+            case.golden,
+            all.len(),
+            classify(&all)
+        );
+        for divergence in &reported {
+            println!(
+                "  {} golden={} rust={}",
+                divergence.path, divergence.golden, divergence.rust
+            );
+        }
+    }
+
+    anyhow::ensure!(
+        byte_equal == cases.len(),
+        "ses-snap-compare: {}/{} fixture(s) byte-equal — the wired writer diverged",
+        byte_equal,
+        cases.len()
+    );
+    println!(
+        "ses-snap-compare: {} routed fixture(s) byte-equal (provider counters at parity, \
+         snap canary 0, no-op delegation proven) in {:.1}s (java-free)",
+        cases.len(),
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Pins (java-free: tiers.yaml + the committed corpus directory only). The
 // harness is a binary crate, so integration tests cannot import its code —
 // the M1b convention is in-module `pins`.
@@ -922,6 +1603,187 @@ mod pins {
             .expect("tier A includes the sonde xilinx fixture");
         assert_eq!(sonde.design, "sonde xilinx.dsn");
         assert!(!sonde.design.contains('/'));
+    }
+}
+
+/// ses-snap pins (java-free: the committed `corpus/ses-snap/`
+/// directory + the fixtures it references). Expected values are
+/// LITERAL committed sidecar rows (pin rule 8) — every equality below
+/// is data the capture produced, not a reconstruction.
+#[cfg(test)]
+mod snap_pins {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn repo_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .expect("repo root is two levels above the harness crate")
+    }
+
+    /// The committed corpus loads through the same loader the compare
+    /// uses (manifest + sidecar + golden inventory + sha cross-check
+    /// all green), the pinned ids are exactly the committed rows, and
+    /// every manifest fixture exists on disk.
+    #[test]
+    fn snap_corpus_inventory_loads_with_pinned_ids() {
+        let root = repo_root();
+        let (cases, stats) = load_snap_corpus(&root).expect("committed ses-snap corpus loads");
+        let ids: Vec<&str> = cases.iter().map(|case| case.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "snap-0001",
+                "snap-0002",
+                "snap-0003",
+                "snap-0004",
+                "snap-0005"
+            ],
+            "the pinned corpus is the committed 5-fixture set"
+        );
+        for (case, row) in cases.iter().zip(&stats.cases) {
+            assert_eq!(case.id, row.id, "sidecar rows follow manifest order");
+            assert!(
+                case.path.starts_with("scripts/benchmark/fixtures/PCBench/")
+                    && case.path.ends_with("/reference-routed.dsn"),
+                "{}: the corpus covers ROUTED PCBench fixtures ({})",
+                case.id,
+                case.path
+            );
+            assert_eq!(
+                case.design, "reference-routed.dsn",
+                "{}: the design name is the routed fixture's file name",
+                case.id
+            );
+            assert!(
+                root.join(&case.path).is_file(),
+                "{}: fixture {} missing on disk",
+                case.id,
+                case.path
+            );
+            // The golden-name convention: the fixture path flattened
+            // with `__`, `.dsn` stripped, `.snap.ses.golden` appended —
+            // pinned so a hand-added row cannot silently drift from it.
+            let expected = format!(
+                "{}.snap.ses.golden",
+                case.path
+                    .strip_suffix(".dsn")
+                    .expect("path ends with .dsn")
+                    .replace('/', "__")
+            );
+            assert_eq!(case.golden, expected, "{}: golden naming", case.id);
+        }
+    }
+
+    /// The committed counters ARE the reachability finding, as data:
+    /// every drill-contacted endpoint early-outs (all distances are
+    /// exactly 0.0 through the class-strict contacts path), so
+    /// `earlyOuts == ruleReach`, the snap canary is 0, and the
+    /// examined drill rows (pin + via) sum to ruleReach — the
+    /// function-level `<= 0.5` break means a multi-drill endpoint
+    /// contributes ONE row, so `multiDrillEndpoints > 0` never adds
+    /// rows. Non-vacuity: ruleReach > 0 everywhere.
+    #[test]
+    fn snap_sidecar_rows_pin_the_reachability_finding() {
+        let root = repo_root();
+        let (cases, stats) = load_snap_corpus(&root).expect("committed ses-snap corpus loads");
+        for row in &stats.cases {
+            assert!(
+                row.rule_reach > 0,
+                "{}: vacuous fixture (ruleReach == 0)",
+                row.id
+            );
+            assert_eq!(
+                row.snap_fired, 0,
+                "{}: the snapFired=0 canary — a nonzero value means the jar changed",
+                row.id
+            );
+            assert_eq!(
+                row.early_outs, row.rule_reach,
+                "{}: every drill-contacted endpoint early-outs",
+                row.id
+            );
+            assert_eq!(
+                row.drill_contacts.pin + row.drill_contacts.via,
+                row.rule_reach,
+                "{}: one examined drill row per rule-reach endpoint (the <=0.5 break)",
+                row.id
+            );
+        }
+        // Selection-rule coverage literals (committed rows): pin-dense,
+        // via-bearing, mixed, and multi-drill fixtures are all present.
+        let by_fixture = |name: &str| {
+            stats
+                .cases
+                .iter()
+                .find(|row| row.fixture == name)
+                .unwrap_or_else(|| panic!("fixture {name} missing from the sidecar"))
+        };
+        assert_eq!(
+            by_fixture("DIYDAC_DIYDAC").drill_contacts.via,
+            0,
+            "pin-dense"
+        );
+        assert_eq!(
+            by_fixture("memsarray_mems_modules").drill_contacts.via,
+            5,
+            "via-bearing"
+        );
+        assert!(
+            by_fixture("induction-hob_temperature-sensor")
+                .drill_contacts
+                .pin
+                > 0
+                && by_fixture("induction-hob_temperature-sensor")
+                    .drill_contacts
+                    .via
+                    > 0,
+            "mixed pin/via"
+        );
+        assert_eq!(
+            by_fixture("kicad-projects_BatCharge").multi_drill_endpoints,
+            3,
+            "multi-drill (coincident via+pin endpoints)"
+        );
+        // The corpus manifest carries exactly these 5 fixtures — no
+        // silent 6th row.
+        assert_eq!(cases.len(), SNAP_PINNED_CASE_COUNT);
+    }
+
+    /// Each committed golden is session-shaped and carries the routed
+    /// fixture's design name (the same content pins the M1b corpus
+    /// applies, on this corpus's artifacts).
+    #[test]
+    fn snap_goldens_are_session_shaped() {
+        let root = repo_root();
+        let (cases, _stats) = load_snap_corpus(&root).expect("committed ses-snap corpus loads");
+        for case in &cases {
+            let golden = root.join(SNAP_CORPUS_DIR).join(&case.golden);
+            let bytes =
+                std::fs::read(&golden).unwrap_or_else(|e| panic!("reading {}: {e}", case.golden));
+            assert!(
+                bytes.starts_with(b"(session "),
+                "{} must open with '(session '",
+                case.golden
+            );
+            assert_eq!(
+                bytes.last(),
+                Some(&b')'),
+                "{} must end with ')' — no trailing newline",
+                case.golden
+            );
+            let text = String::from_utf8_lossy(&bytes);
+            let bare = format!("(base_design {}", case.design);
+            let quoted = format!("(base_design \"{}\"", case.design);
+            assert!(
+                text.contains(&bare) || text.contains(&quoted),
+                "{} must carry the design name {:?} in (base_design …",
+                case.golden,
+                case.design
+            );
+        }
     }
 }
 

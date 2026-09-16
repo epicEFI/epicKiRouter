@@ -115,6 +115,22 @@ pub enum DsnCommand {
         #[arg(long, default_value = "harness/corpus/ses")]
         golden: PathBuf,
     },
+    /// Capture the ses-snap corpus (M2 Task 15): run SesSnapOracle
+    /// (ONE JVM, capture mode) over the COMMITTED routed-fixture
+    /// manifest, cross-check the captured bytes/counters against the
+    /// stats sidecar (drift = the jar changed; deliberate update
+    /// required), and rewrite the corpus goldens + `stats.json`.
+    /// Manual step — CI runs the java-free `ses-snap-compare` only.
+    SesSnapGolden,
+    /// Compare the CONTACTS-WIRED Rust writer against the committed
+    /// ses-snap goldens (M2 Task 15): parse each ROUTED fixture,
+    /// replay the T13 pipeline (board + tree fill + normalize, with a
+    /// normalize-stability assert), collect SessionDrillContacts,
+    /// reproduce the Java counters (provider gate), and byte-compare
+    /// `write_session_with_contacts` (byte-equal bar). Java-free,
+    /// CI-able; bails on any diff, vacuous fixture, or snap canary
+    /// firing.
+    SesSnapCompare,
 }
 
 pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
@@ -135,6 +151,8 @@ pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
         DsnCommand::SesCompare { tiers, golden } => {
             crate::ses_compare::compare(&repo_root, &tiers, &golden)
         }
+        DsnCommand::SesSnapGolden => crate::ses_compare::snap_golden(&repo_root, jvm_xmx),
+        DsnCommand::SesSnapCompare => crate::ses_compare::snap_compare(&repo_root),
     }
 }
 

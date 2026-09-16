@@ -41,6 +41,12 @@ jobs:
       - run: cargo run -q -p epic-harness -- dsn ses-compare
         env:
           EPIC_SKIP_GRADLE: "1"
+      # M2 T15 endpoint-snap parity: the contacts-wired writer over the 5
+      # ROUTED fixtures vs committed goldens + Java-side counter sidecar
+      # (provider gate, snapFired=0 canary) — java-free compare.
+      - run: cargo run -q -p epic-harness -- dsn ses-snap-compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
       # M2 index parity: tree dumps + query replay vs committed Java-oracle
       # goldens (tier fixtures + stressors) — java-free compare.
       - run: cargo run -q -p epic-harness -- index compare

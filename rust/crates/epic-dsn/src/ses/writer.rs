@@ -3,18 +3,44 @@
 //! the Java oracle emits it (the harness's `SesEmitOracle` captures
 //! goldens; `ses-compare` is the gate).
 //!
-//! ## Deliberate omissions (plan `:285`, decisions T40/D11)
+//! ## T40 endpoint snapping (M2 Task 15, D23) — ported, and DEAD CODE
+//! upstream
 //!
-//! - **T40 endpoint snapping is NOT ported.** Java `snappedEndpoint`
-//!   (`:426-453`) re-centers wire endpoints on contacted drill items —
-//!   a ROUTER-state query (`wire.getStartContacts()`) a parse-time board
-//!   has no equivalent of (no contact sets, D9). Emitted endpoints are
-//!   exactly `java_round(session_transform(parsed_corner))`; the T40
-//!   round-trip assertion is the harness compare against the oracle
-//!   goldens (the oracle emits the same parse-time board, so its
-//!   `snappedEndpoint` also always returns `null` there — `contacts` is
-//!   empty before routing). Snapping is scheduled for M2+ when trace
-//!   contacts exist.
+//! Java `snappedEndpoint` (`:426-453`) re-centers a wire endpoint on a
+//! contacted drill item's center. The rule is ported verbatim as a PURE
+//! FUNCTION ([`snapped_endpoint`]) over drill data supplied by a
+//! [`SessionContacts`] provider (D23's split: filters and contact
+//! enumeration are PROVIDER-side — see the trait docs; the thresholds
+//! and first-qualifying-wins walk are RULE-side).
+//!
+//! **Reachability finding (jar-verified, corpus-wide):** the rule's
+//! output-changing branch (`centerDistance <= padShape.borderDistance`)
+//! is UNREACHABLE through the real contacts path on ANY board — routed
+//! or parse-time. `Trace.getNormalContacts` (`Trace.java:173-203`)
+//! accepts a `DrillItem` contact only when the endpoint point EQUALS the
+//! drill center, and `Point.equals` is CLASS-STRICT + value-exact
+//! (`IntPoint`/`RationalPoint`), so every drill contact sits at
+//! distance EXACTLY `0.0` and the `<= 0.5` at-center arm
+//! (`:444-447`) returns first. Empirical witnesses:
+//! - `SesSnapOracle` full scan of ALL 1,157 PCBench `reference-routed`
+//!   boards: 317k drill-contacted endpoints, `snapFired=0`, every
+//!   distance printed `0.000000`, `contactMismatches=0` (the
+//!   reimplementation and the reflection-called jar agree everywhere).
+//! - Crafted `between-pads` case: an endpoint BETWEEN two pads is not a
+//!   contact of either (endpoint != center), so a "qualifying" drill
+//!   (0.5 < dist <= inradius) can never BE a contact — the wall is
+//!   structural, not statistical. The upstream test
+//!   (`SesRoundTripTest.endpointSnappingIsStableAndRoundTrips`) is
+//!   therefore vacuously green.
+//!
+//! Consequences pinned by the corpus (`rust/harness/corpus/ses-snap/`):
+//! non-vacuity is measured on the rule's INPUT surface (drill-contacted
+//! endpoints, `ruleReach > 0` per fixture, plus pin/via/multi-drill
+//! coverage), the `snapFired == 0` value is a committed CANARY (a jar
+//! change that ever makes snapping live fails the compare loudly), and
+//! the rule's branches — including the function-level quirk and the
+//! `<=` boundaries — are pinned by crafted unit vectors the live
+//! pipeline cannot produce (the point of D23's pure-function split).
 //! - **`writeWasIs` emits an empty scope unconditionally.** Pin swaps
 //!   (`Pin.getChangedTo() != this`) are a router-time mutation; a
 //!   parse-time board has none. `(was_is` + `)` with nothing between —
@@ -73,6 +99,7 @@ use crate::sink::{BoardSink, FixedStateIr};
 use crate::write_scope::{
     IndentFileWriter, java_double_to_string, quote_java_identifier, unit_to_dsn_string,
 };
+use epic_geometry::float_point::FloatPoint;
 use epic_geometry::rounding::java_round;
 use std::collections::HashSet;
 
@@ -86,7 +113,100 @@ use std::collections::HashSet;
 /// has no Java-reachable counterpart (`SesWriter` requires a built
 /// board); the port returns an empty string for it — unreachable for
 /// every board the harness emits (parse Success implies create_board).
+///
+/// T15/D23: the 2-arg form is the NO-OP-PROVIDER delegation — byte
+/// output is provably identical to the pre-T15 writer (empty drill
+/// lists make [`snapped_endpoint`] return `None` at every endpoint);
+/// the 20 M1b `ses-compare` goldens pin that byte-stability.
 pub fn write_session(board: &SesBoard, design_name: &str) -> String {
+    write_session_with_contacts(board, design_name, &NoSessionContacts)
+}
+
+/// D23's provider half: one contacted drill item's snap-relevant data,
+/// pre-filtered by the PROVIDER (the split is the decision — the rule
+/// in [`snapped_endpoint`] stays pure and jar-anchored).
+///
+/// Provider-side filters (Java `snappedEndpoint :426-453`'s contact
+/// loop): the contact must be a `DrillItem` (traces/areas dropped), it
+/// must span the WIRE's layer (`layer >= firstLayer && layer <=
+/// lastLayer`, `:439-442`), and its shape on that layer
+/// (`getShape(layer - firstLayer)`) must be non-null (`:443-446`). The
+/// provider emits the surviving drills in JAVA CONTACT ORDER —
+/// descending id (T60-pinned; jar-witnessed by the crafted coincident
+/// via+pin case, `contacts=[4:Via 2:Pin]`) — because the rule's
+/// first-qualifying-wins walk is order-observable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EndpointDrill {
+    /// The drill center in BOARD float coordinates (Java
+    /// `drill.getCenter().toFloat()`) — the value a snap EMITS.
+    pub center: FloatPoint,
+    /// `padShape.borderDistance(center)` for the drill's shape on the
+    /// wire's layer — the inradius bound (`:450-451`). The PROVIDER
+    /// computes it (epic-geometry `border_distance`, the PolygonShape
+    /// `-> 0.0` quirk kept); the rule never touches shapes.
+    pub border_distance: f64,
+}
+
+/// D23: the snap rule's view of board connectivity. Implemented by the
+/// board crate over its contacts seam; [`NoSessionContacts`] is the
+/// parse-time stand-in the 2-arg [`write_session`] delegates through.
+pub trait SessionContacts {
+    /// The ordered, provider-filtered drill data for one trace endpoint
+    /// (`start_side == true` → the polyline's first corner side, matching
+    /// Java `getStartContacts()`). `trace_id` is the board item id the
+    /// [`SesBoard`](crate::ses_board::SesBoard) carries
+    /// (`ItemIr::Trace { id }`).
+    fn endpoint_drills(&self, trace_id: i32, start_side: bool) -> &[EndpointDrill];
+}
+
+/// The no-op provider: no drill contacts anywhere (a parse-time board
+/// has none to give the writer — contacts live in the board crate's
+/// tree, not in the parse IR).
+pub struct NoSessionContacts;
+
+impl SessionContacts for NoSessionContacts {
+    fn endpoint_drills(&self, _trace_id: i32, _start_side: bool) -> &[EndpointDrill] {
+        &[]
+    }
+}
+
+/// Java `SesWriter.snappedEndpoint` (`:426-453`) — the snap rule as a
+/// pure function over the provider's ordered drill data (D23's
+/// rule-side half).
+///
+/// Jar quirks kept verbatim:
+/// - `centerDistance <= 0.5` RETURNS FOR THE WHOLE FUNCTION (`:444-447`)
+///   — the FIRST at-center drill in iteration order kills the snap even
+///   when a later drill would qualify. This is a FUNCTION-LEVEL early
+///   out, not a `continue` (pinned: the highest-id-at-center-quirk unit
+///   vector).
+/// - Both thresholds are `<=` (boundary unit vectors pin the
+///   discrimination from `<`).
+/// - First QUALIFYING drill wins → the returned center is that drill's,
+///   in provider (descending-id) order.
+pub fn snapped_endpoint(corner: FloatPoint, drills: &[EndpointDrill]) -> Option<FloatPoint> {
+    for drill in drills {
+        let center_distance = corner.distance(&drill.center);
+        if center_distance <= 0.5 {
+            // Already at the center (within rounding) — nothing to fix;
+            // Java returns null for the WHOLE function (quirk).
+            return None;
+        }
+        if center_distance <= drill.border_distance {
+            return Some(drill.center);
+        }
+    }
+    None
+}
+
+/// The T15/D23 3-arg writer: [`write_session`] with a live contacts
+/// provider. Byte-identical to the 2-arg form whenever the provider
+/// yields no snap (the corpus-wide reality — see the module docs).
+pub fn write_session_with_contacts(
+    board: &SesBoard,
+    design_name: &str,
+    contacts: &dyn SessionContacts,
+) -> String {
     let (Some(board_transform), Some(layers)) = (&board.transform, &board.layers) else {
         return String::new();
     };
@@ -108,7 +228,14 @@ pub fn write_session(board: &SesBoard, design_name: &str) -> String {
     file.write(")");
     write_placement(board, string_quote, &session_transform, &mut file);
     write_was_is(&mut file);
-    write_routes(board, string_quote, &session_transform, layers, &mut file);
+    write_routes(
+        board,
+        string_quote,
+        &session_transform,
+        layers,
+        contacts,
+        &mut file,
+    );
     file.end_scope();
     file.into_string()
 }
@@ -239,6 +366,7 @@ fn write_routes(
     string_quote: &str,
     session_transform: &CoordinateTransform,
     layers: &crate::layer_structure::LayerStructure,
+    contacts: &dyn SessionContacts,
     file: &mut IndentFileWriter,
 ) {
     file.start_scope();
@@ -246,7 +374,14 @@ fn write_routes(
     write_resolution_scope(board, file);
     write_parser_scope_reduced(board, string_quote, file);
     write_library(board, string_quote, session_transform, file);
-    write_network(board, string_quote, session_transform, layers, file);
+    write_network(
+        board,
+        string_quote,
+        session_transform,
+        layers,
+        contacts,
+        file,
+    );
     file.end_scope();
 }
 
@@ -381,6 +516,7 @@ fn write_network(
     string_quote: &str,
     session_transform: &CoordinateTransform,
     layers: &crate::layer_structure::LayerStructure,
+    contacts: &dyn SessionContacts,
     file: &mut IndentFileWriter,
 ) {
     file.start_scope();
@@ -392,10 +528,29 @@ fn write_network(
             string_quote,
             session_transform,
             layers,
+            contacts,
             file,
         );
     }
     file.end_scope();
+}
+
+/// D24: the ONE value the `write_net` filter can hand the dispatch —
+/// one variant per emittable kind, each carrying exactly the payload
+/// its writer consumes (plus the trace id the snap provider keys on).
+/// The dispatch match over this enum is exhaustive BY CONSTRUCTION;
+/// the pre-T15 `_ => unreachable!` crutch is gone.
+enum Emittable<'a> {
+    Trace {
+        id: i32,
+        trace: &'a crate::sink::TraceIr,
+    },
+    Via {
+        via: &'a crate::sink::ViaIr,
+    },
+    Area {
+        area: &'a crate::sink::ConductionAreaIr,
+    },
 }
 
 /// Java `writeNet` (`:329-370`) — descending-id walk (T39, module
@@ -409,15 +564,21 @@ fn write_net(
     string_quote: &str,
     session_transform: &CoordinateTransform,
     layers: &crate::layer_structure::LayerStructure,
+    contacts: &dyn SessionContacts,
     file: &mut IndentFileWriter,
 ) {
     let mut header_written = false;
     for item in board.items.iter().rev() {
-        let kind = match item {
-            ItemIr::Trace { trace, .. } if trace.nets.contains(&net_number) => {
-                (trace.fixed, &trace.nets)
+        // Filter + classify in one pass: an item either yields its
+        // emittable payload with the fixed state the skip check needs,
+        // or it does not belong to this net's output at all.
+        let Some((emittable, fixed)) = (match item {
+            ItemIr::Trace { id, trace } if trace.nets.contains(&net_number) => {
+                Some((Emittable::Trace { id: *id, trace }, trace.fixed))
             }
-            ItemIr::Via { via, .. } if via.nets.contains(&net_number) => (via.fixed, &via.nets),
+            ItemIr::Via { via, .. } if via.nets.contains(&net_number) => {
+                Some((Emittable::Via { via }, via.fixed))
+            }
             ItemIr::ConductionArea { area, .. }
                 if area.nets.contains(&net_number)
                     && usize::try_from(area.layer_no)
@@ -425,11 +586,12 @@ fn write_net(
                         .and_then(|slot| layers.layers.get(slot))
                         .is_some_and(|layer| layer.is_signal) =>
             {
-                (area.fixed, &area.nets)
+                Some((Emittable::Area { area }, area.fixed))
             }
-            _ => continue,
+            _ => None,
+        }) else {
+            continue;
         };
-        let (fixed, _) = kind;
         if fixed == FixedStateIr::SystemFixed {
             continue;
         }
@@ -441,15 +603,22 @@ fn write_net(
             }
             header_written = true;
         }
-        match item {
-            ItemIr::Trace { trace, .. } => {
-                write_wire(trace, layers, string_quote, session_transform, file)
-            }
-            ItemIr::Via { via, .. } => write_via(via, board, string_quote, session_transform, file),
-            ItemIr::ConductionArea { area, .. } => {
+        // D24: exhaustive by construction over `Emittable` — no
+        // unreachable fallback exists to rot.
+        match emittable {
+            Emittable::Trace { id, trace } => write_wire(
+                id,
+                trace,
+                layers,
+                string_quote,
+                session_transform,
+                contacts,
+                file,
+            ),
+            Emittable::Via { via } => write_via(via, board, string_quote, session_transform, file),
+            Emittable::Area { area } => {
                 write_conduction_area(area, layers, string_quote, session_transform, file)
             }
-            _ => unreachable!("the kind match above filtered to these three"),
         }
     }
     if header_written {
@@ -459,25 +628,49 @@ fn write_net(
 
 /// Java `writeWire` (`:372-415`): `(wire` + `(path <layer> <width>`
 /// with per-line corners + optional fixed-state line. Width =
-/// `java_round(boardToDsn(2 * halfWidth))` (an INT). Corners dedup
-/// against the PREVIOUS emitted corner only (Java `prevCoors`
-/// comparison; runs of identical corners collapse to one).
+/// `java_round(boardToDsn(2 * halfWidth))` (an INT). Corners come from
+/// the VERBATIM POLYLINE (`wire.polyline().corners()`, `:386`) — at
+/// parse time identical to the int-rounded `corners` view (reader
+/// corners are IntPoints), so switching the source is byte-neutral for
+/// the M1b goldens while matching Java's data path on normalized
+/// boards where the two can differ. Corners dedup against the PREVIOUS
+/// emitted corner only (Java `prevCoors` comparison; runs of identical
+/// corners collapse to one).
+///
+/// T15/T40 (`:391-396`): at the two ENDPOINT positions the corner
+/// float is overridden by [`snapped_endpoint`] BEFORE the transform +
+/// `java_round` + dedup — a snap can change coordinates AND the corner
+/// COUNT (the dedup drops a snapped corner equal to its neighbor).
 fn write_wire(
+    trace_id: i32,
     wire: &crate::sink::TraceIr,
     layers: &crate::layer_structure::LayerStructure,
     string_quote: &str,
     session_transform: &CoordinateTransform,
+    contacts: &dyn SessionContacts,
     file: &mut IndentFileWriter,
 ) {
     let wire_width =
         java_round(session_transform.board_to_dsn_value(2.0 * f64::from(wire.half_width)));
     file.start_scope();
     file.write("wire");
-    let corners = &wire.corners;
+    let corners = wire.polyline.corners();
     let mut coors: Vec<i64> = Vec::with_capacity(2 * corners.len());
     let mut prev_coors: Option<[i64; 2]> = None;
     for (i, corner) in corners.iter().enumerate() {
-        let current_float_coors = session_transform.board_to_dsn_point(corner.to_float());
+        let mut corner_point = corner.to_float();
+        if i == 0 || i == corners.len() - 1 {
+            let start_side = i == 0;
+            // Java snappedEndpoint(wire, startSide): the corner it
+            // measures from IS this endpoint (polyline first/last
+            // corner), in BOARD coordinates — never DSN space.
+            if let Some(snapped) =
+                snapped_endpoint(corner_point, contacts.endpoint_drills(trace_id, start_side))
+            {
+                corner_point = snapped;
+            }
+        }
+        let current_float_coors = session_transform.board_to_dsn_point(corner_point);
         let current_coors = [
             java_round(current_float_coors[0]),
             java_round(current_float_coors[1]),
@@ -1385,5 +1578,253 @@ mod tests {
             ")", // the session ends after the root `)` — NO trailing newline
         );
         assert_eq!(write_session(&board, "board.dsn"), expected);
+    }
+
+    // ------------------------------------------------------------------
+    // T15/T40 snap-rule pins (D23). These vectors are CRAFTED — the
+    // live contacts path can never produce them (a drill contact sits
+    // at distance EXACTLY 0.0, so only the no-drill and at-center
+    // arms ever run on a real board; the module docs). That is the
+    // point of the pure-function split: the unreachable branches are
+    // pinned HERE instead.
+    // ------------------------------------------------------------------
+
+    fn drill(x: f64, y: f64, border_distance: f64) -> EndpointDrill {
+        EndpointDrill {
+            center: FloatPoint::new(x, y),
+            border_distance,
+        }
+    }
+
+    #[test]
+    fn snap_rule_no_drills_keeps_the_corner() {
+        assert_eq!(snapped_endpoint(FloatPoint::new(1000.0, 1000.0), &[]), None);
+    }
+
+    #[test]
+    fn snap_rule_no_qualifying_drill_falls_through() {
+        // 3-4-5: corner (0,0), center (30,40) → dist 50 > inradius 49.
+        assert_eq!(
+            snapped_endpoint(FloatPoint::new(0.0, 0.0), &[drill(30.0, 40.0, 49.0)]),
+            None
+        );
+    }
+
+    /// THE QUIRK PIN — Java `:444-447` returns null for the WHOLE
+    /// function from the first at-center drill: the higher-id drill
+    /// (first in the provider's descending order) sits at the corner
+    /// exactly, so even though the SECOND drill qualifies, the snap is
+    /// killed. Mutation target: `return None` → `continue` in
+    /// [`snapped_endpoint`] flips this to `Some((30,40))` and fails.
+    /// The second assert is the CONTRAST witness proving drill B
+    /// qualifies on its own (without it, a port that never snaps
+    /// passes vacuously).
+    #[test]
+    fn snap_rule_at_center_quirk_kills_later_qualifier() {
+        let corner = FloatPoint::new(0.0, 0.0);
+        // Provider order = descending id: the at-center drill comes
+        // FIRST, the qualifying drill second.
+        let both = [drill(0.0, 0.0, 500.0), drill(30.0, 40.0, 50.0)];
+        assert_eq!(snapped_endpoint(corner, &both), None, "quirk: killed");
+        let qualifying_alone = [drill(30.0, 40.0, 50.0)];
+        assert_eq!(
+            snapped_endpoint(corner, &qualifying_alone),
+            Some(FloatPoint::new(30.0, 40.0)),
+            "contrast: the same drill qualifies without the at-center kill"
+        );
+    }
+
+    /// The 0.5 threshold is `<=` — a center at EXACTLY 0.5 (0.5 is
+    /// f64-exact) early-outs. Mutation target: `<= 0.5` → `< 0.5`
+    /// falls through to the inradius arm (0.5 <= 10) and snaps.
+    #[test]
+    fn snap_rule_half_unit_boundary_early_outs() {
+        assert_eq!(
+            snapped_endpoint(FloatPoint::new(0.0, 0.0), &[drill(0.5, 0.0, 10.0)]),
+            None,
+            "dist exactly 0.5 hits the at-center arm"
+        );
+    }
+
+    /// The inradius threshold is `<=` — dist EXACTLY equal to the
+    /// border distance snaps (3-4-5: dist 50 == border 50). Mutation
+    /// target: `<= border_distance` → `< border_distance` returns None
+    /// and fails.
+    #[test]
+    fn snap_rule_inradius_boundary_is_inclusive() {
+        assert_eq!(
+            snapped_endpoint(FloatPoint::new(0.0, 0.0), &[drill(30.0, 40.0, 50.0)]),
+            Some(FloatPoint::new(30.0, 40.0)),
+            "dist == inradius snaps"
+        );
+    }
+
+    /// First QUALIFYING drill wins — in provider (descending-id) order
+    /// that is the HIGHER id. Two drills both qualify with different
+    /// centers; the first in the list must be returned (the selection
+    /// is order-observable, which is why the provider must not
+    /// re-sort).
+    #[test]
+    fn snap_rule_first_qualifying_drill_wins() {
+        let drills = [drill(2000.0, 0.0, 2500.0), drill(1500.0, 0.0, 1000.0)];
+        assert_eq!(
+            snapped_endpoint(FloatPoint::new(0.0, 0.0), &drills),
+            Some(FloatPoint::new(2000.0, 0.0)),
+            "the first list entry (higher id) wins"
+        );
+    }
+
+    /// A test provider keyed by (trace id, side) — the epic-board
+    /// provider's contract in miniature.
+    struct MapProvider(Vec<((i32, bool), Vec<EndpointDrill>)>);
+
+    impl SessionContacts for MapProvider {
+        fn endpoint_drills(&self, trace_id: i32, start_side: bool) -> &[EndpointDrill] {
+            self.0
+                .iter()
+                .find(|((id, side), _)| *id == trace_id && *side == start_side)
+                .map_or(&[], |(_, drills)| drills.as_slice())
+        }
+    }
+
+    /// The ROUND_TRIP_DSN board (from the t40 test above): one wire,
+    /// `(resolution um 10)` — session scale 10/10 = 1, so emitted
+    /// coordinates ARE the board ints (dsn × 10). Returns (board,
+    /// trace id) — the id is read from the parsed IR, not assumed.
+    fn one_wire_board() -> (SesBoard, i32) {
+        let mut board = SesBoard::new();
+        let dsn = r#"(pcb board.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+  )
+  (network
+    (net PERFECT)
+  )
+  (wiring
+    (wire (path F.Cu 125  5000 1000  5000 2000) (net PERFECT))
+  )
+)
+"#;
+        let result = crate::reader::read_board(dsn.as_bytes(), &mut board);
+        assert!(
+            matches!(result, crate::reader::DsnReadResult::Success { .. }),
+            "expected Success, got {result:?}"
+        );
+        let trace_id = board
+            .items
+            .iter()
+            .find_map(|item| match item {
+                ItemIr::Trace { id, .. } => Some(*id),
+                _ => None,
+            })
+            .expect("one trace item");
+        (board, trace_id)
+    }
+
+    /// `:391-400` — a snap OVERRIDES the endpoint BEFORE the transform
+    /// and `java_round`: the snapped BOARD coordinate (50400, 10000)
+    /// is what gets transformed/rounded, not the parsed corner.
+    #[test]
+    fn snap_overrides_endpoint_before_transform_and_round() {
+        let (board, trace_id) = one_wire_board();
+        let provider = MapProvider(vec![(
+            (trace_id, true),
+            vec![drill(50400.0, 10000.0, 60000.0)],
+        )]);
+        let session = write_session_with_contacts(&board, "board.dsn", &provider);
+        // corner (50000,10000) → drill center dist 400 <= 60000: snaps.
+        assert!(
+            session.contains("(path F.Cu 1250\n            50400 10000\n            50000 20000"),
+            "snapped first corner must override: {session}"
+        );
+    }
+
+    /// THE COUNT-COLLAPSE PIN — a snap that pulls the first corner
+    /// ONTO the second makes the dedup-against-previous DROP the
+    /// second: the path loses a corner (`:401-411`). Three parsed
+    /// corners emit TWO.
+    #[test]
+    fn snap_corner_count_collapses_through_dedup() {
+        let mut board = SesBoard::new();
+        let dsn = r#"(pcb board.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+  )
+  (network
+    (net PERFECT)
+  )
+  (wiring
+    (wire (path F.Cu 125  5000 1000  5000 1500  5000 2000) (net PERFECT))
+  )
+)
+"#;
+        let result = crate::reader::read_board(dsn.as_bytes(), &mut board);
+        assert!(matches!(
+            result,
+            crate::reader::DsnReadResult::Success { .. }
+        ));
+        let trace_id = board
+            .items
+            .iter()
+            .find_map(|item| match item {
+                ItemIr::Trace { id, .. } => Some(*id),
+                _ => None,
+            })
+            .expect("one trace item");
+        // Snap the start corner (50000,10000) to the SECOND corner
+        // (50000,15000): both emit 50000 15000 → dedup drops one row.
+        let provider = MapProvider(vec![(
+            (trace_id, true),
+            vec![drill(50000.0, 15000.0, 60000.0)],
+        )]);
+        let session = write_session_with_contacts(&board, "board.dsn", &provider);
+        assert!(
+            session.contains("(path F.Cu 1250\n            50000 15000\n            50000 20000\n"),
+            "snapped corner must collapse the run: {session}"
+        );
+        assert!(
+            !session.contains("50000 10000"),
+            "the parsed first corner must be gone: {session}"
+        );
+    }
+
+    /// The D23 no-op delegation pin, WITH its contrast witness (an
+    /// equality pin without one is blind — the 3-arg path must be
+    /// shown ABLE to change bytes on the same board).
+    #[test]
+    fn two_arg_write_session_delegates_noop_byte_stable() {
+        let (board, trace_id) = one_wire_board();
+        let plain = write_session(&board, "board.dsn");
+        let no_op = write_session_with_contacts(&board, "board.dsn", &NoSessionContacts);
+        assert_eq!(plain, no_op, "no-op provider must be byte-transparent");
+        let firing = MapProvider(vec![(
+            (trace_id, true),
+            vec![drill(50400.0, 10000.0, 60000.0)],
+        )]);
+        let snapped = write_session_with_contacts(&board, "board.dsn", &firing);
+        assert_ne!(
+            plain, snapped,
+            "contrast: a firing provider changes the bytes (else this pin is vacuous)"
+        );
     }
 }

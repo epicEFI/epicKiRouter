@@ -1,0 +1,10 @@
+{
+  "comment": "Per-fixture Java-oracle counters (SesSnapOracle capture mode, run twice, byte-identical). ruleReach = trace endpoints whose drill-contact list survives the instanceof + layer-span + null-shape filters (the snap rule's INPUT surface); earlyOuts = rule-reach endpoints that returned via the <=0.5 arm; snapFired = non-null snap results. The snapFired=0 canary is EXPECTED (see writer.rs module docs: the inradius arm is unreachable through Trace.getNormalContacts' class-strict DrillItem acceptance) and is enforced loudly — a jar change that makes snapping live fails the compare. drillContacts counts Pin/Via drill rows in the SNAPLOG diagnostics (provider input rows, NOT endpoints); multiDrillEndpoints counts endpoints whose raw contact set holds >= 2 drills.",
+  "cases": [
+    {"id":"snap-0001","fixture":"DIYDAC_DIYDAC","traces":25,"ruleReach":48,"earlyOuts":48,"snapFired":0,"drillContacts":{"pin":48,"via":0},"multiDrillEndpoints":0,"bytes":6069,"sha256":"cd70997b59cbb10198ff48d1ce3c69b7f7c6e85ca130f8a45ad6cae2989baf15"},
+    {"id":"snap-0002","fixture":"memsarray_mems_modules","traces":22,"ruleReach":21,"earlyOuts":21,"snapFired":0,"drillContacts":{"pin":16,"via":5},"multiDrillEndpoints":0,"bytes":4696,"sha256":"751f7719918315603c396e42bf45203f4429589e007fb243a65aaa71cccab3a1"},
+    {"id":"snap-0003","fixture":"induction-hob_temperature-sensor","traces":55,"ruleReach":41,"earlyOuts":41,"snapFired":0,"drillContacts":{"pin":23,"via":18},"multiDrillEndpoints":0,"bytes":10130,"sha256":"443bebb2ae31c12254aa26e27c51444af108d612467876d28717b5b3083e26a6"},
+    {"id":"snap-0004","fixture":"kicad-projects_BatCharge","traces":57,"ruleReach":37,"earlyOuts":37,"snapFired":0,"drillContacts":{"pin":18,"via":19},"multiDrillEndpoints":3,"bytes":12002,"sha256":"cc550f5483c1a08e85f4b122069a5fd9ce99586fc497cf5cb15d8ad675c22d8b"},
+    {"id":"snap-0005","fixture":"TPS63001-Breakout_TPS63001 Breakout","traces":101,"ruleReach":140,"earlyOuts":140,"snapFired":0,"drillContacts":{"pin":52,"via":88},"multiDrillEndpoints":10,"bytes":21665,"sha256":"32336954dbbcb78275ee9618ffae5986d82bee329f5a7d1706a16f4a67e00069"}
+  ]
+}

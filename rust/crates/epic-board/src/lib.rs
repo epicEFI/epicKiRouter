@@ -41,6 +41,7 @@ pub mod items;
 pub mod layers;
 pub mod normalize_all;
 pub mod rules_surf;
+pub mod session_contacts;
 pub mod trace_ops;
 pub mod tree_manager;
 pub mod tree_shapes;
