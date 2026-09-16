@@ -2236,3 +2236,75 @@ description: chronological action log per session, consolidated weekly
 | 17:50 | Edited rust/harness/src/undo_corpus.rs | modified evaluate_rust_is_deterministic() | ~328 |
 | 17:50 | Edited rust/harness/src/undo_corpus.rs | modified tree_pairs_threshold_contract() | ~461 |
 | 17:50 | Edited rust/harness/src/undo_corpus.rs | 2→6 lines | ~106 |
+| 17:57 | Edited logs/M2-T15/dispatch-prompt.md | 6→5 lines | ~67 |
+| 18:09 | Created rust/harness/oracle/SesSnapOracle.java | — | ~4040 |
+| 18:10 | Edited rust/harness/oracle/SesSnapOracle.java | 7→7 lines | ~82 |
+| 18:10 | Edited rust/harness/oracle/SesSnapOracle.java | added 1 import(s) | ~38 |
+| 18:16 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified split() | ~612 |
+| 18:16 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified write_session() | ~1523 |
+| 18:16 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified write_routes() | ~173 |
+| 18:16 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified write_network() | ~63 |
+| 18:17 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 13→14 lines | ~87 |
+| 18:17 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified write_net() | ~852 |
+| 18:17 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified write_wire() | ~682 |
+| 18:17 | Edited rust/crates/epic-dsn/src/ses/writer.rs | added 1 import(s) | ~19 |
+| 18:17 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 2→2 lines | ~23 |
+| 18:19 | Created rust/crates/epic-board/src/session_contacts.rs | — | ~1622 |
+| 18:19 | Edited rust/crates/epic-board/src/lib.rs | 2→3 lines | ~19 |
+| 18:19 | Edited rust/crates/epic-board/src/session_contacts.rs | 14→14 lines | ~184 |
+| 18:19 | Edited rust/crates/epic-board/src/session_contacts.rs | 7→7 lines | ~72 |
+| 18:21 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified split() | ~2514 |
+| 18:21 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified 1() | ~67 |
+| 18:21 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 5→5 lines | ~56 |
+| 18:21 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 3→3 lines | ~27 |
+| 18:21 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 3→3 lines | ~28 |
+| 18:22 | Edited rust/crates/epic-board/src/session_contacts.rs | modified indexed() | ~2773 |
+| 18:27 | Edited rust/harness/src/ses_compare.rs | reduced (-24 lines) | ~94 |
+| 18:27 | Edited rust/harness/src/ses_compare.rs | modified repo_root() | ~267 |
+| 18:28 | Edited rust/harness/src/ses_compare.rs | modified load_snap_corpus() | ~6602 |
+| 18:33 | Edited rust/harness/oracle/SesSnapOracle.java | expanded (+6 lines) | ~189 |
+| 18:33 | Edited rust/harness/oracle/SesSnapOracle.java | modified line() | ~80 |
+| 18:33 | Edited rust/harness/oracle/SesSnapOracle.java | 14→18 lines | ~254 |
+| 18:33 | Edited rust/harness/oracle/SesSnapOracle.java | added 1 condition(s) | ~191 |
+| 18:33 | Edited rust/harness/oracle/SesSnapOracle.java | added 2 condition(s) | ~71 |
+| 18:33 | Edited rust/harness/oracle/SesSnapOracle.java | modified addDrillContacts() | ~147 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | expanded (+19 lines) | ~419 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | 22→27 lines | ~211 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | expanded (+11 lines) | ~204 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | 11→16 lines | ~181 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | modified enumerate() | ~239 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | comment() → diagnostics() | ~260 |
+| 18:34 | Edited rust/harness/src/ses_compare.rs | modified is_some() | ~209 |
+| 18:35 | Edited rust/harness/src/ses_compare.rs | modified repo_root() | ~1820 |
+| 18:36 | Edited .github/workflows/rust-check.yml | expanded (+6 lines) | ~171 |
+| 18:36 | Edited rust/harness/src/ses_compare.rs | 4→4 lines | ~41 |
+| 18:36 | Edited rust/harness/src/ses_compare.rs | 4→8 lines | ~77 |
+| 18:36 | Edited rust/harness/src/ses_compare.rs | 7→7 lines | ~28 |
+| 18:36 | Edited rust/harness/src/ses_compare.rs | 4→3 lines | ~34 |
+| 18:36 | Edited rust/harness/src/ses_compare.rs | modified as_slice() | ~45 |
+| 18:36 | Edited rust/harness/src/ses_compare.rs | 8→6 lines | ~41 |
+| 18:37 | Edited rust/harness/src/ses_compare.rs | inline fix | ~20 |
+| 18:39 | Edited rust/harness/oracle/SesSnapOracle.java | added 1 condition(s) | ~213 |
+| 18:40 | Edited rust/crates/epic-board/src/session_contacts.rs | 3→4 lines | ~52 |
+| 18:40 | Edited rust/crates/epic-board/src/session_contacts.rs | inline fix | ~20 |
+| 18:41 | Edited rust/crates/epic-board/src/session_contacts.rs | inline fix | ~12 |
+| 19:41 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified snap_rule_first_qualifying_drill_wins() | ~291 |
+| 19:41 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 3→3 lines | ~52 |
+| 19:41 | Edited rust/crates/epic-dsn/src/ses/writer.rs | inline fix | ~19 |
+| 19:41 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 386 → 385 | ~19 |
+| 19:41 | Edited rust/crates/epic-dsn/src/ses/writer.rs | 4→7 lines | ~127 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | 5→5 lines | ~66 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | 2→2 lines | ~36 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | ":437-438" → ":432-434" | ~15 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | 2→2 lines | ~29 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | 2→2 lines | ~36 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | 3→3 lines | ~55 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | ":439-442" → ":435-437" | ~14 |
+| 19:41 | Edited rust/crates/epic-board/src/session_contacts.rs | ":443-446" → ":438-441" | ~13 |
+| 19:42 | Edited rust/crates/epic-dsn/src/sink.rs | 5→7 lines | ~116 |
+| 19:42 | Edited rust/harness/src/ses_compare.rs | 3→8 lines | ~139 |
+| 19:42 | Edited rust/harness/src/ses_compare.rs | 3→5 lines | ~78 |
+| 19:42 | Edited rust/harness/src/ses_compare.rs | modified snap_golden_inventory_matches_manifest() | ~460 |
+| 19:42 | Edited rust/harness/oracle/SesSnapOracle.java | 3→7 lines | ~132 |
+| 19:42 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified snapped_endpoint() | ~181 |
+| 19:42 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified snapped_endpoint() | ~136 |
