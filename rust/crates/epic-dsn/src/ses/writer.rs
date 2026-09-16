@@ -24,8 +24,11 @@
 //! (`:444-447`) returns first. Empirical witnesses:
 //! - `SesSnapOracle` full scan of ALL 1,157 PCBench `reference-routed`
 //!   boards: 317k drill-contacted endpoints, `snapFired=0`, every
-//!   distance printed `0.000000`, `contactMismatches=0` (the
-//!   reimplementation and the reflection-called jar agree everywhere).
+//!   distance printed `0.000000`, `contactMismatches=0` (a TRIPWIRE,
+//!   not an equality proof: `FloatPoint` has no `equals` override, so
+//!   the oracle's jar-vs-reimplementation check compares references —
+//!   vacuously green while both sides return null, loud the moment
+//!   either returns non-null; see the oracle's header).
 //! - Crafted `between-pads` case: an endpoint BETWEEN two pads is not a
 //!   contact of either (endpoint != center), so a "qualifying" drill
 //!   (0.5 < dist <= inradius) can never BE a contact — the wall is
@@ -129,8 +132,8 @@ pub fn write_session(board: &SesBoard, design_name: &str) -> String {
 /// Provider-side filters (Java `snappedEndpoint :426-453`'s contact
 /// loop): the contact must be a `DrillItem` (traces/areas dropped), it
 /// must span the WIRE's layer (`layer >= firstLayer && layer <=
-/// lastLayer`, `:439-442`), and its shape on that layer
-/// (`getShape(layer - firstLayer)`) must be non-null (`:443-446`). The
+/// lastLayer`, `:435-437`), and its shape on that layer
+/// (`getShape(layer - firstLayer)`) must be non-null (`:438-441`). The
 /// provider emits the surviving drills in JAVA CONTACT ORDER —
 /// descending id (T60-pinned; jar-witnessed by the crafted coincident
 /// via+pin case, `contacts=[4:Via 2:Pin]`) — because the rule's
@@ -141,7 +144,7 @@ pub struct EndpointDrill {
     /// `drill.getCenter().toFloat()`) — the value a snap EMITS.
     pub center: FloatPoint,
     /// `padShape.borderDistance(center)` for the drill's shape on the
-    /// wire's layer — the inradius bound (`:450-451`). The PROVIDER
+    /// wire's layer — the inradius bound (`:448-450`). The PROVIDER
     /// computes it (epic-geometry `border_distance`, the PolygonShape
     /// `-> 0.0` quirk kept); the rule never touches shapes.
     pub border_distance: f64,
@@ -629,7 +632,7 @@ fn write_net(
 /// Java `writeWire` (`:372-415`): `(wire` + `(path <layer> <width>`
 /// with per-line corners + optional fixed-state line. Width =
 /// `java_round(boardToDsn(2 * halfWidth))` (an INT). Corners come from
-/// the VERBATIM POLYLINE (`wire.polyline().corners()`, `:386`) — at
+/// the VERBATIM POLYLINE (`wire.polyline().corners()`, `:385`) — at
 /// parse time identical to the int-rounded `corners` view (reader
 /// corners are IntPoints), so switching the source is byte-neutral for
 /// the M1b goldens while matching Java's data path on normalized
@@ -1660,17 +1663,23 @@ mod tests {
     }
 
     /// First QUALIFYING drill wins — in provider (descending-id) order
-    /// that is the HIGHER id. Two drills both qualify with different
-    /// centers; the first in the list must be returned (the selection
-    /// is order-observable, which is why the provider must not
-    /// re-sort).
+    /// that is the HIGHER id. BOTH drills qualify here (dist 2000 <=
+    /// 2500, dist 1500 <= 1600) with different centers, so the
+    /// candidate behaviors genuinely DISAGREE on this input: a
+    /// LAST-qualifier walk (mutation M8 — remember the last
+    /// qualifying drill instead of returning at the first) yields
+    /// `(1500, 0)` and fails. A single qualifier would not
+    /// discriminate: the last-qualifier and first-qualifier verdicts
+    /// coincide on it (the blind shape this pin replaced). The first
+    /// in the list must be returned — the selection is
+    /// order-observable, which is why the provider must not re-sort.
     #[test]
     fn snap_rule_first_qualifying_drill_wins() {
-        let drills = [drill(2000.0, 0.0, 2500.0), drill(1500.0, 0.0, 1000.0)];
+        let drills = [drill(2000.0, 0.0, 2500.0), drill(1500.0, 0.0, 1600.0)];
         assert_eq!(
             snapped_endpoint(FloatPoint::new(0.0, 0.0), &drills),
             Some(FloatPoint::new(2000.0, 0.0)),
-            "the first list entry (higher id) wins"
+            "the first list entry (higher id) wins, not the last qualifier"
         );
     }
 

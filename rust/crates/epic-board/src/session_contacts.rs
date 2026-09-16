@@ -9,9 +9,9 @@
 //! 1. kind: only `DrillItem` (Pin/Via) — trace/area contacts `continue`;
 //! 2. layer span: the contact must span the WIRE's layer
 //!    (`layer < drill.firstLayer() || layer > drill.lastLayer()` →
-//!    `continue`, `:439-442`);
+//!    `continue`, `:435-437`);
 //! 3. shape: `drill.getShape(layer - drill.firstLayer())` non-null
-//!    (`:443-446`).
+//!    (`:438-441`).
 //!
 //! THIS module is those filters (plus the center and
 //! `borderDistance(center)` computations); the RULE — the `<= 0.5`
@@ -93,7 +93,7 @@ impl SessionContacts for SessionDrillContacts {
 }
 
 /// One endpoint's filtered drill list — Java `snappedEndpoint`'s
-/// contact loop (`:426-446`) up to (but excluding) the rule's own
+/// contact loop (`:431-451`) up to (but excluding) the rule's own
 /// comparisons. The contacts seam returns descending ids; the filters
 /// preserve that order.
 fn filtered_drills(
@@ -112,7 +112,7 @@ fn filtered_drills(
     };
     let mut drills = Vec::new();
     for contact in contacts {
-        // Filter 1 — kind: DrillItem only (`:437-438`).
+        // Filter 1 — kind: DrillItem only (`:432-434`).
         let is_drill = board
             .get(contact)
             .is_some_and(|entry| matches!(entry.data, ItemData::Pin { .. } | ItemData::Via { .. }));
@@ -120,7 +120,7 @@ fn filtered_drills(
             continue;
         }
         // Filter 2 — layer span: the WIRE's layer inside the drill's
-        // first..=last (`:439-442`).
+        // first..=last (`:435-437`).
         let (Some(first_layer), Some(last_layer)) = (
             board.drill_first_layer(contact),
             board.drill_last_layer(contact),
@@ -130,8 +130,8 @@ fn filtered_drills(
         if layer < first_layer || layer > last_layer {
             continue;
         }
-        // Filter 3 — shape on the wire's layer non-null (`:443-446`);
-        // then the center and the inradius bound (`:448-451`).
+        // Filter 3 — shape on the wire's layer non-null (`:438-441`);
+        // then the center and the inradius bound (`:448-450`).
         let Some(shape) = board.drill_shape(contact, layer - first_layer) else {
             continue;
         };
@@ -150,12 +150,12 @@ fn filtered_drills(
 
 /// Java-side reachability addendum: of the three provider filters,
 /// only the KIND filter is live through the real contacts path —
-/// - SPAN (`:439-442`) is structurally unreachable: the contact path
+/// - SPAN (`:435-437`) is structurally unreachable: the contact path
 ///   filters `currentItem.sharesLayer(this)` BEFORE the DrillItem
 ///   acceptance (`Trace.java:183-201`), and for a single-layer trace
 ///   on layer `w` and a drill spanning `[f, l]`,
 ///   `sharesLayer ⇔ f <= w <= l` — exactly the negation of the skip.
-/// - SHAPE-NULL (`:443-446`) is unreachable too, EMPIRICALLY: a via
+/// - SHAPE-NULL (`:438-441`) is unreachable too, EMPIRICALLY: a via
 ///   with shapes on layers 0 and 2 of a 3-layer board and a wire on
 ///   layer 1 yields jar `contacts=[]` (SesSnapOracle on the crafted
 ///   mid-null case, mirrored below) — the drill is not in the wire
@@ -525,7 +525,7 @@ mod tests {
     }
 
     /// The KIND filter — a trace-to-trace contact (the contacts seam
-    /// returns the other trace) yields NO drill data (`:437-438`
+    /// returns the other trace) yields NO drill data (`:432-434`
     /// `instanceof DrillItem`). The chain board: a via at the wire
     /// junction, a second wire whose start corner sits on the first
     /// wire's end corner.

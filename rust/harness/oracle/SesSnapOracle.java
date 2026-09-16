@@ -50,8 +50,12 @@
 //   SNAPLOG <case> trace=<id> side=.. drill=<id> kind=Pin|Via dist=%.6f
 //        inradius=%.6f shape=<SimpleClassName>|span-skip|shape-null
 //   SNAPLOG <case> trace=<id> side=.. verdict=early-out|snap|no-qualifier
-//        real=<null|x,y>   (real = the reflection-called jar result; the
-//        reimplementation and the jar must agree — contactMismatches==0)
+//        real=<null|x,y>   (real = the reflection-called jar result.
+//        contactMismatches is a TRIPWIRE, not an equality proof:
+//        FloatPoint has no equals override, so real.equals(reimplemented)
+//        compares references — vacuously green while both sides return
+//        null (the snapFired=0 corpus-wide reality), loud the moment
+//        either the jar or the reimplementation returns non-null)
 // Definitions mirror the Rust provider exactly: ruleReach counts endpoints
 // whose drill list survives the instanceof + layer-span + null-shape
 // filters; earlyOuts counts rule-reach endpoints that returned via the

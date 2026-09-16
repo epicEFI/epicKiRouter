@@ -522,10 +522,12 @@ pub struct TraceIr {
     /// / 2))` is a READER computation (`Wiring.java:454`).
     pub half_width: i32,
     /// The corner sequence (board coordinates, file order) — the ROUNDED
-    /// view of [`TraceIr::polyline`]'s corners (`corner_to_int`), and the
-    /// source the SES writer + the harness digest twin read. Kept
-    /// alongside the polyline so the M1b byte contracts read the exact
-    /// field they always have.
+    /// view of [`TraceIr::polyline`]'s corners (`corner_to_int`). The
+    /// harness digest twin still reads this field; the SES writer does
+    /// NOT since T15/T40 (`write_wire` reads the verbatim
+    /// [`TraceIr::polyline`] corners instead). Kept alongside the
+    /// polyline so the M1b byte contracts read the exact field they
+    /// always have.
     pub corners: Vec<IntPoint>,
     /// The polyline the reader constructed the JAVA way — `Polyline(Polygon)`
     /// for the `polygon` wire branch (`Wiring.java:531`) and

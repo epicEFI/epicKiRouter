@@ -1323,7 +1323,12 @@ pub fn snap_compare(repo_root: &Path) -> Result<()> {
         }
         // Counter parity with the committed Java truth (the provider
         // gate: a contacts/provider divergence shows up here even when
-        // the bytes happen to match).
+        // the bytes happen to match). These counters are ORDER-FREE
+        // sums — an ordering regression (ascending instead of
+        // descending drill order) leaves every one of them unchanged
+        // and still prints "at parity"; the order contract is pinned
+        // by epic-board's `provider_orders_coincident_drills_descending`
+        // unit test, not here.
         let got = format!(
             "traces={} ruleReach={} earlyOuts={} snapFired={}",
             counters.traces, counters.rule_reach, counters.early_outs, counters.snap_fired
@@ -1421,8 +1426,10 @@ pub fn snap_compare(repo_root: &Path) -> Result<()> {
         cases.len()
     );
     println!(
-        "ses-snap-compare: {} routed fixture(s) byte-equal (provider counters at parity, \
-         snap canary 0, no-op delegation proven) in {:.1}s (java-free)",
+        "ses-snap-compare: {} routed fixture(s) byte-equal (order-free provider counters at \
+         parity — the drill-order contract lives in \
+         provider_orders_coincident_drills_descending; snap canary 0, no-op delegation proven) \
+         in {:.1}s (java-free)",
         cases.len(),
         started.elapsed().as_secs_f64()
     );
@@ -1784,6 +1791,38 @@ mod snap_pins {
                 case.design
             );
         }
+    }
+
+    /// The committed corpus directory is EXACTLY the manifest's golden
+    /// inventory (mirrors M1b's `golden_inventory_matches_tiers_ab`):
+    /// `snap_golden` rewrites manifest rows in place but never REMOVES
+    /// a stale golden, so a 6th `.snap.ses.golden` committed next to a
+    /// re-cut 5-case manifest would persist forever, never
+    /// byte-compared — asymmetric with the M1b discipline. Missing,
+    /// renamed, and LEFTOVER goldens all fail here with the offending
+    /// names.
+    #[test]
+    fn snap_golden_inventory_matches_manifest() {
+        let root = repo_root();
+        let (cases, _stats) = load_snap_corpus(&root).expect("committed ses-snap corpus loads");
+        let mut committed: Vec<String> = std::fs::read_dir(root.join(SNAP_CORPUS_DIR))
+            .unwrap_or_else(|e| panic!("reading {}: {e}", SNAP_CORPUS_DIR))
+            .map(|entry| {
+                entry
+                    .unwrap_or_else(|e| panic!("dir entry: {e}"))
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.ends_with(".snap.ses.golden"))
+            .collect();
+        committed.sort();
+        let mut expected: Vec<String> = cases.iter().map(|case| case.golden.clone()).collect();
+        expected.sort();
+        assert_eq!(
+            committed, expected,
+            "committed ses-snap goldens must be exactly the manifest inventory"
+        );
     }
 }
 
