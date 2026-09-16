@@ -2279,9 +2279,12 @@ fn value_identical_doors_distinct_by_endpoints() {
 /// Orthogonal; the replayed trees carry those variants. The
 /// ORTHOGONAL arm is unreachable by construction on this corpus: it
 /// routes to the unported `SortedOrthogonalRoomNeighbours` behind a
-/// debug_assert, and no 90-degree fixture exists (Tier A verified
-/// all-45-degree; `snap_angle` defaults FortyfiveDegree at
-/// epic-dsn/src/state.rs:495 and 0/17 Tier A fixtures override it).
+/// debug_assert, and no 90-degree ROUTED fixture exists (`snap_angle`
+/// defaults FortyfiveDegree at epic-dsn/src/state.rs:495; NONE of the
+/// 23 tier fixtures overrides it — tier A is 11 boards per
+/// rust/harness/config/tiers.yaml — and the corpus's single
+/// `snap_angle` override, `ninety_degree` in the index-stress fixture
+/// deg90.dsn, never routes through the expansion graph).
 #[test]
 fn dispatch_mode_selection() {
     assert_eq!(

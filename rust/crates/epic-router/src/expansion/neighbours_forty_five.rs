@@ -1242,4 +1242,238 @@ mod tests {
             "last band arm 0: ascending"
         );
     }
+
+    /// The contained-touch restart pin (bug-118, review round): a
+    /// border line the restart room's CONTAINED shape touches by
+    /// coordinate equality survives `remove_not_touching_border_lines`
+    /// even though NO walk entry marks it (edge flags all false). The
+    /// capture flow cannot show this any more — after the bug-112
+    /// side-4 fix the corrected four-entry walk never leaves a
+    /// contained-touched side unmarked (the neutralized revert
+    /// survived every gate) — so this crafted scenario is the only
+    /// observable: side 2 (right_x) of the enlarged shape must stay
+    /// at 500000, while a neutralized `contained_touches` unbounds it
+    /// to the board edge (1000000).
+    #[test]
+    fn contained_touch_survives_the_restart_shrink() {
+        use epic_geometry::int_box::IntBox;
+        use epic_geometry::int_point::IntPoint;
+        use epic_geometry::line::Line;
+        use epic_index::complete_shape::IncompleteRoom;
+        use std::cell::RefCell;
+
+        use crate::expansion::target_door::TargetItemExpansionDoor;
+
+        /// A minimal engine exposing exactly what
+        /// `try_remove_edge_line` reads: one incomplete octagon room
+        /// with a contained shape, no doors, and a `completeShape`
+        /// that mirrors the real engine's board restraint (the
+        /// enlarged shape returned verbatim inside the board box).
+        struct ContainedTouchEngine {
+            room_shape: TileShape,
+            contained_shape: TileShape,
+            set_shape_calls: RefCell<Vec<TileShape>>,
+        }
+
+        impl NeighbourEngine for ContainedTouchEngine {
+            fn net_number(&self) -> i32 {
+                1
+            }
+            fn generate_room_id_no(&mut self) -> i32 {
+                1
+            }
+            fn board_bounding_octagon(&self) -> IntOctagon {
+                IntOctagon::new(
+                    -1_000_000, -1_000_000, 1_000_000, 1_000_000, -2_000_000, 2_000_000,
+                    -2_000_000, 2_000_000,
+                )
+                .normalize()
+            }
+            fn add_incomplete_expansion_room(
+                &mut self,
+                _shape: TileShape,
+                _layer: i32,
+                _contained_shape: TileShape,
+            ) -> u64 {
+                panic!("unused by the contained-touch pin")
+            }
+            fn remove_all_doors(&mut self, _room_key: u64) {
+                panic!("unused by the contained-touch pin")
+            }
+            fn add_complete_free_space_room(
+                &mut self,
+                _shape: TileShape,
+                _layer: i32,
+                _id: i32,
+            ) -> u64 {
+                panic!("unused by the contained-touch pin")
+            }
+            fn overlapping_entries(&mut self, _shape: &TileShape, _layer: i32) -> Vec<TreeEntry> {
+                panic!("unused by the contained-touch pin")
+            }
+            fn object_id(&self, _object_key: u64) -> i32 {
+                0
+            }
+            fn is_trace_obstacle(&self, _object_key: u64, _net_number: i32) -> bool {
+                false
+            }
+            fn tree_shape(&self, _object_key: u64, _shape_index: u32) -> Option<TileShape> {
+                None
+            }
+            fn complete_shape(
+                &mut self,
+                room_shape: Option<&TileShape>,
+                contained: Option<&TileShape>,
+                layer: i32,
+                _ignore_object: Option<u64>,
+                _ignore_shape: Option<&TileShape>,
+            ) -> Vec<IncompleteRoom> {
+                let board = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+                    IntPoint::new(-1_000_000, -1_000_000),
+                    IntPoint::new(1_000_000, 1_000_000),
+                )));
+                let shape = room_shape
+                    .expect("enlarged room shape passed")
+                    .intersection(&board);
+                let contained = contained
+                    .expect("contained shape passed")
+                    .intersection(&board);
+                vec![IncompleteRoom {
+                    shape,
+                    layer,
+                    contained_shape: contained,
+                }]
+            }
+            fn tree_object_room(&self, _object_key: u64) -> Option<u64> {
+                None
+            }
+            fn is_item(&self, _object_key: u64) -> bool {
+                false
+            }
+            fn item_is_routable(&self, _object_key: u64) -> bool {
+                false
+            }
+            fn item_is_connectable(&self, _object_key: u64) -> bool {
+                false
+            }
+            fn item_contains_net(&self, _object_key: u64, _net_number: i32) -> bool {
+                false
+            }
+            fn item_shares_net(&self, _first_key: u64, _second_key: u64) -> bool {
+                false
+            }
+            fn item_is_polyline_trace(&self, _object_key: u64) -> bool {
+                false
+            }
+            fn item_expansion_room(&mut self, _object_key: u64, _shape_index: u32) -> Option<u64> {
+                None
+            }
+            fn trace_connection_shape(
+                &self,
+                _object_key: u64,
+                _shape_index: u32,
+            ) -> Option<TileShape> {
+                None
+            }
+            fn trace_first_or_last_parallel(
+                &self,
+                _item_key: u64,
+                _index_in_item: u32,
+                _door_line: &Line,
+            ) -> Option<bool> {
+                None
+            }
+            fn room_shape(&self, _room_key: u64) -> TileShape {
+                self.room_shape.clone()
+            }
+            fn room_layer(&self, _room_key: u64) -> i32 {
+                0
+            }
+            fn room_id(&self, _room_key: u64) -> i32 {
+                7
+            }
+            fn room_is_incomplete(&self, _room_key: u64) -> bool {
+                true
+            }
+            fn room_is_obstacle(&self, _room_key: u64) -> bool {
+                false
+            }
+            fn room_is_complete_free_space(&self, _room_key: u64) -> bool {
+                false
+            }
+            fn room_contained_shape(&self, _room_key: u64) -> Option<TileShape> {
+                Some(self.contained_shape.clone())
+            }
+            fn room_obstacle_item_key(&self, _room_key: u64) -> Option<u64> {
+                None
+            }
+            fn room_obstacle_index_in_item(&self, _room_key: u64) -> Option<u32> {
+                None
+            }
+            fn room_has_door_to(&self, _room_key: u64, _other_room_id: i32) -> bool {
+                false
+            }
+            fn room_doors(&self, _room_key: u64) -> Vec<ExpansionDoor> {
+                Vec::new()
+            }
+            fn room_key_of_id(&self, _id: i32) -> Option<u64> {
+                None
+            }
+            fn set_incomplete_shape(
+                &mut self,
+                _room_key: u64,
+                shape: TileShape,
+                _contained_shape: TileShape,
+            ) {
+                self.set_shape_calls.borrow_mut().push(shape);
+            }
+            fn set_room_shape(&mut self, _room_key: u64, _shape: TileShape) {
+                panic!("unused by the contained-touch pin")
+            }
+            fn attach_door(&mut self, _room_key: u64, _door: ExpansionDoor) {
+                panic!("unused by the contained-touch pin")
+            }
+            fn add_target_door(&mut self, _room_key: u64, _door: TargetItemExpansionDoor) {
+                panic!("unused by the contained-touch pin")
+            }
+            fn set_net_dependent(&mut self, _room_key: u64) {
+                panic!("unused by the contained-touch pin")
+            }
+        }
+
+        // An exact-rectangle room octagon; the contained box touches
+        // it ONLY on side 2 (right_x = 500000; every other coordinate
+        // strictly inside).
+        let room_oct =
+            IntOctagon::new(0, 0, 500_000, 400_000, -400_000, 500_000, 0, 900_000).normalize();
+        let room_shape = oct_tile(&room_oct);
+        let contained_shape = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+            IntPoint::new(100_000, 100_000),
+            IntPoint::new(500_000, 300_000),
+        )));
+        let mut ctx = ContainedTouchEngine {
+            room_shape: room_shape.clone(),
+            contained_shape,
+            set_shape_calls: RefCell::new(Vec::new()),
+        };
+        let sorter = FortyfiveRoomNeighbours {
+            from_room: 1,
+            completed_room: 2,
+            room_shape: room_oct,
+            sorted_neighbours: SortedNeighbours::default(),
+            edge_interior_touches_obstacle: [false; 8],
+        };
+        assert!(
+            sorter.try_remove_edge_line(&mut ctx),
+            "every side is unmarked: the restart must fire"
+        );
+        let enlarged = &ctx.set_shape_calls.borrow()[0];
+        let TileShape::RegularTileShape(RegularTileShape::IntOctagon(oct)) = enlarged else {
+            panic!("the enlarged room shape is an octagon");
+        };
+        assert_eq!(
+            oct.right_x, 500_000,
+            "the contained-touched side-2 border survives the shrink"
+        );
+    }
 }
