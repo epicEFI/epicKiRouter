@@ -458,6 +458,15 @@ impl SearchTreeManager {
         u32::try_from(key).ok().map(ItemId::new)
     }
 
+    /// The caller-side half of the ENTRY-form queries: resolves a
+    /// [`TreeEntry`] `object_key` to its [`ItemId`] (`None` for a
+    /// non-item object). Public for the epic-drc clearance walk — the
+    /// one out-of-crate consumer of the entry form.
+    #[must_use]
+    pub fn item_of_entry_key(key: u64) -> Option<ItemId> {
+        Self::item_of_key(key)
+    }
+
     /// Slot 0 of `trees` is the DEFAULT tree (module invariant; pinned
     /// by `slot_zero_is_the_default_tree_through_every_manager_mutation`).
     /// [`Self::default_tree`] hands out the reference; query methods

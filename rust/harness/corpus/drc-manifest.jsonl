@@ -1,0 +1,17 @@
+{"id":"drc-0001","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm01.dsn"}
+{"id":"drc-0002","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm02.dsn"}
+{"id":"drc-0003","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm06.dsn"}
+{"id":"drc-0004","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm07.dsn"}
+{"id":"drc-0005","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn"}
+{"id":"drc-0006","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm09.dsn"}
+{"id":"drc-0007","path":"scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm11.dsn"}
+{"id":"drc-0008","path":"scripts/benchmark/fixtures/KiCad_10_demos/ecc83-pp.dsn"}
+{"id":"drc-0009","path":"scripts/benchmark/fixtures/KiCad_10_demos/ecc83-pp_v2.dsn"}
+{"id":"drc-0010","path":"scripts/benchmark/fixtures/KiCad_10_demos/pic_programmer.dsn"}
+{"id":"drc-0011","path":"scripts/benchmark/fixtures/KiCad_10_demos/sonde xilinx.dsn"}
+{"id":"drc-0012","path":"scripts/benchmark/fixtures/PCBench/AS5043-Encoder_sensor-board/reference-routed.dsn"}
+{"id":"drc-0013","path":"scripts/benchmark/fixtures/PCBench/655_testboard/reference-routed.dsn"}
+{"id":"drc-0014","path":"scripts/benchmark/fixtures/PCBench/1Bitsy_1bitsy/reference-routed.dsn"}
+{"id":"drc-0015","path":"rust/harness/corpus/craft/drc-main.dsn"}
+{"id":"drc-0016","path":"rust/harness/corpus/craft/drc-tie.dsn"}
+{"id":"drc-0017","path":"rust/harness/corpus/craft/drc-tie-contrast.dsn"}

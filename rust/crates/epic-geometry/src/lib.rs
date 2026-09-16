@@ -31,6 +31,7 @@ pub mod big_int_aux;
 pub mod big_int_direction;
 pub mod bounding;
 pub mod circle;
+pub mod delaunay;
 pub mod direction;
 pub mod ellipse;
 pub mod float_line;

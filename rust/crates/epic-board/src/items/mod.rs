@@ -180,6 +180,20 @@ impl Area {
             BoardShape::Circle(circle) => circle.contains_inside(point),
         })
     }
+
+    /// Java `PolylineArea.cornerApproxArr()` — the border's corners,
+    /// then each hole's (`PolylineArea.java:135`). A hole-free area
+    /// (the parser returns the boundary shape itself) is exactly the
+    /// border's array. The `ConductionArea` ratsnest consumer rounds
+    /// each corner to a grid point (`ConductionArea.java:370-375`).
+    #[must_use]
+    pub fn corner_approx_arr(&self) -> Vec<FloatPoint> {
+        let mut result = self.border.corner_approx_arr();
+        for hole in &self.holes {
+            result.extend(hole.corner_approx_arr());
+        }
+        result
+    }
 }
 
 impl BoardShape {
@@ -239,6 +253,22 @@ impl BoardShape {
             BoardShape::Tile(tile) => tile.border_distance(point),
             BoardShape::PolygonShape(_polygon) => 0.0,
             BoardShape::Circle(circle) => circle.border_distance(point),
+        }
+    }
+
+    /// Java `Shape.cornerApproxArr()` over the arms — the
+    /// `ConductionArea` ratsnest input (`ConductionArea.java:370`
+    /// calls it on `getArea()`, then rounds each corner). Circle
+    /// returns EMPTY (Java `Circle.cornerApproxArr`: circles have no
+    /// corners) — a circular conduction area contributes ZERO
+    /// Delaunay corners, the same disconnect mechanism as the
+    /// both-ends-contacted trace.
+    #[must_use]
+    pub fn corner_approx_arr(&self) -> Vec<FloatPoint> {
+        match self {
+            BoardShape::Tile(tile) => tile.corner_approx_arr(),
+            BoardShape::PolygonShape(polygon) => polygon.corner_approx_arr(),
+            BoardShape::Circle(_circle) => Vec::new(),
         }
     }
 }

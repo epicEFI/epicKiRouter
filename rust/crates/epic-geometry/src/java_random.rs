@@ -98,6 +98,21 @@ impl JavaRandom {
     pub fn next_double(&mut self) -> f64 {
         (((self.next(26) << 27) + self.next(27)) as f64) / ((1u64 << 53) as f64)
     }
+
+    /// Java `Collections.shuffle(list, this)`, the Fisher-Yates descending
+    /// loop `for (int i = size; i > 1; i--) swap(list, i - 1, nextInt(i))`.
+    /// The JDK takes an array-copy detour for non-`RandomAccess` lists, but
+    /// the resulting PERMUTATION is identical to the direct path, so the
+    /// slice shuffle reproduces it bit-exactly. Draw count (and therefore
+    /// the generator state afterwards) is `size - 1` `nextInt` calls.
+    pub fn shuffle<T>(&mut self, list: &mut [T]) {
+        let mut i = list.len();
+        while i > 1 {
+            i -= 1;
+            let j = self.next_int_bound(i as u32 + 1) as usize;
+            list.swap(i, j);
+        }
+    }
 }
 
 #[cfg(test)]

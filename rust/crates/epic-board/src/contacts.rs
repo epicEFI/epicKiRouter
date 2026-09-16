@@ -127,6 +127,7 @@ use epic_geometry::tile_shape::TileShape;
 
 use crate::board::Board;
 use crate::id::ItemId;
+use crate::items::BoardItemType;
 use crate::items::ItemData;
 use crate::items::trace::{first_corner, last_corner};
 use crate::tree_manager::SearchTreeManager;
@@ -288,6 +289,284 @@ pub fn all_contacts(
         }
     }
     union.into_iter().map(|Reverse(id)| id).collect()
+}
+
+/// Java `DrillItem.getNormalContacts()` (`DrillItem.java:273-306`) —
+/// the no-arg contact set of a pin/via: overlaps of the drill
+/// center's degenerate box over ALL layers (the `-1` layer), filtered
+/// to same-net same-layer items, then the per-kind exact tests (trace
+/// ENDPOINT equality, drill CENTER equality, conduction-area
+/// CONTAINS). Result descending, matching Java's TreeSet.
+pub fn drill_normal_contacts(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    drill_id: ItemId,
+) -> Vec<ItemId> {
+    let Some(center) = board.drill_center(drill_id) else {
+        return Vec::new();
+    };
+    let search_shape =
+        TileShape::RegularTileShape(RegularTileShape::IntBox(center.surrounding_box()));
+    let candidates = manager.overlapping_objects(
+        board,
+        SearchTreeManager::DEFAULT_TREE_INDEX,
+        &search_shape,
+        -1,
+        &[],
+    );
+    let mut contacts = Vec::new();
+    for id in candidates {
+        if id == drill_id {
+            continue;
+        }
+        if !items_share_net(board, drill_id, id) || !items_share_layer(board, drill_id, id) {
+            continue;
+        }
+        let accepts = match board.get(id).map(|entry| &entry.data) {
+            Some(ItemData::Trace { lines, .. }) => {
+                first_corner(lines).as_ref() == Some(&center)
+                    || last_corner(lines).as_ref() == Some(&center)
+            }
+            Some(ItemData::Pin { .. } | ItemData::Via { .. }) => {
+                board.drill_center(id).as_ref() == Some(&center)
+            }
+            Some(ItemData::ConductionArea { area, .. }) => area.contains_point(&center),
+            _ => false,
+        };
+        if accepts {
+            contacts.push(id);
+        }
+    }
+    contacts
+}
+
+/// Java `ConductionArea.getNormalContacts()`
+/// (`ConductionArea.java:332-360`) — per TREE shape of the area, the
+/// overlaps on the area's layer filtered to same-net same-layer
+/// items, accepted by exact containment in THAT shape (trace
+/// endpoints, drill centers; NO area-to-area arm). A `None` shape
+/// slot holds no leaf and is skipped (Java's array cannot have null
+/// slots here).
+pub fn conduction_normal_contacts(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    area_id: ItemId,
+) -> Vec<ItemId> {
+    let Some(layer) = board.area_layer(area_id) else {
+        return Vec::new();
+    };
+    let tree = manager.default_tree();
+    let shapes = board.tree_shape_precalc(
+        area_id,
+        tree.object_id(),
+        tree.variant,
+        tree.compensated_clearance_class,
+    );
+    let mut contacts: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
+    for shape in shapes.iter().flatten() {
+        let candidates = manager.overlapping_objects(
+            board,
+            SearchTreeManager::DEFAULT_TREE_INDEX,
+            shape,
+            layer,
+            &[],
+        );
+        for id in candidates {
+            if id == area_id
+                || !items_share_net(board, area_id, id)
+                || !items_share_layer(board, area_id, id)
+                || contacts.contains(&Reverse(id))
+            {
+                continue;
+            }
+            let accepts = match board.get(id).map(|entry| &entry.data) {
+                Some(ItemData::Trace { lines, .. }) => {
+                    first_corner(lines).is_some_and(|corner| shape.contains_point(&corner))
+                        || last_corner(lines).is_some_and(|corner| shape.contains_point(&corner))
+                }
+                Some(ItemData::Pin { .. } | ItemData::Via { .. }) => board
+                    .drill_center(id)
+                    .is_some_and(|center| shape.contains_point(&center)),
+                _ => false,
+            };
+            if accepts {
+                contacts.insert(Reverse(id));
+            }
+        }
+    }
+    contacts.into_iter().map(|Reverse(id)| id).collect()
+}
+
+/// Java `Item.getNormalContacts()` — the NO-ARG contact dispatcher
+/// (`Item.java:613-615` base = empty; the Connectable overrides):
+/// [`all_contacts`] for traces, [`drill_normal_contacts`] for pins
+/// and vias, [`conduction_normal_contacts`] for conduction areas.
+/// This is the set the NetIncompletes filter and the connected-set
+/// walk consume.
+pub fn item_normal_contacts(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+) -> Vec<ItemId> {
+    match board.get(id).map(|entry| entry.board_item_type()) {
+        Some(BoardItemType::Trace) => all_contacts(manager, board, id),
+        Some(BoardItemType::Pin | BoardItemType::Via) => drill_normal_contacts(manager, board, id),
+        Some(BoardItemType::ConductionArea) => conduction_normal_contacts(manager, board, id),
+        _ => Vec::new(),
+    }
+}
+
+/// Java `Item.getConnectedSet(netNumber)` with `stopAtPlane = false`
+/// (`Item.java:640-683`): the DESCENDING-ordered set of items
+/// reachable from `id` through [`item_normal_contacts`] that carry
+/// `net_number` (the net test is skipped for `net_number <= 0`). The
+/// recursion mutates only the result set; `board` is borrowed mutably
+/// per query. Java's `TreeSet<Item>` iteration (descending id) is the
+/// `BTreeSet<Reverse<_>>` order verbatim.
+pub fn item_connected_set(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+    net_number: i32,
+) -> BTreeSet<Reverse<ItemId>> {
+    let mut result = BTreeSet::new();
+    if net_number > 0
+        && !board
+            .get(id)
+            .is_some_and(|entry| entry.nets.contains(&net_number))
+    {
+        return result;
+    }
+    result.insert(Reverse(id));
+    connected_set_recu(manager, board, id, net_number, &mut result);
+    result
+}
+
+/// Recursive part of [`item_connected_set`] (`Item.java:661-683`).
+fn connected_set_recu(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+    net_number: i32,
+    result: &mut BTreeSet<Reverse<ItemId>>,
+) {
+    for contact in item_normal_contacts(manager, board, id) {
+        if net_number > 0
+            && !board
+                .get(contact)
+                .is_some_and(|entry| entry.nets.contains(&net_number))
+        {
+            continue;
+        }
+        if result.insert(Reverse(contact)) {
+            connected_set_recu(manager, board, contact, net_number, result);
+        }
+    }
+}
+
+/// Java `Item.isTail()` (`Item.java:828-831` base false; the Trace
+/// and Via overrides): a trace with an uncontacted END, or a via
+/// with at most one contact — or all contacts on the SAME layer
+/// span (`Via.java:169-188`). Every other kind is never a tail.
+pub fn item_is_tail(manager: &SearchTreeManager, board: &mut Board, id: ItemId) -> bool {
+    match board.get(id).map(|entry| entry.board_item_type()) {
+        Some(BoardItemType::Trace) => {
+            start_contacts(manager, board, id).is_empty()
+                || end_contacts(manager, board, id).is_empty()
+        }
+        Some(BoardItemType::Via) => {
+            let contacts = drill_normal_contacts(manager, board, id);
+            if contacts.len() <= 1 {
+                return true;
+            }
+            let first = (
+                board.item_first_layer(contacts[0]),
+                board.item_last_layer(contacts[0]),
+            );
+            contacts.iter().all(|&contact| {
+                (
+                    board.item_first_layer(contact),
+                    board.item_last_layer(contact),
+                ) == first
+            })
+        }
+        _ => false,
+    }
+}
+
+/// Java `Item.getRatsnestCorners()` — the per-kind ratsnest corner
+/// emission that feeds the incomplete-connection count
+/// (`NetIncompletes.calculateNetItems` triangulates exactly these
+/// points). Virtual method, four live overrides:
+///
+/// * `Trace` (`Trace.java:338-368`): only UNCONTACTED endpoints —
+///   `firstCorner()` when `getStartContacts()` is empty, then
+///   `lastCorner()` when `getEndContacts()` is empty, in that order.
+///   A BOTH-ENDS-CONTACTED trace emits ZERO corners (the
+///   memory-saving comment `Trace.java:339-341`) — the falsification
+///   mechanism of the naive `count == groups − 1` claim: such a trace
+///   vanishes from the Delaunay graph. The `result[i] == null →
+///   new Point[0]` door ("Trace is inconsistent") covers a stub slot
+///   whose corner does not exist.
+/// * `DrillItem` = Pin + Via (`DrillItem.java:352-356`): the drill
+///   center, always exactly one.
+/// * `ConductionArea` (`ConductionArea.java:368-377`): the area's
+///   corner approximation, each ROUNDED to the grid. A circular area
+///   contributes none (circles have no corners).
+/// * base (`Item.java:836-838`): every other kind emits nothing.
+pub fn ratsnest_corners(manager: &SearchTreeManager, board: &mut Board, id: ItemId) -> Vec<Point> {
+    // Copy the dispatch tag up front — the trace branch runs the
+    // contact queries, which need `&mut Board`, so no entry borrow
+    // may survive the match.
+    let kind = board.get(id).map(|entry| entry.board_item_type());
+    match kind {
+        Some(BoardItemType::Trace) => {
+            let start_stub = start_contacts(manager, board, id).is_empty();
+            let end_stub = end_contacts(manager, board, id).is_empty();
+            let Some(lines) = board.trace_polyline(id) else {
+                return Vec::new();
+            };
+            let first = first_corner(lines);
+            let last = last_corner(lines);
+            let mut result = Vec::new();
+            if start_stub {
+                match first {
+                    Some(corner) => result.push(corner),
+                    // Trace is inconsistent — Java empties the whole
+                    // result, not just the null slot.
+                    None => return Vec::new(),
+                }
+            }
+            if end_stub {
+                match last {
+                    Some(corner) => result.push(corner),
+                    None => return Vec::new(),
+                }
+            }
+            result
+        }
+        Some(BoardItemType::Pin | BoardItemType::Via) => {
+            // DrillItem.java:352-356 — a one-slot array; a missing
+            // center cannot happen for a live drill item.
+            board
+                .drill_center(id)
+                .map(|center| vec![center])
+                .unwrap_or_default()
+        }
+        Some(BoardItemType::ConductionArea) => {
+            // ConductionArea.java:368-377 — cornerApproxArr, then
+            // `.round()` per corner.
+            match board.conduction_area(id) {
+                Some(area) => area
+                    .corner_approx_arr()
+                    .iter()
+                    .map(|corner| Point::Int(corner.round()))
+                    .collect(),
+                None => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// The per-KIND acceptance of `Trace.java:187-199` — the exact test
@@ -1164,5 +1443,120 @@ mod tests {
         );
         assert!(items_share_net(&board, id(4), id(7)));
         assert!(!items_share_net(&board, id(3), id(4)), "OTHER vs MINE");
+    }
+
+    // ------------------------------------------------------------------
+    // M3 Task 2 — the ratsnest corners (Item.getRatsnestCorners)
+    // ------------------------------------------------------------------
+
+    /// Per-kind ratsnest emission, pinned row-for-row against the
+    /// RatsnestProbe capture (`/tmp/epic-m3t2-ratsnest.out`, run
+    /// twice and diffed — identical): outline and keepout `n=0`
+    /// (base), pin/via the drill center, E `n=2
+    /// corners=20000,40000;10000,40000`, AREA `n=4
+    /// corners=50000,10000;60000,10000;60000,20000;50000,20000`, F/F2
+    /// `n=1 corners=55000,25000`/`50000,25000`, G `n=2
+    /// corners=80000,15000;80000,30000`.
+    ///
+    /// The load-bearing shapes: E's start corner sits on a
+    /// FOREIGN-NET pin — not a contact — so BOTH stubs emit in
+    /// first-then-last order (the order discriminator: a port emitting
+    /// last-then-first flips E and G). F and F2 have their start
+    /// INSIDE AREA → only the LAST corner emits (the single-stub
+    /// contrast against E). The AREA row pins the ConductionArea
+    /// chain: `cornerApproxArr` (IntBox corners ll,lr,ur,ul) then
+    /// `.round()` per corner.
+    #[test]
+    fn ratsnest_corners_per_kind_match_the_capture() {
+        fn rn(manager: &SearchTreeManager, board: &mut Board, raw: u32) -> Vec<(i32, i32)> {
+            ratsnest_corners(manager, board, id(raw))
+                .into_iter()
+                .map(|point| match point {
+                    Point::Int(p) => (p.x, p.y),
+                    _ => panic!("capture corners are integral"),
+                })
+                .collect()
+        }
+
+        let mut board = parse_board_from_text(PURE_DSN);
+        let manager = indexed(&mut board);
+
+        assert_eq!(rn(&manager, &mut board, 1), vec![], "outline: base kind");
+        assert_eq!(rn(&manager, &mut board, 2), vec![], "keepout: base kind");
+        assert_eq!(
+            rn(&manager, &mut board, 3),
+            vec![(20_000, 40_000)],
+            "pin: the drill center"
+        );
+        assert_eq!(
+            rn(&manager, &mut board, 4),
+            vec![(20_000, 40_000), (10_000, 40_000)],
+            "E: both stubs (foreign-net pin), first-then-last order"
+        );
+        assert_eq!(
+            rn(&manager, &mut board, 5),
+            vec![(40_000, 40_000)],
+            "via: the drill center"
+        );
+        assert_eq!(
+            rn(&manager, &mut board, 6),
+            vec![
+                (50_000, 10_000),
+                (60_000, 10_000),
+                (60_000, 20_000),
+                (50_000, 20_000)
+            ],
+            "AREA: IntBox corners ll,lr,ur,ul through the round() chain"
+        );
+        assert_eq!(
+            rn(&manager, &mut board, 7),
+            vec![(55_000, 25_000)],
+            "F: start inside AREA, last stub only"
+        );
+        assert_eq!(
+            rn(&manager, &mut board, 8),
+            vec![(50_000, 25_000)],
+            "F2: same single-stub shape"
+        );
+        assert_eq!(
+            rn(&manager, &mut board, 9),
+            vec![(80_000, 15_000), (80_000, 30_000)],
+            "G: both stubs"
+        );
+    }
+
+    /// The zero-points witness (capture `RN_INSERT W=10`, `RN 10
+    /// PolylineTrace n=0 corners=`, `RN_W_CONTACTS W=10
+    /// start=[5:Via] end=[7:PolylineTrace,6:ConductionArea]`): W's
+    /// start is the via center and its end is inside AREA — BOTH ends
+    /// contacted — so `getRatsnestCorners()` emits NOTHING. This is
+    /// the mechanism that falsified `count == groups - 1`: a
+    /// fully-contacted trace vanishes from the Delaunay graph. A port
+    /// emitting first/last unconditionally (or checking only one end)
+    /// produces 1-2 corners here and diverges. The contact rows are
+    /// pinned FIRST so the empty emission is proven contact-driven,
+    /// not a geometry accident.
+    #[test]
+    fn both_ends_contacted_trace_emits_zero_ratsnest_corners() {
+        let mut board = parse_board_from_text(PURE_DSN);
+        let mut manager = indexed(&mut board);
+
+        let w = insert_trace(
+            &mut board,
+            &mut manager,
+            &[ip(40_000, 40_000), ip(55_000, 15_000)],
+            &[1],
+        );
+        assert_eq!(w.get(), 10, "alloc parity with the capture");
+
+        // The contact-driven proof (capture RN_W_CONTACTS).
+        assert_eq!(raw(&start_contacts(&manager, &mut board, w)), vec![5]);
+        assert_eq!(raw(&end_contacts(&manager, &mut board, w)), vec![7, 6]);
+
+        assert_eq!(
+            ratsnest_corners(&manager, &mut board, w),
+            vec![],
+            "the witness: both-ends-contacted → zero corners"
+        );
     }
 }

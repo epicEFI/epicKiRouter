@@ -17,6 +17,10 @@ mod corpus_common;
 // subcommands' goldens/compare since Task 11.
 mod dsn_corpus;
 mod dsn_digest;
+// DRC parity corpus (M3 Task 2): parse-time incomplete connections +
+// clearance violations on tier A + PCBench pre-routed boards, Java
+// goldens, java-free CI compare.
+mod drc_corpus;
 // Index parity corpus (M2 Task 9): tier + stressor fixtures replayed
 // through the landed search-tree surface, Java goldens, java-free CI
 // compare.
@@ -94,6 +98,13 @@ enum Command {
         #[command(subcommand)]
         cmd: undo_corpus::UndoCommand,
     },
+    /// DRC parity corpus (M3 Task 2): parse-time incompletes +
+    /// clearance violations on tier A + PCBench pre-routed boards,
+    /// Java-oracle goldens, and a java-free compare (the CI gate).
+    Drc {
+        #[command(subcommand)]
+        cmd: drc_corpus::DrcCommand,
+    },
 }
 
 fn main() {
@@ -126,6 +137,12 @@ fn run() -> Result<()> {
         // needs one.
         return undo_corpus::run(cmd, &cli.jvm_xmx);
     }
+    if let Command::Drc { cmd } = cli.command {
+        // Same shape as the index pipeline: tiers.yaml read at
+        // manifest time, JVM resolved lazily — `drc compare` never
+        // needs one.
+        return drc_corpus::run(cmd, &cli.jvm_xmx);
+    }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
     let tier_file = TierFile::load(&tiers_path)?;
@@ -134,10 +151,11 @@ fn run() -> Result<()> {
     let jar = oracle::jar_path(&repo_root);
 
     match cli.command {
-        // Index/Undo/Corpus/Dsn returned before the tier/JVM
+        // Index/Undo/Drc/Corpus/Dsn returned before the tier/JVM
         // resolution above; this arm only satisfies the match.
         Command::Index { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Undo { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::Drc { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {
