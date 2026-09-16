@@ -48,6 +48,12 @@ use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses_board::SesBoard;
 use epic_dsn::state::{AngleRestriction, Unit};
 
+// The shared corpus shell (M3 Task 1): the manifest row type and the
+// JSONL/alignment/diff mechanics live in corpus_common; this module
+// keeps the dsn golden record and its two-set manifest policy.
+pub use crate::corpus_common::ManifestEntry;
+use crate::corpus_common::{ensure_alignment, json_string, load_jsonl, manifest_bytes, truncate};
+
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
@@ -160,14 +166,9 @@ pub fn run(cmd: DsnCommand, jvm_xmx: &str) -> Result<()> {
 // Manifest
 // ---------------------------------------------------------------------------
 
-/// One manifest line: `{"id":"dsn-0001","path":"fixtures/example.dsn"}`.
-/// See the module docs for why `path` is repo-relative.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ManifestEntry {
-    pub id: String,
-    pub path: String,
-}
+// The manifest row is the shared `ManifestEntry` (re-exported above);
+// the `dsn-`/`soak-` id schemes and the two-set fixture policy below
+// are this corpus's own. `path` is repo-relative — see module docs.
 
 /// The selected manifest set (`--set digest|soak|all`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -290,32 +291,12 @@ pub fn build_manifest(repo_root: &Path) -> Result<Vec<ManifestEntry>> {
 /// Serializes the manifest exactly as committed: one compact JSON object
 /// per line, `\n`-terminated (including the last).
 pub fn build_manifest_bytes(repo_root: &Path) -> Result<Vec<u8>> {
-    let mut buf = Vec::new();
-    for entry in build_manifest(repo_root)? {
-        buf.extend_from_slice(
-            serde_json::to_string(&entry)
-                .expect("manifest entry serialization cannot fail")
-                .as_bytes(),
-        );
-        buf.push(b'\n');
-    }
-    Ok(buf)
+    Ok(manifest_bytes(&build_manifest(repo_root)?))
 }
 
 /// Loads a committed manifest (strict per line).
 fn load_manifest(path: &Path) -> Result<Vec<ManifestEntry>> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("reading manifest {}", path.display()))?;
-    let mut entries = Vec::new();
-    for (lineno, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let entry: ManifestEntry = serde_json::from_str(line)
-            .with_context(|| format!("{} line {}", path.display(), lineno + 1))?;
-        entries.push(entry);
-    }
-    Ok(entries)
+    load_jsonl(path, "manifest")
 }
 
 pub(crate) fn resolve_input(repo_root: &Path, given: &Path) -> PathBuf {
@@ -438,6 +419,12 @@ pub struct GoldenRecord {
     pub post_stats: Option<StatsRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub post_geometry_sha256: Option<String>,
+}
+
+impl crate::corpus_common::HasId for GoldenRecord {
+    fn id(&self) -> &str {
+        &self.id
+    }
 }
 
 /// The `stats` builder over the POST-normalize Board — the mirror of
@@ -621,73 +608,7 @@ fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
 
 /// Loads a committed golden file (strict per line).
 fn load_golden(path: &Path) -> Result<Vec<GoldenRecord>> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("reading golden {}", path.display()))?;
-    parse_golden(&raw, &path.display().to_string())
-}
-
-/// Parses golden text (strict per line) — the in-memory half of
-/// [`load_golden`], split out so the comparator pins can exercise
-/// truncated/reordered goldens without touching the filesystem.
-fn parse_golden(raw: &str, source: &str) -> Result<Vec<GoldenRecord>> {
-    let mut records = Vec::new();
-    for (lineno, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let record: GoldenRecord =
-            serde_json::from_str(line).with_context(|| format!("{source} line {}", lineno + 1))?;
-        records.push(record);
-    }
-    Ok(records)
-}
-
-/// Position-by-position manifest/golden alignment — equal line counts and
-/// identical id sequences (the truncated/reordered-golden guard used by
-/// `compare`, shared with the comparator pins).
-fn ensure_alignment(
-    manifest_path: &Path,
-    entries: &[ManifestEntry],
-    golden_path: &Path,
-    records: &[GoldenRecord],
-) -> Result<()> {
-    // Counts checked (M1a lesson): a truncated golden must fail loudly,
-    // and the id sequences must agree position by position.
-    anyhow::ensure!(
-        records.len() == entries.len(),
-        "golden {} has {} line(s) but manifest {} has {} — recapture needed",
-        golden_path.display(),
-        records.len(),
-        manifest_path.display(),
-        entries.len()
-    );
-    for (index, (entry, record)) in entries.iter().zip(records).enumerate() {
-        anyhow::ensure!(
-            record.id == entry.id,
-            "golden line {} carries id {} but manifest line {} is {} — recapture needed",
-            index + 1,
-            record.id,
-            index + 1,
-            entry.id
-        );
-    }
-    Ok(())
-}
-
-fn json_string<T: Serialize>(value: &T) -> String {
-    serde_json::to_string(value).unwrap_or_else(|_| "<unserializable>".to_string())
-}
-
-fn truncate(text: &str) -> String {
-    if text.len() <= 120 {
-        text.to_string()
-    } else {
-        let mut cut = 120;
-        while !text.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        format!("{}...", &text[..cut])
-    }
+    load_jsonl(path, "golden")
 }
 
 /// Field-for-field diff: (field name, golden value, rust value) for every
@@ -1340,6 +1261,7 @@ mod pins {
 #[cfg(test)]
 mod comparator_pins {
     use super::*;
+    use crate::corpus_common::parse_jsonl;
 
     /// A fully populated Success-shaped record. The discrimination pin
     /// mutates exactly ONE field per case, so a comparator that skips a
@@ -1495,15 +1417,16 @@ mod comparator_pins {
         let join = |ls: &[String]| ls.join("\n");
 
         // Control: an aligned pair is accepted.
-        let good = parse_golden(&join(&lines), "control").expect("control golden parses");
+        let good: Vec<GoldenRecord> =
+            parse_jsonl(&join(&lines), "control").expect("control golden parses");
         ensure_alignment(Path::new("m.jsonl"), &entries, Path::new("g.jsonl"), &good)
             .expect("aligned pair accepted");
 
         // Truncated: the last golden line is missing.
         let mut truncated_lines = lines.clone();
         truncated_lines.pop();
-        let truncated =
-            parse_golden(&join(&truncated_lines), "truncated").expect("truncated golden parses");
+        let truncated: Vec<GoldenRecord> =
+            parse_jsonl(&join(&truncated_lines), "truncated").expect("truncated golden parses");
         assert!(
             ensure_alignment(
                 Path::new("m.jsonl"),
@@ -1518,8 +1441,8 @@ mod comparator_pins {
         // Reordered: the first two lines are swapped.
         let mut swapped = lines.clone();
         swapped.swap(0, 1);
-        let reordered =
-            parse_golden(&join(&swapped), "reordered").expect("reordered golden parses");
+        let reordered: Vec<GoldenRecord> =
+            parse_jsonl(&join(&swapped), "reordered").expect("reordered golden parses");
         assert!(
             ensure_alignment(
                 Path::new("m.jsonl"),

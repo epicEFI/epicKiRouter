@@ -9,6 +9,10 @@ use std::time::Duration;
 
 mod baseline;
 mod corpus;
+// The shared corpus shell (M3 Task 1, M2 carry-forward): manifest row +
+// byte format, strict JSONL, positional alignment, diff rendering, the
+// one sha256_hex — one copy for the dsn/index/undo/routing corpora.
+mod corpus_common;
 // Canonical DSN parse digest (M1b Task 4); consumed by the `dsn`
 // subcommands' goldens/compare since Task 11.
 mod dsn_corpus;

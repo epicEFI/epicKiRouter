@@ -106,7 +106,16 @@ use std::time::Instant;
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+
+// The shared corpus shell (M3 Task 1): the manifest row, JSONL
+// loading, alignment, diff rendering, sha-hex, and the tier-then-
+// stressor walk live in corpus_common; this module keeps the undo
+// golden record and the scripted replay protocol.
+pub use crate::corpus_common::ManifestEntry;
+use crate::corpus_common::{
+    ensure_alignment, json_string, load_jsonl, manifest_bytes, sha256_hex,
+    tier_then_stressor_paths, truncate,
+};
 
 use epic_board::board::Board;
 use epic_board::id::ItemId;
@@ -171,55 +180,18 @@ pub fn run(cmd: UndoCommand, jvm_xmx: &str) -> Result<()> {
 // Manifest
 // ---------------------------------------------------------------------------
 
-/// One manifest line: `{"id":"und-0001","path":"fixtures/example.dsn"}`
-/// (repo-relative posix paths, same convention as the dsn/index
-/// corpora).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ManifestEntry {
-    pub id: String,
-    pub path: String,
-}
+// The manifest row is the shared `ManifestEntry` (re-exported above);
+// repo-relative posix paths, same convention as the dsn/index corpora.
+// The `und-NNNN` id scheme is this corpus's own.
 
 /// Builds the manifest entries (pure function of the repository tree):
 /// the tier A+B+C fixtures in tiers.yaml order, then every
 /// `rust/harness/fixtures/index-stress/*.dsn` lexicographic, dedup by
 /// path. Ids are `und-NNNN` in that order. The fixture SET is the
-/// index corpus's (the same boards exercise the undo surface).
+/// index corpus's (the same boards exercise the undo surface) — the
+/// shared walk lives in corpus_common; only the id prefix differs.
 pub fn build_manifest(repo_root: &Path) -> Result<Vec<ManifestEntry>> {
-    let mut seen = BTreeSet::new();
-    let mut rel = Vec::new();
-
-    let tiers_path = repo_root.join("rust/harness/config/tiers.yaml");
-    let tier_file = crate::tiers::TierFile::load(&tiers_path)?;
-    for tier in &tier_file.tiers {
-        for fixture in &tier.fixtures {
-            let path = format!("{}/{}", tier_file.fixtures_root.display(), fixture.path);
-            if seen.insert(path.clone()) {
-                rel.push(path);
-            }
-        }
-    }
-
-    let stress_dir = repo_root.join("rust/harness/fixtures/index-stress");
-    let mut stress = Vec::new();
-    for entry in std::fs::read_dir(&stress_dir)
-        .with_context(|| format!("reading directory {}", stress_dir.display()))?
-    {
-        let entry = entry.with_context(|| format!("reading directory {}", stress_dir.display()))?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".dsn") {
-            stress.push(format!("rust/harness/fixtures/index-stress/{name}"));
-        }
-    }
-    stress.sort();
-    for path in stress {
-        if seen.insert(path.clone()) {
-            rel.push(path);
-        }
-    }
-
-    Ok(rel
+    Ok(tier_then_stressor_paths(repo_root)?
         .into_iter()
         .enumerate()
         .map(|(index, path)| ManifestEntry {
@@ -232,32 +204,12 @@ pub fn build_manifest(repo_root: &Path) -> Result<Vec<ManifestEntry>> {
 /// Serializes the manifest exactly as committed: one compact JSON
 /// object per line, `\n`-terminated (including the last).
 pub fn build_manifest_bytes(repo_root: &Path) -> Result<Vec<u8>> {
-    let mut buf = Vec::new();
-    for entry in build_manifest(repo_root)? {
-        buf.extend_from_slice(
-            serde_json::to_string(&entry)
-                .expect("manifest entry serialization cannot fail")
-                .as_bytes(),
-        );
-        buf.push(b'\n');
-    }
-    Ok(buf)
+    Ok(manifest_bytes(&build_manifest(repo_root)?))
 }
 
 /// Loads a committed manifest (strict per line).
 fn load_manifest(path: &Path) -> Result<Vec<ManifestEntry>> {
-    let raw = std::fs::read_to_string(path)
-        .with_context(|| format!("reading manifest {}", path.display()))?;
-    let mut entries = Vec::new();
-    for (lineno, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let entry: ManifestEntry = serde_json::from_str(line)
-            .with_context(|| format!("{} line {}", path.display(), lineno + 1))?;
-        entries.push(entry);
-    }
-    Ok(entries)
+    load_jsonl(path, "manifest")
 }
 
 fn manifest(repo_root: &Path, out: &Path) -> Result<()> {
@@ -376,6 +328,12 @@ pub struct UndoRecord {
     pub result: String,
     pub facts: Option<UndoFacts>,
     pub steps: Option<Vec<StepRecord>>,
+}
+
+impl crate::corpus_common::HasId for UndoRecord {
+    fn id(&self) -> &str {
+        &self.id
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -516,7 +474,7 @@ fn digest(
         .map(String::as_str)
         .collect::<Vec<_>>()
         .join("\n");
-    let tree_sha = hex_sha256(joined.as_bytes());
+    let tree_sha = sha256_hex(joined.as_bytes());
 
     let query = qbox.map(|(box_, layer)| {
         let shape = TileShape::RegularTileShape(RegularTileShape::IntBox(*box_));
@@ -538,7 +496,7 @@ fn digest(
         comp_level: i64::try_from(board.components_stack_level()).expect("levels are small"),
         next_id: i64::from(board.max_generated_id()),
         item_count: i64::try_from(board.item_count()).expect("counts are small"),
-        geo_sha: hex_sha256(geo.as_bytes()),
+        geo_sha: sha256_hex(geo.as_bytes()),
         geo_lines: i64::try_from(geo_lines).expect("counts are small"),
         geo_focused,
         tree_sha,
@@ -550,11 +508,6 @@ fn digest(
         },
         query,
     }
-}
-
-fn hex_sha256(bytes: &[u8]) -> String {
-    let hashed = Sha256::digest(bytes);
-    hashed.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// Evaluates one fixture with the Rust port — the protocol's Rust
@@ -1028,51 +981,6 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
 // `undo compare` — java-free, CI-able
 // ---------------------------------------------------------------------------
 
-/// Counts and ids must agree position by position (truncated/
-/// reordered-golden guard, dsn corpus lesson).
-fn ensure_alignment(
-    manifest_path: &Path,
-    entries: &[ManifestEntry],
-    golden_path: &Path,
-    records: &[UndoRecord],
-) -> Result<()> {
-    anyhow::ensure!(
-        records.len() == entries.len(),
-        "golden {} has {} line(s) but manifest {} has {} — recapture needed",
-        golden_path.display(),
-        records.len(),
-        manifest_path.display(),
-        entries.len()
-    );
-    for (index, (entry, record)) in entries.iter().zip(records).enumerate() {
-        anyhow::ensure!(
-            record.id == entry.id,
-            "golden line {} carries id {} but manifest line {} is {} — recapture needed",
-            index + 1,
-            record.id,
-            index + 1,
-            entry.id
-        );
-    }
-    Ok(())
-}
-
-fn json_string<T: Serialize>(value: &T) -> String {
-    serde_json::to_string(value).unwrap_or_else(|_| "<unserializable>".to_string())
-}
-
-fn truncate(text: &str) -> String {
-    if text.len() <= 160 {
-        text.to_string()
-    } else {
-        let mut cut = 160;
-        while !text.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        format!("{}...", &text[..cut])
-    }
-}
-
 /// Field-for-field diff: (field path, golden value, rust value) for
 /// every differing field, in schema order. Nested sections report the
 /// first differing INDEX and field (`steps[7].digest.geo_sha`).
@@ -1208,17 +1116,7 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path) -> Result<()> {
     let manifest_path = crate::dsn_corpus::resolve_input(repo_root, manifest);
     let golden_path = crate::dsn_corpus::resolve_input(repo_root, golden);
     let entries = load_manifest(&manifest_path)?;
-    let raw = std::fs::read_to_string(&golden_path)
-        .with_context(|| format!("reading golden {}", golden_path.display()))?;
-    let mut records = Vec::new();
-    for (lineno, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let record: UndoRecord = serde_json::from_str(line)
-            .with_context(|| format!("{} line {}", golden_path.display(), lineno + 1))?;
-        records.push(record);
-    }
+    let records: Vec<UndoRecord> = load_jsonl(&golden_path, "golden")?;
     ensure_alignment(&manifest_path, &entries, &golden_path, &records)?;
 
     let mut mismatches = 0usize;
