@@ -179,6 +179,17 @@ pub fn load_jsonl<T: serde::de::DeserializeOwned>(path: &Path, kind: &str) -> Re
 /// the dsn corpus lesson, shared by `dsn|index|undo compare` and their
 /// pins). POSITIONAL, never set equality: a same-count wrong-order
 /// corpus must fail here naming the first misaligned line.
+///
+/// # Argument order is semantic (T1 review note for T15/T16 authors)
+///
+/// `entries` is the MANIFEST side and `records` the GOLDEN side. Both
+/// are `HasId`, so the compiler will NOT catch a swapped call
+/// `(…, &golden, …, &manifest)` — it type-checks either way and merely
+/// inverts the diagnostic. The error labels are also HARD-CODED
+/// ("golden … has N line(s) but manifest …", "golden line N carries id
+/// … but manifest line N is …"): pass manifest-entries and
+/// golden-records in exactly this order, even when your corpus names
+/// the second file something other than a golden.
 pub fn ensure_alignment<M: HasId, R: HasId>(
     manifest_path: &Path,
     entries: &[M],
@@ -355,22 +366,44 @@ mod pins {
     }
 
     /// Strict JSONL: blank lines are skipped, a malformed line fails
-    /// loudly naming its line number, and parse → manifest_bytes
-    /// round-trips the committed format.
+    /// loudly naming its RAW line number, `deny_unknown_fields` rejects
+    /// an extra field, and parse → manifest_bytes round-trips the
+    /// committed format.
+    ///
+    /// Line-numbering convention (T1 review): the malformed `bogus`
+    /// sits BEHIND a blank line — raw line 3, but only the 2nd
+    /// non-blank line — so the assertion discriminates the committed
+    /// raw-lines-enumerate convention from a filter-then-enumerate
+    /// refactor (which would print `line 2`). That mutant was applied
+    /// and this pin failed against it before landing.
     #[test]
     fn jsonl_loading_is_strict_per_line() {
         let raw = "{\"id\":\"a\",\"path\":\"p\"}\n\n{\"id\":\"b\",\"path\":\"q\"}\n";
         let parsed: Vec<ManifestEntry> = parse_jsonl(raw, "t.jsonl").expect("parses");
         assert_eq!(parsed.len(), 2, "the blank line is skipped");
         let Err(err) =
-            parse_jsonl::<ManifestEntry>("{\"id\":\"a\",\"path\":\"p\"}\nbogus\n", "t.jsonl")
+            parse_jsonl::<ManifestEntry>("{\"id\":\"a\",\"path\":\"p\"}\n\nbogus\n", "t.jsonl")
         else {
             panic!("a malformed line must fail loudly");
         };
         let message = err.to_string();
         assert!(
-            message.contains("t.jsonl line 2"),
-            "the error must name the offending line: {message}"
+            message.contains("t.jsonl line 3"),
+            "the error must name the offending RAW line (blank lines count): {message}"
+        );
+        // `deny_unknown_fields` is load-bearing (module + struct docs):
+        // a committed line carrying an extra field must be rejected, not
+        // silently parsed with the field dropped (the parse path
+        // `load_jsonl` delegates to).
+        let Err(err) = parse_jsonl::<ManifestEntry>(
+            "{\"id\":\"a\",\"path\":\"p\",\"set\":\"x\"}\n",
+            "t.jsonl",
+        ) else {
+            panic!("an unknown field must be rejected, not dropped");
+        };
+        assert!(
+            format!("{err:#}").contains("unknown field"),
+            "the rejection must name the unknown-field cause: {err:#}"
         );
         assert_eq!(
             manifest_bytes(&parsed),
