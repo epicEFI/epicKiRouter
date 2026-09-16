@@ -115,6 +115,18 @@ Divergence triage: structured routing event streams (`RAW_SECTION` door/section/
 | M9 | `epic-gui` (egui) | Load any fixture, route, export SES — full workflow without Java |
 | M10 | 2.0: sunset Java oracle, release | Docs, Linux packaging first, migration guide |
 
+M2 exit note (T16): exit criteria met — index query-set parity 33/33 and
+snapshot/undo replay 33/33 on the tier + stressor corpora, 927 workspace
+tests green, all M1 gates still green (geometry 5,000/5,000; DSN 1,332
+all-match with an empty divergence ledger since D22; SES 20/20
+byte-equal). Two deviations on record: (a) the ses-snap corpus pins the
+endpoint-snap rule with snapFired=0 — its output-changing arm is
+structurally dead upstream (class-strict `Point.equals` puts every drill
+contact at distance exactly 0.0, so the ≤0.5 at-center arm always wins;
+pinned as data); (b) the undo digest's >400-pair cliff (the golden's
+tree-pair list goes null above 400 pairs; the sha still carries the
+content) is mirrored as-is — a diagnosability trade-off accepted at T14.
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI

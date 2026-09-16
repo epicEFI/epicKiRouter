@@ -72,6 +72,7 @@ flowchart TD
 | `integrations/` | Packaging and integration assets for external PCB tool workflows. |
 | `scripts/` | Automation, benchmarking, and comparison scripts. |
 | `src_v19/` | The v1.9 historical reference tree, used for optional algorithm archaeology; it is not the routine parity baseline. |
+| `rust/` | EpicRouter Rust rewrite workspace: parity crates (geometry, DSN/SES I/O, board model, spatial index) plus the differential harness against the Java oracle; see [rust/README.md](../rust/README.md). |
 
 ## Navigation Guide
 
@@ -290,6 +291,21 @@ Several implementation areas live one level below the top-level package grouping
 - `app.freerouting.gui.windows.board` and `app.freerouting.gui.windows.routing` contain the Swing
   information and routing-parameter windows; start with [WindowVisibility.java](src/main/java/app/freerouting/gui/windows/board/WindowVisibility.java) and [WindowAutorouteParameter.java](src/main/java/app/freerouting/gui/windows/routing/WindowAutorouteParameter.java).
 - `app.freerouting.gui.board` contains the board shell; start with [BoardFrame.java](src/main/java/app/freerouting/gui/board/BoardFrame.java).
+
+### Rust Workspace (EpicRouter)
+
+The `rust/` tree is the ground-up Rust rewrite of the routing engine
+([design](superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md));
+the Java packages above stay the frozen parity oracle until the rewrite's
+final milestone. Crates enter this map as their milestones complete
+(M0–M2 done; commands and parity gates: [rust/README.md](../rust/README.md)).
+
+- `rust/crates/epic-board` — arena board model: ItemId/undoable-object
+  storage, item geometry, trace combine/split/normalize, and the
+  snapshot/undo facade (33/33 replay parity vs the Java oracle).
+- `rust/crates/epic-index` — incremental spatial index (ShapeTree,
+  MinAreaTree, tree-shape precalc) — the Rust counterpart of
+  `board.searchtree` (33/33 query-set parity).
 
 ## How The Code Fits Together
 

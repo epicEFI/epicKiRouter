@@ -4,6 +4,11 @@ Rust rewrite of the Freerouting autorouter (design:
 `docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`).
 The Java tree under `src/` stays untouched as the parity oracle.
 
+Status: M0–M2 complete — scaffold + golden baselines, geometry kernel,
+DSN/SES I/O, arena board model, and incremental spatial index, all at
+parity with the Java oracle (927 workspace tests green). The routing
+stages themselves (M3+) are not started.
+
 ## Layout
 
 - `crates/epic-geometry` — exact 45° integer geometry kernel (M1a done:
@@ -11,8 +16,13 @@ The Java tree under `src/` stays untouched as the parity oracle.
 - `crates/epic-dsn` — Specctra DSN/SES I/O (M1b done: full DSN parse
   parity on all 1,332 fixtures — 175 digest + 1,157 soak — plus byte-equal
   SES session emission on tier A+B vs the Java oracle)
-- `crates/epic-board` — arena board model (M2)
-- `crates/epic-index` — incremental spatial index (M2)
+- `crates/epic-board` — arena board model (M2 done: ItemId arena +
+  undoable containers, rules/structure/placement, item geometry, the
+  tree-manager seam, trace combine/split/normalize, and the undo facade —
+  33/33 snapshot/undo replay parity vs the Java oracle)
+- `crates/epic-index` — incremental spatial index (M2 done: ShapeTree +
+  MinAreaTree with tree-shape precalc and compensation — 33/33
+  query-set parity vs the Java oracle)
 - `crates/epic-drc` — exact incremental DRC (M2/M6)
 - `crates/epic-router` — staged router pipeline (M3+)
 - `crates/epic-engine` — jobs, layered settings, seeds (M3)
@@ -51,8 +61,8 @@ EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
 ```bash
 cd rust
 # All 1,332 fixtures (175 digest + 1,157 soak) vs the committed Java-oracle
-# digest goldens — java-free; dsn-0151 is the one documented ledgered
-# divergence (normalizeAllTraces deferral, D11).
+# digest goldens — java-free, all-match (the M1-era dsn-0151 divergence
+# ledger was retired once epic-board gained normalizeAllTraces, D22).
 cargo run -q -p epic-harness -- dsn compare
 # Regenerate manifest / capture goldens (needs jar + JDK 25; explain WHY)
 cargo run -q -p epic-harness -- dsn manifest
@@ -70,6 +80,46 @@ cargo run -q -p epic-harness -- dsn ses-compare
 # Recapture the goldens (needs jar + JDK 25; explain WHY in the commit)
 EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
   cargo run -q -p epic-harness -- dsn ses-golden
+```
+
+### Index query-set parity (M2)
+
+```bash
+cd rust
+# Tree dumps + scripted query replay on tier + stressor fixtures vs the
+# committed Java-oracle goldens (epic-board's tree manager driving
+# epic-index) — java-free.
+cargo run -q -p epic-harness -- index compare    # 33/33 identical
+# Recapture the goldens (needs jar + JDK 25; explain WHY in the commit)
+EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
+  cargo run -q -p epic-harness -- index golden
+```
+
+### Snapshot/undo parity (M2)
+
+```bash
+cd rust
+# Scripted snapshot/insert/remove/undo/redo/pop replay on tier +
+# stressor fixtures vs the committed Java-oracle goldens (epic-board's
+# undo facade) — java-free.
+cargo run -q -p epic-harness -- undo compare     # 33/33 identical
+# Recapture the goldens (needs jar + JDK 25; explain WHY in the commit)
+EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
+  cargo run -q -p epic-harness -- undo golden
+```
+
+### SES endpoint-snap canary (M2)
+
+```bash
+cd rust
+# The contacts-wired session writer over the 5 routed fixtures:
+# byte-equal sessions plus Java counter reproduction. snapFired=0 is
+# the committed canary — the snap rule's output-changing arm is
+# provably dead upstream (crates/epic-dsn/src/ses/writer.rs module docs).
+cargo run -q -p epic-harness -- dsn ses-snap-compare
+# Recapture the corpus + stats sidecar (needs jar + JDK 25; explain WHY)
+EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
+  cargo run -q -p epic-harness -- dsn ses-snap-golden
 ```
 
 ## Oracle prerequisites
