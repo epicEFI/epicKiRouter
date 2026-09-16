@@ -30,7 +30,7 @@ ported as `contacts::connectable_items` + `Board::get_connectable_items`
 | Java surface | Anchor | Lines | Disposition |
 |---|---|---|---|
 | `RoutingBoard.optChangedArea` (2 overloads) | `RoutingBoard.java:151-197` | 47 | already-ported (ChangedArea marking/joining, M2); the overload bodies delegate to `RoutingBoardOperations.optChangedArea` — that DRIVER is the optimizer pass, not detail routing |
-| `RoutingBoard.checkTraceSegment` (2 overloads) | `RoutingBoard.java:198-237` | 40 | NEW port — the per-segment legality probe the maze shover and `FoundConnectionInserter` call (T4-T9); the facade overloads delegate to `RoutingBoardOperations.checkTraceSegment` (`:207`/`:231`), port with that consumer |
+| `RoutingBoard.checkTraceSegment` (2 overloads) | `RoutingBoard.java:198-237` | 40 | NEW port — the per-segment legality probe the maze shover and `FoundConnectionInserter` call (T4-T9); the facade overloads delegate to `RoutingBoardSearchFacade.checkTraceSegment` (the search facade, NOT RoutingBoardOperations), port with that consumer |
 | `RoutingBoard.pickNearestRoutingItem` | `RoutingBoard.java:303-311` | 9 | skip — GUI/interactive pick helper, no headless routing consumer |
 | `RoutingBoard.forcedVia` | `RoutingBoard.java:312-360` | 49 | NEW port — manual via-drop entry; pairs with `ForcedViaInserter` |
 | `RoutingBoard.insertForcedTraceSegment` | `RoutingBoard.java:361-407` | 47 | NEW port — manual single-segment insert (check + insert + pull-tight) |
@@ -47,7 +47,7 @@ ported as `contacts::connectable_items` + `Board::get_connectable_items`
 | `BasicBoard.checkTraceShape` | `BasicBoard.java:989-1053` | 65 | NEW port — the check-shape core beneath the forced-insert and shove families |
 | `BasicBoard.checkPolylineTrace` | `BasicBoard.java:1054-1077` | 24 | NEW port — polyline wrapper over `checkTraceShape` |
 | `BasicBoard.clearanceValue` | `BasicBoard.java:1111-1118` | 8 | NEW port — the matrix read the check families call |
-| `BasicBoard.getMinTraceHalfWidth` | `BasicBoard.java:1124-1128` | 5 | already-ported — `BoardRules::get_min_trace_half_width` (M2; the reader's pin-edge fallback consumes it) |
+| `BasicBoard.getMinTraceHalfWidth` | `BasicBoard.java:1124-1128` | 5 | already-ported — `Board::min_trace_half_width` (`epic-board/src/board.rs:383`, M2; the reader's pin-edge fallback consumes it) |
 | `BasicBoard` graphics-update-box family (`reset`/`get`/`joinGraphicsUpdateBox`) | `BasicBoard.java:1143-1160` | 18 | stub — GUI repaint bookkeeping; the headless port is a no-op |
 | `BasicBoard` insert/normalize core | `:169-200`, `:405-421`, split/combine/normalize family | — | already-ported (M2 T11-T13) |
 
@@ -80,12 +80,20 @@ Both feed `insertForcedTracePolyline`/`forcedVia` (`RoutingBoard.java:312-360`)
 
 | Java surface | Anchor | Lines | Disposition |
 |---|---|---|---|
-| `ShapeSearchTree.completeShape` | `ShapeSearchTree.java:580-700` | 121 | NEW port — enlarge a room to a maximal free shape; port the 45-degree and any-angle arms (the brief's scope), `restrainShape` `:701+` is its private helper |
-| `SortedRoomNeighbours` (whole) | `autoroute/expansion/SortedRoomNeighbours.java` | 807 | NEW port — the room-neighbour dispatch the maze search consumes: `complete` `:65`, `calculate` `:95`, `calculateNewIncompleteRooms` `:510`, record `SortedRoomNeighbour` `:670-698` |
+| `ShapeSearchTree.completeShape` (base/any-angle arm) | `ShapeSearchTree.java:580-693` | 114 | already-ported (M3-T4) — `epic_index::complete_shape::complete_shape_generic`; `restrainShape` `:701-811` and `divideLargeRoom` `:1095-1118` are its private helpers, ported in the same module |
+| `ShapeSearchTree45Degree.completeShape` (45-degree override) | `ShapeSearchTree45Degree.java:96-281` | 186 | already-ported (M3-T4) — `complete_shape_fortyfive_degree`; its `restrainShape` `:305-418` + integer helpers `:38-86`, `:424-486` included. (The brief's open question answered: the 45-degree override DOES have a restrainShape analogue.) |
+| `ShapeSearchTree90Degree.completeShape` (90-degree override) | `ShapeSearchTree90Degree.java:39+` | — | skip (M3-T4) — the 90-degree tree has its OWN completeShape/restrainShape overrides (`:39`/`:198`), NOT the base arm; Tier A is all-45-degree so the dispatcher debug-asserts it unreachable. Port only if a 90-degree fixture ever appears |
+| `SortedRoomNeighbours` (whole) | `autoroute/expansion/SortedRoomNeighbours.java` | 807 | already-ported (M3-T4) — `epic_router::expansion::neighbours`: dispatch `complete` `:65-72` + `selectCalculationMode` `:80-88`, `calculate` `:95-136`, `calculateNeighbours` `:187-329` (the (objectId, shapeIndex) v1.9-parity pre-sort `:204-213`), `insertDoorOk` `:332-389`, `tryRemoveEdge` `:415-507`, `calculateNewIncompleteRooms` `:510-659`, inner class `SortedRoomNeighbour` `:665-806` (compareTo `:720-762`, firstCorner/lastCorner `:765-805`) |
+| `Sorted45DegreeRoomNeighbours` (whole) | `autoroute/expansion/Sorted45DegreeRoomNeighbours.java` | 982 | already-ported (M3-T4) — `neighbours` 45-degree arm: `calculate` `:45-79`, `calculateNeighbours` `:85-172` (same pre-sort), `removeNotTouchingBorderLines` `:174-243`, `tryRemoveEdgeLine` `:316-431`, `calculateEdgeIncompleteRoomsOfObstacleExpansionRoom` `:255-310`, `calculateNewIncompleteRoomsForObstacleExpansionRoom` `:475-609`, `calculateNewIncompleteRooms` `:611-797`, inner class `:803-981` (first/lastTouchingSide detection `:825-916`, counterclockwise compareTo `:923-980` with REVERSED corner-sign on sides 4-7) |
 
-Note: `SortedRoomNeighbours` lives in `autoroute/expansion/` but is listed here
-because it is the SEARCHTREE-side half of the maze seam — it belongs with the
-`completeShape` port, not with the pass driver.
+Note: the two `SortedRoomNeighbours` classes live in `autoroute/expansion/`
+but are listed here because they are the SEARCHTREE-side half of the maze
+seam — they belong with the `completeShape` port, not with the pass driver.
+The engine seam (`AutorouteEngine.addIncompleteExpansionRoom`,
+`generateRoomIdNo`, `removeAllDoors`, `TRACE_WIDTH_TOLERANCE = 2`) is a
+Rust trait/callback boundary (`expansion::NeighbourEngine`), NOT a ported
+engine class; the maze state (MazeSearchElement sections, MazeSearchEngine)
+lands with T6.
 
 ## Dependency shape of the NEW-port cluster
 

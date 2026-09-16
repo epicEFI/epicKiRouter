@@ -15,10 +15,12 @@
 //! the clearance-compensation arithmetic live caller-side in
 //! epic-board (Task 6's `tree_shapes` / `tree_manager`).
 
+pub mod complete_shape;
 pub mod min_area_tree;
 pub mod search_tree;
 pub mod shape_tree;
 
+pub use complete_shape::{CompleteShapeObjects, CompleteShapeQuery, IncompleteRoom};
 pub use min_area_tree::MinAreaTree;
 pub use search_tree::{SearchTree, SearchTreeVariant, TreeEntry};
 pub use shape_tree::{LeafEntry, Node, NodeIdx, NodeKind, ShapeTree, format_bounds, intersects};
