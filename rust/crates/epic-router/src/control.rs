@@ -749,10 +749,12 @@ mod tests {
     /// allows attach, so the force branch is a no-op here — yet the
     /// cost STILL gets the ×0.1, because its guard is `pureSmdNet`
     /// ALONE (`:277-281`). A mutant tying the ×0.1 to the force
-    /// condition (`!attach_smd_allowed && pure_smd_net`) yields
-    /// 800.0 here and in [`pure_smd_net_forces_attach_and_halves_cost`]
+    /// condition (`!attach_smd_allowed && pure_smd_net`) suppresses
+    /// the ×0.1 and yields `min_normal_via_cost` 400.0 here (factor
+    /// `max(maxViaRadius, 1) = 400`, full) instead of 40.0 — and the
+    /// same 400.0 in [`pure_smd_net_forces_attach_and_halves_cost`]
     /// (the forcing runs BEFORE the cost block, flipping attach true)
-    /// — this row is what kills it.
+    /// — these rows are what kill it.
     #[test]
     fn attach_already_allowed_still_gets_cheap_escape() {
         let (_manager, mut board) = parse(CONTROL_DSN);

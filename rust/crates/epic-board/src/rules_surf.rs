@@ -518,6 +518,16 @@ impl NetClass {
     /// (Java's array read would throw; unreachable from the parse, which
     /// sizes the array to the layer count — mirror the
     /// [`Self::trace_half_width`] defensive convention).
+    ///
+    /// M3-T3 cut-audit note: of the four M2-cut accessors, only this one
+    /// and [`BoardRules::via_rule_by_id`] returned. `default_net_class`
+    /// and `Component::is_placed` stay cut — the ported consumer paths
+    /// do not call them: Java `initNet`'s null-net arm hardcodes the
+    /// clearance-class fallback 1 and `viaRules.firstElement()`
+    /// (`AutorouteControl.java:208-216`), never `getDefaultNetClass`,
+    /// and `isPureSmdNet` (`:189-202`) tests each connectable item's
+    /// kind + drill span, not component placement. Revisit both at the
+    /// first real consumer, per the M2 carry-forward rule.
     #[must_use]
     pub fn is_active_routing_layer(&self, layer: i32) -> bool {
         usize::try_from(layer)
