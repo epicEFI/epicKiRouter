@@ -100,7 +100,9 @@ impl SearchTreeManager {
     /// Java `getDefaultTree()` (`:65-67`).
     #[must_use]
     pub fn default_tree(&self) -> &SearchTree {
-        &self.trees[0]
+        self.trees
+            .first()
+            .expect("slot 0 is always the default tree (slot_zero pin)")
     }
 
     /// The live trees, slot 0 first (the module's slot-0 invariant).
@@ -196,7 +198,11 @@ impl SearchTreeManager {
     /// the flag off the surviving default tree keeps its stale
     /// shapes (Java's behavior, ported exactly).
     pub fn clearance_value_changed(&mut self, board: &mut Board) {
-        let default_class = self.trees[0].compensated_clearance_class;
+        let default_class = self
+            .trees
+            .first()
+            .expect("slot 0 is always the default tree (slot_zero pin)")
+            .compensated_clearance_class;
         self.trees
             .retain(|tree| tree.compensated_clearance_class == default_class);
         if self.clearance_compensation_used {
@@ -210,7 +216,12 @@ impl SearchTreeManager {
     /// a log-only site, D12 — and returns); any other class's trees
     /// are dropped. Slot 0 can never be removed here.
     pub fn clearance_class_removed(&mut self, class_no: i32) {
-        if class_no == self.trees[0].compensated_clearance_class {
+        let default_class = self
+            .trees
+            .first()
+            .expect("slot 0 is always the default tree (slot_zero pin)")
+            .compensated_clearance_class;
+        if class_no == default_class {
             // Java: FRLogger.warn("...unable to remove default tree").
             return;
         }
@@ -269,7 +280,11 @@ impl SearchTreeManager {
     /// dropped. A later `getAutorouteTree` for the same class
     /// creates a NEW tree with a fresh identity.
     pub fn reset_compensated_trees(&mut self) {
-        let default_object_id = self.trees[0].object_id();
+        let default_object_id = self
+            .trees
+            .first()
+            .expect("slot 0 is always the default tree (slot_zero pin)")
+            .object_id();
         self.trees
             .retain(|tree| tree.object_id() == default_object_id);
     }

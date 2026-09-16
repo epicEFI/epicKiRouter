@@ -91,7 +91,12 @@
 //! (`crates/epic-board/src/undo.rs`, S12/S13), and the facade-level
 //! pins in [`epic_board::undo_facade`] drive multi-element synthetic
 //! histories through `UndoOutcome` (delete-list restore order, the
-//! both-lists case).
+//! both-lists case). The digest's `tree_sha` is a sorted `(id:idx)`
+//! pair set over the DEFAULT tree only — tree TOPOLOGY and non-default
+//! trees are not covered by the undo digest (the undo script touches
+//! only the default tree; a non-default-tree mutant passes undo 33/33
+//! while index compare fails — consistent today, blind if M3 adds a
+//! second tree to the replay).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, Write};

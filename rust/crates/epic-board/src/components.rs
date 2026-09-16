@@ -436,12 +436,6 @@ impl Component {
         }
     }
 
-    /// Java `Component.isPlaced()`.
-    #[must_use]
-    pub fn is_placed(&self) -> bool {
-        self.location.is_some()
-    }
-
     /// Java `Component.placedOnFront()`.
     #[must_use]
     pub fn placed_on_front(&self) -> bool {

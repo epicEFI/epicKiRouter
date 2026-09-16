@@ -30,8 +30,8 @@ jobs:
         env:
           EPIC_SKIP_GRADLE: "1"
       # M1b parse parity: all 1,332 digest+soak fixtures (175 + 1,157) vs
-      # the committed Java-oracle goldens; dsn-0151 is the one documented
-      # ledgered divergence (normalizeAllTraces deferral, D11).
+      # the committed Java-oracle goldens; the divergence ledger is
+      # retired/empty since D22 (normalizeAllTraces landed in T13).
       - run: cargo run -q -p epic-harness -- dsn compare
         env:
           EPIC_SKIP_GRADLE: "1"

@@ -510,16 +510,6 @@ impl NetClass {
             .unwrap_or(0)
     }
 
-    /// Java `isActiveRoutingLayer(layerNumber)` (`:185-191`).
-    #[must_use]
-    pub fn is_active_routing_layer(&self, layer: i32) -> bool {
-        usize::try_from(layer)
-            .ok()
-            .and_then(|layer| self.active_routing_layers.get(layer))
-            .copied()
-            .unwrap_or(false)
-    }
-
     /// The IR conversion (1:1 — the IR is the verified field-for-field
     /// parse mirror).
     #[must_use]
@@ -639,26 +629,12 @@ impl BoardRules {
         Self::default()
     }
 
-    /// Java `getDefaultNetClass()` surface: class 0 by convention
-    /// (eagerly materialized at parse; the IR carries it as index 0).
-    #[must_use]
-    pub fn default_net_class(&self) -> Option<&NetClass> {
-        self.net_classes.first()
-    }
-
     /// Java `getNetClass(no)` equivalent — the 0-based class index.
     #[must_use]
     pub fn net_class(&self, index: i32) -> Option<&NetClass> {
         usize::try_from(index)
             .ok()
             .and_then(|i| self.net_classes.get(i))
-    }
-
-    /// The via rule with the given identity id (identity, not position —
-    /// struct docs).
-    #[must_use]
-    pub fn via_rule_by_id(&self, id: u32) -> Option<&ViaRule> {
-        self.via_rules.iter().find(|rule| rule.id == id)
     }
 
     /// Java `setHoleClearance(value)` (`:109-111`): `max(0, value)`.

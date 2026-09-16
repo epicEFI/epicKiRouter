@@ -75,6 +75,11 @@ impl SessionDrillContacts {
             .map(|entry| entry.id)
             .collect();
         for id in trace_ids {
+            // The clamp can never fire: `ItemId <= MAX_ID = 2^30 - 1`
+            // (`id.rs`), far inside `i32`. If a future id source ever
+            // exceeded `i32::MAX`, this would SILENTLY MERGE two traces'
+            // contact lists under the same `i32::MAX` key — keep the
+            // `MAX_ID` bound if this map stays keyed by `i32`.
             let key = i32::try_from(id.get()).unwrap_or(i32::MAX);
             let start_list = filtered_drills(manager, board, id, true);
             let end_list = filtered_drills(manager, board, id, false);
