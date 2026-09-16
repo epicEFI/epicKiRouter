@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-16T01:42:59.603Z
-> Files: 587 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-16T02:43:00.599Z
+> Files: 594 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -185,7 +185,7 @@
 
 ## docs/
 
-- `architecture.md` — Freerouting Architecture Map (~7129 tok)
+- `architecture.md` — Freerouting Architecture Map (~7376 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
 - `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
@@ -278,7 +278,7 @@
 
 ## docs/superpowers/specs/
 
-- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~3758 tok)
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~3952 tok)
 
 ## examples/tutorial_board/
 
@@ -792,10 +792,22 @@
 - `bm7.routed.kicad_pcb` — Declares solid (~35341 tok)
 - `bm7.unrouted.kicad_pcb` — Declares solid (~19817 tok)
 
+## logs/M2-T16/
+
+- `dispatch-prompt.md` — M2 Task 16 — M2 exit: docs, full gate run (~1346 tok)
+- `run-gates.sh` — M2-T16 full gate run — evidence capture for logs/M2-T16/gates.out (~539 tok)
+
+## rust/
+
+- `README.md` — Project documentation (~1419 tok)
+
 ## rust/crates/epic-board/src/
 
+- `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~20568 tok)
 - `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~641 tok)
-- `session_contacts.rs` — The T15/D23 `SessionContacts` provider: board-side drill-contact (~5386 tok)
+- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~10165 tok)
+- `session_contacts.rs` — The T15/D23 `SessionContacts` provider: board-side drill-contact (~5479 tok)
+- `tree_manager.rs` — The search-tree manager: which trees exist, and how items enter (~26118 tok)
 
 ## rust/crates/epic-dsn/src/
 
@@ -812,3 +824,4 @@
 ## rust/harness/src/
 
 - `ses_compare.rs` — SES emission-parity corpus (M1b Task 13): `dsn ses-golden` captures the (~22283 tok)
+- `undo_corpus.rs` — Undo/snapshot parity corpus (M2 Task 14): the snapshot/undo/redo (~14538 tok)

@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-16T01:42:59.603Z",
-    "fileCount": 587,
+    "lastScanned": "2026-09-16T02:43:00.599Z",
+    "fileCount": 594,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "b57219b61753abf56d29a66a802e92ea3c105916b814ce5ba3591357c968a588",
-    "storeUpdatedAt": "2026-09-16T01:42:59.611Z",
-    "rootHash": "a4da89dcc1164017"
+    "renderedHash": "833a0b24a1620a830ccea75b759f3d5f75086482ab2a6c6b05a789a61204e976",
+    "storeUpdatedAt": "2026-09-16T02:43:00.607Z",
+    "rootHash": "2071ccf1c0499e91"
   },
   "files": {
     ".dockerignore": {
@@ -157,10 +157,10 @@
     ".github/workflows/rust-check.yml": {
       "description": "\", \".github/workflows/rust-check.yml\"]",
       "tokens": 661,
-      "hash": "55c13376fc6cda31",
-      "size": 2321,
-      "mtimeMs": 1789518961927.6235,
-      "updatedAt": "2026-09-16T00:36:02.021Z",
+      "hash": "92e49442993fc0d2",
+      "size": 2319,
+      "mtimeMs": 1789526489933.7776,
+      "updatedAt": "2026-09-16T02:41:30.023Z",
       "source": "hook"
     },
     ".github/workflows/stale.yml": {
@@ -1272,12 +1272,12 @@
     },
     "docs/architecture.md": {
       "description": "Freerouting Architecture Map",
-      "tokens": 7129,
-      "hash": "cb567dfe2fc05ac8",
-      "size": 28565,
-      "mtimeMs": 1789139295000,
-      "updatedAt": "2026-09-16T00:00:00.057Z",
-      "source": "scan"
+      "tokens": 7376,
+      "hash": "6642f0558c84aee1",
+      "size": 29560,
+      "mtimeMs": 1789524617391.588,
+      "updatedAt": "2026-09-16T02:10:17.484Z",
+      "source": "hook"
     },
     "docs/benchmarks.md": {
       "description": "Freerouting Benchmarks",
@@ -1830,12 +1830,12 @@
     },
     "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md": {
       "description": "EpicRouter: Rust Rewrite Design",
-      "tokens": 3758,
-      "hash": "a81ec2d223c3f9c7",
-      "size": 15257,
-      "mtimeMs": 1789398516412.1343,
-      "updatedAt": "2026-09-16T00:00:00.081Z",
-      "source": "scan"
+      "tokens": 3952,
+      "hash": "6a41687ca51ca247",
+      "size": 16038,
+      "mtimeMs": 1789524600105.9827,
+      "updatedAt": "2026-09-16T02:10:00.202Z",
+      "source": "hook"
     },
     "docs/translations.md": {
       "description": "Translation guide",
@@ -5457,11 +5457,11 @@
     },
     "rust/crates/epic-board/src/session_contacts.rs": {
       "description": "The T15/D23 `SessionContacts` provider: board-side drill-contact",
-      "tokens": 5386,
-      "hash": "8c5fb8b027ead77b",
-      "size": 20241,
-      "mtimeMs": 1789522911710.7097,
-      "updatedAt": "2026-09-16T01:41:51.809Z",
+      "tokens": 5479,
+      "hash": "142dd42e3ce710a4",
+      "size": 20593,
+      "mtimeMs": 1789526525991.8528,
+      "updatedAt": "2026-09-16T02:42:06.079Z",
       "source": "hook",
       "symbols": [
         {
@@ -5475,21 +5475,21 @@
           "name": "SessionDrillContacts",
           "kind": "section",
           "startLine": 59,
-          "endLine": 87,
-          "tokens": 349
+          "endLine": 92,
+          "tokens": 449
         },
         {
           "name": "SessionDrillContacts",
           "kind": "section",
-          "startLine": 88,
-          "endLine": 98,
+          "startLine": 93,
+          "endLine": 103,
           "tokens": 144
         },
         {
           "name": "filtered_drills",
           "kind": "fn",
-          "startLine": 99,
-          "endLine": 620,
+          "startLine": 104,
+          "endLine": 625,
           "tokens": 4492
         }
       ]
@@ -5914,6 +5914,588 @@
           "startLine": 765,
           "endLine": 1551,
           "tokens": 11391
+        }
+      ]
+    },
+    "logs/M2-T16/dispatch-prompt.md": {
+      "description": "M2 Task 16 — M2 exit: docs, full gate run",
+      "tokens": 1346,
+      "hash": "84cc9f1571ea5330",
+      "size": 5438,
+      "mtimeMs": 1789524051856.957,
+      "updatedAt": "2026-09-16T02:00:51.952Z",
+      "source": "hook"
+    },
+    "logs/M2-T16/run-gates.sh": {
+      "description": "M2-T16 full gate run — evidence capture for logs/M2-T16/gates.out",
+      "tokens": 539,
+      "hash": "01ed0ab583df9cdd",
+      "size": 2024,
+      "mtimeMs": 1789524183671.1958,
+      "updatedAt": "2026-09-16T02:03:03.762Z",
+      "source": "hook"
+    },
+    "rust/README.md": {
+      "description": "Project documentation",
+      "tokens": 1419,
+      "hash": "9305443229abade6",
+      "size": 5718,
+      "mtimeMs": 1789524589975.9631,
+      "updatedAt": "2026-09-16T02:09:50.067Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/components.rs": {
+      "description": "Components, the board-side library mirror, and PIN PLACEMENT",
+      "tokens": 20568,
+      "hash": "0e9f0e52d3dc46af",
+      "size": 77304,
+      "mtimeMs": 1789526459269.7136,
+      "updatedAt": "2026-09-16T02:40:59.379Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "java_to_radians",
+          "kind": "fn",
+          "startLine": 99,
+          "endLine": 113,
+          "tokens": 202
+        },
+        {
+          "name": "BoardPadstack",
+          "kind": "class",
+          "startLine": 114,
+          "endLine": 133,
+          "tokens": 232
+        },
+        {
+          "name": "BoardPadstack",
+          "kind": "section",
+          "startLine": 134,
+          "endLine": 252,
+          "tokens": 1460
+        },
+        {
+          "name": "parse_name_number",
+          "kind": "fn",
+          "startLine": 253,
+          "endLine": 263,
+          "tokens": 103
+        },
+        {
+          "name": "BoardPackagePin",
+          "kind": "class",
+          "startLine": 264,
+          "endLine": 281,
+          "tokens": 215
+        },
+        {
+          "name": "BoardPackage",
+          "kind": "class",
+          "startLine": 282,
+          "endLine": 288,
+          "tokens": 57
+        },
+        {
+          "name": "BoardPackage",
+          "kind": "section",
+          "startLine": 289,
+          "endLine": 302,
+          "tokens": 143
+        },
+        {
+          "name": "BoardLibrary",
+          "kind": "class",
+          "startLine": 303,
+          "endLine": 309,
+          "tokens": 64
+        },
+        {
+          "name": "BoardLibrary",
+          "kind": "section",
+          "startLine": 310,
+          "endLine": 367,
+          "tokens": 662
+        },
+        {
+          "name": "package_pin_from_ir",
+          "kind": "fn",
+          "startLine": 368,
+          "endLine": 385,
+          "tokens": 196
+        },
+        {
+          "name": "Component",
+          "kind": "class",
+          "startLine": 386,
+          "endLine": 405,
+          "tokens": 222
+        },
+        {
+          "name": "Component",
+          "kind": "section",
+          "startLine": 406,
+          "endLine": 560,
+          "tokens": 1675
+        },
+        {
+          "name": "Components",
+          "kind": "class",
+          "startLine": 561,
+          "endLine": 570,
+          "tokens": 116
+        },
+        {
+          "name": "Components",
+          "kind": "section",
+          "startLine": 571,
+          "endLine": 767,
+          "tokens": 2234
+        },
+        {
+          "name": "resolve_package_pin",
+          "kind": "fn",
+          "startLine": 768,
+          "endLine": 795,
+          "tokens": 322
+        },
+        {
+          "name": "pin_relative_location",
+          "kind": "fn",
+          "startLine": 796,
+          "endLine": 836,
+          "tokens": 464
+        },
+        {
+          "name": "pin_first_layer",
+          "kind": "fn",
+          "startLine": 837,
+          "endLine": 850,
+          "tokens": 182
+        },
+        {
+          "name": "pin_last_layer",
+          "kind": "fn",
+          "startLine": 851,
+          "endLine": 863,
+          "tokens": 154
+        },
+        {
+          "name": "padstack_layer",
+          "kind": "fn",
+          "startLine": 864,
+          "endLine": 885,
+          "tokens": 285
+        },
+        {
+          "name": "pin_shape",
+          "kind": "fn",
+          "startLine": 886,
+          "endLine": 958,
+          "tokens": 773
+        },
+        {
+          "name": "pin_center",
+          "kind": "fn",
+          "startLine": 959,
+          "endLine": 992,
+          "tokens": 417
+        },
+        {
+          "name": "shape_turn_90_degree",
+          "kind": "fn",
+          "startLine": 993,
+          "endLine": 1005,
+          "tokens": 169
+        },
+        {
+          "name": "shape_rotate_approx",
+          "kind": "fn",
+          "startLine": 1006,
+          "endLine": 1019,
+          "tokens": 170
+        },
+        {
+          "name": "shape_mirror_vertical",
+          "kind": "fn",
+          "startLine": 1020,
+          "endLine": 1034,
+          "tokens": 180
+        },
+        {
+          "name": "shape_translate_by",
+          "kind": "fn",
+          "startLine": 1035,
+          "endLine": 1043,
+          "tokens": 122
+        },
+        {
+          "name": "shape_contains_inside",
+          "kind": "fn",
+          "startLine": 1044,
+          "endLine": 1057,
+          "tokens": 202
+        },
+        {
+          "name": "shape_centre_of_gravity",
+          "kind": "fn",
+          "startLine": 1058,
+          "endLine": 1781,
+          "tokens": 9533
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/rules_surf.rs": {
+      "description": "The rules READ surface (M2 Task 3): the clearance matrix, the net",
+      "tokens": 10165,
+      "hash": "0b02476d76a1bbab",
+      "size": 38239,
+      "mtimeMs": 1789526471806.7397,
+      "updatedAt": "2026-09-16T02:41:11.905Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "AngleRestriction",
+          "kind": "class",
+          "startLine": 43,
+          "endLine": 52,
+          "tokens": 69
+        },
+        {
+          "name": "AngleRestriction",
+          "kind": "section",
+          "startLine": 53,
+          "endLine": 107,
+          "tokens": 636
+        },
+        {
+          "name": "ClearanceMatrix",
+          "kind": "class",
+          "startLine": 108,
+          "endLine": 119,
+          "tokens": 131
+        },
+        {
+          "name": "ClearanceMatrix",
+          "kind": "section",
+          "startLine": 120,
+          "endLine": 371,
+          "tokens": 2858
+        },
+        {
+          "name": "is_normal_net_number",
+          "kind": "fn",
+          "startLine": 372,
+          "endLine": 378,
+          "tokens": 80
+        },
+        {
+          "name": "Net",
+          "kind": "class",
+          "startLine": 379,
+          "endLine": 394,
+          "tokens": 166
+        },
+        {
+          "name": "Nets",
+          "kind": "class",
+          "startLine": 395,
+          "endLine": 398,
+          "tokens": 12
+        },
+        {
+          "name": "Nets",
+          "kind": "section",
+          "startLine": 399,
+          "endLine": 452,
+          "tokens": 496
+        },
+        {
+          "name": "NetClass",
+          "kind": "class",
+          "startLine": 453,
+          "endLine": 479,
+          "tokens": 295
+        },
+        {
+          "name": "NetClass",
+          "kind": "section",
+          "startLine": 480,
+          "endLine": 536,
+          "tokens": 678
+        },
+        {
+          "name": "ViaInfo",
+          "kind": "class",
+          "startLine": 537,
+          "endLine": 547,
+          "tokens": 85
+        },
+        {
+          "name": "ViaInfo",
+          "kind": "section",
+          "startLine": 548,
+          "endLine": 565,
+          "tokens": 174
+        },
+        {
+          "name": "ViaRule",
+          "kind": "class",
+          "startLine": 566,
+          "endLine": 575,
+          "tokens": 77
+        },
+        {
+          "name": "ViaRule",
+          "kind": "section",
+          "startLine": 576,
+          "endLine": 591,
+          "tokens": 131
+        },
+        {
+          "name": "BoardRules",
+          "kind": "class",
+          "startLine": 592,
+          "endLine": 622,
+          "tokens": 360
+        },
+        {
+          "name": "BoardRules",
+          "kind": "section",
+          "startLine": 623,
+          "endLine": 672,
+          "tokens": 559
+        },
+        {
+          "name": "BoardRules",
+          "kind": "section",
+          "startLine": 673,
+          "endLine": 947,
+          "tokens": 3420
+        }
+      ]
+    },
+    "rust/harness/src/undo_corpus.rs": {
+      "description": "Undo/snapshot parity corpus (M2 Task 14): the snapshot/undo/redo",
+      "tokens": 14538,
+      "hash": "52f75170d4ffdd14",
+      "size": 54628,
+      "mtimeMs": 1789526512702.8252,
+      "updatedAt": "2026-09-16T02:41:52.797Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "UndoCommand",
+          "kind": "class",
+          "startLine": 130,
+          "endLine": 160,
+          "tokens": 358
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 161,
+          "endLine": 178,
+          "tokens": 232
+        },
+        {
+          "name": "ManifestEntry",
+          "kind": "class",
+          "startLine": 179,
+          "endLine": 188,
+          "tokens": 116
+        },
+        {
+          "name": "build_manifest",
+          "kind": "fn",
+          "startLine": 189,
+          "endLine": 233,
+          "tokens": 440
+        },
+        {
+          "name": "build_manifest_bytes",
+          "kind": "fn",
+          "startLine": 234,
+          "endLine": 247,
+          "tokens": 120
+        },
+        {
+          "name": "load_manifest",
+          "kind": "fn",
+          "startLine": 248,
+          "endLine": 262,
+          "tokens": 152
+        },
+        {
+          "name": "manifest",
+          "kind": "fn",
+          "startLine": 263,
+          "endLine": 291,
+          "tokens": 330
+        },
+        {
+          "name": "UndoFacts",
+          "kind": "class",
+          "startLine": 292,
+          "endLine": 317,
+          "tokens": 290
+        },
+        {
+          "name": "DigestRecord",
+          "kind": "class",
+          "startLine": 318,
+          "endLine": 354,
+          "tokens": 464
+        },
+        {
+          "name": "StepRecord",
+          "kind": "class",
+          "startLine": 355,
+          "endLine": 367,
+          "tokens": 103
+        },
+        {
+          "name": "UndoRecord",
+          "kind": "class",
+          "startLine": 368,
+          "endLine": 386,
+          "tokens": 229
+        },
+        {
+          "name": "Script",
+          "kind": "class",
+          "startLine": 387,
+          "endLine": 394,
+          "tokens": 59
+        },
+        {
+          "name": "InsertPlan",
+          "kind": "class",
+          "startLine": 395,
+          "endLine": 407,
+          "tokens": 118
+        },
+        {
+          "name": "derive_script",
+          "kind": "fn",
+          "startLine": 408,
+          "endLine": 459,
+          "tokens": 482
+        },
+        {
+          "name": "query_box",
+          "kind": "fn",
+          "startLine": 460,
+          "endLine": 474,
+          "tokens": 121
+        },
+        {
+          "name": "digest",
+          "kind": "fn",
+          "startLine": 475,
+          "endLine": 554,
+          "tokens": 772
+        },
+        {
+          "name": "hex_sha256",
+          "kind": "fn",
+          "startLine": 555,
+          "endLine": 561,
+          "tokens": 76
+        },
+        {
+          "name": "evaluate_rust",
+          "kind": "fn",
+          "startLine": 562,
+          "endLine": 816,
+          "tokens": 2404
+        },
+        {
+          "name": "golden",
+          "kind": "fn",
+          "startLine": 817,
+          "endLine": 1032,
+          "tokens": 2291
+        },
+        {
+          "name": "ensure_alignment",
+          "kind": "fn",
+          "startLine": 1033,
+          "endLine": 1059,
+          "tokens": 215
+        },
+        {
+          "name": "json_string",
+          "kind": "fn",
+          "startLine": 1060,
+          "endLine": 1063,
+          "tokens": 40
+        },
+        {
+          "name": "truncate",
+          "kind": "fn",
+          "startLine": 1064,
+          "endLine": 1078,
+          "tokens": 131
+        },
+        {
+          "name": "diff_records",
+          "kind": "fn",
+          "startLine": 1079,
+          "endLine": 1205,
+          "tokens": 1354
+        },
+        {
+          "name": "compare",
+          "kind": "fn",
+          "startLine": 1206,
+          "endLine": 1441,
+          "tokens": 2728
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/tree_manager.rs": {
+      "description": "The search-tree manager: which trees exist, and how items enter",
+      "tokens": 26118,
+      "hash": "db0483dac10b8852",
+      "size": 98284,
+      "mtimeMs": 1789526580498.966,
+      "updatedAt": "2026-09-16T02:43:00.599Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "SearchTreeManager",
+          "kind": "class",
+          "startLine": 67,
+          "endLine": 81,
+          "tokens": 197
+        },
+        {
+          "name": "SearchTreeManager",
+          "kind": "section",
+          "startLine": 82,
+          "endLine": 873,
+          "tokens": 9681
+        },
+        {
+          "name": "max_clearance_offset",
+          "kind": "fn",
+          "startLine": 874,
+          "endLine": 880,
+          "tokens": 84
+        },
+        {
+          "name": "tile_contained_in_box",
+          "kind": "fn",
+          "startLine": 881,
+          "endLine": 887,
+          "tokens": 73
+        },
+        {
+          "name": "SearchTreeManager",
+          "kind": "section",
+          "startLine": 888,
+          "endLine": 2365,
+          "tokens": 17117
         }
       ]
     }

@@ -2308,3 +2308,21 @@ description: chronological action log per session, consolidated weekly
 | 19:42 | Edited rust/harness/oracle/SesSnapOracle.java | 3→7 lines | ~132 |
 | 19:42 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified snapped_endpoint() | ~181 |
 | 19:42 | Edited rust/crates/epic-dsn/src/ses/writer.rs | modified snapped_endpoint() | ~136 |
+| 20:00 | Created logs/M2-T16/dispatch-prompt.md | — | ~1435 |
+| 20:03 | Created logs/M2-T16/run-gates.sh | — | ~539 |
+| 20:09 | Edited rust/README.md | expanded (+10 lines) | ~329 |
+| 20:09 | Edited rust/README.md | divergence() → match() | ~135 |
+| 20:09 | Edited rust/README.md | expanded (+40 lines) | ~451 |
+| 20:10 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified note() | ~262 |
+| 20:10 | Edited docs/architecture.md | 1→2 lines | ~92 |
+| 20:10 | Edited docs/architecture.md | expanded (+15 lines) | ~254 |
+| 20:40 | Edited rust/crates/epic-board/src/components.rs | modified placed_on_front() | ~35 |
+| 20:41 | Edited rust/crates/epic-board/src/rules_surf.rs | modified from_ir() | ~43 |
+| 20:41 | Edited rust/crates/epic-board/src/rules_surf.rs | modified net_class() | ~87 |
+| 20:41 | Edited .github/workflows/rust-check.yml | divergence() → D22() | ~76 |
+| 20:41 | Edited rust/harness/src/undo_corpus.rs | 7→12 lines | ~203 |
+| 20:42 | Edited rust/crates/epic-board/src/session_contacts.rs | 2→7 lines | ~119 |
+| 20:42 | Edited rust/crates/epic-board/src/tree_manager.rs | modified default_tree() | ~61 |
+| 20:42 | Edited rust/crates/epic-board/src/tree_manager.rs | modified clearance_value_changed() | ~68 |
+| 20:42 | Edited rust/crates/epic-board/src/tree_manager.rs | modified clearance_class_removed() | ~105 |
+| 20:43 | Edited rust/crates/epic-board/src/tree_manager.rs | modified reset_compensated_trees() | ~60 |
