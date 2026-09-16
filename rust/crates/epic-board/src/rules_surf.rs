@@ -498,8 +498,9 @@ impl NetClass {
         self.ignore_cycles_with_areas = value;
     }
 
-    /// Java `getTraceHalfWidth(layer)` (`NetClass.java:94-101`): 0 for an
-    /// out-of-range layer (Java throws; unreachable from the parse,
+    /// Java `getTraceHalfWidth(layer)` (`NetClass.java:91-97`): 0 for an
+    /// out-of-range layer — Java bounds-checks the read and returns 0
+    /// with a warn log (it does not throw; unreachable from the parse,
     /// which sizes the array to the layer count).
     #[must_use]
     pub fn trace_half_width(&self, layer: i32) -> i32 {
@@ -510,14 +511,21 @@ impl NetClass {
             .unwrap_or(0)
     }
 
-    /// Java `isActiveRoutingLayer(layer)` (`NetClass.java:180-186`).
+    /// Java `isActiveRoutingLayer(layer)` (`NetClass.java:184-189`).
     /// RESTORED at M3-T3 (M2 review cut the accessor; the parse kept the
     /// field): the first consumer is `AutorouteControl::init_net`
     /// (`AutorouteControl.java:226-228`), which force-disables a layer
-    /// the net class marks inactive. Out-of-range layers read `true`
-    /// (Java's array read would throw; unreachable from the parse, which
-    /// sizes the array to the layer count — mirror the
-    /// [`Self::trace_half_width`] defensive convention).
+    /// the net class marks inactive. Out-of-range layers read `false`:
+    /// Java bounds-checks the array read (`:185-187`,
+    /// `layerNumber < 0 || layerNumber >= length`) and RETURNS FALSE —
+    /// it does not throw. The same convention is the verified one in
+    /// the epic-dsn reader (`network.rs:1641-1644`); the in-range read
+    /// passes the stored flag through.
+    ///
+    /// (An earlier doc draft claimed "Java's array read would throw;
+    /// default `true`" — that inverted the arm. Caught in the M3-T3
+    /// quality review; pinned by
+    /// `active_routing_layer_out_of_range_reads_false` below.)
     ///
     /// M3-T3 cut-audit note: of the four M2-cut accessors, only this one
     /// and [`BoardRules::via_rule_by_id`] returned. `default_net_class`
@@ -534,7 +542,7 @@ impl NetClass {
             .ok()
             .and_then(|layer| self.active_routing_layers.get(layer))
             .copied()
-            .unwrap_or(true)
+            .unwrap_or(false)
     }
 
     /// The IR conversion (1:1 — the IR is the verified field-for-field
@@ -998,6 +1006,41 @@ mod tests {
         assert_eq!(
             AngleRestriction::from_ir(epic_dsn::state::AngleRestriction::NinetyDegree),
             AngleRestriction::NinetyDegree
+        );
+    }
+
+    /// `NetClass.java:184-189` (M3-T3 quality round): the out-of-range
+    /// arms of `isActiveRoutingLayer` are a bounds-check that RETURNS
+    /// FALSE (`:185-187`), not an array throw — an earlier port draft
+    /// defaulted them to `true` (the inverted arm). All four arms are
+    /// pinned: both in-range entries pass through, and BOTH out-of-range
+    /// directions (`layer == layer_count`, negative) read `false`. The
+    /// false rows kill the `unwrap_or(true)` flip mutant; the in-range
+    /// contrast proves the bounds-check did not swallow real entries.
+    #[test]
+    fn active_routing_layer_out_of_range_reads_false() {
+        let class = NetClass {
+            name: "probe".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![100, 200],
+            active_routing_layers: vec![true, false],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            ignore_cycles_with_areas: false,
+        };
+        assert!(class.is_active_routing_layer(0), "in-range true entry");
+        assert!(!class.is_active_routing_layer(1), "in-range false entry");
+        assert!(
+            !class.is_active_routing_layer(2),
+            "layer_index == layer_count -> false (NetClass.java:185-187)"
+        );
+        assert!(
+            !class.is_active_routing_layer(-1),
+            "negative layer_index -> false (same guard)"
         );
     }
 }

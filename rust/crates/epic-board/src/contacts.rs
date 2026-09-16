@@ -337,6 +337,12 @@ pub fn drill_normal_contacts(
             contacts.push(id);
         }
     }
+    // Java collects into a `TreeSet` whose item `compareTo` is REVERSED,
+    // so its iteration order is DESCENDING id — the same
+    // `BTreeSet<Reverse<ItemId>>` convention the sibling contact
+    // queries use. Accumulation here is tree-walk order, so sort
+    // explicitly (M3-T3 quality round, minor 4).
+    contacts.sort_unstable_by(|a, b| b.cmp(a));
     contacts
 }
 

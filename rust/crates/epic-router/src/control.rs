@@ -17,7 +17,12 @@ use epic_board::rules_surf::{NetClass, ViaRule};
 /// `getAutomaticNeckdown` null → `false`, `getBendCost` null → 0.0,
 /// `getLayerActive` null → `true`); here the RESOLVER owns defaults,
 /// so every field is a plain resolved value.
-#[derive(Clone, Debug, PartialEq, Default)]
+/// Deliberately NO `Default` impl (M3-T3 quality round, minor 1): a
+/// second defaults source beside the resolver duplicates the Java
+/// settings-merger trap — defaults live in exactly one place (the
+/// `settings()` test builder here; in production, the layered
+/// `SettingsMerger` sources).
+#[derive(Clone, Debug, PartialEq)]
 pub struct RouterSettingsIr {
     /// Java `getTraceCosts()` (`RouterSettings.java:881-894`) — the
     /// per-layer `(horizontal, vertical)` trace-cost factors. Java
@@ -375,11 +380,19 @@ impl AutorouteControl {
             if info.attach_smd_allowed {
                 self.attach_smd_allowed = true;
             }
-            // ViaInfo.padstack_no is 1-based into the board library.
-            let padstack = board
-                .library()
-                .padstacks
-                .get(info.padstack_no.unsigned_abs() as usize - 1);
+            // ViaInfo.padstack_no is 1-based into the board library
+            // (Java reads `padstacks[no - 1]` directly). A non-positive
+            // number is a parse-time impossibility — fail LOUDLY in
+            // every profile instead of silently wrapping (the previous
+            // `unsigned_abs() as usize - 1` mapped padstack_no 0 onto
+            // the LAST library slot and panicked on i32::MIN).
+            assert!(
+                info.padstack_no >= 1,
+                "via padstack_no {} out of range (1-based library index)",
+                info.padstack_no
+            );
+            let padstack_no = usize::try_from(info.padstack_no).expect("checked >= 1 above");
+            let padstack = board.library().padstacks.get(padstack_no - 1);
             let (from_layer, to_layer) = padstack.map_or((0, -1), |padstack| {
                 (
                     i32::try_from(padstack.from_layer()).unwrap_or(0),
@@ -494,6 +507,7 @@ mod tests {
     (layer GND (type power))\n\
     (boundary (rect pcb 0 0 120000 60000))\n\
     (rule (width 200) (clearance 200))\n\
+    (rule (clearance 400 (type THICK-THICK)))\n\
   )\n\
   (placement\n\
     (component CMP1\n\
@@ -534,8 +548,12 @@ mod tests {
   (network\n\
     (via V1 PAD_VIA default)\n\
     (via V2 PAD_VIA default attach)\n\
+    (via V3 PAD_VIA THICK)\n\
     (via_rule R1 V1)\n\
     (via_rule R2 V2)\n\
+    (via_rule R3 V3)\n\
+    (via_rule R4 V3 V1)\n\
+    (via_rule R5 V1 V3)\n\
     (net MINE)\n\
     (net OTHER)\n\
     (net SMDNET (pins CMP1-P1 CMP1-P2))\n\
@@ -543,6 +561,9 @@ mod tests {
     (net ATTACHNET (pins CMP3-P1 CMP3-P2))\n\
     (net NET_A (pins CMP1-P1))\n\
     (net NET_B (pins CMP1-P1))\n\
+    (net THICKNET)\n\
+    (net VIANET)\n\
+    (net VIANET2)\n\
     (class W300 MINE\n\
       (clearance_class default)\n\
       (via_rule R1)\n\
@@ -567,6 +588,19 @@ mod tests {
     (class ATTACHCLS ATTACHNET\n\
       (clearance_class default)\n\
       (via_rule R2)\n\
+      (rule (width 200))\n\
+    )\n\
+    (class THICKCLS THICKNET\n\
+      (clearance_class THICK)\n\
+      (via_rule R3)\n\
+      (rule (width 200))\n\
+    )\n\
+    (class VFIRST VIANET\n\
+      (via_rule R4)\n\
+      (rule (width 200))\n\
+    )\n\
+    (class VCONTRAST VIANET2\n\
+      (via_rule R5)\n\
       (rule (width 200))\n\
     )\n\
   )\n\
@@ -817,16 +851,85 @@ mod tests {
     }
 
     /// The clearance-class resolution of the via table (`via[0]`,
-    /// `AutorouteControl.java:235-239`): both crafted vias name the
-    /// matrix class `default`, which the parse maps to matrix
-    /// class 1 — the same value the NULL-net fallback hardcodes, so
-    /// the literal doubles as the fallback-shape witness.
+    /// `AutorouteControl.java:235-239`): rule `R1`'s first via `V1`
+    /// names the matrix class `default`, which the parse maps to
+    /// matrix class 1 — the same value the NULL-net fallback
+    /// hardcodes, so the literal doubles as the fallback-shape
+    /// witness. (The NON-default class discriminations live in
+    /// [`via_clearance_class_resolution_matrix`].)
     #[test]
     fn via_clearance_class_from_first_via() {
         let (_manager, mut board) = parse(CONTROL_DSN);
         let smd = net_no(&board, "SMDNET");
         let control = control_for(&mut board, smd, vec![true, true, true]);
         assert_eq!(control.via_clearance_class, 1);
+    }
+
+    /// THE VIA CLASS RESOLUTION MATRIX (`via[0]`,
+    /// `AutorouteControl.java:235-239`, M3-T3 quality round I-2a).
+    /// Three rules arrange every plausible mutant to disagree with
+    /// Java somewhere:
+    /// - `R3 = [V3]` reads the THICK class (matrix class 2) — kills a
+    ///   hardcode-1 mutant (all pre-existing crafted vias declared
+    ///   `default`, so the mutant was coincidence-blind: 9/9 green);
+    /// - `R4 = [V3, V1]` reads the FIRST via (2, not `V1`'s 1) —
+    ///   kills a last-via mutant;
+    /// - `R5 = [V1, V3]` reads positionally too (1, not the
+    ///   max/thickest) — kills a class-maximizing mutant.
+    #[test]
+    fn via_clearance_class_resolution_matrix() {
+        let (_manager, mut board) = parse(CONTROL_DSN);
+        let thick = net_no(&board, "THICKNET");
+        let first = net_no(&board, "VIANET");
+        let contrast = net_no(&board, "VIANET2");
+        let thick_control = control_for(&mut board, thick, vec![true, true, true]);
+        assert_eq!(thick_control.via_clearance_class, 2, "R3 = [V3] THICK");
+        let first_control = control_for(&mut board, first, vec![true, true, true]);
+        assert_eq!(
+            first_control.via_clearance_class, 2,
+            "R4 = [V3, V1]: FIRST via, not last"
+        );
+        let contrast_control = control_for(&mut board, contrast, vec![true, true, true]);
+        assert_eq!(
+            contrast_control.via_clearance_class, 1,
+            "R5 = [V1, V3]: positional, not class-max"
+        );
+    }
+
+    /// THE TRACE CLASS PIN (`trace_clearance_class_index`,
+    /// `AutorouteControl.java:210-216`, M3-T3 quality round I-2b):
+    /// THICKCLS's `(clearance_class THICK)` resolves to the
+    /// structure-created matrix class 2 — `(rule (clearance 400
+    /// (type THICK-THICK)))` appends one class and sets its diagonal
+    /// to 400 on every layer (jar-verified creation syntax). Two
+    /// discriminating rows:
+    /// - `trace_clearance_class_index == 2` — kills a hardcode-1
+    ///   mutant (all five pre-existing classes declared `default`, so
+    ///   the mutant was coincidence-blind: 9/9 green);
+    /// - `compensated_trace_half_width == [300, 300, 300]` (half
+    ///   width 100 + THICK compensation `(400+1)/2 = 200`) against
+    ///   SMDNET's `[200, 200, 200]` — SAME half width, default-class
+    ///   compensation `(200+1)/2 = 100`, so the 100 delta comes only
+    ///   from the class index and the mutant fails there too.
+    #[test]
+    fn trace_clearance_class_index_carries_the_net_class_class() {
+        let (_manager, mut board) = parse(CONTROL_DSN);
+        let thick = net_no(&board, "THICKNET");
+        let smd = net_no(&board, "SMDNET");
+        let thick_control = control_for(&mut board, thick, vec![true, true, true]);
+        assert_eq!(thick_control.trace_clearance_class_index, 2);
+        assert_eq!(thick_control.trace_half_width, vec![100, 100, 100]);
+        assert_eq!(
+            thick_control.compensated_trace_half_width,
+            vec![300, 300, 300]
+        );
+        let smd_control = control_for(&mut board, smd, vec![true, true, true]);
+        assert_eq!(smd_control.trace_clearance_class_index, 1);
+        assert_eq!(
+            smd_control.compensated_trace_half_width,
+            vec![200, 200, 200],
+            "same half width, default-class compensation — the 100 delta is the class"
+        );
     }
 
     /// Mode-8 lookup guard: the multi-net pin CMP1-P1 carries exactly
