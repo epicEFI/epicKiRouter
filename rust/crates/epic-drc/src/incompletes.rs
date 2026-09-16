@@ -119,6 +119,15 @@ pub fn raw_net_item_lists(board: &Board) -> Vec<Vec<ItemId>> {
             continue;
         }
         for &net in &entry.nets {
+            // Java indexes netList[net - 1] directly: net <= 0 (or >
+            // max_net_no) throws AIOOBE there. The port skips instead
+            // (the module-doc deviation door) — this assert keeps the
+            // silent skip from hiding a construction bug in callers.
+            debug_assert!(
+                net >= 1,
+                "connectable item {} carries net {net}: Java throws AIOOBE, the port silently skips",
+                entry.id.get()
+            );
             if net >= 1 && net <= max_net_no {
                 lists[(net - 1) as usize].push(entry.id);
             }
@@ -457,10 +466,14 @@ mod pins {
     /// The CONFORMING count: NQ's convex quad connects fully —
     /// count 3 == groups − 1 — with the EXACT Delaunay edge set the
     /// oracle captured (drc-0015 net 1): the 4 hull pairs + the
-    /// P1–P4 diagonal; the Java triangulation dataset does NOT emit
-    /// P2–P3 (the ideal-Delaunay incircle pick — the port pins the
-    /// oracle's actual choice, which the corpus compare green-pins
-    /// record-for-record). Ids are corner-identified, never absolute.
+    /// P1–P4 diagonal. The quad is STRICTLY non-Delaunay for that
+    /// diagonal, not cocircular: P3 lies strictly inside
+    /// circumcircle(P1, P2, P4) (incircle margin ≈ 1.6e9), so an
+    /// empty-circle check would forbid P1–P4 and emit P2–P3 instead.
+    /// Java's Delaunay implementation does not, and the port pins the
+    /// oracle's actual choice bug-for-bug (the corpus compare
+    /// green-pins it record-for-record). Ids are corner-identified,
+    /// never absolute.
     #[test]
     fn nq_conforming_count_and_exact_edge_set() {
         let (manager, mut board) = parse(DSN_MAIN);
@@ -672,19 +685,21 @@ mod pins {
         }
     }
 
-    /// `all_incompletes`: exactly the 8 crafted nets, ascending net
+    /// `all_incompletes`: exactly the 11 crafted nets, ascending net
     /// numbers, and the same rows a per-net replay yields.
     #[test]
     fn all_incompletes_rows_ascending_and_complete() {
         let (manager, mut board) = parse(DSN_MAIN);
         let (max_conn, rows) = all_incompletes(&manager, &mut board);
         assert_eq!(max_conn, 7);
-        assert_eq!(rows.len(), 8, "every crafted net carries items");
+        assert_eq!(rows.len(), 11, "every crafted net carries items");
         assert!(
             rows.windows(2).all(|w| w[0].net_no < w[1].net_no),
             "rows ascend by net number"
         );
-        for name in ["NQ", "NC", "N3", "NV", "NZ", "NX", "NY", "NP"] {
+        for name in [
+            "NQ", "NC", "N3", "NV", "NZ", "NX", "NY", "NP", "NP2", "NA", "NB",
+        ] {
             let list = net_list(&board, name);
             let no = net_no(&board, name);
             let expected = net_incompletes_row(&manager, &mut board, no, &list);

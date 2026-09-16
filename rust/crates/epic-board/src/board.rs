@@ -585,6 +585,18 @@ impl Board {
         self.get(id).map(|entry| entry.clearance_class)
     }
 
+    /// Java `Item.setClearanceClass(int)` — the plain field write
+    /// (no `saveForUndo` on the Java path). Callers that change the
+    /// class of on-board items must rebuild the search tree afterwards
+    /// (compensated trees are keyed by class); the Java autoroute
+    /// setup does this via `set_clearance_compensation_used`.
+    pub fn set_item_clearance_class(&mut self, id: ItemId, class_no: i32) {
+        if let Some(entry) = self.items.get_mut(&Reverse(id)) {
+            entry.clearance_class = class_no;
+        }
+        self.mirror_node(id);
+    }
+
     /// Java `DrillItem.getPadstack()` — the padstack of a pin or via
     /// (`None` for a non-drill item or an unresolvable padstack number).
     #[must_use]

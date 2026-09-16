@@ -36,6 +36,7 @@
       (pin PAD_R P9 110000 60000)
       (pin PAD_R P10 240000 60000)
       (pin PAD_R P11 230000 60000)
+      (pin PAD_R P13 238999 10000)
     )
   )
   (network
@@ -47,6 +48,9 @@
     (net NX)
     (net NY)
     (net NP (pins CMP1-P10) (pins CMP1-P11))
+    (net NP2 (pins CMP1-P13))
+    (net NA)
+    (net NB)
   )
   (wiring
     (wire (rect F.Cu 60000 5000 70000 15000) (net NC))
@@ -60,5 +64,7 @@
     (via PAD_V 230000 20000 (net NZ))
     (wire (path F.Cu 250  180000 90000  200000 90000) (net NX))
     (wire (path F.Cu 250  190000 90000  210000 90000) (net NY))
+    (wire (path F.Cu 250  230000 110000  240000 110000) (net NA))
+    (wire (path F.Cu 250  230000 110600  240000 110600) (net NB))
   )
 )

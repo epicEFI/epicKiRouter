@@ -24,9 +24,11 @@ use epic_dsn::ses_board::SesBoard;
 /// * net NQ — 4 isolated pins (PAD_R, F.Cu-only rect ±1000):
 ///   P1 (10000,10000), P2 (30000,10000), P3 (10000,30000),
 ///   P4 (70000,70000). Convex quad, diagonals P2–P3 = 8e8 vs
-///   P1–P4 = 72e8 (strict, NOT cocircular) → the Delaunay edge set is
-///   the 5 pairs WITHOUT P1–P4 and `count == groups − 1 = 3` (the
-///   CONFORMING pin).
+///   P1–P4 = 72e8 — STRICTLY non-cocircular (P3 sits inside
+///   circumcircle(P1,P2,P4), incircle margin ≈ 1.6e9) — yet the
+///   oracle's Delaunay edge set is the 4 hull pairs + the P1–P4
+///   diagonal (NO P2–P3; bug-compat with Java's non-ideal Delaunay)
+///   and `count == groups − 1 = 3` (the CONFORMING pin).
 /// * net NC — two uncontacted wiring-rect CONDUCTION AREAS
 ///   (60000..70000 × 5000..15000 and 130000..140000 × 65000..75000):
 ///   CA endpoints feed `maxConnections` (2 → 1), ratsnest = 4
@@ -60,6 +62,18 @@ use epic_dsn::ses_board::SesBoard;
 ///   x=250000 (corners on BOTH sides → the outline exemption must NOT
 ///   clear → violation); P11 (240000,70000): pad fully inside → the
 ///   exemption clears → no violation.
+/// * net NP2 — P13 (world (248999,20000), pad x∈[247999,249999]):
+///   all corners INSIDE the outline yet overlapping the 100-unit
+///   outline-precalc border band (x ≥ 249900) → the outline
+///   exemption ARM actually fires and clears (an exemption-disabled
+///   mutant produces a row; interior P11 never queries the outline,
+///   so its no-row is band geometry, not the exemption).
+/// * net NA / NB — parallel F.Cu traces
+///   (230000,110000)-(240000,110000) and
+///   (230000,110600)-(240000,110600): center distance 600, half
+///   width 125, bbox gap 350. Under the default matrix they
+///   violate (600 < 2000); the asymmetric-matrix pin re-classes
+///   them 1/2 and swaps the cells to pin the gate's argument order.
 /// * structure keepout (40000..50000 × 40000..50000) on F.Cu — the
 ///   closed-flag ObstacleArea matrix cells.
 ///

@@ -599,12 +599,19 @@ mod pins {
         );
     }
 
-    /// The board walk on DSN_MAIN: exactly TWO deduped rows — the
+    /// The board walk on DSN_MAIN: exactly THREE deduped rows — the
     /// NX/NY trace pair (emitted by BOTH walks; a dedup-removed
-    /// mutant yields it twice) and the outline against the EDGE
-    /// STRADDLING pin P10. P11's pad lies fully inside → the outline
-    /// exemption clears it → no row (the exemption contrast lives on
-    /// one board).
+    /// mutant yields it twice), the NA/NB close pair (600 < 2000),
+    /// and the outline against the EDGE STRADDLING pin P10.
+    ///
+    /// Outline-exemption contrast, both arms (review round 2):
+    /// P11's pad is fully interior — it never queries the outline
+    /// (the outline precalc tree holds only the 100-unit border-band
+    /// tiles, which an interior pad's bbox never reaches), so its
+    /// missing row is BAND GEOMETRY, not the exemption. P13 overlaps
+    /// the band while ALL its corners stay inside the outline → the
+    /// exemption arm actually fires and clears; an exemption-disabled
+    /// mutant turns P13 into a violation row and fails the pin.
     #[test]
     fn walk_rows_dedup_and_outline_exemption() {
         let (mut manager, mut board) = parse(DSN_MAIN);
@@ -612,14 +619,23 @@ mod pins {
         let nx = net_list(&board, "NX")[0];
         let ny = net_list(&board, "NY")[0];
         let np = net_list(&board, "NP");
+        let na = net_list(&board, "NA")[0];
+        let nb = net_list(&board, "NB")[0];
+        let np2 = net_list(&board, "NP2");
         let p10 = id_at_corner(&manager, &mut board, &np, 250000.0, 70000.0);
         let p11 = id_at_corner(&manager, &mut board, &np, 240000.0, 70000.0);
+        let p13 = id_at_corner(&manager, &mut board, &np2, 248999.0, 20000.0);
         let (total, rows) = all_clearance_violations(&mut manager, &mut board);
-        assert_eq!(total, 2, "exactly the two crafted violations: {rows:?}");
+        assert_eq!(total, 3, "exactly the three crafted violations: {rows:?}");
         assert_eq!(
             rows_contain(&rows, nx, ny),
             1,
             "the A-B/B-A dedup keeps ONE row for the pair"
+        );
+        assert_eq!(
+            rows_contain(&rows, na, nb),
+            1,
+            "center distance 600 < default 2000: the close pair violates"
         );
         assert_eq!(
             rows_contain(&rows, p10, outline),
@@ -629,12 +645,92 @@ mod pins {
         assert_eq!(
             rows_contain(&rows, p11, outline),
             0,
-            "fully-inside pad: the outline exemption clears it"
+            "interior pad: BAND GEOMETRY — its bbox never reaches the outline precalc tree"
+        );
+        assert_eq!(
+            rows_contain(&rows, p13, outline),
+            0,
+            "band-overlapping INSIDE pad: the exemption arm clears it (the contrast to P11)"
         );
         assert_eq!(
             rows_contain(&rows, p10, p11),
             0,
             "same-net pins never violate"
+        );
+    }
+
+    /// THE asymmetric-matrix pin (T54, review round 2). The gate
+    /// (Item.java:452-453) reads `getValue(current.clClass,
+    /// this.clClass, layer)` — the RECEIVER's class is the FIRST
+    /// argument. No corpus fixture carries an asymmetric cell, so the
+    /// swapped-args mutant (`get_value(this, current)`) survives
+    /// every golden compare; this pin builds the asymmetry on
+    /// DSN_MAIN and pins the verdict through the FULL walk.
+    ///
+    /// Setup: NA/NB, parallel F.Cu traces at center distance 600
+    /// (half width 125 → bbox gap 350); classes NA → 1, NB → 2;
+    /// matrix (both layers): V(0, *) = 2000 (default world kept),
+    /// V(1,1) = V(1,2) = V(2,2) = 200, V(2,1) = 20000.
+    ///
+    /// Why exactly ONE gate execution decides the verdict (a pair
+    /// found by both walks would take the max over the two cells and
+    /// be orientation-blind):
+    ///  * NA's walk: `max_value(1)` = max_i V(i, 1) = 20000 enlarges
+    ///    the query (NB IS a leaf candidate), but the exact
+    ///    per-candidate filter reads V(1, 2) = 200 (+16 safety
+    ///    margin) < gap 350 → NB is dropped BEFORE the gate.
+    ///  * NB's walk: `max_value(2)` = max_i V(i, 2) = 2000 → NA is a
+    ///    candidate; the filter reads V(2, 1) = 20000 → kept; the
+    ///    gate reads get_value(current_class = 1, this_class = 2) =
+    ///    V(1, 2) = 200 → 600 > 250 + 200 → NO violation.
+    ///
+    /// The swapped-args mutant makes that single surviving gate read
+    /// V(2, 1) = 20000 → violation → the (NA, NB) row appears and
+    /// both asserts below fail (mutation-verified, review round 2).
+    #[test]
+    fn asymmetric_matrix_gate_reads_current_class_as_row() {
+        let (mut manager, mut board) = parse(DSN_MAIN);
+        let na = net_list(&board, "NA")[0];
+        let nb = net_list(&board, "NB")[0];
+        board.set_item_clearance_class(na, 1);
+        board.set_item_clearance_class(nb, 2);
+        // The parsed craft matrix carries ONE class and an
+        // out-of-range set_value is a silent no-op (T54), so the pin
+        // REPLACES the matrix with a 3-class one. With the
+        // compensation flag OFF the leaves store raw shapes and the
+        // walk reads classes and cells live — no tree rebuild needed.
+        let mut matrix = epic_board::rules_surf::ClearanceMatrix::new(
+            3,
+            board.rules().clearance.layer_count(),
+            vec![
+                "class_1".to_string(),
+                "class_2".to_string(),
+                "class_3".to_string(),
+            ],
+        );
+        for (i, j, value) in [
+            (0, 0, 2000),
+            (0, 1, 2000),
+            (0, 2, 2000),
+            (1, 0, 2000),
+            (1, 1, 200),
+            (1, 2, 200),
+            (2, 0, 2000),
+            (2, 1, 20000),
+            (2, 2, 200),
+        ] {
+            matrix.set_value_all_layers(i, j, value);
+        }
+        board.rules_mut().clearance = matrix;
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(
+            total, 2,
+            "the default-matrix NA/NB row is gone; NX/NY + P10/outline remain: {rows:?}"
+        );
+        assert_eq!(
+            rows_contain(&rows, na, nb),
+            0,
+            "the single surviving gate read V(1, 2) = 200: receiver's class is the row argument"
         );
     }
 
