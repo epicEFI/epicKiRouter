@@ -57,3 +57,10 @@ jobs:
       - run: cargo run -q -p epic-harness -- undo compare
         env:
           EPIC_SKIP_GRADLE: "1"
+      # M3 T2 DRC parity: incompletes (filter → grouping → Delaunay →
+      # Kruskal airline count, per-net rows, maxConnections) + clearance
+      # violations over 17 fixtures (11 tier A + 3 PCBench pre-routed + 3
+      # craft pin boards) vs committed DrcOracle goldens — java-free.
+      - run: cargo run -q -p epic-harness -- drc compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
