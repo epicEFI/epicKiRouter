@@ -348,6 +348,16 @@ impl Board {
         self.items.len()
     }
 
+    /// Java `BasicBoard.getConnectableItems(netNumber)`
+    /// (`BasicBoard.java:609-611` → `BoardConnectivityQueries.java:23-37`):
+    /// the connectable items carrying the net, DESCENDING-id ordered.
+    /// ADDED at M3-T3 (the pure-SMD test in `AutorouteControl::rebuild_via_info`
+    /// and `getUnconnectedSet` both consume it).
+    #[must_use]
+    pub fn get_connectable_items(&self, net_number: i32) -> Vec<ItemId> {
+        crate::contacts::connectable_items(self, net_number)
+    }
+
     /// The board revision — bumped on every insert and remove (T69).
     #[must_use]
     pub fn revision(&self) -> u64 {

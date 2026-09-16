@@ -5,5 +5,19 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[dependencies]
+# epic-index is not consumed yet — the maze engine lands in T4-T9
+# (expansion rooms/doors search the shape tree through it). Declared
+# now per the crate design; remove if T4 ends up not needing it.
+epic-board = { path = "../epic-board" }
+epic-geometry = { path = "../epic-geometry" }
+epic-index = { path = "../epic-index" }
+
+[dev-dependencies]
+# The pin suites parse crafted DSN text through the same reader the
+# corpus harness uses (mode-8 discipline: no absolute ids, lookup by
+# net membership and kind on the parsed board).
+epic-dsn = { path = "../epic-dsn" }
+
 [lints]
 workspace = true

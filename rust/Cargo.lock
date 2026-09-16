@@ -225,6 +225,12 @@ dependencies = [
 [[package]]
 name = "epic-router"
 version = "0.1.0"
+dependencies = [
+ "epic-board",
+ "epic-dsn",
+ "epic-geometry",
+ "epic-index",
+]
 
 [[package]]
 name = "equivalent"

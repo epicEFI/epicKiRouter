@@ -1,13 +1,13 @@
 //! The staged router pipeline: fanout/escape, global routing (PathFinder
 //! negotiated congestion), detail routing (octagon A* + push-and-shove),
-//! plane routing, tuning, gloss (design §4.2; content lands from M3 on).
+//! plane routing, tuning, gloss (design §4.2).
+//!
+//! M3-T3 content: [`control`] — the `AutorouteControl` per-net cost
+//! table port (`autoroute/maze/AutorouteControl.java`). The T4-T10
+//! porting contract (the exact Java board/searchtree/optimize surface
+//! with line counts and dispositions) is `SEAM.md` beside this file.
+
+pub mod control;
 
 #[cfg(test)]
-mod tests {
-    /// The crate is a scaffold in M0; content lands from M3 on.
-    #[test]
-    fn crate_scaffolds() {
-        let name = env!("CARGO_PKG_NAME");
-        assert_eq!(name, "epic-router");
-    }
-}
+pub(crate) mod test_util;

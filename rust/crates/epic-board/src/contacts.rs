@@ -429,6 +429,24 @@ pub fn item_connected_set(
     id: ItemId,
     net_number: i32,
 ) -> BTreeSet<Reverse<ItemId>> {
+    item_connected_set_stopping_at_plane(manager, board, id, net_number, false)
+}
+
+/// Java `Item.getConnectedSet(netNumber, stopAtPlane)` (`Item.java:650-660`
+/// — the 2-arg overload the 1-arg delegates to with `false`). ADDED at
+/// M3-T3: the plane stop condition is the first recursion filter —
+/// a contact [`BoardItemType::ConductionArea`] with
+/// `component_id <= 0` (no owning component — a free plane pour) is
+/// skipped ENTIRELY (not entered, not added), while a conduction area
+/// attached to a component keeps the walk going
+/// (`Item.java:666-669`).
+pub fn item_connected_set_stopping_at_plane(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+    net_number: i32,
+    stop_at_plane: bool,
+) -> BTreeSet<Reverse<ItemId>> {
     let mut result = BTreeSet::new();
     if net_number > 0
         && !board
@@ -438,19 +456,30 @@ pub fn item_connected_set(
         return result;
     }
     result.insert(Reverse(id));
-    connected_set_recu(manager, board, id, net_number, &mut result);
+    connected_set_recu(manager, board, id, net_number, stop_at_plane, &mut result);
     result
 }
 
-/// Recursive part of [`item_connected_set`] (`Item.java:661-683`).
+/// Recursive part of [`item_connected_set`] (`Item.java:663-683`).
 fn connected_set_recu(
     manager: &SearchTreeManager,
     board: &mut Board,
     id: ItemId,
     net_number: i32,
+    stop_at_plane: bool,
     result: &mut BTreeSet<Reverse<ItemId>>,
 ) {
     for contact in item_normal_contacts(manager, board, id) {
+        // Filter order mirrors Java (`Item.java:666-672`): the plane
+        // stop runs BEFORE the net test. A component-less conduction
+        // area is both excluded and not recursed into.
+        if stop_at_plane
+            && board.get(contact).is_some_and(|entry| {
+                entry.board_item_type() == BoardItemType::ConductionArea && entry.component_id <= 0
+            })
+        {
+            continue;
+        }
         if net_number > 0
             && !board
                 .get(contact)
@@ -459,9 +488,80 @@ fn connected_set_recu(
             continue;
         }
         if result.insert(Reverse(contact)) {
-            connected_set_recu(manager, board, contact, net_number, result);
+            connected_set_recu(manager, board, contact, net_number, stop_at_plane, result);
         }
     }
+}
+
+/// Java `BoardConnectivityQueries.getConnectableItems(netNumber)`
+/// (`BoardConnectivityQueries.java:23-37`, reached as
+/// `BasicBoard.getConnectableItems`, `BasicBoard.java:609`): every
+/// item of a CONNECTABLE kind carrying `net_number`, in the board's
+/// DESCENDING-id walk (Java iterates the `UndoableObjects`
+/// skip-list map, whose `Item.compareTo` order is descending id).
+/// ADDED at M3-T3.
+pub fn connectable_items(board: &Board, net_number: i32) -> Vec<ItemId> {
+    board
+        .iter_descending()
+        .filter(|entry| {
+            connectable_kind(entry.board_item_type()) && entry.nets.contains(&net_number)
+        })
+        .map(|entry| entry.id)
+        .collect()
+}
+
+/// Java `Connectable` implementors (`Connectable.java`): `Trace`,
+/// `DrillItem` (Pin + Via) and `ConductionArea` — every other kind is
+/// opaque to the connectivity walk.
+fn connectable_kind(kind: BoardItemType) -> bool {
+    matches!(
+        kind,
+        BoardItemType::Trace
+            | BoardItemType::Pin
+            | BoardItemType::Via
+            | BoardItemType::ConductionArea
+    )
+}
+
+/// Java `Item.getUnconnectedSet(netNumber)` (`Item.java:720-735`): the
+/// DESCENDING-ordered set of connectable items of the net that are NOT
+/// in this item's connected set. `net_number <= 0` unions the
+/// connectable sets of the ITEM'S OWN net numbers (the multi-net
+/// union branch) and the connected set then ignores nets entirely.
+/// ADDED at M3-T3.
+pub fn item_unconnected_set(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+    net_number: i32,
+) -> BTreeSet<Reverse<ItemId>> {
+    let mut result = BTreeSet::new();
+    let own_nets: Vec<i32> = board
+        .get(id)
+        .map_or_else(Vec::new, |entry| entry.nets.clone());
+    if net_number > 0 && !own_nets.contains(&net_number) {
+        return result;
+    }
+    if net_number > 0 {
+        result.extend(
+            connectable_items(board, net_number)
+                .into_iter()
+                .map(Reverse),
+        );
+    } else {
+        // The union branch: `for (int currentNetNumber : this.netNumbers)`
+        // (`Item.java:727-730`). Deterministic order is irrelevant for a
+        // set union; the storage order stays descending-id.
+        for net in &own_nets {
+            result.extend(connectable_items(board, *net).into_iter().map(Reverse));
+        }
+    }
+    // `result.removeAll(this.getConnectedSet(netNumber))` — the 1-arg
+    // connected set (stopAtPlane false), same `net_number` argument.
+    for connected in item_connected_set_stopping_at_plane(manager, board, id, net_number, false) {
+        result.remove(&connected);
+    }
+    result
 }
 
 /// Java `Item.isTail()` (`Item.java:828-831` base false; the Trace
@@ -594,8 +694,9 @@ pub(crate) fn point_accepts_contact(board: &Board, id: ItemId, point: &Point) ->
 mod tests {
     use super::*;
     use crate::board::ItemEntry;
-    use crate::items::{BoardItemType, FixedState};
+    use crate::items::{Area, BoardItemType, BoardShape, FixedState};
     use crate::test_util::{parse_board_from_path, parse_board_from_text};
+    use epic_geometry::int_box::IntBox;
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::polyline::Polyline;
 
@@ -1557,6 +1658,233 @@ mod tests {
             ratsnest_corners(&manager, &mut board, w),
             vec![],
             "the witness: both-ends-contacted → zero corners"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // M3-T3 — the connected/unconnected-set family (`Item.java:640-735`)
+    // ------------------------------------------------------------------
+
+    /// The set-family iteration order as raw ids: Java's `TreeSet`
+    /// under the REVERSED `Item.compareTo` — every set read here walks
+    /// DESCENDING id.
+    fn raws(set: &BTreeSet<Reverse<ItemId>>) -> Vec<u32> {
+        set.iter().map(|reverse| reverse.0.get()).collect()
+    }
+
+    /// THE ORDERING + DIFFERENCE PIN (pure board, no insertions).
+    /// E (id 4) contacts only the foreign-net pin 3, which the net
+    /// filter drops, so `getConnectedSet(E, 1)` is {4}; the net-1
+    /// connectable items are `getConnectableItems(1)` = ids
+    /// [9, 8, 7, 6, 5, 4] DESCENDING (pin 3 carries net 2 and is
+    /// excluded by the kind/net filter both). The unconnected set is
+    /// that difference MINUS the connected set, and its ITERATION
+    /// order is the reversed-compareTo order: [9, 8, 7, 6, 5]. A
+    /// natural-order container yields [5, 6, 7, 8, 9] and fails —
+    /// this is the order witness, not a set-equality one (mutation
+    /// M3 of the brief: `Reverse<ItemId>` → `ItemId` is killed here).
+    #[test]
+    fn unconnected_set_difference_descends_by_id() {
+        let mut board = parse_board_from_text(PURE_DSN);
+        let manager = indexed(&mut board);
+        let connected = item_connected_set(&manager, &mut board, id(4), 1);
+        assert_eq!(
+            raws(&connected),
+            vec![4],
+            "E touches only the foreign-net pin — the net filter drops it"
+        );
+        assert_eq!(
+            connectable_items(&board, 1),
+            vec![id(9), id(8), id(7), id(6), id(5), id(4)]
+        );
+        let unconnected = item_unconnected_set(&manager, &mut board, id(4), 1);
+        assert_eq!(raws(&unconnected), vec![9, 8, 7, 6, 5]);
+    }
+
+    /// THE STOP-AT-PLANE FILTER (`Item.java:663-683`, the 2-arg
+    /// `getConnectedSet(netNumber, stopAtPlane)`). F (id 7) starts on
+    /// the free plane pour AREA (id 6, `componentId` 0): the FULL walk
+    /// enters the pour and bridges to F2 (id 8) → {8, 7, 6}; the
+    /// STOPPED walk skips a component-less conduction area ENTIRELY
+    /// (not added, not entered) → {7}. The seed-self arm: seeding the
+    /// walk AT the pour (id 6) adds it AND still traverses its
+    /// contacts — `result.add(this)` is unconditional and the stop
+    /// filter guards only the CONTACT loop, so the plain-trace
+    /// contacts of the pour join normally ({8, 7, 6}, the same as the
+    /// full walk from the pour). A mutant that early-returns the
+    /// stopped walk after seeding yields {6} and fails this row — a
+    /// different mutant than one ignoring the stop flag (killed by
+    /// the {7} row).
+    #[test]
+    fn stop_at_plane_skips_free_pours_but_never_the_seed() {
+        let mut board = parse_board_from_text(PURE_DSN);
+        let manager = indexed(&mut board);
+        let full = item_connected_set(&manager, &mut board, id(7), 1);
+        assert_eq!(raws(&full), vec![8, 7, 6], "the pour bridges to F2");
+        let stopped = item_connected_set_stopping_at_plane(&manager, &mut board, id(7), 1, true);
+        assert_eq!(
+            raws(&stopped),
+            vec![7],
+            "the component-less pour is neither added nor entered"
+        );
+        let seeded = item_connected_set_stopping_at_plane(&manager, &mut board, id(6), 1, true);
+        assert_eq!(
+            raws(&seeded),
+            vec![8, 7, 6],
+            "the seed is added and traversed — the filter guards contacts only"
+        );
+    }
+
+    /// The CONTRAST arm of the stop filter: a pour that HAS an owning
+    /// component (`componentId` 5 > 0) IS entered. The synthetic CA
+    /// (id 10, the first post-parse alloc, spike parity) covers F's
+    /// free END: both walks add and traverse it — stopped = {10, 7}
+    /// (the component-less AREA 6 is still skipped in the same walk),
+    /// full = {10, 8, 7, 6}. The two pour flavors in ONE walk are the
+    /// witness: a mutant that drops the `componentId` guard enters 6
+    /// too and yields {10, 8, 7, 6} in the stopped row.
+    #[test]
+    fn component_pour_is_entered_even_when_stopping() {
+        let mut board = parse_board_from_text(PURE_DSN);
+        let mut manager = indexed(&mut board);
+        let pour = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id: pour,
+            data: ItemData::ConductionArea {
+                layer: 0,
+                area: Area::simple(BoardShape::Tile(TileShape::RegularTileShape(
+                    RegularTileShape::IntBox(IntBox::new(
+                        IntPoint::new(54_000, 24_000),
+                        IntPoint::new(56_000, 26_000),
+                    )),
+                ))),
+                is_obstacle: false,
+                is_filled: true,
+            },
+            nets: vec![1],
+            clearance_class: board.get(id(6)).expect("AREA").clearance_class,
+            component_id: 5,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        manager.insert(&mut board, pour);
+        assert_eq!(pour.get(), 10, "first post-parse alloc (spike parity)");
+        // F's previously free end now contacts the component pour.
+        assert_eq!(raw(&end_contacts(&manager, &mut board, id(7))), vec![10]);
+        let stopped = item_connected_set_stopping_at_plane(&manager, &mut board, id(7), 1, true);
+        assert_eq!(raws(&stopped), vec![10, 7]);
+        let full = item_connected_set(&manager, &mut board, id(7), 1);
+        assert_eq!(raws(&full), vec![10, 8, 7, 6]);
+    }
+
+    /// The multi-net union craft: pin P1 of CMP1 carries BOTH nets
+    /// (TWOA declared first → net 1, TWOB → net 2; the drc-tie
+    /// precedent — a pin mentioned by k nets carries all k), CMP2's
+    /// pin is TWOA-only, CMP3's pin is TWOB-only, plus one far TWOA
+    /// trace. Creation follows net-declaration order (TWOA's pins
+    /// before TWOB's new pin, wiring last), so ids ascend
+    /// shared < p2 < p3 < trace.
+    const MULTI_DSN: &str = "\
+(pcb t3-multi.dsn\n\
+  (parser\n\
+    (string_quote \")\n\
+    (space_in_quoted_tokens on)\n\
+  )\n\
+  (resolution um 1)\n\
+  (unit um)\n\
+  (structure\n\
+    (layer F.Cu (type signal))\n\
+    (layer B.Cu (type signal))\n\
+    (boundary (rect pcb 0 0 100000 60000))\n\
+    (rule (width 250) (clearance 14))\n\
+  )\n\
+  (placement\n\
+    (component CMP1\n\
+      (place CMP1 20000 40000 front 0)\n\
+    )\n\
+    (component CMP2\n\
+      (place CMP2 60000 40000 front 0)\n\
+    )\n\
+    (component CMP3\n\
+      (place CMP3 80000 40000 front 0)\n\
+    )\n\
+  )\n\
+  (library\n\
+    (padstack PAD_C600\n\
+      (shape (circle F.Cu 600 0 0))\n\
+    )\n\
+    (image CMP1\n\
+      (pin PAD_C600 P1 0 0)\n\
+    )\n\
+    (image CMP2\n\
+      (pin PAD_C600 P1 0 0)\n\
+    )\n\
+    (image CMP3\n\
+      (pin PAD_C600 P1 0 0)\n\
+    )\n\
+  )\n\
+  (network\n\
+    (net TWOA (pins CMP1-P1 CMP2-P1))\n\
+    (net TWOB (pins CMP1-P1 CMP3-P1))\n\
+  )\n\
+  (wiring\n\
+    (wire (path F.Cu 250  10000 10000  11000 10000) (net TWOA))\n\
+  )\n\
+)\n";
+
+    /// THE MULTI-NET UNION BRANCH (`Item.java:720-735`,
+    /// `p_net_no <= 0`): with net 0 the unconnected set UNIONS the
+    /// connectable sets of the SEED'S OWN nets — {shared, p2, trace} ∪
+    /// {shared, p3} − connected(shared) = {trace, p3, p2} descending —
+    /// instead of one net's set ({trace, p2} for net 1, {p3} for
+    /// net 2; a net-0 connected set ignores nets, and the seed has no
+    /// contacts here). The early-return arm: a single-net seed on the
+    /// FOREIGN net is EMPTY. The union shape is the witness — a mutant
+    /// that keeps walking ONE net (say the first) misses p3 in the
+    /// net-0 row.
+    #[test]
+    fn unconnected_set_net_zero_unions_the_own_nets() {
+        let mut board = parse_board_from_text(MULTI_DSN);
+        let manager = indexed(&mut board);
+        let shared = board
+            .iter_descending()
+            .find(|entry| entry.board_item_type() == BoardItemType::Pin && entry.nets.len() == 2)
+            .map(|entry| entry.id)
+            .expect("the double-net pin");
+        let p2 = board
+            .iter_descending()
+            .find(|entry| entry.board_item_type() == BoardItemType::Pin && entry.nets == vec![1])
+            .map(|entry| entry.id)
+            .expect("the TWOA-only pin");
+        let p3 = board
+            .iter_descending()
+            .find(|entry| entry.board_item_type() == BoardItemType::Pin && entry.nets == vec![2])
+            .map(|entry| entry.id)
+            .expect("the TWOB-only pin");
+        let trace = board
+            .iter_descending()
+            .find(|entry| entry.board_item_type() == BoardItemType::Trace)
+            .map(|entry| entry.id)
+            .expect("the TWOA trace");
+        assert!(
+            shared.get() < p2.get() && shared.get() < p3.get() && p3.get() < trace.get(),
+            "creation follows net-declaration order, wiring last"
+        );
+
+        let zero = item_unconnected_set(&manager, &mut board, shared, 0);
+        assert_eq!(
+            raws(&zero),
+            vec![trace.get(), p3.get(), p2.get()],
+            "the union of BOTH nets, minus the seed"
+        );
+        let net_one = item_unconnected_set(&manager, &mut board, shared, 1);
+        assert_eq!(raws(&net_one), vec![trace.get(), p2.get()]);
+        let net_two = item_unconnected_set(&manager, &mut board, shared, 2);
+        assert_eq!(raws(&net_two), vec![p3.get()]);
+        let foreign = item_unconnected_set(&manager, &mut board, p2, 2);
+        assert!(
+            foreign.is_empty(),
+            "p2 does not carry net 2 — the early return"
         );
     }
 }

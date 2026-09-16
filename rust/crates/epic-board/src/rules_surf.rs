@@ -510,6 +510,23 @@ impl NetClass {
             .unwrap_or(0)
     }
 
+    /// Java `isActiveRoutingLayer(layer)` (`NetClass.java:180-186`).
+    /// RESTORED at M3-T3 (M2 review cut the accessor; the parse kept the
+    /// field): the first consumer is `AutorouteControl::init_net`
+    /// (`AutorouteControl.java:226-228`), which force-disables a layer
+    /// the net class marks inactive. Out-of-range layers read `true`
+    /// (Java's array read would throw; unreachable from the parse, which
+    /// sizes the array to the layer count — mirror the
+    /// [`Self::trace_half_width`] defensive convention).
+    #[must_use]
+    pub fn is_active_routing_layer(&self, layer: i32) -> bool {
+        usize::try_from(layer)
+            .ok()
+            .and_then(|layer| self.active_routing_layers.get(layer))
+            .copied()
+            .unwrap_or(true)
+    }
+
     /// The IR conversion (1:1 — the IR is the verified field-for-field
     /// parse mirror).
     #[must_use]
@@ -635,6 +652,36 @@ impl BoardRules {
         usize::try_from(index)
             .ok()
             .and_then(|i| self.net_classes.get(i))
+    }
+
+    /// Java `getTraceHalfWidth(netNumber, layer)` (`BoardRules.java:74-77`):
+    /// the NET's class half width — `nets.get(netNumber).getNetClass()`.
+    /// RESTORED at M3-T3 (consumed by `AutorouteControl::init_net`,
+    /// `AutorouteControl.java:218-222`, including the
+    /// `netNumber > 0 ? netNumber : 1` fallback the caller applies —
+    /// the fallback is OBSERVABLE and pinned there). Java NPEs when the
+    /// net is absent; every caller guards (`Nets::get` returns `None`
+    /// outside `[1, size]`), so the Rust read is 0 — the same answer
+    /// [`NetClass::trace_half_width`] gives out-of-range.
+    #[must_use]
+    pub fn trace_half_width(&self, net_number: i32, layer: i32) -> i32 {
+        self.nets
+            .get(net_number)
+            .and_then(|net| self.net_class(net.net_class))
+            .map_or(0, |class| class.trace_half_width(layer))
+    }
+
+    /// Java has no named lookup — `NetClass.getViaRule()` returns the
+    /// rule OBJECT (`NetClass.java:124-130`, a live reference into
+    /// `BoardRules.viaRules`). The Rust class stores the rule's
+    /// identity id ([`NetClass::via_rule`]), so this is the id → rule
+    /// resolution. RESTORED at M3-T3 (M2 review cut; consumed by
+    /// `AutorouteControl::init_net`, `AutorouteControl.java:211` and
+    /// the `:214` first-element fallback — which the CALLER applies,
+    /// via `via_rules.first()`, so this lookup stays `None`-honest).
+    #[must_use]
+    pub fn via_rule_by_id(&self, id: u32) -> Option<&ViaRule> {
+        self.via_rules.iter().find(|rule| rule.id == id)
     }
 
     /// Java `setHoleClearance(value)` (`:109-111`): `max(0, value)`.
