@@ -43,6 +43,19 @@ pub struct RouterSettingsIr {
     pub automatic_neckdown: bool,
 }
 
+/// Java `AngleRestriction` (`board.rules.BasicsOption`) — the trace
+/// angle mode; read by `MazeSearchEngine.doorIsSmall` (`:773-784`) to
+/// pick the door-length measure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AngleRestriction {
+    /// Java `AngleRestriction.NONE`.
+    None,
+    /// Java `AngleRestriction.NINETY_DEGREE`.
+    NinetyDegree,
+    /// Java `AngleRestriction.FORTYFIVE_DEGREE`.
+    FortyfiveDegree,
+}
+
 /// Java `AutorouteControl.ExpansionCostFactor` (record,
 /// `AutorouteControl.java:286-287`): horizontal and vertical costs for
 /// traces on one board layer.

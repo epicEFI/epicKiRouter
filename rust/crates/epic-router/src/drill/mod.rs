@@ -51,14 +51,16 @@ pub mod maze_search_element;
 pub mod page_array;
 
 #[cfg(test)]
-mod pins;
+pub(crate) mod pins;
 #[cfg(test)]
 mod tests;
 
 use std::sync::atomic::AtomicBool;
 
 use epic_board::items::BoardShape;
+use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
+use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::tile_shape::TileShape;
 
@@ -142,12 +144,94 @@ pub trait DrillEngine: NeighbourEngine {
     /// completed room keys in order. `room_shape = None` mirrors the
     /// Java `IncompleteFreeSpaceExpansionRoom(null, layer, shape)`
     /// construction.
+    ///
+    /// T6 provides the PRODUCTION body as a provided method composing
+    /// the T4 completion primitives — see
+    /// [`crate::maze::completion`].
     fn complete_expansion_room(
         &mut self,
         room_shape: Option<&TileShape>,
         contained_shape: &TileShape,
         layer: i32,
-    ) -> Vec<u64>;
+    ) -> Vec<u64>
+    where
+        Self: Sized,
+    {
+        debug_assert!(
+            room_shape.is_none(),
+            "the drill completion seam passes the null room shape"
+        );
+        crate::maze::completion::complete_null_shape_room(self, contained_shape, layer)
+    }
+
+    // ---- T6 seams (the maze engine's item/layer reads) ----
+    /// Java `ItemAutorouteInfo.isStartInfo()` NEGATED — Java
+    /// `TargetItemExpansionDoor.isDestinationDoor()`
+    /// (`TargetItemExpansionDoor.java:45-48`).
+    fn item_is_destination(&self, item_key: u64) -> bool;
+    /// Java `ItemAutorouteInfo.setStartInfo(bool)` (`MazeSearchEngine
+    /// .init:979/1013`).
+    fn set_item_start_info(&mut self, item_key: u64, start: bool);
+    /// Java `Item.treeShapeCount(tree)`.
+    fn item_tree_shape_count(&self, item_key: u64) -> i32;
+    /// Java `Pin.getTraceNeckdownHalfwidth(layer)` — 0.0 when the pin
+    /// has no neckdown (the seam T10 sharpens; `withNeckdown` is false
+    /// in Tier A so the capture never reads it).
+    fn pin_neckdown_half_width(&self, item_key: u64, layer: i32) -> f64;
+    /// Java `board.layerStructure.layers[layer].isSignal` — the
+    /// inactive-layer occupation check (`expandToRoomDoors:398`).
+    fn layer_is_signal(&self, layer: i32) -> bool;
+    /// The inactive-layer drill-vs-plane probe (`:478-489`): true when
+    /// a foreign-net conduction area overlaps the drill location (the
+    /// `!currentItem.containsNet(ctrl.netNumber)` arm).
+    fn drill_hits_foreign_conduction(&self, location: &Point, layer: i32, net_number: i32) -> bool;
+    /// Java `Pin.nearestTraceExitCorner(FloatPoint, double, int)`
+    /// (`expandToDrill:56-65`) — `None` is Java null (the pin has no
+    /// precomputed exit corner). The T6 fixtures never reach it (the
+    /// DrillPage-from-target-pin-door combination is excluded); T10
+    /// owns the real port.
+    fn pin_nearest_trace_exit_corner(
+        &self,
+        item_key: u64,
+        from_point: &FloatPoint,
+        trace_half_width: i32,
+        layer: i32,
+    ) -> Option<FloatPoint>;
+
+    // ---- T6 seams (roomShapeIsThick + the thin-room target probe) ----
+    /// Java `currentObstacleItem instanceof Trace`.
+    fn item_is_trace(&self, item_key: u64) -> bool;
+    /// Java `Trace.getHalfWidth()` (UNcompensated).
+    fn item_trace_half_width(&self, item_key: u64) -> i32;
+    /// Java `SearchTree.clearanceCompensationValue(class, layer)`.
+    fn clearance_compensation_value(&self, clearance_class: i32, layer: i32) -> i32;
+    /// Java `Item.shapeLayer(shapeIndex)` — the board layer of the
+    /// item's i-th tree shape (`MazeSearchEngine.init`).
+    fn item_shape_layer(&self, item_key: u64, shape_index: u32) -> i32;
+    /// Java `Via.getTreeShapeOnLayer(tree, layer)` — `None` is the
+    /// Java null (no shape of the item on that layer).
+    fn item_tree_shape_on_layer(&self, item_key: u64, layer: i32) -> Option<TileShape>;
+    /// Java `Via.getAutorouteDrillInfo(tree)` — the ripped-via drill
+    /// the maze engine expands into (`expandToRoomDoors:613-621`).
+    /// SEAM (T7): the drill construction; `None` — unreachable in the
+    /// T6 fixtures (no vias) — keeps the decision site visible.
+    fn via_drill_info(&self, item_key: u64) -> Option<(Point, i32, i32, TileShape)> {
+        let _ = item_key;
+        None
+    }
+    /// Java `board.checkForcedTracePolyline(polyline, halfWidth, layer,
+    /// netNumbers, clearanceClass, shoveDepths...)` (`expandToTargetDoors
+    /// :683-693`) — the thin-room target-door legality probe. SEAM (T7):
+    /// the stub answers "legal" (empty board space); the T6 fixtures
+    /// keep target expansion inside thick rooms, where Java skips the
+    /// check entirely. T7 widens the signature when the real check lands.
+    fn check_forced_trace_polyline(&self, from: &IntPoint, to: &IntPoint, layer: i32) -> bool {
+        let _ = (from, to, layer);
+        true
+    }
+    /// Java `board.rules.getTraceAngleRestriction()` — the door-length
+    /// measure of `doorIsSmall` (`MazeSearchEngine.java:773-784`).
+    fn trace_angle_restriction(&self) -> crate::control::AngleRestriction;
 }
 
 /// The Java tree-query iteration order for the drill walks: the search

@@ -10,7 +10,7 @@ pub(crate) mod pins;
 pub mod room;
 pub mod target_door;
 
-pub use door::ExpansionDoor;
+pub use door::{ExpansionDoor, TRACE_WIDTH_TOLERANCE};
 pub use neighbours::{
     CalculationMode, NeighbourEngine, TreeEntry, complete, select_calculation_mode,
 };

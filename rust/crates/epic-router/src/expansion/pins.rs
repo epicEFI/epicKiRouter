@@ -26,7 +26,7 @@
 //! capture shows 98239 twice in the E2 list — distinct registry
 //! entries, same content id).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use epic_board::id::ItemId;
 use epic_board::items::ItemData;
@@ -1142,6 +1142,9 @@ struct Harness {
     /// Cached obstacle expansion rooms (Java
     /// `ItemAutorouteInfo.getExpansionRoom`).
     obstacle_rooms: BTreeMap<(u64, u32), u64>,
+    /// The obstacle rooms whose door set is calculated
+    /// (Java `ObstacleExpansionRoom.doorsCalculated`, T6 seam).
+    obstacle_doors_calculated: BTreeSet<u64>,
 }
 
 impl Harness {
@@ -1162,6 +1165,7 @@ impl Harness {
             id_counter: 0,
             pending_completed: Vec::new(),
             obstacle_rooms: BTreeMap::new(),
+            obstacle_doors_calculated: BTreeSet::new(),
         };
         // Freeze the item tree shapes + layers (the same shapes
         // get_autoroute_tree just inserted into the manager's tree).
@@ -1771,6 +1775,33 @@ impl NeighbourEngine for Harness {
 
     fn set_net_dependent(&mut self, room_key: u64) {
         self.room_mut(room_key).set_net_dependent(true);
+    }
+
+    // ---- T6 seams ----
+    fn tree_variant(&self) -> SearchTreeVariant {
+        self.resolved_variant
+    }
+
+    fn remove_incomplete_room(&mut self, room_key: u64) {
+        self.remove_room(room_key);
+    }
+
+    fn flush_completed_inserts(&mut self, accepted: Option<u64>) {
+        // The inherent helper (same contract; inherent resolution
+        // wins over the trait method, so this is not recursion).
+        Harness::flush_completed_inserts(self, accepted);
+    }
+
+    fn room_target_doors(&self, room_key: u64) -> Vec<TargetItemExpansionDoor> {
+        self.room(room_key).target_doors().to_vec()
+    }
+
+    fn room_obstacle_doors_calculated(&self, room_key: u64) -> bool {
+        self.obstacle_doors_calculated.contains(&room_key)
+    }
+
+    fn set_room_doors_calculated(&mut self, room_key: u64) {
+        self.obstacle_doors_calculated.insert(room_key);
     }
 }
 

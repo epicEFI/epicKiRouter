@@ -243,6 +243,28 @@ pub trait NeighbourEngine {
     fn add_target_door(&mut self, room_key: u64, door: TargetItemExpansionDoor);
     /// Java `CompleteFreeSpaceExpansionRoom.setNetDependent` (`:87-88`).
     fn set_net_dependent(&mut self, room_key: u64);
+
+    // ---- T6 seams (the maze engine's completion/dispatch needs) ----
+    /// The resolved `SearchTreeVariant` of the engine's autoroute tree
+    /// — the dispatch key of [`complete`]. Java carries the concrete
+    /// tree; the port needs the variant to pick the 45-degree sorter.
+    fn tree_variant(&self) -> epic_index::SearchTreeVariant;
+    /// Java `AutorouteEngine.removeIncompleteExpansionRoom`
+    /// (`:355-367`) — drop the room from the registry (the completion
+    /// flow removes the consumed incomplete room).
+    fn remove_incomplete_room(&mut self, room_key: u64);
+    /// Java `addCompleteRoom`'s tail (`:534-535`): the accepted
+    /// completed room is INSERTED into the search tree; the restart
+    /// attempts of the same [`complete`] call (they burned ids but
+    /// never reached the tree) are discarded. `None` discards all.
+    fn flush_completed_inserts(&mut self, accepted: Option<u64>);
+    /// Java `CompleteExpansionRoom.getTargetDoors()` — the room's
+    /// target doors in append order.
+    fn room_target_doors(&self, room_key: u64) -> Vec<TargetItemExpansionDoor>;
+    /// Java `ObstacleExpansionRoom.allDoorsCalculated()`.
+    fn room_obstacle_doors_calculated(&self, room_key: u64) -> bool;
+    /// Java `ObstacleExpansionRoom.setDoorsCalculated(true)`.
+    fn set_room_doors_calculated(&mut self, room_key: u64);
 }
 
 /// The counterclockwise-sorted neighbour set (Java

@@ -34,7 +34,7 @@ pub const TRACE_WIDTH_TOLERANCE: f64 = 2.0;
 /// (Java `ExpansionDoor`). The dimension may be 1 or 2; 2-dimensional
 /// doors can only exist between obstacle expansion rooms (or the
 /// corner-overlap case between completed free-space rooms).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExpansionDoor {
     /// Java `firstRoom.getId()`.
     pub first_room_id: i32,

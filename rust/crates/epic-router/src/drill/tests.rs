@@ -23,9 +23,12 @@ use super::{
     CheckDrillResult, DrillEngine, DrillMazeListElement, ViaLayerChecker, ViaRuleVia,
     check_layer_with_any_matching_via, expand_to_other_layers,
 };
-use crate::control::{AutorouteControl, ExpansionCostFactor, RouterSettingsIr, ViaCost, ViaMask};
+use crate::control::{
+    AngleRestriction, AutorouteControl, ExpansionCostFactor, RouterSettingsIr, ViaCost, ViaMask,
+};
 use crate::expansion::door::ExpansionDoor;
 use crate::expansion::{NeighbourEngine, TargetItemExpansionDoor, TreeEntry};
+use epic_index::SearchTreeVariant;
 use epic_index::complete_shape::IncompleteRoom;
 
 // ---- the synthetic world ------------------------------------------------
@@ -89,6 +92,9 @@ struct SynthWorld {
     complete_room_base: Option<i32>,
     stop: Option<AtomicBool>,
     rule_vias: Vec<ViaRuleVia>,
+    /// The `ItemAutorouteInfo.startInfo` flags (`item_is_destination`
+    /// is the negation; T6 seam).
+    start_infos: std::collections::BTreeSet<u64>,
 }
 
 fn box_tile(x0: i32, y0: i32, x1: i32, y1: i32) -> TileShape {
@@ -113,6 +119,7 @@ impl SynthWorld {
             complete_result: Vec::new(),
             complete_room_base: None,
             stop: None,
+            start_infos: std::collections::BTreeSet::new(),
             rule_vias: Vec::new(),
         }
     }
@@ -410,6 +417,29 @@ impl NeighbourEngine for SynthWorld {
     fn add_target_door(&mut self, _room_key: u64, _door: TargetItemExpansionDoor) {}
 
     fn set_net_dependent(&mut self, _room_key: u64) {}
+
+    // ---- T6 seams (scripted stubs; this world tests the drill-layer
+    // logic against a SCRIPTED completion, not the production one —
+    // the oracle-replay Harness in `pins.rs` owns that verification) ----
+    fn tree_variant(&self) -> SearchTreeVariant {
+        SearchTreeVariant::Generic
+    }
+
+    fn remove_incomplete_room(&mut self, room_key: u64) {
+        self.rooms.retain(|r| Self::room_key(r.id) != room_key);
+    }
+
+    fn flush_completed_inserts(&mut self, _accepted: Option<u64>) {}
+
+    fn room_target_doors(&self, _room_key: u64) -> Vec<TargetItemExpansionDoor> {
+        Vec::new()
+    }
+
+    fn room_obstacle_doors_calculated(&self, _room_key: u64) -> bool {
+        false
+    }
+
+    fn set_room_doors_calculated(&mut self, _room_key: u64) {}
 }
 
 impl DrillEngine for SynthWorld {
@@ -491,6 +521,86 @@ impl DrillEngine for SynthWorld {
         } else {
             self.complete_result.clone()
         }
+    }
+
+    // ---- T6 seams (scripted stubs) ----
+    fn item_is_destination(&self, item_key: u64) -> bool {
+        !self.start_infos.contains(&item_key)
+    }
+
+    fn set_item_start_info(&mut self, item_key: u64, start: bool) {
+        if start {
+            self.start_infos.insert(item_key);
+        } else {
+            self.start_infos.remove(&item_key);
+        }
+    }
+
+    fn item_tree_shape_count(&self, item_key: u64) -> i32 {
+        self.item(item_key).shapes.len() as i32
+    }
+
+    fn pin_neckdown_half_width(&self, _item_key: u64, _layer: i32) -> f64 {
+        0.0
+    }
+
+    fn layer_is_signal(&self, _layer: i32) -> bool {
+        true
+    }
+
+    fn drill_hits_foreign_conduction(
+        &self,
+        _location: &Point,
+        _layer: i32,
+        _net_number: i32,
+    ) -> bool {
+        false
+    }
+
+    fn pin_nearest_trace_exit_corner(
+        &self,
+        _item_key: u64,
+        _from_point: &FloatPoint,
+        _trace_half_width: i32,
+        _layer: i32,
+    ) -> Option<FloatPoint> {
+        None
+    }
+
+    fn item_is_trace(&self, _item_key: u64) -> bool {
+        false // the synthetic worlds carry no traces
+    }
+
+    fn item_trace_half_width(&self, _item_key: u64) -> i32 {
+        0
+    }
+
+    fn clearance_compensation_value(&self, _clearance_class: i32, _layer: i32) -> i32 {
+        0
+    }
+
+    fn item_shape_layer(&self, item_key: u64, shape_index: u32) -> i32 {
+        self.entries
+            .iter()
+            .find(|(key, index, _)| *key == item_key && *index == shape_index)
+            .map(|(_, _, layer)| *layer)
+            .unwrap_or(-1)
+    }
+
+    fn item_tree_shape_on_layer(&self, item_key: u64, layer: i32) -> Option<TileShape> {
+        let item = self.item(item_key);
+        let on_layer = self
+            .entries
+            .iter()
+            .find(|(key, index, l)| {
+                *key == item_key && *l == layer && (*index as usize) < item.shapes.len()
+            })
+            .map(|(_, index, _)| *index)?;
+        item.shapes.get(on_layer as usize).cloned()
+    }
+
+    fn trace_angle_restriction(&self) -> AngleRestriction {
+        AngleRestriction::FortyfiveDegree
     }
 }
 

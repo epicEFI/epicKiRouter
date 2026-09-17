@@ -65,11 +65,20 @@ pub trait ViaLayerChecker {
     ) -> CheckDrillResult;
 }
 
-/// SEAM (T8): Java `search.destinationDistance.calculate(FloatPoint,
-/// int)` — the target-distance estimate folded into the sorting
-/// value. T8 owns the real heuristic.
+/// SEAM (T8): Java `search.destinationDistance` — the target-distance
+/// estimate folded into the sorting value. `calculate` is the
+/// per-query estimate; `join` is Java
+/// `destinationDistance.join(IntBox, int)` called by
+/// `MazeSearchEngine.init` for every destination tree shape (the
+/// heuristic's input accumulation — Java's `MoonMilOffline
+/// .joinDestinationShape` equivalent). T8 owns the real heuristic.
 pub trait DestinationDistance {
     fn calculate(&self, middle: &FloatPoint, layer: i32) -> f64;
+
+    /// Java `DestinationDistance.join(IntBox shape, int layer)` — the
+    /// T8 SEAM slot: the default is a no-op so the T5/T6 targetless
+    /// distances are unaffected.
+    fn join(&mut self, _shape: &epic_geometry::int_box::IntBox, _layer: i32) {}
 }
 
 /// The `MazeListElement` seed `expandToOtherLayers` emits (Java

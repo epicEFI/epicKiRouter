@@ -10,6 +10,7 @@
 pub mod control;
 pub mod drill;
 pub mod expansion;
+pub mod maze;
 
 #[cfg(test)]
 pub(crate) mod test_util;

@@ -98,6 +98,19 @@ impl DrillPage {
         self.maze_search_elements.len()
     }
 
+    /// The memoized drills (Java `page.drills` — `None` is the Java
+    /// null before the first `get_drills` call).
+    #[must_use]
+    pub fn drills(&self) -> Option<&[ExpansionDrill]> {
+        self.drills.as_deref()
+    }
+
+    /// The mutable memoized drills (the maze engine's post-memoization
+    /// section-state access).
+    pub fn drills_mut(&mut self) -> Option<&mut Vec<ExpansionDrill>> {
+        self.drills.as_mut()
+    }
+
     /// Java `getMazeSearchElement(int)`.
     #[must_use]
     pub fn maze_search_element(&self, index: usize) -> &MazeSearchElement {
@@ -269,7 +282,8 @@ impl DrillPage {
                     drill_first_layer,
                     drill_last_layer,
                 );
-                if drill.calculate_expansion_rooms(ctx) {
+                let ok = drill.calculate_expansion_rooms(ctx);
+                if ok {
                     drills.push(drill);
                 }
             }

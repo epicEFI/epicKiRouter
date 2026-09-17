@@ -10,6 +10,7 @@ use epic_geometry::tile_shape::TileShape;
 
 use super::DrillEngine;
 use super::drill_page::DrillPage;
+use super::expansion_drill::ExpansionDrill;
 
 /// Java `AutorouteEngine.java:89-91` — the page-width formula LIVES AT
 /// THE CONSTRUCTION SITE in Java (`maxDrillPageWidth = max((int)(5 *
@@ -143,5 +144,54 @@ impl DrillPageArray {
                 page.reset();
             }
         }
+    }
+
+    // ---- T6 accessors (the maze engine resolves doors to grid cells) ----
+
+    /// The page at `(row, column)` — Java holds the object reference.
+    #[must_use]
+    pub fn page(&self, row: i32, column: i32) -> &DrillPage {
+        &self.pages[row as usize][column as usize]
+    }
+
+    /// The mutable page at `(row, column)`.
+    pub fn page_mut(&mut self, row: i32, column: i32) -> &mut DrillPage {
+        &mut self.pages[row as usize][column as usize]
+    }
+
+    /// Java `page.getShape()`.
+    #[must_use]
+    pub fn page_shape(&self, row: i32, column: i32) -> TileShape {
+        self.page(row, column).shape_tile()
+    }
+
+    /// The memoized drills of the page — Java's live
+    /// `page.drills` list (never read before `get_drills` populated
+    /// it: the maze engine only reaches drills through
+    /// [`DrillPage::get_drills`]).
+    #[must_use]
+    pub fn page_drills(&self, row: i32, column: i32) -> &[ExpansionDrill] {
+        self.page(row, column)
+            .drills()
+            .expect("drills are memoized before the maze engine reads them")
+    }
+
+    /// The `d`-th drill of the page.
+    #[must_use]
+    pub fn page_drill(&self, row: i32, column: i32, d: usize) -> &ExpansionDrill {
+        &self.page_drills(row, column)[d]
+    }
+
+    /// The mutable `d`-th drill of the page.
+    pub fn page_drill_mut(&mut self, row: i32, column: i32, d: usize) -> &mut ExpansionDrill {
+        &mut self.pages[row as usize][column as usize]
+            .drills_mut()
+            .expect("drills are memoized before the maze engine reads them")[d]
+    }
+
+    /// Java `drill.getShape()` for the `d`-th drill.
+    #[must_use]
+    pub fn page_drill_shape(&self, row: i32, column: i32, d: usize) -> TileShape {
+        self.page_drill(row, column, d).get_shape().clone()
     }
 }

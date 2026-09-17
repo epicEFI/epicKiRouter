@@ -48,12 +48,14 @@
 //! page walk would shift every room id).
 
 use epic_board::id::ItemId;
-use epic_board::items::{FixedState, ItemData};
+use epic_board::items::{BoardShape, FixedState, ItemData};
 use epic_board::tree_shapes::item_tree_shapes;
+use epic_geometry::direction::Direction;
 use epic_geometry::float_line::FloatLine;
 use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
+use epic_geometry::line::Line;
 use epic_geometry::point::Point;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
@@ -66,10 +68,9 @@ use super::{
     DestinationDistance, DrillEngine, DrillPageArray, ExpansionDrill, ViaLayerChecker, ViaRuleVia,
     expand_to_other_layers, max_drill_page_width,
 };
-use crate::control::{AutorouteControl, RouterSettingsIr, ViaMask};
+use crate::control::{AngleRestriction, AutorouteControl, RouterSettingsIr, ViaMask};
 use crate::expansion::{
     ExpansionDoor, ExpansionRoom, NeighbourEngine, RoomKind, TargetItemExpansionDoor, TreeEntry,
-    complete,
 };
 
 /// The spike fixture (a committed deliverable of this task).
@@ -268,7 +269,7 @@ fn default_settings_ir(layer_count: usize) -> RouterSettingsIr {
 /// The replay harness: the parsed fixture board + the class-1
 /// autoroute tree holding items AND completed rooms + the room
 /// registry ([`NeighbourEngine`] + [`DrillEngine`]).
-struct Harness {
+pub(crate) struct Harness {
     board: epic_board::board::Board,
     /// The manager-resolved tree variant (Generic on this fixture).
     resolved_variant: SearchTreeVariant,
@@ -280,15 +281,34 @@ struct Harness {
     item_layers: std::collections::BTreeMap<(u64, u32), i32>,
     rooms: Vec<ExpansionRoom>,
     keys: Vec<u64>,
+    /// Java removed rooms remain REACHABLE: front elements hold live
+    /// references to discarded objects (an incomplete room replaced by
+    /// its completion is still read through in-flight maze elements),
+    /// so the registry keeps a graveyard consulted by the read paths.
+    graveyard: std::collections::BTreeMap<u64, ExpansionRoom>,
     next_key: u64,
     id_counter: i32,
     pending_completed: Vec<u64>,
     obstacle_rooms: std::collections::BTreeMap<(u64, u32), u64>,
+    /// The `ItemAutorouteInfo.startInfo` flags (`MazeSearchEngine.init`
+    /// sets them); `item_is_destination` is the NEGATION (`isStartInfo`
+    /// false, `TargetItemExpansionDoor.java:45-48`).
+    start_infos: std::collections::BTreeSet<u64>,
+    /// The obstacle rooms whose door set is calculated
+    /// (Java `ObstacleExpansionRoom.doorsCalculated`).
+    obstacle_doors_calculated: std::collections::BTreeSet<u64>,
 }
 
 impl Harness {
     fn build(net: i32) -> Harness {
-        let (mut manager, mut board) = crate::test_util::parse(FIXTURE_DSN);
+        Self::build_with(FIXTURE_DSN, net)
+    }
+
+    /// The replay harness over ANY spike fixture — the maze pins
+    /// (`crate::maze::pins`) replay the T6 capture through the same
+    /// [`DrillEngine`] machinery.
+    pub(crate) fn build_with(fixture: &str, net: i32) -> Harness {
+        let (mut manager, mut board) = crate::test_util::parse(fixture);
         let tree_index = manager.get_autoroute_tree(&mut board, TREE_CLASS);
         let resolved_variant = manager.trees()[tree_index].variant;
         let mut harness = Harness {
@@ -300,10 +320,13 @@ impl Harness {
             item_layers: std::collections::BTreeMap::new(),
             rooms: Vec::new(),
             keys: Vec::new(),
+            graveyard: std::collections::BTreeMap::new(),
             next_key: 0,
             id_counter: 0,
             pending_completed: Vec::new(),
             obstacle_rooms: std::collections::BTreeMap::new(),
+            start_infos: std::collections::BTreeSet::new(),
+            obstacle_doors_calculated: std::collections::BTreeSet::new(),
         };
         // Freeze the item tree shapes + per-shape layers (the same
         // shapes get_autoroute_tree just inserted into the manager's
@@ -386,6 +409,19 @@ impl Harness {
             .unwrap_or_else(|| panic!("padstack {name} absent"))
     }
 
+    /// Java `board.rules.getDefaultViaDiameter()` — the page-grid
+    /// frame input (the maze pins construct the `DrillPageArray` with
+    /// the capture's `pageMeta` derivation).
+    pub(crate) fn default_via_diameter(&self) -> f64 {
+        self.board.default_via_diameter()
+    }
+
+    /// The board for `AutorouteControl::new` (the maze pins build
+    /// their ctrl from the replay board).
+    pub(crate) fn board_mut(&mut self) -> &mut epic_board::board::Board {
+        &mut self.board
+    }
+
     fn alloc_key(&mut self) -> u64 {
         self.next_key += 1;
         ROOM_KEY_BASE + self.next_key
@@ -398,8 +434,19 @@ impl Harness {
             .unwrap_or_else(|| panic!("room key {key} not registered"))
     }
 
+    /// The live-then-graveyard room read (Java reads removed room
+    /// OBJECTS through the live references held by in-flight maze
+    /// elements; the graveyard is that object identity).
+    fn resolve(&self, key: u64) -> &ExpansionRoom {
+        if let Some(room) = self.graveyard.get(&key) {
+            return room;
+        }
+        let index = self.idx_of(key);
+        &self.rooms[index]
+    }
+
     fn room(&self, key: u64) -> &ExpansionRoom {
-        &self.rooms[self.idx_of(key)]
+        self.resolve(key)
     }
 
     fn room_mut(&mut self, key: u64) -> &mut ExpansionRoom {
@@ -408,7 +455,7 @@ impl Harness {
     }
 
     fn room_id_of_key(&self, key: u64) -> i32 {
-        self.rooms[self.idx_of(key)].id()
+        self.resolve(key).id()
     }
 
     fn room_ids_of(&self, slots: &[Option<u64>]) -> Vec<i32> {
@@ -428,9 +475,50 @@ impl Harness {
     }
 
     fn remove_room(&mut self, key: u64) {
+        // Java `removeIncompleteExpansionRoom` (`:368-371`): the doors
+        // go FIRST (`removeAllDoors` — the back-edge cleanup is what
+        // keeps `completeNeighbourRooms` terminating: without it the
+        // surviving room re-completes the dead neighbour on every
+        // restart), then the registry removal. Idempotent for an
+        // already-removed key (Java `Set.remove` is a no-op).
+        if !self.keys.contains(&key) {
+            return;
+        }
+        self.remove_all_doors_impl(key);
         let i = self.idx_of(key);
-        self.rooms.remove(i);
+        let room = self.rooms.remove(i);
         self.keys.remove(i);
+        self.graveyard.insert(key, room);
+    }
+
+    /// Java `AutorouteEngine.removeAllDoors` (`:603-614`): every door
+    /// of `room_key` is removed from BOTH endpoint rooms, and an
+    /// incomplete free-space room discovered through a removed door is
+    /// removed from the engine entirely (the recursive `:611` cascade
+    /// — in practice one level deep, because two incomplete rooms
+    /// never share a door: incomplete rooms are not in the tree, so
+    /// the sorter only attaches doors between a candidate and
+    /// tree-resident neighbours). Mutating a graveyard'd other is
+    /// skipped: Java mutates the dead object there, which is
+    /// unobservable.
+    fn remove_all_doors_impl(&mut self, room_key: u64) {
+        let room_id = self.resolve(room_key).id();
+        let doors = self.resolve(room_key).doors().to_vec();
+        for door in doors {
+            let Some(other_id) = door.other_room_id(room_id) else {
+                continue;
+            };
+            let Some(other_key) = self.room_key_of_id(other_id) else {
+                continue;
+            };
+            if let Some(index) = self.keys.iter().position(|&k| k == other_key) {
+                self.rooms[index].remove_door(&door);
+            }
+            if self.resolve(other_key).is_incomplete() && self.keys.contains(&other_key) {
+                self.remove_room(other_key);
+            }
+        }
+        self.room_mut(room_key).clear_doors();
     }
 
     /// Inserts the SURVIVING completed room of a [`complete`] call and
@@ -439,7 +527,7 @@ impl Harness {
     fn flush_completed_inserts(&mut self, accepted: Option<u64>) {
         for key in std::mem::take(&mut self.pending_completed) {
             if Some(key) == accepted {
-                let shape = self.rooms[self.idx_of(key)].shape().clone();
+                let shape = self.resolve(key).shape().clone();
                 self.tree.insert(key, &[Some(shape)]);
             } else {
                 self.remove_room(key);
@@ -478,7 +566,7 @@ impl NeighbourEngine for Harness {
     }
 
     fn remove_all_doors(&mut self, room_key: u64) {
-        self.room_mut(room_key).clear_doors();
+        self.remove_all_doors_impl(room_key);
     }
 
     fn add_complete_free_space_room(&mut self, shape: TileShape, layer: i32, id: i32) -> u64 {
@@ -518,7 +606,7 @@ impl NeighbourEngine for Harness {
 
     fn object_id(&self, object_key: u64) -> i32 {
         if Self::is_room_key(object_key) {
-            self.rooms[self.idx_of(object_key)].id()
+            self.resolve(object_key).id()
         } else {
             i32::try_from(object_key).expect("item keys are u32 ids")
         }
@@ -526,7 +614,7 @@ impl NeighbourEngine for Harness {
 
     fn is_trace_obstacle(&self, object_key: u64, net_number: i32) -> bool {
         if Self::is_room_key(object_key) {
-            let room = &self.rooms[self.idx_of(object_key)];
+            let room = &self.resolve(object_key);
             if room.is_complete_free_space() {
                 // Java CompleteFreeSpaceExpansionRoom participates in
                 // completeShape's restraint/ignore arms.
@@ -542,7 +630,7 @@ impl NeighbourEngine for Harness {
 
     fn tree_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {
         if Self::is_room_key(object_key) {
-            return Some(self.rooms[self.idx_of(object_key)].shape().clone());
+            return Some(self.resolve(object_key).shape().clone());
         }
         self.item_shapes
             .get(&object_key)
@@ -633,7 +721,39 @@ impl NeighbourEngine for Harness {
     }
 
     fn trace_connection_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {
-        NeighbourEngine::tree_shape(self, object_key, shape_index)
+        // Java `Connectable.getTraceConnectionShape` dispatch: the base
+        // `Item` answers the raw tree shape, `DrillItem` (Pin, Via)
+        // overrides to the degenerate box of the item CENTER
+        // (`DrillItem.java:359-361` — `TileShape.getInstance(getCenter())`
+        // returns `point.surroundingBox()`, an IntBox, NOT a simplex),
+        // `PolylineTrace` to the corner connection shape
+        // (`PolylineTrace.java:918-924`, null out of range), and
+        // `ConductionArea` back to the tree shape (`:359-365`).
+        let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
+        let Some(entry) = self.board.get(id) else {
+            return NeighbourEngine::tree_shape(self, object_key, shape_index);
+        };
+        match &entry.data {
+            ItemData::Pin { .. } => {
+                let center = self.board.pin_center(id)?;
+                Some(TileShape::RegularTileShape(RegularTileShape::IntBox(
+                    TileShape::surrounding_point(&center),
+                )))
+            }
+            ItemData::Via { center, .. } => {
+                let point = Point::int(*center);
+                Some(TileShape::RegularTileShape(RegularTileShape::IntBox(
+                    TileShape::surrounding_point(&point),
+                )))
+            }
+            ItemData::Trace { lines, .. } => {
+                epic_board::items::trace::connection_shape(lines, shape_index as i32)
+            }
+            ItemData::ConductionArea { .. } => {
+                NeighbourEngine::tree_shape(self, object_key, shape_index)
+            }
+            _ => NeighbourEngine::tree_shape(self, object_key, shape_index),
+        }
     }
 
     fn trace_first_or_last_parallel(
@@ -648,53 +768,53 @@ impl NeighbourEngine for Harness {
     }
 
     fn room_shape(&self, room_key: u64) -> TileShape {
-        self.rooms[self.idx_of(room_key)].shape().clone()
+        self.resolve(room_key).shape().clone()
     }
 
     fn room_layer(&self, room_key: u64) -> i32 {
-        self.rooms[self.idx_of(room_key)].layer()
+        self.resolve(room_key).layer()
     }
 
     fn room_id(&self, room_key: u64) -> i32 {
-        self.rooms[self.idx_of(room_key)].id()
+        self.resolve(room_key).id()
     }
 
     fn room_is_incomplete(&self, room_key: u64) -> bool {
-        self.rooms[self.idx_of(room_key)].is_incomplete()
+        self.resolve(room_key).is_incomplete()
     }
 
     fn room_is_obstacle(&self, room_key: u64) -> bool {
-        self.rooms[self.idx_of(room_key)].is_obstacle()
+        self.resolve(room_key).is_obstacle()
     }
 
     fn room_is_complete_free_space(&self, room_key: u64) -> bool {
-        self.rooms[self.idx_of(room_key)].is_complete_free_space()
+        self.resolve(room_key).is_complete_free_space()
     }
 
     fn room_contained_shape(&self, room_key: u64) -> Option<TileShape> {
-        self.rooms[self.idx_of(room_key)].contained_shape().cloned()
+        self.resolve(room_key).contained_shape().cloned()
     }
 
     fn room_obstacle_item_key(&self, room_key: u64) -> Option<u64> {
-        match self.rooms[self.idx_of(room_key)].kind {
+        match self.resolve(room_key).kind {
             RoomKind::Obstacle { item_key, .. } => Some(item_key),
             _ => None,
         }
     }
 
     fn room_obstacle_index_in_item(&self, room_key: u64) -> Option<u32> {
-        match self.rooms[self.idx_of(room_key)].kind {
+        match self.resolve(room_key).kind {
             RoomKind::Obstacle { index_in_item, .. } => Some(index_in_item),
             _ => None,
         }
     }
 
     fn room_has_door_to(&self, room_key: u64, other_room_id: i32) -> bool {
-        self.rooms[self.idx_of(room_key)].door_exists(other_room_id)
+        self.resolve(room_key).door_exists(other_room_id)
     }
 
     fn room_doors(&self, room_key: u64) -> Vec<ExpansionDoor> {
-        self.rooms[self.idx_of(room_key)].doors().to_vec()
+        self.resolve(room_key).doors().to_vec()
     }
 
     fn room_key_of_id(&self, id: i32) -> Option<u64> {
@@ -703,6 +823,12 @@ impl NeighbourEngine for Harness {
             .zip(&self.keys)
             .find(|(r, _)| r.id() == id)
             .map(|(_, k)| *k)
+            .or_else(|| {
+                self.graveyard
+                    .iter()
+                    .find(|(_, r)| r.id() == id)
+                    .map(|(k, _)| *k)
+            })
     }
 
     fn set_incomplete_shape(
@@ -731,6 +857,33 @@ impl NeighbourEngine for Harness {
     fn set_net_dependent(&mut self, room_key: u64) {
         self.room_mut(room_key).set_net_dependent(true);
     }
+
+    // ---- T6 seams ----
+    fn tree_variant(&self) -> SearchTreeVariant {
+        self.resolved_variant
+    }
+
+    fn remove_incomplete_room(&mut self, room_key: u64) {
+        self.remove_room(room_key);
+    }
+
+    fn flush_completed_inserts(&mut self, accepted: Option<u64>) {
+        // The inherent helper (same contract; inherent resolution
+        // wins over the trait method, so this is not recursion).
+        Harness::flush_completed_inserts(self, accepted);
+    }
+
+    fn room_target_doors(&self, room_key: u64) -> Vec<TargetItemExpansionDoor> {
+        self.resolve(room_key).target_doors().to_vec()
+    }
+
+    fn room_obstacle_doors_calculated(&self, room_key: u64) -> bool {
+        self.obstacle_doors_calculated.contains(&room_key)
+    }
+
+    fn set_room_doors_calculated(&mut self, room_key: u64) {
+        self.obstacle_doors_calculated.insert(room_key);
+    }
 }
 
 impl CompleteShapeObjects for Harness {
@@ -740,7 +893,7 @@ impl CompleteShapeObjects for Harness {
 
     fn shape_layer(&self, object_key: u64, shape_index: u32) -> i32 {
         if Self::is_room_key(object_key) {
-            return self.rooms[self.idx_of(object_key)].layer();
+            return self.resolve(object_key).layer();
         }
         self.item_layers
             .get(&(object_key, shape_index))
@@ -753,8 +906,7 @@ impl CompleteShapeObjects for Harness {
     }
 
     fn is_complete_free_space(&self, object_key: u64) -> bool {
-        Self::is_room_key(object_key)
-            && self.rooms[self.idx_of(object_key)].is_complete_free_space()
+        Self::is_room_key(object_key) && self.resolve(object_key).is_complete_free_space()
     }
 }
 
@@ -764,7 +916,11 @@ impl DrillEngine for Harness {
     }
 
     fn layer_count(&self) -> i32 {
-        4
+        // Java `board.getLayerCount()` — 4 on the T5 fixture, 2 on the
+        // T6 maze fixture (a hardcoded 4 rejects every T6 drill:
+        // calculateExpansionRooms demands completed rooms on layers the
+        // board does not have).
+        i32::try_from(self.board.layers().layers.len()).expect("layer count fits i32")
     }
 
     fn stop_flag(&self) -> Option<&std::sync::atomic::AtomicBool> {
@@ -947,73 +1103,215 @@ impl DrillEngine for Harness {
             .collect()
     }
 
-    fn complete_expansion_room(
-        &mut self,
-        room_shape: Option<&TileShape>,
-        contained_shape: &TileShape,
+    // ---- T6 seams (the maze engine's item/layer reads) ----
+    fn item_is_destination(&self, item_key: u64) -> bool {
+        // Java `!ItemAutorouteInfo.isStartInfo()`.
+        !self.start_infos.contains(&item_key)
+    }
+
+    fn set_item_start_info(&mut self, item_key: u64, start: bool) {
+        if start {
+            self.start_infos.insert(item_key);
+        } else {
+            self.start_infos.remove(&item_key);
+        }
+    }
+
+    fn item_tree_shape_count(&self, item_key: u64) -> i32 {
+        self.item_shapes
+            .get(&item_key)
+            .map_or(0, |shapes| shapes.len() as i32)
+    }
+
+    fn pin_neckdown_half_width(&self, _item_key: u64, _layer: i32) -> f64 {
+        0.0 // no neckdown in the fixture (Java default)
+    }
+
+    fn layer_is_signal(&self, _layer: i32) -> bool {
+        true // the fixture's four layers are all signal
+    }
+
+    fn drill_hits_foreign_conduction(
+        &self,
+        _location: &Point,
+        _layer: i32,
+        _net_number: i32,
+    ) -> bool {
+        false // no conduction areas in the fixture
+    }
+
+    fn pin_nearest_trace_exit_corner(
+        &self,
+        item_key: u64,
+        from_point: &FloatPoint,
+        trace_half_width: i32,
         layer: i32,
-    ) -> Vec<u64> {
-        // The drill seam always mirrors Java
-        // `new IncompleteFreeSpaceExpansionRoom(null, layer, shape)`.
-        debug_assert!(
-            room_shape.is_none(),
-            "the drill completion seam passes the null room shape"
-        );
-        // Java `completeExpansionRoom` (`AutorouteEngine.java:418-517`):
-        // a fresh null-shape room has NO doors, so the
-        // (ignoreObject, fromDoorShape) pair is (null, null). The FIRST
-        // 2-dim candidate is completed directly
-        // (`addCompleteRoom` = calculateDoors + tree insert); every
-        // SUBSEQUENT candidate is RE-COMPLETED first
-        // (`completeShape(currentIncompleteRoom, ...)` :496-498) —
-        // the first room's insertion may have consumed its region
-        // (the restraint's contained-point rule drops candidates whose
-        // contained point lies beyond every cut line), and only the
-        // recalc survivors are completed. Skipping the recalc burns an
-        // extra room id per multi-candidate completion (the probe
-        // oracle DrillSpikeProbe pins the exact burn counts).
-        let variant = self.resolved_variant;
-        let cells = self.complete_shape(None, Some(contained_shape), layer, None, None);
-        let mut completed = Vec::new();
-        let mut cell_keys = Vec::new();
-        let mut first_done = false;
-        for cell in cells {
-            if cell.shape.dimension() != 2 {
+    ) -> Option<FloatPoint> {
+        // Java `MazeExpansionEngine.expandToDrill:56-65` ->
+        // `Pin.nearestTraceExitCorner` (`Pin.java:636-668`). The probe
+        // oracle `rust/harness/oracle/MazeExitProbe.java` pinned the
+        // T6 inputs: the pad shape is the parse-dilated box
+        // [180000,280000,220000,320000] (NOT the raw 4000-wide pad
+        // polygon), `pinEdgeToTurnDist` defaults to 100000.0, the
+        // 4000x4000 pad aspect yields all four cardinal restrictions
+        // (factor 1.5 doubled for the 1-pin package), and the RIGHT
+        // exit corner is (322750, 300000) — the compare corner the
+        // DRILL capture's exp delta hangs on.
+        let id = ItemId::new(u32::try_from(item_key).expect("item key fits u32"));
+        let entry = self.board.get(id)?;
+        let ItemData::Pin {
+            pin_index,
+            padstack_no,
+        } = &entry.data
+        else {
+            return None;
+        };
+        let component_id = u32::try_from(entry.component_id).ok()?;
+        let component = self.board.components().get(component_id)?;
+        let package = self.board.library().package(component.package_no())?;
+        let package_pin = package.get_pin(*pin_index)?;
+        let padstack = self.board.library().padstack(*padstack_no)?;
+        // Java `DrillItem.firstLayer()` (`DrillItem.java:162-172`).
+        let first_layer = if component.placed_on_front() || padstack.placed_absolute {
+            padstack.from_layer() as i32
+        } else {
+            padstack.board_layer_count() as i32 - padstack.to_layer() - 1
+        };
+        let shape_index = layer - first_layer;
+        // Java `Pin.getTraceExitRestrictions(layer)` — only the
+        // DIRECTIONS reach the corner loop (`minLength` is unread), so
+        // the mirror derives directions only. Padstack shape gate:
+        // `Padstack.getTraceExitDirections` (`Padstack.java:168-195`)
+        // answers empty unless the layer shape is an IntBox or
+        // IntOctagon (a simplex pad yields no restrictions).
+        let padstack_layer = if component.placed_on_front() || padstack.placed_absolute {
+            shape_index + first_layer
+        } else {
+            padstack.board_layer_count() as i32 - shape_index - first_layer - 1
+        };
+        let raw = padstack.get_shape(usize::try_from(padstack_layer).ok()?)?;
+        let tile = match raw {
+            BoardShape::Tile(tile_shape) if !matches!(tile_shape, TileShape::Simplex(_)) => {
+                tile_shape
+            }
+            _ => return None,
+        };
+        let bounds = tile.bounding_box();
+        let width = f64::from(bounds.ur.x - bounds.ll.x);
+        let height = f64::from(bounds.ur.y - bounds.ll.y);
+        let mut pad_xy_factor = 1.5;
+        if package.pins.len() <= 3 {
+            pad_xy_factor *= 2.0; // allow the longer side also for short pads
+        }
+        let all_dirs = width.max(height) < pad_xy_factor * width.min(height);
+        let mut directions = Vec::new();
+        if all_dirs || width >= height {
+            directions.push(Direction::RIGHT);
+            directions.push(Direction::LEFT);
+        }
+        if all_dirs || width <= height {
+            directions.push(Direction::UP);
+            directions.push(Direction::DOWN);
+        }
+        // The component+package rotation arm (`Pin.java:302-313`): the
+        // 45-exact turn, else the approx angle.
+        let rotation = component.rotation_in_degree + package_pin.rotation;
+        let directions: Vec<Direction> = directions
+            .iter()
+            .map(|base| {
+                if rotation % 45.0 == 0.0 {
+                    base.clone().turn_45_degree((rotation as i32) / 45)
+                } else {
+                    Direction::get_instance_approx(rotation.to_radians() + base.angle_approx())
+                }
+            })
+            .collect();
+        if directions.is_empty() {
+            return None;
+        }
+        // `getShape(layer - firstLayer())` through the DrillItem
+        // dispatch, and the `instanceof TileShape` gate.
+        let pin_shape = self.board.drill_shape(id, shape_index)?;
+        let BoardShape::Tile(tile_shape) = pin_shape else {
+            return None;
+        };
+        let edge_to_turn_dist = self.board.rules().pin_edge_to_turn_dist;
+        if edge_to_turn_dist < 0.0 {
+            return None;
+        }
+        let offset_shape = tile_shape.offset(edge_to_turn_dist + f64::from(trace_half_width));
+        let center = self.board.pin_center(id)?;
+        // The nearest exit corner (`Pin.java:659-667`): intersect each
+        // restriction ray with the offset shape's border line, keep the
+        // corner nearest to `from_point`. (A negative border-line index
+        // is unreachable here — the direction survived the builder's
+        // identical filter — so `continue` only mirrors Java's guard.)
+        let mut best: Option<(f64, FloatPoint)> = None;
+        for direction in &directions {
+            let border_no = offset_shape.intersecting_border_line_no(&center, direction);
+            if border_no < 0 {
                 continue;
             }
-            // The candidates the recalc walks; the first branch uses a
-            // one-element list to share the insert helper.
-            let batch: Vec<epic_index::complete_shape::IncompleteRoom> = if !first_done {
-                first_done = true;
-                vec![cell]
-            } else {
-                self.complete_shape(
-                    Some(&cell.shape),
-                    Some(&cell.contained_shape),
-                    layer,
-                    None,
-                    None,
-                )
-            };
-            for tmp in batch {
-                let key = self.add_incomplete_expansion_room(
-                    tmp.shape.clone(),
-                    tmp.layer,
-                    tmp.contained_shape.clone(),
-                );
-                cell_keys.push(key);
-                let done_key = complete(self, key, variant);
-                if let Some(done_key) = done_key {
-                    completed.push(done_key);
-                }
-                self.flush_completed_inserts(done_key);
+            let ray = Line::new_with_direction(center.clone(), direction.clone());
+            let corner = ray.intersection_approx(&offset_shape.border_line(border_no));
+            let distance = corner.distance_square(from_point);
+            if best.is_none_or(|(best_distance, _)| distance < best_distance) {
+                best = Some((distance, corner));
             }
         }
-        for key in cell_keys {
-            self.remove_room(key);
-        }
-        completed
+        best.map(|(_, corner)| corner)
     }
+
+    fn item_is_trace(&self, item_key: u64) -> bool {
+        self.board
+            .get(ItemId::new(
+                u32::try_from(item_key).expect("item key fits u32"),
+            ))
+            .is_some_and(|e| matches!(e.data, ItemData::Trace { .. }))
+    }
+
+    fn item_trace_half_width(&self, item_key: u64) -> i32 {
+        self.board
+            .get(ItemId::new(
+                u32::try_from(item_key).expect("item key fits u32"),
+            ))
+            .map_or(0, |e| match &e.data {
+                ItemData::Trace { half_width, .. } => *half_width,
+                _ => 0,
+            })
+    }
+
+    fn clearance_compensation_value(&self, _clearance_class: i32, _layer: i32) -> i32 {
+        0 // the fixture routes at the default class, no compensation
+    }
+
+    fn item_shape_layer(&self, item_key: u64, shape_index: u32) -> i32 {
+        self.item_layers
+            .get(&(item_key, shape_index))
+            .copied()
+            .expect("live tree shapes carry a layer")
+    }
+
+    fn item_tree_shape_on_layer(&self, item_key: u64, layer: i32) -> Option<TileShape> {
+        let shapes = self.item_shapes.get(&item_key)?;
+        for (index, shape) in shapes.iter().enumerate() {
+            let index = u32::try_from(index).ok()?;
+            if shape.is_some() && self.item_layers.get(&(item_key, index)).copied() == Some(layer) {
+                return shape.clone();
+            }
+        }
+        None
+    }
+
+    fn trace_angle_restriction(&self) -> AngleRestriction {
+        // Tier A fixtures are 45-degree boards.
+        AngleRestriction::FortyfiveDegree
+    }
+
+    // `complete_expansion_room` — the trait DEFAULT now delegates to
+    // the PRODUCTION completion seam
+    // (`crate::maze::completion::complete_null_shape_room`); the T5
+    // probe pins verify it against the DrillSpikeProbe capture.
 }
 
 // ---- the SEAM stubs ----

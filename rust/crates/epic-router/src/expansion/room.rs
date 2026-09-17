@@ -214,6 +214,16 @@ impl ExpansionRoom {
         self.doors.push(door);
     }
 
+    /// Java `removeDoor` (`ExpansionRoom.removeDoor`) — the FIRST
+    /// equal door instance leaves the list (Java `List.remove` on
+    /// reference identity; doors between one room pair are unique in
+    /// every captured flow, so value equality picks the same door).
+    pub fn remove_door(&mut self, door: &ExpansionDoor) {
+        if let Some(index) = self.doors.iter().position(|d| d == door) {
+            self.doors.remove(index);
+        }
+    }
+
     /// Java `clearDoors` — a fresh list replaces the old one.
     pub fn clear_doors(&mut self) {
         self.doors = Vec::new();

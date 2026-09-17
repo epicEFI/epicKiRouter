@@ -15,7 +15,7 @@ use epic_geometry::tile_shape::TileShape;
 
 /// An expansion door to a target item (Java
 /// `TargetItemExpansionDoor`).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TargetItemExpansionDoor {
     /// Java `item` — the owning item key (D17).
     pub item_key: u64,

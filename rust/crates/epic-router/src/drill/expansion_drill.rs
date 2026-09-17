@@ -12,6 +12,7 @@ use super::{DrillEngine, java_ordered_entries};
 
 /// Java `ExpansionDrill` — the drill's own maze state plus the room
 /// array over `[firstLayer, lastLayer]`.
+#[derive(Clone, Debug)]
 pub struct ExpansionDrill {
     /// Java `location` (public final) — the drill anchor.
     pub location: Point,
