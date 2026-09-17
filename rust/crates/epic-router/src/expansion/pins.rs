@@ -2216,7 +2216,7 @@ fn room_triple(room: &IncompleteRoom) -> (&'static str, [i32; 8], usize, i32) {
 /// is pinned by the `compare_to_diagonal_band_signs` unit test in
 /// neighbours_forty_five instead.
 #[test]
-fn forty_five_orientation_sides_four_to_seven() {
+fn forty_five_orientation_walk_order() {
     let battery = run_battery(2, f_engine_class(), board_oct_tile(), f_contained());
 
     // F1: the walk order around room 3's diagonal sides.

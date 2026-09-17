@@ -50,8 +50,14 @@
 //!   interact (overlapping keepouts, compensated-shape overlaps).
 //! * Both arms reassign a `boundingShape`/`newBoundingShape` variable
 //!   inside the obstacle loop (union-accumulated over the result
-//!   rooms). The DFS that reads it has already finished, so it is
-//!   never read after reassignment — dead state, not ported.
+//!   rooms). The BASE arm's leaf DFS has finished by then — dead
+//!   state there; the 45-degree DFS READS the accumulated union
+//!   afterwards to narrow the search hull (Java `:157` read after the
+//!   `:264` write). The port omits the narrowing — RESULT-EQUIVALENT,
+//!   not dead: rooms only SHRINK as obstacles are processed, so an
+//!   object disjoint from the current rooms' union can never
+//!   intersect a later (smaller) room — the restraint the narrowing
+//!   would skip is a no-op.
 //! * `FRLogger` diagnostics (warn/debug/trace, incl. the
 //!   `COMPLETE_SHAPE_BLOCKED` trace at
 //!   `ShapeSearchTree45Degree.java:248-262`) are non-functional and

@@ -23,20 +23,20 @@
 //!   (`fsRoom.calculateTargetDoors(currentEntry, ...)`, `:122-126`,
 //!   which calls `setNetDependent()` for EVERY non-obstacle entry)
 //!   instead of deferred to the end;
-//! * a 2-dim overlap NEVER admits an ITEM as a walk neighbour (only
-//!   the same-net overlap door of an obstacle-completed room is
-//!   created, then continue — `:132-148`), unlike the base sorter's
-//!   unconditional 2-dim continue for BOTH kinds; ROOM entries still
-//!   fall through to `addSortedNeighbour` (the F2 room 6 / room 3
-//!   door is dimension 2 — capture-proven);
-//! * `tryRemoveEdgeLine` shrinks ALL non-touching border lines at
-//!   once (`removeNotTouchingBorderLines`) — except a border line the
-//!   room's CONTAINED shape touches by coordinate equality, which
-//!   survives the shrink (capture witness: F2 room 6 keeps right_x =
-//!   197929 and the upper-right diagonal 620000 through two restarts,
-//!   ids 4/5 burned, though no walk entry marks those sides) — and
-//!   passes the biggest 2-dim complete-free-space door as the ignore
-//!   pair to `completeShape` (`:373-401`).
+//! * a 2-dim overlap `continue`s for BOTH items and rooms — but ONLY
+//!   when the COMPLETED room is an obstacle room (`:132-143`); when it
+//!   is free space (every routed completion), 2-dim overlaps fall
+//!   through to `addSortedNeighbour` + door creation (the F2 room 6 /
+//!   room 3 door is a dimension-2 ROOM overlap — capture-proven);
+//! * `tryRemoveEdgeLine` shrinks ALL border lines whose interior the
+//!   walk left obstacle-free (`removeNotTouchingBorderLines`,
+//!   `:174-243` — the `edgeInteriorTouchesObstacle` flags exclusively;
+//!   Java has NO contained-shape survival) and passes the biggest
+//!   2-dim complete-free-space door as the ignore pair to
+//!   `completeShape` (`:373-401`) — the restraint of the enlarged
+//!   shape at the tree shapes is what keeps the F2 restart room
+//!   bounded (right_x = 197929, upper-right diagonal 620000 through
+//!   two restarts, ids 4/5 burned).
 
 use epic_geometry::int_octagon::IntOctagon;
 use epic_geometry::limits::CRIT_INT;
@@ -142,49 +142,49 @@ fn calculate_neighbours(
             .expect("a live tree shape has a bounding octagon");
         let intersection = room_oct.intersection(&current_oct);
         let dimension = octagon_dimension(&intersection);
-        if dimension > 1 {
-            // 2-dim overlaps: ITEM neighbours never become walk
-            // neighbours. Capture witness (F2, first attempt): the
-            // NET_A pad lies strictly inside the from-room octagon
-            // (poking out of the upper-right diagonal side only), yet
-            // the capture restarts twice — ids 4 and 5 burn before the
-            // completed id 6 — so the pad must not mark that side as
-            // covered. Only the same-net overlap door of an
-            // obstacle-completed room is created. ROOM entries fall
-            // through: complete free-space rooms legitimately 2-dim
-            // overlap (the F2 room 6 / room 3 door is dimension 2).
-            if ctx.is_item(current_entry.object_key) {
-                if ctx.room_is_obstacle(completed_room)
-                    && ctx.item_is_routable(current_entry.object_key)
-                    && let Some(current_overlap_room) = ctx.item_expansion_room(
-                        current_entry.object_key,
-                        current_entry.shape_index_in_object,
-                    )
-                {
-                    create_overlap_door(ctx, completed_room, current_overlap_room);
-                }
-                continue;
+        if dimension > 1 && ctx.room_is_obstacle(completed_room) {
+            // Java :132-143 — the 2-dim `continue` is gated on the
+            // COMPLETED room kind, not on the entry kind: behind an
+            // ObstacleExpansionRoom, items AND rooms are both skipped
+            // (only a routable same-net ITEM receives its overlap door
+            // first); with a free-space completed room (every routed
+            // completion) 2-dim overlaps fall through to
+            // addSortedNeighbour (the F2 room 6 / room 3 door is a
+            // dimension-2 room overlap — capture-proven).
+            if ctx.is_item(current_entry.object_key)
+                && ctx.item_is_routable(current_entry.object_key)
+                && let Some(current_overlap_room) = ctx.item_expansion_room(
+                    current_entry.object_key,
+                    current_entry.shape_index_in_object,
+                )
+            {
+                create_overlap_door(ctx, completed_room, current_overlap_room);
             }
+            continue;
         }
         if dimension < 0 {
             // may happen at a corner from 2 diagonal lines with non
             // integer coordinates (--.5, ---.5).
             continue;
         }
-        result.add_sorted_neighbour(current_oct, intersection);
+        result.add_sorted_neighbour(
+            current_oct,
+            intersection,
+            ctx.object_id(current_entry.object_key),
+        );
         if dimension > 0 {
             // Walk-time DOORS attach to completed free-space room
-            // neighbours ONLY. Capture witness (F1/F2): NONE of the 27
+            // neighbours ONLY — the Java text resolves it: the door
+            // arm tests `treeObjectRoom` + free space and has no
+            // obstacle branch. Capture witness (F1/F2): NONE of the 27
             // captured door rows has an obstacle-room endpoint, and no
             // obstacle expansion room is ever created during the 45
             // walk (F2's room 6 top edge = the pad's bottom border at
             // y = 495000 comes from completeShape's restraint at the
             // pad ITEM's tree shape, not from an obstacle room). Items
             // enter the 45 graph via target doors (own net) and
-            // create_overlap_door (same-net 2-dim overlaps) instead.
-            // (A gate of "obstacle doors only for PolylineTrace
-            // obstacles" would fit the rows too but is not
-            // discriminable here: the fixture has no trace items.)
+            // create_overlap_door (obstacle-completed 2-dim overlaps)
+            // instead.
             if let Some(neighbour_room) = ctx.tree_object_room(current_entry.object_key)
                 && ctx.room_is_complete_free_space(neighbour_room)
                 && insert_door_ok_pair(
@@ -253,55 +253,51 @@ fn calculate_target_doors(
 }
 
 /// Java `removeNotTouchingBorderLines` (`:174-243`) — unbounded half
-/// planes replace every border line whose interior is obstacle-free.
-/// A border line the room's CONTAINED shape touches by coordinate
-/// equality survives (`contained_touches`), capture witness (F2): the
-/// completed room 6 keeps right_x = 197929 and upper-right diagonal
-/// 620000 through TWO restarts (ids 4, 5 burn; the F2_COMPLETED pin)
-/// although no walk entry ever marks sides 2/3 — the restart room's
-/// contained shape (the room-3 door d0 octagon, F2_ROOM6_DOORS[0])
-/// touches the attempt-1 cell exactly on sides 1-4 by equality.
+/// planes replace every border line whose interior the walk left
+/// obstacle-free. The `edge_interior_touches_obstacle` flags are the
+/// ONLY survival criterion; Java has NO contained-shape survival (the
+/// restart room's containment comes from the tryRemoveEdgeLine ignore
+/// pair plus the completeShape restraint of the enlarged shape).
 fn remove_not_touching_border_lines(
     room_oct: &IntOctagon,
     edge_interior_touches_obstacle: &[bool; 8],
-    contained_touches: &[bool; 8],
 ) -> IntOctagon {
-    let left_x = if edge_interior_touches_obstacle[6] || contained_touches[6] {
+    let left_x = if edge_interior_touches_obstacle[6] {
         room_oct.left_x
     } else {
         -CRIT_INT
     };
-    let bottom_y = if edge_interior_touches_obstacle[0] || contained_touches[0] {
+    let bottom_y = if edge_interior_touches_obstacle[0] {
         room_oct.bottom_y
     } else {
         -CRIT_INT
     };
-    let right_x = if edge_interior_touches_obstacle[2] || contained_touches[2] {
+    let right_x = if edge_interior_touches_obstacle[2] {
         room_oct.right_x
     } else {
         CRIT_INT
     };
-    let top_y = if edge_interior_touches_obstacle[4] || contained_touches[4] {
+    let top_y = if edge_interior_touches_obstacle[4] {
         room_oct.top_y
     } else {
         CRIT_INT
     };
-    let upper_left_diagonal_x = if edge_interior_touches_obstacle[5] || contained_touches[5] {
+    let upper_left_diagonal_x = if edge_interior_touches_obstacle[5] {
         room_oct.upper_left_diagonal_x
     } else {
         -CRIT_INT
     };
-    let lower_right_diagonal_x = if edge_interior_touches_obstacle[1] || contained_touches[1] {
+    let lower_right_diagonal_x = if edge_interior_touches_obstacle[1] {
         room_oct.lower_right_diagonal_x
     } else {
         CRIT_INT
     };
-    let lower_left_diagonal_x = if edge_interior_touches_obstacle[7] || contained_touches[7] {
+    let lower_left_diagonal_x = if edge_interior_touches_obstacle[7] {
         room_oct.lower_left_diagonal_x
     } else {
         -CRIT_INT
     };
-    let upper_right_diagonal_x = if edge_interior_touches_obstacle[3] || contained_touches[3] {
+    let upper_right_diagonal_x = if edge_interior_touches_obstacle[3] {
         room_oct.upper_right_diagonal_x
     } else {
         CRIT_INT
@@ -333,12 +329,18 @@ impl FortyfiveRoomNeighbours {
     /// Java `addSortedNeighbour` (`:245-252`) — entries whose sorting
     /// failed (`lastTouchingSide == -1`, room contained in the
     /// neighbour) are NOT added.
-    fn add_sorted_neighbour(&mut self, neighbour_shape: IntOctagon, intersection: IntOctagon) {
+    fn add_sorted_neighbour(
+        &mut self,
+        neighbour_shape: IntOctagon,
+        intersection: IntOctagon,
+        object_id: i32,
+    ) {
         let neighbour = FortyfiveSortedRoomNeighbour::new(
             neighbour_shape,
             intersection,
             &self.room_shape,
             &mut self.edge_interior_touches_obstacle,
+            object_id,
         );
         if neighbour.last_touching_side >= 0 {
             self.sorted_neighbours
@@ -376,33 +378,16 @@ impl FortyfiveRoomNeighbours {
         // Touching neighbour missing at the edge side with index
         // removeEdgeNo. Remove the edge line and restart the
         // algorithm. (The ROOM_EDGE_REMOVE traces, `:343-371`, are
-        // diagnostic and omitted.)
-        // The contained shape must be fetched before the enlargement:
-        // its border-line equalities survive the shrink (see
-        // `remove_not_touching_border_lines` for the capture witness).
+        // diagnostic and omitted.) The contained shape is only the
+        // completeShape containment argument: the enlarged shape's
+        // border survival comes solely from the walk's edge flags and
+        // the restraint at the tree shapes — Java has no
+        // contained-touch survival check.
         let Some(contained) = ctx.room_contained_shape(self.from_room) else {
             return false;
         };
-        let contained_touches = contained
-            .bounding_octagon()
-            .map(|contained_oct| {
-                [
-                    contained_oct.bottom_y == room_oct.bottom_y,
-                    contained_oct.lower_right_diagonal_x == room_oct.lower_right_diagonal_x,
-                    contained_oct.right_x == room_oct.right_x,
-                    contained_oct.upper_right_diagonal_x == room_oct.upper_right_diagonal_x,
-                    contained_oct.top_y == room_oct.top_y,
-                    contained_oct.upper_left_diagonal_x == room_oct.upper_left_diagonal_x,
-                    contained_oct.left_x == room_oct.left_x,
-                    contained_oct.lower_left_diagonal_x == room_oct.lower_left_diagonal_x,
-                ]
-            })
-            .unwrap_or([false; 8]);
-        let enlarged_oct = remove_not_touching_border_lines(
-            &room_oct,
-            &self.edge_interior_touches_obstacle,
-            &contained_touches,
-        );
+        let enlarged_oct =
+            remove_not_touching_border_lines(&room_oct, &self.edge_interior_touches_obstacle);
 
         // Java :373-394 — the biggest 2-dim door to a completed
         // free-space room becomes the ignore pair of completeShape.
@@ -955,6 +940,9 @@ pub(crate) struct FortyfiveSortedRoomNeighbour {
     first_touching_side: i32,
     /// Java `lastTouchingSide`.
     last_touching_side: i32,
+    /// Java `searchTreeObject.getId()` — the compareTo tie-break after
+    /// equal geometry (Java `:975-978`).
+    object_id: i32,
 }
 
 impl FortyfiveSortedRoomNeighbour {
@@ -962,14 +950,18 @@ impl FortyfiveSortedRoomNeighbour {
     /// detection against the room octagon plus the
     /// `edgeInteriorTouchesObstacle` updates. `room_shape` is the
     /// sorter's `completedRoom.getShape().boundingOctagon()`.
-    /// NOTE no object-id tie-break: Java's `TreeSet` DROPS
-    /// comparator-equal entries ("only 1 obstacle is needed"), so the
-    /// port must return `Ordering::Equal` for identical geometry too.
+    /// NOTE the comparator ends in the object-id tie-break (Java
+    /// `:975-978`), so comparator-equal now means same object id AND
+    /// identical geometry — a duplicate tree shape of ONE object —
+    /// and Java's `TreeSet` still DROPS such entries ("only 1
+    /// obstacle is needed"); the port must return `Ordering::Equal`
+    /// there too.
     fn new(
         shape: IntOctagon,
         intersection: IntOctagon,
         room_shape: &IntOctagon,
         edge_interior_touches_obstacle: &mut [bool; 8],
+        object_id: i32,
     ) -> Self {
         let is = &intersection;
         let first_touching_side = if is.bottom_y == room_shape.bottom_y
@@ -1011,6 +1003,7 @@ impl FortyfiveSortedRoomNeighbour {
                 intersection,
                 first_touching_side: -1,
                 last_touching_side: -1,
+                object_id,
             };
         };
 
@@ -1027,24 +1020,21 @@ impl FortyfiveSortedRoomNeighbour {
         {
             5
         } else if is.top_y == room_shape.top_y
-            && is.upper_right_diagonal_x == room_shape.upper_right_diagonal_x
+            && is.upper_left_diagonal_x > room_shape.upper_left_diagonal_x
         {
-            // Capture witness (F2, every walk on the W1/W2/W3 room
-            // shapes): the NET_A pad's overlap is a degenerate
-            // horizontal segment ON the top border (y = 495000, x in
-            // [75000, 125000]) whose upper-right corner EQUALS the
-            // room's top-right corner (620000) — and that equality is
-            // walk-invariant (pad ∩ room depends only on the room's
-            // top/ur/lr, identical in all three walks), so the pad
-            // cannot be accepted in the final walk but rejected in the
-            // restart walks. The ur-equality arm accepts exactly the
-            // at-the-corner top touch: the boundary-keepout segment
-            // (ur 500100 < 620000) falls through to the bottom arm in
-            // walk 1 ((4,0)) and the ll arm in walk 2 ((4,7)),
-            // preserving the capture's two-restart chain (ids 4, 5
-            // burn). Without the entry the capture's top-left wedge
-            // room (-1219568412, bounded by the pad's lower-left
-            // diagonal through (75000, 495000)) is never inserted.
+            // Java :871-873 — the last chain's top-side arm: equality
+            // on the side's own line plus the NEXT side's bounding
+            // coordinate strictly past the room's (the same predicate
+            // shape as arms 7/6/5 above). Capture witness (F2, every
+            // walk on the W1/W2/W3 room shapes): the NET_A pad's
+            // degenerate top-border overlap (y = 495000, x in
+            // [75000, 125000]) fires this arm — ulx -420000 > room
+            // ulx -489900 — with last_touching_side 4, while the
+            // boundary-keepout segment fails the strict ulx test and
+            // falls through to the lower arms, preserving the
+            // capture's two-restart chain (ids 4, 5 burn) and the
+            // top-left wedge room (-1219568412, bounded by the pad's
+            // lower-left diagonal through (75000, 495000)).
             4
         } else if is.upper_right_diagonal_x == room_shape.upper_right_diagonal_x
             && is.top_y < room_shape.top_y
@@ -1069,6 +1059,7 @@ impl FortyfiveSortedRoomNeighbour {
                 intersection,
                 first_touching_side: -1,
                 last_touching_side: -1,
+                object_id,
             };
         };
 
@@ -1077,6 +1068,7 @@ impl FortyfiveSortedRoomNeighbour {
             intersection,
             first_touching_side,
             last_touching_side,
+            object_id,
         };
 
         // Java :892-915 — mark the border sides whose INTERIOR the
@@ -1113,6 +1105,9 @@ impl FortyfiveSortedRoomNeighbour {
     /// Java `compareTo` (`:923-980`) — the counterclockwise order.
     /// Sides 0-3 ASCEND along the walk direction; sides 4-7 carry the
     /// REVERSED corner sign (is2 - is1) — do not "fix" the asymmetry.
+    /// Geometry-equal neighbours fall through to the object-id
+    /// tie-break (`:975-978`); every subtraction is a wrapping Java
+    /// `int` operation.
     fn compare_to(&self, other: &Self) -> Ordering {
         if self.first_touching_side > other.first_touching_side {
             return Ordering::Greater;
@@ -1125,14 +1120,14 @@ impl FortyfiveSortedRoomNeighbour {
         let is1 = &self.intersection;
         let is2 = &other.intersection;
         let mut cmp_value: i32 = match self.first_touching_side {
-            0 => is1.corner(0).x - is2.corner(0).x,
-            1 => is1.corner(1).x - is2.corner(1).x,
-            2 => is1.corner(2).y - is2.corner(2).y,
-            3 => is1.corner(3).y - is2.corner(3).y,
-            4 => is2.corner(4).x - is1.corner(4).x,
-            5 => is2.corner(5).x - is1.corner(5).x,
-            6 => is2.corner(6).y - is1.corner(6).y,
-            7 => is2.corner(7).y - is1.corner(7).y,
+            0 => is1.corner(0).x.wrapping_sub(is2.corner(0).x),
+            1 => is1.corner(1).x.wrapping_sub(is2.corner(1).x),
+            2 => is1.corner(2).y.wrapping_sub(is2.corner(2).y),
+            3 => is1.corner(3).y.wrapping_sub(is2.corner(3).y),
+            4 => is2.corner(4).x.wrapping_sub(is1.corner(4).x),
+            5 => is2.corner(5).x.wrapping_sub(is1.corner(5).x),
+            6 => is2.corner(6).y.wrapping_sub(is1.corner(6).y),
+            7 => is2.corner(7).y.wrapping_sub(is1.corner(7).y),
             _ => 0, // Java :945-948 — warn "out of range"; equal.
         };
 
@@ -1152,16 +1147,21 @@ impl FortyfiveSortedRoomNeighbour {
             }
             // now the last touch of this and other is at the same side
             cmp_value = match self.last_touching_side {
-                0 => is1.corner(1).x - is2.corner(1).x,
-                1 => is1.corner(2).x - is2.corner(2).x,
-                2 => is1.corner(3).y - is2.corner(3).y,
-                3 => is1.corner(4).y - is2.corner(4).y,
-                4 => is2.corner(5).x - is1.corner(5).x,
-                5 => is2.corner(6).x - is1.corner(6).x,
-                6 => is2.corner(7).y - is1.corner(7).y,
-                7 => is2.corner(0).y - is1.corner(0).y,
+                0 => is1.corner(1).x.wrapping_sub(is2.corner(1).x),
+                1 => is1.corner(2).x.wrapping_sub(is2.corner(2).x),
+                2 => is1.corner(3).y.wrapping_sub(is2.corner(3).y),
+                3 => is1.corner(4).y.wrapping_sub(is2.corner(4).y),
+                4 => is2.corner(5).x.wrapping_sub(is1.corner(5).x),
+                5 => is2.corner(6).x.wrapping_sub(is1.corner(6).x),
+                6 => is2.corner(7).y.wrapping_sub(is1.corner(7).y),
+                7 => is2.corner(0).y.wrapping_sub(is1.corner(0).y),
                 _ => 0,
             };
+        }
+        if cmp_value == 0 {
+            // Java :975-978 — the object-id tie-break after equal
+            // geometry (Java int subtraction, wrapping).
+            cmp_value = self.object_id.wrapping_sub(other.object_id);
         }
         cmp_value.cmp(&0)
     }
@@ -1209,6 +1209,7 @@ mod tests {
             intersection: shape,
             first_touching_side: first,
             last_touching_side: last,
+            object_id: 0,
         }
     }
 
@@ -1243,237 +1244,23 @@ mod tests {
         );
     }
 
-    /// The contained-touch restart pin (bug-118, review round): a
-    /// border line the restart room's CONTAINED shape touches by
-    /// coordinate equality survives `remove_not_touching_border_lines`
-    /// even though NO walk entry marks it (edge flags all false). The
-    /// capture flow cannot show this any more — after the bug-112
-    /// side-4 fix the corrected four-entry walk never leaves a
-    /// contained-touched side unmarked (the neutralized revert
-    /// survived every gate) — so this crafted scenario is the only
-    /// observable: side 2 (right_x) of the enlarged shape must stay
-    /// at 500000, while a neutralized `contained_touches` unbounds it
-    /// to the board edge (1000000).
+    /// The object-id tie-break pin (MINOR-4, quality round): geometry
+    /// -equal neighbours with DIFFERENT object ids order by id (Java
+    /// `:975-978`), while identical ids on identical geometry compare
+    /// Equal — the condition under which Java's `TreeSet` drops a
+    /// duplicate tree shape of ONE object ("only 1 obstacle is
+    /// needed").
     #[test]
-    fn contained_touch_survives_the_restart_shrink() {
-        use epic_geometry::int_box::IntBox;
-        use epic_geometry::int_point::IntPoint;
-        use epic_geometry::line::Line;
-        use epic_index::complete_shape::IncompleteRoom;
-        use std::cell::RefCell;
-
-        use crate::expansion::target_door::TargetItemExpansionDoor;
-
-        /// A minimal engine exposing exactly what
-        /// `try_remove_edge_line` reads: one incomplete octagon room
-        /// with a contained shape, no doors, and a `completeShape`
-        /// that mirrors the real engine's board restraint (the
-        /// enlarged shape returned verbatim inside the board box).
-        struct ContainedTouchEngine {
-            room_shape: TileShape,
-            contained_shape: TileShape,
-            set_shape_calls: RefCell<Vec<TileShape>>,
-        }
-
-        impl NeighbourEngine for ContainedTouchEngine {
-            fn net_number(&self) -> i32 {
-                1
-            }
-            fn generate_room_id_no(&mut self) -> i32 {
-                1
-            }
-            fn board_bounding_octagon(&self) -> IntOctagon {
-                IntOctagon::new(
-                    -1_000_000, -1_000_000, 1_000_000, 1_000_000, -2_000_000, 2_000_000,
-                    -2_000_000, 2_000_000,
-                )
-                .normalize()
-            }
-            fn add_incomplete_expansion_room(
-                &mut self,
-                _shape: TileShape,
-                _layer: i32,
-                _contained_shape: TileShape,
-            ) -> u64 {
-                panic!("unused by the contained-touch pin")
-            }
-            fn remove_all_doors(&mut self, _room_key: u64) {
-                panic!("unused by the contained-touch pin")
-            }
-            fn add_complete_free_space_room(
-                &mut self,
-                _shape: TileShape,
-                _layer: i32,
-                _id: i32,
-            ) -> u64 {
-                panic!("unused by the contained-touch pin")
-            }
-            fn overlapping_entries(&mut self, _shape: &TileShape, _layer: i32) -> Vec<TreeEntry> {
-                panic!("unused by the contained-touch pin")
-            }
-            fn object_id(&self, _object_key: u64) -> i32 {
-                0
-            }
-            fn is_trace_obstacle(&self, _object_key: u64, _net_number: i32) -> bool {
-                false
-            }
-            fn tree_shape(&self, _object_key: u64, _shape_index: u32) -> Option<TileShape> {
-                None
-            }
-            fn complete_shape(
-                &mut self,
-                room_shape: Option<&TileShape>,
-                contained: Option<&TileShape>,
-                layer: i32,
-                _ignore_object: Option<u64>,
-                _ignore_shape: Option<&TileShape>,
-            ) -> Vec<IncompleteRoom> {
-                let board = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
-                    IntPoint::new(-1_000_000, -1_000_000),
-                    IntPoint::new(1_000_000, 1_000_000),
-                )));
-                let shape = room_shape
-                    .expect("enlarged room shape passed")
-                    .intersection(&board);
-                let contained = contained
-                    .expect("contained shape passed")
-                    .intersection(&board);
-                vec![IncompleteRoom {
-                    shape,
-                    layer,
-                    contained_shape: contained,
-                }]
-            }
-            fn tree_object_room(&self, _object_key: u64) -> Option<u64> {
-                None
-            }
-            fn is_item(&self, _object_key: u64) -> bool {
-                false
-            }
-            fn item_is_routable(&self, _object_key: u64) -> bool {
-                false
-            }
-            fn item_is_connectable(&self, _object_key: u64) -> bool {
-                false
-            }
-            fn item_contains_net(&self, _object_key: u64, _net_number: i32) -> bool {
-                false
-            }
-            fn item_shares_net(&self, _first_key: u64, _second_key: u64) -> bool {
-                false
-            }
-            fn item_is_polyline_trace(&self, _object_key: u64) -> bool {
-                false
-            }
-            fn item_expansion_room(&mut self, _object_key: u64, _shape_index: u32) -> Option<u64> {
-                None
-            }
-            fn trace_connection_shape(
-                &self,
-                _object_key: u64,
-                _shape_index: u32,
-            ) -> Option<TileShape> {
-                None
-            }
-            fn trace_first_or_last_parallel(
-                &self,
-                _item_key: u64,
-                _index_in_item: u32,
-                _door_line: &Line,
-            ) -> Option<bool> {
-                None
-            }
-            fn room_shape(&self, _room_key: u64) -> TileShape {
-                self.room_shape.clone()
-            }
-            fn room_layer(&self, _room_key: u64) -> i32 {
-                0
-            }
-            fn room_id(&self, _room_key: u64) -> i32 {
-                7
-            }
-            fn room_is_incomplete(&self, _room_key: u64) -> bool {
-                true
-            }
-            fn room_is_obstacle(&self, _room_key: u64) -> bool {
-                false
-            }
-            fn room_is_complete_free_space(&self, _room_key: u64) -> bool {
-                false
-            }
-            fn room_contained_shape(&self, _room_key: u64) -> Option<TileShape> {
-                Some(self.contained_shape.clone())
-            }
-            fn room_obstacle_item_key(&self, _room_key: u64) -> Option<u64> {
-                None
-            }
-            fn room_obstacle_index_in_item(&self, _room_key: u64) -> Option<u32> {
-                None
-            }
-            fn room_has_door_to(&self, _room_key: u64, _other_room_id: i32) -> bool {
-                false
-            }
-            fn room_doors(&self, _room_key: u64) -> Vec<ExpansionDoor> {
-                Vec::new()
-            }
-            fn room_key_of_id(&self, _id: i32) -> Option<u64> {
-                None
-            }
-            fn set_incomplete_shape(
-                &mut self,
-                _room_key: u64,
-                shape: TileShape,
-                _contained_shape: TileShape,
-            ) {
-                self.set_shape_calls.borrow_mut().push(shape);
-            }
-            fn set_room_shape(&mut self, _room_key: u64, _shape: TileShape) {
-                panic!("unused by the contained-touch pin")
-            }
-            fn attach_door(&mut self, _room_key: u64, _door: ExpansionDoor) {
-                panic!("unused by the contained-touch pin")
-            }
-            fn add_target_door(&mut self, _room_key: u64, _door: TargetItemExpansionDoor) {
-                panic!("unused by the contained-touch pin")
-            }
-            fn set_net_dependent(&mut self, _room_key: u64) {
-                panic!("unused by the contained-touch pin")
-            }
-        }
-
-        // An exact-rectangle room octagon; the contained box touches
-        // it ONLY on side 2 (right_x = 500000; every other coordinate
-        // strictly inside).
-        let room_oct =
-            IntOctagon::new(0, 0, 500_000, 400_000, -400_000, 500_000, 0, 900_000).normalize();
-        let room_shape = oct_tile(&room_oct);
-        let contained_shape = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
-            IntPoint::new(100_000, 100_000),
-            IntPoint::new(500_000, 300_000),
-        )));
-        let mut ctx = ContainedTouchEngine {
-            room_shape: room_shape.clone(),
-            contained_shape,
-            set_shape_calls: RefCell::new(Vec::new()),
-        };
-        let sorter = FortyfiveRoomNeighbours {
-            from_room: 1,
-            completed_room: 2,
-            room_shape: room_oct,
-            sorted_neighbours: SortedNeighbours::default(),
-            edge_interior_touches_obstacle: [false; 8],
-        };
-        assert!(
-            sorter.try_remove_edge_line(&mut ctx),
-            "every side is unmarked: the restart must fire"
-        );
-        let enlarged = &ctx.set_shape_calls.borrow()[0];
-        let TileShape::RegularTileShape(RegularTileShape::IntOctagon(oct)) = enlarged else {
-            panic!("the enlarged room shape is an octagon");
-        };
+    fn compare_to_object_id_tie_break() {
+        let low = neighbour_at(neighbour_oct(100, 0, 300, 200), 0, 0);
+        let mut high = neighbour_at(neighbour_oct(100, 0, 300, 200), 0, 0);
+        high.object_id = 5;
+        assert_eq!(low.compare_to(&high), Ordering::Less, "id 0 < id 5");
+        assert_eq!(high.compare_to(&low), Ordering::Greater, "id 5 > id 0");
         assert_eq!(
-            oct.right_x, 500_000,
-            "the contained-touched side-2 border survives the shrink"
+            low.compare_to(&neighbour_at(neighbour_oct(100, 0, 300, 200), 0, 0)),
+            Ordering::Equal,
+            "same id, identical geometry: Equal (TreeSet drop)"
         );
     }
 }
