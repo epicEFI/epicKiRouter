@@ -1680,8 +1680,12 @@ impl NeighbourEngine for Harness {
     }
 
     fn trace_connection_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {
-        // Java Pin/Via getTraceConnectionShape is the tree shape;
-        // the fixture only target-doors pads.
+        // NOTE: Java DrillItem.getTraceConnectionShape
+        // (`DrillItem.java:358-361`) is the degenerate point box at the
+        // item center, NOT the tree shape — the real four-arm dispatch is
+        // ported in the T6 harness (`drill/pins.rs`); this T4-side stub
+        // keeps the raw tree shape (the T4 fixture's target doors only
+        // sit on pads).
         NeighbourEngine::tree_shape(self, object_key, shape_index)
     }
 

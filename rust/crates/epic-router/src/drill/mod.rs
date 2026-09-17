@@ -221,7 +221,7 @@ pub trait DrillEngine: NeighbourEngine {
     }
     /// Java `board.checkForcedTracePolyline(polyline, halfWidth, layer,
     /// netNumbers, clearanceClass, shoveDepths...)` (`expandToTargetDoors
-    /// :683-693`) — the thin-room target-door legality probe. SEAM (T7):
+    /// :681-689`) — the thin-room target-door legality probe. SEAM (T7):
     /// the stub answers "legal" (empty board space); the T6 fixtures
     /// keep target expansion inside thick rooms, where Java skips the
     /// check entirely. T7 widens the signature when the real check lands.

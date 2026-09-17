@@ -250,8 +250,9 @@ pub trait NeighbourEngine {
     /// tree; the port needs the variant to pick the 45-degree sorter.
     fn tree_variant(&self) -> epic_index::SearchTreeVariant;
     /// Java `AutorouteEngine.removeIncompleteExpansionRoom`
-    /// (`:355-367`) — drop the room from the registry (the completion
-    /// flow removes the consumed incomplete room).
+    /// (`:368`; `:355-367` is `getFirstIncompleteExpansionRoom`) —
+    /// drop the room from the registry (the completion flow removes
+    /// the consumed incomplete room).
     fn remove_incomplete_room(&mut self, room_key: u64);
     /// Java `addCompleteRoom`'s tail (`:534-535`): the accepted
     /// completed room is INSERTED into the search tree; the restart

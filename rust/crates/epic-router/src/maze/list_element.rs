@@ -81,13 +81,16 @@ pub enum ExpandableObject {
 /// DEVIATION (front tie-break 2): Java's `TreeSet` comparator reads
 /// `door.getId()` LIVE on every comparison, and `DrillPage.getId()`
 /// changes when `getDrills` first memoizes the page's net
-/// (`netNumber` goes -1 → net). A `BTreeSet` needs a stable key, so
-/// the Rust element freezes the id AS OF THE ADD — exact whenever the
-/// memo state does not change while an element of that page sits in
-/// the front (the Java side of that window is itself
-/// comparator-invalidation territory: a `TreeSet` with a mutated
-/// key no longer maintains its invariant). Pin suites must not
-/// compare pre-memo page elements against post-memo insertions.
+/// (`netNumber` goes -1 → net; bug-128). A `BTreeSet` needs a stable
+/// key, so the Rust element freezes the id AS OF THE ADD. The
+/// ordering-invariance proof covers PAGE-VS-PAGE pairs only (the net
+/// term cancels there). A page-vs-nonpage exact-f64 tie CAN resolve
+/// differently — but that window is Java's comparator-invalidation
+/// territory (`getId` mutates on first `getDrills` memoization while
+/// the element sits in the `TreeSet`: ordering unspecified there), so
+/// freeze-at-add cannot diverge from DEFINED Java semantics. Pin
+/// suites must not compare pre-memo page elements against post-memo
+/// insertions.
 impl ExpandableObject {
     /// Java `ExpandableObject.getDimension()` — 2 for target doors,
     /// pages and drills; the door's dimension for room doors. (Java
