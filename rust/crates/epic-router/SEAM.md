@@ -123,3 +123,29 @@ consumes (~160) gives ~1,035 lines of port-bearing shove logic. **No split —
 T10 stays one task** (TraceShover + the minimal pull-tight trio
 `TraceTightener`/`45`/`90`, 2,390 lines combined, with
 `TraceTightenerAnyAngle` deferred).
+
+## T5 drill seams (appended by M3-T5)
+
+The drill port (`autoroute/drill/` + `MazeExpansionEngine.expandToOtherLayers`)
+exposes three Rust traits whose production backing is OUT of scope for T5.
+The oracle-backed pins (`epic-router/src/drill/pins.rs`) run all three as
+stubs whose behavior is FORCED by the capture rows (see the pins module doc).
+
+| Rust seam trait | Java backing | Anchor | Lands with |
+|---|---|---|---|
+| `drill::ViaLayerChecker` (`check_layer`) | `ForcedViaInserter.checkLayer` — the deep per-layer via legality probe (radius/clearance/keepout/attach), static | `ForcedViaInserter.java:30-130`, called from `MazeExpansionEngine.checkLayerWithAnyMatchingVia` at `MazeExpansionEngine.java:391` | T10 (ForcedViaInserter, NEW port row above) |
+| `drill::DestinationDistance` (`calculate`) | `DestinationDistance` — CONCRETE class in the current tree (NOT a v1.9-style interface): lower-bound heuristic over the joined destination boxes (`join`/`calculate(IntBox, int)`); an empty join set returns `Integer.MAX_VALUE` — exactly the capture's targetless 2147483647.0 | `autoroute/maze/DestinationDistance.java` (391 lines, whole class); constructed `MazeSearchEngine.java:126-127`, boxes joined `:983-991`, call sites `MazeExpansionEngine.java:87/128/358` | T8 (destination machinery) |
+| `drill::expand_to_other_layers` emit callback (`DrillMazeListElement`) | the producer side inserts into `MazeSearchEngine.mazeExpansionList` (the `TreeSet<MazeListElement>` with its comparator — the consumer owns ordering/dedup) | field `MazeSearchEngine.java:58`; the emit sites are `MazeExpansionEngine.java:272/301` (free + ripped branches) | T6 (MazeSearchEngine core) |
+
+Note: `MazeExpansionEngine.checkLayerWithAnyMatchingVia` itself
+(`MazeExpansionEngine.java:377-414`) IS T5 scope — ported as
+`drill::check_layer_with_any_matching_via` with the rule-via span filter and
+short-circuit pinned; only the per-layer `checkLayer` body behind it is the
+T10 seam.
+
+Also T5 (not a stub seam, an engine callback): the drill completion path
+`ExpansionDrill.calculateExpansionRooms` → `AutorouteEngine.completeExpansionRoom`
+(`AutorouteEngine.java:418-522`) rides the existing
+`expansion::NeighbourEngine`/`complete` glue (M3-T4) — with the
+first-candidate/recalc split pinned by the companion probe oracle
+`rust/harness/oracle/DrillSpikeProbe.java` (`/tmp/drill_probe.rows`).

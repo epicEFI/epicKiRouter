@@ -130,6 +130,21 @@ pub enum BoardShape {
     Circle(Circle),
 }
 
+/// Java `ConvexShape.maxWidth()` dispatched over the board shape kinds:
+/// the tile family carries its own `maxWidth`, a polygon's is its
+/// bounding box's, a circle's twice its radius. (`control.rs` in
+/// epic-router keeps a private copy of this dispatch; this free
+/// function is the shared epic-board home the drill subsystem reads —
+/// M3-T5's `default_via_diameter` / via-radius arithmetic.)
+#[must_use]
+pub fn shape_max_width(shape: &BoardShape) -> f64 {
+    match shape {
+        BoardShape::Tile(tile) => tile.max_width(),
+        BoardShape::PolygonShape(polygon) => polygon.bounding_box().max_width(),
+        BoardShape::Circle(circle) => circle.max_width(),
+    }
+}
+
 /// The `border + holes` area epic-board items carry — the epic-board
 /// mirror of the IR's `AreaIr` (the `(window ...)` holes are the rest of
 /// a Java `PolylineArea`; `holes: []` is a hole-free area).
@@ -560,5 +575,31 @@ mod tests {
                 FixedState::SystemFixed,
             ]
         );
+    }
+
+    /// Java `ConvexShape.maxWidth()` dispatch (`M3-T5`): the tile
+    /// family is its own max box dimension, a polygon's its bounding
+    /// box's, a circle's its diameter — all three variants pinned so a
+    /// collapsed dispatch fails.
+    #[test]
+    fn shape_max_width_dispatches_over_the_three_kinds() {
+        let tile = BoardShape::Tile(TileShape::RegularTileShape(RegularTileShape::IntBox(
+            IntBox::new(IntPoint::new(0, 0), IntPoint::new(300, 200)),
+        )));
+        assert_eq!(super::shape_max_width(&tile), 300.0, "tile: max dimension");
+
+        let polygon = BoardShape::PolygonShape(PolygonShape::new(&[
+            Point::Int(IntPoint::new(0, 0)),
+            Point::Int(IntPoint::new(400, 0)),
+            Point::Int(IntPoint::new(400, 150)),
+        ]));
+        assert_eq!(
+            super::shape_max_width(&polygon),
+            400.0,
+            "polygon: bounding box max dimension"
+        );
+
+        let circle = BoardShape::Circle(Circle::new(IntPoint::new(0, 0), 90));
+        assert_eq!(super::shape_max_width(&circle), 180.0, "circle: diameter");
     }
 }

@@ -1345,6 +1345,86 @@ fn area_from_ir(area: &AreaIr) -> Area {
     }
 }
 
+impl ItemEntry {
+    /// Java `Item.isDrillable(int)` (`Item.java:895-897` base, the ONLY
+    /// overrides being `Trace.java:222-224` and
+    /// `ConductionArea.java:403-405`). Base items: `false` — in
+    /// particular a Via does NOT override, so vias are not drillable.
+    /// Traces: `containsNet(p_net_no)`. Conduction areas:
+    /// `!getIsObstacle() || containsNet(p_net_no)` — a non-obstacle
+    /// area (a plane routed around in no-plane mode) drills for every
+    /// net; an obstacle area only for its own net(s).
+    #[must_use]
+    pub fn is_drillable(&self, net_number: i32) -> bool {
+        match &self.data {
+            ItemData::Trace { .. } => self.nets.contains(&net_number),
+            ItemData::ConductionArea { is_obstacle, .. } => {
+                !*is_obstacle || self.nets.contains(&net_number)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Board {
+    /// Java `Pin.drillAllowed()` (`Pin.java:348-350` =
+    /// `firstLayer() == lastLayer()`): true exactly for a single-layer
+    /// (SMD) pin — its padstack carries a shape on one layer only. A
+    /// through-hole pin spans every layer and is NOT drill allowed.
+    /// The layer span resolves through the padstack (Java
+    /// `Pin.firstLayer()`/`lastLayer()` delegate to
+    /// `Padstack.fromLayer()`/`toLayer()`). Missing item/padstack
+    /// returns `false` where Java would throw — callers only ask for
+    /// live pins.
+    #[must_use]
+    pub fn pin_drill_allowed(&self, id: ItemId) -> bool {
+        let Some(entry) = self.get(id) else {
+            return false;
+        };
+        let ItemData::Pin { padstack_no, .. } = &entry.data else {
+            return false;
+        };
+        let Some(padstack) = self.library.padstack(*padstack_no) else {
+            return false;
+        };
+        padstack.from_layer() as i32 == padstack.to_layer()
+    }
+
+    /// Java `BoardRules.getDefaultViaDiameter()`
+    /// (`BoardRules.java:408-424`): the maximum shape width of the
+    /// FIRST via of the FIRST via rule (`getDefaultViaRule` =
+    /// `viaRules.getFirst()`, `:242-247`) on its first and last shape
+    /// layer; 0.0 when there is no rule or the rule has no vias. Java
+    /// dereferences both endpoint shapes unchecked (a valid via
+    /// padstack always has them); the `expect`s mirror that.
+    #[must_use]
+    pub fn default_via_diameter(&self) -> f64 {
+        let Some(default_rule) = self.rules.via_rules.first() else {
+            return 0.0;
+        };
+        let Some(&first_via_index) = default_rule.via_infos.first() else {
+            return 0.0;
+        };
+        let Some(info) = self.rules.via_infos.get(first_via_index as usize) else {
+            return 0.0;
+        };
+        let Some(padstack) = self.library.padstack(info.padstack_no) else {
+            return 0.0;
+        };
+        let first_shape = padstack
+            .get_shape(padstack.from_layer())
+            .expect("valid via padstack has a first-layer shape");
+        let mut result = crate::items::shape_max_width(first_shape);
+        let to_index = usize::try_from(padstack.to_layer())
+            .expect("a padstack with a first-layer shape has a non-negative last layer");
+        let last_shape = padstack
+            .get_shape(to_index)
+            .expect("valid via padstack has a last-layer shape");
+        result = result.max(crate::items::shape_max_width(last_shape));
+        result
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1805,5 +1885,196 @@ mod tests {
         let other = board.alloc_id();
         board.insert_item(pin_entry(other));
         assert_eq!(board.via_shape(other, 0), None, "a pin entry is not a via");
+    }
+
+    // ---- M3-T5 additions: is_drillable / pin_drill_allowed /
+    // default_via_diameter ----
+
+    use epic_geometry::circle::Circle;
+
+    fn circle_shape(width: i32) -> BoardShape {
+        BoardShape::Circle(Circle::new(IntPoint::new(0, 0), width / 2))
+    }
+
+    fn tile_area(ll: i32, ur: i32) -> Area {
+        Area::simple(BoardShape::Tile(TileShape::RegularTileShape(
+            RegularTileShape::IntBox(IntBox::new(
+                epic_geometry::int_point::IntPoint::new(ll, ll),
+                epic_geometry::int_point::IntPoint::new(ur, ur),
+            )),
+        )))
+    }
+
+    fn trace_entry(id: ItemId, nets: Vec<i32>) -> ItemEntry {
+        ItemEntry {
+            id,
+            data: ItemData::Trace {
+                layer: 0,
+                half_width: 50,
+                lines: Polyline::from_two_corners(
+                    &Point::Int(IntPoint::new(0, 0)),
+                    &Point::Int(IntPoint::new(100, 0)),
+                ),
+            },
+            nets,
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        }
+    }
+
+    fn conduction_entry(id: ItemId, nets: Vec<i32>, is_obstacle: bool) -> ItemEntry {
+        ItemEntry {
+            id,
+            data: ItemData::ConductionArea {
+                layer: 0,
+                area: tile_area(0, 100),
+                is_obstacle,
+                is_filled: true,
+            },
+            nets,
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        }
+    }
+
+    /// Java `Item.isDrillable` (`Item.java:895-897` base = false; the
+    /// ONLY overrides are Trace `containsNet` (`Trace.java:222-224`)
+    /// and ConductionArea `!getIsObstacle() || containsNet`
+    /// (`ConductionArea.java:403-405`). The non-obstacle/no-net
+    /// conduction row is the discriminator against a contains-only
+    /// mutant; the pin row kills an "all connectables are drillable"
+    /// mutant.
+    #[test]
+    fn is_drillable_mirrors_the_java_overrides() {
+        let mut board = Board::new();
+        let pin = board.alloc_id();
+        board.insert_item(pin_entry(pin));
+        let trace = board.alloc_id();
+        board.insert_item(trace_entry(trace, vec![1]));
+        let open_plane = board.alloc_id();
+        board.insert_item(conduction_entry(open_plane, vec![], false));
+        let own_plane = board.alloc_id();
+        board.insert_item(conduction_entry(own_plane, vec![3], true));
+
+        assert!(!board.get(pin).expect("pin").is_drillable(1), "base false");
+        assert!(
+            board.get(trace).expect("trace").is_drillable(1),
+            "trace containing the net"
+        );
+        assert!(
+            !board.get(trace).expect("trace").is_drillable(2),
+            "trace of a foreign net"
+        );
+        assert!(
+            board.get(open_plane).expect("area").is_drillable(7),
+            "non-obstacle area drills for ANY net"
+        );
+        assert!(
+            board.get(own_plane).expect("area").is_drillable(3),
+            "obstacle area drills for its own net"
+        );
+        assert!(
+            !board.get(own_plane).expect("area").is_drillable(4),
+            "obstacle area blocks a foreign net"
+        );
+    }
+
+    /// Java `Pin.drillAllowed()` (`Pin.java:348-350`): true exactly
+    /// when the padstack's first shape layer equals its last — a
+    /// single-layer (SMD) pad. The two-layer padstack is the contrast
+    /// witness (first-match mutants and span-ignoring mutants fail one
+    /// of the two rows).
+    #[test]
+    fn pin_drill_allowed_is_single_layer_only() {
+        let mut board = Board::new();
+        board.library_mut().padstacks = vec![
+            BoardPadstack {
+                name: "SMD".to_string(),
+                shapes: vec![Some(circle_shape(600))],
+                ..Default::default()
+            },
+            BoardPadstack {
+                name: "THRU".to_string(),
+                shapes: vec![Some(circle_shape(600)), Some(circle_shape(600))],
+                ..Default::default()
+            },
+        ];
+        let smd = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id: smd,
+            data: ItemData::Pin {
+                pin_index: 0,
+                padstack_no: 1,
+            },
+            nets: vec![1],
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        let thru = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id: thru,
+            data: ItemData::Pin {
+                pin_index: 0,
+                padstack_no: 2,
+            },
+            nets: vec![1],
+            clearance_class: 1,
+            component_id: 0,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        assert!(
+            board.pin_drill_allowed(smd),
+            "single-layer padstack: drill allowed"
+        );
+        assert!(
+            !board.pin_drill_allowed(thru),
+            "two-layer padstack: not drill allowed"
+        );
+        assert!(
+            !board.pin_drill_allowed(ItemId::new(9999)),
+            "a missing item is not drill allowed"
+        );
+    }
+
+    /// Java `BoardRules.getDefaultViaDiameter()`
+    /// (`BoardRules.java:408-424`): max width of the FIRST via of the
+    /// FIRST rule over its first and last layer. The 600/800 layer
+    /// pair kills a first-layer-only or last-layer-only mutant (both
+    /// return 600/800, the pin wants 800); the no-rule and no-via
+    /// rows pin the two 0.0 arms.
+    #[test]
+    fn default_via_diameter_first_via_of_first_rule() {
+        let mut board = Board::new();
+        assert_eq!(board.default_via_diameter(), 0.0, "no via rules");
+        board.library_mut().padstacks = vec![BoardPadstack {
+            name: "VIA".to_string(),
+            shapes: vec![Some(circle_shape(600)), Some(circle_shape(800))],
+            ..Default::default()
+        }];
+        board.rules_mut().via_infos = vec![crate::rules_surf::ViaInfo {
+            name: "v".to_string(),
+            padstack_no: 1,
+            clearance_class: 1,
+            attach_smd_allowed: false,
+        }];
+        board.rules_mut().via_rules = vec![crate::rules_surf::ViaRule {
+            id: 1,
+            name: "r".to_string(),
+            via_infos: vec![0],
+        }];
+        assert_eq!(
+            board.default_via_diameter(),
+            800.0,
+            "max over first and last layer"
+        );
+        board.rules_mut().via_rules[0].via_infos.clear();
+        assert_eq!(board.default_via_diameter(), 0.0, "rule without vias");
     }
 }

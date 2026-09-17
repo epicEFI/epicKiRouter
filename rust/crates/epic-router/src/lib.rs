@@ -8,6 +8,7 @@
 //! with line counts and dispositions) is `SEAM.md` beside this file.
 
 pub mod control;
+pub mod drill;
 pub mod expansion;
 
 #[cfg(test)]
