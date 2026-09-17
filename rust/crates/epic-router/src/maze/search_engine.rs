@@ -42,7 +42,7 @@ use crate::maze::list_element::{ExpandableObject, Front, MazeListElement};
 /// adds it to the half width for the small-door test (`:406`).
 ///
 /// Java `MazeSearchEngine.ALREADY_RIPPED_COSTS` (`:44`).
-const ALREADY_RIPPED_COSTS: i32 = 1;
+pub(crate) const ALREADY_RIPPED_COSTS: i32 = 1;
 
 /// Java `MazeSearchEngine.Result` (`:1218-1227`).
 #[derive(Clone, Debug)]
@@ -60,8 +60,11 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// Java `autorouteEngine` + `searchTree` + `board` — the engine
     /// seam the maze code reaches through.
     pub(crate) ctx: &'a mut E,
-    /// Java `ctrl`.
-    pub(crate) ctrl: &'a AutorouteControl,
+    /// Java `ctrl` — Java MUTATES it around the resolver calls (the
+    /// batch router advances `ripupCosts`/`ripupPassNo` per pass; the
+    /// capture probes force `traceHalfWidth` for the shove gate), so
+    /// the port carries it mutably.
+    pub(crate) ctrl: &'a mut AutorouteControl,
     /// Java `mazeExpansionList` (`:52`).
     pub(crate) front: Front,
     /// Java `destinationDistance` (`:58`) — mutable for `init`'s
@@ -85,20 +88,30 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// Java `destinationDoor` + `sectionNoOfDestinationDoor`
     /// (`:70-72`).
     pub(crate) destination: Option<(ExpandableObject, i32)>,
+    /// Java `randomGenerator` (`:63`, seeded with `ctrl.ripupCosts`) —
+    /// OWNED BY THE ENGINE, seeded ONCE per construction and shared
+    /// with the ripup resolver ([`crate::maze::ripup`]). The state is
+    /// ADVANCED across `checkRipup` calls only on randomized passes
+    /// (`passNo >= 4 && passNo % 3 != 0` draws) — the capture's
+    /// RNG-lifetime pin distinguishes seeded-once (two pass-4 rows
+    /// differ) from per-call reseeding (they would not).
+    pub(crate) random_generator: epic_geometry::java_random::JavaRandom,
 }
 
 impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngine<'a, E, D, V> {
     /// Java ctor equivalent — the field set of `MazeSearchEngine`
-    /// (`:75-129`). The `randomGenerator` (`:63`, seeded with
-    /// `ctrl.ripupCosts`) is fanout/ripup-side and has no consumer in
-    /// the T6 surface; it lands with T7.
+    /// (`:75-129`). The `randomGenerator` (`:63`) is seeded here with
+    /// `ctrl.ripupCosts`, exactly once per construction.
     pub fn new(
         ctx: &'a mut E,
-        ctrl: &'a AutorouteControl,
+        ctrl: &'a mut AutorouteControl,
         destination_distance: &'a mut D,
         checker: &'a mut V,
         pages: &'a mut DrillPageArray,
     ) -> Self {
+        // Java `this.randomGenerator = new Random(ctrl.ripupCosts)` —
+        // read the seed BEFORE the struct literal moves `ctrl`.
+        let random_seed = i64::from(ctrl.ripup_costs);
         MazeSearchEngine {
             ctx,
             ctrl,
@@ -109,6 +122,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             door_sections: std::collections::HashMap::new(),
             standalone_drills: std::collections::HashMap::new(),
             destination: None,
+            random_generator: epic_geometry::java_random::JavaRandom::new(random_seed),
         }
     }
 
@@ -250,6 +264,29 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         let vec = self.door_sections.entry(door.key()).or_default();
         if vec.len() != section_count {
             *vec = vec![crate::drill::MazeSearchElement::default(); section_count];
+        }
+    }
+
+    /// Java `ExpandableObject.mazeSearchElementCount()` — the length
+    /// of the object's maze-search element array. Room doors read the
+    /// `allocateSections` state (Java `sectionArr.length` — an element
+    /// can only exist for a door whose sections were allocated, so the
+    /// Java NPE-on-unallocated territory is unreachable here);
+    /// `TargetItemExpansionDoor` answers 1 (`:78-80`); a drill page
+    /// spans `board.getLayerCount()` entries; a drill spans
+    /// `lastLayer - firstLayer + 1`.
+    pub(crate) fn maze_search_element_count(&self, door: &ExpandableObject) -> i32 {
+        match door {
+            ExpandableObject::RoomDoor(_) => {
+                let count = self.door_sections.get(&door.key()).map_or(0, Vec::len);
+                i32::try_from(count).unwrap_or(i32::MAX)
+            }
+            ExpandableObject::TargetDoor(_) => 1,
+            ExpandableObject::DrillPage { .. } => self.ctx.layer_count(),
+            ExpandableObject::Drill { .. } | ExpandableObject::StandaloneDrill { .. } => {
+                let drill = self.live_drill(door);
+                drill.last_layer - drill.first_layer + 1
+            }
         }
     }
 
@@ -487,11 +524,9 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             if !element.already_checked && current_door_is_small {
                 let mut enter_through_small_door = false;
                 if next_room_is_thick {
-                    // SEAM (T7): Java `ripupResolver.checkLeavingRippedItem`
-                    // — the stub answers "cannot leave through a small
-                    // door", identical to Java while no ripped items
-                    // exist (ripup never ran).
-                    enter_through_small_door = false;
+                    // Java `ripupResolver.checkLeavingRippedItem`
+                    // (`:200-213`, ported in `crate::maze::ripup`).
+                    enter_through_small_door = self.check_leaving_ripped_item(element);
                 }
                 if !enter_through_small_door {
                     return something_expanded;
@@ -500,11 +535,15 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         } else if next_room_is_obstacle && !element.already_checked {
             let mut room_rippable = false;
             if self.ctrl.ripup_allowed {
-                // SEAM (T7): Java `ripupResolver.checkRipup` — the
-                // stub answers "free" (costs 0, rippable), which is
-                // unreachable in the T6 fixtures (ripupAllowed
-                // false) and keeps the T7 decision site visible.
-                ripup_costs = 0;
+                // Java `ripupResolver.checkRipup` (`:72-197`, ported in
+                // `crate::maze::ripup`) — the resolver reads the
+                // obstacle item off the room; the Rust room is a key,
+                // so the item is resolved here.
+                let obstacle_item = self
+                    .ctx
+                    .room_obstacle_item_key(next_room_key)
+                    .expect("an obstacle room carries its obstacle item");
+                ripup_costs = self.check_ripup(element, obstacle_item, current_door_is_small);
                 room_rippable = ripup_costs >= 0;
             }
 
@@ -517,36 +556,14 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                     && self.ctrl.max_shove_trace_recursion_depth > 0
                     && obstacle_is_shoveable_trace
                 {
-                    // SEAM (T7): Java `shoveTraceRoom` (`:1130-1201`).
-                    // The stub replicates the structural verdict of
-                    // the NO-SHAVE world: INNER door sections return
-                    // true immediately ("no delay of occupation
-                    // necessary, inner sections are not shoved",
-                    // `:1133-1138`); edge sections attempt the
-                    // shove — stubbed "not shoved", which with
-                    // ripup_costs == 0 continues exactly like the
-                    // Java `if (!shoved)` fall-through.
-                    let shoved = match &element.door {
-                        ExpandableObject::RoomDoor(_) => {
-                            // Java `ignoreDoor.mazeSearchElementCount()`
-                            // (`:1131-1132`) = `sectionArr.length`, kept
-                            // live by `allocateSections` — mirrored by
-                            // the engine's `door_sections` map (the door
-                            // struct carries no count).
-                            let count = self
-                                .door_sections
-                                .get(&element.door.key())
-                                .map_or(0, Vec::len);
-                            let count = i32::try_from(count).unwrap_or(i32::MAX);
-                            element.section_no_of_door != 0
-                                && element.section_no_of_door != count - 1
-                        }
-                        _ => false,
-                    };
+                    // Java `shoveTraceRoom` (`:1130-1201`, ported in
+                    // `crate::maze::shove_probe`) — the read-only
+                    // probe; the board-mutation body is the T10 seam.
+                    let shoved = self.shove_trace_room(element, next_room_key);
                     if !shoved && ripup_costs > 0 {
                         // Delay the occupation by ripup to allow
                         // shoving the room by other door sections
-                        // (`:530-548`, T7 ports the real shove).
+                        // (`:530-548`).
                         let mut delayed = element.clone();
                         delayed.expansion_value += f64::from(ripup_costs);
                         delayed.sorting_value += f64::from(ripup_costs);
@@ -880,7 +897,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// The resolved registry keys and live shapes of a room door's two
     /// endpoints (Java reads `firstRoom`/`secondRoom` references; both
     /// are always live for a registered door).
-    fn door_endpoint_shapes(
+    pub(crate) fn door_endpoint_shapes(
         &self,
         door: &crate::expansion::ExpansionDoor,
     ) -> (Option<u64>, Option<u64>, TileShape, TileShape) {

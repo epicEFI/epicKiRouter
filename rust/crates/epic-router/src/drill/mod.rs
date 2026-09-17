@@ -229,6 +229,133 @@ pub trait DrillEngine: NeighbourEngine {
         let _ = (from, to, layer);
         true
     }
+
+    // ---- T7 seams (the ripup resolver + the read-only shove probe) ----
+
+    /// Java `Item.getNormalContacts()` — the NO-ARG contact dispatcher
+    /// (`Item.java:613-615`): the endpoint union for a trace, the
+    /// center-box contacts for a drill item, the conduction-area set.
+    /// DESCENDING order (Java TreeSet). Consumed by the Connection
+    /// walk and the `checkRipup` via arm.
+    fn item_normal_contacts(&mut self, item_key: u64) -> Vec<u64>;
+
+    /// Java `Trace.getNormalContacts(Point, boolean ignoreNet)`
+    /// (`Trace.java:173-203`).
+    fn trace_normal_contacts_at(
+        &mut self,
+        item_key: u64,
+        point: &Point,
+        ignore_net: bool,
+    ) -> Vec<u64>;
+
+    /// Java `Trace.getStartContacts()` (`Trace.java:108-110`).
+    fn trace_start_contacts(&mut self, item_key: u64) -> Vec<u64>;
+
+    /// Java `Trace.getEndContacts()` (`Trace.java:116-118`).
+    fn trace_end_contacts(&mut self, item_key: u64) -> Vec<u64>;
+
+    /// Java `Item.normalContactPoint(Item)` — the exact touch point of
+    /// two connectable items, or Java's null.
+    fn normal_contact_point(&mut self, first_key: u64, second_key: u64) -> Option<Point>;
+
+    /// Java `Item.firstCommonLayer(Item)` — `-1` when the items share
+    /// no layer.
+    fn first_common_layer(&mut self, first_key: u64, second_key: u64) -> i32;
+
+    /// Java `Item.isUserFixed()`.
+    fn item_is_user_fixed(&self, item_key: u64) -> bool;
+
+    /// Java `Item.isShoveFixed()` — the fanout-protection arm of
+    /// `calcFanoutViaRipupCostFactor`.
+    fn item_is_shove_fixed(&self, item_key: u64) -> bool;
+
+    /// Java `Polyline.size()` of the item's trace polyline
+    /// (`lines.length` — the corner count).
+    fn item_trace_corner_count(&self, item_key: u64) -> i32;
+
+    /// Java `Trace.getLength()` — the polyline length approximation.
+    fn item_trace_length(&self, item_key: u64) -> f64;
+
+    /// Java `PolylineTrace.polyline()` — `None` is unreachable for a
+    /// live trace (callers pre-check `item_is_trace`).
+    fn item_trace_polyline(&self, item_key: u64) -> Option<epic_geometry::polyline::Polyline>;
+
+    /// Java `SearchTree.overlappingObjects(shape, layer, ignoreNetNos)`
+    /// (`ShapeSearchTree.java:404-478`): the tree objects overlapping
+    /// `shape` on `layer` that are obstacles w.r.t. EVERY ignore net
+    /// (`!currentObject.isObstacle(ignoreNetNos[i])` → skip, `:412-413`
+    /// — own-net objects are filtered out). Items AND room keys occur;
+    /// the walk consumers re-filter by kind.
+    fn overlapping_objects_ignore_nets(
+        &self,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+    ) -> Vec<u64>;
+
+    /// Java `RoutingBoard.checkTraceSegment(segment, layer, netNumbers,
+    /// halfWidth, clearanceClass, cushionsEnabled)` — the READ-ONLY
+    /// clearance check the shove probe consults for the free width
+    /// (`MazeTraceShover.java:176-181`). SEAM (T10): the real body
+    /// lands with the shover; the default is Java's
+    /// `Integer.MAX_VALUE` "no shortening" verdict — the exact
+    /// semantics of an empty board (Java-unreachable on a real board,
+    /// but the no-obstacle behavior).
+    fn check_trace_segment(
+        &self,
+        line_segment: &epic_geometry::line_segment::LineSegment,
+        layer: i32,
+        net_numbers: &[i32],
+        half_width: i32,
+        clearance_class: i32,
+        cushions_enabled: bool,
+    ) -> f64 {
+        let _ = (
+            line_segment,
+            layer,
+            net_numbers,
+            half_width,
+            clearance_class,
+            cushions_enabled,
+        );
+        2147483647.0
+    }
+
+    /// Java `TraceShover.check(board, segment, shoveToTheLeft, layer,
+    /// netNumbers, halfWidth, clearanceClass, maxShoveTraceRecursionDepth,
+    /// maxShoveViaRecursionDepth)` — the recursive shove distance the
+    /// probe consults (`MazeTraceShover.java:203-215`). SEAM (T10): the
+    /// default 0.0 answers "nothing shovable", so the probe returns
+    /// TRUE early with an EMPTY door list — the behavior of a board
+    /// with nothing to shove into. Tests force capture values through
+    /// a harness override of this seam.
+    // Java's `TraceShover.check` takes 8 parameters; the arity is the
+    // ported Java surface, not a design smell.
+    #[allow(clippy::too_many_arguments)]
+    fn shove_trace_check(
+        &mut self,
+        line_segment: &epic_geometry::line_segment::LineSegment,
+        shove_to_the_left: bool,
+        layer: i32,
+        net_numbers: &[i32],
+        half_width: i32,
+        clearance_class: i32,
+        max_shove_trace_recursion_depth: i32,
+        max_shove_via_recursion_depth: i32,
+    ) -> f64 {
+        let _ = (
+            line_segment,
+            shove_to_the_left,
+            layer,
+            net_numbers,
+            half_width,
+            clearance_class,
+            max_shove_trace_recursion_depth,
+            max_shove_via_recursion_depth,
+        );
+        0.0
+    }
+
     /// Java `board.rules.getTraceAngleRestriction()` — the door-length
     /// measure of `doorIsSmall` (`MazeSearchEngine.java:773-784`).
     fn trace_angle_restriction(&self) -> crate::control::AngleRestriction;

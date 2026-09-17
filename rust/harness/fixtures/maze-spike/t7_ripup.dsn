@@ -1,0 +1,127 @@
+(PCB t7_ripup.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  120000 0  120000 64000  0 64000  0 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  58000 0  62000 0  62000 26000  58000 26000  58000 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  58000 42000  62000 42000  62000 64000  58000 64000  58000 42000)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CA"
+      (place "KA" 20000 32000 Front 0.000000)
+    )
+    (component "CB"
+      (place "KB" 100000 32000 Front 0.000000)
+    )
+    (component "DB"
+      (place "FB" 60000 29000 Front 0.000000)
+    )
+    (component "DT"
+      (place "PB2" 53000 39800 Front 0.000000)
+    )
+    (component "DC"
+      (place "FC" 66500 36000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADB" "PB" 0 0)
+    )
+    (image "DB"
+      (pin "PADDB" "PDB" 0 0)
+    )
+    (image "DT"
+      (pin "PADTH" "PTH" 0 0)
+    )
+    (image "DC"
+      (pin "PADDC" "PDC" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADB"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADDB"
+      (shape (polygon F.Cu 0  1500 1500 -1500 1500 -1500 -1500 1500 -1500  1500 1500))
+      (attach off)
+    )
+    (padstack "PADTH"
+      (shape (circle F.Cu 1500 0 0))
+      (shape (circle B.Cu 1500 0 0))
+      (attach off)
+    )
+    (padstack "PADDC"
+      (shape (polygon F.Cu 0  1500 1500 -1500 1500 -1500 -1500 1500 -1500  1500 1500))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "NET_A"
+      (pins "KA"-"PA" "KB"-"PB")
+    )
+    (net "NET_B"
+      (pins "FB"-"PDB" "PB2"-"PTH")
+    )
+    (net "NET_C"
+      (pins "FC"-"PDC")
+    )
+    (class kicad_default "NET_A" "NET_B" "NET_C"
+      (rule
+        (clearance 250)
+        (width 2000)
+      )
+    )
+  )
+  (wiring
+      (wire (path F.Cu 2000  60000 29000  60000 31400) (net NET_B))
+      (wire (path F.Cu 2000  58200 35000  60000 35000) (net NET_B))
+      (wire (path F.Cu 2000  60000 35000  61800 35000) (net NET_B))
+      (wire (path F.Cu 2000  60000 35000  60000 37000) (net NET_B))
+      (wire (path F.Cu 2000  58200 35000  55800 35000) (net NET_B))
+      (wire (path F.Cu 2000  54800 29400  54800 31000  57600 31000) (net NET_B))
+      (wire (path F.Cu 2000  55900 39800  59500 39800) (net NET_B))
+      (wire (path F.Cu 2000  59500 39800  63100 39800) (net NET_B))
+      (wire (path F.Cu 2000  66000 39800  69000 39800) (net NET_B) (type protect))
+      (via VIA_T 59500 39800 (net NET_B))
+      (via VIA_T 53000 39800 (net NET_B))
+      (via VIA_T 66000 39800 (net NET_B))
+  )
+)

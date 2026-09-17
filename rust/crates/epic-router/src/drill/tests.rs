@@ -602,6 +602,67 @@ impl DrillEngine for SynthWorld {
     fn trace_angle_restriction(&self) -> AngleRestriction {
         AngleRestriction::FortyfiveDegree
     }
+
+    // ---- T7 seams (scripted stubs; the synthetic worlds carry no
+    // traces or contact topology — the oracle-replay Harness in
+    // `pins.rs` owns the real reads) ----
+    fn item_normal_contacts(&mut self, _item_key: u64) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn trace_normal_contacts_at(
+        &mut self,
+        _item_key: u64,
+        _point: &Point,
+        _ignore_net: bool,
+    ) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn trace_start_contacts(&mut self, _item_key: u64) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn trace_end_contacts(&mut self, _item_key: u64) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn normal_contact_point(&mut self, _first_key: u64, _second_key: u64) -> Option<Point> {
+        None
+    }
+
+    fn first_common_layer(&mut self, _first_key: u64, _second_key: u64) -> i32 {
+        -1
+    }
+
+    fn item_is_user_fixed(&self, _item_key: u64) -> bool {
+        false
+    }
+
+    fn item_is_shove_fixed(&self, _item_key: u64) -> bool {
+        false
+    }
+
+    fn item_trace_corner_count(&self, _item_key: u64) -> i32 {
+        0
+    }
+
+    fn item_trace_length(&self, _item_key: u64) -> f64 {
+        0.0
+    }
+
+    fn item_trace_polyline(&self, _item_key: u64) -> Option<epic_geometry::polyline::Polyline> {
+        None
+    }
+
+    fn overlapping_objects_ignore_nets(
+        &self,
+        _shape: &TileShape,
+        _layer: i32,
+        _ignore_nets: &[i32],
+    ) -> Vec<u64> {
+        Vec::new()
+    }
 }
 
 // ---- the scripted checker / distance stubs ------------------------------
@@ -693,6 +754,7 @@ fn test_ctrl(via_upper_bound: i32, via_infos: Vec<ViaMask>) -> AutorouteControl 
             bend_costs: Vec::new(),
             layer_active: vec![true; layer_count],
             automatic_neckdown: false,
+            start_ripup_costs: 1,
         },
         trace_costs: vec![
             ExpansionCostFactor {

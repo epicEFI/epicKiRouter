@@ -266,8 +266,16 @@ impl SearchTreeManager {
         let index = self.trees.len() - 1;
         // The `startReadObject` walk (`:163-170`) — DESCENDING id (the
         // ConcurrentSkipListMap order, see
-        // [`SearchTreeManager::insert_all_board_items`]).
-        let ids: Vec<ItemId> = board.iter_descending().map(|entry| entry.id).collect();
+        // [`SearchTreeManager::insert_all_board_items`]) and LIVE-only:
+        // Java's `UndoableObjects.delete` unlinks the node from the
+        // map (`objects.remove`), while the port keeps flag-only
+        // entries, so the walk must filter them (a deleted-then-merged
+        // trace must not re-enter a fresh tree).
+        let ids: Vec<ItemId> = board
+            .iter_descending()
+            .filter(|entry| entry.on_the_board)
+            .map(|entry| entry.id)
+            .collect();
         for id in ids {
             self.insert_into_tree(board, id, index);
         }
@@ -368,6 +376,15 @@ impl SearchTreeManager {
     /// [`SearchTreeManager::set_clearance_compensation_used`],
     /// [`SearchTreeManager::clearance_value_changed`]).
     pub fn insert_all_board_items(&mut self, board: &mut Board) {
+        // NOTE: deliberately UNFILTERED. Java's walk is live-only
+        // (`UndoableObjects.delete` unlinks the node), but the port
+        // keeps flag-only entries and this method is ALSO the parse
+        // path's flag-flipping step (`reinsert_tree_items`): parsed
+        // entries are born with `on_the_board == false`, so filtering
+        // here would un-live the whole board. The live-only contract
+        // is enforced on the POST-parse walks instead
+        // ([`SearchTreeManager::get_autoroute_tree`], the harness
+        // freeze loops) and by `combine`'s own tree-entry removal.
         let ids: Vec<ItemId> = board.iter_descending().map(|entry| entry.id).collect();
         for id in ids {
             board.clear_derived_data(id);
@@ -1160,7 +1177,9 @@ mod tests {
     /// `getAutorouteTree` `:140-172` — **T59**: the index return,
     /// the default-tree scan hit for its own class, the variant per
     /// restriction, the bulk insert into the NEW TREE ONLY, and the
-    /// no-flag bulk insert.
+    /// LIVE-ONLY bulk fill (M3-T7: Java's `startReadObject` walk runs
+    /// over `UndoableObjects.objects.values()`, and `delete` unlinks
+    /// the node — a deleted item must not re-enter a fresh tree).
     #[test]
     fn get_autoroute_tree_selects_variant_and_bulk_inserts_only_the_new_tree() {
         let mut board = parse_board(ISSUE575);
@@ -1175,11 +1194,14 @@ mod tests {
         // tree at index 1, bulk-filled — and the DEFAULT tree stays
         // EMPTY (the bulk insert reaches the new tree only).
         //
-        // The flag pin needs an item that is NOT on the board:
-        // `from_ses_board` items are born on_the_board=true (the
-        // post-read Java state — the DSN read inserts through the
-        // manager), so via 815 is forced back into Java's
-        // constructed-but-uninserted state through the raw flag seam.
+        // The flag pin needs an item that is NOT on the board: the
+        // Rust representation keeps a flag-false ENTRY for a deleted
+        // item where Java unlinks the node, so the walk filters
+        // flag-false entries (the only post-parse meaning of the
+        // flag: every parsed item was flipped true by
+        // `reinsert_tree_items`). Via 815 is forced into that deleted
+        // state through the raw flag seam, and the bulk fill must
+        // NOT re-insert it.
         board.set_on_the_board(ItemId::new(815), false);
         assert_eq!(manager.get_autoroute_tree(&mut board, 1), 1);
         assert_eq!(
@@ -1195,14 +1217,16 @@ mod tests {
             0,
             "T59: the bulk insert must NOT touch the other trees"
         );
-        // The bulk insert is the TREE's insert, not the manager's:
-        // entries land in the new tree WITHOUT the on-the-board flag.
+        // The tree-entry drop is the DELETION contract now: the
+        // flag-false item is skipped by the live-only walk (the
+        // TREE's own insert still does not set the flag — that is
+        // pinned by the entries of the live items above).
         assert!(!board.is_on_the_board(ItemId::new(815)));
         assert!(
             manager
                 .tree_entries(ItemId::new(815), manager.trees()[1].object_id())
-                .is_some(),
-            "tree entries are independent of the flag"
+                .is_none(),
+            "the live-only walk skips the deleted item"
         );
 
         // A repeat request scans and returns the SAME index.

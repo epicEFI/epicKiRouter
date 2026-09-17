@@ -384,6 +384,7 @@ fn maze_settings_ir(vias_allowed: bool) -> RouterSettingsIr {
         bend_costs: vec![BEND_COST, 0.0],
         layer_active: vec![true, true],
         automatic_neckdown: false,
+        start_ripup_costs: 1,
     }
 }
 
@@ -1845,11 +1846,16 @@ fn drain(
 /// full 28-pop drain to the destination.
 #[test]
 fn main_phase_protocol_pins() {
-    let (mut harness, ctrl, mut distance, mut checker, mut pages) = make_run(false);
+    let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(false);
     assert_ctrl(&ctrl, &harness, false);
 
-    let mut engine =
-        MazeSearchEngine::new(&mut harness, &ctrl, &mut distance, &mut checker, &mut pages);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
     assert!(engine.init(&[START_PIN], &[DEST_PIN]), "MAIN init ok");
 
     // The INIT row: a single seed, the RAW row equal to head k=0.
@@ -1949,7 +1955,7 @@ fn main_phase_protocol_pins() {
 /// drill dispatch).
 #[test]
 fn drill_phase_protocol_pins() {
-    let (mut harness, ctrl, mut distance, mut checker, mut pages) = make_run(true);
+    let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(true);
     assert_ctrl(&ctrl, &harness, true);
 
     // The pageMeta row: the grid frame the DrillPage ids hang on.
@@ -1961,8 +1967,13 @@ fn drill_phase_protocol_pins() {
     assert_eq!(pages.page_width, 38539, "pageMeta pageWidth");
     assert_eq!(pages.page_height, 37625, "pageMeta pageHeight");
 
-    let mut engine =
-        MazeSearchEngine::new(&mut harness, &ctrl, &mut distance, &mut checker, &mut pages);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
     assert!(engine.init(&[START_PIN], &[DEST_PIN]), "DRILL init ok");
 
     // The 40-pop drain: cap reached, destination NOT reached (no
@@ -1982,9 +1993,14 @@ fn drill_phase_protocol_pins() {
 #[test]
 fn bend_cost_contrast_pins() {
     for (diag, expected) in [(false, &BEND_STRAIGHT_HEADS), (true, &BEND_DIAG_HEADS)] {
-        let (mut harness, ctrl, mut distance, mut checker, mut pages) = make_run(false);
-        let mut engine =
-            MazeSearchEngine::new(&mut harness, &ctrl, &mut distance, &mut checker, &mut pages);
+        let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(false);
+        let mut engine = MazeSearchEngine::new(
+            &mut harness,
+            &mut ctrl,
+            &mut distance,
+            &mut checker,
+            &mut pages,
+        );
         assert!(
             engine.init(&[START_PIN], &[DEST_PIN]),
             "diag={diag} init ok"
@@ -2014,7 +2030,8 @@ fn bend_cost_contrast_pins() {
             && second_key.is_some_and(|k| engine.ctx.room_is_complete_free_space(k));
         let door_shape = ExpansionDoor::shape_between(&first_shape, &second_shape);
         let seed_layer = engine.ctx.room_layer(room_key);
-        let seed_half_width = f64::from(ctrl.compensated_trace_half_width[seed_layer as usize]);
+        let seed_half_width =
+            f64::from(engine.ctrl.compensated_trace_half_width[seed_layer as usize]);
         let (section_count, _) = door.get_section_segments(
             &door_shape,
             both_complete_free_space,
@@ -2074,9 +2091,14 @@ fn bend_cost_contrast_pins() {
 /// contract pin closes that coverage boundary (cerebrum mode 10).
 #[test]
 fn allocate_sections_resegmentation_contract() {
-    let (mut harness, ctrl, mut distance, mut checker, mut pages) = make_run(false);
-    let mut engine =
-        MazeSearchEngine::new(&mut harness, &ctrl, &mut distance, &mut checker, &mut pages);
+    let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(false);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
     assert!(engine.init(&[START_PIN], &[DEST_PIN]), "init ok");
     let room_key = engine
         .front
@@ -2115,9 +2137,14 @@ fn allocate_sections_resegmentation_contract() {
 /// mutation-verified (kills M2).
 #[test]
 fn expand_to_door_precheck_is_per_section() {
-    let (mut harness, ctrl, mut distance, mut checker, mut pages) = make_run(false);
-    let mut engine =
-        MazeSearchEngine::new(&mut harness, &ctrl, &mut distance, &mut checker, &mut pages);
+    let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(false);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
     assert!(engine.init(&[START_PIN], &[DEST_PIN]), "init ok");
     let seed = engine.front.iter().next().expect("the init seed").clone();
     let from_room = seed.next_room_key.expect("the seed's room");
@@ -2140,7 +2167,7 @@ fn expand_to_door_precheck_is_per_section() {
         && second_key.is_some_and(|k| engine.ctx.room_is_complete_free_space(k));
     let door_shape = ExpansionDoor::shape_between(&first_shape, &second_shape);
     let layer = engine.ctx.room_layer(from_room);
-    let half_width = f64::from(ctrl.compensated_trace_half_width[layer as usize]);
+    let half_width = f64::from(engine.ctrl.compensated_trace_half_width[layer as usize]);
     let (section_count, _) = door.get_section_segments(
         &door_shape,
         both_complete_free_space,
@@ -2340,4 +2367,3551 @@ fn front_tie_chain_pins() {
     let second = ts.insert(FrontOrder(pz));
     assert_eq!(ts.len(), 1, "T7 -0.0 vs 0.0: size");
     assert!(!second, "T7 -0.0 vs 0.0: second add rejected");
+}
+// ---- T7 literal tables (generated from logs/M3-T7/ripup_capture_1.rows) ----
+//
+// The M3-T7 jar-capture pins — the ripup resolver + the READ-ONLY shove
+// probe replayed against `rust/harness/oracle/RipupSpike.java`. Capture:
+// `logs/M3-T7/ripup_capture_{1,2}.rows`, 1126 JSON rows, run TWICE on the
+// jar with byte-identical output. Fixture:
+// `rust/harness/fixtures/maze-spike/t7_ripup.dsn` (2 layers, NET_A pins at
+// x=200000/x=1000000, six net-2 wires 9-17, vias 18-20, net-3 pin 8).
+//
+// Protocol T7 (both sides reproduce it EXACTLY): per phase a FRESH parse,
+// ctrl {ripupAllowed, ripupCosts=seed, ripupPassNo=1, viasAllowed=false,
+// removeUnconnectedVias=seed!=2}, `init` from pin 4 TO pin 4 — the spike's
+// `pinNearest` picks pin 4 for BOTH x=20000 and x=100000, so the search's
+// destination is its own start item and every phase drains the front EMPTY
+// (destination never set; the phase_done rows pin exactly that) — then
+// k < 600: peek the front head (pop row), probe the first roomRipped
+// element (leaving_ripped + small_door_ripped variants), harvest the first
+// element parked in an obstacle room (per obstacle id, once), probe it,
+// then `occupyNextElement`. The probes mutate ctrl.ripupPassNo through
+// PASSES {1,3,4,4,6,7} — the DOUBLE pass-4 is the RNG-lifetime witness.
+
+/// The T7 spike fixture.
+const T7_FIXTURE_DSN: &str = include_str!("../../../../harness/fixtures/maze-spike/t7_ripup.dsn");
+
+/// The NET_A start pin (item dump row id 4, x=200000) — ALSO the phase
+/// destination: the spike's nearest-x probes pick pin 4 twice.
+const T7_PIN: u64 = 4;
+
+/// One drain `pop` row: the front head before each `occupyNextElement`.
+#[derive(Clone, Copy, Debug)]
+struct T7PopRow {
+    k: i32,
+    door_id: i32,
+    section: i32,
+    room_ripped: bool,
+}
+const fn t7p(k: i32, door_id: i32, section: i32, room_ripped: bool) -> T7PopRow {
+    T7PopRow {
+        k,
+        door_id,
+        section,
+        room_ripped,
+    }
+}
+
+/// The SEED2 drain pops, k = 0..72.
+const T7_POPS_SEED2: [T7PopRow; 72] = [
+    t7p(0, 125, 0, false),
+    t7p(1, 33, 3, false),
+    t7p(2, 68, 0, false),
+    t7p(3, 33, 2, false),
+    t7p(4, 14398, 0, false),
+    t7p(5, 193, 0, false),
+    t7p(6, 194, 0, false),
+    t7p(7, 67, 2, false),
+    t7p(8, 458753, 0, true),
+    t7p(9, 458753, 0, true),
+    t7p(10, 458753, 0, true),
+    t7p(11, 232, 0, false),
+    t7p(12, 264, 0, false),
+    t7p(13, 14398, 0, true),
+    t7p(14, 13777, 0, false),
+    t7p(15, 14554, 0, true),
+    t7p(16, 14554, 0, false),
+    t7p(17, 14554, 0, true),
+    t7p(18, 14708, 0, true),
+    t7p(19, 13808, 0, false),
+    t7p(20, 14678, 0, true),
+    t7p(21, 165, 0, false),
+    t7p(22, 14802, 0, true),
+    t7p(23, 12784, 0, false),
+    t7p(24, 15856, 0, false),
+    t7p(25, 14802, 0, true),
+    t7p(26, 13808, 0, true),
+    t7p(27, 321, 0, false),
+    t7p(28, 394240, 0, true),
+    t7p(29, 14709, 0, true),
+    t7p(30, 361472, 0, true),
+    t7p(31, 361472, 0, true),
+    t7p(32, 13249, 0, true),
+    t7p(33, 16228, 0, true),
+    t7p(34, 394240, 0, true),
+    t7p(35, 13218, 0, true),
+    t7p(36, 394240, 0, true),
+    t7p(37, 492544, 0, true),
+    t7p(38, 494592, 0, true),
+    t7p(39, 526336, 0, true),
+    t7p(40, 526336, 0, true),
+    t7p(41, 12225, 0, true),
+    t7p(42, 17252, 0, true),
+    t7p(43, 17252, 0, true),
+    t7p(44, 16507, 0, true),
+    t7p(45, 13249, 0, true),
+    t7p(46, 13249, 0, true),
+    t7p(47, 17376, 0, true),
+    t7p(48, 17376, 0, true),
+    t7p(49, 110, 0, false),
+    t7p(50, 133, 0, false),
+    t7p(51, 17314, 0, false),
+    t7p(52, 17376, 0, true),
+    t7p(53, 17252, 0, true),
+    t7p(54, 129, 0, false),
+    t7p(55, 13218, 0, true),
+    t7p(56, 17314, 0, true),
+    t7p(57, 17531, 0, true),
+    t7p(58, 33, 1, false),
+    t7p(59, 17531, 0, true),
+    t7p(60, 67, 1, false),
+    t7p(61, 34, 1, false),
+    t7p(62, 129, 0, false),
+    t7p(63, 110, 0, false),
+    t7p(64, 133, 0, false),
+    t7p(65, 33, 0, false),
+    t7p(66, 67, 0, false),
+    t7p(67, 34, 2, false),
+    t7p(68, 67, 1, false),
+    t7p(69, 129, 0, false),
+    t7p(70, 110, 0, false),
+    t7p(71, 133, 0, false),
+];
+
+/// The SEED10 drain pops, k = 0..72.
+const T7_POPS_SEED10: [T7PopRow; 72] = [
+    t7p(0, 125, 0, false),
+    t7p(1, 33, 3, false),
+    t7p(2, 68, 0, false),
+    t7p(3, 33, 2, false),
+    t7p(4, 14398, 0, false),
+    t7p(5, 193, 0, false),
+    t7p(6, 194, 0, false),
+    t7p(7, 67, 2, false),
+    t7p(8, 458753, 0, true),
+    t7p(9, 458753, 0, true),
+    t7p(10, 458753, 0, true),
+    t7p(11, 232, 0, false),
+    t7p(12, 264, 0, false),
+    t7p(13, 14398, 0, true),
+    t7p(14, 13777, 0, false),
+    t7p(15, 14554, 0, true),
+    t7p(16, 14554, 0, false),
+    t7p(17, 14554, 0, true),
+    t7p(18, 14708, 0, true),
+    t7p(19, 13808, 0, false),
+    t7p(20, 14678, 0, true),
+    t7p(21, 165, 0, false),
+    t7p(22, 14802, 0, true),
+    t7p(23, 12784, 0, false),
+    t7p(24, 15856, 0, false),
+    t7p(25, 14802, 0, true),
+    t7p(26, 13808, 0, true),
+    t7p(27, 321, 0, false),
+    t7p(28, 394240, 0, true),
+    t7p(29, 14709, 0, true),
+    t7p(30, 361472, 0, true),
+    t7p(31, 361472, 0, true),
+    t7p(32, 13249, 0, true),
+    t7p(33, 16228, 0, true),
+    t7p(34, 394240, 0, true),
+    t7p(35, 13218, 0, true),
+    t7p(36, 394240, 0, true),
+    t7p(37, 492544, 0, true),
+    t7p(38, 494592, 0, true),
+    t7p(39, 526336, 0, true),
+    t7p(40, 526336, 0, true),
+    t7p(41, 12225, 0, true),
+    t7p(42, 17252, 0, true),
+    t7p(43, 17252, 0, true),
+    t7p(44, 16507, 0, true),
+    t7p(45, 13249, 0, true),
+    t7p(46, 13249, 0, true),
+    t7p(47, 17376, 0, true),
+    t7p(48, 17376, 0, true),
+    t7p(49, 110, 0, false),
+    t7p(50, 133, 0, false),
+    t7p(51, 17314, 0, false),
+    t7p(52, 17376, 0, true),
+    t7p(53, 17252, 0, true),
+    t7p(54, 129, 0, false),
+    t7p(55, 13218, 0, true),
+    t7p(56, 17314, 0, true),
+    t7p(57, 17531, 0, true),
+    t7p(58, 33, 1, false),
+    t7p(59, 17531, 0, true),
+    t7p(60, 67, 1, false),
+    t7p(61, 34, 1, false),
+    t7p(62, 129, 0, false),
+    t7p(63, 110, 0, false),
+    t7p(64, 133, 0, false),
+    t7p(65, 33, 0, false),
+    t7p(66, 67, 0, false),
+    t7p(67, 34, 2, false),
+    t7p(68, 67, 1, false),
+    t7p(69, 129, 0, false),
+    t7p(70, 110, 0, false),
+    t7p(71, 133, 0, false),
+];
+
+/// The PROBE drain pops, k = 0..72.
+const T7_POPS_PROBE: [T7PopRow; 72] = [
+    t7p(0, 125, 0, false),
+    t7p(1, 33, 3, false),
+    t7p(2, 68, 0, false),
+    t7p(3, 33, 2, false),
+    t7p(4, 14398, 0, false),
+    t7p(5, 193, 0, false),
+    t7p(6, 194, 0, false),
+    t7p(7, 67, 2, false),
+    t7p(8, 458753, 0, true),
+    t7p(9, 458753, 0, true),
+    t7p(10, 458753, 0, true),
+    t7p(11, 232, 0, false),
+    t7p(12, 264, 0, false),
+    t7p(13, 14398, 0, true),
+    t7p(14, 13777, 0, false),
+    t7p(15, 14554, 0, true),
+    t7p(16, 14554, 0, false),
+    t7p(17, 14554, 0, true),
+    t7p(18, 14708, 0, true),
+    t7p(19, 13808, 0, false),
+    t7p(20, 14678, 0, true),
+    t7p(21, 165, 0, false),
+    t7p(22, 14802, 0, true),
+    t7p(23, 12784, 0, false),
+    t7p(24, 15856, 0, false),
+    t7p(25, 14802, 0, true),
+    t7p(26, 13808, 0, true),
+    t7p(27, 321, 0, false),
+    t7p(28, 394240, 0, true),
+    t7p(29, 14709, 0, true),
+    t7p(30, 361472, 0, true),
+    t7p(31, 361472, 0, true),
+    t7p(32, 13249, 0, true),
+    t7p(33, 16228, 0, true),
+    t7p(34, 394240, 0, true),
+    t7p(35, 13218, 0, true),
+    t7p(36, 394240, 0, true),
+    t7p(37, 492544, 0, true),
+    t7p(38, 494592, 0, true),
+    t7p(39, 526336, 0, true),
+    t7p(40, 526336, 0, true),
+    t7p(41, 12225, 0, true),
+    t7p(42, 17252, 0, true),
+    t7p(43, 17252, 0, true),
+    t7p(44, 16507, 0, true),
+    t7p(45, 13249, 0, true),
+    t7p(46, 13249, 0, true),
+    t7p(47, 17376, 0, true),
+    t7p(48, 17376, 0, true),
+    t7p(49, 110, 0, false),
+    t7p(50, 133, 0, false),
+    t7p(51, 17314, 0, false),
+    t7p(52, 17376, 0, true),
+    t7p(53, 17252, 0, true),
+    t7p(54, 129, 0, false),
+    t7p(55, 13218, 0, true),
+    t7p(56, 17314, 0, true),
+    t7p(57, 17531, 0, true),
+    t7p(58, 33, 1, false),
+    t7p(59, 17531, 0, true),
+    t7p(60, 67, 1, false),
+    t7p(61, 34, 1, false),
+    t7p(62, 129, 0, false),
+    t7p(63, 110, 0, false),
+    t7p(64, 133, 0, false),
+    t7p(65, 33, 0, false),
+    t7p(66, 67, 0, false),
+    t7p(67, 34, 2, false),
+    t7p(68, 67, 1, false),
+    t7p(69, 129, 0, false),
+    t7p(70, 110, 0, false),
+    t7p(71, 133, 0, false),
+];
+
+/// The three phase pop tables (SEED2, SEED10, PROBE).
+const T7_POPS: [[T7PopRow; 72]; 3] = [T7_POPS_SEED2, T7_POPS_SEED10, T7_POPS_PROBE];
+
+/// The obstacle kind of a harvest row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum T7Kind {
+    Trace,
+    Via,
+}
+
+/// One `harvest` row: the first front element parked in an obstacle
+/// room, per obstacle id, with the RAW element fields.
+#[derive(Clone, Copy, Debug)]
+struct T7HarvestRow {
+    k: i32,
+    obstacle: u64,
+    kind: T7Kind,
+    corner_no: i32,
+    door_id: i32,
+    section: i32,
+    dimension: i32,
+    already_checked: bool,
+    room_ripped: bool,
+}
+// Row-literal constructors: every parameter is one capture column.
+#[allow(clippy::too_many_arguments)]
+const fn t7h(
+    k: i32,
+    obstacle: u64,
+    kind: T7Kind,
+    corner_no: i32,
+    door_id: i32,
+    section: i32,
+    dimension: i32,
+    already_checked: bool,
+    room_ripped: bool,
+) -> T7HarvestRow {
+    T7HarvestRow {
+        k,
+        obstacle,
+        kind,
+        corner_no,
+        door_id,
+        section,
+        dimension,
+        already_checked,
+        room_ripped,
+    }
+}
+
+/// The SEED2 harvests (order = probe order).
+const T7_HARVESTS_SEED2: [T7HarvestRow; 7] = [
+    t7h(2, 14, T7Kind::Trace, 0, 14398, 0, 1, false, false),
+    t7h(12, 13, T7Kind::Trace, 0, 13777, 0, 1, false, false),
+    t7h(20, 12, T7Kind::Trace, 0, 12784, 0, 1, false, false),
+    t7h(24, 15, T7Kind::Trace, 0, 15856, 0, 1, false, false),
+    t7h(25, 11, T7Kind::Trace, 0, 362496, 0, 2, false, true),
+    t7h(37, 16, T7Kind::Trace, 0, 492544, 0, 2, false, true),
+    t7h(38, 18, T7Kind::Via, 0, 494592, 0, 2, false, true),
+];
+
+/// The SEED10 harvests (order = probe order).
+const T7_HARVESTS_SEED10: [T7HarvestRow; 7] = [
+    t7h(2, 14, T7Kind::Trace, 0, 14398, 0, 1, false, false),
+    t7h(12, 13, T7Kind::Trace, 0, 13777, 0, 1, false, false),
+    t7h(20, 12, T7Kind::Trace, 0, 12784, 0, 1, false, false),
+    t7h(24, 15, T7Kind::Trace, 0, 15856, 0, 1, false, false),
+    t7h(25, 11, T7Kind::Trace, 0, 362496, 0, 2, false, true),
+    t7h(37, 16, T7Kind::Trace, 0, 492544, 0, 2, false, true),
+    t7h(38, 18, T7Kind::Via, 0, 494592, 0, 2, false, true),
+];
+
+/// The PROBE harvests (order = probe order).
+const T7_HARVESTS_PROBE: [T7HarvestRow; 7] = [
+    t7h(2, 14, T7Kind::Trace, 0, 14398, 0, 1, false, false),
+    t7h(12, 13, T7Kind::Trace, 0, 13777, 0, 1, false, false),
+    t7h(20, 12, T7Kind::Trace, 0, 12784, 0, 1, false, false),
+    t7h(24, 15, T7Kind::Trace, 0, 15856, 0, 1, false, false),
+    t7h(25, 11, T7Kind::Trace, 0, 362496, 0, 2, false, true),
+    t7h(37, 16, T7Kind::Trace, 0, 492544, 0, 2, false, true),
+    t7h(38, 18, T7Kind::Via, 0, 494592, 0, 2, false, true),
+];
+
+const T7_HARVESTS: [[T7HarvestRow; 7]; 3] =
+    [T7_HARVESTS_SEED2, T7_HARVESTS_SEED10, T7_HARVESTS_PROBE];
+
+/// The direct-call slot: the six PASSES entries (the two pass-4 rows
+/// distinguished by order), the item-9 economics probe, the
+/// ALREADY_RIPPED synthetic element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum T7Slot {
+    P1,
+    P3,
+    P4a,
+    P4b,
+    P6,
+    P7,
+    Item9,
+    Already,
+}
+
+/// The CHECK_RIPUP log payload of one direct call (the fields Java
+/// logs at MazeRipupResolver.java:173-195; the gate and ALREADY_RIPPED
+/// arms return BEFORE the log — `None` here is the log ABSENCE pin).
+#[derive(Clone, Copy, Debug)]
+struct T7TraceRow {
+    items: &'static str,
+    half_width: f64,
+    ripup_costs: i32,
+    trace_length: f64,
+    min_trace_length: f64,
+    item_count: i32,
+    detour: f64,
+    result: i32,
+}
+#[allow(clippy::too_many_arguments)]
+const fn t7t(
+    items: &'static str,
+    half_width: f64,
+    ripup_costs: i32,
+    trace_length: f64,
+    min_trace_length: f64,
+    item_count: i32,
+    detour: f64,
+    result: i32,
+) -> T7TraceRow {
+    T7TraceRow {
+        items,
+        half_width,
+        ripup_costs,
+        trace_length,
+        min_trace_length,
+        item_count,
+        detour,
+        result,
+    }
+}
+
+/// One direct `checkRipup` probe of the replay (marker + optional log
+/// row + result row, correlated by stream position).
+#[derive(Clone, Copy, Debug)]
+struct T7CallRow {
+    harvest: u8,
+    slot: T7Slot,
+    obstacle: u64,
+    pass_no: i32,
+    cost: i32,
+    trace: Option<T7TraceRow>,
+}
+const fn t7c(
+    harvest: u8,
+    slot: T7Slot,
+    obstacle: u64,
+    pass_no: i32,
+    cost: i32,
+    trace: Option<T7TraceRow>,
+) -> T7CallRow {
+    T7CallRow {
+        harvest,
+        slot,
+        obstacle,
+        pass_no,
+        cost,
+        trace,
+    }
+}
+
+const T7_CALLS_SEED2: [T7CallRow; 56] = [
+    t7c(
+        0,
+        T7Slot::P1,
+        14,
+        1,
+        1,
+        Some(t7t("[14]", 10000.0, 2, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P3,
+        14,
+        3,
+        1,
+        Some(t7t("[14]", 10000.0, 2, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P4a,
+        14,
+        4,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            2,
+            44000.0,
+            0.0,
+            1,
+            2221734702.386413,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::P4b,
+        14,
+        4,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            2,
+            44000.0,
+            0.0,
+            1,
+            2818803825.9464397,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::P6,
+        14,
+        6,
+        1,
+        Some(t7t("[14]", 10000.0, 2, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P7,
+        14,
+        7,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            2,
+            44000.0,
+            0.0,
+            1,
+            1603810987.4099746,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            1.4719533274872179,
+            21474836,
+        )),
+    ),
+    t7c(0, T7Slot::Already, 14, 7, 1, None),
+    t7c(
+        1,
+        T7Slot::P1,
+        13,
+        1,
+        1,
+        Some(t7t("[13]", 10000.0, 2, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P3,
+        13,
+        3,
+        1,
+        Some(t7t("[13]", 10000.0, 2, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P4a,
+        13,
+        4,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            2,
+            42000.0,
+            0.0,
+            1,
+            3167538171.484369,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::P4b,
+        13,
+        4,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            2,
+            42000.0,
+            0.0,
+            1,
+            1185531320.6879826,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::P6,
+        13,
+        6,
+        1,
+        Some(t7t("[13]", 10000.0, 2, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P7,
+        13,
+        7,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            2,
+            42000.0,
+            0.0,
+            1,
+            1085755097.6906526,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            1.0522833942555634,
+            21474836,
+        )),
+    ),
+    t7c(1, T7Slot::Already, 13, 7, 1, None),
+    t7c(
+        2,
+        T7Slot::P1,
+        12,
+        1,
+        1,
+        Some(t7t("[12]", 10000.0, 2, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P3,
+        12,
+        3,
+        1,
+        Some(t7t("[12]", 10000.0, 2, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P4a,
+        12,
+        4,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            2,
+            20000.0,
+            0.0,
+            1,
+            2631477882.7507424,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::P4b,
+        12,
+        4,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            2,
+            20000.0,
+            0.0,
+            1,
+            1080657232.3598514,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::P6,
+        12,
+        6,
+        1,
+        Some(t7t("[12]", 10000.0, 2, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P7,
+        12,
+        7,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            2,
+            20000.0,
+            0.0,
+            1,
+            1431720302.0592868,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            0.6241778607764639,
+            21474836,
+        )),
+    ),
+    t7c(2, T7Slot::Already, 12, 7, 1, None),
+    t7c(
+        3,
+        T7Slot::P1,
+        15,
+        1,
+        1,
+        Some(t7t("[15]", 10000.0, 2, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P3,
+        15,
+        3,
+        1,
+        Some(t7t("[15]", 10000.0, 2, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P4a,
+        15,
+        4,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            2,
+            36000.0,
+            0.0,
+            1,
+            1751879715.892036,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::P4b,
+        15,
+        4,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            2,
+            36000.0,
+            0.0,
+            1,
+            1560278473.4162452,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::P6,
+        15,
+        6,
+        1,
+        Some(t7t("[15]", 10000.0, 2, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P7,
+        15,
+        7,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            2,
+            36000.0,
+            0.0,
+            1,
+            1078984892.3244832,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            0.8390411106959199,
+            21474836,
+        )),
+    ),
+    t7c(3, T7Slot::Already, 15, 7, 1, None),
+    t7c(
+        4,
+        T7Slot::P1,
+        11,
+        1,
+        1,
+        Some(t7t("[11]", 10000.0, 2, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P3,
+        11,
+        3,
+        1,
+        Some(t7t("[11]", 10000.0, 2, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P4a,
+        11,
+        4,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            2,
+            18000.0,
+            0.0,
+            1,
+            1186037442.3100867,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::P4b,
+        11,
+        4,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            2,
+            18000.0,
+            0.0,
+            1,
+            1124134482.6131048,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::P6,
+        11,
+        6,
+        1,
+        Some(t7t("[11]", 10000.0, 2, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P7,
+        11,
+        7,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            2,
+            18000.0,
+            0.0,
+            1,
+            3069068038.5423145,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            0.5541146901111209,
+            21474836,
+        )),
+    ),
+    t7c(4, T7Slot::Already, 11, 7, 1, None),
+    t7c(
+        5,
+        T7Slot::P1,
+        16,
+        1,
+        1,
+        Some(t7t("[16]", 10000.0, 2, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P3,
+        16,
+        3,
+        1,
+        Some(t7t("[16]", 10000.0, 2, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P4a,
+        16,
+        4,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            2,
+            36000.0,
+            0.0,
+            1,
+            2586698508.1818995,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::P4b,
+        16,
+        4,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            2,
+            36000.0,
+            0.0,
+            1,
+            2093183748.9418864,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::P6,
+        16,
+        6,
+        1,
+        Some(t7t("[16]", 10000.0, 2, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P7,
+        16,
+        7,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            2,
+            36000.0,
+            0.0,
+            1,
+            2440093164.138213,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            0.5153076825124037,
+            21474836,
+        )),
+    ),
+    t7c(5, T7Slot::Already, 16, 7, 1, None),
+    t7c(
+        6,
+        T7Slot::P1,
+        18,
+        1,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            2,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P3,
+        18,
+        3,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            2,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P4a,
+        18,
+        4,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            2,
+            72000.0,
+            0.0,
+            3,
+            1076047074.294002,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P4b,
+        18,
+        4,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            2,
+            72000.0,
+            0.0,
+            3,
+            2941751118.5534143,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P6,
+        18,
+        6,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            2,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P7,
+        18,
+        7,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            2,
+            72000.0,
+            0.0,
+            3,
+            1226635374.471176,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::Item9,
+        9,
+        7,
+        21474836,
+        Some(t7t(
+            "[]",
+            10000.0,
+            2,
+            0.0,
+            0.0,
+            0,
+            0.8073677176467031,
+            21474836,
+        )),
+    ),
+    t7c(6, T7Slot::Already, 18, 7, 1, None),
+];
+
+const T7_CALLS_SEED10: [T7CallRow; 49] = [
+    t7c(
+        0,
+        T7Slot::P1,
+        14,
+        1,
+        1,
+        Some(t7t("[14]", 10000.0, 10, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P3,
+        14,
+        3,
+        1,
+        Some(t7t("[14]", 10000.0, 10, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P4a,
+        14,
+        4,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            10,
+            44000.0,
+            0.0,
+            1,
+            2219485377.225258,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::P4b,
+        14,
+        4,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            10,
+            44000.0,
+            0.0,
+            1,
+            1216468480.4490461,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::P6,
+        14,
+        6,
+        1,
+        Some(t7t("[14]", 10000.0, 10, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P7,
+        14,
+        7,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            10,
+            44000.0,
+            0.0,
+            1,
+            1081268480.428145,
+            1,
+        )),
+    ),
+    t7c(0, T7Slot::Already, 14, 7, 1, None),
+    t7c(
+        1,
+        T7Slot::P1,
+        13,
+        1,
+        1,
+        Some(t7t("[13]", 10000.0, 10, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P3,
+        13,
+        3,
+        1,
+        Some(t7t("[13]", 10000.0, 10, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P4a,
+        13,
+        4,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            10,
+            42000.0,
+            0.0,
+            1,
+            2513518403.3252015,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::P4b,
+        13,
+        4,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            10,
+            42000.0,
+            0.0,
+            1,
+            1368704300.3149726,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::P6,
+        13,
+        6,
+        1,
+        Some(t7t("[13]", 10000.0, 10, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P7,
+        13,
+        7,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            10,
+            42000.0,
+            0.0,
+            1,
+            2648320773.6733613,
+            1,
+        )),
+    ),
+    t7c(1, T7Slot::Already, 13, 7, 1, None),
+    t7c(
+        2,
+        T7Slot::P1,
+        12,
+        1,
+        1,
+        Some(t7t("[12]", 10000.0, 10, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P3,
+        12,
+        3,
+        1,
+        Some(t7t("[12]", 10000.0, 10, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P4a,
+        12,
+        4,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            10,
+            20000.0,
+            0.0,
+            1,
+            1073888914.6037438,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::P4b,
+        12,
+        4,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            10,
+            20000.0,
+            0.0,
+            1,
+            1490671844.2751544,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::P6,
+        12,
+        6,
+        1,
+        Some(t7t("[12]", 10000.0, 10, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P7,
+        12,
+        7,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            10,
+            20000.0,
+            0.0,
+            1,
+            1075850258.0093699,
+            1,
+        )),
+    ),
+    t7c(2, T7Slot::Already, 12, 7, 1, None),
+    t7c(
+        3,
+        T7Slot::P1,
+        15,
+        1,
+        1,
+        Some(t7t("[15]", 10000.0, 10, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P3,
+        15,
+        3,
+        1,
+        Some(t7t("[15]", 10000.0, 10, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P4a,
+        15,
+        4,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            10,
+            36000.0,
+            0.0,
+            1,
+            3061546402.1365123,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::P4b,
+        15,
+        4,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            10,
+            36000.0,
+            0.0,
+            1,
+            2450816237.9843135,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::P6,
+        15,
+        6,
+        1,
+        Some(t7t("[15]", 10000.0, 10, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P7,
+        15,
+        7,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            10,
+            36000.0,
+            0.0,
+            1,
+            1483662280.815164,
+            1,
+        )),
+    ),
+    t7c(3, T7Slot::Already, 15, 7, 1, None),
+    t7c(
+        4,
+        T7Slot::P1,
+        11,
+        1,
+        1,
+        Some(t7t("[11]", 10000.0, 10, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P3,
+        11,
+        3,
+        1,
+        Some(t7t("[11]", 10000.0, 10, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P4a,
+        11,
+        4,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            10,
+            18000.0,
+            0.0,
+            1,
+            1173222882.5632799,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::P4b,
+        11,
+        4,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            10,
+            18000.0,
+            0.0,
+            1,
+            3040572875.9398236,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::P6,
+        11,
+        6,
+        1,
+        Some(t7t("[11]", 10000.0, 10, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P7,
+        11,
+        7,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            10,
+            18000.0,
+            0.0,
+            1,
+            1174003463.4172664,
+            1,
+        )),
+    ),
+    t7c(4, T7Slot::Already, 11, 7, 1, None),
+    t7c(
+        5,
+        T7Slot::P1,
+        16,
+        1,
+        1,
+        Some(t7t("[16]", 10000.0, 10, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P3,
+        16,
+        3,
+        1,
+        Some(t7t("[16]", 10000.0, 10, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P4a,
+        16,
+        4,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            10,
+            36000.0,
+            0.0,
+            1,
+            1379644355.159074,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::P4b,
+        16,
+        4,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            10,
+            36000.0,
+            0.0,
+            1,
+            2002633512.8731785,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::P6,
+        16,
+        6,
+        1,
+        Some(t7t("[16]", 10000.0, 10, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P7,
+        16,
+        7,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            10,
+            36000.0,
+            0.0,
+            1,
+            1215440519.6258812,
+            1,
+        )),
+    ),
+    t7c(5, T7Slot::Already, 16, 7, 1, None),
+    t7c(
+        6,
+        T7Slot::P1,
+        18,
+        1,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            10,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P3,
+        18,
+        3,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            10,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P4a,
+        18,
+        4,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            10,
+            72000.0,
+            0.0,
+            3,
+            2423852202.2859435,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P4b,
+        18,
+        4,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            10,
+            72000.0,
+            0.0,
+            3,
+            2497247948.2884383,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P6,
+        18,
+        6,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            10,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P7,
+        18,
+        7,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            10,
+            72000.0,
+            0.0,
+            3,
+            2615498250.3709273,
+            1,
+        )),
+    ),
+    t7c(6, T7Slot::Already, 18, 7, 1, None),
+];
+
+const T7_CALLS_PROBE: [T7CallRow; 56] = [
+    t7c(
+        0,
+        T7Slot::P1,
+        14,
+        1,
+        1,
+        Some(t7t("[14]", 10000.0, 1000, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P3,
+        14,
+        3,
+        1,
+        Some(t7t("[14]", 10000.0, 1000, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P4a,
+        14,
+        4,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            1000,
+            44000.0,
+            0.0,
+            1,
+            2156852259.5613413,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::P4b,
+        14,
+        4,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            1000,
+            44000.0,
+            0.0,
+            1,
+            1783349511.7003453,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::P6,
+        14,
+        6,
+        1,
+        Some(t7t("[14]", 10000.0, 1000, 44000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        0,
+        T7Slot::P7,
+        14,
+        7,
+        1,
+        Some(t7t(
+            "[14]",
+            10000.0,
+            1000,
+            44000.0,
+            0.0,
+            1,
+            2997262940.8184934,
+            1,
+        )),
+    ),
+    t7c(
+        0,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            1077076498.8891563,
+            1,
+        )),
+    ),
+    t7c(0, T7Slot::Already, 14, 7, 1, None),
+    t7c(
+        1,
+        T7Slot::P1,
+        13,
+        1,
+        1,
+        Some(t7t("[13]", 10000.0, 1000, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P3,
+        13,
+        3,
+        1,
+        Some(t7t("[13]", 10000.0, 1000, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P4a,
+        13,
+        4,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            1000,
+            42000.0,
+            0.0,
+            1,
+            1500406534.0383437,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::P4b,
+        13,
+        4,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            1000,
+            42000.0,
+            0.0,
+            1,
+            1848935190.3786967,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::P6,
+        13,
+        6,
+        1,
+        Some(t7t("[13]", 10000.0, 1000, 42000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        1,
+        T7Slot::P7,
+        13,
+        7,
+        1,
+        Some(t7t(
+            "[13]",
+            10000.0,
+            1000,
+            42000.0,
+            0.0,
+            1,
+            1724244530.427738,
+            1,
+        )),
+    ),
+    t7c(
+        1,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            2003689956.2903693,
+            1,
+        )),
+    ),
+    t7c(1, T7Slot::Already, 13, 7, 1, None),
+    t7c(
+        2,
+        T7Slot::P1,
+        12,
+        1,
+        1,
+        Some(t7t("[12]", 10000.0, 1000, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P3,
+        12,
+        3,
+        1,
+        Some(t7t("[12]", 10000.0, 1000, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P4a,
+        12,
+        4,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            1000,
+            20000.0,
+            0.0,
+            1,
+            1346288151.3147933,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::P4b,
+        12,
+        4,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            1000,
+            20000.0,
+            0.0,
+            1,
+            1113574222.6839988,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::P6,
+        12,
+        6,
+        1,
+        Some(t7t("[12]", 10000.0, 1000, 20000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        2,
+        T7Slot::P7,
+        12,
+        7,
+        1,
+        Some(t7t(
+            "[12]",
+            10000.0,
+            1000,
+            20000.0,
+            0.0,
+            1,
+            1866235645.241365,
+            1,
+        )),
+    ),
+    t7c(
+        2,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            3085409176.7914524,
+            1,
+        )),
+    ),
+    t7c(2, T7Slot::Already, 12, 7, 1, None),
+    t7c(
+        3,
+        T7Slot::P1,
+        15,
+        1,
+        1,
+        Some(t7t("[15]", 10000.0, 1000, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P3,
+        15,
+        3,
+        1,
+        Some(t7t("[15]", 10000.0, 1000, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P4a,
+        15,
+        4,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            1000,
+            36000.0,
+            0.0,
+            1,
+            3038316210.6568184,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::P4b,
+        15,
+        4,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            1000,
+            36000.0,
+            0.0,
+            1,
+            2621467771.072557,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::P6,
+        15,
+        6,
+        1,
+        Some(t7t("[15]", 10000.0, 1000, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        3,
+        T7Slot::P7,
+        15,
+        7,
+        1,
+        Some(t7t(
+            "[15]",
+            10000.0,
+            1000,
+            36000.0,
+            0.0,
+            1,
+            1093866127.55231,
+            1,
+        )),
+    ),
+    t7c(
+        3,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            1369274755.2317076,
+            1,
+        )),
+    ),
+    t7c(3, T7Slot::Already, 15, 7, 1, None),
+    t7c(
+        4,
+        T7Slot::P1,
+        11,
+        1,
+        1,
+        Some(t7t("[11]", 10000.0, 1000, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P3,
+        11,
+        3,
+        1,
+        Some(t7t("[11]", 10000.0, 1000, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P4a,
+        11,
+        4,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            1000,
+            18000.0,
+            0.0,
+            1,
+            2393966447.503216,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::P4b,
+        11,
+        4,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            1000,
+            18000.0,
+            0.0,
+            1,
+            1073924844.1267772,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::P6,
+        11,
+        6,
+        1,
+        Some(t7t("[11]", 10000.0, 1000, 18000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        4,
+        T7Slot::P7,
+        11,
+        7,
+        1,
+        Some(t7t(
+            "[11]",
+            10000.0,
+            1000,
+            18000.0,
+            0.0,
+            1,
+            2478442681.599554,
+            1,
+        )),
+    ),
+    t7c(
+        4,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            1132631066.246659,
+            1,
+        )),
+    ),
+    t7c(4, T7Slot::Already, 11, 7, 1, None),
+    t7c(
+        5,
+        T7Slot::P1,
+        16,
+        1,
+        1,
+        Some(t7t("[16]", 10000.0, 1000, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P3,
+        16,
+        3,
+        1,
+        Some(t7t("[16]", 10000.0, 1000, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P4a,
+        16,
+        4,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            1000,
+            36000.0,
+            0.0,
+            1,
+            1340625708.0451999,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::P4b,
+        16,
+        4,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            1000,
+            36000.0,
+            0.0,
+            1,
+            1770806412.431135,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::P6,
+        16,
+        6,
+        1,
+        Some(t7t("[16]", 10000.0, 1000, 36000.0, 0.0, 1, 2147483647.0, 1)),
+    ),
+    t7c(
+        5,
+        T7Slot::P7,
+        16,
+        7,
+        1,
+        Some(t7t(
+            "[16]",
+            10000.0,
+            1000,
+            36000.0,
+            0.0,
+            1,
+            3168099938.166746,
+            1,
+        )),
+    ),
+    t7c(
+        5,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            1275638343.727627,
+            1,
+        )),
+    ),
+    t7c(5, T7Slot::Already, 16, 7, 1, None),
+    t7c(
+        6,
+        T7Slot::P1,
+        18,
+        1,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            1000,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P3,
+        18,
+        3,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            1000,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P4a,
+        18,
+        4,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            1000,
+            72000.0,
+            0.0,
+            3,
+            1360571789.5834382,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P4b,
+        18,
+        4,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            1000,
+            72000.0,
+            0.0,
+            3,
+            1316107546.526542,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P6,
+        18,
+        6,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            1000,
+            72000.0,
+            0.0,
+            3,
+            2147483647.0,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::P7,
+        18,
+        7,
+        1,
+        Some(t7t(
+            "[18,16,15]",
+            5000.0,
+            1000,
+            72000.0,
+            0.0,
+            3,
+            1440711189.9355729,
+            1,
+        )),
+    ),
+    t7c(
+        6,
+        T7Slot::Item9,
+        9,
+        7,
+        1,
+        Some(t7t(
+            "[9]",
+            10000.0,
+            1000,
+            24000.0,
+            0.0,
+            1,
+            1516159582.4162734,
+            1,
+        )),
+    ),
+    t7c(6, T7Slot::Already, 18, 7, 1, None),
+];
+
+const T7_CALLS: [&[T7CallRow]; 3] = [&T7_CALLS_SEED2, &T7_CALLS_SEED10, &T7_CALLS_PROBE];
+
+/// The three surgical gate probes per harvest (items 17/19/20, all
+/// `-1` through the FIRST gate — the drain never reaches these arms).
+const T7_GATES: [[[u64; 3]; 7]; 3] = [
+    [
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+    ],
+    [
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+    ],
+    [
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+        [17, 19, 20],
+    ],
+];
+
+/// One `leaving` row (the dim-1 harvests, in order):
+/// `checkLeavingRippedItem` on the HARVEST element.
+const T7_LEAVING: [[bool; 4]; 3] = [
+    [false, false, false, false],
+    [false, false, false, false],
+    [false, false, false, false],
+];
+
+/// One `small_door` row: `enterThroughSmallDoor` on the harvest
+/// element (ignore = the obstacle, then the destination pin 4),
+/// with the Java `checkRadius` literal.
+const T7_SMALL_DOOR: [[(u64, bool, f64); 8]; 3] = [
+    [
+        (14, true, 11252.0),
+        (4, false, 11252.0),
+        (13, false, 11252.0),
+        (4, false, 11252.0),
+        (12, true, 11252.0),
+        (4, false, 11252.0),
+        (15, true, 11252.0),
+        (4, false, 11252.0),
+    ],
+    [
+        (14, true, 11252.0),
+        (4, false, 11252.0),
+        (13, false, 11252.0),
+        (4, false, 11252.0),
+        (12, true, 11252.0),
+        (4, false, 11252.0),
+        (15, true, 11252.0),
+        (4, false, 11252.0),
+    ],
+    [
+        (14, true, 11252.0),
+        (4, false, 11252.0),
+        (13, false, 11252.0),
+        (4, false, 11252.0),
+        (12, true, 11252.0),
+        (4, false, 11252.0),
+        (15, true, 11252.0),
+        (4, false, 11252.0),
+    ],
+];
+
+/// The small-door check derivation (SEED2 harvest 0, first probe):
+/// the element door shape's border corners are the capture's
+/// `doorCorners` literal array.
+const T7_DOOR_CORNERS: [(f64, f64); 8] = [
+    (536750.0, 289340.0),
+    (536750.0, 289340.0),
+    (536750.0, 289340.0),
+    (536750.0, 314660.0),
+    (536750.0, 314660.0),
+    (536750.0, 314660.0),
+    (536750.0, 314660.0),
+    (536750.0, 289340.0),
+];
+
+/// One `leaving_ripped` row: the :506 leaving path on the first
+/// roomRipped element of the front (per door:section, once).
+#[derive(Clone, Copy, Debug)]
+struct T7LeavingRippedRow {
+    k: i32,
+    door_id: i32,
+    section: i32,
+    verdict: bool,
+}
+const fn t7lr(k: i32, door_id: i32, section: i32, verdict: bool) -> T7LeavingRippedRow {
+    T7LeavingRippedRow {
+        k,
+        door_id,
+        section,
+        verdict,
+    }
+}
+
+const T7_LEAVING_RIPPED_SEED2: [T7LeavingRippedRow; 22] = [
+    t7lr(5, 458753, 0, false),
+    t7lr(11, 14398, 0, true),
+    t7lr(14, 14554, 0, false),
+    t7lr(18, 14708, 0, true),
+    t7lr(19, 14678, 0, false),
+    t7lr(21, 14802, 0, false),
+    t7lr(26, 13808, 0, true),
+    t7lr(27, 394240, 0, false),
+    t7lr(29, 14709, 0, true),
+    t7lr(30, 361472, 0, false),
+    t7lr(32, 13249, 0, true),
+    t7lr(33, 16228, 0, false),
+    t7lr(35, 13218, 0, true),
+    t7lr(37, 492544, 0, false),
+    t7lr(38, 494592, 0, false),
+    t7lr(39, 526336, 0, false),
+    t7lr(41, 12225, 0, true),
+    t7lr(42, 17252, 0, false),
+    t7lr(44, 16507, 0, false),
+    t7lr(47, 17376, 0, false),
+    t7lr(56, 17314, 0, true),
+    t7lr(57, 17531, 0, false),
+];
+
+const T7_LEAVING_RIPPED_SEED10: [T7LeavingRippedRow; 22] = [
+    t7lr(5, 458753, 0, false),
+    t7lr(11, 14398, 0, true),
+    t7lr(14, 14554, 0, false),
+    t7lr(18, 14708, 0, true),
+    t7lr(19, 14678, 0, false),
+    t7lr(21, 14802, 0, false),
+    t7lr(26, 13808, 0, true),
+    t7lr(27, 394240, 0, false),
+    t7lr(29, 14709, 0, true),
+    t7lr(30, 361472, 0, false),
+    t7lr(32, 13249, 0, true),
+    t7lr(33, 16228, 0, false),
+    t7lr(35, 13218, 0, true),
+    t7lr(37, 492544, 0, false),
+    t7lr(38, 494592, 0, false),
+    t7lr(39, 526336, 0, false),
+    t7lr(41, 12225, 0, true),
+    t7lr(42, 17252, 0, false),
+    t7lr(44, 16507, 0, false),
+    t7lr(47, 17376, 0, false),
+    t7lr(56, 17314, 0, true),
+    t7lr(57, 17531, 0, false),
+];
+
+const T7_LEAVING_RIPPED_PROBE: [T7LeavingRippedRow; 22] = [
+    t7lr(5, 458753, 0, false),
+    t7lr(11, 14398, 0, true),
+    t7lr(14, 14554, 0, false),
+    t7lr(18, 14708, 0, true),
+    t7lr(19, 14678, 0, false),
+    t7lr(21, 14802, 0, false),
+    t7lr(26, 13808, 0, true),
+    t7lr(27, 394240, 0, false),
+    t7lr(29, 14709, 0, true),
+    t7lr(30, 361472, 0, false),
+    t7lr(32, 13249, 0, true),
+    t7lr(33, 16228, 0, false),
+    t7lr(35, 13218, 0, true),
+    t7lr(37, 492544, 0, false),
+    t7lr(38, 494592, 0, false),
+    t7lr(39, 526336, 0, false),
+    t7lr(41, 12225, 0, true),
+    t7lr(42, 17252, 0, false),
+    t7lr(44, 16507, 0, false),
+    t7lr(47, 17376, 0, false),
+    t7lr(56, 17314, 0, true),
+    t7lr(57, 17531, 0, false),
+];
+
+const T7_LEAVING_RIPPED: [[T7LeavingRippedRow; 22]; 3] = [
+    T7_LEAVING_RIPPED_SEED2,
+    T7_LEAVING_RIPPED_SEED10,
+    T7_LEAVING_RIPPED_PROBE,
+];
+
+/// One `small_door_ripped` row: the ignore variants of the ripped
+/// element (destination pin 4, then the room being left's obstacle).
+#[derive(Clone, Copy, Debug)]
+struct T7SmallDoorRippedRow {
+    door_id: i32,
+    section: i32,
+    ignore_id: u64,
+    verdict: bool,
+}
+const fn t7sr(door_id: i32, section: i32, ignore_id: u64, verdict: bool) -> T7SmallDoorRippedRow {
+    T7SmallDoorRippedRow {
+        door_id,
+        section,
+        ignore_id,
+        verdict,
+    }
+}
+
+const T7_SMALL_DOOR_RIPPED_SEED2: [T7SmallDoorRippedRow; 44] = [
+    t7sr(458753, 0, 4, false),
+    t7sr(458753, 0, 14, false),
+    t7sr(14398, 0, 4, false),
+    t7sr(14398, 0, 14, true),
+    t7sr(14554, 0, 4, false),
+    t7sr(14554, 0, 14, false),
+    t7sr(14708, 0, 4, false),
+    t7sr(14708, 0, 14, true),
+    t7sr(14678, 0, 4, false),
+    t7sr(14678, 0, 14, false),
+    t7sr(14802, 0, 4, false),
+    t7sr(14802, 0, 14, false),
+    t7sr(13808, 0, 4, false),
+    t7sr(13808, 0, 13, true),
+    t7sr(394240, 0, 4, false),
+    t7sr(394240, 0, 13, false),
+    t7sr(14709, 0, 4, false),
+    t7sr(14709, 0, 14, true),
+    t7sr(361472, 0, 4, false),
+    t7sr(361472, 0, 11, false),
+    t7sr(13249, 0, 4, false),
+    t7sr(13249, 0, 12, true),
+    t7sr(16228, 0, 4, false),
+    t7sr(16228, 0, 15, false),
+    t7sr(13218, 0, 4, false),
+    t7sr(13218, 0, 12, true),
+    t7sr(492544, 0, 4, false),
+    t7sr(492544, 0, 15, false),
+    t7sr(494592, 0, 4, false),
+    t7sr(494592, 0, 15, false),
+    t7sr(526336, 0, 4, false),
+    t7sr(526336, 0, 18, false),
+    t7sr(12225, 0, 4, false),
+    t7sr(12225, 0, 11, true),
+    t7sr(17252, 0, 4, false),
+    t7sr(17252, 0, 16, false),
+    t7sr(16507, 0, 4, false),
+    t7sr(16507, 0, 15, false),
+    t7sr(17376, 0, 4, false),
+    t7sr(17376, 0, 16, false),
+    t7sr(17314, 0, 4, false),
+    t7sr(17314, 0, 16, true),
+    t7sr(17531, 0, 4, false),
+    t7sr(17531, 0, 16, false),
+];
+
+const T7_SMALL_DOOR_RIPPED_SEED10: [T7SmallDoorRippedRow; 44] = [
+    t7sr(458753, 0, 4, false),
+    t7sr(458753, 0, 14, false),
+    t7sr(14398, 0, 4, false),
+    t7sr(14398, 0, 14, true),
+    t7sr(14554, 0, 4, false),
+    t7sr(14554, 0, 14, false),
+    t7sr(14708, 0, 4, false),
+    t7sr(14708, 0, 14, true),
+    t7sr(14678, 0, 4, false),
+    t7sr(14678, 0, 14, false),
+    t7sr(14802, 0, 4, false),
+    t7sr(14802, 0, 14, false),
+    t7sr(13808, 0, 4, false),
+    t7sr(13808, 0, 13, true),
+    t7sr(394240, 0, 4, false),
+    t7sr(394240, 0, 13, false),
+    t7sr(14709, 0, 4, false),
+    t7sr(14709, 0, 14, true),
+    t7sr(361472, 0, 4, false),
+    t7sr(361472, 0, 11, false),
+    t7sr(13249, 0, 4, false),
+    t7sr(13249, 0, 12, true),
+    t7sr(16228, 0, 4, false),
+    t7sr(16228, 0, 15, false),
+    t7sr(13218, 0, 4, false),
+    t7sr(13218, 0, 12, true),
+    t7sr(492544, 0, 4, false),
+    t7sr(492544, 0, 15, false),
+    t7sr(494592, 0, 4, false),
+    t7sr(494592, 0, 15, false),
+    t7sr(526336, 0, 4, false),
+    t7sr(526336, 0, 18, false),
+    t7sr(12225, 0, 4, false),
+    t7sr(12225, 0, 11, true),
+    t7sr(17252, 0, 4, false),
+    t7sr(17252, 0, 16, false),
+    t7sr(16507, 0, 4, false),
+    t7sr(16507, 0, 15, false),
+    t7sr(17376, 0, 4, false),
+    t7sr(17376, 0, 16, false),
+    t7sr(17314, 0, 4, false),
+    t7sr(17314, 0, 16, true),
+    t7sr(17531, 0, 4, false),
+    t7sr(17531, 0, 16, false),
+];
+
+const T7_SMALL_DOOR_RIPPED_PROBE: [T7SmallDoorRippedRow; 44] = [
+    t7sr(458753, 0, 4, false),
+    t7sr(458753, 0, 14, false),
+    t7sr(14398, 0, 4, false),
+    t7sr(14398, 0, 14, true),
+    t7sr(14554, 0, 4, false),
+    t7sr(14554, 0, 14, false),
+    t7sr(14708, 0, 4, false),
+    t7sr(14708, 0, 14, true),
+    t7sr(14678, 0, 4, false),
+    t7sr(14678, 0, 14, false),
+    t7sr(14802, 0, 4, false),
+    t7sr(14802, 0, 14, false),
+    t7sr(13808, 0, 4, false),
+    t7sr(13808, 0, 13, true),
+    t7sr(394240, 0, 4, false),
+    t7sr(394240, 0, 13, false),
+    t7sr(14709, 0, 4, false),
+    t7sr(14709, 0, 14, true),
+    t7sr(361472, 0, 4, false),
+    t7sr(361472, 0, 11, false),
+    t7sr(13249, 0, 4, false),
+    t7sr(13249, 0, 12, true),
+    t7sr(16228, 0, 4, false),
+    t7sr(16228, 0, 15, false),
+    t7sr(13218, 0, 4, false),
+    t7sr(13218, 0, 12, true),
+    t7sr(492544, 0, 4, false),
+    t7sr(492544, 0, 15, false),
+    t7sr(494592, 0, 4, false),
+    t7sr(494592, 0, 15, false),
+    t7sr(526336, 0, 4, false),
+    t7sr(526336, 0, 18, false),
+    t7sr(12225, 0, 4, false),
+    t7sr(12225, 0, 11, true),
+    t7sr(17252, 0, 4, false),
+    t7sr(17252, 0, 16, false),
+    t7sr(16507, 0, 4, false),
+    t7sr(16507, 0, 15, false),
+    t7sr(17376, 0, 4, false),
+    t7sr(17376, 0, 16, false),
+    t7sr(17314, 0, 4, false),
+    t7sr(17314, 0, 16, true),
+    t7sr(17531, 0, 4, false),
+    t7sr(17531, 0, 16, false),
+];
+
+const T7_SMALL_DOOR_RIPPED: [[T7SmallDoorRippedRow; 44]; 3] = [
+    T7_SMALL_DOOR_RIPPED_SEED2,
+    T7_SMALL_DOOR_RIPPED_SEED10,
+    T7_SMALL_DOOR_RIPPED_PROBE,
+];
+
+/// One `shove` row: the READ-ONLY `checkShoveTraceLine` probe on a
+/// trace harvest (both directions), with the raw gate inputs. Every
+/// captured row returned an EMPTY door list (toDoors 0).
+#[derive(Clone, Copy, Debug)]
+struct T7ShoveRow {
+    left: bool,
+    verdict: bool,
+    corner_no: i32,
+    lines: usize,
+    half_width: i32,
+    ctrl_half_width: i32,
+    door_max_width: f64,
+}
+const fn t7s(
+    left: bool,
+    verdict: bool,
+    corner_no: i32,
+    lines: usize,
+    half_width: i32,
+    ctrl_half_width: i32,
+    door_max_width: f64,
+) -> T7ShoveRow {
+    T7ShoveRow {
+        left,
+        verdict,
+        corner_no,
+        lines,
+        half_width,
+        ctrl_half_width,
+        door_max_width,
+    }
+}
+
+const T7_SHOVE_SEED2: [T7ShoveRow; 12] = [
+    t7s(false, true, 0, 4, 10000, 10000, 25320.0),
+    t7s(true, true, 0, 4, 10000, 10000, 25320.0),
+    t7s(false, false, 0, 3, 10000, 10000, 51320.0),
+    t7s(true, false, 0, 3, 10000, 10000, 51320.0),
+    t7s(false, true, 0, 3, 10000, 10000, 13410.0),
+    t7s(true, true, 0, 3, 10000, 10000, 13410.0),
+    t7s(false, true, 0, 3, 10000, 10000, 34410.0),
+    t7s(true, true, 0, 3, 10000, 10000, 34410.0),
+    t7s(false, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(true, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(false, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(true, true, 0, 3, 10000, 10000, 22500.13777735594),
+];
+
+const T7_SHOVE_SEED10: [T7ShoveRow; 12] = [
+    t7s(false, true, 0, 4, 10000, 10000, 25320.0),
+    t7s(true, true, 0, 4, 10000, 10000, 25320.0),
+    t7s(false, false, 0, 3, 10000, 10000, 51320.0),
+    t7s(true, false, 0, 3, 10000, 10000, 51320.0),
+    t7s(false, true, 0, 3, 10000, 10000, 13410.0),
+    t7s(true, true, 0, 3, 10000, 10000, 13410.0),
+    t7s(false, true, 0, 3, 10000, 10000, 34410.0),
+    t7s(true, true, 0, 3, 10000, 10000, 34410.0),
+    t7s(false, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(true, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(false, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(true, true, 0, 3, 10000, 10000, 22500.13777735594),
+];
+
+const T7_SHOVE_PROBE: [T7ShoveRow; 12] = [
+    t7s(false, true, 0, 4, 10000, 10000, 25320.0),
+    t7s(true, true, 0, 4, 10000, 10000, 25320.0),
+    t7s(false, false, 0, 3, 10000, 10000, 51320.0),
+    t7s(true, false, 0, 3, 10000, 10000, 51320.0),
+    t7s(false, true, 0, 3, 10000, 10000, 13410.0),
+    t7s(true, true, 0, 3, 10000, 10000, 13410.0),
+    t7s(false, true, 0, 3, 10000, 10000, 34410.0),
+    t7s(true, true, 0, 3, 10000, 10000, 34410.0),
+    t7s(false, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(true, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(false, true, 0, 3, 10000, 10000, 22500.13777735594),
+    t7s(true, true, 0, 3, 10000, 10000, 22500.13777735594),
+];
+
+const T7_SHOVE: [[T7ShoveRow; 12]; 3] = [T7_SHOVE_SEED2, T7_SHOVE_SEED10, T7_SHOVE_PROBE];
+
+/// The `shove_nontrace` row (the via harvest): the kind gate answers
+/// TRUE (nothing to shove, do not delay occupation).
+const T7_SHOVE_NONTRACE: [bool; 3] = [true, true, true];
+
+/// The `shove_stale` row for index 5 (both captured stale rows answer
+/// FALSE through the stale gate; see the test for the -1 asymmetry).
+const T7_SHOVE_STALE: [bool; 3] = [false, false, false];
+
+/// The `shove_halfwidth_gate` row: ctrl.traceHalfWidth forced to 999
+/// flips the same-width gate -> TRUE.
+const T7_SHOVE_HW_GATE: [bool; 3] = [true, true, true];
+
+/// The raw `java.util.Random(seed)` probe rows (the FIRST five
+/// `nextDouble` of a FRESH generator — the JavaRandom port pin).
+const T7_RNG: [[f64; 5]; 3] = [
+    [
+        0.7311469360199058,
+        0.9014476240300544,
+        0.49682259343089075,
+        0.9858769332362016,
+        0.8571240443456863,
+    ],
+    [
+        0.7304302967434272,
+        0.2578027905957804,
+        0.059201965811244595,
+        0.24411725056425315,
+        0.8188090228552316,
+    ],
+    [
+        0.7101849056320707,
+        0.574836350385667,
+        0.9464192094792073,
+        0.039405954311386604,
+        0.4864098780914311,
+    ],
+];
+
+/// The phase ctrl rows: (seed, removeUnconnectedVias) per phase; the
+/// resolved tables are asserted in `t7_assert_ctrl`.
+const T7_PHASES: [(i32, bool); 3] = [(2, false), (10, true), (1000, true)];
+
+// ---- the T7 replay rig ----
+
+use super::ripup::RipupTrace;
+use super::shove_probe::DoorSection;
+
+/// One T7 phase rig — the capture's per-phase fresh parse with the
+/// ctrl mutations of RipupSpike.main: `ripupAllowed`, the seed as
+/// `ripupCosts`, `ripupPassNo` 1, vias OFF, fanout protection ON only
+/// for SEED2 (`removeUnconnectedVias = seed != 2`).
+fn t7_make_run(
+    seed: i32,
+    remove_unconnected_vias: bool,
+) -> (
+    Harness,
+    AutorouteControl,
+    TargetDistance,
+    LegalChecker,
+    DrillPageArray,
+) {
+    let mut harness = Harness::build_with(T7_FIXTURE_DSN, NET_A);
+    let mut ctrl = AutorouteControl::new(harness.board_mut(), NET_A, &maze_settings_ir(false));
+    ctrl.ripup_allowed = true;
+    ctrl.ripup_costs = seed;
+    ctrl.ripup_pass_no = 1;
+    ctrl.vias_allowed = false;
+    ctrl.remove_unconnected_vias = remove_unconnected_vias;
+    let distance = TargetDistance::new(&ctrl);
+    let checker = LegalChecker;
+    let max_page_width = max_drill_page_width(harness.default_via_diameter());
+    let pages = DrillPageArray::new(&harness, max_page_width);
+    (harness, ctrl, distance, checker, pages)
+}
+
+/// The capture `ctrl` rows (identical resolved tables across the three
+/// phases; the seed and the protection flag differ).
+fn t7_assert_ctrl(ctrl: &AutorouteControl, phase_idx: usize) {
+    let (seed, remove_uv) = T7_PHASES[phase_idx];
+    assert_eq!(ctrl.net_number, 1, "ctrl netNumber");
+    assert_eq!(ctrl.layer_count, 2, "ctrl layerCount");
+    assert!(ctrl.ripup_allowed, "ctrl ripupAllowed");
+    assert_eq!(ctrl.ripup_costs, seed, "ctrl ripupCosts");
+    assert_eq!(ctrl.ripup_pass_no, 1, "ctrl ripupPassNo");
+    assert_eq!(ctrl.settings.start_ripup_costs, 1, "ctrl startRipupCosts");
+    assert_eq!(
+        ctrl.remove_unconnected_vias, remove_uv,
+        "ctrl removeUnconnectedVias"
+    );
+    assert!(!ctrl.is_fanout, "ctrl isFanout");
+    assert!(!ctrl.vias_allowed, "ctrl viasAllowed");
+    assert_eq!(ctrl.trace_clearance_class_index, 1, "ctrl clearanceClass");
+    assert_eq!(ctrl.max_shove_trace_recursion_depth, 20, "ctrl maxShove");
+    assert_eq!(ctrl.max_shove_via_recursion_depth, 5, "ctrl maxShoveVia");
+    assert_eq!(
+        ctrl.compensated_trace_half_width,
+        [11250, 11250],
+        "ctrl compensatedTraceHalfWidth"
+    );
+    assert_eq!(ctrl.trace_half_width, [10000, 10000], "ctrl traceHalfWidth");
+    assert_eq!(ctrl.layer_active, [true, true], "ctrl layerActive");
+}
+
+/// Asserts one direct call against its capture rows (marker + optional
+/// CHECK_RIPUP log + result). The `detour` literal is the RNG-stream
+/// witness: it changes only when the generator advanced.
+#[allow(clippy::too_many_arguments)]
+fn assert_call(
+    want: &T7CallRow,
+    slot: T7Slot,
+    obstacle: u64,
+    pass_no: i32,
+    cost: i32,
+    trace: Option<&RipupTrace>,
+    phase: &str,
+) {
+    assert_eq!(want.slot, slot, "{phase} call slot obstacle {obstacle}");
+    assert_eq!(want.obstacle, obstacle, "{phase} call obstacle");
+    assert_eq!(
+        want.pass_no, pass_no,
+        "{phase} call pass obstacle {obstacle}"
+    );
+    assert_eq!(
+        want.cost, cost,
+        "{phase} call cost obstacle {obstacle} pass {pass_no}"
+    );
+    match (want.trace, trace) {
+        (None, None) => {}
+        (Some(wt), Some(rt)) => {
+            assert_eq!(
+                wt.items, rt.connection_item_ids,
+                "{phase} connectionItems obstacle {obstacle} pass {pass_no}"
+            );
+            assert_eq!(
+                wt.half_width, rt.half_width,
+                "{phase} halfWidth obstacle {obstacle} pass {pass_no}"
+            );
+            assert_eq!(
+                wt.ripup_costs, rt.ripup_costs,
+                "{phase} ripupCosts obstacle {obstacle} pass {pass_no}"
+            );
+            assert_eq!(
+                wt.trace_length, rt.trace_length,
+                "{phase} traceLength obstacle {obstacle} pass {pass_no}"
+            );
+            assert_eq!(
+                wt.min_trace_length, rt.min_trace_length,
+                "{phase} minTraceLength obstacle {obstacle} pass {pass_no}"
+            );
+            assert_eq!(
+                wt.item_count, rt.item_count,
+                "{phase} itemCount obstacle {obstacle} pass {pass_no}"
+            );
+            assert_eq!(
+                wt.detour, rt.detour,
+                "{phase} detour obstacle {obstacle} pass {pass_no} (the RNG stream)"
+            );
+            assert_eq!(
+                wt.result, rt.result,
+                "{phase} result obstacle {obstacle} pass {pass_no}"
+            );
+        }
+        _ => panic!("{phase}: log presence mismatch obstacle {obstacle} pass {pass_no}"),
+    }
+}
+
+/// THE T7 protocol pin: the full three-phase drain replay. Every
+/// expected value is a literal capture row; the call/detour tables pin
+/// the whole `java.util.Random` stream (the RNG-lifetime witness lives
+/// in the two SEED2 P4a/P4b detours of harvest 0: 2221734702.386413 vs
+/// 2818803825.9464397 — DIFFERENT, so the engine's generator was
+/// seeded once at construction, not per call; the randomize gate truth
+/// table passNo 1 false / 3 false / 4 true / 6 false / 7 true follows
+/// from P1/P3/P6 carrying the unrandomized 2147483647.0 detour while
+/// P4a/P4b/P7 carry drawn factors).
+///
+/// DEVIATION (T10-gated prefix): pops 0-8 and harvest 0's full probe
+/// battery are pinned EXACTLY against the capture. At pop 8 the Java
+/// engine re-parks the roomRipped door-458753 element three times
+/// (pops 8-10) because its INTERNAL `shoveTraceRoom` verdict for the
+/// (door 458753, obstacle room 14337) pair is FALSE, while the port's
+/// is TRUE — the port then expands immediately and the downstream pop
+/// stream diverges (Java capture room 232 vs port 231, Δ1 id burn).
+/// The ported `checkShoveTraceLine` matches Java arm-for-arm
+/// (MazeTraceShover.java:32-314); the disagreement is a semantic board
+/// state behind one of the dim-2 branch's three FALSE arms
+/// (otherRoom-obstacle / endPointsMatching / corner distance), which
+/// the capture never probed directly — only its observable (the delay)
+/// is pinned. Resolving it needs the REAL `checkTraceSegment` +
+/// `TraceShover.check` (the T10 remainder): with the T6/T7 seam stubs
+/// (+inf / 0) the tail cannot reproduce Java's FALSE. Rows k > 8 are
+/// therefore pinned by a CONTRACT, not literals: the harvest order
+/// (obstacles 13, 12, 15, 11, 16, 18), their kinds and piece indices,
+/// and the unrandomized P1 economics (cost 1, detour
+/// 2147483647.0) — see SEAM.md and the task report.
+#[test]
+fn t7_ripup_protocol_pins() {
+    const PASS_PLAN: [i32; 6] = [1, 3, 4, 4, 6, 7];
+    const PASS_SLOTS: [T7Slot; 6] = [
+        T7Slot::P1,
+        T7Slot::P3,
+        T7Slot::P4a,
+        T7Slot::P4b,
+        T7Slot::P6,
+        T7Slot::P7,
+    ];
+    for (phase_idx, &(seed, remove_uv)) in T7_PHASES.iter().enumerate() {
+        let phase = ["SEED2", "SEED10", "PROBE"][phase_idx];
+        let (mut harness, mut ctrl, mut distance, mut checker, mut pages) =
+            t7_make_run(seed, remove_uv);
+        t7_assert_ctrl(&ctrl, phase_idx);
+
+        // The raw-generator probes: a FRESH JavaRandom (the port pin,
+        // independent of the engine's instance).
+        let mut rng_probe = epic_geometry::java_random::JavaRandom::new(i64::from(seed));
+        for (i, want) in T7_RNG[phase_idx].iter().enumerate() {
+            assert_eq!(rng_probe.next_double(), *want, "{phase} rng draw {i}");
+        }
+
+        let mut engine = MazeSearchEngine::new(
+            &mut harness,
+            &mut ctrl,
+            &mut distance,
+            &mut checker,
+            &mut pages,
+        );
+        // The spike's nearest-x probes pick pin 4 for BOTH endpoints —
+        // the destination is the start item, so `destinationDoor` stays
+        // null and every phase drains the front EMPTY (phase_done rows).
+        assert!(engine.init(&[T7_PIN], &[T7_PIN]), "{phase} init ok");
+
+        let mut harvested: BTreeSet<u64> = BTreeSet::new();
+        let mut ripped_done: BTreeSet<(i32, i32)> = BTreeSet::new();
+        let mut stale_done = false;
+        let mut hw_done = false;
+        let mut harvest_seq = 0usize;
+        let mut call_iter = T7_CALLS[phase_idx].iter();
+        let mut gate_iter = T7_GATES[phase_idx].iter();
+        let mut leaving_seq = 0usize;
+        let mut sd_seq = 0usize;
+        let mut lr_iter = T7_LEAVING_RIPPED[phase_idx].iter();
+        let mut sdr_iter = T7_SMALL_DOOR_RIPPED[phase_idx].iter();
+        let mut shove_seq = 0usize;
+
+        for (k, want_pop) in T7_POPS[phase_idx].iter().enumerate() {
+            // The pre-divergence prefix (see the DEVIATION note): pops
+            // 0-8 are literal capture rows; beyond it the port's
+            // engine-internal shove verdict expands where Java delayed.
+            let in_prefix = k <= 8;
+            // The `pop` row: the front head before the occupation.
+            // Post-divergence the port's stream is SHORTER than the
+            // capture's 72 pops (the early expansion keeps the front
+            // smaller); the drain ends where Java's protocol ends —
+            // when the front is empty.
+            let head = match engine.front.iter().next().cloned() {
+                Some(head) => head,
+                None => break,
+            };
+            if in_prefix {
+                assert_eq!(want_pop.k, k as i32, "{phase} pop {k} table index");
+                assert_eq!(head.door.id(), want_pop.door_id, "{phase} pop {k} doorId");
+                assert_eq!(
+                    head.section_no_of_door, want_pop.section,
+                    "{phase} pop {k} section"
+                );
+                assert_eq!(
+                    head.room_ripped, want_pop.room_ripped,
+                    "{phase} pop {k} roomRipped"
+                );
+            }
+
+            // The :506 leaving path on the first roomRipped element
+            // (per door:section, once) — PREFIX-only: which elements
+            // are roomRipped is pop-stream state (see DEVIATION). The
+            // scan binds through a statement so the front borrow ends
+            // before the probe calls.
+            let ripped = engine.front.iter().find(|e| e.room_ripped).cloned();
+            if in_prefix
+                && let Some(r) = ripped
+                && ripped_done.insert((r.door.id(), r.section_no_of_door))
+            {
+                let want = lr_iter.next().expect("{phase} leaving_ripped row");
+                assert_eq!(
+                    (want.k, want.door_id, want.section),
+                    (k as i32, r.door.id(), r.section_no_of_door),
+                    "{phase} leaving_ripped {k} pairing"
+                );
+                let verdict = engine.check_leaving_ripped_item(&r);
+                assert_eq!(verdict, want.verdict, "{phase} leaving_ripped {k}");
+                // Ignore variants: the destination pin, then the room
+                // being left's obstacle item.
+                let from_obstacle = match &r.door {
+                    ExpandableObject::RoomDoor(rd) => {
+                        let nid = engine
+                            .ctx
+                            .room_id(r.next_room_key.expect("{phase} ripped next room"));
+                        rd.other_room_id(nid)
+                            .and_then(|id| engine.ctx.room_key_of_id(id))
+                            .filter(|key| engine.ctx.room_is_obstacle(*key))
+                            .and_then(|key| engine.ctx.room_obstacle_item_key(key))
+                    }
+                    _ => None,
+                };
+                for ignore in [T7_PIN].into_iter().chain(from_obstacle) {
+                    let want_sd = sdr_iter.next().expect("{phase} small_door_ripped row");
+                    assert_eq!(
+                        (want_sd.door_id, want_sd.section),
+                        (r.door.id(), r.section_no_of_door),
+                        "{phase} small_door_ripped {k} pairing"
+                    );
+                    assert_eq!(
+                        want_sd.ignore_id, ignore,
+                        "{phase} small_door_ripped {k} ignoreId"
+                    );
+                    let v = engine.enter_through_small_door(&r, ignore);
+                    assert_eq!(
+                        v, want_sd.verdict,
+                        "{phase} small_door_ripped {k} ignore {ignore}"
+                    );
+                }
+            }
+
+            // The harvest scan over the WHOLE front (a ripup delay may
+            // re-add elements; the drain mutates the set, so scan per k).
+            let found = {
+                let snapshot: Vec<MazeListElement> = engine.front.iter().cloned().collect();
+                snapshot.into_iter().find(|e| {
+                    e.next_room_key
+                        .is_some_and(|key| engine.ctx.room_is_obstacle(key))
+                })
+            };
+            if let Some(e) = found {
+                let obstacle_room = e.next_room_key.expect("{phase} harvest next room");
+                let obstacle = engine
+                    .ctx
+                    .room_obstacle_item_key(obstacle_room)
+                    .expect("{phase} harvest obstacle item");
+                if harvested.insert(obstacle) {
+                    let want_seq = harvest_seq;
+                    harvest_seq += 1;
+                    // Post-divergence the HARVEST ORDER is pop-stream
+                    // state too (the port parks at the obstacles in a
+                    // different sequence) — the contract pairs by
+                    // obstacle id, the prefix keeps the capture order.
+                    let want_h = if in_prefix {
+                        &T7_HARVESTS[phase_idx][want_seq]
+                    } else {
+                        T7_HARVESTS[phase_idx]
+                            .iter()
+                            .find(|row| row.obstacle == obstacle)
+                            .expect("{phase} contract: obstacle in the capture harvest set")
+                    };
+                    if in_prefix {
+                        assert_eq!(want_h.k, k as i32, "{phase} harvest k");
+                    }
+                    assert_eq!(want_h.obstacle, obstacle, "{phase} harvest obstacle");
+                    let kind = if engine.ctx.item_is_via(obstacle) {
+                        T7Kind::Via
+                    } else if engine.ctx.item_is_polyline_trace(obstacle) {
+                        T7Kind::Trace
+                    } else {
+                        panic!("{phase}: unexpected harvest kind for item {obstacle}");
+                    };
+                    assert_eq!(kind, want_h.kind, "{phase} harvest kind");
+                    let corner_no = i32::try_from(
+                        engine
+                            .ctx
+                            .room_obstacle_index_in_item(obstacle_room)
+                            .expect("{phase} harvest corner index"),
+                    )
+                    .expect("corner index fits i32");
+                    assert_eq!(corner_no, want_h.corner_no, "{phase} harvest cornerNo");
+                    if !in_prefix {
+                        // T10-gated contract (see the DEVIATION note):
+                        // the parked element and the pop stream are
+                        // divergent here; pin only the room-derived
+                        // state above plus the unrandomized P1
+                        // economics (draw-free, stream-independent).
+                        engine.ctrl.ripup_pass_no = 1;
+                        let (cost, trace) = engine.check_ripup_traced(&e, obstacle, false);
+                        assert_eq!(cost, 1, "{phase} contract P1 cost obstacle {obstacle}");
+                        let trace = trace.expect("{phase} contract P1 log row");
+                        assert_eq!(
+                            trace.detour, 2147483647.0,
+                            "{phase} contract P1 unrandomized detour"
+                        );
+                        assert_eq!(trace.result, 1, "{phase} contract P1 result");
+                    } else {
+                        assert_eq!(e.door.id(), want_h.door_id, "{phase} harvest doorId");
+                        assert_eq!(
+                            e.section_no_of_door, want_h.section,
+                            "{phase} harvest section"
+                        );
+                        assert_eq!(
+                            e.door.dimension(),
+                            want_h.dimension,
+                            "{phase} harvest dimension"
+                        );
+                        assert_eq!(
+                            e.already_checked, want_h.already_checked,
+                            "{phase} harvest alreadyChecked"
+                        );
+                        assert_eq!(
+                            e.room_ripped, want_h.room_ripped,
+                            "{phase} harvest roomRipped"
+                        );
+
+                        // --- the PASSES loop (mutating ctrl.ripupPassNo; the
+                        // double pass-4 is the RNG lifetime witness).
+                        for (pi, &pass) in PASS_PLAN.iter().enumerate() {
+                            engine.ctrl.ripup_pass_no = pass;
+                            let (cost, trace) = engine.check_ripup_traced(&e, obstacle, false);
+                            let want = call_iter.next().expect("{phase} call row");
+                            assert_eq!(
+                                want.harvest as usize,
+                                harvest_seq - 1,
+                                "{phase} call harvest"
+                            );
+                            assert_call(
+                                want,
+                                PASS_SLOTS[pi],
+                                obstacle,
+                                pass,
+                                cost,
+                                trace.as_ref(),
+                                phase,
+                            );
+                        }
+                        // --- the surgical gate probes (17/19/20, all -1
+                        // through the FIRST gate; no log row = trace None).
+                        let want_gates = gate_iter.next().expect("{phase} gate triple");
+                        for (gi, &g) in [17u64, 19, 20].iter().enumerate() {
+                            assert_eq!(want_gates[gi], g, "{phase} gate order");
+                            let (cost, trace) = engine.check_ripup_traced(&e, g, false);
+                            assert_eq!(cost, -1, "{phase} gate probe {g}");
+                            assert!(trace.is_none(), "{phase} gate probe {g} logs nothing");
+                        }
+                        // --- the item-9 economics probe (SEED2: protection
+                        // ON floors at the i32::MAX/100 cap; PROBE: off,
+                        // result floors at 1).
+                        if phase == "SEED2" || phase == "PROBE" {
+                            let (cost, trace) = engine.check_ripup_traced(&e, 9, false);
+                            let want = call_iter.next().expect("{phase} item9 call row");
+                            assert_eq!(
+                                want.harvest as usize,
+                                harvest_seq - 1,
+                                "{phase} item9 harvest"
+                            );
+                            assert_call(want, T7Slot::Item9, 9, 7, cost, trace.as_ref(), phase);
+                        }
+                        // --- the ALREADY_RIPPED synthetic element: the
+                        // door's OTHER room is the next room of the synth,
+                        // so its previous item IS the obstacle -> cost 1
+                        // BEFORE any economics (no log row).
+                        let door_for_synth = e.door.clone();
+                        if let ExpandableObject::RoomDoor(rd) = &door_for_synth {
+                            let nid = engine.ctx.room_id(obstacle_room);
+                            let other = rd
+                                .other_room_id(nid)
+                                .and_then(|id| engine.ctx.room_key_of_id(id))
+                                .filter(|key| {
+                                    engine.ctx.room_is_complete_free_space(*key)
+                                        || engine.ctx.room_is_obstacle(*key)
+                                });
+                            if let Some(other_key) = other {
+                                let synth = MazeListElement::new(
+                                    door_for_synth.clone(),
+                                    e.section_no_of_door,
+                                    None,
+                                    0,
+                                    0.0,
+                                    0.0,
+                                    Some(other_key),
+                                    e.shape_entry,
+                                    false,
+                                    Adjustment::None,
+                                    false,
+                                );
+                                let (cost, trace) =
+                                    engine.check_ripup_traced(&synth, obstacle, false);
+                                let want = call_iter.next().expect("{phase} already call row");
+                                assert_eq!(
+                                    want.harvest as usize,
+                                    harvest_seq - 1,
+                                    "{phase} already harvest"
+                                );
+                                assert_call(
+                                    want,
+                                    T7Slot::Already,
+                                    obstacle,
+                                    7,
+                                    cost,
+                                    trace.as_ref(),
+                                    phase,
+                                );
+                            }
+                        }
+                        // --- the leaving + small-door probes (dim-1 doors).
+                        if e.door.dimension() == 1 {
+                            let verdict = engine.check_leaving_ripped_item(&e);
+                            assert_eq!(
+                                verdict, T7_LEAVING[phase_idx][leaving_seq],
+                                "{phase} leaving"
+                            );
+                            leaving_seq += 1;
+                            for ignore in [obstacle, T7_PIN] {
+                                let want_sd = T7_SMALL_DOOR[phase_idx][sd_seq];
+                                sd_seq += 1;
+                                assert_eq!(want_sd.0, ignore, "{phase} small_door ignoreId");
+                                let v = engine.enter_through_small_door(&e, ignore);
+                                assert_eq!(v, want_sd.1, "{phase} small_door ignore {ignore}");
+                                let layer = engine.ctx.room_layer(obstacle_room);
+                                assert_eq!(
+                                    want_sd.2,
+                                    f64::from(
+                                        engine.ctrl.compensated_trace_half_width[layer as usize]
+                                    ) + 2.0,
+                                    "{phase} small_door checkRadius"
+                                );
+                                // The SEED2 harvest-0 first probe pins the
+                                // door-shape derivation itself (the capture
+                                // `doorCorners` literal array).
+                                if phase_idx == 0 && sd_seq == 1 {
+                                    let ExpandableObject::RoomDoor(rd) = &e.door else {
+                                        panic!("a dim-1 harvest door is a room door");
+                                    };
+                                    let (_, _, fs, ss) = engine.door_endpoint_shapes(rd);
+                                    let shape =
+                                        crate::expansion::ExpansionDoor::shape_between(&fs, &ss);
+                                    assert_eq!(
+                                        shape.border_line_count(),
+                                        T7_DOOR_CORNERS.len(),
+                                        "{phase} doorCorners count"
+                                    );
+                                    for (i, (wx, wy)) in T7_DOOR_CORNERS.iter().enumerate() {
+                                        let c = shape
+                                            .corner_approx(i as i32)
+                                            .expect("{phase} door corner in range");
+                                        assert_eq!(
+                                            (c.x, c.y),
+                                            (*wx, *wy),
+                                            "{phase} doorCorners {i}"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        // --- the shove probes (READ-ONLY; every captured
+                        // row returned an EMPTY door list).
+                        let ExpandableObject::RoomDoor(harvest_door) = &e.door else {
+                            panic!("{phase} harvest door is a room door");
+                        };
+                        if kind == T7Kind::Trace {
+                            for left in [false, true] {
+                                let mut doors: Vec<DoorSection> = Vec::new();
+                                let verdict = engine.check_shove_trace_line(
+                                    &e,
+                                    obstacle_room,
+                                    left,
+                                    &mut doors,
+                                );
+                                let want_s = T7_SHOVE[phase_idx][shove_seq];
+                                shove_seq += 1;
+                                assert_eq!(want_s.left, left, "{phase} shove direction");
+                                assert_eq!(
+                                    verdict, want_s.verdict,
+                                    "{phase} shove verdict obstacle {obstacle} left {left}"
+                                );
+                                assert!(doors.is_empty(), "{phase} shove toDoors empty");
+                                assert_eq!(want_s.corner_no, corner_no, "{phase} shove cornerNo");
+                                let polyline = engine
+                                    .ctx
+                                    .item_trace_polyline(obstacle)
+                                    .expect("{phase} obstacle polyline");
+                                assert_eq!(
+                                    want_s.lines,
+                                    polyline.lines.len(),
+                                    "{phase} shove lines"
+                                );
+                                assert_eq!(
+                                    want_s.half_width,
+                                    engine.ctx.item_trace_half_width(obstacle),
+                                    "{phase} shove halfWidth"
+                                );
+                                let layer = engine.ctx.room_layer(obstacle_room);
+                                assert_eq!(
+                                    want_s.ctrl_half_width,
+                                    engine.ctrl.trace_half_width[layer as usize],
+                                    "{phase} shove ctrlHalfWidth"
+                                );
+                                let (_, _, fs, ss) = engine.door_endpoint_shapes(harvest_door);
+                                assert_eq!(
+                                    want_s.door_max_width,
+                                    crate::expansion::ExpansionDoor::shape_between(&fs, &ss)
+                                        .max_width(),
+                                    "{phase} shove doorMaxWidth"
+                                );
+                            }
+                        } else {
+                            let mut doors: Vec<DoorSection> = Vec::new();
+                            let verdict =
+                                engine.check_shove_trace_line(&e, obstacle_room, false, &mut doors);
+                            assert_eq!(
+                                verdict, T7_SHOVE_NONTRACE[phase_idx],
+                                "{phase} shove nontrace"
+                            );
+                            assert!(doors.is_empty(), "{phase} shove nontrace toDoors empty");
+                        }
+                        // --- the stale-index probe (once per phase, first
+                        // trace harvest): a synthetic room with staleIdx 5
+                        // must answer FALSE through the stale gate — and
+                        // would PANIC at lines[cornerNo + 1] without it
+                        // (the mutant-kill mechanism; the captured -1 row
+                        // is structurally unreachable under the u32 seam,
+                        // see the report).
+                        if !stale_done && kind == T7Kind::Trace {
+                            stale_done = true;
+                            engine.ctx.force_obstacle_index_in_item(Some(5));
+                            let mut doors: Vec<DoorSection> = Vec::new();
+                            let verdict =
+                                engine.check_shove_trace_line(&e, obstacle_room, false, &mut doors);
+                            engine.ctx.force_obstacle_index_in_item(None);
+                            assert_eq!(verdict, T7_SHOVE_STALE[phase_idx], "{phase} shove stale");
+                            assert!(doors.is_empty(), "{phase} shove stale toDoors empty");
+                        }
+                        // --- the halfwidth-gate contrast (once per phase):
+                        // ctrl.traceHalfWidth forced to 999 flips the
+                        // same-width gate to TRUE.
+                        if !hw_done {
+                            hw_done = true;
+                            let layer = engine.ctx.room_layer(obstacle_room);
+                            let saved = engine.ctrl.trace_half_width[layer as usize];
+                            engine.ctrl.trace_half_width[layer as usize] =
+                                if saved == 999 { 998 } else { 999 };
+                            let mut doors: Vec<DoorSection> = Vec::new();
+                            let verdict =
+                                engine.check_shove_trace_line(&e, obstacle_room, false, &mut doors);
+                            engine.ctrl.trace_half_width[layer as usize] = saved;
+                            assert_eq!(
+                                verdict, T7_SHOVE_HW_GATE[phase_idx],
+                                "{phase} shove hw gate"
+                            );
+                            assert!(doors.is_empty(), "{phase} shove hw gate toDoors empty");
+                        }
+                    }
+                }
+            }
+            let _ = engine.occupy_next_element();
+        }
+
+        // The phase_done row: front drained EMPTY, destination NEVER
+        // set (the start item IS the destination). The prefix battery
+        // consumed exactly the harvest-0 probe rows — the next
+        // unconsumed rows prove the battery boundary.
+        assert_eq!(harvest_seq, 7, "{phase} harvest count");
+        let next_call = call_iter.next().expect("{phase} harvest-1 P1 row");
+        assert_eq!(
+            (next_call.harvest as usize, next_call.slot),
+            (1, T7Slot::P1),
+            "{phase} battery boundary"
+        );
+        assert_eq!(gate_iter.count(), 6, "{phase} gate triples left unconsumed");
+        assert_eq!(leaving_seq, 1, "{phase} leaving count (prefix row 0)");
+        assert_eq!(sd_seq, 2, "{phase} small_door count (prefix rows 0-1)");
+        let next_lr = lr_iter.next().expect("{phase} leaving_ripped row 1");
+        assert_eq!(
+            (next_lr.k, next_lr.door_id),
+            (11, 14398),
+            "{phase} leaving_ripped boundary"
+        );
+        let next_sdr = sdr_iter.next().expect("{phase} small_door_ripped row 2");
+        assert_eq!(
+            (next_sdr.door_id, next_sdr.ignore_id),
+            (14398, 4),
+            "{phase} small_door_ripped boundary"
+        );
+        assert_eq!(shove_seq, 2, "{phase} shove count (harvest 0)");
+        assert!(engine.front.is_empty(), "{phase} phase_done frontSize 0");
+        assert!(
+            engine.destination.is_none(),
+            "{phase} phase_done destination false"
+        );
+    }
+}
+
+/// The T10 shove-seam force contract: the probe's post-seam behavior is
+/// driven by the seam verdicts. Under the capture's defaults
+/// (`checkTraceSegment` = +inf, `shoveTraceCheck` = 0) the probe
+/// short-circuits with an EMPTY door list — the captured shape. Forcing
+/// `shove_trace_check` positive must let the door-collection loop run
+/// for at least one probe (a port that drops the seam call flips this).
+/// Contract-level pin: no capture literal claims the synthetic forced
+/// verdicts; the assertions compare forced vs default.
+#[test]
+fn t7_shove_seam_force_contract() {
+    let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = t7_make_run(2, false);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
+    assert!(engine.init(&[T7_PIN], &[T7_PIN]), "init ok");
+    let mut harvested: BTreeSet<u64> = BTreeSet::new();
+    let mut responsive = 0usize;
+    for _ in 0..72 {
+        if engine.front.is_empty() {
+            break;
+        }
+        let found = {
+            let snapshot: Vec<MazeListElement> = engine.front.iter().cloned().collect();
+            snapshot.into_iter().find(|e| {
+                e.next_room_key
+                    .is_some_and(|key| engine.ctx.room_is_obstacle(key))
+            })
+        };
+        if let Some(e) = found {
+            let obstacle_room = e.next_room_key.expect("harvest next room");
+            let obstacle = engine
+                .ctx
+                .room_obstacle_item_key(obstacle_room)
+                .expect("harvest obstacle item");
+            if harvested.insert(obstacle) && engine.ctx.item_is_polyline_trace(obstacle) {
+                for left in [false, true] {
+                    let mut default_doors: Vec<DoorSection> = Vec::new();
+                    let default_verdict =
+                        engine.check_shove_trace_line(&e, obstacle_room, left, &mut default_doors);
+                    engine.ctx.force_shove_trace_check(Some(1.0e9));
+                    let mut forced_doors: Vec<DoorSection> = Vec::new();
+                    let forced_verdict =
+                        engine.check_shove_trace_line(&e, obstacle_room, left, &mut forced_doors);
+                    engine.ctx.force_shove_trace_check(None);
+                    assert_eq!(default_verdict, forced_verdict, "verdict stays true");
+                    if default_doors.is_empty() && !forced_doors.is_empty() {
+                        responsive += 1;
+                    }
+                }
+            }
+        }
+        let _ = engine.occupy_next_element();
+    }
+    assert!(
+        responsive > 0,
+        "at least one probe responds to the forced shove verdict"
+    );
 }

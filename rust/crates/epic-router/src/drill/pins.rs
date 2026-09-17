@@ -49,6 +49,7 @@
 
 use epic_board::id::ItemId;
 use epic_board::items::{BoardShape, FixedState, ItemData};
+use epic_board::tree_manager::SearchTreeManager;
 use epic_board::tree_shapes::item_tree_shapes;
 use epic_geometry::direction::Direction;
 use epic_geometry::float_line::FloatLine;
@@ -261,6 +262,7 @@ fn default_settings_ir(layer_count: usize) -> RouterSettingsIr {
         bend_costs: vec![0.0; layer_count],
         layer_active: vec![true; layer_count],
         automatic_neckdown: false,
+        start_ripup_costs: 1,
     }
 }
 
@@ -271,8 +273,18 @@ fn default_settings_ir(layer_count: usize) -> RouterSettingsIr {
 /// registry ([`NeighbourEngine`] + [`DrillEngine`]).
 pub(crate) struct Harness {
     board: epic_board::board::Board,
+    /// The manager behind the autoroute tree — the contact APIs
+    /// (`epic_board::contacts`, `trace_ops`) re-query the tree on
+    /// every call and need it alongside the board (T7 seams).
+    manager: SearchTreeManager,
     /// The manager-resolved tree variant (Generic on this fixture).
     resolved_variant: SearchTreeVariant,
+    /// The LIVE parsed board bounding box (Java `board.boundingBox`).
+    /// NOT a constant: the T7 fixture's box differs from the T5/T6
+    /// template's, and every seam below must answer the fixture's own
+    /// box (a stale box flips the divideLargeRoom gate and shifts every
+    /// room id — the T7 pop-0 doorId bug).
+    board_box: IntBox,
     /// The harness net (1 for the A phase, 2 for B — mirrors the two
     /// engines sharing one room database).
     net: i32,
@@ -297,6 +309,19 @@ pub(crate) struct Harness {
     /// The obstacle rooms whose door set is calculated
     /// (Java `ObstacleExpansionRoom.doorsCalculated`).
     obstacle_doors_calculated: std::collections::BTreeSet<u64>,
+    /// T10-seam force points: when set, [`DrillEngine::check_trace_segment`]
+    /// / [`DrillEngine::shove_trace_check`] answer this value instead of
+    /// the Java-unreachable defaults. The REAL bodies land with T10; the
+    /// capture rows record the seam VERDICTS, so the pins force exactly
+    /// the captured values (mutation-verifiable at these fields).
+    check_trace_segment_result: Option<f64>,
+    shove_trace_check_result: Option<f64>,
+    /// The stale-index override for the T7 shove probes: the RipupSpike
+    /// stale rows construct a SYNTHETIC `ObstacleExpansionRoom` carrying
+    /// a stale `indexInItem`; the Rust room is a registry key, so the
+    /// override injects the stale index into the REAL room's seam
+    /// answer ([`NeighbourEngine::room_obstacle_index_in_item`]).
+    forced_obstacle_index: Option<u32>,
 }
 
 impl Harness {
@@ -309,11 +334,28 @@ impl Harness {
     /// [`DrillEngine`] machinery.
     pub(crate) fn build_with(fixture: &str, net: i32) -> Harness {
         let (mut manager, mut board) = crate::test_util::parse(fixture);
+        // Java's DSN import ends the wiring scope with
+        // `normalizeAllTraces()` (`Wiring.java:347` — the traces are
+        // inserted "without cleaning" because cycles may be removed
+        // prematurely, then the split→combine walk merges collinear
+        // connected same-net traces). The T7 fixture is the first
+        // normalize-visible replay: wires 10+13 merge into id 13 =
+        // (558000,350000)→(600000,350000) and id 10 is deleted — the
+        // capture item rows pin it (no id 10; item 13 length 42000,
+        // cornerCount 2). Without this pass the Rust board keeps item
+        // 10 alive and item 13 un-extended, shifting the whole T7
+        // burn stream.
+        epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
         let tree_index = manager.get_autoroute_tree(&mut board, TREE_CLASS);
         let resolved_variant = manager.trees()[tree_index].variant;
+        let board_box = board
+            .bounding_box()
+            .unwrap_or_else(|| panic!("a parsed fixture carries a bounding box"));
         let mut harness = Harness {
             board,
+            manager,
             resolved_variant,
+            board_box,
             net,
             tree: SearchTree::new(resolved_variant, TREE_CLASS),
             item_shapes: std::collections::BTreeMap::new(),
@@ -327,11 +369,22 @@ impl Harness {
             obstacle_rooms: std::collections::BTreeMap::new(),
             start_infos: std::collections::BTreeSet::new(),
             obstacle_doors_calculated: std::collections::BTreeSet::new(),
+            check_trace_segment_result: None,
+            shove_trace_check_result: None,
+            forced_obstacle_index: None,
         };
         // Freeze the item tree shapes + per-shape layers (the same
         // shapes get_autoroute_tree just inserted into the manager's
         // tree; the per-shape layer is the board's own derivation).
-        let ids: Vec<ItemId> = harness.board.iter_descending().map(|e| e.id).collect();
+        // LIVE-only like the Java walk it mirrors (see
+        // `SearchTreeManager::insert_all_board_items`): a
+        // normalize-merged trace must not be re-frozen here.
+        let ids: Vec<ItemId> = harness
+            .board
+            .iter_descending()
+            .filter(|e| e.on_the_board)
+            .map(|e| e.id)
+            .collect();
         for id in ids {
             let key = u64::from(id.get());
             let shapes = item_tree_shapes(&mut harness.board, resolved_variant, TREE_CLASS, id);
@@ -534,6 +587,25 @@ impl Harness {
             }
         }
     }
+
+    /// Forces the [`DrillEngine::shove_trace_check`] T10-seam verdict;
+    /// `None` restores the default.
+    pub(crate) fn force_shove_trace_check(&mut self, value: Option<f64>) {
+        self.shove_trace_check_result = value;
+    }
+
+    /// Forces the [`NeighbourEngine::room_obstacle_index_in_item`]
+    /// answer (test-only): `Some(index)` overrides EVERY obstacle
+    /// room until cleared with `None`. This is the Rust equivalent of
+    /// the RipupSpike's synthetic `new ObstacleExpansionRoom(pt,
+    /// staleIdx, searchTree)` — Java builds a throwaway room with a
+    /// stale corner index; the Rust registry room is shared, so the
+    /// staleness is injected at the read seam instead. (The captured
+    /// staleIdx -1 arm is structurally unreachable under the u32
+    /// index; see the T7 pins doc.)
+    pub(crate) fn force_obstacle_index_in_item(&mut self, value: Option<u32>) {
+        self.forced_obstacle_index = value;
+    }
 }
 
 impl NeighbourEngine for Harness {
@@ -547,7 +619,7 @@ impl NeighbourEngine for Harness {
     }
 
     fn board_bounding_octagon(&self) -> epic_geometry::int_octagon::IntOctagon {
-        TileShape::RegularTileShape(RegularTileShape::IntBox(BOARD_BOX))
+        TileShape::RegularTileShape(RegularTileShape::IntBox(self.board_box))
             .bounding_octagon()
             .expect("an IntBox always has a bounding octagon")
     }
@@ -655,7 +727,7 @@ impl NeighbourEngine for Harness {
             ignore_object,
             ignore_shape,
         };
-        complete_shape(&self.tree, self, &query, &BOARD_BOX)
+        complete_shape(&self.tree, self, &query, &self.board_box)
     }
 
     fn tree_object_room(&self, object_key: u64) -> Option<u64> {
@@ -666,21 +738,43 @@ impl NeighbourEngine for Harness {
         !Self::is_room_key(object_key)
     }
 
+    /// Java `Item.isRoutable` (`Item.java:908-910`): the BASE answers
+    /// FALSE; only `Trace` (`Trace.java`, the `isRoutable` override)
+    /// and `Via` (`Via.java:147-150`) override with
+    /// `!isUserFixed() && netCount() > 0`. `Pin` has NO override, so a
+    /// pin answers FALSE — the T7 divergence root cause (the
+    /// 45-degree walk's door arm gates obstacle-door creation on this,
+    /// so Java builds NO obstacle door against a foreign-net pin).
     fn item_is_routable(&self, object_key: u64) -> bool {
+        let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
+        self.board
+            .get(id)
+            .map(|e| {
+                matches!(e.data, ItemData::Trace { .. } | ItemData::Via { .. })
+                    && !matches!(e.fixed, FixedState::UserFixed)
+                    && !e.nets.is_empty()
+            })
+            .unwrap_or(false)
+    }
+
+    /// Java `Item.isConnectable` (`Item.java:912-914`):
+    /// `(this instanceof Connectable) && netCount() > 0` with
+    /// `Connectable` implemented by {Pin, Via, Trace, ConductionArea}
+    /// (no conduction areas in the harness fixtures). INDEPENDENT of
+    /// `isRoutable` — a pin answers TRUE here (the start room's target
+    /// doors depend on it, `SortedRoomNeighbours.calculateTargetDoors`
+    /// gate `:173`) and FALSE to `isRoutable`.
+    fn item_is_connectable(&self, object_key: u64) -> bool {
         let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
         self.board
             .get(id)
             .map(|e| {
                 matches!(
                     e.data,
-                    ItemData::Trace { .. } | ItemData::Pin { .. } | ItemData::Via { .. }
-                )
+                    ItemData::Pin { .. } | ItemData::Trace { .. } | ItemData::Via { .. }
+                ) && !e.nets.is_empty()
             })
             .unwrap_or(false)
-    }
-
-    fn item_is_connectable(&self, object_key: u64) -> bool {
-        self.item_is_routable(object_key)
     }
 
     fn item_contains_net(&self, object_key: u64, net_number: i32) -> bool {
@@ -715,7 +809,18 @@ impl NeighbourEngine for Harness {
             layer,
         ));
         self.keys.push(key);
-        self.tree.insert(key, &[Some(shape)]);
+        // Java does NOT put ObstacleExpansionRoom into the search tree:
+        // it implements CompleteExpansionRoom, NOT SearchTreeObject, and
+        // lives only in `ItemAutorouteInfo.expansionRoomArr`
+        // (`ItemAutorouteInfo.java:78`). Inserting it here would feed
+        // phantom entries into every sorter walk: the walk's
+        // `overlappingObjects` query would return the room NEXT to its
+        // own item shape, and since the comparator tie-break is the
+        // object id ((item << 10) | index vs item), Java's TreeSet
+        // "only 1 obstacle is needed" drop that collapses same-item
+        // duplicate shapes could never fire across the pair — the T7
+        // witness: the room-6 walk grew neighbours 14336/14337 Java
+        // never had, shifting every incomplete-room birth pair.
         self.obstacle_rooms.insert((object_key, shape_index), key);
         Some(key)
     }
@@ -758,13 +863,42 @@ impl NeighbourEngine for Harness {
 
     fn trace_first_or_last_parallel(
         &self,
-        _item_key: u64,
-        _index_in_item: u32,
-        _door_line: &epic_geometry::line::Line,
+        item_key: u64,
+        index_in_item: u32,
+        door_line: &epic_geometry::line::Line,
     ) -> Option<bool> {
-        // The fixture has no PolylineTrace items — the Java check
-        // falls through to true (None = fall-through here).
-        None
+        // Java `SortedRoomNeighbours.insertDoorOk(ObstacleExpansionRoom,
+        // Line)` (`:375-389`): a PolylineTrace obstacle section answers
+        // the parallelism of the door line with the section's polyline
+        // line ONLY for the first and the last tile shape
+        // (`roomIndex == 0 || roomIndex == tileShapeCount() - 1`) — a
+        // middle-section room falls through to `true`, as does every
+        // non-trace item. `None` = the Java fall-through. (The T7
+        // witness: room 2's right-edge touch of wire-14 shape 1 — the
+        // last, DIAGONAL section — must be rejected, or the maze drain
+        // grows a door Java never had and the id stream shifts.)
+        let id = ItemId::new(u32::try_from(item_key).expect("item key fits u32"));
+        let entry = self.board.get(id)?;
+        let ItemData::Trace { lines, .. } = &entry.data else {
+            return None;
+        };
+        // Java `PolylineTrace.tileShapeCount()` = corner count - 1.
+        // The stored polyline carries BOTH perpendicular placeholders
+        // (start and end), so `lines.len() = cornerCount + 1` and the
+        // section count is `lines.len() - 2`. (An off-by-one here
+        // classifies the last section as a middle one and the gate
+        // falls through — the exact T7 witness.)
+        let tile_shape_count = lines.lines.len().saturating_sub(2);
+        let index = index_in_item as usize;
+        if index != 0 && index + 1 != tile_shape_count {
+            return None;
+        }
+        let trace_line = lines
+            .lines
+            .get(index + 1)
+            .expect("a first/last section index has a polyline line");
+        let verdict = trace_line.is_parallel(door_line);
+        Some(verdict)
     }
 
     fn room_shape(&self, room_key: u64) -> TileShape {
@@ -803,6 +937,11 @@ impl NeighbourEngine for Harness {
     }
 
     fn room_obstacle_index_in_item(&self, room_key: u64) -> Option<u32> {
+        // The test-side stale-index override FIRST (see
+        // [`Harness::force_obstacle_index_in_item`]).
+        if let Some(forced) = self.forced_obstacle_index {
+            return Some(forced);
+        }
         match self.resolve(room_key).kind {
             RoomKind::Obstacle { index_in_item, .. } => Some(index_in_item),
             _ => None,
@@ -912,7 +1051,7 @@ impl CompleteShapeObjects for Harness {
 
 impl DrillEngine for Harness {
     fn board_bounds(&self) -> IntBox {
-        BOARD_BOX
+        self.board_box
     }
 
     fn layer_count(&self) -> i32 {
@@ -1306,6 +1445,210 @@ impl DrillEngine for Harness {
     fn trace_angle_restriction(&self) -> AngleRestriction {
         // Tier A fixtures are 45-degree boards.
         AngleRestriction::FortyfiveDegree
+    }
+
+    // ---- T7 seams (the ripup resolver + the read-only shove probe) ----
+
+    fn item_normal_contacts(&mut self, item_key: u64) -> Vec<u64> {
+        epic_board::contacts::item_normal_contacts(
+            &self.manager,
+            &mut self.board,
+            ItemId::new(u32::try_from(item_key).expect("item key fits u32")),
+        )
+        .into_iter()
+        .map(|id| u64::from(id.get()))
+        .collect()
+    }
+
+    fn trace_normal_contacts_at(
+        &mut self,
+        item_key: u64,
+        point: &Point,
+        ignore_net: bool,
+    ) -> Vec<u64> {
+        epic_board::contacts::normal_contacts(
+            &self.manager,
+            &mut self.board,
+            ItemId::new(u32::try_from(item_key).expect("item key fits u32")),
+            point,
+            ignore_net,
+        )
+        .into_iter()
+        .map(|id| u64::from(id.get()))
+        .collect()
+    }
+
+    fn trace_start_contacts(&mut self, item_key: u64) -> Vec<u64> {
+        epic_board::contacts::start_contacts(
+            &self.manager,
+            &mut self.board,
+            ItemId::new(u32::try_from(item_key).expect("item key fits u32")),
+        )
+        .into_iter()
+        .map(|id| u64::from(id.get()))
+        .collect()
+    }
+
+    fn trace_end_contacts(&mut self, item_key: u64) -> Vec<u64> {
+        epic_board::contacts::end_contacts(
+            &self.manager,
+            &mut self.board,
+            ItemId::new(u32::try_from(item_key).expect("item key fits u32")),
+        )
+        .into_iter()
+        .map(|id| u64::from(id.get()))
+        .collect()
+    }
+
+    fn normal_contact_point(&mut self, first_key: u64, second_key: u64) -> Option<Point> {
+        epic_board::trace_ops::normal_contact_point(
+            &mut self.board,
+            ItemId::new(u32::try_from(first_key).expect("item key fits u32")),
+            ItemId::new(u32::try_from(second_key).expect("item key fits u32")),
+        )
+    }
+
+    fn first_common_layer(&mut self, first_key: u64, second_key: u64) -> i32 {
+        epic_board::trace_ops::first_common_layer(
+            &mut self.board,
+            ItemId::new(u32::try_from(first_key).expect("item key fits u32")),
+            ItemId::new(u32::try_from(second_key).expect("item key fits u32")),
+        )
+    }
+
+    fn item_is_user_fixed(&self, item_key: u64) -> bool {
+        self.board
+            .get(ItemId::new(
+                u32::try_from(item_key).expect("item key fits u32"),
+            ))
+            .is_some_and(|e| matches!(e.fixed, FixedState::UserFixed))
+    }
+
+    fn item_is_shove_fixed(&self, item_key: u64) -> bool {
+        self.board
+            .get(ItemId::new(
+                u32::try_from(item_key).expect("item key fits u32"),
+            ))
+            .is_some_and(|e| matches!(e.fixed, FixedState::ShoveFixed))
+    }
+
+    fn item_trace_corner_count(&self, item_key: u64) -> i32 {
+        // Java `Polyline.size()` — `lines.length`, the CORNER count
+        // (segments + 1).
+        i32::try_from(
+            self.item_trace_polyline(item_key)
+                .map_or(0, |polyline| polyline.lines.len()),
+        )
+        .expect("corner count fits i32")
+    }
+
+    fn item_trace_length(&self, item_key: u64) -> f64 {
+        // Java `Trace.getLength()` (`Polyline.getLengthApprox`).
+        self.item_trace_polyline(item_key)
+            .map_or(0.0, |polyline| polyline.length_approx_total())
+    }
+
+    fn item_trace_polyline(&self, item_key: u64) -> Option<epic_geometry::polyline::Polyline> {
+        self.board
+            .trace_polyline(ItemId::new(
+                u32::try_from(item_key).expect("item key fits u32"),
+            ))
+            .cloned()
+    }
+
+    fn overlapping_objects_ignore_nets(
+        &self,
+        shape: &TileShape,
+        layer: i32,
+        ignore_nets: &[i32],
+    ) -> Vec<u64> {
+        // Java `ShapeSearchTree.overlappingObjects(shape, layer,
+        // ignoreNetNos)` (`ShapeSearchTree.java:404-478`): the tree's
+        // descending-id leaf walk, layer filter, intersection test,
+        // then the `:412-413` obstacle filter — an object is kept only
+        // when it is an obstacle w.r.t. EVERY ignore net (own-net
+        // objects drop out). Items AND room keys occur; the sort+dedup
+        // mirrors the [`DrillEngine::overlapping_items`] convention.
+        let Some(leaves) = self.tree.query_candidates(shape, |a, b| a.cmp(&b)) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for leaf in leaves {
+            let Some(stored) =
+                NeighbourEngine::tree_shape(self, leaf.object_key, leaf.shape_index_in_object)
+            else {
+                continue;
+            };
+            if layer >= 0
+                && CompleteShapeObjects::shape_layer(
+                    self,
+                    leaf.object_key,
+                    leaf.shape_index_in_object,
+                ) != layer
+            {
+                continue;
+            }
+            if !SearchTree::entry_intersects(shape, &stored) {
+                continue;
+            }
+            if ignore_nets
+                .iter()
+                .all(|&net| NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net))
+            {
+                out.push(leaf.object_key);
+            }
+        }
+        out.sort_by(|a, b| b.cmp(a));
+        out.dedup();
+        out
+    }
+
+    fn check_trace_segment(
+        &self,
+        line_segment: &epic_geometry::line_segment::LineSegment,
+        layer: i32,
+        net_numbers: &[i32],
+        half_width: i32,
+        clearance_class: i32,
+        cushions_enabled: bool,
+    ) -> f64 {
+        let _ = (
+            line_segment,
+            layer,
+            net_numbers,
+            half_width,
+            clearance_class,
+            cushions_enabled,
+        );
+        // Forced capture verdict, else the Java `Integer.MAX_VALUE`
+        // "no shortening" default (the T10 seam).
+        self.check_trace_segment_result.unwrap_or(2147483647.0)
+    }
+
+    fn shove_trace_check(
+        &mut self,
+        line_segment: &epic_geometry::line_segment::LineSegment,
+        shove_to_the_left: bool,
+        layer: i32,
+        net_numbers: &[i32],
+        half_width: i32,
+        clearance_class: i32,
+        max_shove_trace_recursion_depth: i32,
+        max_shove_via_recursion_depth: i32,
+    ) -> f64 {
+        let _ = (
+            line_segment,
+            shove_to_the_left,
+            layer,
+            net_numbers,
+            half_width,
+            clearance_class,
+            max_shove_trace_recursion_depth,
+            max_shove_via_recursion_depth,
+        );
+        // Forced capture verdict, else 0.0 "nothing shovable" (the T10
+        // seam default → the probe returns true with an empty list).
+        self.shove_trace_check_result.unwrap_or(0.0)
     }
 
     // `complete_expansion_room` — the trait DEFAULT now delegates to

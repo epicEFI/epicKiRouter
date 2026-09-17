@@ -184,7 +184,10 @@ pub trait NeighbourEngine {
     fn item_is_polyline_trace(&self, object_key: u64) -> bool;
     /// Java `ItemAutorouteInfo.getExpansionRoom(shapeIndex, tree)`
     /// — get or lazily create the obstacle expansion room of the item
-    /// shape (Java also inserts it into the tree); returns its key.
+    /// shape; returns its key. A PURE side allocation: the room id is
+    /// `(item id << 10) | shapeIndex` and `ObstacleExpansionRoom` is
+    /// NOT a `SearchTreeObject`, so nothing is inserted into the tree
+    /// — the room is reachable only through the item's autoroute info.
     fn item_expansion_room(&mut self, object_key: u64, shape_index: u32) -> Option<u64>;
     /// Java `Item.getTraceConnectionShape(tree, shapeIndex)`.
     fn trace_connection_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape>;
@@ -394,21 +397,27 @@ pub fn complete(
 
 /// Java `SortedRoomNeighbours.calculate` (`:95-136`) — the ANY_ANGLE
 /// neighbour calculation. Returns the completed room key.
+///
+/// Java `:102-105` evaluates `generateRoomIdNo()` as an ARGUMENT of
+/// `calculateNeighbours` — the id burns at EVERY calculate entry for
+/// every room kind (obstacle-room door calculations discard it); each
+/// restart recursion re-enters and burns again.
 #[must_use]
 pub fn calculate(ctx: &mut impl NeighbourEngine, from_room_key: u64) -> Option<u64> {
     let net_number = ctx.net_number();
-
-    let mut room_neighbours = calculate_neighbours(ctx, from_room_key, net_number)?;
+    let mut room_id_no = ctx.generate_room_id_no();
+    let mut room_neighbours = calculate_neighbours(ctx, from_room_key, net_number, room_id_no)?;
 
     // Check, that each side of the room shape has at least one touching
     // neighbour. Otherwise, improve the room shape by enlarging.
     let mut completed_room = room_neighbours.completed_room;
     let mut edge_removed = room_neighbours.try_remove_edge(ctx);
     while edge_removed {
-        // Java :112-115 — removeAllDoors + restart (a fresh
-        // calculateNeighbours burns a room id: the capture's id gaps).
+        // Java :112-115 — removeAllDoors + RECURSIVE calculate (the
+        // re-entry burns another room id).
         ctx.remove_all_doors(completed_room);
-        room_neighbours = calculate_neighbours(ctx, from_room_key, net_number)?;
+        room_id_no = ctx.generate_room_id_no();
+        room_neighbours = calculate_neighbours(ctx, from_room_key, net_number, room_id_no)?;
         completed_room = room_neighbours.completed_room;
         edge_removed = room_neighbours.try_remove_edge(ctx);
     }
@@ -505,16 +514,23 @@ fn calculate_target_doors(
 }
 
 /// Java `calculateNeighbours` (`:187-329`) — the touching-neighbour
-/// walk with the v1.9-parity pre-sort.
+/// walk with the v1.9-parity pre-sort. `room_id_no` is the id burned
+/// by the `calculate` entry (Java `:105` argument evaluation); the
+/// incomplete-room arm stamps it on the completed room, the
+/// obstacle-room arm discards it.
 fn calculate_neighbours(
     ctx: &mut impl NeighbourEngine,
     from_room_key: u64,
     net_number: i32,
+    room_id_no: i32,
 ) -> Option<BaseRoomNeighbours> {
     let room_shape = ctx.room_shape(from_room_key);
     let completed_room = if ctx.room_is_incomplete(from_room_key) {
-        let id = ctx.generate_room_id_no();
-        ctx.add_complete_free_space_room(room_shape.clone(), ctx.room_layer(from_room_key), id)
+        ctx.add_complete_free_space_room(
+            room_shape.clone(),
+            ctx.room_layer(from_room_key),
+            room_id_no,
+        )
     } else if ctx.room_is_obstacle(from_room_key) {
         // Java: the obstacle room is its own completed room.
         from_room_key

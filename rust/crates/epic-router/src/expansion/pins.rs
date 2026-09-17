@@ -29,7 +29,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use epic_board::id::ItemId;
-use epic_board::items::ItemData;
+use epic_board::items::{FixedState, ItemData};
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_octagon::IntOctagon;
 use epic_geometry::int_point::IntPoint;
@@ -1169,7 +1169,14 @@ impl Harness {
         };
         // Freeze the item tree shapes + layers (the same shapes
         // get_autoroute_tree just inserted into the manager's tree).
-        let ids: Vec<ItemId> = harness.board.iter_descending().map(|e| e.id).collect();
+        // LIVE-only like the Java walk it mirrors (see
+        // `SearchTreeManager::insert_all_board_items`).
+        let ids: Vec<ItemId> = harness
+            .board
+            .iter_descending()
+            .filter(|e| e.on_the_board)
+            .map(|e| e.id)
+            .collect();
         for id in ids {
             let key = u64::from(id.get());
             let shapes = epic_board::tree_shapes::item_tree_shapes(
@@ -1631,15 +1638,36 @@ impl NeighbourEngine for Harness {
     }
 
     fn item_is_routable(&self, object_key: u64) -> bool {
+        // Java `Item.isRoutable` (`Item.java:908-910`): the BASE
+        // answers FALSE; only `Trace` and `Via` override with
+        // `!isUserFixed() && netCount() > 0`. `Pin` has NO override,
+        // so a pin answers FALSE — the walk's door arm gates
+        // obstacle-door creation on this, so Java builds NO obstacle
+        // door against a pin (the T4 F1 room-3 door-count witness:
+        // item 5 is a pad). This MUST NOT fall back to connectability
+        // (see the T6/T7 harness, `drill/pins.rs`, for the same fix).
         let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
         self.board
             .get(id)
-            .map(|e| item_is_connectable_data(&e.data))
+            .map(|e| {
+                matches!(e.data, ItemData::Trace { .. } | ItemData::Via { .. })
+                    && !matches!(e.fixed, FixedState::UserFixed)
+                    && !e.nets.is_empty()
+            })
             .unwrap_or(false)
     }
 
     fn item_is_connectable(&self, object_key: u64) -> bool {
-        self.item_is_routable(object_key)
+        // Java `Item.isConnectable` (`Item.java:912-914`):
+        // `(this instanceof Connectable) && netCount() > 0` with
+        // `Connectable` implemented by {Pin, Via, Trace,
+        // ConductionArea} — INDEPENDENT of `isRoutable` (a pin is
+        // connectable but NOT routable; see `item_is_routable` above).
+        let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
+        self.board
+            .get(id)
+            .map(|e| item_is_connectable_data(&e.data) && !e.nets.is_empty())
+            .unwrap_or(false)
     }
 
     fn item_contains_net(&self, object_key: u64, net_number: i32) -> bool {
@@ -1674,7 +1702,10 @@ impl NeighbourEngine for Harness {
             layer,
         ));
         self.keys.push(key);
-        self.tree.insert(key, &[Some(shape)]);
+        // Java keeps ObstacleExpansionRoom OUT of the search tree (it is
+        // a CompleteExpansionRoom, not a SearchTreeObject — it lives in
+        // `ItemAutorouteInfo.expansionRoomArr`). See the T6/T7 harness
+        // (`drill/pins.rs`) for the walk-pollution witness.
         self.obstacle_rooms.insert((object_key, shape_index), key);
         Some(key)
     }

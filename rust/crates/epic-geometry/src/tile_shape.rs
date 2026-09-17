@@ -1004,6 +1004,30 @@ impl TileShape {
         Some(FloatLine::new(first_corner, last_corner))
     }
 
+    /// Returns a [`FloatLine`] whose `.a` approximates the left most
+    /// corner of this shape when viewed from `from_point`, and whose
+    /// `.b` approximates the right most corner (Java
+    /// `PolylineShape.polarLineSegment`, `PolylineShape.java:182-200`);
+    /// `None` where Java returns null (empty shape).
+    pub fn polar_line_segment(&self, from_point: &FloatPoint) -> Option<FloatLine> {
+        if self.is_empty() {
+            return None;
+        }
+        let mut left_most_corner = self.corner_approx(0)?;
+        let mut right_most_corner = self.corner_approx(0)?;
+        let corner_count = self.border_line_count();
+        for i in 1..corner_count {
+            let current_corner = self.corner_approx(i as i32)?;
+            if current_corner.side_of(from_point, &right_most_corner) == Side::Negative {
+                right_most_corner = current_corner;
+            }
+            if current_corner.side_of(from_point, &left_most_corner) == Side::Positive {
+                left_most_corner = current_corner;
+            }
+        }
+        Some(FloatLine::new(left_most_corner, right_most_corner))
+    }
+
     /// Returns an approximation of the count nearest relative outside
     /// locations of shape in the direction of different border lines of
     /// this shape, sorted ascending (Java

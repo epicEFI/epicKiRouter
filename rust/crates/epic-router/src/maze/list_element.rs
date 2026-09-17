@@ -172,8 +172,13 @@ impl ExpandableObject {
                     | ((*column as u32 as u64) << 21)
                     | ((*d as u32 as u64) << 42)
             }
-            // Drill ids come from the global id generator — unique per
-            // search, so the id alone identifies the state slot.
+            // Drill ids are the Java `ExpansionDrill.getId()` HASH
+            // (`31 * (31 * location.getId() + firstLayer) + lastLayer`,
+            // one id per (location, layer span) WITHIN one search) —
+            // NOT globally unique across searches, and the
+            // `standalone_drills` map is fresh per engine, so keying
+            // the state slot by the id inside one engine instance is
+            // exactly Java's object-identity scope.
             ExpandableObject::StandaloneDrill { id, .. } => STANDALONE_DRILL | (*id as u32 as u64),
         }
     }

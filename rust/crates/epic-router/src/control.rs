@@ -41,6 +41,12 @@ pub struct RouterSettingsIr {
     pub layer_active: Vec<bool>,
     /// Java `getAutomaticNeckdown()` (`:896-898`, default `false`).
     pub automatic_neckdown: bool,
+    /// Java `getStartRipupCosts()` (`RouterSettings.java:540-542`,
+    /// default 1) — the minimum ripup cost. `MazeRipupResolver
+    /// .checkRipup:98-99` gates fanout protection on
+    /// `ctrl.ripupCosts <= startRipupCosts * 2`, so the protection
+    /// window shrinks as the pass cost grows.
+    pub start_ripup_costs: i32,
 }
 
 /// Java `AngleRestriction` (`board.rules.BasicsOption`) — the trace
@@ -624,6 +630,7 @@ mod tests {
             bend_costs: vec![1.0, 2.0, 3.0],
             layer_active,
             automatic_neckdown: true,
+            start_ripup_costs: 1,
         }
     }
 

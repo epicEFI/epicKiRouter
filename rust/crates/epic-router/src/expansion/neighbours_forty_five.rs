@@ -53,19 +53,31 @@ use super::neighbours::{
 /// The DEGREE_45 neighbour calculation (Java
 /// `Sorted45DegreeRoomNeighbours.calculate`, `:45-79`). Returns the
 /// completed room key.
+///
+/// Java `:53` evaluates `autorouteEngine.generateRoomIdNo()` as an
+/// ARGUMENT of `calculateNeighbours` — the id burns at EVERY calculate
+/// entry, for EVERY room kind: an obstacle-room door calculation
+/// (`completeNeighbourRooms` obstacle arm → `calculateDoors` →
+/// `complete`) consumes the id and discards it, and each restart
+/// recursion re-enters `calculate` and burns a fresh one. The T7
+/// witness: Java ids 4 and 9 vanish into the wire-obstacle room's
+/// door calculation during the drain.
 #[must_use]
 pub fn calculate(ctx: &mut impl NeighbourEngine, from_room_key: u64) -> Option<u64> {
     let net_number = ctx.net_number();
-    let mut room_neighbours = calculate_neighbours(ctx, from_room_key, net_number)?;
+    let mut room_id_no = ctx.generate_room_id_no();
+    let mut room_neighbours = calculate_neighbours(ctx, from_room_key, net_number, room_id_no)?;
 
     // Check, that each side of the room shape has at least one touching
     // neighbour. Otherwise, improve the room shape by enlarging.
     let mut completed_room = room_neighbours.completed_room;
     let mut edge_removed = room_neighbours.try_remove_edge_line(ctx);
     while edge_removed {
-        // Java :63-66 — removeAllDoors + restart (burns a room id).
+        // Java :63-66 — removeAllDoors + RECURSIVE calculate (the
+        // re-entry burns another room id).
         ctx.remove_all_doors(completed_room);
-        room_neighbours = calculate_neighbours(ctx, from_room_key, net_number)?;
+        room_id_no = ctx.generate_room_id_no();
+        room_neighbours = calculate_neighbours(ctx, from_room_key, net_number, room_id_no)?;
         completed_room = room_neighbours.completed_room;
         edge_removed = room_neighbours.try_remove_edge_line(ctx);
     }
@@ -82,16 +94,24 @@ pub fn calculate(ctx: &mut impl NeighbourEngine, from_room_key: u64) -> Option<u
     Some(completed_room)
 }
 
-/// Java `calculateNeighbours` (`:85-172`).
+/// Java `calculateNeighbours` (`:85-172`). `room_id_no` is the id
+/// burned by the `calculate` entry (Java `:53` argument evaluation);
+/// the incomplete-room arm stamps it on the completed room, the
+/// obstacle-room arm discards it (Java consumes the argument either
+/// way).
 fn calculate_neighbours(
     ctx: &mut impl NeighbourEngine,
     from_room_key: u64,
     net_number: i32,
+    room_id_no: i32,
 ) -> Option<FortyfiveRoomNeighbours> {
     let room_shape = ctx.room_shape(from_room_key);
     let completed_room = if ctx.room_is_incomplete(from_room_key) {
-        let id = ctx.generate_room_id_no();
-        ctx.add_complete_free_space_room(room_shape.clone(), ctx.room_layer(from_room_key), id)
+        ctx.add_complete_free_space_room(
+            room_shape.clone(),
+            ctx.room_layer(from_room_key),
+            room_id_no,
+        )
     } else if ctx.room_is_obstacle(from_room_key) {
         from_room_key
     } else {
@@ -173,20 +193,31 @@ fn calculate_neighbours(
             ctx.object_id(current_entry.object_key),
         );
         if dimension > 0 {
-            // Walk-time DOORS attach to completed free-space room
-            // neighbours ONLY — the Java text resolves it: the door
-            // arm tests `treeObjectRoom` + free space and has no
-            // obstacle branch. Capture witness (F1/F2): NONE of the 27
-            // captured door rows has an obstacle-room endpoint, and no
-            // obstacle expansion room is ever created during the 45
-            // walk (F2's room 6 top edge = the pad's bottom border at
-            // y = 495000 comes from completeShape's restraint at the
-            // pad ITEM's tree shape, not from an obstacle room). Items
-            // enter the 45 graph via target doors (own net) and
-            // create_overlap_door (obstacle-completed 2-dim overlaps)
-            // instead.
-            if let Some(neighbour_room) = ctx.tree_object_room(current_entry.object_key)
-                && ctx.room_is_complete_free_space(neighbour_room)
+            // Java :149-169 — "make sure, that there is a door to the
+            // neighbour room": a tree-room neighbour resolves directly;
+            // a routable ITEM resolves to its (lazily created)
+            // ObstacleExpansionRoom ("expand the item for ripup and
+            // pushing purposes"). ObstacleExpansionRoom is NOT a
+            // SearchTreeObject, so this branch is the ONLY walk-time
+            // origin of room↔obstacle doors — the T7 witness door
+            // 14398 (free-space room 2 ↔ wire-14 corner 0) is created
+            // exactly here. Non-routable items get no door;
+            // insertDoorOk gates the obstacle pairs itself
+            // (sharesNet / trace-parallelism).
+            let neighbour_room =
+                if let Some(room_key) = ctx.tree_object_room(current_entry.object_key) {
+                    Some(room_key)
+                } else if ctx.is_item(current_entry.object_key)
+                    && ctx.item_is_routable(current_entry.object_key)
+                {
+                    ctx.item_expansion_room(
+                        current_entry.object_key,
+                        current_entry.shape_index_in_object,
+                    )
+                } else {
+                    None
+                };
+            if let Some(neighbour_room) = neighbour_room
                 && insert_door_ok_pair(
                     ctx,
                     completed_room,
@@ -194,9 +225,9 @@ fn calculate_neighbours(
                     &oct_tile(&intersection),
                 )
             {
-                // Java :164 — the 2-ARG door constructor: the
-                // dimension is the CURRENT intersection dimension
-                // of the two room shapes.
+                // Java :164 — the 2-ARG door constructor (`:35-39`):
+                // the dimension is the intersection dimension of the
+                // two ROOM shapes.
                 let door = ExpansionDoor::new_between(
                     ctx.room_id(completed_room),
                     ctx.room_id(neighbour_room),
