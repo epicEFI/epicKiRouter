@@ -93,7 +93,7 @@ impl ExpansionDrill {
         &mut self.maze_search_elements[index]
     }
 
-    /// Java `reset()` (`:132-135`).
+    /// Java `reset()` (`:120-123`).
     pub fn reset(&mut self) {
         for element in &mut self.maze_search_elements {
             element.reset();

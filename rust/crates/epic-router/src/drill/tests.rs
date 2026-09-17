@@ -79,6 +79,9 @@ struct SynthWorld {
     /// DESCENDING item id).
     item_overlaps: Vec<(u64, i32)>,
     complete_calls: Vec<(bool, i32)>,
+    /// The `generateRoomIdNo` call count (the probe-oracle burn-count
+    /// discipline: recomputation burns ids).
+    id_burns: usize,
     complete_result: Vec<u64>,
     /// When set, a completion at layer L returns the SINGLE room
     /// `room_key(base + L)` (Java completes exactly one room per
@@ -106,6 +109,7 @@ impl SynthWorld {
             entries: Vec::new(),
             item_overlaps: Vec::new(),
             complete_calls: Vec::new(),
+            id_burns: 0,
             complete_result: Vec::new(),
             complete_room_base: None,
             stop: None,
@@ -222,6 +226,7 @@ impl NeighbourEngine for SynthWorld {
     }
 
     fn generate_room_id_no(&mut self) -> i32 {
+        self.id_burns += 1;
         (self.rooms.len() + 1) as i32
     }
 
@@ -991,6 +996,61 @@ fn get_drills_memoization_ignores_attach_smd_but_not_net() {
     );
 }
 
+/// Java `reset()` (`DrillPage.java:153-164`) KEEPS the drills memo:
+/// it resets each memoized drill's maze-search elements and the
+/// page's own elements; only `invalidate()` (`:170-172`) nulls the
+/// memo. Pin: compute the drills, dirty a page maze element, reset,
+/// then `get_drills` for the SAME net — the MEMOIZED drills come back
+/// (same count and anchor locations), the page element is back to its
+/// initializer, and the completion seam sees ZERO calls and ZERO
+/// room-id burns (an invalidate-in-reset mutant recomputes: non-empty
+/// `complete_calls`, fresh burns). The drill-element reset arm is the
+/// same loop shape (each memoized `ExpansionDrill::reset`, Java
+/// `ExpansionDrill.java:120-123`); its state is not directly writable
+/// through the read-only drills slice, so the page-element arm is the
+/// observable witness here.
+///
+/// The world seeds NO tree room — a pre-seeded complete room lets
+/// `calculate_expansion_rooms` short-circuit through the
+/// overlapping-complete-room reuse and the completion seam never
+/// fires, which made the first draft's zero-calls witness VACUOUS
+/// (the invalidate-in-reset mutant survived it; caught by the
+/// mutation re-run). With an empty tree, every drill computation is
+/// forced through the seam.
+#[test]
+fn page_reset_keeps_the_drills_memo() {
+    let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 1);
+    world.complete_result = vec![SynthWorld::room_key(501)];
+    let mut array = DrillPageArray::new(&world, 10_000);
+    let page = &mut array.pages[0][0];
+    let (len, first_location) = {
+        let drills = page.get_drills(&mut world, 1, false);
+        assert!(!drills.is_empty(), "the page decomposes");
+        (drills.len(), drills[0].location.clone())
+    };
+    // Dirty a page maze element (what a partial layer-change pass
+    // leaves behind) and reset.
+    page.maze_search_element_mut(0).is_occupied = true;
+    page.reset();
+    world.complete_calls.clear();
+    world.id_burns = 0;
+    let drills = page.get_drills(&mut world, 1, false);
+    assert_eq!(drills.len(), len, "the memoized drills come back");
+    assert_eq!(
+        drills[0].location, first_location,
+        "the SAME memoized drills (no recomputation)"
+    );
+    assert!(
+        !page.maze_search_element(0).is_occupied,
+        "reset cleared the page's maze elements"
+    );
+    assert!(
+        world.complete_calls.is_empty(),
+        "reset does NOT invalidate: no completion calls"
+    );
+    assert_eq!(world.id_burns, 0, "reset does NOT invalidate: no id burn");
+}
+
 /// `calculateExpansionRooms` (`:55-92`): a completion that does not
 /// yield EXACTLY one room rejects the whole drill — the drill is NOT
 /// added and `getDrills` returns an empty (but memoized) list.
@@ -1367,6 +1427,42 @@ fn expand_to_other_layers_mask_gate_truth_table() {
         emit_keys(&emitted),
         vec![2],
         "only the in-mask to-layer 2 emits"
+    );
+    // Row D: the disjunct discriminator — mask (0, 2) with
+    // attach=false and BOTH edge flags set. The from-0 disjunct is
+    // TRUE (mask.from == 0 && smdComp) while the to-last disjunct is
+    // FALSE (2 != 3), so the Java disjunction `!(A || C) || attach`
+    // blocks the mask on EVERY to-layer (zero emissions) — but the
+    // &&-flattened mutant `!(A && C) || attach` reads !(false) = true
+    // and lets to-layers {0, 2} through. Rows A-C coincide under both
+    // readings; THIS row is what kills the ||->&& mutant inside this
+    // pin (verified by mutation).
+    let (world, drill) = build();
+    let ctrl = test_ctrl(
+        4,
+        vec![ViaMask {
+            from_layer: 0,
+            to_layer: 2,
+            attach_smd_allowed: false,
+        }],
+    );
+    let mut checker = ScriptedChecker::new(CheckDrillResult::DrillableWithAttachSmd);
+    let mut emitted = Vec::new();
+    expand_to_other_layers(
+        &world,
+        &ctrl,
+        777,
+        &drill,
+        1,
+        100.0,
+        &shape_entry(),
+        &mut checker,
+        &FixedDistance(2.5),
+        &mut |element| emitted.push(element),
+    );
+    assert!(
+        emitted.is_empty(),
+        "row D: the from-0 disjunct alone blocks the (0, 2) no-attach mask"
     );
 }
 

@@ -132,10 +132,13 @@ pub enum BoardShape {
 
 /// Java `ConvexShape.maxWidth()` dispatched over the board shape kinds:
 /// the tile family carries its own `maxWidth`, a polygon's is its
-/// bounding box's, a circle's twice its radius. (`control.rs` in
-/// epic-router keeps a private copy of this dispatch; this free
-/// function is the shared epic-board home the drill subsystem reads —
-/// M3-T5's `default_via_diameter` / via-radius arithmetic.)
+/// bounding box's, a circle's twice its radius. The shared epic-board
+/// home — consumers include epic-router's `control.rs` (via-cost
+/// arithmetic) and the drill subsystem's `default_via_diameter` /
+/// via-radius arithmetic. (`TileShape`/`Circle` implement maxWidth
+/// natively; `PolygonShape` is NOT a Java `ConvexShape` — padstack
+/// shapes never carry it, the parse converts — so the bounding-box
+/// fallback is defensive only.)
 #[must_use]
 pub fn shape_max_width(shape: &BoardShape) -> f64 {
     match shape {

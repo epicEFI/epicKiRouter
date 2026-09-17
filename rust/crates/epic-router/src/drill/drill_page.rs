@@ -115,10 +115,17 @@ impl DrillPage {
         self.drills = None;
     }
 
-    /// Java `reset()` (`:187-189`): invalidate plus the maze search
-    /// elements back to their initializers.
+    /// Java `reset()` (`:153-164`): resets each MEMOIZED drill's
+    /// maze-search elements and the page's own elements. The drills
+    /// memo SURVIVES — Java `invalidate()` (`:170-172`) is the
+    /// separate operation that nulls it, so a reset does NOT force a
+    /// re-enumeration at the next [`Self::get_drills`].
     pub fn reset(&mut self) {
-        self.invalidate();
+        if let Some(drills) = &mut self.drills {
+            for drill in drills {
+                drill.reset();
+            }
+        }
         for element in &mut self.maze_search_elements {
             element.reset();
         }

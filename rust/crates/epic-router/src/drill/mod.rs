@@ -151,10 +151,12 @@ pub trait DrillEngine: NeighbourEngine {
 }
 
 /// The Java tree-query iteration order for the drill walks: the search
-/// tree's `TreeSet` leaf order — object id DESCENDING (Java
-/// `SearchTreeObject.compareTo` = `other.id - this.id` for items and
-/// free-space rooms alike), shape index ascending secondary, dedup.
-/// Room entries interleave freely (they are skipped before any
+/// tree's `TreeSet` leaf order — object id DESCENDING via the element
+/// comparators (`Item.compareTo`, `Item.java:95-103`:
+/// `result = item.id - id`; `CompleteFreeSpaceExpansionRoom.compareTo`,
+/// `CompleteFreeSpaceExpansionRoom.java:46-54`:
+/// `result = other.id - this.id`), shape index ascending secondary,
+/// dedup. Room entries interleave freely (they are skipped before any
 /// order-sensitive effect in both consumers).
 pub(crate) fn java_ordered_entries(
     ctx: &mut impl NeighbourEngine,

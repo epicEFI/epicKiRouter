@@ -1408,10 +1408,11 @@ fn assert_emits(
 /// Pin 1 — the grid: pageMeta arithmetic (40000 page width from the
 /// 8000.0 default via diameter, 26x16 pages of 38539x37625), the
 /// pageBounds rows of the three full pages, and the three
-/// overlappingPages probes (whole board -> all 416 pages, the exact
-/// page-corner probe [[1,1],[1,2],[2,1],[2,2]] — the strict `<` bound
-/// the M1 mutant `<=` panics on, and the degenerate zero-height probe
-/// -> empty).
+/// overlappingPages probes (whole board -> all 416 pages — the exact
+/// 16 x 37625 board height makes this the strict-`<`-bound witness a
+/// `<=` mutant panics on; the exact page-corner probe
+/// [[1,1],[1,2],[2,1],[2,2]] pinning interior coordinates; and the
+/// degenerate zero-height probe -> empty).
 #[test]
 fn page_grid_and_overlap_probes() {
     let replay = replay_enumeration();
@@ -1426,8 +1427,14 @@ fn page_grid_and_overlap_probes() {
     assert_eq!(whole[415], (15, 25), "probe 1: scan order end");
 
     // Probe 2: a box whose right/bottom edges land EXACTLY on the
-    // page-2 grid lines ([38539,37625,77078,75250] = [pw,ph,2pw,2ph])
-    // — the strict `j < maxJ` bound must stop at row/col 2.
+    // page-2 grid lines ([38539,37625,77078,75250] = [pw,ph,2pw,2ph]).
+    // NOTE this probe does NOT discriminate the strict `j < maxJ`
+    // bound — its upper bounds (≈2.026) are non-integers where the
+    // ceil and the dimension filter coincide anyway; it pins the
+    // interior page coordinates. The strict-bound witnesses are
+    // probe 1 (board height 602000 = 16 x 37625 EXACTLY, so a `<=`
+    // mutant scans row 16 and panics on the missing grid row) and the
+    // synthetic `overlapping_pages_strict_upper_bound_at_exact_integer`.
     let corner = replay
         .array
         .overlapping_pages(&box_tile(38539, 37625, 77078, 75250));

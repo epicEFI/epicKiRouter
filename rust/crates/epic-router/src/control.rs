@@ -6,7 +6,7 @@
 //! notably the ripup-cost formula application (see [`AutorouteControl::ripup_costs`]).
 
 use epic_board::board::Board;
-use epic_board::items::{BoardItemType, BoardShape};
+use epic_board::items::{BoardItemType, shape_max_width};
 use epic_board::rules_surf::{NetClass, ViaRule};
 
 /// Java `RouterSettings` — the fields `AutorouteControl` consumes, and
@@ -444,20 +444,6 @@ impl AutorouteControl {
         }
         self.min_normal_via_cost = f64::from(via_costs) * via_cost_factor;
         self.min_cheap_via_cost = 0.8 * self.min_normal_via_cost;
-    }
-}
-
-/// Java `ConvexShape.maxWidth()` through [`BoardShape`] — the twin of
-/// epic-dsn's parse-side `board_shape_max_width` (private there; the
-/// board crate owns the shape type). `TileShape`/`Circle` implement
-/// maxWidth natively; `PolygonShape` is NOT a Java `ConvexShape`
-/// (padstack shapes never carry it — the parse converts), so the
-/// bounding-box fallback is defensive only.
-fn shape_max_width(shape: &BoardShape) -> f64 {
-    match shape {
-        BoardShape::Tile(tile) => tile.max_width(),
-        BoardShape::PolygonShape(polygon) => polygon.bounding_box().max_width(),
-        BoardShape::Circle(circle) => circle.max_width(),
     }
 }
 
