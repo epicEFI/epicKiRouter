@@ -251,14 +251,24 @@ impl MazeExpansionEngine {
     ) -> TileShape {
         match door {
             ExpandableObject::RoomDoor(room_door) => {
-                let first = ctx.room_shape(
-                    ctx.room_key_of_id(room_door.first_room_id)
-                        .expect("a live room door's first room is registered"),
-                );
-                let second = ctx.room_shape(
-                    ctx.room_key_of_id(room_door.second_room_id)
-                        .expect("a live room door's second room is registered"),
-                );
+                let first = ctx.room_shape(ctx.room_key_of_id(room_door.first_room_id).unwrap_or_else(
+                    || {
+                        panic!(
+                            "a live room door's first room is registered (door id {}, first room id {})",
+                            room_door.id(),
+                            room_door.first_room_id
+                        )
+                    },
+                ));
+                let second = ctx.room_shape(ctx.room_key_of_id(room_door.second_room_id).unwrap_or_else(
+                    || {
+                        panic!(
+                            "a live room door's second room is registered (door id {}, second room id {})",
+                            room_door.id(),
+                            room_door.second_room_id
+                        )
+                    },
+                ));
                 crate::expansion::ExpansionDoor::shape_between(&first, &second)
             }
             ExpandableObject::TargetDoor(target_door) => target_door.shape().clone(),
@@ -266,6 +276,7 @@ impl MazeExpansionEngine {
             ExpandableObject::Drill { row, column, d, .. } => {
                 pages.page_drill_shape(*row, *column, *d)
             }
+            ExpandableObject::StandaloneDrill { shape, .. } => shape.clone(),
         }
     }
 }

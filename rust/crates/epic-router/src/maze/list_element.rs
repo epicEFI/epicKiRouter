@@ -43,6 +43,7 @@
 use std::collections::BTreeSet;
 
 use epic_geometry::float_line::FloatLine;
+use epic_geometry::tile_shape::TileShape;
 
 use crate::drill::Adjustment;
 use crate::expansion::{ExpansionDoor, TargetItemExpansionDoor};
@@ -76,6 +77,16 @@ pub enum ExpandableObject {
         d: usize,
         id: i32,
     },
+    /// Java `ExpansionDrill` NOT living in the drill-page grid — the
+    /// drill constructed over a ripped via (`MazeSearchEngine.expandToRoomDoors`
+    /// → `Via.getAutorouteDrillInfo`). Java carries the drill OBJECT in
+    /// the element; the Rust page-grid variant cannot represent it (its
+    /// state resolves through `(row, column, d)`), so standalone drills
+    /// are tagged separately and their state lives in
+    /// [`crate::maze::search_engine::MazeSearchEngine`]'s drill map.
+    /// `shape` is the drill's stored shape (`DrillItem.getShape`), kept
+    /// here because `door_shape` is engine-free.
+    StandaloneDrill { id: i32, shape: TileShape },
 }
 
 /// DEVIATION (front tie-break 2): Java's `TreeSet` comparator reads
@@ -103,8 +114,22 @@ impl ExpandableObject {
             ExpandableObject::RoomDoor(door) => door.dimension,
             ExpandableObject::TargetDoor(_)
             | ExpandableObject::DrillPage { .. }
-            | ExpandableObject::Drill { .. } => 2,
+            | ExpandableObject::Drill { .. }
+            | ExpandableObject::StandaloneDrill { .. } => 2,
         }
+    }
+
+    /// Java `door instanceof ExpansionDrill` — page-grid drills and
+    /// standalone (ripped-via) drills are one Java class; the
+    /// instanceof checks of `expandToRoomDoors` (fanout `:361-368`,
+    /// other-layers, the drill-page trigger `:478-489`) all read true
+    /// for both.
+    #[must_use]
+    pub fn is_drill(&self) -> bool {
+        matches!(
+            self,
+            ExpandableObject::Drill { .. } | ExpandableObject::StandaloneDrill { .. }
+        )
     }
 }
 
@@ -118,6 +143,7 @@ impl ExpandableObject {
             ExpandableObject::TargetDoor(door) => door.id(),
             ExpandableObject::DrillPage { id, .. } => *id,
             ExpandableObject::Drill { id, .. } => *id,
+            ExpandableObject::StandaloneDrill { id, .. } => *id,
         }
     }
 
@@ -131,6 +157,7 @@ impl ExpandableObject {
         const TARGET_DOOR: u64 = 2 << 62;
         const PAGE: u64 = 3 << 62;
         const DRILL: u64 = 4 << 62;
+        const STANDALONE_DRILL: u64 = 5 << 62;
         match self {
             ExpandableObject::RoomDoor(door) => {
                 ROOM_DOOR | (door.id() as u32 as u64) | ((door.dimension.clamp(0, 3) as u64) << 32)
@@ -145,6 +172,9 @@ impl ExpandableObject {
                     | ((*column as u32 as u64) << 21)
                     | ((*d as u32 as u64) << 42)
             }
+            // Drill ids come from the global id generator — unique per
+            // search, so the id alone identifies the state slot.
+            ExpandableObject::StandaloneDrill { id, .. } => STANDALONE_DRILL | (*id as u32 as u64),
         }
     }
 }

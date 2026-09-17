@@ -12,9 +12,11 @@
 //! like the Java field dereferences.
 //!
 //! Java `sectionArr` (the per-section `MazeSearchElement[]`) is maze
-//! state owned by T6; this port keeps only the section COUNT (the
-//! `allocateSections` arity, `ExpansionDoor.java:193-201`) and returns
-//! it next to the segment list.
+//! state owned by T6; this port does NOT store it (or its length) on
+//! the door — [`ExpansionDoor::get_section_segments`] returns the
+//! `allocateSections` arity (`ExpansionDoor.java:193-201`) next to the
+//! segment list, and the live state/count lives in the maze engine's
+//! `door_sections` map.
 //!
 //! Float arithmetic note: `getSectionSegments` and
 //! `calcDoorLineSegment` run in Java `double` arithmetic
@@ -42,8 +44,12 @@ pub struct ExpansionDoor {
     pub second_room_id: i32,
     /// Java `dimension`.
     pub dimension: i32,
-    /// Java `sectionArr.length` after the last `allocateSections`.
-    pub section_count: usize,
+    // Java also holds `sectionArr` (the per-section maze state) ON the
+    // door; this port keeps that state in the maze engine's
+    // `door_sections` map (keyed by the door key) — a `section_count`
+    // FIELD here would be a constant-0 trap (the only reader in the T6
+    // round mis-derived `mazeSearchElementCount()` from it; quality
+    // round removed it). The live count is the map entry's length.
 }
 
 impl ExpansionDoor {
@@ -54,7 +60,6 @@ impl ExpansionDoor {
             first_room_id,
             second_room_id,
             dimension,
-            section_count: 0,
         }
     }
 
@@ -73,7 +78,6 @@ impl ExpansionDoor {
             first_room_id,
             second_room_id,
             dimension,
-            section_count: 0,
         }
     }
 

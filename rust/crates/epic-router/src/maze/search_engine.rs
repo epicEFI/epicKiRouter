@@ -76,6 +76,12 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// snapshots, so the engine keys the state by the door key
     /// ([`ExpandableObject::key`]).
     pub(crate) door_sections: std::collections::HashMap<u64, Vec<crate::drill::MazeSearchElement>>,
+    /// The standalone (ripped-via) drills of the current search — Java
+    /// carries the drill OBJECT in the front element; the Rust element
+    /// carries only the [`ExpandableObject::StandaloneDrill`] tag, and
+    /// the live `ExpansionDrill` (with its maze-search state and
+    /// `roomArr`) is owned here, keyed by the Java drill id.
+    pub(crate) standalone_drills: std::collections::HashMap<i32, ExpansionDrill>,
     /// Java `destinationDoor` + `sectionNoOfDestinationDoor`
     /// (`:70-72`).
     pub(crate) destination: Option<(ExpandableObject, i32)>,
@@ -101,6 +107,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             checker,
             pages,
             door_sections: std::collections::HashMap::new(),
+            standalone_drills: std::collections::HashMap::new(),
             destination: None,
         }
     }
@@ -177,6 +184,11 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 .pages
                 .page_drill_mut(*row, *column, *d)
                 .maze_search_element_mut(section as usize),
+            ExpandableObject::StandaloneDrill { id, .. } => self
+                .standalone_drills
+                .get_mut(id)
+                .expect("a standalone drill is registered at construction")
+                .maze_search_element_mut(section as usize),
         }
     }
 
@@ -214,10 +226,15 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 .pages
                 .page_drill(*row, *column, *d)
                 .maze_search_element(section as usize),
+            ExpandableObject::StandaloneDrill { id, .. } => self
+                .standalone_drills
+                .get(id)
+                .map(|drill| drill.maze_search_element(section as usize))
+                .unwrap_or(&UNMARKED),
         }
     }
 
-    /// Java `ExpansionDoor.allocateSections` (`:193-203`): the section
+    /// Java `ExpansionDoor.allocateSections` (`:193-201`): the section
     /// state array of a room door, allocated at the Java site that
     /// triggers it (`getSectionSegments`, called in
     /// [`Self::expand_to_door`]); re-allocation RESETS the state when
@@ -291,18 +308,23 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             return false;
         }
         if self.ctrl.is_fanout
-            && matches!(element.door, ExpandableObject::Drill { .. })
-            && matches!(element.backtrack_door, Some(ExpandableObject::Drill { .. }))
+            && element.door.is_drill()
+            && element
+                .backtrack_door
+                .as_ref()
+                .is_some_and(ExpandableObject::is_drill)
         {
             // Fanout: the algorithm completes after the first drill
             // (`:361-368`).
             self.destination = Some((element.door.clone(), element.section_no_of_door));
             return false;
         }
-        let from_drill = matches!(element.door, ExpandableObject::Drill { .. });
+        let from_drill = element.door.is_drill();
         if self.ctrl.vias_allowed && from_drill {
-            let backtrack_is_drill =
-                matches!(element.backtrack_door, Some(ExpandableObject::Drill { .. }));
+            let backtrack_is_drill = element
+                .backtrack_door
+                .as_ref()
+                .is_some_and(ExpandableObject::is_drill);
             if !backtrack_is_drill {
                 self.expand_to_other_layers_wired(&element);
             }
@@ -328,10 +350,12 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// contract), so the wiring re-anchors both to the current
     /// (row, column, d).
     fn expand_to_other_layers_wired(&mut self, element: &MazeListElement) {
-        let ExpandableObject::Drill { row, column, d, id } = element.door else {
-            panic!("expandToOtherLayers requires a drill door");
-        };
-        let drill = self.pages.page_drill(row, column, d).clone();
+        debug_assert!(
+            element.door.is_drill(),
+            "expandToOtherLayers requires a drill door"
+        );
+        let drill = self.live_drill(&element.door);
+        let door = element.door.clone();
         let mut emitted: Vec<DrillMazeListElement> = Vec::new();
         expand_to_other_layers(
             self.ctx,
@@ -347,9 +371,9 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         );
         for emit in emitted {
             self.front.add(MazeListElement::new(
-                ExpandableObject::Drill { row, column, d, id },
+                door.clone(),
                 emit.section_no_of_door,
-                Some(ExpandableObject::Drill { row, column, d, id }),
+                Some(door.clone()),
                 emit.section_no_of_backtrack_door,
                 emit.expansion_value,
                 emit.sorting_value,
@@ -359,6 +383,24 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 emit.adjustment,
                 emit.already_checked,
             ));
+        }
+    }
+
+    /// The live drill object of a drill door — Java casts
+    /// `currElement.door` to `ExpansionDrill` and reads the object.
+    /// Page-grid drills resolve through the page array; standalone
+    /// (ripped-via) drills live in [`Self::standalone_drills`].
+    fn live_drill(&self, door: &ExpandableObject) -> ExpansionDrill {
+        match door {
+            ExpandableObject::Drill { row, column, d, .. } => {
+                self.pages.page_drill(*row, *column, *d).clone()
+            }
+            ExpandableObject::StandaloneDrill { id, .. } => self
+                .standalone_drills
+                .get(id)
+                .expect("a standalone drill is registered at construction")
+                .clone(),
+            _ => panic!("expected a drill door"),
         }
     }
 
@@ -412,11 +454,10 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             current_door_is_small,
         );
 
-        if !layer_active && let ExpandableObject::Drill { .. } = element.door {
+        if !layer_active && element.door.is_drill() {
             // check for a drill to a foreign conduction area on a
             // split plane (`:478-489`)
-            let (row, column, d) = drill_coords(&element.door);
-            let location = &self.pages.page_drill(row, column, d).location;
+            let location = &self.live_drill(&element.door).location;
             if self
                 .ctx
                 .drill_hits_foreign_conduction(location, layer_index, self.ctrl.net_number)
@@ -486,8 +527,17 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                     // ripup_costs == 0 continues exactly like the
                     // Java `if (!shoved)` fall-through.
                     let shoved = match &element.door {
-                        ExpandableObject::RoomDoor(door) => {
-                            let count = i32::try_from(door.section_count).unwrap_or(i32::MAX);
+                        ExpandableObject::RoomDoor(_) => {
+                            // Java `ignoreDoor.mazeSearchElementCount()`
+                            // (`:1131-1132`) = `sectionArr.length`, kept
+                            // live by `allocateSections` — mirrored by
+                            // the engine's `door_sections` map (the door
+                            // struct carries no count).
+                            let count = self
+                                .door_sections
+                                .get(&element.door.key())
+                                .map_or(0, Vec::len);
+                            let count = i32::try_from(count).unwrap_or(i32::MAX);
                             element.section_no_of_door != 0
                                 && element.section_no_of_door != count - 1
                         }
@@ -535,7 +585,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         }
 
         // Expand also the drill pages intersecting the room (`:600-623`).
-        if self.ctrl.vias_allowed && !matches!(element.door, ExpandableObject::Drill { .. }) {
+        if self.ctrl.vias_allowed && !element.door.is_drill() {
             if (something_expanded || next_room_is_thick)
                 && self.ctx.room_is_complete_free_space(next_room_key)
             {
@@ -560,27 +610,37 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 && let Some(item) = self.ctx.room_obstacle_item_key(next_room_key)
                 && self.ctx.item_is_via(item)
             {
-                // Java `Via.getAutorouteDrillInfo` — SEAM (T7):
-                // the drill construction over a ripped via; the
-                // T6 fixtures carry no vias.
+                // Java `Via.getAutorouteDrillInfo` — SEAM (T7): the
+                // drill construction over a ripped via. Java stores the
+                // drill OBJECT in the new front element; the Rust
+                // element carries the `StandaloneDrill` tag (a
+                // page-grid `Drill` tag would resolve state through the
+                // page array and panic on the first pop), and the live
+                // drill object + its maze state live in
+                // [`Self::standalone_drills`]. The T6 fixtures carry no
+                // vias; the production `via_drill_info` seam lands
+                // with T7.
                 if let Some((location, first_layer, last_layer, shape)) =
                     self.ctx.via_drill_info(item)
                 {
-                    let drill = ExpansionDrill::new(shape, location, first_layer, last_layer);
+                    let drill =
+                        ExpansionDrill::new(shape.clone(), location, first_layer, last_layer);
                     let drill_id = drill.get_id();
+                    let drill_door = ExpandableObject::StandaloneDrill {
+                        id: drill_id,
+                        shape,
+                    };
+                    self.standalone_drills.insert(drill_id, drill);
                     MazeExpansionEngine::expand_to_drill(
                         self.ctx,
                         self.ctrl,
                         &mut self.front,
                         self.destination_distance,
                         self.pages,
-                        &drill,
-                        &ExpandableObject::Drill {
-                            row: -1,
-                            column: -1,
-                            d: usize::MAX,
-                            id: drill_id,
-                        },
+                        self.standalone_drills
+                            .get(&drill_id)
+                            .expect("the standalone drill was just inserted"),
+                        &drill_door,
                         element,
                         ripup_costs,
                     );
@@ -649,7 +709,6 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     }
 
     /// Java `expandToTargetDoors` (`:629-704`).
-    #[allow(clippy::too_many_arguments)]
     fn expand_to_target_doors(
         &mut self,
         element: &MazeListElement,
@@ -726,9 +785,11 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         result
     }
 
-    /// Java `expandToDoor` (`:707-760`).
+    /// Java `expandToDoor` (`:707-760`). `pub(crate)` for the
+    /// per-section occupancy pre-check contract pin (maze/pins.rs); the
+    /// argument list is the Java-faithful 8-arg shape.
     #[allow(clippy::too_many_arguments)]
-    fn expand_to_door(
+    pub(crate) fn expand_to_door(
         &mut self,
         to_door: crate::expansion::ExpansionDoor,
         door_object: &ExpandableObject,
@@ -825,12 +886,20 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     ) -> (Option<u64>, Option<u64>, TileShape, TileShape) {
         let first_key = self.ctx.room_key_of_id(door.first_room_id);
         let second_key = self.ctx.room_key_of_id(door.second_room_id);
-        let first_shape = self
-            .ctx
-            .room_shape(first_key.expect("a live room door's first room is registered"));
-        let second_shape = self
-            .ctx
-            .room_shape(second_key.expect("a live room door's second room is registered"));
+        let first_shape = self.ctx.room_shape(first_key.unwrap_or_else(|| {
+            panic!(
+                "a live room door's first room is registered (door id {}, first room id {})",
+                door.id(),
+                door.first_room_id
+            )
+        }));
+        let second_shape = self.ctx.room_shape(second_key.unwrap_or_else(|| {
+            panic!(
+                "a live room door's second room is registered (door id {}, second room id {})",
+                door.id(),
+                door.second_room_id
+            )
+        }));
         (first_key, second_key, first_shape, second_shape)
     }
 
@@ -884,17 +953,28 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         let Some(from_room_key) = from_element.next_room_key else {
             panic!("expandToDoorSection requires a non-null fromElement.nextRoom");
         };
-        // Java `door.otherRoom(fromElement.nextRoom)`: room doors
-        // resolve to the OTHER room; target doors return null.
+        // Java `door.otherRoom(fromElement.nextRoom)` — the
+        // `CompleteExpansionRoom` overload (`ExpansionDoor.java:79-91`)
+        // answers null UNLESS the other room is itself complete
+        // (complete free-space or obstacle); the plain overload
+        // (`:62-72`) has no such restriction. An incomplete other room
+        // therefore yields a `nextRoom`-less element (Java null),
+        // exactly like a target door.
         let next_room_key = match &door {
             ExpandableObject::RoomDoor(room_door) => {
                 let from_room_id = self.ctx.room_id(from_room_key);
                 room_door
                     .other_room_id(from_room_id)
                     .and_then(|id| self.ctx.room_key_of_id(id))
+                    .filter(|other_key| {
+                        self.ctx.room_is_complete_free_space(*other_key)
+                            || self.ctx.room_is_obstacle(*other_key)
+                    })
             }
             ExpandableObject::TargetDoor(_) => None,
-            ExpandableObject::DrillPage { .. } | ExpandableObject::Drill { .. } => {
+            ExpandableObject::DrillPage { .. }
+            | ExpandableObject::Drill { .. }
+            | ExpandableObject::StandaloneDrill { .. } => {
                 unreachable!("expandToDoorSection is only called for room and target doors")
             }
         };
@@ -1105,12 +1185,4 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
 /// The mid-point of a shape entry segment.
 fn mid_of(line: &FloatLine) -> FloatPoint {
     line.a.middle_point(&line.b)
-}
-
-/// The (row, column, d) coordinates of a drill door.
-fn drill_coords(door: &ExpandableObject) -> (i32, i32, usize) {
-    match door {
-        ExpandableObject::Drill { row, column, d, .. } => (*row, *column, *d),
-        _ => panic!("expected a drill door"),
-    }
 }

@@ -422,7 +422,9 @@ fn kind_of(door: &ExpandableObject) -> Kind {
         ExpandableObject::RoomDoor(_) => Kind::RoomDoor,
         ExpandableObject::TargetDoor(_) => Kind::TargetDoor,
         ExpandableObject::DrillPage { .. } => Kind::DrillPage,
-        ExpandableObject::Drill { .. } => Kind::Drill,
+        // Java's `ExpansionDrill` covers both the page-grid and the
+        // standalone (ripped-via) drill.
+        ExpandableObject::Drill { .. } | ExpandableObject::StandaloneDrill { .. } => Kind::Drill,
     }
 }
 
@@ -1870,8 +1872,6 @@ fn main_phase_protocol_pins() {
     let start_door = &start_doors[0];
     assert_eq!(start_door.id(), 232558643, "door i=0 id");
     assert_eq!(start_door.dimension, 1, "door i=0 dim");
-    let door_shape = engine.ctx.room_shape(start_room); // placeholder read to settle borrows
-    let _ = door_shape;
     {
         let (first_key, second_key, first_shape, second_shape) = {
             let ctx = &*engine.ctx;
@@ -1907,7 +1907,11 @@ fn main_phase_protocol_pins() {
     }
 
     // The `doorIsSmall` boundary: strict `<` at exactly the door
-    // length (38964.0 → NOT small; 38965.0 → small).
+    // length (38964.0 → NOT small; 38965.0 → small). The harness runs
+    // the 90-degree arm (`bounding_box().max_width()`); the 45-degree
+    // engine measures `bounding_octagon().max_width()` instead, which
+    // coincides for this axis-aligned door — the boundary pins
+    // transfer.
     {
         for (w, expected_small) in [(38963.0, false), (38964.0, false), (38965.0, true)] {
             let small = engine.door_is_small(start_door, w);
@@ -1929,7 +1933,6 @@ fn main_phase_protocol_pins() {
         first_room_id: 1,
         second_room_id: 2,
         dimension: 1,
-        section_count: 2,
     });
     assert!(
         engine.maze_element(&door33, 0).is_occupied,
@@ -2101,6 +2104,126 @@ fn allocate_sections_resegmentation_contract() {
         !engine.maze_element(&door, 1).is_occupied,
         "re-segmentation resets the section state"
     );
+}
+
+/// The `expandToDoor` occupancy pre-check is PER SECTION (`:715`): a
+/// multi-section door expands its FREE sections — section 0 occupied
+/// must not block section 1. Review mutant M2 (the pre-check reading
+/// section 0 instead of `section`) survived every drain pin: the
+/// captures never revisit an occupied-section door that still has a
+/// free later section. Cerebrum mode 10 — direct contract pin,
+/// mutation-verified (kills M2).
+#[test]
+fn expand_to_door_precheck_is_per_section() {
+    let (mut harness, ctrl, mut distance, mut checker, mut pages) = make_run(false);
+    let mut engine =
+        MazeSearchEngine::new(&mut harness, &ctrl, &mut distance, &mut checker, &mut pages);
+    assert!(engine.init(&[START_PIN], &[DEST_PIN]), "init ok");
+    let seed = engine.front.iter().next().expect("the init seed").clone();
+    let from_room = seed.next_room_key.expect("the seed's room");
+    let door = engine.ctx.room_doors(from_room)[0].clone();
+    assert_eq!(door.id(), 232558643, "the start door");
+    let door_object = ExpandableObject::RoomDoor(door.clone());
+
+    // allocateSections fires inside getSectionSegments — the door has
+    // TWO sections (the bendSeed pin pins the same arity).
+    let (first_key, second_key, first_shape, second_shape) = {
+        let ctx = &*engine.ctx;
+        let fk = ctx.room_key_of_id(door.first_room_id);
+        let sk = ctx.room_key_of_id(door.second_room_id);
+        let fs = ctx.room_shape(fk.expect("live first room"));
+        let ss = ctx.room_shape(sk.expect("live second room"));
+        (fk, sk, fs, ss)
+    };
+    let both_complete_free_space = first_key
+        .is_some_and(|k| engine.ctx.room_is_complete_free_space(k))
+        && second_key.is_some_and(|k| engine.ctx.room_is_complete_free_space(k));
+    let door_shape = ExpansionDoor::shape_between(&first_shape, &second_shape);
+    let layer = engine.ctx.room_layer(from_room);
+    let half_width = f64::from(ctrl.compensated_trace_half_width[layer as usize]);
+    let (section_count, _) = door.get_section_segments(
+        &door_shape,
+        both_complete_free_space,
+        &first_shape,
+        &second_shape,
+        half_width,
+    );
+    assert_eq!(section_count, 2, "the start door has two sections");
+    // Allocate the TRUE count BEFORE marking: a lazy `maze_element_mut`
+    // resize would look like a re-segmentation (different count) and
+    // reset the state inside `expand_to_door`'s `allocateSections`.
+    engine.allocate_sections(&door_object, section_count);
+
+    // The room BEYOND the door (the `nextRoom` argument of
+    // expandToDoor) and the element's from-room (the seed's room).
+    let from_room_id = engine.ctx.room_id(from_room);
+    let to_room_id = door
+        .other_room_id(from_room_id)
+        .expect("the start door's other room");
+    let to_room_key = engine
+        .ctx
+        .room_key_of_id(to_room_id)
+        .expect("the to-room is registered");
+    let c = door_shape.centre_of_gravity();
+    let from_elem = MazeListElement::new(
+        door_object.clone(),
+        0,
+        None,
+        0,
+        100.0,
+        100.0,
+        Some(from_room),
+        FloatLine::new(c, c),
+        false,
+        Adjustment::None,
+        false,
+    );
+
+    // Section 0 occupied, section 1 free → section 1 EXPANDS. (The
+    // init seed itself is door 232558643 section 0, so the assertions
+    // run on the front DELTA.)
+    engine.maze_element_mut(&door_object, 0).is_occupied = true;
+    let before: Vec<MazeListElement> = engine.front.iter().cloned().collect();
+    let expanded = engine.expand_to_door(
+        door.clone(),
+        &door_object,
+        &from_elem,
+        to_room_key,
+        0,
+        true,
+        Adjustment::None,
+    );
+    assert!(expanded, "the free section 1 expanded");
+    let is_new = |e: &MazeListElement| !before.contains(e);
+    assert!(
+        !engine
+            .front
+            .iter()
+            .any(|e| is_new(e) && e.door == door_object && e.section_no_of_door == 0),
+        "the occupied section 0 was skipped"
+    );
+    assert!(
+        engine
+            .front
+            .iter()
+            .any(|e| is_new(e) && e.door == door_object && e.section_no_of_door == 1),
+        "the free section 1 produced an element"
+    );
+
+    // Both sections occupied → nothing expands.
+    engine.maze_element_mut(&door_object, 1).is_occupied = true;
+    let size_before = engine.front.len();
+    let expanded = engine.expand_to_door(
+        door,
+        &door_object,
+        &from_elem,
+        to_room_key,
+        0,
+        true,
+        Adjustment::None,
+    );
+    assert!(!expanded, "fully-occupied door expands nothing");
+    assert_eq!(engine.front.len(), size_before, "no new elements");
 }
 
 /// A comparator tie element — DIRECT struct literal (not
