@@ -36,10 +36,18 @@ pub enum CheckDrillResult {
 /// SEAM (T10): Java `ForcedViaInserter.checkLayer` (static, 12 args) —
 /// the deep legality probe (shove/ripup simulation over the real
 /// board). The port reduces the twelve arguments to the eight the
-/// DECISION code consumes (the recursion depths and the trace
-/// clearance class are T10's internal inputs, passed through its own
-/// construction). T10 ports the checker with the rest of
-/// ForcedPadRouter/ForcedViaInserter as one unit.
+/// DECISION code consumes: the two recursion depths (`:399-400`) and
+/// `ctrl.traceClearanceClassIndex` (`:403`) are T10's internal inputs,
+/// passed through its own construction; `search.autorouteEngine.board`
+/// (`:401`) is implicit in the checker's board access; and the
+/// per-layer `ctrl.traceHalfWidth[layer]` (`:402`) is already folded
+/// into `required_radius` by the caller — exactly Java's
+/// `requiredRadius = Math.max(viaRadius, ctrl.traceHalfWidth[layer])`
+/// at `:389`, which the port mirrors at its `checkLayer` call site.
+/// `netNumbers int[]` (`:398`) collapses to one `i32` faithfully: this
+/// call site always passes exactly one net number. T10 ports the
+/// checker with the rest of ForcedPadRouter/ForcedViaInserter as one
+/// unit.
 pub trait ViaLayerChecker {
     /// Java `ForcedViaInserter.checkLayer(requiredRadius,
     /// clearanceClass, attachSmdAllowed, roomShape, location, layer,

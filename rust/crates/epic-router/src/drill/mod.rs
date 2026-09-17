@@ -158,6 +158,12 @@ pub trait DrillEngine: NeighbourEngine {
 /// `result = other.id - this.id`), shape index ascending secondary,
 /// dedup. Room entries interleave freely (they are skipped before any
 /// order-sensitive effect in both consumers).
+///
+/// The trailing `dedup` is a DEFENSIVE normalization, not a Java
+/// behavior: Java's walk iterates a `TreeSet`, which yields each leaf
+/// exactly once and cannot duplicate. The dedup pins that seam contract
+/// for the Rust `overlapping_entries` implementors and is a no-op for a
+/// faithful one.
 pub(crate) fn java_ordered_entries(
     ctx: &mut impl NeighbourEngine,
     shape: &TileShape,

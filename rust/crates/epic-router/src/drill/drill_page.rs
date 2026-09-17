@@ -109,7 +109,7 @@ impl DrillPage {
         &mut self.maze_search_elements[index]
     }
 
-    /// Java `invalidate()` (`:182-185`): drills are recomputed on the
+    /// Java `invalidate()` (`:170-172`): drills are recomputed on the
     /// next [`Self::get_drills`].
     pub fn invalidate(&mut self) {
         self.drills = None;
@@ -224,12 +224,21 @@ impl DrillPage {
                             // discipline mirrors that.
                             panic!("splitToConvex stop requested (Java would NPE on null)");
                         }
-                        // Java `dividePiece.cutout(holePiece)` =
-                        // `holePiece.cutoutFrom(dividePiece)`, each
-                        // result piece simplified (the leaf
-                        // `cutout(TileShape)` bodies).
-                        for piece in hole_piece.cutout_from(divide_piece) {
-                            let piece = piece.simplify();
+                        // Java `dividePiece.cutout(holePiece)`: the
+                        // DIVIDE piece's dynamic type selects the leaf
+                        // body — `IntBox.cutout` (`IntBox.java:688-695`)
+                        // simplifies each result, `IntOctagon.cutout`
+                        // (`IntOctagon.java:1059-1061`) and
+                        // `Simplex.cutout` (`Simplex.java:695-697`) do
+                        // NOT. [`TileShape::cutout`] owns that dispatch,
+                        // so a box-like octagon round result STAYS an
+                        // `IntOctagon` when the divide piece is an
+                        // octagon, and the next round's `cutoutFrom`
+                        // dispatches the octagon arm (an unconditional
+                        // simplify here re-typed it `IntBox` and changed
+                        // the decomposition the next hole round and the
+                        // T6 drill order inherit).
+                        for piece in divide_piece.cutout(&hole_piece) {
                             if piece.dimension() == 2 {
                                 new_piece_list.push(piece);
                             }

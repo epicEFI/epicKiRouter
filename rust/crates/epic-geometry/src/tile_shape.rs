@@ -937,10 +937,27 @@ impl TileShape {
     }
 
     /// Cuts this shape out of `shape`, i.e. returns the pieces of `shape`
-    /// outside this shape (Java `TileShape.cutout` is abstract with
-    /// per-leaf bodies of the form `shape.cutoutFrom(this)`).
+    /// outside this shape. Java `TileShape.cutout` is abstract with
+    /// per-leaf bodies, and the leaves are NOT uniform: `IntBox.cutout`
+    /// (`IntBox.java:688-695`) returns `shape.cutoutFrom(this)` with each
+    /// result SIMPLIFIED, while `IntOctagon.cutout`
+    /// (`IntOctagon.java:1059-1061`) and `Simplex.cutout`
+    /// (`Simplex.java:695-697`) return the pieces UNSIMPLIFIED. The
+    /// simplify belongs to the receiver's dynamic type — simplifying
+    /// unconditionally would re-type a box-like `IntOctagon` result to
+    /// `IntBox` and flip the NEXT round's `cutoutFrom` dispatch arm (a
+    /// different decomposition, e.g. the box 4-piece vs octagon 8-piece
+    /// split).
     pub fn cutout(&self, shape: &TileShape) -> Vec<TileShape> {
-        shape.cutout_from(self)
+        let pieces = shape.cutout_from(self);
+        if matches!(
+            self,
+            TileShape::RegularTileShape(RegularTileShape::IntBox(_))
+        ) {
+            pieces.into_iter().map(|piece| piece.simplify()).collect()
+        } else {
+            pieces
+        }
     }
 
     // -------------------------------------------------------------------

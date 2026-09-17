@@ -1740,6 +1740,246 @@ fn get_drills_cutout_order_follows_java_tree_set_order() {
     );
 }
 
+/// MAJOR-1: the hole-cutout simplify belongs to the DIVIDE piece's
+/// dynamic type — `IntBox.cutout` (`IntBox.java:688-695`) simplifies
+/// each result, `IntOctagon.cutout` (`IntOctagon.java:1059-1061`) and
+/// `Simplex.cutout` (`Simplex.java:695-697`) do NOT. The walk: an
+/// octagonal hole (item 30 — the [1000,3000]^2 block with all four
+/// corners cut by 300, the exact shape family a DSN
+/// `(shape (octagon ...))` padstack parses to, so the sequence is
+/// Java-reachable) is cut FIRST (id-descending walk) from the IntBox
+/// page. There the divide IS an IntBox, so both readings simplify and
+/// the four corner pieces survive as true `IntOctagon`s (rows 4-7).
+/// The second hole (item 20, box [0,1000,1300,1300]) then cuts the
+/// lower-left corner piece — an `IntOctagon` DIVIDE — down to the
+/// box-like remainder [0,0,1300,1000]: Java keeps it an `IntOctagon`
+/// (unsimplified; the next round's `cutoutFrom` would dispatch the
+/// octagon arm), while the unconditional-simplify mutant re-typed it
+/// `IntBox` — the type tags below flip on row 5, which the bounding
+/// boxes alone cannot see.
+#[test]
+fn octagon_divide_keeps_results_unsimplified() {
+    let mut world = SynthWorld::new(square_bounds(0, 0, 4000), 1);
+    // [1000,3000]^2 with all four corners cut by 300: diagonals
+    // raised/lowered from the degenerate box values
+    // (lx-uy, rx-ly, lx+ly, rx+uy) = (-2000, 2000, 2000, 6000).
+    let octagon = IntOctagon::new(1000, 1000, 3000, 3000, -1700, 1700, 2300, 5700);
+    world.add_item(
+        30,
+        0,
+        vec![TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            octagon,
+        ))],
+    );
+    world.complete_result = vec![SynthWorld::room_key(501)];
+    // Cut SECOND (lower id): a box over the LL corner piece's diagonal
+    // band — the remainder below y=1000 is box-like.
+    world.add_item(20, 0, vec![box_tile(0, 1000, 1300, 1300)]);
+    let mut array = DrillPageArray::new(&world, 10_000);
+    let page = &mut array.pages[0][0];
+    let drills = page.get_drills(&mut world, 1, false);
+    let rows: Vec<(bool, i32, i32, i32, i32)> = drills
+        .iter()
+        .map(|drill| {
+            let shape = drill.get_shape();
+            let is_oct = matches!(
+                shape,
+                TileShape::RegularTileShape(RegularTileShape::IntOctagon(_))
+            );
+            let bb = shape.bounding_box();
+            (is_oct, bb.ll.x, bb.ll.y, bb.ur.x, bb.ur.y)
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (false, 0, 1300, 1000, 2700),
+            (false, 3000, 1300, 4000, 2700),
+            (false, 1300, 0, 2700, 1000),
+            (false, 1300, 3000, 2700, 4000),
+            (true, 0, 2700, 1300, 4000),
+            (true, 0, 0, 1300, 1000),
+            (true, 2700, 0, 4000, 1300),
+            (true, 2700, 2700, 4000, 4000),
+        ],
+        "the type-tagged decomposition: row 5 is the box-like remainder of an \
+         octagon divide and must STAY an IntOctagon"
+    );
+}
+
+/// MINOR-1a: the `prev_obstacle_shape` update fires for EVERY item
+/// entry, including entries SKIPPED by the contains-dedup
+/// (`DrillPage.java:87-96`: the assignment is after the if). Two
+/// id-descending walks pin the literal output:
+///
+/// * run [S1, S2⊂S1, S3⊆S1, S3≠S2]: S1 cut, S2 skipped (prev = S2),
+///   S3 vs S2 not contained → cut — the holes are {S1, S3} with S3's
+///   hole NESTED in S1's, so the second cut is a geometric no-op and
+///   the output is page minus S1. The move-update-inside mutant cuts
+///   {S1} only — the SAME output (the nesting makes every
+///   skipped-shape hole a subset of an already-removed hole, so the
+///   mutant is output-equivalent by construction; verified by
+///   mutation run — see the module history). The pin fixes the
+///   correct-walk literal.
+/// * the doc's [Y1, Y2, Y1] same-shape run: the second Y1 is
+///   deduplicated against the PREVIOUS shape only (Y2 ⊉ Y1 → cut
+///   again, a no-op nested hole) — output page minus (Y1 ∪ Y2). A
+///   dedup-against-all-holes mutant produces the same geometry here
+///   for the same nesting reason; the run pins the walk's literal
+///   behavior regardless.
+#[test]
+fn get_drills_contains_skips_still_update_prev_shape() {
+    // Run A: [S1, S2 ⊂ S1, S3 ⊆ S1, S3 ≠ S2].
+    let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 1);
+    world.add_item(30, 0, vec![box_tile(0, 0, 3000, 1000)]);
+    world.add_item(20, 0, vec![box_tile(0, 0, 1000, 1000)]);
+    world.add_item(10, 0, vec![box_tile(2000, 0, 3000, 1000)]);
+    world.complete_result = vec![SynthWorld::room_key(501)];
+    let mut array = DrillPageArray::new(&world, 10_000);
+    let page = &mut array.pages[0][0];
+    let drills = page.get_drills(&mut world, 1, false);
+    let boxes: Vec<(i32, i32, i32, i32)> = drills
+        .iter()
+        .map(|drill| {
+            let bb = drill.get_shape().bounding_box();
+            (bb.ll.x, bb.ll.y, bb.ur.x, bb.ur.y)
+        })
+        .collect();
+    println!("CONTAINS_SKIP run A boxes = {boxes:?}");
+    assert_eq!(
+        boxes,
+        [(0, 1000, 3000, 3000)],
+        "S2 skipped with prev = S2, S3 still cut (nested no-op): page minus S1"
+    );
+
+    // Run B: [Y1, Y2, Y1] — the same-shape dedup is prev-only.
+    let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 1);
+    world.add_item(30, 0, vec![box_tile(0, 0, 1000, 3000)]);
+    world.add_item(20, 0, vec![box_tile(1000, 0, 2000, 3000)]);
+    world.add_item(10, 0, vec![box_tile(0, 0, 1000, 3000)]);
+    world.complete_result = vec![SynthWorld::room_key(501)];
+    let mut array = DrillPageArray::new(&world, 10_000);
+    let page = &mut array.pages[0][0];
+    let drills = page.get_drills(&mut world, 1, false);
+    let boxes: Vec<(i32, i32, i32, i32)> = drills
+        .iter()
+        .map(|drill| {
+            let bb = drill.get_shape().bounding_box();
+            (bb.ll.x, bb.ll.y, bb.ur.x, bb.ur.y)
+        })
+        .collect();
+    println!("CONTAINS_SKIP run B boxes = {boxes:?}");
+    assert_eq!(
+        boxes,
+        [(2000, 0, 3000, 3000)],
+        "the duplicate Y1 cuts a nested no-op hole: page minus (Y1 union Y2)"
+    );
+}
+
+/// MINOR-1b: the attach-SMD pin probe tries the FIRST layer, then the
+/// LAST (`DrillPage.java:100-107` order) — a world with drill-allowed
+/// pins on BOTH edge layers (different centers) pins the order: the
+/// layer-0 center (400, 400) wins; the swap-last/first mutant anchors
+/// at the layer-1 center (2000, 2000) and dies.
+#[test]
+fn get_drills_attach_smd_first_layer_probe_comes_first() {
+    let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 2);
+    world.add_pin(7, 0, true, Some(Point::Int(IntPoint::new(400, 400))));
+    world.add_pin(5, 1, true, Some(Point::Int(IntPoint::new(2000, 2000))));
+    world.complete_room_base = Some(501);
+
+    let mut array = DrillPageArray::new(&world, 10_000);
+    let page = &mut array.pages[0][0];
+    let drills = page.get_drills(&mut world, 1, true);
+    assert_eq!(drills.len(), 1, "no cutouts: one convex piece");
+    assert_eq!(
+        drills[0].location,
+        Point::Int(IntPoint::new(400, 400)),
+        "the FIRST-layer probe runs before the LAST-layer probe"
+    );
+}
+
+/// MINOR-1c (generality guard, NOT a capture row): Java's only
+/// `expandToOtherLayers` call site passes drills whose `firstLayer` is
+/// always 0 (page drills span the whole stack), so the
+/// `fromLayer = drill.firstLayer + sectionNoOfDoor` offset
+/// (`MazeExpansionEngine.java:242`) is never exercised against a
+/// nonzero base there. The port is total, so the pin runs a synthetic
+/// first_layer = 1 drill: from section 1 the from-layer is 2, the
+/// sweeps probe [2, 1] then [3], and `nextRoom`/`sectionNoOfDoor`
+/// index `roomArr` relative to the drill's own base (to-layer 1 →
+/// index 0, to-layer 3 → index 2). A `from_layer = section_no_of_door`
+/// mutant probes layer 1 first and dies on the probe sequence.
+#[test]
+fn expand_to_other_layers_from_layer_offsets_by_drill_first_layer() {
+    let mut world = SynthWorld::new(square_bounds(0, 0, 100), 4);
+    for (layer, room_id) in [(1, 101), (2, 102), (3, 103)] {
+        world.add_room(room_id, layer, box_tile(0, 0, 100, 100));
+    }
+    world.add_padstack(
+        7,
+        (0, 3),
+        Some(BoardShape::Circle(Circle::new(IntPoint::new(0, 0), 400))),
+    );
+    world.set_rule_vias(vec![ViaRuleVia {
+        padstack_no: 7,
+        clearance_class: 4,
+        attach_smd_allowed: false,
+    }]);
+    let mut drill = ExpansionDrill::new(
+        box_tile(0, 0, 100, 100),
+        Point::Int(IntPoint::new(50, 50)),
+        1,
+        3,
+    );
+    for (index, room_id) in [101, 102, 103].iter().enumerate() {
+        drill.room_arr[index] = Some(SynthWorld::room_key(*room_id));
+    }
+    // The mask must fit the SWEPT range [1, 3] (a (0, 3) mask fails
+    // the `mask.from >= viaLowerBound` filter at viaLowerBound = 1).
+    let ctrl = test_ctrl(
+        4,
+        vec![ViaMask {
+            from_layer: 1,
+            to_layer: 3,
+            attach_smd_allowed: false,
+        }],
+    );
+    let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
+    let mut emitted = Vec::new();
+    expand_to_other_layers(
+        &world,
+        &ctrl,
+        777,
+        &drill,
+        1, // section_no_of_door: the from-room is roomArr[1] (layer 2)
+        100.0,
+        &shape_entry(),
+        &mut checker,
+        &FixedDistance(2.5),
+        &mut |element| emitted.push(element),
+    );
+    assert_eq!(
+        checker.calls.iter().map(|call| call.3).collect::<Vec<_>>(),
+        vec![2, 1, 3],
+        "from-layer 2 (= firstLayer 1 + section 1): downward [2, 1], upward [3]"
+    );
+    assert_eq!(
+        emit_keys(&emitted),
+        vec![0, 2],
+        "emissions to to-layers 1 and 3 (the from-layer 2 emits nothing); \
+         sections are drill-relative (to - firstLayer)"
+    );
+    assert_eq!(
+        emitted
+            .iter()
+            .map(|element| element.next_room_key)
+            .collect::<Vec<_>>(),
+        vec![SynthWorld::room_key(101), SynthWorld::room_key(103),],
+        "nextRoom indexes roomArr by the drill-relative section"
+    );
+}
+
 /// `checkLayerWithAnyMatchingVia` (`:377-414`): the rule-via span
 /// filter, the radius arithmetic (`0.5 * maxWidth` vs
 /// `traceHalfWidth[layer]`, null shape -> 0), the DRILLABLE
