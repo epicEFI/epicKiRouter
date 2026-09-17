@@ -276,7 +276,8 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// [`Self::allocate_sections`]); the `map_or(0)` fallback answers
     /// 0 where Java would throw, a deliberate deviation from the
     /// brief's letter on that claim);
-    /// `TargetItemExpansionDoor` answers 1 (`:78-80`); a drill page
+    /// `TargetItemExpansionDoor` answers 1
+    /// (`TargetItemExpansionDoor.java:60-63`); a drill page
     /// spans `board.getLayerCount()` entries; a drill spans
     /// `lastLayer - firstLayer + 1`.
     pub(crate) fn maze_search_element_count(&self, door: &ExpandableObject) -> i32 {

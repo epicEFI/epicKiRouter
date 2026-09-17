@@ -95,6 +95,10 @@ struct SynthWorld {
     /// The `ItemAutorouteInfo.startInfo` flags (`item_is_destination`
     /// is the negation; T6 seam).
     start_infos: std::collections::BTreeSet<u64>,
+    /// The synthetic traces: `key -> length`. Presence IS the
+    /// `item_is_trace` answer, so a world defaults to trace-free and
+    /// existing pins are unaffected.
+    trace_lengths: std::collections::HashMap<u64, f64>,
 }
 
 fn box_tile(x0: i32, y0: i32, x1: i32, y1: i32) -> TileShape {
@@ -121,6 +125,7 @@ impl SynthWorld {
             stop: None,
             start_infos: std::collections::BTreeSet::new(),
             rule_vias: Vec::new(),
+            trace_lengths: std::collections::HashMap::new(),
         }
     }
 
@@ -567,8 +572,8 @@ impl DrillEngine for SynthWorld {
         None
     }
 
-    fn item_is_trace(&self, _item_key: u64) -> bool {
-        false // the synthetic worlds carry no traces
+    fn item_is_trace(&self, item_key: u64) -> bool {
+        self.trace_lengths.contains_key(&item_key)
     }
 
     fn item_trace_half_width(&self, _item_key: u64) -> i32 {
@@ -647,8 +652,8 @@ impl DrillEngine for SynthWorld {
         0
     }
 
-    fn item_trace_length(&self, _item_key: u64) -> f64 {
-        0.0
+    fn item_trace_length(&self, item_key: u64) -> f64 {
+        self.trace_lengths.get(&item_key).copied().unwrap_or(0.0)
     }
 
     fn item_trace_polyline(&self, _item_key: u64) -> Option<epic_geometry::polyline::Polyline> {
@@ -2209,4 +2214,47 @@ fn check_layer_with_any_matching_via_radius_span_and_short_circuit() {
         check_layer_with_any_matching_via(&world, &ctrl, &drill, 1, &room_shape, &mut checker, 1);
     assert_eq!(result, CheckDrillResult::Drillable);
     assert_eq!(checker.calls.len(), 1, "DRILLABLE returns immediately");
+}
+
+/// T7 quality round, M2-survivor kill: `Connection::trace_length`
+/// must fold the per-trace lengths in JAVA's order — the
+/// `TreeSet<Item>` DESCENDING-id walk (`Item.compareTo` is
+/// `item.id - id`). THREE traces, because two cannot discriminate:
+/// f64 addition is commutative, so a 2-addend fold is order-free.
+/// At 1e16 the ULP is 2, so the descending fold `((1e16 + 1) + 1)`
+/// ties and rounds to even = 1e16 both times, while the ascending
+/// fold adds the small pair first: `((1 + 1) + 1e16) = 1e16 + 2`
+/// exactly. The ascending-order mutant answers 1e16 + 2 and dies.
+#[test]
+fn connection_trace_length_folds_descending_like_java() {
+    use std::collections::BTreeSet;
+
+    use crate::path::Connection;
+
+    let mut world = SynthWorld::new(IntBox::new(IntPoint::new(0, 0), IntPoint::new(100, 100)), 4);
+    for (key, length) in [(1u64, 1.0f64), (2, 1.0), (3, 10_000_000_000_000_000.0)] {
+        world.trace_lengths.insert(key, length);
+    }
+    let connection = Connection {
+        start_point: None,
+        start_layer: 0,
+        end_point: None,
+        end_layer: 0,
+        item_list: BTreeSet::from([1, 2, 3]),
+    };
+    assert_eq!(
+        connection.trace_length(&world),
+        10_000_000_000_000_000.0,
+        "the descending-id fold — Java's TreeSet order"
+    );
+    assert_eq!(
+        connection.trace_length(&world),
+        (10_000_000_000_000_000.0f64 + 1.0) + 1.0,
+        "bit-identical to Java's descending expression"
+    );
+    assert_ne!(
+        connection.trace_length(&world),
+        (1.0f64 + 1.0) + 10_000_000_000_000_000.0,
+        "the ascending-order mutant (1e16 + 2) is distinct — this pin kills it"
+    );
 }
