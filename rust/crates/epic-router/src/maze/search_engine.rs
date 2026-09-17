@@ -271,7 +271,11 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// of the object's maze-search element array. Room doors read the
     /// `allocateSections` state (Java `sectionArr.length` — an element
     /// can only exist for a door whose sections were allocated, so the
-    /// Java NPE-on-unallocated territory is unreachable here);
+    /// Java NPE-on-unallocated territory is UNREACHABLE ABSENT A
+    /// BOOKKEEPING BUG (a room door read before its
+    /// [`Self::allocate_sections`]); the `map_or(0)` fallback answers
+    /// 0 where Java would throw, a deliberate deviation from the
+    /// brief's letter on that claim);
     /// `TargetItemExpansionDoor` answers 1 (`:78-80`); a drill page
     /// spans `board.getLayerCount()` entries; a drill spans
     /// `lastLayer - firstLayer + 1`.

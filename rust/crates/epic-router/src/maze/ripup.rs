@@ -302,6 +302,11 @@ impl<E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngin
             &[self.ctrl.net_number],
         );
 
+        // ORDER-INDEPENDENCE: the tree's iteration order is not
+        // reproducible, but the verdict does not depend on it — the
+        // loop is a universal conjunction (every object must share the
+        // net and carry ignore_item as a normal contact), so any
+        // failing object yields false no matter where it is visited.
         for current_object in overlapping_objects {
             // Java skips non-Item tree objects (rooms) and the ignored
             // item itself (reference equality).

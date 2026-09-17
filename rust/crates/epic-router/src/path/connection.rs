@@ -171,13 +171,17 @@ impl Connection {
         })
     }
 
-    /// Java `Connection.traceLength()` — the cumulative length of the
-    /// traces in this connection.
+    /// Java `Connection.traceLength()` (`Connection.java:133-141`) —
+    /// the cumulative length of the traces in this connection. Java
+    /// sums over the `itemList` `TreeSet<Item>` whose natural order is
+    /// DESCENDING id (`Item.compareTo` is `item.id - id`), so the f64
+    /// additions run high-id to low-id; mirror that walk exactly —
+    /// ascending summation is exact for integer-valued lengths but a
+    /// latent float-order divergence otherwise.
     pub fn trace_length<E: DrillEngine>(&self, ctx: &E) -> f64 {
-        self.item_list
-            .iter()
-            .filter(|&&key| ctx.item_is_trace(key))
-            .map(|&key| ctx.item_trace_length(key))
+        self.items_descending()
+            .filter(|&key| ctx.item_is_trace(key))
+            .map(|key| ctx.item_trace_length(key))
             .sum()
     }
 

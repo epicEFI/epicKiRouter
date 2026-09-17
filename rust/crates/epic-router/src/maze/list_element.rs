@@ -179,6 +179,16 @@ impl ExpandableObject {
             // `standalone_drills` map is fresh per engine, so keying
             // the state slot by the id inside one engine instance is
             // exactly Java's object-identity scope.
+            //
+            // COLLISION WINDOW: the hash is not injective — two
+            // DISTINCT (location, layer-span) triples of the SAME
+            // search can fold to one i32. The consequence is silent
+            // state aliasing (the second drill replaces the first's
+            // `standalone_drills` entry and shares its maze-search
+            // state) where Java's reference identity keeps the objects
+            // apart. The window is scoped to the handful of drills a
+            // single search constructs; no fixture has produced a
+            // within-search collision.
             ExpandableObject::StandaloneDrill { id, .. } => STANDALONE_DRILL | (*id as u32 as u64),
         }
     }
