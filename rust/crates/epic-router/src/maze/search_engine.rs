@@ -60,8 +60,9 @@ pub struct FindConnectionResult {
 /// Construct fresh per search, as Java `getInstance`
 /// (`MazeSearchEngine.java:137-151`); state (`front`/`door_sections`/
 /// `backtrack_registry`) is intentionally never cleared — [`Self::init`]
-/// asserts an empty `front` so a reused engine fails loudly instead of
-/// running on stale search state.
+/// asserts an empty `front` so a reused engine fails loudly in debug
+/// (release builds skip the assert) instead of running on stale search
+/// state.
 pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> {
     /// Java `autorouteEngine` + `searchTree` + `board` — the engine
     /// seam the maze code reaches through.

@@ -47,9 +47,13 @@ use super::search_engine::MazeSearchEngine;
 /// The `ExpansionDrill` reads the locator needs (Java
 /// `drill.location` / `drill.firstLayer` / `drill.roomArr`).
 /// `room_arr` entries are the per-layer completed room KEYS (`None` =
-/// a Java null slot). Java's `drill.getShape()` is deliberately NOT
-/// carried — the locator never reads it; re-add with the first real
-/// consumer (and a pin), per the cut-items discipline.
+/// a Java null slot). The drill SHAPE is deliberately NOT carried in
+/// this bundle — the locator reads it through
+/// [`Self::expandable_object_shape`] (= Java's polymorphic
+/// `ExpandableObject.getShape()`, e.g. AnyAngle.java:46/:58,
+/// 45Degree.java:50/:306), so a bundle field would be redundant;
+/// re-add here with the first real consumer (and a pin), per the
+/// cut-items discipline.
 #[derive(Clone, Debug)]
 pub struct DrillInfo {
     /// Java `location` — the drill anchor.
