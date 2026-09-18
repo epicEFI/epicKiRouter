@@ -417,9 +417,11 @@ impl DestinationDistanceTrait for DestinationDistance {
 mod tests {
     //! Jar-capture pins — the literals are `Double.toString` rows of
     //! `rust/harness/oracle/MazeSpike.java`'s T8 crafted-world battery
-    //! (`logs/M3-T8/t8_capture_{5,6}.rows`, 912 rows = 730 `dd` + 182
-    //! legacy, run TWICE byte identical; the 182 pre-existing T6 rows
-    //! are unchanged by the spy). Probe boxes P0-P6 are shared by
+    //! (`logs/M3-T8/t8q_capture_{1,2}.rows`, 946 rows = 730 `dd` + 182
+    //! legacy + 34 quality-round rows, run TWICE byte identical; the
+    //! 911-line content prefix is byte-identical to the open-round
+    //! `t8_capture_5.rows`, and the 182 pre-existing T6 rows are
+    //! unchanged by the spy). Probe boxes P0-P6 are shared by
     //! every world: P0 == TGT
     //! (all deltas 0), P1 overlap, P2 right (deltaX only), P3 above
     //! (deltaY only), P4 diagonal TIE (dx == dy → the split's ELSE
@@ -455,9 +457,12 @@ mod tests {
     /// The A-world cost table (4 layers, all active).
     const COSTS_A: &[(f64, f64)] = &[(1.0, 2.7), (1.6, 1.0), (2.0, 3.0), (1.0, 1.0)];
 
-    /// Asserts one `ddCtor` capture row (all seven derived fields).
+    /// Asserts one `ddCtor` capture row — ALL EIGHT fields QUOTED
+    /// (MQ5: the 8th was re-derived as `expected[6].min(expected[5])`,
+    /// a formula that coincides with the production port's on every
+    /// pre-R world, so the ctor mutant survived the matrix).
     #[track_caller]
-    fn assert_ctor(dd: &DestinationDistance, expected: [f64; 7]) {
+    fn assert_ctor(dd: &DestinationDistance, expected: [f64; 8]) {
         assert_eq!(dd.min_component_side_trace_cost, expected[0]);
         assert_eq!(dd.max_component_side_trace_cost, expected[1]);
         assert_eq!(dd.min_solder_side_trace_cost, expected[2]);
@@ -465,10 +470,7 @@ mod tests {
         assert_eq!(dd.max_inner_side_trace_cost, expected[4]);
         assert_eq!(dd.min_component_inner_trace_cost, expected[5]);
         assert_eq!(dd.min_solder_inner_trace_cost, expected[6]);
-        assert_eq!(
-            dd.min_component_solder_inner_trace_cost,
-            expected[6].min(expected[5])
-        );
+        assert_eq!(dd.min_component_solder_inner_trace_cost, expected[7]);
     }
 
     /// All ten `ddCtor` rows of the capture. The QUIRK worlds are the
@@ -479,57 +481,70 @@ mod tests {
     /// a "clean" skip-inactive port would also flip these rows.
     #[test]
     fn ctor_derivation_matrix() {
-        // A: 4L all active — ddCtor A.
+        // A: 4L all active — ddCtor A (8th field QUOTED throughout:
+        // MQ5 — the derived form coincided with the wrong formula).
         assert_ctor(
             &dist(COSTS_A, &[true, true, true, true]),
-            [1.0, 2.7, 1.0, 1.0, 1.0, 1.0, 1.0],
+            [1.0, 2.7, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         );
         // B: 3L — ddCtor B (maxInner = min(2.7, 3.0, 1.6) = 1.6).
         assert_ctor(
             &dist(&[(1.0, 2.7), (1.6, 1.0), (2.0, 3.0)], &[true, true, true]),
-            [1.0, 2.7, 2.0, 3.0, 1.6, 1.0, 1.6],
+            [1.0, 2.7, 2.0, 3.0, 1.6, 1.0, 1.6, 1.0],
         );
         // C: 2L — ddCtor C.
         assert_ctor(
             &dist(&[(1.0, 2.7), (1.6, 1.0)], &[true, true]),
-            [1.0, 2.7, 1.0, 1.6, 1.6, 1.0, 1.0],
+            [1.0, 2.7, 1.0, 1.6, 1.6, 1.0, 1.0, 1.0],
         );
         // D1: 1L active — layer 0 is BOTH sides (layerCount-1 == 0),
         // both guards fire on the same (1.0, 2.7).
         assert_ctor(
             &dist(&[(1.0, 2.7)], &[true]),
-            [1.0, 2.7, 1.0, 2.7, 2.7, 1.0, 1.0],
+            [1.0, 2.7, 1.0, 2.7, 2.7, 1.0, 1.0, 1.0],
         );
         // D0: 1L INACTIVE — every field stays at the Java numeric
         // default 0.0 (ddCtor D0).
-        assert_ctor(&dist(&[(1.0, 2.7)], &[false]), [0.0; 7]);
+        assert_ctor(&dist(&[(1.0, 2.7)], &[false]), [0.0; 8]);
         // E: 2L solder-cheaper — ddCtor E.
         assert_ctor(
             &dist(&[(2.0, 3.0), (1.0, 2.0)], &[true, true]),
-            [2.0, 3.0, 1.0, 2.0, 2.0, 2.0, 1.0],
+            [2.0, 3.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0],
         );
         // F: 2L component-cheaper — ddCtor F.
         assert_ctor(
             &dist(&[(1.0, 2.0), (2.0, 3.0)], &[true, true]),
-            [1.0, 2.0, 2.0, 3.0, 2.0, 1.0, 2.0],
+            [1.0, 2.0, 2.0, 3.0, 2.0, 1.0, 2.0, 1.0],
         );
         // G: 2L solder INACTIVE — solder fields 0.0, maxInner
         // min(2.7, 0.0) = 0.0 (ddCtor G).
         assert_ctor(
             &dist(&[(1.0, 2.7), (1.6, 1.0)], &[true, false]),
-            [1.0, 2.7, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 2.7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         );
         // Q: 4L, layer 0 INACTIVE — THE quirk row (ddCtor Q):
         // minComponent/maxComponent 0.0 → maxInner 0.0 →
         // minSolderInner = min(1.0, 0.0) = 0.0.
         assert_ctor(
             &dist(COSTS_A, &[false, true, true, true]),
-            [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         );
         // Qs: 4L, solder INACTIVE — the mirrored quirk (ddCtor Qs).
         assert_ctor(
             &dist(COSTS_A, &[true, true, true, false]),
-            [1.0, 2.7, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 2.7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        );
+        // R: 3L with a CHEAP inner layer [(5,6),(1,1),(5,6)] — the
+        // ctor 8th-field DISCRIMINATOR (ddCtor R): maxInner =
+        // min(6, 1, 6) = 1.0, so minComponentSolderInner =
+        // min(minComponentInner, minSolderInner) = min(1, 1) = 1.0;
+        // the wrong formula min(minComponent, minSolder) = min(5, 5)
+        // = 5.0 coincides with the true one on every other world
+        // (H: min(1.1,1) = min(3,1) = 1; M: min(1.5,1.6) = min(1.5,
+        // 1.7) = 1.5).
+        assert_ctor(
+            &dist(&[(5.0, 6.0), (1.0, 1.0), (5.0, 6.0)], &[true, true, true]),
+            [5.0, 6.0, 5.0, 6.0, 1.0, 1.0, 1.0, 1.0],
         );
         // activeLayerCount: capture rows A=4, Q=3, D0=0.
         assert_eq!(
@@ -768,6 +783,70 @@ mod tests {
         assert_eq!(
             e.calculate_box(&box_at(300000, 200000, 400000, 300000), 1),
             100000.0
+        );
+    }
+
+    /// MQ1 — join ACCUMULATION: two DIFFERENT boxes joined into ONE
+    /// bucket must union. No open-round world did this, so a
+    /// last-join-wins mutant was observationally dead. Pin = the
+    /// ddBucket MJ row's accumulated COORDINATES (component
+    /// "100000 200000 400000 400000" = union(TGT,
+    /// [300000,300000,400000,400000]); solder/inner "EMPTY") read
+    /// through the `#[cfg(test)]` bucket accessors — their first live
+    /// consumer.
+    #[test]
+    fn join_accumulation_bucket_coordinates() {
+        let mut mj = dist(&[(1.0, 2.7), (1.6, 1.0)], &[true, true]);
+        mj.join(&tgt(), 0);
+        mj.join(&box_at(300000, 300000, 400000, 400000), 0);
+        assert_eq!(
+            mj.component_side_box(),
+            &box_at(100000, 200000, 400000, 400000)
+        );
+        assert_eq!(mj.solder_side_box(), &IntBox::EMPTY);
+        assert_eq!(mj.inner_side_box(), &IntBox::EMPTY);
+    }
+
+    /// MQ2 — the inner-branch tail arms never STRICTLY won in any
+    /// open-round pin (both inner-layer pins came from the weighted
+    /// arm), so a truncating mutant survived. World W (4L, FAR
+    /// component bucket, TGT solder bucket, EMPTY inner): P0@L1 skips
+    /// the weighted arm (inner empty → result starts at the sentinel)
+    /// and the :369 solder-pair arm wins strictly at solder_max +
+    /// solder_min*minSolderInner + via = 0 + 0*1.0 + 400 = 400.0
+    /// (ddCalcP W id0 L1); the truncating mutant leaves :377's
+    /// 0 + 0 + 800 = 800.0. Contrast id2/id3 = 100400.0 — the value
+    /// the reviewer's truncation lands on for those probes.
+    #[test]
+    fn inner_tail_solder_pair_arm_wins() {
+        let mut w = dist(COSTS_A, &[true, true, true, true]);
+        w.join(&tgt(), 3);
+        w.join(&box_at(900000, 900000, 950000, 950000), 0);
+        assert_eq!(w.calculate_box(&tgt(), 1), 400.0);
+    }
+
+    /// MQ3 — the solder `==3` gate's count-4 face was unobserved: A's
+    /// L3 pin is decided by the weighted arm, so an early-return-
+    /// everything mutant survived. World X (4L ALL-expensive 5/6 —
+    /// minSolderInner = minCompSolderInner = 5 — NEAR-mid component,
+    /// FAR solder, empty inner): P4@L3 returns the FOUR-layer arm :345
+    /// = comp_max + comp_min + 3*via = 50000 + 50000 + 1200 = 101200.0
+    /// (ddCalcP X id4 L3), strictly under :330 (50000 + 5*50000 + 800
+    /// = 300800), :335 (500000 + 400000 + 800 = 900800), :306
+    /// (5*50000 + 5*50000 + 400 = 500400), :318 (500000 + 400000*5 +
+    /// 800 = 2500800) and the weighted arm (~3.5e6). The `==3`→`<=3`
+    /// mutant early-returns the pre-gate min 300800.0.
+    #[test]
+    fn solder_count4_face_four_layer_arm() {
+        let mut x = dist(
+            &[(5.0, 6.0), (5.0, 6.0), (5.0, 6.0), (5.0, 6.0)],
+            &[true, true, true, true],
+        );
+        x.join(&box_at(450000, 550000, 550000, 650000), 0);
+        x.join(&box_at(900000, 900000, 950000, 950000), 3);
+        assert_eq!(
+            x.calculate_box(&box_at(300000, 400000, 400000, 500000), 3),
+            101200.0
         );
     }
 

@@ -252,6 +252,40 @@ public class MazeSpike {
     row(o);
   }
 
+  /** One world's post-join bucket coordinates (MQ1: join accumulation).
+   * "llx lly urx ury" per bucket, or "EMPTY" when never joined. The
+   * bucket fields are PRIVATE in the jar (unlike the cost fields), so
+   * both the box and its is-empty flag are read reflectively. */
+  private static Object ddPrivate(DestinationDistance dd, String field) throws Exception {
+    java.lang.reflect.Field f = DestinationDistance.class.getDeclaredField(field);
+    f.setAccessible(true);
+    return f.get(dd);
+  }
+
+  private static void ddBucketRow(String world, DestinationDistance dd) {
+    try {
+      IntBox comp = (IntBox) ddPrivate(dd, "componentSideBox");
+      IntBox sold = (IntBox) ddPrivate(dd, "solderSideBox");
+      IntBox inner = (IntBox) ddPrivate(dd, "innerSideBox");
+      JsonObject o = obj("ddBucket");
+      o.addProperty("world", world);
+      o.addProperty("component", ddBoxStr(comp, (Boolean) ddPrivate(dd,
+          "componentSideBoxIsEmpty")));
+      o.addProperty("solder", ddBoxStr(sold, (Boolean) ddPrivate(dd, "solderSideBoxIsEmpty")));
+      o.addProperty("inner", ddBoxStr(inner, (Boolean) ddPrivate(dd, "innerSideBoxIsEmpty")));
+      row(o);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static String ddBoxStr(IntBox b, boolean empty) {
+    if (empty) {
+      return "EMPTY";
+    }
+    return b.ll.x + " " + b.ll.y + " " + b.ur.x + " " + b.ur.y;
+  }
+
   private static void ddCalcRow(
       String world, String kind, int id, int layer, IntBox box, double value) {
     JsonObject o = obj(kind);
@@ -326,6 +360,13 @@ public class MazeSpike {
     for (int[] xj : extraJoins) {
       dd.join(new IntBox(xj[1], xj[2], xj[3], xj[4]), xj[0]);
       ddJoinRow(name, xj[0]);
+    }
+    // MQ1: the post-join bucket COORDINATES (join accumulation, not
+    // last-join-wins). Emitted only for the quality-round worlds — a
+    // per-world row here would interleave into the existing T8 rows
+    // and shift the 912-line prefix.
+    if (name.equals("MJ") || name.equals("W") || name.equals("X") || name.equals("R")) {
+      ddBucketRow(name, dd);
     }
     int[][] probes = {
       {100000, 200000, 200000, 300000},
@@ -947,6 +988,55 @@ public class MazeSpike {
         new boolean[] {true, false, false}, normalVia, cheapVia,
         new int[] {0}, new int[] {2},
         new int[][] {{1, 85000, 140000, 95000, 150000}});
+
+    // ---- T8 quality-round worlds (MQ1/MQ2/MQ3/MQ5) ----------------
+    // R: 3 layers with a CHEAP inner layer — the ctor 8th-field
+    // discriminator (MQ5): maxInner = min(6, 1, 6) = 1.0 so
+    // minComponentSolderInner = min(minComponentInner, minSolderInner)
+    // = min(1, 1) = 1.0, while the wrong formula
+    // min(minComponent, minSolder) = min(5, 5) = 5.0 coincides with
+    // the right one on EVERY other world (H: min(1.1,1)=min(3,1)=1;
+    // M: min(1.5,1.6)=min(1.5,1.7)=1.5). Ctor-only world.
+    ddWorld("R", new double[][] {{5.0, 6.0}, {1.0, 1.0}, {5.0, 6.0}},
+        new boolean[] {true, true, true}, normalVia, cheapVia,
+        new int[0], new int[0]);
+    // W: 4 layers, FAR component bucket, TGT solder bucket, inner
+    // bucket EMPTY — the inner-branch tail discriminator (MQ2): P0@L1
+    // skips the weighted arm (inner empty → result starts at the
+    // sentinel) and the :369 solder-pair arm wins STRICTLY at
+    // solder_max + solder_min*minSolderInner + via = 0 + 0*c + 400 =
+    // 400.0 (every other arm carries component deltas ~7e5, inner
+    // deltas ~1e9, or an extra via). The truncating mutant returns
+    // :377's 800.0. MQ3 shares the template (see X).
+    ddWorld("W", c4, new boolean[] {true, true, true, true}, normalVia, cheapVia,
+        new int[] {3}, new int[] {1},
+        new int[][] {{0, 900000, 900000, 950000, 950000}});
+    // X: 4 layers ALL-EXPENSIVE (5/6, so minSolderInner =
+    // minCompSolderInner = 5 > 1), differing buckets (NEAR-mid
+    // component, FAR solder, empty inner) — the solder `==3` count-4
+    // face discriminator (MQ3): P4@L3 returns the FOUR-layer arm :345
+    // (comp_max + comp_min + 3*via = 50000 + 50000 + 1200 = 101200),
+    // strictly under :330 (50000 + 5*50000 + 800 = 300800), :335
+    // (solder deltas 500000/400000 + 800), :306 (500400), :318
+    // (2500800) and the weighted arm (~3.5e6). A `==3`→`<=3` mutant
+    // early-returns 300800. (A is count 4 too, but its L3 pin is
+    // decided by the weighted arm — the face was unobserved.)
+    ddWorld("X", new double[][] {{5.0, 6.0}, {5.0, 6.0}, {5.0, 6.0}, {5.0, 6.0}},
+        new boolean[] {true, true, true, true}, normalVia, cheapVia,
+        new int[0], new int[] {3},
+        new int[][] {
+          {0, 450000, 550000, 550000, 650000},
+          {3, 900000, 900000, 950000, 950000},
+        });
+    // MJ: two DIFFERENT boxes joined into ONE bucket — the join
+    // accumulation discriminator (MQ1): the component bucket must end
+    // as union(TGT, [300000,300000,400000,400000]) =
+    // (100000,200000)-(400000,400000) (ddBucket MJ row); the
+    // last-join-wins mutant leaves (300000,300000)-(400000,400000).
+    // Join-only world (no probes).
+    ddWorld("MJ", c2, new boolean[] {true, true}, normalVia, cheapVia,
+        new int[] {0}, new int[0],
+        new int[][] {{0, 300000, 300000, 400000, 400000}});
 
     row(obj("done"));
   }
