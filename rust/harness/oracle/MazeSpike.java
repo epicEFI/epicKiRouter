@@ -80,6 +80,12 @@ public class MazeSpike {
 
   private static final java.lang.reflect.Field DEST_DOOR_FIELD;
   private static final java.lang.reflect.Field DEST_SECTION_FIELD;
+  // T8: the destinationDistance field (package-private FINAL, assigned
+  // in the ctor) and the PRIVATE init — both reached reflectively so
+  // the spy is installed BEFORE init and the init-time join rows are
+  // captured.
+  private static final java.lang.reflect.Field DEST_DISTANCE_FIELD;
+  private static final Method INIT_METHOD;
 
   static {
     try {
@@ -88,6 +94,10 @@ public class MazeSpike {
       DEST_SECTION_FIELD =
           MazeSearchEngine.class.getDeclaredField("sectionNoOfDestinationDoor");
       DEST_SECTION_FIELD.setAccessible(true);
+      DEST_DISTANCE_FIELD = MazeSearchEngine.class.getDeclaredField("destinationDistance");
+      DEST_DISTANCE_FIELD.setAccessible(true);
+      INIT_METHOD = MazeSearchEngine.class.getDeclaredMethod("init", Set.class, Set.class);
+      INIT_METHOD.setAccessible(true);
     } catch (Exception e) {
       throw new ExceptionInInitializerError(e);
     }
@@ -137,6 +147,226 @@ public class MazeSpike {
     o.addProperty("bx", d(e.shapeEntry.b.x));
     o.addProperty("by", d(e.shapeEntry.b.y));
     row(o);
+  }
+
+  // ---- T8: the destination-distance spy + crafted probe worlds ------
+
+  /**
+   * Delegating spy over the REAL DestinationDistance: emits one row
+   * per engine `join` (layer + box) and one per engine
+   * `calculate(FloatPoint, layer)` call (layer + point + result).
+   * The super delegation keeps behavior bit-identical, so every
+   * pre-existing row (heads, sortingValues, dist probes) is
+   * unchanged — the ddJoin/ddCalc rows are pure INSERTIONS.
+   */
+  private static final class SpyDistance extends DestinationDistance {
+    final String phase;
+
+    SpyDistance(AutorouteControl ctrl, String phase) {
+      super(ctrl.traceCosts, ctrl.layerActive, ctrl.minNormalViaCost, ctrl.minCheapViaCost);
+      this.phase = phase;
+    }
+
+    @Override
+    public void join(IntBox box, int layer) {
+      super.join(box, layer);
+      JsonObject o = obj("ddJoin");
+      o.addProperty("phase", phase);
+      o.addProperty("layer", layer);
+      o.addProperty("llx", box.ll.x);
+      o.addProperty("lly", box.ll.y);
+      o.addProperty("urx", box.ur.x);
+      o.addProperty("ury", box.ur.y);
+      row(o);
+    }
+
+    @Override
+    public double calculate(FloatPoint point, int layer) {
+      double value = super.calculate(point, layer);
+      JsonObject o = obj("ddCalc");
+      o.addProperty("phase", phase);
+      o.addProperty("x", d(point.x));
+      o.addProperty("y", d(point.y));
+      o.addProperty("layer", layer);
+      o.addProperty("value", d(value));
+      row(o);
+      return value;
+    }
+  }
+
+  /**
+   * openSearch with the spy installed BEFORE init (the ctor builds
+   * its own DestinationDistance and `init` is PRIVATE — the swap uses
+   * reflection, then invokes init the same way). Behavior-identical
+   * to getInstance + the same searchOpen row.
+   */
+  private static MazeSearchEngine openSearchSpied(
+      RoutingBoard board,
+      AutorouteControl ctrl,
+      int net,
+      Pin start,
+      Pin dest,
+      String phase)
+      throws Exception {
+    AutorouteEngine engine = new AutorouteEngine(board, ctrl.viaClearanceClass, true);
+    engine.initConnection(net, null, null);
+    java.lang.reflect.Field incompleteField =
+        AutorouteEngine.class.getDeclaredField("incompleteExpansionRooms");
+    incompleteField.setAccessible(true);
+    incompleteField.set(engine, new ArrayList<>());
+    MazeSearchEngine search = new MazeSearchEngine(engine, ctrl);
+    DEST_DISTANCE_FIELD.set(search, new SpyDistance(ctrl, phase));
+    boolean ok = (Boolean) INIT_METHOD.invoke(search, Set.of(start), Set.of(dest));
+    JsonObject o = obj("searchOpen");
+    o.addProperty("phase", phase);
+    o.addProperty("ok", ok);
+    row(o);
+    return ok ? search : null;
+  }
+
+  /** One crafted probe world's ctor-derivation row (the raw fields). */
+  private static void ddCtorRow(
+      String world,
+      DestinationDistance dd,
+      int layerCount,
+      int activeLayerCount) {
+    JsonObject o = obj("ddCtor");
+    o.addProperty("world", world);
+    o.addProperty("layerCount", layerCount);
+    o.addProperty("activeLayerCount", activeLayerCount);
+    o.addProperty("minComponent", d(dd.minComponentSideTraceCost));
+    o.addProperty("maxComponent", d(dd.maxComponentSideTraceCost));
+    o.addProperty("minSolder", d(dd.minSolderSideTraceCost));
+    o.addProperty("maxSolder", d(dd.maxSolderSideTraceCost));
+    o.addProperty("maxInner", d(dd.maxInnerSideTraceCost));
+    o.addProperty("minComponentInner", d(dd.minComponentInnerTraceCost));
+    o.addProperty("minSolderInner", d(dd.minSolderInnerTraceCost));
+    o.addProperty("minComponentSolderInner", d(dd.minComponentSolderInnerTraceCost));
+    row(o);
+  }
+
+  private static void ddJoinRow(String world, int layer) {
+    JsonObject o = obj("ddJoinP");
+    o.addProperty("world", world);
+    o.addProperty("layer", layer);
+    row(o);
+  }
+
+  private static void ddCalcRow(
+      String world, String kind, int id, int layer, IntBox box, double value) {
+    JsonObject o = obj(kind);
+    o.addProperty("world", world);
+    o.addProperty("id", id);
+    o.addProperty("layer", layer);
+    o.addProperty("llx", box.ll.x);
+    o.addProperty("lly", box.ll.y);
+    o.addProperty("urx", box.ur.x);
+    o.addProperty("ury", box.ur.y);
+    o.addProperty("value", d(value));
+    row(o);
+  }
+
+  /**
+   * One crafted world: ctor row, TGT joins on the given layers, then
+   * the box probes (IntBox overload) + point probes (FloatPoint
+   * overload) on each probe layer. Probe box P0 == TGT (all deltas
+   * 0), P1 partial overlap, P2 right (deltaX only), P3 above
+   * (deltaY only), P4 diagonal TIE (dx == dy → the split's ELSE
+   * arm), P5 below-left (both deltas, dy > dx).
+   */
+  private static void ddWorld(
+      String name,
+      double[][] layerCosts,
+      boolean[] active,
+      double normalVia,
+      double cheapVia,
+      int[] joinedLayers,
+      int[] probeLayers) {
+    ddWorld(name, layerCosts, active, normalVia, cheapVia, joinedLayers, probeLayers,
+        new int[0][]);
+  }
+
+  /**
+   * ddWorld with EXTRA crafted joins: each row of {@code extraJoins}
+   * is {@code {layer, llx, lly, urx, ury}}, joined after the TGT
+   * joins. The TGT-only worlds give every bucket the SAME box, which
+   * makes the post-gate fallthrough arms coincide with the pre-gate
+   * arms — the `==2`/`==3` early-return gates are observationally
+   * dead there. Differing boxes per bucket (and all-expensive trace
+   * costs, so `minXxxInner > 1`) break the ties and let a mutant's
+   * fallthrough/early-return SHrink or grow the result.
+   */
+  private static void ddWorld(
+      String name,
+      double[][] layerCosts,
+      boolean[] active,
+      double normalVia,
+      double cheapVia,
+      int[] joinedLayers,
+      int[] probeLayers,
+      int[][] extraJoins) {
+    AutorouteControl.ExpansionCostFactor[] costs = new AutorouteControl.ExpansionCostFactor[
+        layerCosts.length];
+    for (int i = 0; i < layerCosts.length; i++) {
+      costs[i] = new AutorouteControl.ExpansionCostFactor(layerCosts[i][0], layerCosts[i][1]);
+    }
+    DestinationDistance dd = new DestinationDistance(costs, active, normalVia, cheapVia);
+    int activeCount = 0;
+    for (boolean b : active) {
+      if (b) {
+        activeCount++;
+      }
+    }
+    ddCtorRow(name, dd, active.length, activeCount);
+    IntBox tgt = new IntBox(100000, 200000, 200000, 300000);
+    for (int layer : joinedLayers) {
+      dd.join(tgt, layer);
+      ddJoinRow(name, layer);
+    }
+    for (int[] xj : extraJoins) {
+      dd.join(new IntBox(xj[1], xj[2], xj[3], xj[4]), xj[0]);
+      ddJoinRow(name, xj[0]);
+    }
+    int[][] probes = {
+      {100000, 200000, 200000, 300000},
+      {150000, 250000, 250000, 350000},
+      {300000, 200000, 400000, 300000},
+      {100000, 400000, 200000, 500000},
+      {300000, 400000, 400000, 500000},
+      {50000, 100000, 60000, 110000},
+      {150000, 320000, 190000, 420000},
+    };
+    int id = 0;
+    for (int[] pr : probes) {
+      IntBox box = new IntBox(pr[0], pr[1], pr[2], pr[3]);
+      for (int layer : probeLayers) {
+        ddCalcRow(name, "ddCalcP", id, layer, box, dd.calculate(box, layer));
+      }
+      id++;
+    }
+    double[][] points = {{150000, 250000}, {350000, 250000}, {350000, 450000}};
+    for (int p = 0; p < points.length; p++) {
+      IntBox box = new FloatPoint(points[p][0], points[p][1]).boundingBox();
+      for (int layer : probeLayers) {
+        ddCalcRow(
+            name, "ddPointP", p, layer, box, dd.calculate(new FloatPoint(points[p][0],
+                points[p][1]), layer));
+      }
+    }
+    // The cheap-distance arm (world A only): CHEAPBOX (P6) is
+    // x-overlapping / y-disjoint, so the TWO-LAYER via arm wins the
+    // min — the 400→320 substitution is observable (a delta-only
+    // probe like P2 would coincide: the one-layer weighted arm has no
+    // via cost). The restore row re-runs CHEAPBOX at normal cost.
+    if (name.equals("A")) {
+      IntBox cheapBox = new IntBox(150000, 320000, 190000, 420000);
+      ddCalcRow(name, "ddCheapP", 0, 0, cheapBox, dd.calculateCheapDistance(cheapBox, 0));
+      ddCalcRow(name, "ddRestoreP", 0, 0, cheapBox, dd.calculate(cheapBox, 0));
+      // The sentinel: a FRESH instance with nothing joined.
+      DestinationDistance fresh =
+          new DestinationDistance(costs, active, normalVia, cheapVia);
+      ddCalcRow("SENTINEL", "ddCalcP", 0, 0, tgt, fresh.calculate(tgt, 0));
+    }
   }
 
   /** One drain step of the fixed capture protocol. */
@@ -402,7 +632,7 @@ public class MazeSpike {
     ctrl1.bendCosts[0] = BEND_COST;
     Pin start1 = pinById(board1, startPinId);
     Pin dest1 = pinById(board1, destPinId);
-    MazeSearchEngine search1 = openSearch(board1, ctrl1, netA, start1, dest1, "MAIN");
+    MazeSearchEngine search1 = openSearchSpied(board1, ctrl1, netA, start1, dest1, "MAIN");
     if (search1 == null) {
       row(obj("init-failed-main"));
       System.exit(5);
@@ -635,6 +865,88 @@ public class MazeSpike {
     t7.addProperty("size", ts.size());
     t7.addProperty("secondAddAccepted", second);
     row(t7);
+
+    // ---- T8 crafted destination-distance worlds ------------------------
+    // Each world = one ctor + its join/calc/point probe battery; the
+    // ddCtor rows expose the raw derived fields (the 0.0-quirk
+    // worlds Q/Qs vs the all-active witness A). Via costs 400/320
+    // match the T3 control constants.
+    double normalVia = 400.0;
+    double cheapVia = 320.0;
+    double[][] c4 = {{1.0, 2.7}, {1.6, 1.0}, {2.0, 3.0}, {1.0, 1.0}};
+    double[][] c3 = {{1.0, 2.7}, {1.6, 1.0}, {2.0, 3.0}};
+    double[][] c2 = {{1.0, 2.7}, {1.6, 1.0}};
+    double[][] c1 = {{1.0, 2.7}};
+    double[][] cE = {{2.0, 3.0}, {1.0, 2.0}};
+    double[][] cF = {{1.0, 2.0}, {2.0, 3.0}};
+    // A: 4 layers all active — the full-ladder fallthrough world +
+    // inner-layer probes + the cheap/restore/sentinel rows.
+    ddWorld("A", c4, new boolean[] {true, true, true, true}, normalVia, cheapVia,
+        new int[] {0, 1, 3}, new int[] {0, 1, 3});
+    // B: 3 layers — the `==3` early returns.
+    ddWorld("B", c3, new boolean[] {true, true, true}, normalVia, cheapVia,
+        new int[] {0, 1, 2}, new int[] {0, 1, 2});
+    // C: 2 layers — the `==2` (component branch) gate.
+    ddWorld("C", c2, new boolean[] {true, true}, normalVia, cheapVia,
+        new int[] {0, 1}, new int[] {0, 1});
+    // D1: 1 layer active — the `<=1` gate with count 1.
+    ddWorld("D1", c1, new boolean[] {true}, normalVia, cheapVia,
+        new int[] {0}, new int[] {0});
+    // D0: 1 layer INACTIVE — the `<=1` gate with count 0 (the `==1`
+    // mutant falls through and shrinks the result) + the all-zero
+    // cost quirk.
+    ddWorld("D0", c1, new boolean[] {false}, normalVia, cheapVia,
+        new int[] {0}, new int[] {0});
+    // E: 2 layers, SOLDER cheaper — the component-branch pair TRUE arm.
+    ddWorld("E", cE, new boolean[] {true, true}, normalVia, cheapVia,
+        new int[] {0, 1}, new int[] {0, 1});
+    // F: 2 layers, COMPONENT cheaper — the solder-branch pair TRUE arm.
+    ddWorld("F", cF, new boolean[] {true, true}, normalVia, cheapVia,
+        new int[] {0, 1}, new int[] {0, 1});
+    // G: 2 layers, solder INACTIVE — the solder branch's `<=2` gate
+    // with count 1 (a `==2` mutant falls through) + the solder-side
+    // 0.0 quirk on a 2-layer board.
+    ddWorld("G", c2, new boolean[] {true, false}, normalVia, cheapVia,
+        new int[] {0}, new int[] {0, 1});
+    // Q: 4 layers, layer 0 INACTIVE — THE 0.0-quirk world (component
+    // fields stay 0.0; maxInner = min(0, solder) = 0 propagates).
+    ddWorld("Q", c4, new boolean[] {false, true, true, true}, normalVia, cheapVia,
+        new int[] {0, 1, 3}, new int[] {0, 1, 3});
+    // Qs: 4 layers, SOLDER inactive — the mirrored quirk contrast.
+    ddWorld("Qs", c4, new boolean[] {true, true, true, false}, normalVia, cheapVia,
+        new int[] {0, 1, 3}, new int[] {0, 1, 3});
+    // H: 2 layers, SOLDER CHEAP (3.0/4.0 vs 1.0/1.1) — the
+    // component-branch `==2` discriminator: at count 2 the gate
+    // returns the two-vias arm (134800 on P5), the deletion mutant
+    // falls through to the :272 arm (130800, mcsi*solder_min < 3.0*
+    // solder_min). TGT-only worlds cannot shrink there.
+    ddWorld("H", new double[][] {{3.0, 4.0}, {1.0, 1.1}}, new boolean[] {true, true},
+        normalVia, cheapVia, new int[] {0, 1}, new int[] {0, 1});
+    // M: 3 layers, ALL costs > 1 (min 1.5) — the `==3` discriminators
+    // (both branches): differing boxes per bucket (FAR TGT component,
+    // NEAR inner, MID solder) make the post-`==3` arms diverge from
+    // the pre-gate arms. P2@L0: `==3` returns the :265 inner-pair arm
+    // 12900 (inner box strictly outside BOTH axes: deltas (5000,
+    // 5000), inner_min > 800 so :285's unit-weighted arm undercuts);
+    // the deletion mutant falls to :285 (10800). P5@L2: `==3`
+    // returns the :331 component arm 150800; deletion falls to :343
+    // (131200).
+    ddWorld("M", new double[][] {{1.5, 2.0}, {1.6, 1.6}, {1.7, 2.0}},
+        new boolean[] {true, true, true}, normalVia, cheapVia,
+        new int[] {0}, new int[] {0, 2},
+        new int[][] {
+          {1, 405000, 305000, 410000, 310000},
+          {2, 500000, 200000, 600000, 300000},
+        });
+    // G3: 3 layers, ONLY layer 0 active (the solder-side 0.0-quirk on
+    // a count-1 board with an inner bucket) — the solder-branch
+    // `<=2` discriminator: at count 1 the gate returns the pair arm
+    // 40400 on P5; the `==2` mutant falls through to the :329 inner
+    // arm (inner box NEAR the probe → 30400).
+    ddWorld("G3", new double[][] {{1.0, 2.7}, {1.6, 1.0}, {2.0, 3.0}},
+        new boolean[] {true, false, false}, normalVia, cheapVia,
+        new int[] {0}, new int[] {2},
+        new int[][] {{1, 85000, 140000, 95000, 150000}});
 
     row(obj("done"));
   }

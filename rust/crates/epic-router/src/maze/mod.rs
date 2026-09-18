@@ -16,10 +16,13 @@
 //!   (`TraceShover.check` recursion + `checkTraceSegment`) remains a
 //!   T10 seam ([`crate::drill::DrillEngine::shove_trace_check`] /
 //!   [`crate::drill::DrillEngine::check_trace_segment`]);
-//! * `DestinationDistance` (T8) and `ViaLayerChecker` (T10) are
-//!   injected-trait seams.
+//! * the lower-bound heuristic itself ([`destination_distance`]) is
+//!   the T8 production implementation of the
+//!   [`crate::drill::DestinationDistance`] trait; `ViaLayerChecker`
+//!   (T10) remains an injected-trait seam.
 
 pub mod completion;
+pub mod destination_distance;
 pub mod expansion_engine;
 pub mod list_element;
 pub mod ripup;

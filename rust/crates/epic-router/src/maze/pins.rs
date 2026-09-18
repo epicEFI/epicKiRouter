@@ -33,14 +33,15 @@
 //!   id → section, the full-tie set dedup, the NaN fall-through and
 //!   the -0.0 ≡ 0.0 tie (T1-T7).
 //!
-//! `TargetDistance` below is the capture-replay mirror of Java
-//! `DestinationDistance` (the REAL lower-bound heuristic, not the T5
-//! targetless stub) — the T8 production port owns the module and can
-//! absorb it; until then these pins verify the maze wiring AND this
-//! port against the jar. `LegalChecker` answers DRILLABLE because
-//! Java's real `ForcedViaInserter.checkLayer` is vacuously legal on
-//! this empty fixture; a mutant answering NotDrillable flips the DRILL
-//! head rows (the DRILL-phase pins are its mutation coverage).
+//! The T8 production `DestinationDistance`
+//! (`super::destination_distance`) now backs every distance call in
+//! these pins — the `TargetDistance` mirror it replaced was deleted
+//! in the same commit, so the T6/T7 literals below exercise the
+//! production module directly (the engine-scope differential test).
+//! `LegalChecker` answers DRILLABLE because Java's real
+//! `ForcedViaInserter.checkLayer` is vacuously legal on this empty
+//! fixture; a mutant answering NotDrillable flips the DRILL head rows
+//! (the DRILL-phase pins are its mutation coverage).
 
 use std::collections::BTreeSet;
 
@@ -49,12 +50,13 @@ use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::tile_shape::TileShape;
 
+use super::destination_distance::DestinationDistance;
 use super::list_element::{ExpandableObject, FrontOrder, MazeListElement, compare};
 use super::search_engine::MazeSearchEngine;
 use crate::control::{AngleRestriction, AutorouteControl, ExpansionCostFactor, RouterSettingsIr};
 use crate::drill::pins::Harness;
 use crate::drill::{
-    Adjustment, CheckDrillResult, DestinationDistance, DrillEngine, DrillPageArray,
+    Adjustment, CheckDrillResult, DestinationDistance as _, DrillEngine, DrillPageArray,
     ViaLayerChecker, max_drill_page_width,
 };
 use crate::expansion::{ExpansionDoor, NeighbourEngine};
@@ -72,274 +74,6 @@ const DEST_PIN: u64 = 5;
 
 /// bendCosts[0] forced for the run (the capture's bend probes).
 const BEND_COST: f64 = 47.0;
-
-// ---- the T8-seam replay distance (Java `DestinationDistance`) ----
-
-/// Java `autoroute/maze/DestinationDistance.java` verbatim — the
-/// lower-bound distance from a front element to the joined
-/// destination boxes. Test-side: T8 owns the production module.
-struct TargetDistance {
-    trace_costs: Vec<ExpansionCostFactor>,
-    layer_active: Vec<bool>,
-    layer_count: usize,
-    active_layer_count: usize,
-    min_normal_via_cost: f64,
-    min_component_side_trace_cost: f64,
-    max_component_side_trace_cost: f64,
-    min_solder_side_trace_cost: f64,
-    max_solder_side_trace_cost: f64,
-    max_inner_side_trace_cost: f64,
-    min_component_inner_trace_cost: f64,
-    min_solder_inner_trace_cost: f64,
-    min_component_solder_inner_trace_cost: f64,
-    component_side_box: IntBox,
-    solder_side_box: IntBox,
-    inner_side_box: IntBox,
-    box_is_empty: bool,
-    component_side_box_is_empty: bool,
-    solder_side_box_is_empty: bool,
-    inner_side_box_is_empty: bool,
-}
-
-impl TargetDistance {
-    /// Java ctor (`:45-99`) — the trace-cost extremes per side, inner
-    /// layers assumed cost 1 in the preferred direction.
-    fn new(ctrl: &AutorouteControl) -> Self {
-        let trace_costs = ctrl.trace_costs.clone();
-        let layer_active = ctrl.layer_active.clone();
-        let layer_count = layer_active.len();
-        let active_layer_count = layer_active.iter().filter(|&&a| a).count();
-        let mut this = TargetDistance {
-            trace_costs,
-            layer_active,
-            layer_count,
-            active_layer_count,
-            min_normal_via_cost: ctrl.min_normal_via_cost,
-            min_component_side_trace_cost: 0.0,
-            max_component_side_trace_cost: 0.0,
-            min_solder_side_trace_cost: 0.0,
-            max_solder_side_trace_cost: 0.0,
-            max_inner_side_trace_cost: 0.0,
-            min_component_inner_trace_cost: 0.0,
-            min_solder_inner_trace_cost: 0.0,
-            min_component_solder_inner_trace_cost: 0.0,
-            component_side_box: IntBox::EMPTY,
-            solder_side_box: IntBox::EMPTY,
-            inner_side_box: IntBox::EMPTY,
-            box_is_empty: true,
-            component_side_box_is_empty: true,
-            solder_side_box_is_empty: true,
-            inner_side_box_is_empty: true,
-        };
-        if this.layer_active[0] {
-            if this.trace_costs[0].horizontal < this.trace_costs[0].vertical {
-                this.min_component_side_trace_cost = this.trace_costs[0].horizontal;
-                this.max_component_side_trace_cost = this.trace_costs[0].vertical;
-            } else {
-                this.min_component_side_trace_cost = this.trace_costs[0].vertical;
-                this.max_component_side_trace_cost = this.trace_costs[0].horizontal;
-            }
-        }
-        let last = this.layer_count - 1;
-        if this.layer_active[last] {
-            if this.trace_costs[last].horizontal < this.trace_costs[last].vertical {
-                this.min_solder_side_trace_cost = this.trace_costs[last].horizontal;
-                this.max_solder_side_trace_cost = this.trace_costs[last].vertical;
-            } else {
-                this.min_solder_side_trace_cost = this.trace_costs[last].vertical;
-                this.max_solder_side_trace_cost = this.trace_costs[last].horizontal;
-            }
-        }
-        // Note: for inner layers we assume cost 1 in the preferred
-        // direction — the max inner cost is the min over the sides.
-        this.max_inner_side_trace_cost = this
-            .max_component_side_trace_cost
-            .min(this.max_solder_side_trace_cost);
-        for ind2 in 1..last {
-            if !this.layer_active[ind2] {
-                continue;
-            }
-            let current_max = this.trace_costs[ind2]
-                .horizontal
-                .max(this.trace_costs[ind2].vertical);
-            this.max_inner_side_trace_cost = this.max_inner_side_trace_cost.min(current_max);
-        }
-        this.min_component_inner_trace_cost = this
-            .min_component_side_trace_cost
-            .min(this.max_inner_side_trace_cost);
-        this.min_solder_inner_trace_cost = this
-            .min_solder_side_trace_cost
-            .min(this.max_inner_side_trace_cost);
-        this.min_component_solder_inner_trace_cost = this
-            .min_component_inner_trace_cost
-            .min(this.min_solder_inner_trace_cost);
-        this
-    }
-
-    /// Java `join(IntBox, int)` (`:102-114`).
-    fn join_box(&mut self, shape: &IntBox, layer: i32) {
-        if layer == 0 {
-            self.component_side_box = self.component_side_box.union(shape);
-            self.component_side_box_is_empty = false;
-        } else if layer == self.layer_count as i32 - 1 {
-            self.solder_side_box = self.solder_side_box.union(shape);
-            self.solder_side_box_is_empty = false;
-        } else {
-            self.inner_side_box = self.inner_side_box.union(shape);
-            self.inner_side_box_is_empty = false;
-        }
-        self.box_is_empty = false;
-    }
-
-    /// Java `calculate(IntBox, int)` (`:122-379`) — the layered
-    /// lower-bound minimum. The port keeps Java's structure verbatim
-    /// (all inputs finite; no NaN arms).
-    fn calculate_box(&self, shape: &IntBox, layer: i32) -> f64 {
-        if self.box_is_empty {
-            return 2147483647.0;
-        }
-        let delta = |side_box: &IntBox| -> (f64, f64) {
-            let dx = if shape.ll.x > side_box.ur.x {
-                f64::from(shape.ll.x - side_box.ur.x)
-            } else if shape.ur.x < side_box.ll.x {
-                f64::from(side_box.ll.x - shape.ur.x)
-            } else {
-                0.0
-            };
-            let dy = if shape.ll.y > side_box.ur.y {
-                f64::from(shape.ll.y - side_box.ur.y)
-            } else if shape.ur.y < side_box.ll.y {
-                f64::from(side_box.ll.y - shape.ur.y)
-            } else {
-                0.0
-            };
-            (dx, dy)
-        };
-        let (component_dx, component_dy) = delta(&self.component_side_box);
-        let (solder_dx, solder_dy) = delta(&self.solder_side_box);
-        let (inner_dx, inner_dy) = delta(&self.inner_side_box);
-        let split = |dx: f64, dy: f64| -> (f64, f64) { if dx > dy { (dx, dy) } else { (dy, dx) } };
-        let (component_max, component_min) = split(component_dx, component_dy);
-        let (solder_max, solder_min) = split(solder_dx, solder_dy);
-        let (inner_max, inner_min) = split(inner_dx, inner_dy);
-
-        let mut result = 2147483647.0;
-        let min_normal = self.min_normal_via_cost;
-        if layer == 0 {
-            if !self.component_side_box_is_empty {
-                result = shape.weighted_distance(
-                    &self.component_side_box,
-                    self.trace_costs[0].horizontal,
-                    self.trace_costs[0].vertical,
-                );
-            }
-            if self.active_layer_count <= 1 {
-                return result;
-            }
-            let tmp = if self.min_solder_side_trace_cost < self.min_component_side_trace_cost {
-                self.min_solder_side_trace_cost * solder_max
-                    + self.min_component_side_trace_cost * solder_min
-                    + min_normal
-            } else {
-                self.min_component_side_trace_cost * solder_max
-                    + self.min_solder_side_trace_cost * solder_min
-                    + min_normal
-            };
-            result = result.min(tmp);
-            let tmp = component_max
-                + component_min * self.min_component_inner_trace_cost
-                + 2.0 * min_normal;
-            result = result.min(tmp);
-            if self.active_layer_count == 2 {
-                return result;
-            }
-            let tmp = inner_max + inner_min * self.min_component_inner_trace_cost + min_normal;
-            result = result.min(tmp);
-            let tmp = solder_max
-                + self.min_component_solder_inner_trace_cost * solder_min
-                + 2.0 * min_normal;
-            result = result.min(tmp);
-            let tmp = component_max + component_min + 2.0 * min_normal;
-            result = result.min(tmp);
-            if self.active_layer_count == 3 {
-                return result;
-            }
-            let tmp = inner_max + inner_min + 2.0 * min_normal;
-            result = result.min(tmp);
-            let tmp = solder_max + solder_min + 3.0 * min_normal;
-            return result.min(tmp);
-        }
-        let last = self.layer_count as i32 - 1;
-        if layer == last {
-            if !self.solder_side_box_is_empty {
-                result = shape.weighted_distance(
-                    &self.solder_side_box,
-                    self.trace_costs[last as usize].horizontal,
-                    self.trace_costs[last as usize].vertical,
-                );
-            }
-            let tmp = if self.min_component_side_trace_cost < self.min_solder_side_trace_cost {
-                self.min_component_side_trace_cost * component_max
-                    + self.min_solder_side_trace_cost * component_min
-                    + min_normal
-            } else {
-                self.min_solder_side_trace_cost * component_max
-                    + self.min_component_side_trace_cost * component_min
-                    + min_normal
-            };
-            result = result.min(tmp);
-            let tmp = solder_max + solder_min * self.min_solder_inner_trace_cost + 2.0 * min_normal;
-            result = result.min(tmp);
-            if self.active_layer_count <= 2 {
-                return result;
-            }
-            let tmp = inner_min * self.min_solder_inner_trace_cost + inner_max + min_normal;
-            result = result.min(tmp);
-            let tmp = component_max
-                + self.min_component_solder_inner_trace_cost * component_min
-                + 2.0 * min_normal;
-            result = result.min(tmp);
-            let tmp = solder_max + solder_min + 2.0 * min_normal;
-            result = result.min(tmp);
-            if self.active_layer_count == 3 {
-                return result;
-            }
-            let tmp = inner_max + inner_min + 2.0 * min_normal;
-            result = result.min(tmp);
-            let tmp = component_max + component_min + 3.0 * min_normal;
-            return result.min(tmp);
-        }
-        // an inner layer
-        if !self.inner_side_box_is_empty {
-            result = shape.weighted_distance(
-                &self.inner_side_box,
-                self.trace_costs[layer as usize].horizontal,
-                self.trace_costs[layer as usize].vertical,
-            );
-        }
-        let tmp = inner_max + inner_min + min_normal;
-        result = result.min(tmp);
-        let tmp = component_max + component_min * self.min_component_inner_trace_cost + min_normal;
-        result = result.min(tmp);
-        let tmp = solder_max + solder_min * self.min_solder_inner_trace_cost + min_normal;
-        result = result.min(tmp);
-        let tmp = component_max + component_min + 2.0 * min_normal;
-        result = result.min(tmp);
-        let tmp = solder_max + solder_min + 2.0 * min_normal;
-        result.min(tmp)
-    }
-}
-
-impl DestinationDistance for TargetDistance {
-    fn calculate(&self, middle: &FloatPoint, layer: i32) -> f64 {
-        self.calculate_box(&middle.bounding_box(), layer)
-    }
-
-    /// The REAL join (the trait default is the T8 no-op slot).
-    fn join(&mut self, shape: &epic_geometry::int_box::IntBox, layer: i32) {
-        self.join_box(shape, layer);
-    }
-}
 
 /// Java `ForcedViaInserter.checkLayer` for this capture: the fixture
 /// is empty board space, so every candidate via position is legal.
@@ -396,13 +130,13 @@ fn make_run(
 ) -> (
     Harness,
     AutorouteControl,
-    TargetDistance,
+    DestinationDistance,
     LegalChecker,
     DrillPageArray,
 ) {
     let mut harness = Harness::build_with(FIXTURE_DSN, NET_A);
     let ctrl = AutorouteControl::new(harness.board_mut(), NET_A, &maze_settings_ir(vias_allowed));
-    let distance = TargetDistance::new(&ctrl);
+    let distance = DestinationDistance::from_ctrl(&ctrl);
     let checker = LegalChecker;
     let max_page_width = max_drill_page_width(harness.default_via_diameter());
     let pages = DrillPageArray::new(&harness, max_page_width);
@@ -1795,7 +1529,7 @@ fn assert_head(
 /// `occupy_next_element`, the (before, after, cont) literal. Returns
 /// the reached destination (the `cont == false` row), if any.
 fn drain(
-    engine: &mut MazeSearchEngine<'_, Harness, TargetDistance, LegalChecker>,
+    engine: &mut MazeSearchEngine<'_, Harness, DestinationDistance, LegalChecker>,
     heads: &[RawHead],
     pops: &[(i32, i32, bool)],
     phase: &str,
@@ -1947,6 +1681,43 @@ fn main_phase_protocol_pins() {
     assert!(
         engine.maze_element(&door33, 1).is_occupied,
         "door 33 section 1 occupied after the drain"
+    );
+}
+
+/// The T8 engine-scope join row: init joins the destination pin's
+/// tree-shape bounding box at layer 0 — the capture's single
+/// engine-scope `ddJoin` row (isFanout=false, so the board-bounds
+/// fanout joins of MazeSearchEngine.java:991-992 do NOT fire; the
+/// DRILL phase ran the unspied openSearch and emits none either).
+#[test]
+fn t8_engine_init_join_row() {
+    let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(false);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
+    assert!(engine.init(&[START_PIN], &[DEST_PIN]), "MAIN init ok");
+    // {"type":"ddJoin","phase":"MAIN","layer":0,"llx":778750,
+    //  "lly":278750,"urx":821250,"ury":321250} — the SMD dest pin's
+    // tree shape, in the COMPONENT bucket (layer 0).
+    assert_eq!(
+        engine.destination_distance.component_side_box(),
+        &IntBox::from_corners(778750, 278750, 821250, 321250),
+        "ddJoin MAIN: dest tree shape in the component bucket"
+    );
+    // The other buckets stay empty (unjoined → the EMPTY sentinel).
+    assert_eq!(
+        engine.destination_distance.solder_side_box(),
+        &IntBox::EMPTY,
+        "solder bucket unjoined"
+    );
+    assert_eq!(
+        engine.destination_distance.inner_side_box(),
+        &IntBox::EMPTY,
+        "inner bucket unjoined"
     );
 }
 
@@ -5225,7 +4996,7 @@ fn t7_make_run(
 ) -> (
     Harness,
     AutorouteControl,
-    TargetDistance,
+    DestinationDistance,
     LegalChecker,
     DrillPageArray,
 ) {
@@ -5236,7 +5007,7 @@ fn t7_make_run(
     ctrl.ripup_pass_no = 1;
     ctrl.vias_allowed = false;
     ctrl.remove_unconnected_vias = remove_unconnected_vias;
-    let distance = TargetDistance::new(&ctrl);
+    let distance = DestinationDistance::from_ctrl(&ctrl);
     let checker = LegalChecker;
     let max_page_width = max_drill_page_width(harness.default_via_diameter());
     let pages = DrillPageArray::new(&harness, max_page_width);
