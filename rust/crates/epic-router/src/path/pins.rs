@@ -54,6 +54,7 @@ use epic_geometry::tile_shape::TileShape;
 use super::locator::{BacktrackElement, LocatorState, Synthesis, get_instance};
 use super::locator_45::{
     calc_horizontal_first_from_door, calc_horizontal_first_to_door, horizontal_first_core,
+    horizontal_first_to_door_core,
 };
 use crate::control::{AngleRestriction, AutorouteControl, ExpansionCostFactor, RouterSettingsIr};
 use crate::drill::pins::Harness;
@@ -534,15 +535,17 @@ fn capture_abt_net98_backtrack() {
 /// the SEARCH, with NO tree-variant sensitivity — the failure is
 /// byte-identical under the FORTYFIVE-variant and GENERIC-variant
 /// trees, so it is NOT tree-shape related; root cause unreached within
-/// the task budget. The LOCATOR side is verified convergent (fix-round
-/// probe): driven over the Java search's room chain, the Rust locator
-/// produces the exact Java capture trace — the de-scope is search-side
-/// only, and the passed-door arms do not fire on this chain (pinned
-/// instead by the synthetic-chain semantic pin
+/// the task budget. The LOCATOR side is EXPECTED convergent — a
+/// HYPOTHESIS from a one-off fix-round probe (driving the Rust locator
+/// over the Java search's room chain reproduced the Java capture
+/// trace), NOT a committed runnable test; if the search de-scope is
+/// ever revisited, this hypothesis must be re-verified first. The
+/// de-scope is search-side only, and the passed-door arms do not fire
+/// on this chain (pinned instead by the synthetic-chain semantic pin
 /// `any_angle_passed_door_alias_continues_trace`).
 /// Capture banked in `logs/M3-T9/captures/t9_locator_any_capture.rows`.
 #[test]
-#[ignore = "search-side pop 36v29 divergence invariant under tree variant; locator verified convergent on the Java chain; capture banked"]
+#[ignore = "search-side pop 36v29 divergence invariant under tree variant; locator convergence is a probe hypothesis, not a banked test; capture banked"]
 fn capture_bany_any_angle() {
     run_phase(
         "BANY",
@@ -576,7 +579,8 @@ fn capture_bany_any_angle() {
 /// change as a straight 2-corner crossing.
 /// DE-SCOPED (M3-T9): via world (stub `LegalChecker` vs Java real
 /// `checkLayer`) on top of the BANY-family divergence. Divergence: pop
-/// 244 (Rust) vs 274 (Java capture). Capture banked in
+/// 274 (Rust) vs 244 (Java capture; the `pop_count` literal below IS
+/// the capture value). Capture banked in
 /// `logs/M3-T9/captures/t9_locator_any_capture.rows`.
 #[test]
 #[ignore = "via world + BANY-family divergence; capture banked"]
@@ -617,8 +621,9 @@ fn capture_banyv_any_angle_vias() {
 /// produces the 4-corner first trace with the near-collinear pair
 /// (522245,316184) → (522115,316136) (the clearance-corrected corner).
 /// DE-SCOPED (M3-T9): via world (stub `LegalChecker` vs Java real
-/// `checkLayer`). Divergence: pop 893 (Rust) vs 926 (Java capture) on
-/// the any-angle net-98 phase. Capture banked in `logs/M3-T9/captures/
+/// `checkLayer`). Divergence: pop 926 (Rust) vs 893 (Java capture; the
+/// `pop_count` literal below IS the capture value) on the any-angle
+/// net-98 phase. Capture banked in `logs/M3-T9/captures/
 /// t9_locator_any_capture.rows`.
 #[test]
 #[ignore = "via world: stub LegalChecker vs Java real checkLayer; capture banked"]
@@ -1091,9 +1096,16 @@ fn any_angle_passed_door_alias_continues_trace() {
     );
 
     // C1 face pins riding the same world: BOTH calc_horizontal_first_*
-    // faces through the REAL access, on inputs where the mirror faces
-    // diverge (they always do — the ToDoor face is the exact negation
-    // of the shared core for identical arguments).
+    // faces through the REAL access. FromDoor == the shared core;
+    // ToDoor == the ToDoor core (a DELEGATION check — it exercises the
+    // access plumbing, while the verdicts themselves are pinned against
+    // Java's own semantics in `horizontal_first_to_door_java_tie_pins`).
+    // There is deliberately NO `assert_ne!(from_face, to_face)`: the
+    // mirror faces AGREE at comparator ties, so divergence is not an
+    // invariant (bug-139). The chain probe below happens to sit ON a
+    // tie, where a wrapper FACE SWAP is invisible — so the off-tie
+    // probes afterwards carry the swap kill (off-tie the faces are
+    // strict complements).
     let core_verdict = horizontal_first_core(
         &engine.expandable_object_shape(&face_door),
         1,
@@ -1104,13 +1116,37 @@ fn any_angle_passed_door_alias_continues_trace() {
     let to_face = calc_horizontal_first_to_door(&engine, &face_door, &from, &previous);
     assert_eq!(from_face, core_verdict, "FromDoor face == the shared core");
     assert_eq!(
-        to_face, !core_verdict,
-        "ToDoor face == the negated core (the C1 face-flip killer)"
+        to_face,
+        horizontal_first_to_door_core(
+            &engine.expandable_object_shape(&face_door),
+            1,
+            &from,
+            &previous,
+        ),
+        "ToDoor wrapper == the ToDoor core (delegation, not negation)"
     );
-    assert_ne!(
-        from_face, to_face,
-        "the two faces diverge for identical arguments"
-    );
+
+    // Off-tie wrapper probes (pure verdict calls — the chain above is
+    // already computed; these cannot perturb it): at any |dx| != |dy|
+    // delta the mirror faces are strict COMPLEMENTS of each other, so
+    // the delegation identity must hold through the real access and a
+    // wrapper face-swap (ToDoor delegating to the FromDoor core, or the
+    // reverse) fails here even though it is invisible at the tie probe
+    // above. Deltas (10, 2) and (-2, 10) cover both signum relations.
+    for (dx, dy) in [(10.0_f64, 2.0_f64), (-2.0, 10.0)] {
+        let probe = FloatPoint::new(from.x + dx, from.y + dy);
+        let swap_shape = engine.expandable_object_shape(&face_door);
+        assert_eq!(
+            calc_horizontal_first_to_door(&engine, &face_door, &from, &probe),
+            horizontal_first_to_door_core(&swap_shape, 1, &from, &probe),
+            "ToDoor wrapper == ToDoor core at off-tie delta ({dx}, {dy})"
+        );
+        assert_eq!(
+            calc_horizontal_first_from_door(&engine, &face_door, &from, &probe),
+            horizontal_first_core(&swap_shape, 1, &from, &probe),
+            "FromDoor wrapper == FromDoor core at off-tie delta ({dx}, {dy})"
+        );
+    }
 }
 
 /// The `getInstance` factory dispatch (`FoundConnectionLocator.java
@@ -1210,6 +1246,13 @@ fn horizontal_first_core_arm_pins() {
         horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(3.0, 1.0)),
         "right-diag same signum, |dx| 3 > |dy| 1 -> true"
     );
+    // tie probe: Java `:86` `result = Math.abs(dx) > Math.abs(dy);` is
+    // FALSE at |dx| == |dy| — kills a `>` -> `>=` boundary widening
+    // (invisible to the off-tie probes alone).
+    assert!(
+        !horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(3.0, 3.0)),
+        "right-diag tie: `|dx| > |dy|` is FALSE at |dx| == |dy| (the > comparator)"
+    );
     assert!(
         !horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(1.0, 3.0)),
         "right-diag same signum, |dx| 1 < |dy| 3 -> false"
@@ -1231,6 +1274,12 @@ fn horizontal_first_core_arm_pins() {
         horizontal_first_core(&left_diag, 1, &FloatPoint::new(2.0, 4.0), &origin),
         "left-diag same signum, |dx| 2 < |dy| 4 -> true"
     );
+    // tie probe: Java `:94` `result = Math.abs(dx) < Math.abs(dy);` is
+    // FALSE at |dx| == |dy| — kills a `<` -> `<=` boundary widening.
+    assert!(
+        !horizontal_first_core(&left_diag, 1, &FloatPoint::new(3.0, 3.0), &origin),
+        "left-diag tie: `|dx| < |dy|` is FALSE at |dx| == |dy| (the < comparator)"
+    );
     assert!(
         !horizontal_first_core(&left_diag, 1, &FloatPoint::new(4.0, 2.0), &origin),
         "left-diag same signum, |dx| 4 > |dy| 2 -> false"
@@ -1242,6 +1291,133 @@ fn horizontal_first_core_arm_pins() {
     assert!(
         !horizontal_first_core(&left_diag, 1, &origin, &FloatPoint::new(1.0, -3.0)),
         "left-diag diff signum, |dx| 1 < |dy| 3 -> false"
+    );
+}
+
+/// The ToDoor face (`locator_45::horizontal_first_to_door_core` = Java
+/// `calcHorizontalFirstToDoor`, `:304-356`) pinned against JAVA'S OWN
+/// verdicts at TIE inputs, each with the Java line quoted. The mirror
+/// pair is COMPLEMENT OFF-TIE, AGREEMENT ON TIE: on all five comparator
+/// arms (`height <= width` vs `>=`; each diagonal strict `<`/`>` vs its
+/// mirror) the two faces return the SAME verdict at the tie, so a
+/// strict `!horizontal_first_core` wrapper flips five tie verdicts.
+/// Expected values are derived from the Java arms' semantics, never
+/// from the port — an identity pin (`to_face == !core_verdict`)
+/// asserts the refactor's own structure and cannot fail (pin-failure
+/// mode (11)). The four tie asserts below are the `!core` revert-mutant
+/// killers.
+#[test]
+fn horizontal_first_to_door_java_tie_pins() {
+    let origin = FloatPoint::new(0.0, 0.0);
+    let probe = FloatPoint::new(7.0, 11.0);
+
+    // Java `:308-310`: `if (toDoor.getDimension() != 1) { return
+    // fromDoorBox.height() <= fromDoorBox.width(); }` — the `<=`
+    // comparator keeps the verdict TRUE at the height == width tie (the
+    // FromDoor `>=` face agrees there; a negated core returns FALSE).
+    let square = pin_box_shape(0, 0, 40, 40);
+    assert!(
+        horizontal_first_to_door_core(&square, 2, &origin, &probe),
+        "dim!=1 tie: Java `height <= width` keeps TRUE at height == width"
+    );
+    let wide = pin_box_shape(0, 0, 100, 50);
+    assert!(
+        horizontal_first_to_door_core(&wide, 2, &origin, &probe),
+        "dim!=1: height 50 <= width 100 -> true"
+    );
+    let tall = pin_box_shape(0, 0, 50, 100);
+    assert!(
+        !horizontal_first_to_door_core(&tall, 2, &origin, &probe),
+        "dim!=1: height 100 > width 50 -> false"
+    );
+
+    // 1-dim right-diagonal door, the segment (0,0)-(10,10) as a
+    // degenerate octagon (box 10x10 > halfMaxWidth 5, so the diagonal
+    // arms decide on the from->to delta).
+    let right_diag = pin_octagon(TileShape::from_8_ints(0, 0, 10, 10, 0, 0, 0, 20));
+    // Java `:338-341`: leftCorner.y < rightCorner.y (right diagonal),
+    // signum(dx) == signum(dy), `result = Math.abs(dx) < Math.abs(dy);`
+    // — FALSE at the |dx| == |dy| tie (the FromDoor `>` face agrees; a
+    // negated core returns TRUE).
+    assert!(
+        !horizontal_first_to_door_core(&right_diag, 1, &origin, &FloatPoint::new(3.0, 3.0)),
+        "right-diag tie: Java `|dx| < |dy|` is FALSE at |dx| == |dy|"
+    );
+    // Java `:343`: signum(dx) != signum(dy), `result = Math.abs(dx) >
+    // Math.abs(dy);` — also FALSE at the tie (agreeing faces).
+    assert!(
+        !horizontal_first_to_door_core(&right_diag, 1, &origin, &FloatPoint::new(-3.0, 3.0)),
+        "right-diag diff-signum tie: Java `|dx| > |dy|` is FALSE at |dx| == |dy|"
+    );
+
+    // 1-dim left-diagonal door, the segment (0,10)-(10,0).
+    let left_diag = pin_octagon(TileShape::from_8_ints(0, 0, 10, 10, -10, 10, 10, 10));
+    // Java `:348-351`: left diagonal, signum equal, `result =
+    // Math.abs(dx) > Math.abs(dy);` — FALSE at the tie.
+    assert!(
+        !horizontal_first_to_door_core(&left_diag, 1, &FloatPoint::new(3.0, 3.0), &origin),
+        "left-diag tie: Java `|dx| > |dy|` is FALSE at |dx| == |dy|"
+    );
+    // Java `:351`: signum different, `result = Math.abs(dx) <
+    // Math.abs(dy);` — FALSE at the tie.
+    assert!(
+        !horizontal_first_to_door_core(&left_diag, 1, &FloatPoint::new(3.0, -3.0), &origin),
+        "left-diag diff-signum tie: Java `|dx| < |dy|` is FALSE at |dx| == |dy|"
+    );
+
+    // --- OFF-TIE diagonal literals: the strict comparators themselves.
+    // The tie asserts above kill `!core`/boundary-widening mutants;
+    // these kill strict-flip (`<` <-> `>`) mutants, which leave every
+    // tie verdict unchanged. Java `:341` (right, signum equal):
+    assert!(
+        !horizontal_first_to_door_core(&right_diag, 1, &origin, &FloatPoint::new(3.0, 1.0)),
+        "right-diag signum equal, |dx| 3 > |dy| 1 -> `|dx| < |dy|` false"
+    );
+    assert!(
+        horizontal_first_to_door_core(&right_diag, 1, &origin, &FloatPoint::new(1.0, 3.0)),
+        "right-diag signum equal, |dx| 1 < |dy| 3 -> true"
+    );
+    // Java `:343` (right, signum different):
+    assert!(
+        !horizontal_first_to_door_core(&right_diag, 1, &origin, &FloatPoint::new(-1.0, 3.0)),
+        "right-diag signum different, |dx| 1 < |dy| 3 -> `|dx| > |dy|` false"
+    );
+    assert!(
+        horizontal_first_to_door_core(&right_diag, 1, &origin, &FloatPoint::new(-3.0, 1.0)),
+        "right-diag signum different, |dx| 3 > |dy| 1 -> true"
+    );
+    // Java `:349` (left, signum equal):
+    assert!(
+        !horizontal_first_to_door_core(&left_diag, 1, &FloatPoint::new(1.0, 3.0), &origin),
+        "left-diag signum equal, |dx| 1 < |dy| 3 -> `|dx| > |dy|` false"
+    );
+    assert!(
+        horizontal_first_to_door_core(&left_diag, 1, &FloatPoint::new(3.0, 1.0), &origin),
+        "left-diag signum equal, |dx| 3 > |dy| 1 -> true"
+    );
+    // Java `:351` (left, signum different):
+    assert!(
+        !horizontal_first_to_door_core(&left_diag, 1, &FloatPoint::new(3.0, -1.0), &origin),
+        "left-diag signum different, |dx| 3 > |dy| 1 -> `|dx| < |dy|` false"
+    );
+    assert!(
+        horizontal_first_to_door_core(&left_diag, 1, &FloatPoint::new(1.0, -3.0), &origin),
+        "left-diag signum different, |dx| 1 < |dy| 3 -> true"
+    );
+
+    // The fixed arms are tie-INSENSITIVE (they coincide under negation,
+    // so they cannot discriminate the bug) — pinned for battery
+    // completeness: `:329-331` about-vertical -> result = false;
+    // `:332-334` about-horizontal -> result = true.
+    let vertical = pin_box_shape(0, 0, 10, 10).intersection(&pin_box_shape(10, 0, 20, 10));
+    assert!(
+        !horizontal_first_to_door_core(&vertical, 1, &origin, &probe),
+        "about-vertical: Java sets result = false (`:331`)"
+    );
+    let horizontal = pin_box_shape(0, 0, 10, 10).intersection(&pin_box_shape(0, 10, 10, 20));
+    assert!(
+        horizontal_first_to_door_core(&horizontal, 1, &origin, &probe),
+        "about-horizontal: Java sets result = true (`:334`)"
     );
 }
 

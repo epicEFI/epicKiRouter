@@ -459,7 +459,13 @@ fn backtrack<A: LocatorAccess>(
         let mut current_section_no = current_maze_search_element.section_no_of_backtrack_door;
         let element_count = access.maze_search_element_count(&current_backtrack_door);
         if current_section_no >= element_count {
-            // Java `:278-281` — warn "currentSectionNo to big".
+            // Java `:278-281` — `FRLogger.warn("currentSectionNo to
+            // big")` then clamps to elementCount - 1. The warn is
+            // diagnostic-only and is NOT ported (same disposition as
+            // `emitDiagnostics`, locator.rs module doc); the CLAMP is
+            // the behavioral payload and is kept verbatim — the
+            // out-of-range section is silently rewritten to the last
+            // section, and the element read below uses it.
             current_section_no = element_count - 1;
         }
         if let Some(current_drill) = access.drill_info(&current_backtrack_door) {
