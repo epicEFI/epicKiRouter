@@ -1192,8 +1192,8 @@ fn pin_octagon(oct: epic_geometry::int_octagon::IntOctagon) -> TileShape {
 /// ::horizontal_first_core` = Java `calcHorizontalFirstFromDoor`,
 /// `:48-101`), arm battery on synthetic door shapes; every verdict is a
 /// hand-derived Java-arm literal and each assert names the arm it
-/// kills. The ToDoor negation face is pinned through the REAL access in
-/// `any_angle_passed_door_alias_continues_trace`.
+/// kills. The ToDoor wrapper (delegation, not negation) is pinned
+/// through the REAL access in `any_angle_passed_door_alias_continues_trace`.
 #[test]
 fn horizontal_first_core_arm_pins() {
     let origin = FloatPoint::new(0.0, 0.0);
@@ -1304,7 +1304,7 @@ fn horizontal_first_core_arm_pins() {
 /// Expected values are derived from the Java arms' semantics, never
 /// from the port — an identity pin (`to_face == !core_verdict`)
 /// asserts the refactor's own structure and cannot fail (pin-failure
-/// mode (11)). The four tie asserts below are the `!core` revert-mutant
+/// mode (11)). The five tie asserts below are the `!core` revert-mutant
 /// killers.
 #[test]
 fn horizontal_first_to_door_java_tie_pins() {

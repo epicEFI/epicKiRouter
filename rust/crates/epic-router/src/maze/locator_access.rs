@@ -45,9 +45,11 @@ use super::list_element::ExpandableObject;
 use super::search_engine::MazeSearchEngine;
 
 /// The `ExpansionDrill` reads the locator needs (Java
-/// `drill.location` / `drill.firstLayer` / `drill.roomArr` /
-/// `drill.getShape()`). `room_arr` entries are the per-layer completed
-/// room KEYS (`None` = a Java null slot).
+/// `drill.location` / `drill.firstLayer` / `drill.roomArr`).
+/// `room_arr` entries are the per-layer completed room KEYS (`None` =
+/// a Java null slot). Java's `drill.getShape()` is deliberately NOT
+/// carried — the locator never reads it; re-add with the first real
+/// consumer (and a pin), per the cut-items discipline.
 #[derive(Clone, Debug)]
 pub struct DrillInfo {
     /// Java `location` — the drill anchor.
@@ -56,8 +58,6 @@ pub struct DrillInfo {
     pub first_layer: i32,
     /// Java `roomArr` — indexed by `layer - firstLayer`.
     pub room_arr: Vec<Option<u64>>,
-    /// Java `getShape()`.
-    pub shape: TileShape,
 }
 
 /// The maze-state read seam of the T9 locator (module doc).
@@ -126,7 +126,6 @@ impl<
             location: drill.location.clone(),
             first_layer: drill.first_layer,
             room_arr: drill.room_arr.clone(),
-            shape: drill.get_shape().clone(),
         })
     }
 

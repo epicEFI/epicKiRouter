@@ -56,6 +56,12 @@ pub struct FindConnectionResult {
 /// The maze search engine (Java `MazeSearchEngine`). Generic over the
 /// engine seam ([`DrillEngine`]), the T8 distance seam and the T10
 /// via-check seam.
+///
+/// Construct fresh per search, as Java `getInstance`
+/// (`MazeSearchEngine.java:137-151`); state (`front`/`door_sections`/
+/// `backtrack_registry`) is intentionally never cleared — [`Self::init`]
+/// asserts an empty `front` so a reused engine fails loudly instead of
+/// running on stale search state.
 pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> {
     /// Java `autorouteEngine` + `searchTree` + `board` — the engine
     /// seam the maze code reaches through.
@@ -1098,6 +1104,11 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
 
     /// Java `init` (`:969-1103`).
     pub(crate) fn init(&mut self, start_items: &[u64], destination_items: &[u64]) -> bool {
+        // Reuse guard (see the struct doc): Java never reuses an engine
+        // (`getInstance` constructs one per search), so the state is
+        // never cleared — a non-empty front here means a REUSED engine,
+        // which must fail loudly, not search from stale state.
+        debug_assert!(self.front.is_empty());
         // `reduceTraceShapesAtTiePins` — SKIPPED, see the module doc.
         // process the destination items (`:972-987`)
         let mut destination_ok = false;

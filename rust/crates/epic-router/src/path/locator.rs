@@ -179,6 +179,9 @@ pub fn get_instance<A: LocatorAccess>(
     maze_search_result: Option<&FindConnectionResult>,
     ctrl: &AutorouteControl,
     angle_restriction: AngleRestriction,
+    // Java `rippedItemList` iterates DESCENDING item id
+    // (`Item.compareTo = other.id - id`); this map is ASCENDING, so
+    // consumers must iterate `.rev()` (module doc "rippedItemList").
     ripped_item_list: &mut BTreeMap<i32, u64>,
     ripup_costs: &mut HashMap<u64, i32>,
 ) -> Option<FoundConnectionLocator> {
