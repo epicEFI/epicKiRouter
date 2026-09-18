@@ -66,6 +66,39 @@ pub(crate) enum Synthesis {
     AnyAngle,
 }
 
+/// The restriction → subclass dispatch (Java `getInstance`,
+/// `FoundConnectionLocator.java:196-200`): NINETY and FORTYFIVE share
+/// the 45-degree class, NONE takes the any-angle class.
+pub(crate) fn synthesis_for(angle_restriction: AngleRestriction) -> Synthesis {
+    match angle_restriction {
+        AngleRestriction::NinetyDegree | AngleRestriction::FortyfiveDegree => Synthesis::FortyFive,
+        AngleRestriction::None => Synthesis::AnyAngle,
+    }
+}
+
+/// One element of a subclass `calculateNextTraceCorners` result (Java's
+/// `Collection<FloatPoint>` of OBJECT references). The base loop
+/// filters every element with `currentNextCorner != prevCorner`
+/// (`FoundConnectionLocator.java:432`) — a REFERENCE compare, and
+/// `prevCorner` is initialized to `currentFromPoint` (`:425`) and both
+/// fields are updated together on every kept corner (`:434-436`), so
+/// the two names always denote the SAME object inside the loop. The
+/// only non-fresh element a subclass can emit is the `currentFromPoint`
+/// reference itself — the "door completely passed" arms
+/// (`FoundConnectionLocatorAnyAngle.java:101` and `:184`) — which the
+/// filter therefore always drops; every other element is a fresh Java
+/// allocation that the filter keeps.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum NextCorner {
+    /// A fresh `FloatPoint` allocation — kept by the base filter.
+    Fresh(FloatPoint),
+    /// The `currentFromPoint` reference itself — dropped by the base
+    /// filter; carrying it (instead of returning an empty list) is what
+    /// keeps the trace loop RUNNING from the door index the arm
+    /// advanced, so the same trace covers the remaining doors.
+    FromPointAlias,
+}
+
 /// Type of a single item in the result list `connection_items` (Java
 /// `ResultItem`, `:542-551`) — used to create a new `PolylineTrace`
 /// (the T10/T11 consumer).
@@ -150,10 +183,7 @@ pub fn get_instance<A: LocatorAccess>(
     ripup_costs: &mut HashMap<u64, i32>,
 ) -> Option<FoundConnectionLocator> {
     let maze_search_result = maze_search_result?;
-    let synthesis = match angle_restriction {
-        AngleRestriction::NinetyDegree | AngleRestriction::FortyfiveDegree => Synthesis::FortyFive,
-        AngleRestriction::None => Synthesis::AnyAngle,
-    };
+    let synthesis = synthesis_for(angle_restriction);
 
     // Java ctor `:71-77`: the backtrack walk fills the array
     // destination-first.
@@ -576,8 +606,11 @@ fn adjust_start_corner<A: LocatorAccess>(
 }
 
 /// Java `calculateNextTrace` (`:410-493`) — calculates the next trace
-/// of the connection under construction.
-fn calculate_next_trace<A: LocatorAccess>(
+/// of the connection under construction. `pub(crate)`: the passed-door
+/// semantic pin (`path::pins`) drives it over a synthetic backtrack
+/// chain, which `get_instance`'s registry-keyed backtrack walk cannot
+/// express.
+pub(crate) fn calculate_next_trace<A: LocatorAccess>(
     st: &mut LocatorState,
     access: &A,
     ctrl: &AutorouteControl,
@@ -607,10 +640,14 @@ fn calculate_next_trace<A: LocatorAccess>(
         st.current_from_point = Some(adjusted_start_corner);
     }
     // Java keeps `prevCorner` (`:425`) as a REFERENCE filter for the
-    // corners below; every corner the subclass dispatches produce is a
-    // fresh Java allocation (the arms that add the from-point ITSELF
-    // are dropped inside the any-angle dispatch — see `locator_any`),
-    // so the filter never fires and the port carries no `prevCorner`.
+    // corners below (`:432`): `prevCorner === currentFromPoint` through
+    // the whole loop (both update together, `:434-436`), so the filter
+    // drops exactly the from-point ALIAS singletons the any-angle
+    // passed-door arms return (`FoundConnectionLocatorAnyAngle.java
+    // :101`, `:184`) — and because the result is non-empty, the loop
+    // CONTINUES from the door index the arm advanced. An empty result
+    // (`:428`) is the only trace-end signal. [`NextCorner`] models the
+    // reference/alias distinction explicitly.
     loop {
         let next_corners = match synthesis {
             Synthesis::FortyFive => {
@@ -622,9 +659,11 @@ fn calculate_next_trace<A: LocatorAccess>(
             break;
         }
         for current_next_corner in next_corners {
-            corner_list.push(current_next_corner);
-            st.previous_from_point = st.current_from_point;
-            st.current_from_point = Some(current_next_corner);
+            if let NextCorner::Fresh(point) = current_next_corner {
+                corner_list.push(point);
+                st.previous_from_point = st.current_from_point;
+                st.current_from_point = Some(point);
+            }
         }
     }
 

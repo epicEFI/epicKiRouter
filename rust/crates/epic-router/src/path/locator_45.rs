@@ -20,7 +20,9 @@ use crate::expansion::NeighbourEngine;
 use crate::maze::list_element::ExpandableObject;
 use crate::maze::locator_access::LocatorAccess;
 
-use super::locator::{LocatorState, TRACE_WIDTH_TOLERANCE, calculate_additional_corner};
+use super::locator::{
+    LocatorState, NextCorner, TRACE_WIDTH_TOLERANCE, calculate_additional_corner,
+};
 
 /// Java `Signum.of(double)` — `>0 → 1`, `<0 → −1`, else 0 (NaN → 0).
 fn signum(value: f64) -> i32 {
@@ -48,22 +50,27 @@ fn round_to_integer(point: FloatPoint) -> FloatPoint {
     point.round().to_float()
 }
 
-/// Java `calcHorizontalFirstFromDoor` (`:48-101`) — calculates if the
-/// next 45-degree angle should be horizontal first when coming from
-/// `from_point` on `from_door`.
-pub(crate) fn calc_horizontal_first_from_door<A: LocatorAccess>(
-    access: &A,
-    from_door: &ExpandableObject,
+/// The shared verdict core of Java `calcHorizontalFirstFromDoor`
+/// (`:48-101`). Java `calcHorizontalFirstToDoor` (`:304-356`) is its
+/// EXACT NEGATION for identical arguments — every arm's boolean is
+/// flipped: the `dimension != 1` face (`>=` vs `<=`), the about-vertical
+/// (true vs false) and about-horizontal (false vs true) arms, and all
+/// four diagonal comparisons — so the port implements ONE core and the
+/// ToDoor wrapper (`calc_horizontal_first_to_door`) negates it. This
+/// makes the mirror relationship structural: a flipped verdict in the
+/// core is observable through BOTH Java faces.
+pub(crate) fn horizontal_first_core(
+    shape: &epic_geometry::tile_shape::TileShape,
+    dimension: i32,
     from_point: &FloatPoint,
     to_point: &FloatPoint,
 ) -> bool {
-    let door_shape = access.expandable_object_shape(from_door);
-    let from_door_box = door_shape.bounding_box();
-    if from_door.dimension() != 1 {
+    let from_door_box = shape.bounding_box();
+    if dimension != 1 {
         return box_height(&from_door_box) >= box_width(&from_door_box);
     }
 
-    let door_line_segment = door_shape
+    let door_line_segment = shape
         .diagonal_corner_segment()
         .expect("a 1-dimensional door shape has a diagonal corner segment");
     // tie `a.x == b.x && a.y <= b.y` keeps a as the left corner.
@@ -107,8 +114,23 @@ pub(crate) fn calc_horizontal_first_from_door<A: LocatorAccess>(
     }
 }
 
+/// Java `calcHorizontalFirstFromDoor` (`:48-101`) — calculates if the
+/// next 45-degree angle should be horizontal first when coming from
+/// `from_point` on `from_door`.
+pub(crate) fn calc_horizontal_first_from_door<A: LocatorAccess>(
+    access: &A,
+    from_door: &ExpandableObject,
+    from_point: &FloatPoint,
+    to_point: &FloatPoint,
+) -> bool {
+    let door_shape = access.expandable_object_shape(from_door);
+    horizontal_first_core(&door_shape, from_door.dimension(), from_point, to_point)
+}
+
 /// Java `calcHorizontalFirstToDoor` (`:304-356`) — the INVERTED
-/// variant: the fixed arms flip and the diagonal comparisons swap.
+/// variant: the fixed arms flip and the diagonal comparisons swap, i.e.
+/// the exact negation of the FromDoor verdict for identical arguments
+/// (see [`horizontal_first_core`]).
 pub(crate) fn calc_horizontal_first_to_door<A: LocatorAccess>(
     access: &A,
     to_door: &ExpandableObject,
@@ -116,51 +138,7 @@ pub(crate) fn calc_horizontal_first_to_door<A: LocatorAccess>(
     to_point: &FloatPoint,
 ) -> bool {
     let door_shape = access.expandable_object_shape(to_door);
-    let from_door_box = door_shape.bounding_box();
-    if to_door.dimension() != 1 {
-        return box_height(&from_door_box) <= box_width(&from_door_box);
-    }
-    let door_line_segment = door_shape
-        .diagonal_corner_segment()
-        .expect("a 1-dimensional door shape has a diagonal corner segment");
-    let (left_corner, right_corner) = if door_line_segment.a.x < door_line_segment.b.x
-        || (door_line_segment.a.x == door_line_segment.b.x
-            && door_line_segment.a.y <= door_line_segment.b.y)
-    {
-        (door_line_segment.a, door_line_segment.b)
-    } else {
-        (door_line_segment.b, door_line_segment.a)
-    };
-    let door_dx = right_corner.x - left_corner.x;
-    let door_dy = right_corner.y - left_corner.y;
-    let abs_door_dy = door_dy.abs();
-    let door_max_width = door_dx.max(abs_door_dy);
-    let door_half_max_width = 0.5 * door_max_width;
-    if f64::from(box_width(&from_door_box)) <= door_half_max_width {
-        // door is about vertical
-        false
-    } else if f64::from(box_height(&from_door_box)) <= door_half_max_width {
-        // door is about horizontal
-        true
-    } else {
-        let dx = to_point.x - from_point.x;
-        let dy = to_point.y - from_point.y;
-        if left_corner.y < right_corner.y {
-            // door is about right diagonal
-            if signum(dx) == signum(dy) {
-                dx.abs() < dy.abs()
-            } else {
-                dx.abs() > dy.abs()
-            }
-        } else {
-            // door is about left diagonal
-            if signum(dx) == signum(dy) {
-                dx.abs() > dy.abs()
-            } else {
-                dx.abs() < dy.abs()
-            }
-        }
-    }
+    !horizontal_first_core(&door_shape, to_door.dimension(), from_point, to_point)
 }
 
 /// Java `calculateNextTraceCorners` (`:104-298`) — calculates a list
@@ -172,8 +150,8 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
     access: &A,
     ctrl: &AutorouteControl,
     angle_restriction: AngleRestriction,
-) -> Vec<FloatPoint> {
-    let mut result: Vec<FloatPoint> = Vec::new();
+) -> Vec<NextCorner> {
+    let mut result: Vec<NextCorner> = Vec::new();
     if st.current_to_door_index > st.current_target_door_index {
         return result;
     }
@@ -215,13 +193,13 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
         );
         let nearest_room_point = round_to_integer(nearest_room_point);
         let from = st.current_from_point.expect("set above");
-        result.push(calculate_additional_corner(
+        result.push(NextCorner::Fresh(calculate_additional_corner(
             &from,
             &nearest_room_point,
             horizontal_first,
             angle_restriction,
-        ));
-        result.push(nearest_room_point);
+        )));
+        result.push(NextCorner::Fresh(nearest_room_point));
         st.current_from_point = Some(nearest_room_point);
     } else {
         shrinked_room_shape = room_shape;
@@ -248,8 +226,8 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
             add_corner =
                 calculate_additional_corner(&from, &nearest_point, false, angle_restriction);
         }
-        result.push(add_corner);
-        result.push(nearest_point);
+        result.push(NextCorner::Fresh(add_corner));
+        result.push(NextCorner::Fresh(nearest_point));
         st.current_to_door_index += 1;
         // net-33/66/67 TARGET_DOOR hook — capture-only.
         return result;
@@ -338,13 +316,13 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
         &nearest_to_door_point,
     );
     let from = st.current_from_point.expect("set above");
-    result.push(calculate_additional_corner(
+    result.push(NextCorner::Fresh(calculate_additional_corner(
         &from,
         &nearest_to_door_point,
         horizontal_first,
         angle_restriction,
-    ));
-    result.push(nearest_to_door_point);
+    )));
+    result.push(NextCorner::Fresh(nearest_to_door_point));
     st.current_to_door_index += 1;
     // net-33/66/67 EXPANSION_DOOR hook — capture-only.
     result

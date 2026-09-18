@@ -25,6 +25,14 @@
 //! the maze-search RNG seed `ctrl.ripupCosts` = 1000/2/10 and Java
 //! produced byte-identical output — seed insensitivity is pinned too).
 //!
+//! Beyond the capture phases, this module carries the fix-round pins:
+//! the SEMANTIC contract pin `any_angle_passed_door_alias_continues_trace`
+//! (the any-angle passed-door alias singleton over a synthetic backtrack
+//! chain — Java-arm-derived expectations, not capture rows), the
+//! `synthesis_for` factory-dispatch pins, and the horizontal-first core
+//! arm battery + wrapper face-divergence pins (SEAM rows "Passed-door
+//! alias semantics" / "calcHorizontalFirstFromDoor/ToDoor mirror").
+//!
 //! Not pinned here, deliberately:
 //! * `locator.backtrackArray.length` (the capture `backtrackSize`) —
 //!   the backtrack array is an internal of [`super::locator::get_instance`]
@@ -39,12 +47,21 @@
 use std::collections::{BTreeMap, HashMap};
 
 use epic_geometry::float_point::FloatPoint;
+use epic_geometry::point::Point;
+use epic_geometry::side::Side;
+use epic_geometry::tile_shape::TileShape;
 
-use super::locator::get_instance;
+use super::locator::{BacktrackElement, LocatorState, Synthesis, get_instance};
+use super::locator_45::{
+    calc_horizontal_first_from_door, calc_horizontal_first_to_door, horizontal_first_core,
+};
 use crate::control::{AngleRestriction, AutorouteControl, ExpansionCostFactor, RouterSettingsIr};
 use crate::drill::pins::Harness;
 use crate::drill::{CheckDrillResult, DrillPageArray, ViaLayerChecker, max_drill_page_width};
+use crate::expansion::NeighbourEngine;
 use crate::maze::destination_distance::DestinationDistance;
+use crate::maze::list_element::ExpandableObject;
+use crate::maze::locator_access::LocatorAccess;
 use crate::maze::search_engine::{FindConnectionResult, MazeSearchEngine};
 
 const F45: &str = include_str!("../../../../harness/fixtures/locator-spike/t9_locator45.dsn");
@@ -513,13 +530,19 @@ fn capture_abt_net98_backtrack() {
 /// `searchOpen BANY` — NONE restriction: the AnyAngle dispatch on the
 /// SAME board+pins as A45 (the pure factory-dispatch discriminator —
 /// 3 corners vs A45's 11).
-/// DE-SCOPED (M3-T9): pop 29 (Rust) vs 36 (Java capture) divergence
-/// with NO tree-variant sensitivity — the failure is byte-identical
-/// under the FORTYFIVE-variant and GENERIC-variant trees, so it is NOT
-/// tree-shape related; root cause unreached within the task budget.
+/// DE-SCOPED (M3-T9): pop 36 (Rust) vs 29 (Java capture) divergence in
+/// the SEARCH, with NO tree-variant sensitivity — the failure is
+/// byte-identical under the FORTYFIVE-variant and GENERIC-variant
+/// trees, so it is NOT tree-shape related; root cause unreached within
+/// the task budget. The LOCATOR side is verified convergent (fix-round
+/// probe): driven over the Java search's room chain, the Rust locator
+/// produces the exact Java capture trace — the de-scope is search-side
+/// only, and the passed-door arms do not fire on this chain (pinned
+/// instead by the synthetic-chain semantic pin
+/// `any_angle_passed_door_alias_continues_trace`).
 /// Capture banked in `logs/M3-T9/captures/t9_locator_any_capture.rows`.
 #[test]
-#[ignore = "pop 29v36 divergence invariant under tree variant; root cause unreached; capture banked"]
+#[ignore = "search-side pop 36v29 divergence invariant under tree variant; locator verified convergent on the Java chain; capture banked"]
 fn capture_bany_any_angle() {
     run_phase(
         "BANY",
@@ -535,7 +558,7 @@ fn capture_bany_any_angle() {
             restriction: AngleRestriction::None,
             pop_count: 29,
             ripped_queued: 0,
-            front_rest: 495,
+            front_rest: 619,
             dest_is_drill: false,
             dest_section: 0,
             start_item: 101,
@@ -871,6 +894,356 @@ fn capture_cbtr10_seed_10_identical() {
 }
 
 // ---- unit pins: the pure corner-synthesis functions ----
+
+/// SEMANTIC CONTRACT PIN (Java-source-derived, not a capture row — the
+/// pin-failure-mode (8) disposition: no agreeing any-angle search world
+/// exists to capture, see the BANY de-scope above): the any-angle "door
+/// completely passed" arm (`FoundConnectionLocatorAnyAngle.java:98-103`)
+/// must advance `currentToDoorIndex` and return the `currentFromPoint`
+/// reference as a NON-EMPTY singleton so the SAME trace continues from
+/// the advanced index; an empty result there is Java's trace-END signal
+/// (`FoundConnectionLocator.java:428-429`) and truncates the trace at
+/// the passed door — the MAJOR-1 bug this pin guards. The revert-mutant
+/// (both arms empty) yields 1 corner instead of 2 and dies on the first
+/// assert.
+///
+/// World: the real F45 search (the 45-degree board under its native
+/// FORTYFIVE restriction — Rust == Java); the backtrack CHAIN is
+/// synthetic because `get_instance`'s registry-keyed walk cannot
+/// express a chain whose first door is already passed. Expectations are
+/// derived from the Java arms: `from` = door midpoint + 50 * left
+/// normal, `previous` = the midpoint. The door direction is
+/// perpendicular to the normal, so BOTH `scalarProduct(previous,
+/// corner)` terms are exactly 2500 >= 0 and the arm trigger reduces to
+/// the `door_already_crossed` side test — verified below with the
+/// dispatch's OWN corner math (`index_of_left/right_most_corner` seen
+/// from the pole COG), for both offset signs.
+#[test]
+fn any_angle_passed_door_alias_continues_trace() {
+    let mut harness = Harness::build_with_restriction(F45, 33, AngleRestriction::FortyfiveDegree);
+    let mut ctrl = AutorouteControl::new(harness.board_mut(), 33, &locator_settings_ir(false));
+    let mut distance = DestinationDistance::from_ctrl(&ctrl);
+    let mut checker = LegalChecker;
+    let max_page_width = max_drill_page_width(harness.default_via_diameter());
+    let mut pages = DrillPageArray::new(&harness, max_page_width);
+    let mut engine = MazeSearchEngine::new(
+        &mut harness,
+        &mut ctrl,
+        &mut distance,
+        &mut checker,
+        &mut pages,
+    );
+    assert!(engine.init(&[101], &[102]));
+    while engine.occupy_next_element() {}
+
+    // The destination target door's room hosts the synthetic chain.
+    let (dest_door, _dest_section) = engine.destination.clone().expect("found");
+    let ExpandableObject::TargetDoor(target_door) = &dest_door else {
+        panic!("expected a target door destination");
+    };
+    let start_room = target_door
+        .room_id
+        .and_then(|id| engine.engine().room_key_of_id(id))
+        .expect("a live target door carries its room");
+    let target_shape = engine
+        .engine()
+        .trace_connection_shape(target_door.item_key, target_door.tree_entry_no)
+        .expect("the target item has a trace connection shape")
+        .intersection(&engine.engine().room_shape(start_room));
+
+    // Find a 1-dimensional room door of the destination room whose BOTH
+    // endpoint rooms are complete free space, plus an offset side that
+    // makes the passed-door arm fire (both door corners passed).
+    let mut chosen: Option<(crate::expansion::ExpansionDoor, u64, FloatPoint, FloatPoint)> = None;
+    for door in engine.engine().room_doors(start_room) {
+        if door.dimension != 1 {
+            continue;
+        }
+        let (Some(first_key), Some(second_key)) = (
+            engine.engine().room_key_of_id(door.first_room_id),
+            engine.engine().room_key_of_id(door.second_room_id),
+        ) else {
+            continue;
+        };
+        if !(engine.engine().room_is_complete_free_space(first_key)
+            && engine.engine().room_is_complete_free_space(second_key))
+        {
+            continue;
+        }
+        let door_obj = ExpandableObject::RoomDoor(door.clone());
+        let door_shape = engine.expandable_object_shape(&door_obj);
+        let Some(seg) = door_shape.diagonal_corner_segment() else {
+            continue;
+        };
+        let m = seg.a.middle_point(&seg.b);
+        let ux = seg.b.x - seg.a.x;
+        let uy = seg.b.y - seg.a.y;
+        let len = (ux * ux + uy * uy).sqrt();
+        if len < 120.0 {
+            continue; // no room for the 50-unit offset
+        }
+        let (nx, ny) = (-uy / len, ux / len); // LEFT normal of a -> b
+        for (next_room, pole_room) in [(first_key, second_key), (second_key, first_key)] {
+            // calcDoorLeft/RightCorner pole: the OTHER room's COG.
+            let pole = engine.engine().room_shape(pole_room).centre_of_gravity();
+            let left = door_shape
+                .corner_approx(door_shape.index_of_left_most_corner(&pole))
+                .expect("a non-empty door shape has the corner");
+            let right = door_shape
+                .corner_approx(door_shape.index_of_right_most_corner(&pole))
+                .expect("a non-empty door shape has the corner");
+            for sign in [1.0, -1.0] {
+                let from = FloatPoint::new(m.x + sign * 50.0 * nx, m.y + sign * 50.0 * ny);
+                let crossed = from.side_of(&left, &right) != Side::Negative;
+                // n · u == 0, so both scalar products are exactly 2500.
+                if crossed
+                    && from.scalar_product(&m, &left) >= 0.0
+                    && from.scalar_product(&m, &right) >= 0.0
+                {
+                    let nearest = target_shape
+                        .nearest_point(&Point::int(from.round()))
+                        .expect("the target shape is non-empty")
+                        .to_float();
+                    // The two produced corners must stay distinct (the
+                    // base round-dedup would otherwise merge them).
+                    if from.round() != nearest.round() {
+                        chosen = Some((door.clone(), next_room, from, m));
+                    }
+                    break;
+                }
+            }
+            if chosen.is_some() {
+                break;
+            }
+        }
+        if chosen.is_some() {
+            break;
+        }
+    }
+    let (door, next_room, from, previous) =
+        chosen.expect("the corridor world has a completely passable destination-room door");
+
+    // The synthetic backtrack chain: [already-passed RoomDoor, target].
+    let face_door = ExpandableObject::RoomDoor(door.clone());
+    let mut st = LocatorState {
+        backtrack_array: vec![
+            BacktrackElement {
+                door: ExpandableObject::RoomDoor(door),
+                section_no_of_door: 0,
+                next_room: Some(next_room),
+            },
+            BacktrackElement {
+                door: dest_door.clone(),
+                section_no_of_door: 0,
+                next_room: Some(start_room),
+            },
+        ],
+        current_from_point: Some(from),
+        previous_from_point: Some(previous),
+        current_trace_layer: 0,
+        // Java `:524`: the negative from-door index skips
+        // adjustStartCorner (locator.rs `adjust_start_corner`).
+        current_from_door_index: -1,
+        current_to_door_index: 0,
+        current_target_door_index: 1,
+        current_target_shape: Some(target_shape.clone()),
+        connection_items: Vec::new(),
+    };
+    let result = super::locator::calculate_next_trace(
+        &mut st,
+        &engine,
+        &*engine.ctrl,
+        AngleRestriction::None,
+        Synthesis::AnyAngle,
+        false,
+        false,
+    );
+
+    // Dispatch 1: the passed-door arm (alias singleton, index 0 -> 1,
+    // base loop DROPS the alias but keeps iterating); dispatch 2: the
+    // equal-index target arm (nearest target point, 1 -> 2); dispatch
+    // 3: past the target -> empty -> the trace ends.
+    assert_eq!(
+        result.corners.len(),
+        2,
+        "the alias singleton keeps the trace RUNNING (the revert-mutant truncates to 1)"
+    );
+    assert_eq!(
+        st.current_to_door_index, 2,
+        "index advanced past BOTH doors"
+    );
+    assert_eq!(result.layer, 0);
+    let expected_from = from.round();
+    assert_eq!(
+        (result.corners[0].x, result.corners[0].y),
+        (expected_from.x, expected_from.y),
+        "the seed corner survives the alias drop"
+    );
+    let expected_nearest = target_shape
+        .nearest_point(&Point::int(from.round()))
+        .expect("the target shape is non-empty")
+        .to_float()
+        .round();
+    assert_eq!(
+        (result.corners[1].x, result.corners[1].y),
+        (expected_nearest.x, expected_nearest.y),
+        "the second dispatch reaches the target arm on the SAME trace"
+    );
+
+    // C1 face pins riding the same world: BOTH calc_horizontal_first_*
+    // faces through the REAL access, on inputs where the mirror faces
+    // diverge (they always do — the ToDoor face is the exact negation
+    // of the shared core for identical arguments).
+    let core_verdict = horizontal_first_core(
+        &engine.expandable_object_shape(&face_door),
+        1,
+        &from,
+        &previous,
+    );
+    let from_face = calc_horizontal_first_from_door(&engine, &face_door, &from, &previous);
+    let to_face = calc_horizontal_first_to_door(&engine, &face_door, &from, &previous);
+    assert_eq!(from_face, core_verdict, "FromDoor face == the shared core");
+    assert_eq!(
+        to_face, !core_verdict,
+        "ToDoor face == the negated core (the C1 face-flip killer)"
+    );
+    assert_ne!(
+        from_face, to_face,
+        "the two faces diverge for identical arguments"
+    );
+}
+
+/// The `getInstance` factory dispatch (`FoundConnectionLocator.java
+/// :196-200`): NINETY and FORTYFIVE share the 45-degree class, NONE
+/// takes the any-angle class. Kills the NinetyDegree -> AnyAngle
+/// factory mutant (A1). Pinned on the extracted `synthesis_for` (which
+/// `get_instance` calls verbatim) — the `Synthesis` return makes the
+/// dispatch directly observable, which a `get_instance`-level pin could
+/// not be without the de-scoped A90 search world.
+#[test]
+fn synthesis_factory_dispatch_pins() {
+    assert_eq!(
+        super::locator::synthesis_for(AngleRestriction::NinetyDegree),
+        Synthesis::FortyFive,
+        "NINETY takes the 45-degree synthesis"
+    );
+    assert_eq!(
+        super::locator::synthesis_for(AngleRestriction::FortyfiveDegree),
+        Synthesis::FortyFive,
+        "FORTYFIVE takes the 45-degree synthesis"
+    );
+    assert_eq!(
+        super::locator::synthesis_for(AngleRestriction::None),
+        Synthesis::AnyAngle,
+        "NONE takes the any-angle synthesis"
+    );
+}
+
+/// Synthetic door shapes for the horizontal-first arm battery.
+fn pin_box_shape(llx: i32, lly: i32, urx: i32, ury: i32) -> TileShape {
+    TileShape::RegularTileShape(epic_geometry::regular_tile_shape::RegularTileShape::IntBox(
+        epic_geometry::int_box::IntBox::from_corners(llx, lly, urx, ury),
+    ))
+}
+
+fn pin_octagon(oct: epic_geometry::int_octagon::IntOctagon) -> TileShape {
+    TileShape::RegularTileShape(
+        epic_geometry::regular_tile_shape::RegularTileShape::IntOctagon(oct),
+    )
+}
+
+/// The shared horizontal-first verdict core (`locator_45
+/// ::horizontal_first_core` = Java `calcHorizontalFirstFromDoor`,
+/// `:48-101`), arm battery on synthetic door shapes; every verdict is a
+/// hand-derived Java-arm literal and each assert names the arm it
+/// kills. The ToDoor negation face is pinned through the REAL access in
+/// `any_angle_passed_door_alias_continues_trace`.
+#[test]
+fn horizontal_first_core_arm_pins() {
+    let origin = FloatPoint::new(0.0, 0.0);
+    let probe = FloatPoint::new(7.0, 11.0); // arbitrary; unused by the dim!=1 face
+
+    // --- the `dimension != 1` face: `height >= width` of the door's
+    // bounding box, including the `>=` tie.
+    let wide = pin_box_shape(0, 0, 100, 50);
+    assert!(
+        !horizontal_first_core(&wide, 2, &origin, &probe),
+        "dim!=1: height 50 < width 100 -> false"
+    );
+    let tall = pin_box_shape(0, 0, 50, 100);
+    assert!(
+        horizontal_first_core(&tall, 2, &origin, &probe),
+        "dim!=1: height 100 >= width 50 -> true"
+    );
+    let square = pin_box_shape(0, 0, 40, 40);
+    assert!(
+        horizontal_first_core(&square, 2, &origin, &probe),
+        "dim!=1 tie: height == width keeps TRUE (the >= comparator)"
+    );
+    assert!(
+        !horizontal_first_core(&wide, 0, &origin, &probe),
+        "dim==0 takes the same height>=width face"
+    );
+
+    // --- about-vertical: a 1-dimensional vertical segment door, built
+    // like the engine builds them — the INTERSECTION of two rooms
+    // sharing exactly one vertical edge (`ExpansionDoor::shape_between`
+    // semantics); its bounding box width 0 <= half the door length 5.
+    let vertical = pin_box_shape(0, 0, 10, 10).intersection(&pin_box_shape(10, 0, 20, 10));
+    assert!(
+        horizontal_first_core(&vertical, 1, &origin, &probe),
+        "1-dim vertical door: box width 0 <= half length 5 -> true"
+    );
+
+    // --- about-horizontal: two rooms sharing one horizontal edge.
+    let horizontal = pin_box_shape(0, 0, 10, 10).intersection(&pin_box_shape(0, 10, 10, 20));
+    assert!(
+        !horizontal_first_core(&horizontal, 1, &origin, &probe),
+        "1-dim horizontal door: box height 0 <= half length 5 -> false"
+    );
+
+    // --- right diagonal (left.y < right.y; the segment (0,0)-(10,10) as
+    // a degenerate octagon: x-y == 0, x+y in [0, 20]), both signum arms
+    // of `dx.abs() > dy.abs()` / `dx.abs() < dy.abs()`.
+    let right_diag = pin_octagon(TileShape::from_8_ints(0, 0, 10, 10, 0, 0, 0, 20));
+    assert!(
+        horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(3.0, 1.0)),
+        "right-diag same signum, |dx| 3 > |dy| 1 -> true"
+    );
+    assert!(
+        !horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(1.0, 3.0)),
+        "right-diag same signum, |dx| 1 < |dy| 3 -> false"
+    );
+    assert!(
+        horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(-1.0, 3.0)),
+        "right-diag diff signum, |dx| 1 < |dy| 3 -> true"
+    );
+    assert!(
+        !horizontal_first_core(&right_diag, 1, &origin, &FloatPoint::new(-3.0, 1.0)),
+        "right-diag diff signum, |dx| 3 > |dy| 1 -> false"
+    );
+
+    // --- left diagonal (left.y > right.y; the segment (0,10)-(10,0) as
+    // a degenerate octagon: x-y in [-10, 10], x+y == 10), the MIRRORED
+    // comparators.
+    let left_diag = pin_octagon(TileShape::from_8_ints(0, 0, 10, 10, -10, 10, 10, 10));
+    assert!(
+        horizontal_first_core(&left_diag, 1, &FloatPoint::new(2.0, 4.0), &origin),
+        "left-diag same signum, |dx| 2 < |dy| 4 -> true"
+    );
+    assert!(
+        !horizontal_first_core(&left_diag, 1, &FloatPoint::new(4.0, 2.0), &origin),
+        "left-diag same signum, |dx| 4 > |dy| 2 -> false"
+    );
+    assert!(
+        horizontal_first_core(&left_diag, 1, &origin, &FloatPoint::new(3.0, -1.0)),
+        "left-diag diff signum, |dx| 3 > |dy| 1 -> true"
+    );
+    assert!(
+        !horizontal_first_core(&left_diag, 1, &origin, &FloatPoint::new(1.0, -3.0)),
+        "left-diag diff signum, |dx| 1 < |dy| 3 -> false"
+    );
+}
 
 /// Java `ninetyDegreeCorner` (`:329-341`): horizontal-first takes the
 /// to-x, else the to-y.

@@ -16,10 +16,14 @@
 //!   the base filter — so the port never emits it), `Point` is a fresh
 //!   point (always emitted).
 //! * The two "door completely passed" arms (`:98-103`, `:178-186`)
-//!   increment `currentToDoorIndex` and add `this.currentFromPoint`
-//!   ITSELF — the base filter drops that alias (its per-corner update
-//!   is skipped too), so the port emits NOTHING for them and only
-//!   advances the index.
+//!   increment `currentToDoorIndex` and return the `currentFromPoint`
+//!   reference ITSELF as a NON-EMPTY singleton — the base filter drops
+//!   that alias, but the NON-empty result keeps the trace loop running
+//!   from the advanced index, so the SAME trace covers the remaining
+//!   doors. The port models the singleton as
+//!   [`NextCorner::FromPointAlias`] (`locator.rs`); returning an empty
+//!   list here would be Java's trace-END signal and would truncate the
+//!   trace at the passed door (the bug the fix round closed).
 //! * Java's `FloatPoint.rightTangentialPoint`/`leftTangentialPoint`
 //!   return null when `toPoint` is null (null check at the method
 //!   head) or the point lies inside the circle; the port chains
@@ -35,7 +39,7 @@ use epic_geometry::side::Side;
 use crate::expansion::NeighbourEngine;
 use crate::maze::locator_access::LocatorAccess;
 
-use super::locator::{BacktrackElement, LocatorState, other_room};
+use super::locator::{BacktrackElement, LocatorState, NextCorner, other_room};
 
 /// Java `cTolerance` (`:26`).
 const C_TOLERANCE: f64 = 1.0;
@@ -172,8 +176,8 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
     st: &mut LocatorState,
     access: &A,
     ctrl: &crate::control::AutorouteControl,
-) -> Vec<FloatPoint> {
-    let mut result: Vec<FloatPoint> = Vec::new();
+) -> Vec<NextCorner> {
+    let mut result: Vec<NextCorner> = Vec::new();
     let from = st
         .current_from_point
         .expect("the trace loop runs with the from point set");
@@ -193,7 +197,7 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
                 .expect("the target shape is non-empty (Java NPE otherwise)")
                 .to_float();
             st.current_to_door_index += 1;
-            result.push(nearest_point);
+            result.push(NextCorner::Fresh(nearest_point));
         }
         return result;
     }
@@ -227,10 +231,17 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
         door_right_corner = None;
     }
     if door_already_crossed && door_left_corner.is_none() && door_right_corner.is_none() {
-        // The door is completely passed (`:98-103`): Java adds the
-        // from-point ITSELF — the base reference filter drops that
-        // alias, so the port only advances the index.
+        // The door is completely passed (`:98-103`): Java advances the
+        // index and returns the from-point reference ITSELF as a
+        // NON-EMPTY singleton. The base reference filter
+        // (`FoundConnectionLocator.java:432`) drops that alias, but the
+        // non-empty result keeps the trace loop RUNNING — the next
+        // dispatch call continues from the advanced index within the
+        // SAME trace. An empty return here would be Java's trace-end
+        // signal (`:428-429`) and would truncate the trace at the
+        // passed door.
         st.current_to_door_index += 1;
+        result.push(NextCorner::FromPointAlias);
         return result;
     }
 
@@ -310,11 +321,14 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
             next_right_corner = None;
         }
         if next_door_crossed && next_left_corner.is_none() && next_right_corner.is_none() {
-            // The door is completely passed. Should not happen
-            // because the previous door was not passed completely
-            // (`:178-186`): Java adds the from-point ITSELF — the
-            // base reference filter drops that alias.
+            // The door is completely passed. Should not happen because
+            // the previous door was not passed completely (`:178-186`):
+            // Java advances the index and returns the from-point
+            // reference ITSELF (non-empty singleton) — the base filter
+            // drops the alias and the trace loop continues, exactly
+            // like the `:98-103` arm above.
             st.current_to_door_index += 1;
+            result.push(NextCorner::FromPointAlias);
             return result;
         }
         if let (Some(dl), Some(dr)) = (&door_left_corner, &door_right_corner) {
@@ -494,9 +508,11 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
 
     st.current_to_door_index = new_door_ind;
     // Java `:329`: `resultCorner != null && resultCorner != this
-    // .currentFromPoint` — only a FRESH point object is added.
+    // .currentFromPoint` — only a FRESH point object is added; the
+    // turn-helper fallbacks that hand back the from-point OBJECT emit
+    // NOTHING here (an empty list = the trace-end signal).
     if let ResultCorner::Point(point) = result_corner {
-        result.push(point);
+        result.push(NextCorner::Fresh(point));
     }
     // net-33/66/67 hook — capture-only.
     result
