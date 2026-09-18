@@ -46,14 +46,14 @@ pub struct DestinationDistance {
     max_component_side_trace_cost: f64,
     min_solder_side_trace_cost: f64,
     max_solder_side_trace_cost: f64,
-    max_inner_side_trace_cost: f64,
     /// minimum of the maximal trace costs on each inner layer
-    min_component_inner_trace_cost: f64,
+    max_inner_side_trace_cost: f64,
     /// minimum of minComponentSideTraceCost and maxInnerSideTraceCost
-    min_solder_inner_trace_cost: f64,
+    min_component_inner_trace_cost: f64,
     /// minimum of minSolderSideTraceCost and maxInnerSideTraceCost
-    min_component_solder_inner_trace_cost: f64,
+    min_solder_inner_trace_cost: f64,
     /// minimum of minComponentInnerTraceCost and minSolderInnerTraceCost
+    min_component_solder_inner_trace_cost: f64,
     component_side_box: IntBox,
     solder_side_box: IntBox,
     inner_side_box: IntBox,
@@ -417,9 +417,10 @@ impl DestinationDistanceTrait for DestinationDistance {
 mod tests {
     //! Jar-capture pins — the literals are `Double.toString` rows of
     //! `rust/harness/oracle/MazeSpike.java`'s T8 crafted-world battery
-    //! (`/tmp/t8_capture_{3,4}.rows`, 852 rows, run TWICE byte
-    //! identical; the 182 pre-existing T6 rows are unchanged by the
-    //! spy). Probe boxes P0-P6 are shared by every world: P0 == TGT
+    //! (`logs/M3-T8/t8_capture_{5,6}.rows`, 912 rows = 730 `dd` + 182
+    //! legacy, run TWICE byte identical; the 182 pre-existing T6 rows
+    //! are unchanged by the spy). Probe boxes P0-P6 are shared by
+    //! every world: P0 == TGT
     //! (all deltas 0), P1 overlap, P2 right (deltaX only), P3 above
     //! (deltaY only), P4 diagonal TIE (dx == dy → the split's ELSE
     //! arm), P5 below-left (both deltas), P6 x-overlap/y-disjoint
@@ -702,8 +703,9 @@ mod tests {
         // [405000,305000,410000,310000], MID solder [500000,200000,
         // 600000,300000]):
         // ddCalcP M id2 L0 → 12900.0 — the `==3` gate returns the
-        // :265 inner-pair arm (10000 + 5000*1.5 + 400); the deletion
-        // mutant falls to :285 (10000 + 5000 + 800 = 10800).
+        // :265 inner-pair arm (inner_max 5000 + inner_min 5000*1.5 +
+        // 400 = 12900); the deletion mutant falls to :285 (inner_max
+        // 5000 + inner_min 5000 + 800 = 10800).
         let mut m = dist(&[(1.5, 2.0), (1.6, 1.6), (1.7, 2.0)], &[true, true, true]);
         m.join(&tgt(), 0);
         m.join(&box_at(405000, 305000, 410000, 310000), 1);
