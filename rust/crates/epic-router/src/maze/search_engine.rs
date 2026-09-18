@@ -88,6 +88,17 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// Java `destinationDoor` + `sectionNoOfDestinationDoor`
     /// (`:70-72`).
     pub(crate) destination: Option<(ExpandableObject, i32)>,
+    /// Key → door object for the T9 locator's backtrack walk. Java's
+    /// `FoundConnectionLocator.backtrack` walks REAL door references
+    /// (`MazeSearchElement.backtrackDoor` is an object field); the Rust
+    /// element stores the D17 opaque key, so the locator resolves keys
+    /// back to [`ExpandableObject`] values through this registry. Every
+    /// door whose section state was ever written is registered here
+    /// (the write in [`Self::occupy_next_element`]), which covers the
+    /// full backtrack chain: the destination door's write precedes the
+    /// destination check, and every `backtrack_door` key on a written
+    /// section was itself the door of an earlier popped element.
+    pub(crate) backtrack_registry: std::collections::HashMap<u64, ExpandableObject>,
     /// Java `randomGenerator` (`:63`, seeded with `ctrl.ripupCosts`) —
     /// OWNED BY THE ENGINE, seeded ONCE per construction and shared
     /// with the ripup resolver ([`crate::maze::ripup`]). The state is
@@ -122,6 +133,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             door_sections: std::collections::HashMap::new(),
             standalone_drills: std::collections::HashMap::new(),
             destination: None,
+            backtrack_registry: std::collections::HashMap::new(),
             random_generator: epic_geometry::java_random::JavaRandom::new(random_seed),
         }
     }
@@ -329,6 +341,12 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         section_state.room_ripped = element.room_ripped;
         section_state.ripup_cost = element.ripup_cost;
         section_state.adjustment = element.adjustment;
+        // Register the door object for the locator's key → object
+        // resolution (see the field doc). The write happens BEFORE the
+        // destination/fanout early returns below, so the destination
+        // door is registered too.
+        self.backtrack_registry
+            .insert(element.door.key(), element.door.clone());
 
         if matches!(element.door, ExpandableObject::DrillPage { .. }) {
             MazeExpansionEngine::expand_to_drills_of_page(
@@ -432,7 +450,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// `currElement.door` to `ExpansionDrill` and reads the object.
     /// Page-grid drills resolve through the page array; standalone
     /// (ripped-via) drills live in [`Self::standalone_drills`].
-    fn live_drill(&self, door: &ExpandableObject) -> ExpansionDrill {
+    pub(crate) fn live_drill(&self, door: &ExpandableObject) -> ExpansionDrill {
         match door {
             ExpandableObject::Drill { row, column, d, .. } => {
                 self.pages.page_drill(*row, *column, *d).clone()

@@ -322,6 +322,11 @@ pub(crate) struct Harness {
     /// override injects the stale index into the REAL room's seam
     /// answer ([`NeighbourEngine::room_obstacle_index_in_item`]).
     forced_obstacle_index: Option<u32>,
+    /// Java `board.rules.getTraceAngleRestriction()` — the seam behind
+    /// `door_is_small`'s arm choice. Tier A fixtures are 45-degree
+    /// boards; the T9 locator pins switch it per phase (the A90 world
+    /// runs NINETY_DEGREE, the BANY world NONE).
+    trace_angle_restriction: AngleRestriction,
 }
 
 impl Harness {
@@ -329,10 +334,31 @@ impl Harness {
         Self::build_with(FIXTURE_DSN, net)
     }
 
+    /// The replay harness over ANY spike fixture at the FORTYFIVE
+    /// default restriction.
+    pub(crate) fn build_with(fixture: &str, net: i32) -> Harness {
+        Self::build_with_restriction(fixture, net, AngleRestriction::FortyfiveDegree)
+    }
+
     /// The replay harness over ANY spike fixture — the maze pins
     /// (`crate::maze::pins`) replay the T6 capture through the same
-    /// [`DrillEngine`] machinery.
-    pub(crate) fn build_with(fixture: &str, net: i32) -> Harness {
+    /// [`DrillEngine`] machinery. `restriction` MUST be applied before
+    /// the autoroute tree is created: Java's `SearchTreeManager
+    /// .getAutorouteTree` (`SearchTreeManager.java:149-158`) picks the
+    /// tree VARIANT from the CURRENT board restriction —
+    /// `ShapeSearchTree90Degree` (rectilinear box compensation),
+    /// `ShapeSearchTree45Degree` (box corner cuts), or the plain
+    /// `ShapeSearchTree` — and the variant decides the compensated
+    /// tree shapes every room completion is restrained by. The Java
+    /// spike sets the restriction between parse and engine creation,
+    /// so the port does the same (a late setter would switch
+    /// `door_is_small`'s arm but leave the tree dilations wrong — the
+    /// A90/BANY world bug).
+    pub(crate) fn build_with_restriction(
+        fixture: &str,
+        net: i32,
+        restriction: AngleRestriction,
+    ) -> Harness {
         let (mut manager, mut board) = crate::test_util::parse(fixture);
         // Java's DSN import ends the wiring scope with
         // `normalizeAllTraces()` (`Wiring.java:347` — the traces are
@@ -346,6 +372,15 @@ impl Harness {
         // 10 alive and item 13 un-extended, shifting the whole T7
         // burn stream.
         epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        board.rules_mut().trace_angle_restriction = match restriction {
+            AngleRestriction::NinetyDegree => {
+                epic_board::rules_surf::AngleRestriction::NinetyDegree
+            }
+            AngleRestriction::FortyfiveDegree => {
+                epic_board::rules_surf::AngleRestriction::FortyfiveDegree
+            }
+            AngleRestriction::None => epic_board::rules_surf::AngleRestriction::None,
+        };
         let tree_index = manager.get_autoroute_tree(&mut board, TREE_CLASS);
         let resolved_variant = manager.trees()[tree_index].variant;
         let board_box = board
@@ -372,6 +407,7 @@ impl Harness {
             check_trace_segment_result: None,
             shove_trace_check_result: None,
             forced_obstacle_index: None,
+            trace_angle_restriction: restriction,
         };
         // Freeze the item tree shapes + per-shape layers (the same
         // shapes get_autoroute_tree just inserted into the manager's
@@ -1443,8 +1479,7 @@ impl DrillEngine for Harness {
     }
 
     fn trace_angle_restriction(&self) -> AngleRestriction {
-        // Tier A fixtures are 45-degree boards.
-        AngleRestriction::FortyfiveDegree
+        self.trace_angle_restriction
     }
 
     // ---- T7 seams (the ripup resolver + the read-only shove probe) ----

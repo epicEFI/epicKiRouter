@@ -677,6 +677,26 @@ impl Simplex {
         self.clone()
     }
 
+    /// Returns up to `count` nearest border points of this simplex to
+    /// `from_point` (Java `TileShape.nearestBorderPointsApprox(FloatPoint,
+    /// int)` resolved on the simplex arm). Callers that Java routes
+    /// through a `toSimplex()` conversion (e.g. the 45-degree locator's
+    /// door-point check, FoundConnectionLocator45Degree.java:256-259) MUST
+    /// call this method and not the [`TileShape`] one: the regular-tile
+    /// border lines include zero-length edges, which changes the candidate
+    /// set.
+    pub fn nearest_border_points_approx(
+        &self,
+        from_point: &FloatPoint,
+        count: i32,
+    ) -> Vec<FloatPoint> {
+        crate::shape::shape_nearest_border_points_approx(
+            &crate::shape::ShapeRef::Simplex(self),
+            from_point,
+            count,
+        )
+    }
+
     /// Cuts this simplex out of `shape` (Java `cutout(TileShape)`):
     /// dispatches to `shape.cutoutFrom(this)`. See
     /// [`TileShape::cutout_from`].

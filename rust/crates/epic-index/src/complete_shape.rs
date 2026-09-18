@@ -6,11 +6,12 @@
 //! * base arm — `ShapeSearchTree.completeShape`
 //!   (`ShapeSearchTree.java:580-693`, 114 lines), with
 //!   `restrainShape` (`:701-811`) and `divideLargeRoom`
-//!   (`:1095-1118`). `ShapeSearchTree90Degree` has its OWN
-//!   `completeShape` override (`ShapeSearchTree90Degree.java:39`) —
-//!   the 90-degree arm is OUT of T4 scope (Tier A verified
-//!   all-45-degree; see `epic-router/SEAM.md`); here the base arm
-//!   serves the Generic variant only.
+//!   (`:1095-1118`).
+//! * 90-degree arm — `ShapeSearchTree90Degree.completeShape`
+//!   (`ShapeSearchTree90Degree.java:39-195`, ported in M3-T9 for the
+//!   A90 locator pin), with its box-typed `restrainShape`
+//!   (`:196-320`). No `divideLargeRoom` — the 90-degree override does
+//!   NOT divide.
 //! * 45-degree arm — `ShapeSearchTree45Degree.completeShape`
 //!   (`ShapeSearchTree45Degree.java:96-281`, 186 lines), with its
 //!   `restrainShape` (`:305-418`), `divideLargeRoom` override
@@ -67,6 +68,7 @@ use crate::search_tree::{SearchTree, SearchTreeVariant};
 use crate::shape_tree::{NodeIdx, NodeKind, intersects as bounds_intersect};
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_octagon::IntOctagon;
+use epic_geometry::int_point::IntPoint;
 use epic_geometry::line::Line;
 use epic_geometry::line_segment::LineSegment;
 use epic_geometry::regular_tile_shape::RegularTileShape;
@@ -128,15 +130,10 @@ pub trait CompleteShapeObjects {
 }
 
 /// The virtual dispatch (`complete_shape_generic` for the plain tree,
-/// `complete_shape_fortyfive_degree` for the 45-degree tree). Java
+/// `complete_shape_fortyfive_degree` for the 45-degree tree,
+/// `complete_shape_ninety_degree` for the 90-degree tree). Java
 /// resolves the same choice by tree subclass; the Rust caller resolves
 /// by [`SearchTree::variant`].
-///
-/// The NinetyDegree variant routes to the base arm behind a debug
-/// assertion — in Java it has its OWN override
-/// (`ShapeSearchTree90Degree.completeShape`, :39), which is out of T4
-/// scope (Tier A verified all-45-degree). Debug-asserted unreachable in
-/// the current corpus.
 #[must_use]
 pub fn complete_shape<OBJ: CompleteShapeObjects>(
     tree: &SearchTree,
@@ -149,11 +146,7 @@ pub fn complete_shape<OBJ: CompleteShapeObjects>(
             complete_shape_fortyfive_degree(tree, objects, query, board_bbox)
         }
         SearchTreeVariant::NinetyDegree => {
-            debug_assert!(
-                false,
-                "90-degree completeShape override is out of T4 scope; Tier A is all-45-degree"
-            );
-            complete_shape_generic(tree, objects, query, board_bbox)
+            complete_shape_ninety_degree(tree, objects, query, board_bbox)
         }
         SearchTreeVariant::Generic => complete_shape_generic(tree, objects, query, board_bbox),
     }
@@ -389,6 +382,331 @@ pub fn divide_large_room_generic(
             layer: room.layer,
             contained_shape: contained,
         });
+    }
+    result
+}
+
+/// Java `ShapeSearchTree90Degree.completeShape`
+/// (`ShapeSearchTree90Degree.java:39-195`) — the 90-degree arm: pure
+/// IntBox arithmetic over a RAW tree walk. Unlike the base arm (sorted
+/// leaf query) the obstacles are processed AT POP TIME in ArrayStack
+/// order (push firstChild, push secondChild → second pops first), and
+/// the walk prunes against a DYNAMIC `boundingShape` — the union of
+/// the surviving room boxes, reassigned after every processed
+/// obstacle (Java `:64` write, read at the `:88` prune of later
+/// nodes). The port reproduces the stack order and the dynamic hull
+/// exactly; the prune READS state the walk writes mid-flight, so
+/// neither is omissible.
+#[must_use]
+pub fn complete_shape_ninety_degree<OBJ: CompleteShapeObjects>(
+    tree: &SearchTree,
+    objects: &OBJ,
+    query: &CompleteShapeQuery,
+    board_bbox: &IntBox,
+) -> Vec<IncompleteRoom> {
+    // Java :41-46 — the contained shape must be an IntBox (warn +
+    // empty otherwise).
+    let Some(shape_to_be_contained) = (match query.contained {
+        Some(TileShape::RegularTileShape(RegularTileShape::IntBox(shape))) => Some(*shape),
+        Some(_) | None => None,
+    }) else {
+        return Vec::new();
+    };
+    let Some(root) = tree.min_area_tree().root() else {
+        // Java :47-50 — empty tree, empty result.
+        return Vec::new();
+    };
+
+    // Java :51-62 — startShape = board bbox, intersected with the room
+    // shape, which must be an IntBox (warn + empty otherwise).
+    let mut start_shape = *board_bbox;
+    if let Some(room_shape) = query.room_shape {
+        let TileShape::RegularTileShape(RegularTileShape::IntBox(room_box)) = room_shape else {
+            return Vec::new();
+        };
+        start_shape = room_box.intersection(board_bbox);
+    }
+    // Java :64 — the dynamic pruning hull.
+    let mut bounding_shape = start_shape;
+
+    // Java :71-73 — the seed room is added UNCONDITIONALLY (no
+    // dimension gate, unlike the base arm's `dimension() == 2` check).
+    let mut result: Vec<IncompleteRoom> = vec![IncompleteRoom {
+        shape: box_tile(&start_shape),
+        layer: query.layer,
+        contained_shape: box_tile(&shape_to_be_contained),
+    }];
+
+    let arena = tree.min_area_tree();
+    let mut stack: Vec<NodeIdx> = vec![root];
+    while let Some(idx) = stack.pop() {
+        let (node_bounds, leaf_payload) = match &arena.node(idx).kind {
+            NodeKind::Leaf {
+                object_key,
+                shape_index_in_object,
+                bounds,
+            } => (bounds.clone(), Some((*object_key, *shape_index_in_object))),
+            NodeKind::Inner { bounds, .. } => (bounds.clone(), None),
+        };
+        // Java :88 — prune whole subtrees against the dynamic hull.
+        if !bounds_intersect(&node_bounds, &RegularTileShape::IntBox(bounding_shape)) {
+            continue;
+        }
+        let Some((object_key, shape_index)) = leaf_payload else {
+            // Java :183-185 — push firstChild then secondChild; the LIFO
+            // pop visits second first.
+            if let NodeKind::Inner { first, second, .. } = &arena.node(idx).kind {
+                stack.push(*first);
+                stack.push(*second);
+            }
+            continue;
+        };
+
+        // Java :93-96 — the inline filters.
+        if !objects.is_trace_obstacle(object_key, query.net_number)
+            || objects.shape_layer(object_key, shape_index) != query.layer
+            || query.ignore_object == Some(object_key)
+        {
+            continue;
+        }
+        // Java :101 — the obstacle shape is its tree shape's bounding
+        // BOX (the 90-degree tree stores rectilinear dilations).
+        let Some(object_tile) = objects.tree_shape(object_key, shape_index) else {
+            // Java NPE arm — unreachable for live entries.
+            continue;
+        };
+        let object_shape = object_tile.bounding_box();
+
+        // Java :103-172 — restrain every current room against the
+        // obstacle. Java re-unions the WHOLE `newResult` into
+        // `newBoundingShape` after every restraining room and the kept
+        // room in the non-overlap arm; union (min/max box) is
+        // associative, commutative and idempotent, so accumulating each
+        // surviving piece exactly once yields the identical final hull.
+        let mut new_result: Vec<IncompleteRoom> = Vec::new();
+        let mut new_bounding_shape = IntBox::EMPTY;
+        for room in &result {
+            let TileShape::RegularTileShape(RegularTileShape::IntBox(current_shape)) = room.shape
+            else {
+                unreachable!("90-degree completion rooms always carry IntBox shapes");
+            };
+            if !current_shape.overlaps(&object_shape) {
+                // Java :160-165 — KEEP_NON_OVERLAP.
+                new_result.push(room.clone());
+            } else {
+                // Java :111-127 — the completed-room ignore arm: drop the
+                // room when its overlap with the completed room lies
+                // inside ignoreShape (note the ABSENT
+                // `intersection.dimension() == 2` gate the base arm has —
+                // `IntBox.overlaps` is the only over here).
+                let mut skip = false;
+                if objects.is_complete_free_space(object_key)
+                    && let Some(ignore_shape) = query.ignore_shape
+                {
+                    let intersection = current_shape.intersection(&object_shape);
+                    if ignore_shape.contains_tile(&box_tile(&intersection)) {
+                        skip = true;
+                    }
+                }
+                if !skip {
+                    // Java :134-137 — RESTRAIN (the room does not survive
+                    // alongside its pieces).
+                    new_result.extend(restrain_shape_ninety_degree(room, &object_shape));
+                }
+            }
+            let piece = new_result
+                .last()
+                .expect("each arm (except the ignore skip) just pushed")
+                .shape
+                .bounding_box();
+            new_bounding_shape = new_bounding_shape.union(&piece);
+        }
+        // Java :174-175 — the COMPLETE_SHAPE_BLOCKED trace fires when an
+        // obstacle removed every room; diagnostic only, omitted.
+        result = new_result;
+        bounding_shape = new_bounding_shape;
+    }
+    // Java :186 — returned DIRECTLY: no divideLargeRoom in the
+    // 90-degree override.
+    result
+}
+
+/// Java `ShapeSearchTree90Degree.restrainShape`
+/// (`:196-320`) — cut the box-typed room against the obstacle box.
+/// The four directional arms take the FURTHEST cut line (integer
+/// compare starting at 0 — the base arm starts at -1.0) and yield ONE
+/// restrained box; the fallback splits the room at the obstacle edge
+/// the contained shape touches and RECURSES on the far piece.
+#[must_use]
+#[allow(unused_assignments)] // Java :302-310 keeps the running max across all four arms; the LAST arm's store is dead in Java too.
+pub fn restrain_shape_ninety_degree(
+    room: &IncompleteRoom,
+    obstacle_shape: &IntBox,
+) -> Vec<IncompleteRoom> {
+    let mut result: Vec<IncompleteRoom> = Vec::new();
+
+    // Java :199-204 — the empty-contained guard (null excluded
+    // upstream).
+    if room.contained_shape.is_empty() {
+        return result;
+    }
+    // Java :206-207 — box casts via bounding boxes.
+    let room_shape = room.shape.bounding_box();
+    let shape_to_be_contained = room.contained_shape.bounding_box();
+    let layer = room.layer;
+
+    // Java :209-268 — the four directional cut arms. Each fires when
+    // that obstacle edge's segment strictly intersects the room
+    // interior; the furthest cut line wins.
+    let mut cut_line_distance = 0i32;
+    let mut restrained_shape: Option<IntBox> = None;
+
+    // The right edge segment of the obstacle.
+    if room_shape.ll.x < obstacle_shape.ur.x
+        && room_shape.ur.x > obstacle_shape.ur.x
+        && room_shape.ur.y > obstacle_shape.ll.y
+        && room_shape.ll.y < obstacle_shape.ur.y
+    {
+        let current_distance = shape_to_be_contained.ll.x - obstacle_shape.ur.x;
+        if current_distance > cut_line_distance {
+            cut_line_distance = current_distance;
+            restrained_shape = Some(IntBox::new(
+                IntPoint::new(obstacle_shape.ur.x, room_shape.ll.y),
+                IntPoint::new(room_shape.ur.x, room_shape.ur.y),
+            ));
+        }
+    }
+    // The left edge segment.
+    if room_shape.ll.x < obstacle_shape.ll.x
+        && room_shape.ur.x > obstacle_shape.ll.x
+        && room_shape.ur.y > obstacle_shape.ll.y
+        && room_shape.ll.y < obstacle_shape.ur.y
+    {
+        let current_distance = obstacle_shape.ll.x - shape_to_be_contained.ur.x;
+        if current_distance > cut_line_distance {
+            cut_line_distance = current_distance;
+            restrained_shape = Some(IntBox::new(
+                IntPoint::new(room_shape.ll.x, room_shape.ll.y),
+                IntPoint::new(obstacle_shape.ll.x, room_shape.ur.y),
+            ));
+        }
+    }
+    // The lower edge segment.
+    if room_shape.ll.y < obstacle_shape.ll.y
+        && room_shape.ur.y > obstacle_shape.ll.y
+        && room_shape.ur.x > obstacle_shape.ll.x
+        && room_shape.ll.x < obstacle_shape.ur.x
+    {
+        let current_distance = obstacle_shape.ll.y - shape_to_be_contained.ur.y;
+        if current_distance > cut_line_distance {
+            cut_line_distance = current_distance;
+            restrained_shape = Some(IntBox::new(
+                IntPoint::new(room_shape.ll.x, room_shape.ll.y),
+                IntPoint::new(room_shape.ur.x, obstacle_shape.ll.y),
+            ));
+        }
+    }
+    // The upper edge segment.
+    if room_shape.ll.y < obstacle_shape.ur.y
+        && room_shape.ur.y > obstacle_shape.ur.y
+        && room_shape.ur.x > obstacle_shape.ll.x
+        && room_shape.ll.x < obstacle_shape.ur.x
+    {
+        let current_distance = shape_to_be_contained.ll.y - obstacle_shape.ur.y;
+        if current_distance > cut_line_distance {
+            cut_line_distance = current_distance;
+            restrained_shape = Some(IntBox::new(
+                IntPoint::new(room_shape.ll.x, obstacle_shape.ur.y),
+                IntPoint::new(room_shape.ur.x, room_shape.ur.y),
+            ));
+        }
+    }
+    if let Some(restrained) = restrained_shape {
+        result.push(IncompleteRoom {
+            shape: box_tile(&restrained),
+            layer,
+            contained_shape: box_tile(&shape_to_be_contained),
+        });
+        return result;
+    }
+
+    // Java :272-281 — the contained shape intersects the obstacle: the
+    // room (and the contained shape) split in two at the touched
+    // obstacle edge.
+    let is = shape_to_be_contained.intersection(obstacle_shape);
+    if box_tile(&is).is_empty() {
+        // Java :277-280 — FRLogger.warn, empty result.
+        return result;
+    }
+    let mut new_shape1: Option<IntBox> = None;
+    let mut new_shape2: Option<IntBox> = None;
+    if is.ll.x > room_shape.ll.x && is.ll.x == obstacle_shape.ll.x && is.ll.x < room_shape.ur.x {
+        new_shape1 = Some(IntBox::new(
+            IntPoint::new(room_shape.ll.x, room_shape.ll.y),
+            IntPoint::new(is.ll.x, room_shape.ur.y),
+        ));
+        new_shape2 = Some(IntBox::new(
+            IntPoint::new(is.ll.x, room_shape.ll.y),
+            IntPoint::new(room_shape.ur.x, room_shape.ur.y),
+        ));
+    } else if is.ur.x > room_shape.ll.x
+        && is.ur.x == obstacle_shape.ur.x
+        && is.ur.x < room_shape.ur.x
+    {
+        new_shape2 = Some(IntBox::new(
+            IntPoint::new(room_shape.ll.x, room_shape.ll.y),
+            IntPoint::new(is.ur.x, room_shape.ur.y),
+        ));
+        new_shape1 = Some(IntBox::new(
+            IntPoint::new(is.ur.x, room_shape.ll.y),
+            IntPoint::new(room_shape.ur.x, room_shape.ur.y),
+        ));
+    } else if is.ll.y > room_shape.ll.y
+        && is.ll.y == obstacle_shape.ll.y
+        && is.ll.y < room_shape.ur.y
+    {
+        new_shape1 = Some(IntBox::new(
+            IntPoint::new(room_shape.ll.x, room_shape.ll.y),
+            IntPoint::new(room_shape.ur.x, is.ll.y),
+        ));
+        new_shape2 = Some(IntBox::new(
+            IntPoint::new(room_shape.ll.x, is.ll.y),
+            IntPoint::new(room_shape.ur.x, room_shape.ur.y),
+        ));
+    } else if is.ur.y > room_shape.ll.y
+        && is.ur.y == obstacle_shape.ur.y
+        && is.ur.y < room_shape.ur.y
+    {
+        new_shape2 = Some(IntBox::new(
+            IntPoint::new(room_shape.ll.x, room_shape.ll.y),
+            IntPoint::new(room_shape.ur.x, is.ur.y),
+        ));
+        new_shape1 = Some(IntBox::new(
+            IntPoint::new(room_shape.ll.x, is.ur.y),
+            IntPoint::new(room_shape.ur.x, room_shape.ur.y),
+        ));
+    }
+    if let (Some(new_shape1), Some(new_shape2)) = (new_shape1, new_shape2) {
+        // Java :300-318 — keep the near piece only when its share of the
+        // contained shape is non-degenerate; the far piece recurses (its
+        // contained share may be EMPTY — Java passes it through).
+        let new_shape_to_be_contained = shape_to_be_contained.intersection(&new_shape1);
+        if box_tile(&new_shape_to_be_contained).dimension() > 0 {
+            result.push(IncompleteRoom {
+                shape: box_tile(&new_shape1),
+                layer,
+                contained_shape: box_tile(&new_shape_to_be_contained),
+            });
+            let new_incomplete_room = IncompleteRoom {
+                shape: box_tile(&new_shape2),
+                layer,
+                contained_shape: box_tile(&shape_to_be_contained.intersection(&new_shape2)),
+            };
+            result.extend(restrain_shape_ninety_degree(
+                &new_incomplete_room,
+                obstacle_shape,
+            ));
+        }
     }
     result
 }
@@ -784,6 +1102,11 @@ fn simplex_border_segment(simplex: &Simplex, no: i32) -> LineSegment {
 /// The octagon wrapped as a `TileShape`.
 fn oct_tile(octagon: &IntOctagon) -> TileShape {
     TileShape::RegularTileShape(RegularTileShape::IntOctagon(*octagon))
+}
+
+/// The box wrapped as a `TileShape`.
+fn box_tile(shape: &IntBox) -> TileShape {
+    TileShape::RegularTileShape(RegularTileShape::IntBox(*shape))
 }
 
 /// The octagon arm of a `TileShape`, `None` for box/simplex.

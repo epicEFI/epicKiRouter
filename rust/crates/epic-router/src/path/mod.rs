@@ -1,7 +1,15 @@
 //! Java `autoroute/path` — the found-route description layer. T7 ports
-//! the [`Connection`] walk (the route segment between two forks);
-//! the locators land with T9 and the inserter with T11.
+//! the [`Connection`] walk (the route segment between two forks); T9
+//! ports the found-connection locator family (backtrack walk → trace
+//! geometry, corner synthesis) and the inserter lands with T11.
 
 pub mod connection;
+pub mod locator;
+pub(crate) mod locator_45;
+pub(crate) mod locator_any;
 
 pub use connection::Connection;
+pub use locator::{FoundConnectionLocator, ResultItem};
+
+#[cfg(test)]
+mod pins;

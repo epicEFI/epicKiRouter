@@ -30,10 +30,12 @@
 //!   and skips border lines whose approximate intersection has
 //!   `x >= Integer.MAX_VALUE` (the parallel marker of
 //!   `Line.intersectionApprox`).
-//! - [`TileShape::contains_float`] (pin P14) does NOT accept border
-//!   points: any non-`ON_THE_RIGHT` `side_of_border` result fails, while
-//!   the int-coordinate [`TileShape::contains_point`] (`!isOutside`)
-//!   does accept them.
+//! - [`TileShape::contains_float`] is the VIRTUAL one-arg Java dispatch
+//!   (pin P14B): `IntOctagon` OVERRIDES `contains(FloatPoint)` with
+//!   border-INCLUDED `<=` arithmetic (`IntOctagon.java:332-344`), while
+//!   `IntBox`/`Simplex` fall through to the strict two-arg border loop
+//!   (P14). The int-coordinate [`TileShape::contains_point`]
+//!   (`!isOutside`) accepts border points for every variant.
 //!
 //! Factories (Java `getInstance`): [`TileShape::get_instance`] (line
 //! array, through `Simplex::get_instance(..).simplify()` — so a square
@@ -442,10 +444,20 @@ impl TileShape {
     }
 
     /// Returns true, if the float point is contained in this shape
-    /// (Java `contains(FloatPoint)` == `contains(point, 0)`; border
-    /// points do NOT count, pin P14).
+    /// (Java `contains(FloatPoint)`; border points do NOT count, pin
+    /// P14 — EXCEPT for octagons: Java `IntOctagon` OVERRIDES the
+    /// one-arg `contains(FloatPoint)` (`IntOctagon.java:332-344`) with
+    /// direct `<=` arithmetic that INCLUDES the border, and the
+    /// locator's `shrinkedRoomShape.contains(addCorner)` call is a
+    /// virtual one-arg dispatch that selects that override. IntBox and
+    /// Simplex do not override, so the strict `TileShape
+    /// .contains(FloatPoint, 0)` border loop applies there (P14 pins a
+    /// box).
     pub fn contains_float(&self, point: &FloatPoint) -> bool {
-        tile_contains_float(&ShapeRef::from(self), point, 0.0)
+        match self {
+            TileShape::RegularTileShape(RegularTileShape::IntOctagon(oct)) => oct.contains(point),
+            _ => tile_contains_float(&ShapeRef::from(self), point, 0.0),
+        }
     }
 
     /// Returns true, if the float point is contained in this shape with
@@ -986,6 +998,52 @@ impl TileShape {
                 .distance(&from_point_f);
             if current_distance < min_dist {
                 min_dist = current_distance;
+                result = i;
+            }
+        }
+        result
+    }
+
+    /// Returns the index of the corner that is the left most one when
+    /// this shape is viewed from `from_point` (Java
+    /// `PolylineShape.indexOfLeftMostCorner`, inherited by TileShape —
+    /// no TileShape override). Ties keep the earlier corner (strict
+    /// `Positive` update), exactly like the PolylineShape loop.
+    pub fn index_of_left_most_corner(&self, from_point: &FloatPoint) -> i32 {
+        let mut left_most_corner = self
+            .corner_approx(0)
+            .expect("corner loop of a non-empty shape");
+        let corner_count = self.border_line_count();
+        let mut result = 0;
+        for i in 1..corner_count as i32 {
+            let current_corner = self
+                .corner_approx(i)
+                .expect("corner loop of a non-empty shape");
+            if current_corner.side_of(from_point, &left_most_corner) == Side::Positive {
+                left_most_corner = current_corner;
+                result = i;
+            }
+        }
+        result
+    }
+
+    /// Returns the index of the corner that is the right most one when
+    /// this shape is viewed from `from_point` (Java
+    /// `PolylineShape.indexOfRightMostCorner`, inherited by TileShape —
+    /// no TileShape override). Ties keep the earlier corner (strict
+    /// `Negative` update).
+    pub fn index_of_right_most_corner(&self, from_point: &FloatPoint) -> i32 {
+        let mut right_most_corner = self
+            .corner_approx(0)
+            .expect("corner loop of a non-empty shape");
+        let corner_count = self.border_line_count();
+        let mut result = 0;
+        for i in 1..corner_count as i32 {
+            let current_corner = self
+                .corner_approx(i)
+                .expect("corner loop of a non-empty shape");
+            if current_corner.side_of(from_point, &right_most_corner) == Side::Negative {
+                right_most_corner = current_corner;
                 result = i;
             }
         }
@@ -1620,13 +1678,32 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// jshell pin `P14`: `contains(FloatPoint, 0.0)` accepts the interior
-    /// point (5,5) but NOT the border point (0,5) nor (15,5).
+    /// jshell pin `P14`/`P14B`: the TWO-ARG `contains(FloatPoint, 0.0)`
+    /// accepts the interior point (5,5) but NOT the border point (0,5)
+    /// (strict loop, no octagon override). The ONE-ARG
+    /// `contains(FloatPoint)` is a VIRTUAL dispatch: on the
+    /// octagon-typed `boxOct` Java selects the border-INCLUDED
+    /// `IntOctagon.contains` override — (0,5) is accepted, (15,5) not —
+    /// while on a genuine IntBox the strict `TileShape` loop applies
+    /// (0,5) rejected. The locator's `shrinkedRoomShape.contains
+    /// (addCorner)` call is this one-arg dispatch.
     #[test]
     fn p14_contains_float_border_exclusion() {
+        // Two-arg: strict for every variant.
+        assert!(box_t().contains_float_tolerance(&fl(5.0, 5.0), 0.0));
+        assert!(!box_t().contains_float_tolerance(&fl(0.0, 5.0), 0.0));
+        assert!(!box_t().contains_float_tolerance(&fl(15.0, 5.0), 0.0));
+        // One-arg on the OCTAGON: border-included override.
         assert!(box_t().contains_float(&fl(5.0, 5.0)));
-        assert!(!box_t().contains_float(&fl(0.0, 5.0)));
+        assert!(box_t().contains_float(&fl(0.0, 5.0)));
         assert!(!box_t().contains_float(&fl(15.0, 5.0)));
+        // One-arg on a genuine IntBox: strict (no override).
+        let int_box = TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+            IntPoint::new(0, 0),
+            IntPoint::new(10, 10),
+        )));
+        assert!(int_box.contains_float(&fl(5.0, 5.0)));
+        assert!(!int_box.contains_float(&fl(0.0, 5.0)));
         // The int-point containment includes the border (!isOutside).
         assert!(box_t().contains_point(&p(5, 5)));
         assert!(box_t().contains_point(&p(0, 5)));

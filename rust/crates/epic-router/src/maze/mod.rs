@@ -25,6 +25,7 @@ pub mod completion;
 pub mod destination_distance;
 pub mod expansion_engine;
 pub mod list_element;
+pub mod locator_access;
 pub mod ripup;
 pub mod search_engine;
 pub mod shove_probe;
