@@ -292,6 +292,17 @@ impl TileShape {
         }
     }
 
+    /// True if this shape is contained in the box (Java
+    /// `PolylineShape.isContainedIn(IntBox)`, `PolylineShape.java:136-139`):
+    /// that overload is just `box.contains(boundingBox())`, and
+    /// `IntBox.contains(RegularTileShape)` (`IntBox.java:377-379`) is
+    /// reverse dispatch — `boundingBox().isContainedIn(box)`. An empty
+    /// bounding box counts as contained (`IntBox::is_contained_in` keeps
+    /// Java's empty-shape shortcut).
+    pub fn is_contained_in_int_box(&self, board_box: &IntBox) -> bool {
+        self.bounding_box().is_contained_in(board_box)
+    }
+
     /// Returns the smallest surrounding octagon, or `None` where Java
     /// returns null (unbounded simplex).
     pub fn bounding_octagon(&self) -> Option<IntOctagon> {
@@ -2128,6 +2139,44 @@ mod tests {
         assert_eq!(
             task8_box_oct().nearest_relative_outside_locations(&task8_right_oct(), 2),
             vec![fl(0.0, 0.0), fl(5.0, -5.0)]
+        );
+    }
+
+    /// `isContainedIn(IntBox)`, captured from the jar
+    /// (`logs/M3-T10a/captures/shape_entry_side_caps.txt`): the box
+    /// cases go through the IntBox reverse dispatch, the simplex cases
+    /// through the Simplex face (a simplex is contained via its
+    /// bounding box). `inner` is strictly inside, `shifted` shares the
+    /// lower-left corner but extends beyond — the discriminating pair.
+    #[test]
+    fn is_contained_in_int_box_matches_the_jar() {
+        let box_shape = IntBox::new(IntPoint::new(0, 0), IntPoint::new(1000, 1000));
+        let inner = IntBox::new(IntPoint::new(100, 100), IntPoint::new(900, 900));
+        let big = IntBox::new(IntPoint::new(-100, -100), IntPoint::new(1100, 1100));
+        let shifted = IntBox::new(IntPoint::new(100, 100), IntPoint::new(2000, 2000));
+        let box_tile = TileShape::RegularTileShape(RegularTileShape::IntBox(box_shape));
+        assert!(box_tile.is_contained_in_int_box(&big), "box-in-big");
+        assert!(
+            !box_tile.is_contained_in_int_box(&shifted),
+            "box-in-shifted"
+        );
+        assert!(
+            TileShape::RegularTileShape(RegularTileShape::IntBox(inner))
+                .is_contained_in_int_box(&box_shape),
+            "inner-in-box"
+        );
+
+        // the simplex branch: octagon (100,100,900,900,200,800,200,800)
+        // reduced to a simplex; contained in big, and ALSO in shifted
+        // (the bounding box (100,100,900,900) sits inside both).
+        let oct = TileShape::RegularTileShape(RegularTileShape::IntOctagon(IntOctagon::new(
+            100, 100, 900, 900, 200, 800, 200, 800,
+        )));
+        let simplex = TileShape::Simplex(Box::new(oct.to_simplex()));
+        assert!(simplex.is_contained_in_int_box(&big), "simplex-in-big");
+        assert!(
+            simplex.is_contained_in_int_box(&shifted),
+            "simplex-in-shifted"
         );
     }
 }

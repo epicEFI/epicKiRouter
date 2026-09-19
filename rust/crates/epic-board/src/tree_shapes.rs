@@ -58,7 +58,7 @@ use epic_geometry::point::Point;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
 
-use epic_index::SearchTreeVariant;
+use epic_index::{SearchTree, SearchTreeVariant};
 
 use crate::board::Board;
 use crate::components::BoardPadstack;
@@ -107,6 +107,35 @@ pub fn clearance_compensation_value(
             .clearance
             .clearance_compensation_value(tree_class, layer);
     raw.max(0)
+}
+
+/// Java `Trace.getCompensatedHalfWidth(searchTree)` (`Trace.java:84-89`):
+/// the trace's half width plus the tree's clearance compensation value
+/// for the trace's class and layer — equal to the plain half width when
+/// the tree does not compensate (`compensatedClearanceClassNo == 0`
+/// makes [`clearance_compensation_value`] answer 0 through the guard).
+/// The shove substrate reads it for the single-step offset shapes, the
+/// end-corner contact analysis and the dog-ear cutlines.
+///
+/// The `unwrap_or` defaults are dead at every call site (the trace id
+/// is always a live board item); they keep the function total where
+/// Java would NPE on a null board read.
+#[must_use]
+pub fn trace_compensated_half_width(
+    board: &Board,
+    search_tree: &SearchTree,
+    trace_id: ItemId,
+) -> i32 {
+    let half_width = board.trace_half_width(trace_id).unwrap_or(0);
+    let class = board.item_clearance_class(trace_id).unwrap_or(0);
+    let layer = board.trace_layer(trace_id).unwrap_or(0);
+    half_width
+        + clearance_compensation_value(
+            board.rules(),
+            class,
+            search_tree.compensated_clearance_class,
+            layer,
+        )
 }
 
 /// Java `ShapeSearchTree.drillHoleObstacle(drillItem)` (`:1012-1028`):

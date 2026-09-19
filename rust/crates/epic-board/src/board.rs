@@ -384,6 +384,21 @@ impl Board {
         self.trace_half_width_range.min_trace_half_width
     }
 
+    /// Returns the minimum clearance requested between items of
+    /// clearance class `class1` and `class2` on `layer` (Java
+    /// `BasicBoard.clearanceValue`, `BasicBoard.java:1111-1118`): the
+    /// matrix read WITH the safety margin (`getValue(..., true)`).
+    /// Java's `rules == null || rules.clearanceMatrix == null` arm
+    /// (returns 0) has no Rust counterpart — the port's board always
+    /// carries rules with a matrix. The shove substrate consumes this
+    /// for the two-step offset shapes and the via-contact diff.
+    #[must_use]
+    pub fn clearance_value(&self, class1: i32, class2: i32, layer: i32) -> i32 {
+        self.rules
+            .clearance
+            .get_value_opt(class1, class2, layer, true)
+    }
+
     /// The mutable seam onto `board.rules` — Java's `rules` is a
     /// mutable object the settings flows write through (e.g.
     /// `setHoleClearance` on the T55 drill-inflation path,

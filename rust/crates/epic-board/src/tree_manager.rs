@@ -39,9 +39,10 @@
 //!
 //! ## Not ported yet
 //!
-//! The trace-entry surgery members (`mergeEntriesInFront`,
-//! `mergeEntriesAtEnd`, `changeEntries`, `reuseEntriesAfterCutout`,
-//! `:237-284`) need the trace shape surface — a later M2 task.
+//! The remaining trace-entry surgery members (`mergeEntriesInFront`,
+//! `mergeEntriesAtEnd`, `changeEntries`, `:237-282`) still await their
+//! consumers; `reuseEntriesAfterCutout` (`:283-290`) landed with the
+//! M3 shove substrate.
 //! `validateEntries` (`:69-78`) and the overlap query family
 //! (`ShapeSearchTree.java:390-570`, `BasicBoard.checkShape`) are
 //! Task 8 — see the query section of the impl.
@@ -451,6 +452,74 @@ impl SearchTreeManager {
                 .entry(id)
                 .or_default()
                 .insert(object_id, leaves);
+        }
+    }
+
+    /// Java `SearchTreeManager.reuseEntriesAfterCutout`
+    /// (`SearchTreeManager.java:283-290`) broadcasting over every live
+    /// tree to `ShapeSearchTree.reuseEntriesAfterCutout`
+    /// (`ShapeSearchTree.java:312-346`): the tree entries of
+    /// `from_trace` are split onto `start_piece` / `end_piece` after a
+    /// middle piece was cut out (`ShapeTraceEntries.fastCutoutTrace`).
+    ///
+    /// ## Fidelity decision (documented deviation in mechanism, not in
+    /// observable behavior)
+    ///
+    /// Java TRANSFERS leaves: it re-labels `leaf.object` and
+    /// `leaf.shapeIndexInObject` on the start/end leaf slots (freshly
+    /// inserting only the LAST start-piece leaf and the FIRST end-piece
+    /// leaf, which straddle the cutlines), nulls the transferred slots
+    /// in `fromTrace`'s array, and leaves the middle (cutline) leaves in
+    /// place for the later `removeItem(fromTrace)` to drop. The port
+    /// instead drops `from_trace`'s entries per tree and re-inserts both
+    /// pieces through the ordinary [`Self::insert_into_tree`]. This is
+    /// sound because the two leaf sets are VALUE-identical:
+    ///
+    /// * a polyline trace's tree shape `i` involves only lines `i` and
+    ///   `i+1` (the per-line cutout in [`crate::tree_shapes`]), and the
+    ///   transferred indices never straddle a cutline (Java inserts
+    ///   fresh leaves exactly there), so each transferred leaf's shape
+    ///   equals the fresh computation from the unchanged piece polyline;
+    /// * query results come back in the sorted candidate order
+    ///   (descending object key — [`Self::item_of_key`]), not in BVH
+    ///   skeleton order, so leaf IDENTITY and tree shape are
+    ///   unobservable outside this module.
+    ///
+    /// The index corpus compare (33/33 byte-identical) and the undo
+    /// replay gate this seam end to end.
+    pub fn reuse_entries_after_cutout(
+        &mut self,
+        board: &mut Board,
+        from_trace: ItemId,
+        start_piece: ItemId,
+        end_piece: ItemId,
+    ) {
+        for tree_index in 0..self.trees.len() {
+            let object_id = self.trees[tree_index].object_id();
+            // Java's transfer + slot-nulling, collapsed: drop ALL of
+            // from_trace's leaves in this tree now (the middle cutline
+            // leaves Java leaves behind are dropped moments later by
+            // the manager's remove of from_trace — same end state).
+            let stale = self
+                .entries
+                .get_mut(&from_trace)
+                .and_then(|by_tree| by_tree.remove(&object_id));
+            if let Some(entries) = stale {
+                self.trees[tree_index].remove(&entries);
+            }
+            if self
+                .entries
+                .get(&from_trace)
+                .is_some_and(BTreeMap::is_empty)
+            {
+                self.entries.remove(&from_trace);
+            }
+            // The fresh slots: Java's `insert(startPiece,
+            // startPieceLeafArr.length - 1)` and `insert(endPiece, 0)`
+            // — here the whole pieces, since the transferred halves are
+            // re-derived rather than relabeled.
+            self.insert_into_tree(board, start_piece, tree_index);
+            self.insert_into_tree(board, end_piece, tree_index);
         }
     }
 

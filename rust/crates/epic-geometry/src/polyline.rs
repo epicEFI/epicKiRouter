@@ -20,13 +20,14 @@
 //!   [`Line::fast_equals`] / line equality (used by tests and later
 //!   ports; they do not change any oracle behavior).
 //!
-//! Deferral ledger (Task 8): `combine`, `split`, `skipLines`,
-//! `nearestPointApprox`, `distance`, `projectionLine` and `shorten`
-//! are not ported yet — they belong to the M2 autoroute surface and
-//! are re-ledgered there. `offsetShapes` / `offsetShape(int, int)` are
-//! ported (Task 8 scope), and `offsetBox` lands with the M2 Task 7
-//! search-tree shapes (the 90-degree tree's trace path,
-//! `ShapeSearchTree90Degree.offsetShape`).
+//! Deferral ledger (Task 8): `split` and `combine` landed with the M2
+//! trace-surgery tasks and the M3 shove substrate respectively;
+//! `skipLines`, `nearestPointApprox`, `distance`, `projectionLine` and
+//! `shorten` are not ported yet — they belong to the M2/M3 autoroute
+//! surface and are re-ledgered there. `offsetShapes` /
+//! `offsetShape(int, int)` are ported (Task 8 scope), and `offsetBox`
+//! lands with the M2 Task 7 search-tree shapes (the 90-degree tree's
+//! trace path, `ShapeSearchTree90Degree.offsetShape`).
 
 use crate::direction::Direction;
 use crate::float_point::FloatPoint;
@@ -267,6 +268,68 @@ impl Polyline {
             .map(|i| self.lines[self.lines.len() - i - 1].opposite())
             .collect();
         Polyline::new(reversed_lines)
+    }
+
+    /// Combines this polyline with `other` at a common end corner, if
+    /// possible, so that the shape of the combined polyline is the
+    /// union of both (Java `Polyline.combine(Polyline)`,
+    /// `Polyline.java:700-756`). If there is something to combine at
+    /// the START of this polyline, `other` is inserted in front of it;
+    /// at the END, this polyline is inserted in front of `other`.
+    /// `None` for `other` (Java null), a sub-3-line polyline on either
+    /// side, or no common end corner yields `self` unchanged (Java
+    /// returns `this`). The result re-normalizes through the
+    /// canonicalizing constructor exactly like every Java `Polyline`
+    /// construction.
+    #[must_use]
+    pub fn combine(&self, other: Option<&Polyline>) -> Polyline {
+        let Some(other) = other else {
+            return self.clone();
+        };
+        if self.lines.len() < 3 || other.lines.len() < 3 {
+            return self.clone();
+        }
+        let (combine_at_start, combine_other_at_start) =
+            if self.first_corner() == other.first_corner() {
+                (true, true)
+            } else if self.first_corner() == other.last_corner() {
+                (true, false)
+            } else if self.last_corner() == other.first_corner() {
+                (false, true)
+            } else if self.last_corner() == other.last_corner() {
+                (false, false)
+            } else {
+                // no common endpoint
+                return self.clone();
+            };
+        let mut new_lines: Vec<Line> = Vec::with_capacity(self.lines.len() + other.lines.len() - 2);
+        if combine_at_start {
+            // insert the lines of other in front
+            if combine_other_at_start {
+                // insert in reverse order, skip the first line of other
+                for i in 0..other.lines.len() - 1 {
+                    new_lines.push(other.lines[other.lines.len() - i - 1].opposite());
+                }
+            } else {
+                // skip the last line of other
+                new_lines.extend_from_slice(&other.lines[..other.lines.len() - 1]);
+            }
+            // append the lines of this polyline, skip the first line
+            new_lines.extend_from_slice(&self.lines[1..]);
+        } else {
+            // insert the lines of this polyline in front, skip the last line
+            new_lines.extend_from_slice(&self.lines[..self.lines.len() - 1]);
+            if combine_other_at_start {
+                // skip the first line of other
+                new_lines.extend_from_slice(&other.lines[1..]);
+            } else {
+                // insert in reverse order, skip the last line of other
+                for i in 1..other.lines.len() {
+                    new_lines.push(other.lines[other.lines.len() - i - 1].opposite());
+                }
+            }
+        }
+        Polyline::new(new_lines)
     }
 
     /// Splits this polyline at the line with index `line_index` into
@@ -1275,5 +1338,91 @@ mod tests {
         let [first, second] = pl.split(2, &mid).expect("the leg split succeeds");
         assert_eq!(first.corners(), vec![p(0, 0), p(10000, 0), p(10000, 5000)]);
         assert_eq!(second.corners(), vec![p(10000, 5000), p(10000, 10000)]);
+    }
+
+    /// `combine` arms, captured from the jar via jshell
+    /// (`logs/M3-T10a/captures/shape_entry_side_caps.txt`): end-start
+    /// append, start-start prepend-with-flip, no-common-corner
+    /// unchanged, null other unchanged, and the end-end arm where the
+    /// OTHER polyline's tail continues from this one's end.
+    #[test]
+    fn combine_arms_match_the_jar() {
+        let pa = from_int_corners(&[(-500, 500), (500, 500), (500, 1500)]);
+        let corners_of = |poly: &Polyline| -> Vec<(f64, f64)> {
+            poly.corner_approx_arr()
+                .iter()
+                .map(|c| (c.x, c.y))
+                .collect()
+        };
+        let assert_corners = |poly: &Polyline, want: &[(f64, f64)], label: &str| {
+            let got = corners_of(poly);
+            assert_eq!(got.len(), want.len(), "{label} corner count");
+            for (g, w) in got.iter().zip(want) {
+                assert!(
+                    (g.0 - w.0).abs() < 1e-9 && (g.1 - w.1).abs() < 1e-9,
+                    "{label} corner {g:?} vs {w:?}"
+                );
+            }
+        };
+
+        // end-start: other starts at pa's end (500,1500).
+        let other = from_int_corners(&[(500, 1500), (1500, 1500), (1500, 2000)]);
+        assert_corners(
+            &pa.combine(Some(&other)),
+            &[
+                (-500.0, 500.0),
+                (500.0, 500.0),
+                (500.0, 1500.0),
+                (1500.0, 1500.0),
+                (1500.0, 2000.0),
+            ],
+            "end-start",
+        );
+
+        // start-start: other's END is pa's start (-500,500) — the
+        // flipped prepend arm.
+        let other2 = from_int_corners(&[(-500, 500), (-500, 1500), (-1000, 1500)]);
+        assert_corners(
+            &pa.combine(Some(&other2)),
+            &[
+                (-1000.0, 1500.0),
+                (-500.0, 1500.0),
+                (-500.0, 500.0),
+                (500.0, 500.0),
+                (500.0, 1500.0),
+            ],
+            "start-start",
+        );
+
+        // no common corner: unchanged.
+        let other3 = from_int_corners(&[(5000, 5000), (6000, 5000), (6000, 6000)]);
+        assert_corners(
+            &pa.combine(Some(&other3)),
+            &[(-500.0, 500.0), (500.0, 500.0), (500.0, 1500.0)],
+            "no-common",
+        );
+
+        // null other: unchanged.
+        assert_corners(
+            &pa.combine(None),
+            &[(-500.0, 500.0), (500.0, 500.0), (500.0, 1500.0)],
+            "null",
+        );
+
+        // end-end: other's LAST corner equals pa's end — the combined
+        // tail runs through other's interior corner (2000,500) BACK to
+        // its end (500,1500).
+        let other4 = from_int_corners(&[(1500, 500), (2000, 500), (500, 1500)]);
+        assert_corners(
+            &pa.combine(Some(&other4)),
+            &[
+                (-500.0, 500.0),
+                (500.0, 500.0),
+                (500.0, 1500.0),
+                (2000.0, 500.0),
+                (1500.0, 500.0),
+            ],
+            "end-end",
+        );
     }
 }

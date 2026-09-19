@@ -263,6 +263,36 @@ pub fn is_deletion_forbidden(board: &Board, id: ItemId) -> bool {
     }
 }
 
+/// Java `Item.isShoveFixed()` base (`Item.java:881-883`) with the
+/// `Trace` override (`Trace.java:238-253`): the base is
+/// `fixedState >= SHOVE_FIXED`; the Trace override ADDS "some NORMAL
+/// net number of the trace whose net class is shove-fixed". Via, Pin
+/// and the area kinds use the BASE only (no override).
+///
+/// A missing id reads as not-shove-fixed (Java would NPE; unreachable
+/// through the seam).
+#[must_use]
+pub fn is_shove_fixed(board: &Board, id: ItemId) -> bool {
+    let Some(entry) = board.get(id) else {
+        return false;
+    };
+    if entry.fixed >= FixedState::ShoveFixed {
+        return true;
+    }
+    if matches!(entry.data, ItemData::Trace { .. }) {
+        for &net_no in &entry.nets {
+            if is_normal_net_number(net_no)
+                && let Some(net) = board.rules().nets.get(net_no)
+                && let Some(net_class) = board.rules().net_class(net.net_class)
+                && net_class.shove_fixed
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Java `Item.isRoutable()` — the BASE class returns FALSE
 /// (`Item.java:908-910`); only `Trace` (`Trace.java:206-209`) and
 /// `Via` (`Via.java:147-150`) override it with
@@ -272,7 +302,7 @@ pub fn is_deletion_forbidden(board: &Board, id: ItemId) -> bool {
 /// routable and is walked into (capture `PINWALK_ROUTABLE
 /// pin=false via=true trace=true`, `PINWALK_FROM_TRACE_A [10:T]`,
 /// `PINWALK_FROM_PIN [10:T]`, `PINWALK_FROM_VIA [11:T,5:V]`).
-fn is_routable(board: &Board, id: ItemId) -> bool {
+pub(crate) fn is_routable(board: &Board, id: ItemId) -> bool {
     match board.get(id) {
         Some(entry) => {
             matches!(entry.data, ItemData::Trace { .. } | ItemData::Via { .. })
