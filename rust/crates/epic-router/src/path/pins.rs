@@ -325,7 +325,7 @@ fn capture_a45_fortyfive_no_vias() {
 /// full capture is banked in `logs/M3-T9/captures/t9_locator45_capture
 /// .rows`; a capture-forced lookup-table checker is the follow-up.
 #[test]
-#[ignore = "via world: stub LegalChecker vs Java real checkLayer (needs T10 ForcedPadRouter); capture banked"]
+#[ignore = "via world: searchTerrain drill phase needs the T11 live-in-maze checkLayer integration (ForcedViaInserter/checkLayer itself landed in T10b); capture banked"]
 fn capture_a45v_fortyfive_vias() {
     run_phase(
         "A45V",
@@ -583,7 +583,7 @@ fn capture_bany_any_angle() {
 /// the capture value). Capture banked in
 /// `logs/M3-T9/captures/t9_locator_any_capture.rows`.
 #[test]
-#[ignore = "via world + BANY-family divergence; capture banked"]
+#[ignore = "BANY-family search divergence remains; the via-world half is now only the T11 live-in-maze checkLayer integration (checkLayer landed in T10b); capture banked"]
 fn capture_banyv_any_angle_vias() {
     run_phase(
         "BANYV",
@@ -626,7 +626,7 @@ fn capture_banyv_any_angle_vias() {
 /// net-98 phase. Capture banked in `logs/M3-T9/captures/
 /// t9_locator_any_capture.rows`.
 #[test]
-#[ignore = "via world: stub LegalChecker vs Java real checkLayer; capture banked"]
+#[ignore = "via world: searchTerrain drill phase needs the T11 live-in-maze checkLayer integration (checkLayer landed in T10b); capture banked"]
 fn capture_bbt_any_angle_net98() {
     run_phase(
         "BBT",
@@ -679,7 +679,7 @@ fn capture_bbt_any_angle_net98() {
 /// (pop 154). Real `checkLayer` needs the T10 `ForcedPadRouter`.
 /// Capture banked in `logs/M3-T9/captures/t9_ripup_capture.rows`.
 #[test]
-#[ignore = "ripup+via world: stub LegalChecker masks the Java layer-1 detour (needs T10 ForcedPadRouter); capture banked"]
+#[ignore = "ripup+via world: the Java layer-1 detour runs through the T11 live-in-maze checkLayer integration (ForcedViaInserter/checkLayer landed in T10b); capture banked"]
 fn capture_cbt_ripup_vias_no_rip() {
     run_phase(
         "CBT",

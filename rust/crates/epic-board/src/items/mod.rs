@@ -42,6 +42,7 @@ use epic_geometry::polygon_shape::PolygonShape;
 use epic_geometry::polyline::Polyline;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
+use epic_geometry::vector::Vector;
 
 /// Java `BoardItemType` (`board/model/items/BoardItemType.java`) —
 /// declaration order mirrored exactly.
@@ -250,6 +251,21 @@ impl BoardShape {
             BoardShape::Tile(tile) => tile.bounding_tile(),
             BoardShape::PolygonShape(polygon) => polygon.bounding_tile(),
             BoardShape::Circle(circle) => circle.bounding_tile(),
+        }
+    }
+
+    /// Java `Shape.translateBy(Vector)` over the arms — every shape
+    /// kind shares the virtual (the forced-via inserter moves padstack
+    /// shapes from origin-relative to location-absolute coordinates,
+    /// `ForcedViaInserter.java:156`).
+    #[must_use]
+    pub fn translate_by(&self, vector: &Vector) -> BoardShape {
+        match self {
+            BoardShape::Tile(tile) => BoardShape::Tile(tile.translate_by(vector)),
+            BoardShape::PolygonShape(polygon) => {
+                BoardShape::PolygonShape(polygon.translate_by(vector))
+            }
+            BoardShape::Circle(circle) => BoardShape::Circle(circle.translate_by(vector)),
         }
     }
 

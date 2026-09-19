@@ -33,6 +33,7 @@ use epic_dsn::shape::BoardShape as IrBoardShape;
 use epic_dsn::sink::{AreaIr, FixedStateIr, KeepoutKindIr};
 use epic_dsn::state::Unit as DsnUnit;
 use epic_geometry::int_box::IntBox;
+use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::polyline::Polyline;
 use epic_geometry::tile_shape::TileShape;
@@ -227,6 +228,17 @@ pub struct Board {
     /// drained by [`Board::remove_item`] (→ `itemList.delete`), and
     /// replayed by the facade in [`crate::undo_facade`].
     pub(crate) item_undo: UndoableObjects<Reverse<ItemId>, ItemEntry>,
+    /// Java `RoutingBoard.shoveFailingObstacle` (`RoutingBoard.java:72`)
+    /// — the obstacle responsible for the last shove to fail (the
+    /// MazeTraceShover failure report, T10b). Transient in Java; owned
+    /// by the board here for the same reason Java puts it on
+    /// RoutingBoard: the whole shove recursion writes it through the
+    /// board handle.
+    shove_failing_obstacle: Option<ItemId>,
+    /// Java `RoutingBoard.shoveFailingLayer` (`:73`, field-init -1).
+    /// `None` mirrors Java's negative/initial state (the accessor
+    /// reports -1); Java never writes a negative layer after init.
+    shove_failing_layer: Option<i32>,
 }
 
 impl Board {
@@ -397,6 +409,39 @@ impl Board {
         self.rules
             .clearance
             .get_value_opt(class1, class2, layer, true)
+    }
+
+    /// Java `RoutingBoard.getShoveFailingObstacle` (`:1359-1361`) —
+    /// the obstacle responsible for the last shove to fail.
+    #[must_use]
+    pub fn shove_failing_obstacle(&self) -> Option<ItemId> {
+        self.shove_failing_obstacle
+    }
+
+    /// Java `RoutingBoard.setShoveFailingObstacle` (`:1363-1365`);
+    /// `None` is Java's `null` (the ShapeTraceEntries found-obstacle
+    /// is nullable on the failure paths that report it).
+    pub fn set_shove_failing_obstacle(&mut self, item: Option<ItemId>) {
+        self.shove_failing_obstacle = item;
+    }
+
+    /// Java `RoutingBoard.getShoveFailingLayer` (`:1367-1369`) —
+    /// -1 until a layer failure was reported.
+    #[must_use]
+    pub fn shove_failing_layer(&self) -> i32 {
+        self.shove_failing_layer.unwrap_or(-1)
+    }
+
+    /// Java `RoutingBoard.setShoveFailingLayer` (`:1371-1373`).
+    pub fn set_shove_failing_layer(&mut self, layer: i32) {
+        self.shove_failing_layer = (layer >= 0).then_some(layer);
+    }
+
+    /// Java `RoutingBoard.clearShoveFailingObstacle` (`:1375-1379`) —
+    /// obstacle null, layer -1.
+    pub fn clear_shove_failing_obstacle(&mut self) {
+        self.shove_failing_obstacle = None;
+        self.shove_failing_layer = None;
     }
 
     /// The mutable seam onto `board.rules` — Java's `rules` is a
@@ -786,6 +831,27 @@ impl Board {
         } = &mut entry.data
         {
             *stored_lines = lines;
+        }
+        self.mirror_node(id);
+    }
+
+    /// Java `DrillItem.translateBy`'s center write (`DrillItem.java
+    /// :55-65`): replaces the stored center of a pin/via and nothing
+    /// else — `clear_derived_data` is the CALLER's job in Java
+    /// (translateBy does both in sequence), and the undo save happens
+    /// even earlier (`Item.moveBy` saves BEFORE the tree remove), so
+    /// unlike [`Self::set_trace_polyline`] this setter carries NO
+    /// `save_for_undo` and NO cache clearing of its own.
+    pub fn set_via_center(&mut self, id: ItemId, center: IntPoint) {
+        let Some(entry) = self.items.get_mut(&Reverse(id)) else {
+            return;
+        };
+        if let ItemData::Via {
+            center: stored_center,
+            ..
+        } = &mut entry.data
+        {
+            *stored_center = center;
         }
         self.mirror_node(id);
     }

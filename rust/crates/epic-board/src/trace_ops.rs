@@ -214,6 +214,19 @@ pub fn contains_net(nets: &[i32], net: i32) -> bool {
     net > 0 && nets.contains(&net)
 }
 
+/// Java `board.model.structure.StopConnectionOption` — the walk-stop
+/// selector of [`get_connection_items`]. Ordinals match Java's enum
+/// (NONE, VIA, FANOUT_VIA).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StopConnectionOption {
+    /// Java `NONE` — never stop.
+    None,
+    /// Java `VIA` — stop at any via.
+    Via,
+    /// Java `FANOUT_VIA` — stop at fanout vias only.
+    FanoutVia,
+}
+
 /// Java `Item.netsEqual(int[] other)` (`Item.java:1234-1244`): same
 /// length, every entry contained — through [`contains_net`], so two
 /// `[0]` arrays are NOT equal.
@@ -494,10 +507,17 @@ pub fn item_normal_contacts(
 /// Java `Item.getConnectionItems()` (`Item.java:746-825`) — the fork-
 /// terminated connected walk (module docs). Descending ids (the
 /// `TreeSet` under `Item.compareTo`).
+/// Java `Item.getConnectionItems` (`Item.java:737-822`). The walk
+/// collects traces and vias from `item_id` until the next fork or
+/// terminal item; `stop` mirrors Java's `StopConnectionOption` —
+/// `Via` stops the walk at ANY via, `FanoutVia` only at fanout vias
+/// (the `isFanoutVia` read is a fanout-seam carry, banked M3; the
+/// arm is present but does not stop), `None` never stops.
 pub fn get_connection_items(
     manager: &SearchTreeManager,
     board: &mut Board,
     item_id: ItemId,
+    stop: StopConnectionOption,
 ) -> Vec<ItemId> {
     let mut result: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
     if is_routable(board, item_id) {
@@ -526,9 +546,20 @@ pub fn get_connection_items(
             if !is_routable(board, current) {
                 break;
             }
-            // The Via stop options (:775-783) are VIA / FANOUT_VIA;
-            // this surface only produces NONE, which never stops —
-            // the branch is unreachable and absent (isFanoutVia = M3).
+            // The Via stop options (:775-783).
+            if matches!(
+                board.get(current).map(|entry| &entry.data),
+                Some(ItemData::Via { .. })
+            ) {
+                match stop {
+                    StopConnectionOption::Via => break,
+                    // Java `currentItem.isFanoutVia(result)` — the
+                    // fanout-via predicate is fanout-seam surface
+                    // (banked M3); until then the arm does not stop.
+                    StopConnectionOption::FanoutVia => {}
+                    StopConnectionOption::None => {}
+                }
+            }
             result.insert(Reverse(current));
             let mut next: Option<(ItemId, Point, i32)> = None;
             let mut fork_found = false;
@@ -783,7 +814,8 @@ pub fn remove_if_cycle(
             .and_then(|point| get_trace_tail(manager, board, point, layer, &nets))
             .is_some();
     }
-    let connection_items = get_connection_items(manager, board, trace_id);
+    let connection_items =
+        get_connection_items(manager, board, trace_id, StopConnectionOption::None);
     remove_items(manager, board, &connection_items);
     // The phase-2 tail pass (:1359-1366).
     for (i, endpoint) in endpoints.iter().enumerate() {
@@ -791,7 +823,7 @@ pub fn remove_if_cycle(
             && let Some(point) = endpoint
             && let Some(tail) = get_trace_tail(manager, board, point, layer, &nets)
         {
-            let tail_items = get_connection_items(manager, board, tail);
+            let tail_items = get_connection_items(manager, board, tail, StopConnectionOption::None);
             remove_items(manager, board, &tail_items);
         }
     }
@@ -3137,17 +3169,32 @@ mod tests {
         // The walk results.
         assert!(is_cycle(&manager, &mut board, t1), "Y1_ISCYCLE t1=true");
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, t1)),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                t1,
+                StopConnectionOption::None
+            )),
             vec![13, 11, 10],
             "Y1_CONN_ITEMS_RETURNED [13:T,11:T,10:T]"
         );
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, ItemId::new(12))),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                ItemId::new(12),
+                StopConnectionOption::None
+            )),
             vec![12],
             "Y1_CONN_12 [12:T]"
         );
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, ItemId::new(13))),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                ItemId::new(13),
+                StopConnectionOption::None
+            )),
             vec![13, 11, 10],
             "Y1_CONN_13 [13:T,11:T,10:T]"
         );
@@ -3213,7 +3260,12 @@ mod tests {
             "Y2_TAIL_BEFORE e1=null"
         );
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, t1)),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                t1,
+                StopConnectionOption::None
+            )),
             vec![11, 10],
             "Y2_CONN_ITEMS [11:T,10:T] (the walk forks at 12 via the NW trio)"
         );
@@ -3370,7 +3422,12 @@ mod tests {
         );
         assert!(is_cycle(&manager, &mut board, a), "Y7_ISCYCLE a=true");
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, a)),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                a,
+                StopConnectionOption::None
+            )),
             vec![10],
             "Y7_CONN_ITEMS [10:T] (the pair's contact point is NULL)"
         );
@@ -3522,17 +3579,32 @@ mod tests {
             "PINWALK_A_CONTACTS [3:P]"
         );
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, a)),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                a,
+                StopConnectionOption::None
+            )),
             vec![10],
             "PINWALK_FROM_TRACE_A [10:T] (pin touched, excluded, walk stopped)"
         );
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, ItemId::new(3))),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                ItemId::new(3),
+                StopConnectionOption::None
+            )),
             vec![10],
             "PINWALK_FROM_PIN [10:T] (result.add(this) is isRoutable-gated)"
         );
         assert_eq!(
-            raw(&get_connection_items(&manager, &mut board, ItemId::new(5))),
+            raw(&get_connection_items(
+                &manager,
+                &mut board,
+                ItemId::new(5),
+                StopConnectionOption::None
+            )),
             vec![11, 5],
             "PINWALK_FROM_VIA [11:T,5:V] (a via IS routable and lands in the set)"
         );

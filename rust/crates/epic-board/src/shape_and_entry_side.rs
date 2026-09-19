@@ -9,13 +9,15 @@ use epic_geometry::polyline::Polyline;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::side::Side;
 use epic_geometry::tile_shape::TileShape;
-use epic_index::SearchTree;
+use epic_index::{SearchTree, SearchTreeVariant};
 
 use crate::board::Board;
 use crate::id::ItemId;
+use crate::rules_surf::BoardRules;
 use crate::shape_entry_side::ShapeEntrySide;
+use crate::shape_trace_entries::SubstituteTracePiece;
 use crate::tree_manager::SearchTreeManager;
-use crate::tree_shapes::trace_compensated_half_width;
+use crate::tree_shapes::{clearance_compensation_value, trace_compensated_half_width};
 
 /// Java `ShapeAndEntrySide` — used in the shove algorithm to
 /// calculate the from-side for pushing and to cut off dog ears of the
@@ -34,6 +36,13 @@ pub struct ShapeAndEntrySide {
 /// is expected to be true; in the actual shove functions false.
 /// `orthogonal` short-circuits to the bounding box (no cutlines, no
 /// entry side from a cutline).
+///
+/// Java's ctor reads everything through the trace ITEM, so it works
+/// for board traces and for UNINSERTED substitute pieces alike (the
+/// item computes its tree shapes lazily, `Item.java:228-236`). The
+/// port has two faces over one value core: this id-face (board
+/// traces, T10a) and [`piece_shape_and_entry_side`] (substitute
+/// pieces, T10b).
 pub fn shape_and_entry_side(
     manager: &SearchTreeManager,
     board: &mut Board,
@@ -43,7 +52,64 @@ pub fn shape_and_entry_side(
     in_shove_check: bool,
 ) -> ShapeAndEntrySide {
     let tree = manager.default_tree();
-    let mut current_shape = trace_tree_shape(board, tree, trace_id, index);
+    let lines = board
+        .trace_polyline(trace_id)
+        .expect("trace polyline")
+        .clone();
+    let compensated_half_width = trace_compensated_half_width(board, tree, trace_id);
+    let variant = tree.variant;
+    shape_and_entry_side_core(
+        &lines,
+        compensated_half_width,
+        variant,
+        index,
+        orthogonal,
+        in_shove_check,
+    )
+}
+
+/// The piece-face of the Java ctor: same body, reading the UNINSERTED
+/// substitute piece's own fields (`PolylineTrace` object reads in
+/// Java). The compensated half width is computed from the piece's
+/// class and layer exactly like [`trace_compensated_half_width`] does
+/// for a stored trace.
+pub fn piece_shape_and_entry_side(
+    rules: &BoardRules,
+    tree: &SearchTree,
+    piece: &SubstituteTracePiece,
+    index: i32,
+    orthogonal: bool,
+    in_shove_check: bool,
+) -> ShapeAndEntrySide {
+    let compensated_half_width = piece.half_width
+        + clearance_compensation_value(
+            rules,
+            piece.clearance_class,
+            tree.compensated_clearance_class,
+            piece.layer,
+        );
+    shape_and_entry_side_core(
+        &piece.lines,
+        compensated_half_width,
+        tree.variant,
+        index,
+        orthogonal,
+        in_shove_check,
+    )
+}
+
+/// The ctor body shared verbatim by both faces (value plumbing only —
+/// the id-face reads (lines, compensated half width, tree variant)
+/// off the board, the piece-face off the piece fields).
+pub(crate) fn shape_and_entry_side_core(
+    lines: &Polyline,
+    compensated_half_width: i32,
+    variant: SearchTreeVariant,
+    index: i32,
+    orthogonal: bool,
+    in_shove_check: bool,
+) -> ShapeAndEntrySide {
+    let mut current_shape = tree_shape_of_lines(lines, variant, compensated_half_width, index);
     let mut current_from_side: Option<ShapeEntrySide> = None;
     let mut cut_off_at_start = false;
     let mut cut_off_at_end = false;
@@ -56,7 +122,7 @@ pub fn shape_and_entry_side(
         // prevent dog ears at the start and the end of the substitute
         // trace
         current_shape = TileShape::Simplex(Box::new(current_shape.to_simplex()));
-        let end_cutline = calc_cutline_at_end(board, tree, trace_id, index);
+        let end_cutline = calc_cutline_at_end(lines, compensated_half_width, index);
         if let Some(cutline) = end_cutline.clone() {
             let cut_plane = TileShape::from_line(&cutline);
             let tmp_shape = current_shape.intersection(&cut_plane);
@@ -71,7 +137,7 @@ pub fn shape_and_entry_side(
                 cut_off_at_end = true;
             }
         }
-        let start_cutline = calc_cutline_at_start(board, tree, trace_id, index);
+        let start_cutline = calc_cutline_at_start(lines, compensated_half_width, index);
         if let Some(cutline) = start_cutline.clone() {
             let cut_plane = TileShape::from_line(&cutline);
             let tmp_shape = current_shape.intersection(&cut_plane);
@@ -106,12 +172,7 @@ pub fn shape_and_entry_side(
     if current_from_side.is_none() && !in_shove_check {
         // In inShoveCheck, using this calculation may produce an
         // undesired stackLevel > 1 in ShapeTraceEntries.
-        let polyline = board.trace_polyline(trace_id).expect("trace polyline");
-        current_from_side = Some(ShapeEntrySide::from_entry_no(
-            polyline,
-            index,
-            &current_shape,
-        ));
+        current_from_side = Some(ShapeEntrySide::from_entry_no(lines, index, &current_shape));
     }
     ShapeAndEntrySide {
         shape: current_shape,
@@ -119,26 +180,27 @@ pub fn shape_and_entry_side(
     }
 }
 
-/// Java `trace.getTreeShape(searchTree, index)` — the item's
-/// precalculated shape for the DEFAULT tree at `index` (through the
-/// board's per-item per-tree shape cache). A `None` slot is where
-/// Java would NPE; an out-of-range index is Java's AIOOBE (both
-/// unreachable for a live trace segment).
-fn trace_tree_shape(
-    board: &mut Board,
-    tree: &SearchTree,
-    trace_id: ItemId,
+/// The per-segment tree shape of a polyline under the tree variant
+/// (the `calculateTreeShapes` element — `tree_shapes.rs`
+/// `trace_tree_shapes`): offset box for the ninety-degree tree,
+/// offset shape otherwise.
+fn tree_shape_of_lines(
+    lines: &Polyline,
+    variant: SearchTreeVariant,
+    offset_width: i32,
     index: i32,
 ) -> TileShape {
-    let shapes = board.tree_shape_precalc(
-        trace_id,
-        tree.object_id(),
-        tree.variant,
-        tree.compensated_clearance_class,
-    );
-    shapes[index as usize]
-        .clone()
-        .expect("tree shape exists for a live trace segment (Java NPE site)")
+    match variant {
+        SearchTreeVariant::NinetyDegree => lines
+            .offset_box(offset_width, index)
+            .map(|box_shape| TileShape::RegularTileShape(RegularTileShape::IntBox(box_shape)))
+            .expect("tree shape exists for a live segment (Java NPE site)"),
+        // The base tree's offsetShape == the 45-degree subclass's (no
+        // override).
+        SearchTreeVariant::Generic | SearchTreeVariant::FortyfiveDegree => lines
+            .offset_shape(offset_width, index)
+            .expect("tree shape exists for a live segment (Java NPE site)"),
+    }
 }
 
 /// Java `calcCutlineAtEnd` (`:80-100`): the cut fires when `index`
@@ -146,26 +208,16 @@ fn trace_tree_shape(
 /// compensated half width to the trace's last corner; the cut line is
 /// the trace's final line, flipped so its LEFT side faces away from
 /// the trace interior.
-fn calc_cutline_at_end(
-    board: &mut Board,
-    tree: &SearchTree,
-    trace_id: ItemId,
-    index: i32,
-) -> Option<Line> {
-    let trace_lines: Polyline = board
-        .trace_polyline(trace_id)
-        .expect("trace polyline")
-        .clone();
-    let line_count = trace_lines.lines.len() as i32;
-    let compensated_half_width = trace_compensated_half_width(board, tree, trace_id);
+fn calc_cutline_at_end(lines: &Polyline, compensated_half_width: i32, index: i32) -> Option<Line> {
+    let line_count = lines.lines.len() as i32;
     if index == line_count - 3
-        || trace_lines
+        || lines
             .corner_approx(line_count - 2)
-            .distance(&trace_lines.corner_approx(index + 1))
+            .distance(&lines.corner_approx(index + 1))
             < f64::from(compensated_half_width)
     {
-        let current_line = &trace_lines.lines[(line_count - 1) as usize];
-        let is = trace_lines.corner_approx(line_count - 3);
+        let current_line = &lines.lines[(line_count - 1) as usize];
+        let is = lines.corner_approx(line_count - 3);
         let cut_line = if current_line.side_of_float_zero(&is) == Side::Positive {
             current_line.opposite()
         } else {
@@ -179,24 +231,16 @@ fn calc_cutline_at_end(
 /// Java `calcCutlineAtStart` (`:102-119`): mirror of the end cut for
 /// the trace's first line and first corner.
 fn calc_cutline_at_start(
-    board: &mut Board,
-    tree: &SearchTree,
-    trace_id: ItemId,
+    lines: &Polyline,
+    compensated_half_width: i32,
     index: i32,
 ) -> Option<Line> {
-    let trace_lines: Polyline = board
-        .trace_polyline(trace_id)
-        .expect("trace polyline")
-        .clone();
-    let compensated_half_width = trace_compensated_half_width(board, tree, trace_id);
     if index == 0
-        || trace_lines
-            .corner_approx(0)
-            .distance(&trace_lines.corner_approx(index))
+        || lines.corner_approx(0).distance(&lines.corner_approx(index))
             < f64::from(compensated_half_width)
     {
-        let current_line = &trace_lines.lines[0];
-        let is = trace_lines.corner_approx(1);
+        let current_line = &lines.lines[0];
+        let is = lines.corner_approx(1);
         let cut_line = if current_line.side_of_float_zero(&is) == Side::Positive {
             current_line.opposite()
         } else {

@@ -31,10 +31,11 @@
 //! * `popPiece` — `drain(first..=last)`.
 //!
 //! Java's `nextSubstituteTracePiece` hands out UNINSERTED
-//! `PolylineTrace` objects (id 0, never added to the board); the port
-//! returns a [`SubstituteTracePiece`] value — the caller assigns the
-//! id at insert time, which is exactly what Java's id-0 constructor
-//! defers.
+//! `PolylineTrace` objects (never added to the board); the port
+//! returns a [`SubstituteTracePiece`] value whose `id` is burned at
+//! pop time — Java's constructor assigns the real id there
+//! (`Item.java:86-90`), and the caller inserts the piece under
+//! exactly that id.
 
 use std::cmp::Reverse;
 
@@ -52,7 +53,7 @@ use crate::trace_ops::{
     remove_item_through_repository,
 };
 use crate::tree_manager::SearchTreeManager;
-use crate::tree_shapes::trace_compensated_half_width;
+use crate::tree_shapes::{clearance_compensation_value, trace_compensated_half_width};
 
 /// Java `c_offset_add` (`:28`).
 const C_OFFSET_ADD: f64 = 1.0;
@@ -60,6 +61,15 @@ const C_OFFSET_ADD: f64 = 1.0;
 /// One entry point of a trace into the shape (Java `EntryPoint`,
 /// `:789-805`). Stored in [`ShapeTraceEntries::work`]; the VEC
 /// POSITION is the Java `next` chain order.
+///
+/// The four snapshot fields reproduce Java's OBJECT-REFERENCE
+/// semantics: the Java entry holds the `PolylineTrace` object itself,
+/// which stays readable after `cutoutTraces` removes the trace from
+/// the board while pieces are still pending (the T10b insert loop
+/// cuts first, pops afterwards). The port reads board items by id,
+/// so the trace data needed at pop time is captured eagerly at
+/// [`ShapeTraceEntries::store_trace`] time — the same values, frozen
+/// at the Java object-identity moment.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntryPoint {
     /// The trace this entry belongs to (Java `trace`, an object
@@ -75,14 +85,33 @@ pub struct EntryPoint {
     /// The shove recursion depth (Java `stackLevel`; -1 = not yet
     /// calculated).
     pub(crate) stack_level: i32,
+    /// Snapshot: the trace's polyline at store time (Java reads
+    /// `trace.lines` off the held object).
+    pub(crate) trace_lines: Polyline,
+    /// Snapshot: the trace's half width at store time.
+    pub(crate) trace_half_width: i32,
+    /// Snapshot: the trace's clearance class at store time.
+    pub(crate) trace_clearance_class: i32,
+    /// Snapshot: the trace's net numbers at store time.
+    pub(crate) trace_nets: Vec<i32>,
 }
 
 /// The uninserted substitute trace piece handed back by
 /// [`ShapeTraceEntries::next_substitute_trace_piece`] (Java's id-0
 /// `new PolylineTrace(...)` result, never added to the board by this
 /// class).
+///
+/// Java's `Item` constructor assigns a REAL id at construction time
+/// (`Item.java:86-90`, `id <= 0` → `newId()`), so T10b's insert loop
+/// burns ids in POP order — including for pieces whose recursive
+/// cutouts burn further ids in between. The `id` field carries that
+/// pop-time id; the board-side insert in `trace_shover::insert` uses
+/// it verbatim.
 #[derive(Debug, Clone)]
 pub struct SubstituteTracePiece {
+    /// The piece's id, burned at pop time (Java's ctor-time
+    /// `idGenerator.newId()`).
+    pub id: ItemId,
     /// The piece polyline (Java `PolylineTrace.lines`).
     pub lines: Polyline,
     /// The layer the shape lives on (Java `PolylineTrace.layer`).
@@ -271,9 +300,9 @@ impl ShapeTraceEntries {
                 return false;
             }
         }
-        self.search_from_side(board);
-        self.resort(board);
-        self.calculate_stack_levels(board)
+        self.search_from_side();
+        self.resort();
+        self.calculate_stack_levels()
     }
 
     /// Java `nextSubstituteTracePiece` (`:226-282`). Calculates the
@@ -284,16 +313,16 @@ impl ShapeTraceEntries {
         manager: &mut SearchTreeManager,
         board: &mut Board,
     ) -> Option<SubstituteTracePiece> {
-        let (first, last) = self.pop_piece(board)?;
-        let current_trace_id = first.trace_id;
-        let current_half_width = board
-            .trace_half_width(current_trace_id)
-            .expect("entry trace exists");
-        let current_class = board
-            .item_clearance_class(current_trace_id)
-            .expect("entry trace exists");
-        let current_nets = item_nets(board, current_trace_id);
+        let (first, last) = self.pop_piece()?;
+        // Java reads every value below off the trace OBJECT held by
+        // the entries — readable even after `cutoutTraces` removed
+        // the trace from the board mid-insert. The snapshots replay
+        // that (see `EntryPoint`).
+        let current_half_width = first.trace_half_width;
+        let current_class = first.trace_clearance_class;
+        let current_nets = first.trace_nets.clone();
         let tree = manager.default_tree();
+        let tree_class = tree.compensated_clearance_class;
         let offset_shape = offset_shape(
             manager,
             board,
@@ -302,7 +331,13 @@ impl ShapeTraceEntries {
             current_class,
             self.clearance_class_index,
             self.layer,
-            trace_compensated_half_width(board, tree, current_trace_id),
+            current_half_width
+                + clearance_compensation_value(
+                    board.rules(),
+                    current_class,
+                    tree_class,
+                    self.layer,
+                ),
         );
         let edge_count = self.shape.border_line_count() as i32;
         let edge_diff = last.edge_index - first.edge_index;
@@ -313,18 +348,14 @@ impl ShapeTraceEntries {
         let mut piece_lines: Vec<epic_geometry::line::Line> = Vec::with_capacity(piece_len);
         // start with the intersecting line of the trace at the start
         // entry.
-        let first_lines = board
-            .trace_polyline(first.trace_id)
-            .expect("entry trace exists");
+        let first_lines = &first.trace_lines;
         piece_lines.push(
             first_lines.lines
                 [usize::try_from(first.trace_line_no).expect("trace line no in range")]
             .clone(),
         );
         // end with the intersecting line of the trace at the end entry
-        let last_lines = board
-            .trace_polyline(last.trace_id)
-            .expect("entry trace exists");
+        let last_lines = &last.trace_lines;
         let end_line = last_lines.lines
             [usize::try_from(last.trace_line_no).expect("trace line no in range")]
         .clone();
@@ -345,7 +376,12 @@ impl ShapeTraceEntries {
             // no valid trace piece, return the next one
             return self.next_substitute_trace_piece(manager, board);
         }
+        // Java constructs the `PolylineTrace` HERE — after the
+        // empty-piece recursion arm — so empty pieces burn no id and
+        // valid pieces burn theirs in pop order (`Item.java:86-90`).
+        let id = board.alloc_id();
         Some(SubstituteTracePiece {
+            id,
             lines: piece_polyline,
             layer: self.layer,
             half_width: current_half_width,
@@ -564,7 +600,16 @@ impl ShapeTraceEntries {
             let entry_approx = trace_lines.lines
                 [usize::try_from(trace_line_no).expect("entrance line no in range")]
             .intersection_approx(&offset_shape.border_line(edge_index));
-            self.insert_entry_point(trace_id, trace_line_no, edge_index, entry_approx);
+            self.insert_entry_point(
+                trace_id,
+                trace_line_no,
+                edge_index,
+                entry_approx,
+                &trace_lines,
+                trace_half_width,
+                trace_class,
+                &trace_nets,
+            );
         }
 
         // Look, if an end point of the trace lies in the interior of
@@ -704,6 +749,10 @@ impl ShapeTraceEntries {
                                     trace_line_segment_no,
                                     projection_side,
                                     projection.to_float(),
+                                    &trace_lines,
+                                    trace_half_width,
+                                    trace_class,
+                                    &trace_nets,
                                 );
                             }
                         }
@@ -727,14 +776,14 @@ impl ShapeTraceEntries {
     /// the chain — or falls back to side 0 with no crossing point
     /// when no own-net entry exists (Java's `currentFromsideNo = 0`
     /// initial value).
-    fn search_from_side(&mut self, board: &Board) {
+    fn search_from_side(&mut self) {
         if self.from_side.as_ref().is_some_and(|side| side.no >= 0) {
             return; // from side is already legal
         }
         let mut current_fromside_no = 0;
         let mut current_entry_approx: Option<FloatPoint> = None;
         for node in &self.work {
-            if shares_net_no(&item_nets(board, node.trace_id), &self.own_net_nos) {
+            if shares_net_no(&node.trace_nets, &self.own_net_nos) {
                 current_fromside_no = node.edge_index;
                 current_entry_approx = Some(node.entry_approx);
                 break;
@@ -748,7 +797,7 @@ impl ShapeTraceEntries {
 
     /// Java `resort` (`:463-573`). Resorts the intersection points
     /// according to the from-side index and removes redundant points.
-    fn resort(&mut self, board: &Board) {
+    fn resort(&mut self) {
         let edge_count = self.shape.border_line_count() as i32;
         let mut from_side = self
             .from_side
@@ -835,11 +884,11 @@ impl ShapeTraceEntries {
             while current_pos + 1 < self.work.len() {
                 let next_pos = current_pos + 1;
                 if net_nos_equal(
-                    &item_nets(board, self.work[prev_pos].trace_id),
-                    &item_nets(board, self.work[current_pos].trace_id),
+                    &self.work[prev_pos].trace_nets,
+                    &self.work[current_pos].trace_nets,
                 ) && net_nos_equal(
-                    &item_nets(board, self.work[current_pos].trace_id),
-                    &item_nets(board, self.work[next_pos].trace_id),
+                    &self.work[current_pos].trace_nets,
+                    &self.work[next_pos].trace_nets,
                 ) {
                     // Java `prev.next = next` — drop the middle node;
                     // the position now holds the old next.
@@ -853,16 +902,10 @@ impl ShapeTraceEntries {
             // exit state: current is the LAST node (position
             // work.len()-1); prev its predecessor.
             let last_pos = self.work.len() - 1;
-            if net_nos_equal(
-                &item_nets(board, self.work[last_pos].trace_id),
-                &self.own_net_nos,
-            ) {
+            if net_nos_equal(&self.work[last_pos].trace_nets, &self.own_net_nos) {
                 // Java `prev.next = null` — drop the last node.
                 self.work.pop();
-                if net_nos_equal(
-                    &item_nets(board, self.work[prev_pos].trace_id),
-                    &self.own_net_nos,
-                ) {
+                if net_nos_equal(&self.work[prev_pos].trace_nets, &self.own_net_nos) {
                     if let Some(before_prev) = before_prev_pos {
                         // Java `beforePrev.next = null`.
                         self.work.truncate(before_prev + 1);
@@ -878,11 +921,11 @@ impl ShapeTraceEntries {
         // :566-572 — note the ITEM `netsEqual` here, NOT the local
         // order-independent `netNosEqual`; and the two-step advance).
         if let Some(first) = self.work.first()
-            && nets_equal(&item_nets(board, first.trace_id), &self.own_net_nos)
+            && nets_equal(&first.trace_nets, &self.own_net_nos)
         {
             self.work.remove(0);
             if let Some(first) = self.work.first()
-                && nets_equal(&item_nets(board, first.trace_id), &self.own_net_nos)
+                && nets_equal(&first.trace_nets, &self.own_net_nos)
             {
                 self.work.remove(0);
             }
@@ -892,12 +935,12 @@ impl ShapeTraceEntries {
     /// Java `calculateStackLevels` (`:575-665`). Returns false when
     /// the stack property fails (a set must close at the level it
     /// opened).
-    fn calculate_stack_levels(&mut self, board: &Board) -> bool {
+    fn calculate_stack_levels(&mut self) -> bool {
         if self.work.is_empty() {
             return true;
         }
         let mut current_pos = 0usize;
-        let mut current_nets = item_nets(board, self.work[current_pos].trace_id);
+        let mut current_nets = self.work[current_pos].trace_nets.clone();
         let mut current_level = if net_nos_equal(&current_nets, &self.own_net_nos) {
             // ignore own net when calculating the stack level
             0
@@ -927,7 +970,7 @@ impl ShapeTraceEntries {
             let mut first_foreign_pos: Option<usize> = None;
             for check_pos in current_pos + 1..self.work.len() {
                 next_index += 1;
-                let check_nets = item_nets(board, self.work[check_pos].trace_id);
+                let check_nets = self.work[check_pos].trace_nets.clone();
                 if net_nos_equal(&check_nets, &current_nets) {
                     index_of_last_occurrence_of_set = next_index;
                     last_own_pos = Some(check_pos);
@@ -966,7 +1009,7 @@ impl ShapeTraceEntries {
                     }
                 }
             }
-            current_nets = item_nets(board, self.work[next_pos].trace_id);
+            current_nets = self.work[next_pos].trace_nets.clone();
             // remove all entries between currentEntry and nextEntry,
             // because they are irrelevant;
             self.work.drain(current_pos + 1..next_pos);
@@ -987,7 +1030,7 @@ impl ShapeTraceEntries {
     /// maxStackLevel` — the doc-comment bug kept, not fixed).
     /// Returns `None` if the stack is empty; the pair is (first
     /// entry point, last entry point of the piece).
-    fn pop_piece(&mut self, board: &Board) -> Option<(EntryPoint, EntryPoint)> {
+    fn pop_piece(&mut self) -> Option<(EntryPoint, EntryPoint)> {
         if self.work.is_empty() {
             if self.trace_piece_count != 0 {
                 // Java warns "ShapeTraceEntries: tracePieceCount is
@@ -1011,8 +1054,8 @@ impl ShapeTraceEntries {
         while last_pos + 1 < self.work.len()
             && self.work[last_pos + 1].stack_level == self.max_stack_level
             && nets_equal(
-                &item_nets(board, self.work[last_pos + 1].trace_id),
-                &item_nets(board, self.work[first_pos].trace_id),
+                &self.work[last_pos + 1].trace_nets,
+                &self.work[first_pos].trace_nets,
             )
         {
             last_pos += 1;
@@ -1032,10 +1075,10 @@ impl ShapeTraceEntries {
             .max()
             .unwrap_or(0);
         self.trace_piece_count -= 1;
-        if nets_equal(&item_nets(board, first.trace_id), &self.own_net_nos) {
+        if nets_equal(&first.trace_nets, &self.own_net_nos) {
             // own net is ignored and may occur only at the lowest
             // level
-            return self.pop_piece(board);
+            return self.pop_piece();
         }
         Some((first, last))
     }
@@ -1046,12 +1089,17 @@ impl ShapeTraceEntries {
     /// nextCorner)` — the LATER insertion wins ties, since the break
     /// on `<=` splices the new entry BEFORE the incumbent, Java's
     /// `newEntry.next = currentNext`).
+    #[allow(clippy::too_many_arguments)] // the snapshot read set, kept flat
     fn insert_entry_point(
         &mut self,
         trace_id: ItemId,
         trace_line_no: i32,
         edge_index: i32,
         entry_approx: FloatPoint,
+        trace_lines: &Polyline,
+        trace_half_width: i32,
+        trace_clearance_class: i32,
+        trace_nets: &[i32],
     ) {
         let new_entry = EntryPoint {
             trace_id,
@@ -1059,6 +1107,10 @@ impl ShapeTraceEntries {
             entry_approx,
             edge_index,
             stack_level: -1, // not yet calculated
+            trace_lines: trace_lines.clone(),
+            trace_half_width,
+            trace_clearance_class,
+            trace_nets: trace_nets.to_vec(),
         };
         let mut insert_pos = self.work.len();
         for (pos, node) in self.work.iter().enumerate() {
@@ -1849,5 +1901,918 @@ mod tests {
         );
         assert!(board.is_on_the_board(ItemId::new(110)), "piece on board");
         assert!(board.trace_polyline(ItemId::new(111)).is_none(), "no 111");
+    }
+}
+
+/// The M3-T10b DEBT WORLD: a verbatim replay of every board mutation in
+/// `rust/harness/oracle/ShapeTraceDebtProbe.main()` — the T10a
+/// banked-capture debts (w1-w8) plus the two SHOVE_FIXED probe traces
+/// the T9-via-debt checkLayer ladder needs (v3/v5). Ids 105-129 replay
+/// 1:1 (capture row `"inserted"`). Captures:
+/// `logs/M3-T10b/captures/shape_debt_rows.jsonl` (+ `_run2.jsonl`,
+/// byte-identical double run).
+///
+/// Layout constraint (the run-2 lesson): the fixture's own
+/// ObstacleAreas (items 2-4) cover every y < 296000 band of the board
+/// center, so the probe packs all worlds into the area-free window
+/// y in (296000, 320000), x in (480000, 520000) — w1-w5 stacked in Y,
+/// w6/w7/w8/v3/v5 X-packed in the top sliver. Shared with the
+/// `forced_via_inserter` test mod (the checkLayer ladder pins).
+#[cfg(test)]
+pub(crate) mod debt_world {
+    use super::{ShapeEntrySide, ShapeTraceEntries};
+    use crate::board::Board;
+    use crate::components::BoardPadstack;
+    use crate::drill_item_mover::insert_via;
+    use crate::id::ItemId;
+    use crate::items::{BoardShape, FixedState};
+    use crate::test_util::parse_board_from_path;
+    use crate::trace_ops::insert_trace_without_cleaning;
+    use crate::tree_manager::SearchTreeManager;
+    use epic_geometry::float_point::FloatPoint;
+    use epic_geometry::int_box::IntBox;
+    use epic_geometry::int_point::IntPoint;
+    use epic_geometry::point::Point;
+    use epic_geometry::polyline::Polyline;
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+    use epic_geometry::tile_shape::TileShape;
+
+    pub(crate) fn p(x: i32, y: i32) -> Point {
+        Point::int(IntPoint::new(x, y))
+    }
+
+    pub(crate) fn ibox(x1: i32, y1: i32, x2: i32, y2: i32) -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntBox(IntBox::new(
+            IntPoint::new(x1, y1),
+            IntPoint::new(x2, y2),
+        )))
+    }
+
+    /// One trace insert of the Java probe, verbatim.
+    #[allow(clippy::too_many_arguments)] // the Java read set, kept flat
+    fn debt_trace(
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        half_width: i32,
+        nets: &[i32],
+        clearance_class: i32,
+        fixed: FixedState,
+    ) -> ItemId {
+        insert_trace_without_cleaning(
+            manager,
+            board,
+            Polyline::from_two_corners(&p(x1, y1), &p(x2, y2)),
+            0,
+            half_width,
+            nets,
+            clearance_class,
+            fixed,
+        )
+        .expect("debt trace insert")
+    }
+
+    /// The debt-world item ids, grouped per world (all literals from
+    /// the capture rows).
+    pub(crate) struct DebtWorld {
+        #[allow(dead_code)] // captured for the pin docs
+        pub cx: i32,
+        #[allow(dead_code)]
+        pub cy: i32,
+        pub own: i32,
+        #[allow(dead_code)]
+        pub foreign: i32,
+        #[allow(dead_code)]
+        pub foreign2: i32,
+        #[allow(dead_code)]
+        pub w1: [ItemId; 2],
+        #[allow(dead_code)]
+        pub w2: [ItemId; 2],
+        #[allow(dead_code)]
+        pub w3: [ItemId; 3],
+        #[allow(dead_code)]
+        pub w4: [ItemId; 3],
+        #[allow(dead_code)]
+        pub w4b: [ItemId; 3],
+        #[allow(dead_code)]
+        pub w5: [ItemId; 4],
+        #[allow(dead_code)]
+        pub w6: [ItemId; 2],
+        #[allow(dead_code)]
+        pub w7: [ItemId; 2],
+        #[allow(dead_code)]
+        pub w8: [ItemId; 2],
+        #[allow(dead_code)]
+        pub v3: ItemId,
+        #[allow(dead_code)]
+        pub v5: ItemId,
+    }
+
+    /// Builds the FULL world (all 25 inserts, in the probe's order) and
+    /// asserts the id replay. The worlds are spatially disjoint by
+    /// construction, so one shared board serves every store run and
+    /// every checkLayer probe — the same read-only discipline the Java
+    /// probe used.
+    pub(crate) fn build_debt_world() -> (SearchTreeManager, Board, DebtWorld) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../rust/harness/fixtures/locator-spike/t9_locator45.dsn");
+        let mut board = parse_board_from_path(&path.to_string_lossy());
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+
+        let bb = board.bounding_box().expect("fixture bbox");
+        let cx = (bb.ll.x + bb.ur.x) / 2;
+        let cy = (bb.ll.y + bb.ur.y) / 2;
+        assert_eq!((cx, cy), (500000, 300000), "capture bbox center");
+        // capture world row: ownNet=1 (N001), foreignNet=2 (N002),
+        // foreignNet2=3 (N003)
+        let (own, foreign, foreign2) = (1, 2, 3);
+        // capture world row: layers=2, cl00=16
+        let layer_count = board.library().padstacks[0].shapes.len();
+        assert_eq!(layer_count, 2, "capture layer count");
+        assert_eq!(board.clearance_value(0, 0, 0), 16, "capture cl00");
+
+        // The via padstack: +-100 (parity with the probe trace half
+        // width) through all layers; `padstacks.add(shape, 0,
+        // layerCount-1)` defaults to drillAllowed=false (T10a).
+        let rect = || {
+            Some(BoardShape::Tile(TileShape::RegularTileShape(
+                RegularTileShape::IntBox(IntBox::new(
+                    IntPoint::new(-100, -100),
+                    IntPoint::new(100, 100),
+                )),
+            )))
+        };
+        board.library_mut().padstacks.push(BoardPadstack {
+            name: "debt_via100".to_string(),
+            shapes: vec![rect(); layer_count],
+            drillable: false,
+            placed_absolute: false,
+            hole_only: false,
+        });
+        let via100 = board.library().padstacks.len() as i32;
+
+        let u = FixedState::Unfixed;
+        // w1_dedup — two same-net foreign traces fully crossing the shape
+        let w1a = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 2000,
+            cx + 2000,
+            cy + 2000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w1b = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 3000,
+            cx + 2000,
+            cy + 3000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        // w2_stack — two different-net traces crossing in an X
+        let w2a = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 6000,
+            cx + 2000,
+            cy + 6000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w2b = debt_trace(
+            &mut manager,
+            &mut board,
+            cx,
+            cy + 4000,
+            cx,
+            cy + 8000,
+            100,
+            &[foreign2],
+            0,
+            u,
+        );
+        // w3 — N003 crossbar + two N002 vertical stubs crossing the
+        // shape borders (a fully-inside polyline has NO entrance
+        // points, the run-2 lesson; three distinct chain nets defeat
+        // the triple dedup so the anchor walk stays visible).
+        let w3a = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 10000,
+            cx + 2000,
+            cy + 10000,
+            100,
+            &[foreign2],
+            0,
+            u,
+        );
+        let w3b = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 500,
+            cy + 9000,
+            cx - 500,
+            cy + 11000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w3c = debt_trace(
+            &mut manager,
+            &mut board,
+            cx + 400,
+            cy + 9000,
+            cx + 400,
+            cy + 11000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        // w4_headtrim — own, own, foreign
+        let w4a = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 12000,
+            cx + 2000,
+            cy + 12000,
+            100,
+            &[own],
+            0,
+            u,
+        );
+        let w4b_t = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 13000,
+            cx + 2000,
+            cy + 13000,
+            100,
+            &[own],
+            0,
+            u,
+        );
+        let w4c = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 14000,
+            cx + 2000,
+            cy + 14000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        // w4b_interior — own, foreign, own (interior own-net survival)
+        let w4b1 = debt_trace(
+            &mut manager,
+            &mut board,
+            503000,
+            cy + 12000,
+            507000,
+            cy + 12000,
+            100,
+            &[own],
+            0,
+            u,
+        );
+        let w4b2 = debt_trace(
+            &mut manager,
+            &mut board,
+            503000,
+            cy + 13000,
+            507000,
+            cy + 13000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w4b3 = debt_trace(
+            &mut manager,
+            &mut board,
+            503000,
+            cy + 14000,
+            507000,
+            cy + 14000,
+            100,
+            &[own],
+            0,
+            u,
+        );
+        // w5_proj — stub + via pairs: each stub's in-shape end has
+        // exactly one contact (the same-net via at the end corner).
+        let w5t1 = debt_trace(
+            &mut manager,
+            &mut board,
+            cx - 2000,
+            cy + 16000,
+            cx,
+            cy + 16000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w5v1 = insert_via(
+            &mut manager,
+            &mut board,
+            via100,
+            IntPoint::new(cx, cy + 16000),
+            &[foreign],
+            0,
+            u,
+            false,
+        );
+        let w5t2 = debt_trace(
+            &mut manager,
+            &mut board,
+            cx,
+            cy + 18000,
+            cx + 2000,
+            cy + 18000,
+            100,
+            &[foreign2],
+            0,
+            u,
+        );
+        let w5v2 = insert_via(
+            &mut manager,
+            &mut board,
+            via100,
+            IntPoint::new(cx, cy + 18000),
+            &[foreign2],
+            0,
+            u,
+            false,
+        );
+        // Top sliver (y in [318400, 319900]).
+        let w6x = cx - 13000;
+        // w6_diffneg — via radius 100 < stub half width 200
+        let w6t = debt_trace(
+            &mut manager,
+            &mut board,
+            w6x - 2000,
+            319000,
+            w6x,
+            319000,
+            200,
+            &[foreign],
+            0,
+            u,
+        );
+        let w6v = insert_via(
+            &mut manager,
+            &mut board,
+            via100,
+            IntPoint::new(w6x, 319000),
+            &[foreign],
+            0,
+            u,
+            false,
+        );
+        // w7_diffeq — stub end corner EXACTLY on the offset boundary
+        // (offset = halfWidth + clearance + 1 = 101 + cl00).
+        let e_off = 101 + 16; // cl00 pinned above
+        let e_x = cx + 300 + e_off;
+        let w7t = debt_trace(
+            &mut manager,
+            &mut board,
+            e_x - 3000,
+            319200,
+            e_x,
+            319200,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w7v = insert_via(
+            &mut manager,
+            &mut board,
+            via100,
+            IntPoint::new(e_x, 319200),
+            &[foreign],
+            0,
+            u,
+            false,
+        );
+        let w8x = cx + 13000;
+        // w8_eqop — class-0 stub contacts a class-1 UNFIXED stub
+        let w8a = debt_trace(
+            &mut manager,
+            &mut board,
+            w8x - 2000,
+            319000,
+            w8x,
+            319000,
+            100,
+            &[foreign],
+            0,
+            u,
+        );
+        let w8b = debt_trace(
+            &mut manager,
+            &mut board,
+            w8x,
+            319000,
+            w8x + 2000,
+            319000,
+            100,
+            &[foreign],
+            1,
+            u,
+        );
+        // v3/v5 — SHOVE_FIXED N003 discriminators for the checkLayer
+        // ladder (a same-net obstacle would be copper-shared away).
+        let v3 = debt_trace(
+            &mut manager,
+            &mut board,
+            489000,
+            316950,
+            495000,
+            316950,
+            100,
+            &[foreign2],
+            0,
+            FixedState::ShoveFixed,
+        );
+        let v5 = debt_trace(
+            &mut manager,
+            &mut board,
+            503200,
+            318350,
+            509200,
+            318350,
+            100,
+            &[foreign2],
+            0,
+            FixedState::ShoveFixed,
+        );
+
+        // capture "inserted" row: ids 105..129 in insertion order
+        let ids: Vec<u32> = [
+            w1a, w1b, w2a, w2b, w3a, w3b, w3c, w4a, w4b_t, w4c, w4b1, w4b2, w4b3, w5t1, w5v1, w5t2,
+            w5v2, w6t, w6v, w7t, w7v, w8a, w8b, v3, v5,
+        ]
+        .iter()
+        .map(|id| id.get())
+        .collect();
+        let expected: Vec<u32> = (105..=129).collect();
+        assert_eq!(ids, expected, "capture inserted ids [105..129]");
+
+        (
+            manager,
+            board,
+            DebtWorld {
+                cx,
+                cy,
+                own,
+                foreign,
+                foreign2,
+                w1: [w1a, w1b],
+                w2: [w2a, w2b],
+                w3: [w3a, w3b, w3c],
+                w4: [w4a, w4b_t, w4c],
+                w4b: [w4b1, w4b2, w4b3],
+                w5: [w5t1, w5v1, w5t2, w5v2],
+                w6: [w6t, w6v],
+                w7: [w7t, w7v],
+                w8: [w8a, w8b],
+                v3,
+                v5,
+            },
+        )
+    }
+
+    /// One chain entry as captured: (traceId, lineNo, approx, edge, level).
+    fn chain_row(entry: &crate::shape_trace_entries::EntryPoint) -> (i32, i32, [f64; 2], i32, i32) {
+        (
+            i32::try_from(entry.trace_id.get()).expect("positive id"),
+            entry.trace_line_no,
+            [entry.entry_approx.x, entry.entry_approx.y],
+            entry.edge_index,
+            entry.stack_level,
+        )
+    }
+
+    fn assert_chain(entries: &ShapeTraceEntries, expected: &[(i32, i32, [f64; 2], i32, i32)]) {
+        let rows: Vec<_> = entries.entry_chain().iter().map(chain_row).collect();
+        assert_eq!(rows.len(), expected.len(), "chain length");
+        for (got, want) in rows.iter().zip(expected) {
+            assert_eq!(got.0, want.0, "traceId");
+            assert_eq!(got.1, want.1, "lineNo");
+            assert!(
+                (got.2[0] - want.2[0]).abs() < 1e-6 && (got.2[1] - want.2[1]).abs() < 1e-6,
+                "approx {g:?} vs {w:?}",
+                g = got.2,
+                w = want.2
+            );
+            assert_eq!(got.3, want.3, "edgeIndex");
+            assert_eq!(got.4, want.4, "stackLevel");
+        }
+    }
+
+    /// Runs one probe `runStore`: overlapping items (bbox query,
+    /// ascending id, pinned against the capture), then `storeItems`.
+    fn run_store(
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        shape: TileShape,
+        from_side: Option<ShapeEntrySide>,
+        own: i32,
+        expected_items: &[u32],
+    ) -> (bool, ShapeTraceEntries) {
+        let mut items = manager.overlapping_objects(board, 0, &shape, 0, &[]);
+        items.sort_by_key(|id| id.get());
+        assert_eq!(
+            items.iter().map(|id| id.get()).collect::<Vec<_>>(),
+            expected_items,
+            "capture items"
+        );
+        let mut entries = ShapeTraceEntries::new(shape, 0, vec![own], 0, from_side);
+        let result = entries.store_items(manager, board, &items, false, false);
+        (result, entries)
+    }
+
+    /// The capture "counts" row: pieceCount, maxStackLevel,
+    /// tailsInShape, foundObstacle (-1 encoded as None).
+    fn assert_counts(
+        entries: &ShapeTraceEntries,
+        piece_count: i32,
+        max_stack_level: i32,
+        tails_in_shape: bool,
+        found_obstacle: Option<u32>,
+    ) {
+        assert_eq!(
+            entries.substitute_trace_count(),
+            piece_count,
+            "capture pieceCount"
+        );
+        assert_eq!(
+            entries.stack_depth(),
+            max_stack_level,
+            "capture maxStackLevel"
+        );
+        assert_eq!(
+            entries.trace_tails_in_shape(),
+            tails_in_shape,
+            "capture tailsInShape"
+        );
+        assert_eq!(
+            entries.found_obstacle().map(|id| id.get()),
+            found_obstacle,
+            "capture foundObstacle"
+        );
+    }
+
+    /// Debt (a), capture rows 2-4 (`w1_dedup`): two same-net foreign
+    /// traces fully crossing the shape produce four consecutive
+    /// same-net chain entries; the resort triple-dedup removes the two
+    /// middles. The survivors are BOTH ends of the LOWER trace (105):
+    /// the left edge lists top-to-bottom, so 105-right precedes
+    /// 105-left after the bottom-side entries are consumed first. Kill
+    /// target: the dedup mutant (remove-prev instead of
+    /// remove-current) flips the survivors.
+    #[test]
+    fn debt_w1_resort_triple_dedup_matches_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(499300, 301300, 500700, 303700);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[105, 106],
+        );
+        assert!(result, "capture result=true");
+        assert_chain(
+            &entries,
+            &[
+                (105, 1, [500817.0, 302000.0], 1, 1),
+                (105, 1, [499183.0, 302000.0], 3, 1),
+            ],
+        );
+        assert_counts(&entries, 1, 1, false, Some(106));
+    }
+
+    /// Debt (b), capture rows 5-7 (`w2_stack`): two different-net
+    /// traces cross in an X; the edge-sorted chain interleaves the two
+    /// net sets (108@edge0, 107@edge1, 108@edge2, 107@edge3), so
+    /// calculateStackLevels cannot close level 2 before reopening it ->
+    /// stack-property fail: result FALSE with the pieces still counted
+    /// (2) and foundObstacle = the LAST stored trace (108, the :440
+    /// quirk — the fail path stores no fresh obstacle).
+    #[test]
+    fn debt_w2_stack_property_fail_matches_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(499300, 305300, 500700, 306700);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[107, 108],
+        );
+        assert!(!result, "capture result=false");
+        assert_chain(
+            &entries,
+            &[
+                (108, 1, [500000.0, 305183.0], 0, 1),
+                (107, 1, [500817.0, 306000.0], 1, 2),
+                (108, 1, [500000.0, 306817.0], 2, 1),
+                (107, 1, [499183.0, 306000.0], 3, 2),
+            ],
+        );
+        assert_counts(&entries, 2, 2, false, Some(108));
+    }
+
+    /// Debt (e) control, capture rows 8-10 (`w3b_mid`): the from-side
+    /// borderIntersection projects MID-SIDE (fromPointDist 100 < side
+    /// length 1400 -> NO reset). The scan pre-assigns stack levels, so
+    /// the first raise prunes the 111-bottom entry; 109-right's raise
+    /// then hits the ALREADY-ASSIGNED 111-top -> stack-property fail
+    /// WITHOUT pruning (110-top survives at level 1) and
+    /// foundObstacle stays at the last stored trace 111. Kill targets:
+    /// the scan pre-assign mutant (levels drop), the prune-on-fail
+    /// mutant (110-top vanishes), the fromPointDist comparison mutant
+    /// (resets like w3a).
+    #[test]
+    fn debt_w3b_anchor_walk_mid_side_matches_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(499300, 309300, 500700, 310700);
+        let side = Some(ShapeEntrySide::new_precomputed(
+            0,
+            Some(FloatPoint::new(499400.0, 309300.0)),
+        ));
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            side,
+            w.own,
+            &[109, 110, 111],
+        );
+        assert!(!result, "capture result=false");
+        assert_chain(
+            &entries,
+            &[
+                (110, 1, [499500.0, 309183.0], 0, 1),
+                (109, 1, [500817.0, 310000.0], 1, 2),
+                (111, 1, [500400.0, 310817.0], 2, 1),
+                (110, 1, [499500.0, 310817.0], 2, 1),
+                (109, 1, [499183.0, 310000.0], 3, 2),
+            ],
+        );
+        assert_counts(&entries, 2, 2, false, Some(111));
+    }
+
+    /// Debt (e), capture rows 11-13 (`w3a_reset`): the border
+    /// intersection projects PAST the side end (projection 3200 >= side
+    /// length 1400 -> the reset arm swaps the side to (0, null)); the
+    /// compareCorner2 walk breaks at the second bottom-side entry and
+    /// the chain ROTATES there — 111-bottom becomes the head (level
+    /// still assigned by the scan), and the wrapped-around 110-bottom
+    /// carries `edgeIndex + edgeCount = 4` (rotateEntryListAroundAnchor).
+    /// The same stack-property fail fires at 109-right. Kill targets:
+    /// the reset threshold mutant (>= vs >), the edge-wrap mutant
+    /// (edge 0 instead of 4), the rotation-anchor mutant.
+    #[test]
+    fn debt_w3a_resort_reset_and_edge_wrap_matches_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(499300, 309300, 500700, 310700);
+        let side = Some(ShapeEntrySide::new_precomputed(
+            0,
+            Some(FloatPoint::new(502500.0, 309300.0)),
+        ));
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            side,
+            w.own,
+            &[109, 110, 111],
+        );
+        assert!(!result, "capture result=false");
+        assert_chain(
+            &entries,
+            &[
+                (111, 1, [500400.0, 309183.0], 0, 1),
+                (109, 1, [500817.0, 310000.0], 1, 2),
+                (111, 1, [500400.0, 310817.0], 2, 1),
+                (110, 1, [499500.0, 310817.0], 2, 1),
+                (109, 1, [499183.0, 310000.0], 3, 2),
+                (110, 1, [499500.0, 309183.0], 4, 1),
+            ],
+        );
+        assert_counts(&entries, 2, 2, false, Some(111));
+    }
+
+    /// Debt (f), capture rows 14-16 (`w4_headtrim`): chain order
+    /// [own1-r, own2-r, f-r, f-l, own2-l, own1-l]; the tail trim
+    /// removes two consecutive own-net tail nodes and the head trim
+    /// (Item.netsEqual face) removes two consecutive own-net head
+    /// nodes — ONLY the foreign trace's two entries survive. Kill
+    /// targets: the one-step trim mutant (own2 pair survives), the
+    /// netsEqual-vs-netNosEqual swap (same verdict here — see w4b for
+    /// the discriminating world), the trim-direction mutant.
+    #[test]
+    fn debt_w4_head_tail_trims_both_steps_match_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(499300, 311300, 500700, 314700);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[112, 113, 114],
+        );
+        assert!(result, "capture result=true");
+        assert_chain(
+            &entries,
+            &[
+                (114, 1, [500817.0, 314000.0], 1, 1),
+                (114, 1, [499183.0, 314000.0], 3, 1),
+            ],
+        );
+        assert_counts(&entries, 1, 1, false, Some(114));
+    }
+
+    /// Debt (f), capture rows 17-19 (`w4b_interior`): chain
+    /// [own1-r, f-r, own2-r, own2-l, f-l, own1-l] — the trims are
+    /// ENDS-ONLY and NETS-GATED: the outer own-net nodes go (exactly
+    /// one step per end here), the foreign nodes stay, and the own2
+    /// pair SURVIVES mid-chain. Kills the trim-two-unconditionally
+    /// mutant (a foreign node would vanish) — the under-trim
+    /// (single-step) mutant is w4's kill. Blind spot (banked in SEAM):
+    /// a THREE-consecutive-own-node loop mutant survives both worlds —
+    /// no captured world has three own-net entries at a chain end.
+    #[test]
+    fn debt_w4b_interior_survival_single_step_trims_match_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(504300, 311300, 505700, 314700);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[115, 116, 117],
+        );
+        assert!(result, "capture result=true");
+        assert_chain(
+            &entries,
+            &[
+                (116, 1, [505817.0, 313000.0], 1, 1),
+                (117, 1, [505817.0, 314000.0], 1, 2),
+                (117, 1, [504183.0, 314000.0], 3, 2),
+                (116, 1, [504183.0, 313000.0], 3, 1),
+            ],
+        );
+        assert_counts(&entries, 2, 2, false, Some(117));
+    }
+
+    /// Debts (d)+(g), capture rows 20-22 (`w5_proj`): each stub's
+    /// in-shape end corner has exactly ONE contact (its same-net via
+    /// with radius == half width, so viaTraceDiff == 0). The projection
+    /// arm inserts contact entries with the CONTACT SEGMENT index:
+    /// 120 (end stub) gets lineNo 0 at its start corner, 118 (start
+    /// stub) gets lineNo 2 at its end corner — both sharing the plain
+    /// entrance's approx. Kill targets: the 0-vs-lines.length-1
+    /// projection swap (lineNos flip), the containsInside mutant
+    /// (w5 vs w7 diverge), the viaTraceDiff < 0 vs <= 0 mutant
+    /// (w6's verdict leaks here).
+    #[test]
+    fn debt_w5_contact_projection_and_diff_zero_inside_matches_the_jar() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(499300, 315300, 500700, 318700);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[118, 119, 120, 121],
+        );
+        assert!(result, "capture result=true");
+        assert_chain(
+            &entries,
+            &[
+                (120, 1, [500817.0, 318000.0], 1, 1),
+                (120, 0, [499183.0, 318000.0], 3, 1),
+                (118, 2, [499183.0, 316000.0], 3, 1),
+                (118, 1, [499183.0, 316000.0], 3, 1),
+            ],
+        );
+        assert_counts(&entries, 2, 1, false, Some(120));
+    }
+
+    /// Debt (d), capture rows 23-25 (`w6_diffneg`): the stub half width
+    /// (200) exceeds the via radius (100) at the end corner ->
+    /// viaTraceDiff < 0 -> storeTrace FALSE with foundObstacle = the
+    /// VIA (123). The chain keeps the residual level -1 entry the
+    /// failed trace stored before the via arm fired (stackLevel default
+    /// -1, EntryPoint). Kill target: the < 0 vs <= 0 mutant (w6 passes
+    /// like w7).
+    #[test]
+    fn debt_w6_via_trace_diff_negative_fails_on_via() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(486300, 318700, 487300, 319300);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[122, 123],
+        );
+        assert!(!result, "capture result=false");
+        assert_chain(&entries, &[(122, 1, [486083.0, 319000.0], 3, -1)]);
+        assert_counts(&entries, 0, 0, false, Some(123));
+    }
+
+    /// Debt (d), capture rows 26-28 (`w7_diffeq`): the stub end corner
+    /// sits EXACTLY on the offset-shape boundary (offset = 101 + cl00
+    /// = 117 from the shape's right edge): `contains` holds,
+    /// `containsInside` does not -> storeEndCorner = false -> NO
+    /// projection entry (contrast w5). Kill target: the
+    /// contains/containsInside swap (w7 grows a w5-style projection
+    /// entry).
+    #[test]
+    fn debt_w7_diff_eq_boundary_no_projection() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(498900, 318900, 500300, 319500);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[124],
+        );
+        assert!(result, "capture result=true");
+        assert_chain(
+            &entries,
+            &[
+                (124, 1, [500417.0, 319200.0], 1, 1),
+                (124, 1, [498783.0, 319200.0], 3, 1),
+            ],
+        );
+        assert_counts(&entries, 1, 1, false, Some(124));
+    }
+
+    /// Debt (h), capture rows 29-31 (`w8_eqop`): the stored class-0
+    /// stub contacts an UNFIXED class-1 stub of the same half width.
+    /// Java's tautological `contactItem.clearanceClassIndex() !=
+    /// contactTrace.clearanceClassIndex()` compares the SAME contact
+    /// object twice and never fires — result TRUE with the class-1
+    /// contact's entries in the chain. Kill target (the whole point):
+    /// the fix-mutant comparing the CONTACT's class (1) against the
+    /// STORED trace's class (0) flips the verdict to FALSE with
+    /// foundObstacle = 127.
+    #[test]
+    fn debt_w8_eq_op_tautology_stays_false() {
+        let (mut manager, mut board, w) = build_debt_world();
+        let shape = ibox(512300, 318300, 513700, 319700);
+        let (result, entries) = run_store(
+            &mut manager,
+            &mut board,
+            shape,
+            Some(ShapeEntrySide::new_precomputed(0, None)),
+            w.own,
+            &[126, 127],
+        );
+        assert!(result, "capture result=true");
+        assert_chain(
+            &entries,
+            &[
+                (127, 1, [513817.0, 319000.0], 1, 1),
+                (126, 1, [512183.0, 319000.0], 3, 1),
+            ],
+        );
+        assert_counts(&entries, 1, 1, false, Some(127));
     }
 }
