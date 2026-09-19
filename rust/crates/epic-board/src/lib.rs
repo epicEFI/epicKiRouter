@@ -34,6 +34,7 @@
 //! jar-pinned by `rust/harness/oracle/SplitSpike.java`.
 
 pub mod board;
+pub mod changed_area;
 pub mod components;
 pub mod contacts;
 pub mod drill_item_mover;
@@ -43,6 +44,7 @@ pub mod id;
 pub mod items;
 pub mod layers;
 pub mod normalize_all;
+pub mod routing_board_insert;
 pub mod rules_surf;
 pub mod session_contacts;
 pub mod shape_and_entry_side;

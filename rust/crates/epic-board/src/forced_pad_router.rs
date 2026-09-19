@@ -569,8 +569,18 @@ pub fn forced_pad(
                 return false;
             }
         }
-        // T10c: changed-area seam — Java `joinChangedArea` per corner
-        // (`:434-436`); the port has no changed-area machinery.
+        // Java `:434-436`: mark the piece corners in the changed area
+        // (a no-op while no marking session is active — Java's
+        // `joinChangedArea` guards on null).
+        if board.changed_area.is_some() {
+            let corner_count = piece.lines.corner_count();
+            for i in 0..corner_count as i32 {
+                let corner = piece.lines.corner_approx(i);
+                if let Some(area) = board.changed_area.as_mut() {
+                    area.join_point(&corner, layer);
+                }
+            }
+        }
         let end_corners: Option<(Point, Point)> = if !tails_exist_before {
             Some((
                 crate::items::trace::first_corner(&piece.lines).expect("Java NPE: piece corner"),
@@ -594,11 +604,13 @@ pub fn forced_pad(
         });
         manager.insert(board, piece.id);
 
-        // Java `normalize(board.changedArea != null ?
-        // changedArea.getArea(layer) : null)` in a try/catch — the
-        // headless face passes null (T10c: changed-area seam); a
-        // normalization failure is demoted to an error log (D12).
-        let _ = normalize(manager, board, piece.id, None);
+        // Java `:440-450` — the NULL-CLIP face of the changed-area
+        // session (unlike TraceShover.insert's direct deref): the area
+        // is read into a local (`null` when the session is inactive)
+        // and `normalize(optArea)` runs UNCONDITIONALLY in a swallowing
+        // try/catch — the null clip means unbounded normalization.
+        let clip = board.changed_area.as_ref().map(|area| area.get_area(layer));
+        let _ = normalize(manager, board, piece.id, clip.as_ref());
 
         if let Some((start_corner, end_corner)) = end_corners {
             for location in [start_corner, end_corner] {
@@ -735,8 +747,14 @@ pub(crate) fn check_trace_shape(
         let current_nets = item_nets(board, current_id);
         let mut is_obstacle = true;
         for net in net_numbers {
-            // Java `Item.isTraceObstacle(net)` = `!containsNet(net)`.
-            if !contains_net(&current_nets, *net) {
+            // Java `if (!currentItem.isTraceObstacle(netNumbers[i]))`:
+            // isTraceObstacle(net) is `!containsNet(net)`, so the flag
+            // clears when the item CONTAINS the net (an own-net entry
+            // is not an obstacle). Inverting this made every OWN-net
+            // trace an obstacle and every foreign entry pass — caught
+            // by the T10c connect-ladder pins (the connection into the
+            // own-net target was rejected by the target itself).
+            if contains_net(&current_nets, *net) {
                 is_obstacle = false;
             }
         }

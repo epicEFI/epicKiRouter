@@ -22,9 +22,10 @@
 //!
 //! Deferral ledger (Task 8): `split` and `combine` landed with the M2
 //! trace-surgery tasks and the M3 shove substrate respectively;
-//! `skipLines`, `nearestPointApprox`, `distance`, `projectionLine` and
-//! `shorten` are not ported yet — they belong to the M2/M3 autoroute
-//! surface and are re-ledgered there. `offsetShapes` /
+//! `skipLines`, `projectionLine` and `shorten` landed with the M3-T10c
+//! forced-insertion surface (the sampling retry and the connectToTrace
+//! ladder). Still not ported: `nearestPointApprox` and `distance`
+//! (M4 pull-tight surface). `offsetShapes` /
 //! `offsetShape(int, int)` are ported (Task 8 scope), and `offsetBox`
 //! lands with the M2 Task 7 search-tree shapes (the 90-degree tree's
 //! trace path, `ShapeSearchTree90Degree.offsetShape`).
@@ -786,6 +787,111 @@ impl Polyline {
         false
     }
 
+    /// Returns this polyline without the lines from `from_no` to `to_no`
+    /// (inclusive). The input polyline is returned unchanged when the
+    /// range is empty or out of bounds (Java `skipLines`,
+    /// `Polyline.java:838-846`). The remaining lines go through the
+    /// normalizing constructor — skipping a line can make previously
+    /// non-adjacent lines consecutive parallels.
+    pub fn skip_lines(&self, from_no: i32, to_no: i32) -> Polyline {
+        if from_no < 0 || to_no > self.lines.len() as i32 - 1 || from_no > to_no {
+            return self.clone();
+        }
+        let mut new_lines: Vec<Line> = self.lines[..from_no as usize].to_vec();
+        new_lines.extend_from_slice(&self.lines[to_no as usize + 1..]);
+        Polyline::new(new_lines)
+    }
+
+    /// Creates a perpendicular line segment from `point` onto the nearest
+    /// line segment of this polyline to `point`. Returns `None` if the
+    /// perpendicular line does not intersect the nearest line segment
+    /// inside its segment bounds or if `point` is contained in this
+    /// polyline (Java `projectionLine`, `Polyline.java:871-910`; the
+    /// dispatch named it `LineSegment::projection_line`, but Java puts it
+    /// on `Polyline` — the Java placement wins).
+    ///
+    /// The candidate walk is STRICTLY closer (`<`): equal distances never
+    /// replace the incumbent, so the FIRST minimal candidate wins ties.
+    /// The containment filter is the exact `sideOf` pair — both corners of
+    /// segment `i` on the same (non-collinear) side of the projection
+    /// line disqualify the candidate.
+    pub fn projection_line(&self, point: &Point) -> Option<LineSegment> {
+        let from_point = point.to_float();
+        let mut min_distance = f64::MAX;
+        let mut result_line: Option<Line> = None;
+        let mut nearest_line: Option<&Line> = None;
+        for i in 1..self.lines.len() as i32 - 1 {
+            let projection = from_point.projection_approx(&self.lines[i as usize]);
+            let current_distance = projection.distance(&from_point);
+            if current_distance < min_distance {
+                let Some(direction_towards_line) =
+                    self.lines[i as usize].perpendicular_direction(point)
+                else {
+                    continue;
+                };
+                let current_result_line =
+                    Line::new_with_direction(point.clone(), direction_towards_line);
+                let Some(prev_corner) = self.corner(i - 1) else {
+                    continue;
+                };
+                let Some(next_corner) = self.corner(i) else {
+                    continue;
+                };
+                let prev_corner_side = current_result_line.side_of(&prev_corner);
+                let next_corner_side = current_result_line.side_of(&next_corner);
+                if prev_corner_side == next_corner_side && prev_corner_side != Side::Collinear {
+                    // the projection point is outside the line segment
+                    continue;
+                }
+                nearest_line = Some(&self.lines[i as usize]);
+                min_distance = current_distance;
+                result_line = Some(current_result_line);
+            }
+        }
+        let nearest_line = nearest_line?;
+        let result_line = result_line?;
+        let start_line = Line::new_with_direction(point.clone(), nearest_line.direction().clone());
+        Some(LineSegment::new(
+            start_line,
+            result_line,
+            nearest_line.clone(),
+        ))
+    }
+
+    /// Shortens this polyline to `new_line_count` lines. Additionally, the
+    /// last line segment will be approximately shortened to
+    /// `last_segment_length`. The last corner of the new polyline will be
+    /// an `IntPoint` (Java `shorten`, `Polyline.java:916-936`).
+    ///
+    /// When the rounded new last corner coincides with the ORIGINAL
+    /// second-to-last corner, the last line is skipped instead (the
+    /// `skipLines(newLineCount - 1, newLineCount - 1)` arm) — the result
+    /// then goes through the normalizing constructor and can degenerate.
+    pub fn shorten(&self, new_line_count: i32, last_segment_length: f64) -> Polyline {
+        let last_corner = self.corner_approx(new_line_count - 2);
+        let prev_last_corner = self.corner_approx(new_line_count - 3);
+        let new_last_corner = prev_last_corner.change_length(&last_corner, last_segment_length);
+        let new_last_corner = new_last_corner.round();
+        let original_second_to_last = self.corner(self.corner_count() as i32 - 2);
+        if Some(Point::Int(new_last_corner)) == original_second_to_last {
+            // skip the last line
+            return self.skip_lines(new_line_count - 1, new_line_count - 1);
+        }
+        let mut new_lines: Vec<Line> = self.lines[..(new_line_count - 2) as usize].to_vec();
+        // create the last 2 lines of the new polyline
+        let mut first_line_point = self.lines[(new_line_count - 2) as usize].a.clone();
+        if first_line_point == Point::Int(new_last_corner) {
+            first_line_point = self.lines[(new_line_count - 2) as usize].b.clone();
+        }
+        let new_prev_last_line = Line::new(first_line_point, Point::Int(new_last_corner));
+        new_lines.push(new_prev_last_line.clone());
+        new_lines.push(Line::get_instance(
+            Point::Int(new_last_corner),
+            new_prev_last_line.direction().turn_45_degree(6),
+        ));
+        Polyline::new(new_lines)
+    }
+
     /// Element-wise [`Line::fast_equals`] comparison (additive helper; see
     /// the module docs — Java `Polyline` has no `fastEquals`).
     pub fn fast_equals(&self, other: &Polyline) -> bool {
@@ -1423,6 +1529,202 @@ mod tests {
                 (1500.0, 500.0),
             ],
             "end-end",
+        );
+    }
+
+    /// An open L plus a 45-degree tail, built from EXPLICIT lines so the
+    /// test controls every anchor (the polygon ctor would append a
+    /// closing line). Corner approximations: (100,0), (100,100),
+    /// (200,100).
+    fn open_l() -> Polyline {
+        Polyline::new(vec![
+            Line::new(p(0, 0), p(100, 0)),
+            Line::new(p(100, 0), p(100, 100)),
+            Line::new(p(100, 100), p(200, 100)),
+        ])
+    }
+
+    /// `skipLines` (`Polyline.java:838-846`): the inclusive range is
+    /// removed and the remainder re-wrapped; the out-of-range and empty
+    /// ranges return the input UNCHANGED (Java `return this`); a
+    /// remainder shorter than 3 lines is EMPTIED by the normalizing
+    /// ctor.
+    #[test]
+    fn skip_lines_range_and_guards() {
+        // Connected 4-line input: (0,0),(100,0),(100,100),(200,100)
+        // open, plus the (200,200) riser.
+        let four = Polyline::new(vec![
+            Line::new(p(0, 0), p(100, 0)),
+            Line::new(p(100, 0), p(100, 100)),
+            Line::new(p(100, 100), p(200, 100)),
+            Line::new(p(200, 100), p(200, 200)),
+        ]);
+        // Guards: fromNo < 0, toNo > len-1, fromNo > toNo → clone.
+        for (from, to) in [(-1, 0), (0, 4), (2, 1)] {
+            let skipped = four.skip_lines(from, to);
+            assert!(
+                skipped.equals(&four),
+                "guard ({from},{to}) must return the input"
+            );
+        }
+        // Dropping the first line leaves 3 CONNECTED lines that the
+        // ctor keeps verbatim (no parallels, flip pass finds no
+        // dog-ear).
+        let skipped = four.skip_lines(0, 0);
+        let ends: Vec<(Point, Point)> = skipped
+            .lines
+            .iter()
+            .map(|l| (l.a.clone(), l.b.clone()))
+            .collect();
+        assert_eq!(
+            ends,
+            vec![
+                (p(100, 0), p(100, 100)),
+                (p(100, 100), p(200, 100)),
+                (p(200, 100), p(200, 200)),
+            ],
+            "lines 0..=0 inclusive are gone"
+        );
+        // The T10c sampling-retry form skipLines(newLineCount-1,
+        // newLineCount-1) drops exactly the last line; on open_l the
+        // two survivors are only 2 lines — the ctor EMPTIES those.
+        let pl = open_l();
+        assert!(pl.skip_lines(2, 2).is_empty(), "ctor: < 3 lines → empty");
+    }
+
+    /// `projectionLine` (`Polyline.java:871-910`), happy face: the
+    /// perpendicular from (50,50) onto the interior vertical x=100.
+    /// The result line is the horizontal through the point; start/end
+    /// are its intersections with the point-parallel start line and the
+    /// nearest polyline line.
+    #[test]
+    fn projection_line_interior_hit() {
+        let pl = open_l();
+        let seg = pl.projection_line(&p(50, 50)).expect("interior hit");
+        // line = the perpendicular through the point (anchored at it).
+        assert_eq!(seg.get_line().a, p(50, 50));
+        assert_eq!(seg.get_line().direction(), &Direction::RIGHT);
+        // end = line ∩ nearest line = (100,50); the nearest line is
+        // the interior polyline line itself.
+        assert_eq!(seg.end_point(), p(100, 50));
+        assert_eq!(seg.get_end_closing_line(), &pl.lines[1]);
+    }
+
+    /// The strictly-closer walk (`currentDistance < minDistance`): a
+    /// THREE-way equidistant tie — (100,50) is 50 away from the x=50,
+    /// y=100 and x=150 interior lines, and ALL THREE projections land
+    /// inside their segments (the side filter accepts every candidate)
+    /// — must keep the FIRST. Mutant `<=` lets the later x=150
+    /// candidate replace it (last replacement wins), observable in the
+    /// returned nearest line.
+    #[test]
+    fn projection_line_tie_keeps_first_candidate() {
+        let pl = Polyline::new(vec![
+            Line::new(p(0, 0), p(50, 0)),
+            Line::new(p(50, 0), p(50, 100)),
+            Line::new(p(50, 100), p(150, 100)),
+            Line::new(p(150, 100), p(150, 0)),
+            Line::new(p(150, 0), p(200, 0)),
+        ]);
+        let seg = pl.projection_line(&p(100, 50)).expect("tie hit");
+        assert_eq!(
+            seg.get_end_closing_line(),
+            &pl.lines[1],
+            "the first (x=50) line wins"
+        );
+        assert_eq!(seg.end_point(), p(50, 50));
+    }
+
+    /// The segment-bounds filter and the contained-point bail: a point
+    /// whose perpendicular lands BEYOND the interior segment (both
+    /// corners on the same side of the projection line) yields None;
+    /// a point ON the polyline yields None (perpendicularDirection is
+    /// null there).
+    #[test]
+    fn projection_line_misses() {
+        let pl = open_l();
+        // (150,150) projects to (100,150) — above the segment end.
+        assert!(pl.projection_line(&p(150, 150)).is_none(), "outside bounds");
+        // on the middle line: collinear, no perpendicular direction.
+        assert!(pl.projection_line(&p(100, 50)).is_none(), "contained point");
+    }
+
+    /// `shorten` (`Polyline.java:916-936`), rebuild face: the open L
+    /// shortened to 3 lines with a 50-long last segment keeps line 0,
+    /// replaces lines 1-2 with the (100,0)-(100,50) stub and the 45/90
+    /// turn continuation `turn45Degree(6)` (UP turned 270° → RIGHT),
+    /// so the new last corner is the IntPoint (100,50).
+    #[test]
+    fn shorten_rebuilds_the_tail() {
+        let pl = open_l();
+        let short = pl.shorten(3, 50.0);
+        let ends: Vec<(Point, Point)> = short
+            .lines
+            .iter()
+            .map(|l| (l.a.clone(), l.b.clone()))
+            .collect();
+        assert_eq!(short.lines.len(), 3, "rebuild face keeps newLineCount");
+        assert_eq!(
+            ends,
+            vec![
+                (p(0, 0), p(100, 0)),
+                (p(100, 0), p(100, 50)),
+                // Line.getInstance unit line: (100,50) plus one RIGHT step
+                (p(100, 50), p(101, 50)),
+            ],
+            "tail rebuilt at 50 length with the turn45Degree(6) end line"
+        );
+        assert_eq!(
+            short.last_corner(),
+            Some(p(100, 50)),
+            "IntPoint last corner"
+        );
+    }
+
+    /// The skip-line arm: when the rounded new last corner equals the
+    /// ORIGINAL `corner(cornerCount - 2)`, the last line is skipped
+    /// instead (zero-length last segment → newLastCorner == prevLast).
+    /// Mutants: comparing against corner(cornerCount-1) or skipping the
+    /// wrong range both flip this pin. The survivor set of the closed L
+    /// is [perp-start x=0, RIGHT, UP] — fromPolygon's first line is the
+    /// perpendicular START line, the dropped line 3 the perpendicular
+    /// END line.
+    #[test]
+    fn shorten_zero_length_skips_the_last_line() {
+        // closed L: corners (0,0),(10,0),(10,10), 4 lines,
+        // corner(1) = (10,0) = corner(cornerCount-2).
+        let pl = from_int_corners(&[(0, 0), (10, 0), (10, 10)]);
+        assert_eq!(pl.lines.len(), 4);
+        let short = pl.shorten(4, 0.0);
+        let ends: Vec<(Point, Point)> = short
+            .lines
+            .iter()
+            .map(|l| (l.a.clone(), l.b.clone()))
+            .collect();
+        assert_eq!(
+            ends,
+            vec![
+                (p(0, 0), p(0, 1)),
+                (p(0, 0), p(10, 0)),
+                (p(10, 0), p(10, 10)),
+            ],
+            "perpendicular end line 3 is skipped"
+        );
+    }
+
+    /// The degenerate newLineCount=2 face the sampling retry can reach
+    /// (shapeIndex = len-3 arithmetic): corner_approx(-1) clamps onto
+    /// corner_approx(0), changeLength on equal points returns the point
+    /// unchanged, and the rounded corner equals corner(cornerCount-2)
+    /// → skip arm → skipLines(1,1) → the 2-line remainder is EMPTIED
+    /// by the normalizing ctor (Java `new Polyline` < 3 lines).
+    #[test]
+    fn shorten_two_lines_degenerate() {
+        let pl = open_l();
+        let short = pl.shorten(2, 50.0);
+        assert!(
+            short.is_empty(),
+            "skip arm fired; the 2-line remainder emptied"
         );
     }
 }

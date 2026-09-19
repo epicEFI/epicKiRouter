@@ -965,6 +965,12 @@ fn combine_at_start(
         remove_item_through_repository(manager, board, trace_id);
     }
     remove_item_through_repository(manager, board, other_id);
+    // Java `:328-330`: the join is marked AFTER the removals, guarded
+    // by `board instanceof RoutingBoard` — the session-machinery test
+    // (joinChangedArea itself null-guards).
+    if let Some(area) = board.changed_area.as_mut() {
+        area.join_point(&start_corner.to_float(), a_layer);
+    }
     true
 }
 
@@ -1050,6 +1056,11 @@ fn combine_at_end(
         remove_item_through_repository(manager, board, trace_id);
     }
     remove_item_through_repository(manager, board, other_id);
+    // Java `:452-454`: the end-corner join, the mirror of the
+    // combineAtStart one.
+    if let Some(area) = board.changed_area.as_mut() {
+        area.join_point(&end_corner.to_float(), a_layer);
+    }
     true
 }
 
@@ -1675,13 +1686,14 @@ fn split_inside_drill_pad_prohibited(
 
 /// Java `BasicBoard.insertTrace(Polyline, ...)` (`BasicBoard.java:210-243`)
 /// — the CLEANING insert: [`insert_trace_without_cleaning`], then
-/// `newTrace.normalize(clipShape)` with `clipShape = null` (the
-/// `changedArea` lives on `RoutingBoard` only; a headless `BasicBoard`
-/// leaves it null, and the port has no changed-area machinery). The
-/// Java try/catch demotes a normalization panic to an FRLogger.warn +
-/// debug line (D12 log-only); the port has no panic path in
-/// [`normalize`] and returns its `bool` — the CALLER's result, not
-/// the wrapper's, mirrors Java (whose insertTrace returns void).
+/// `newTrace.normalize(clipShape)`. Java `:223-229` is the NULL-CLIP
+/// face of the changed-area session: `clipShape = null` unless the
+/// board is a `RoutingBoard` with an ACTIVE session, and the normalize
+/// runs UNCONDITIONALLY either way (a null clip means unbounded
+/// normalization). The Java try/catch demotes a normalization panic to
+/// an FRLogger.warn + debug line (D12 log-only); the port has no panic
+/// path in [`normalize`] and returns its `bool` — the CALLER's result,
+/// not the wrapper's, mirrors Java (whose insertTrace returns void).
 #[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
 pub fn insert_trace(
     manager: &mut SearchTreeManager,
@@ -1703,7 +1715,8 @@ pub fn insert_trace(
         clearance_class,
         fixed,
     )?;
-    let _changed = normalize(manager, board, new_trace, None);
+    let clip = board.changed_area.as_ref().map(|area| area.get_area(layer));
+    let _changed = normalize(manager, board, new_trace, clip.as_ref());
     Some(new_trace)
 }
 

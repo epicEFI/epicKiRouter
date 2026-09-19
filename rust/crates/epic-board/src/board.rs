@@ -239,6 +239,12 @@ pub struct Board {
     /// `None` mirrors Java's negative/initial state (the accessor
     /// reports -1); Java never writes a negative layer after init.
     shove_failing_layer: Option<i32>,
+    /// Java `RoutingBoard.changedArea` — the TRANSIENT marking session
+    /// (`board/state/ChangedArea.java`, T10c). Null outside a marking
+    /// session in Java; created lazily by `startMarkingChangedArea`
+    /// (nested starts keep the session) and nulled by
+    /// `optChangedArea`. Not part of undo (Java never snapshots it).
+    pub(crate) changed_area: Option<crate::changed_area::ChangedArea>,
 }
 
 impl Board {

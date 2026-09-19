@@ -696,8 +696,18 @@ pub fn insert(
                 return false;
             }
         }
-        // T10c: changed-area seam — Java `joinChangedArea` per corner
-        // (`:560-562`); the port has no changed-area machinery.
+        // Java `:560-562`: mark the piece corners in the changed area
+        // (a no-op while no marking session is active — Java's
+        // `joinChangedArea` guards on null).
+        if board.changed_area.is_some() {
+            let corner_count = piece.lines.corner_count();
+            for i in 0..corner_count as i32 {
+                let corner = piece.lines.corner_approx(i);
+                if let Some(area) = board.changed_area.as_mut() {
+                    area.join_point(&corner, layer);
+                }
+            }
+        }
         let end_corners: Option<(Point, Point)> = if !tails_exist_before {
             Some((
                 first_corner(&piece.lines).expect("Java NPE: piece corner"),
@@ -723,22 +733,22 @@ pub fn insert(
         });
         manager.insert(board, piece.id);
 
-        // T10c: changed-area seam — Java `currentSubstituteTrace
-        // .normalize(board.changedArea.getArea(layer))` in a try/catch
-        // (`:545-550`). `RoutingBoard.changedArea` is created lazily by
-        // `startMarkingChangedArea` (the autoroute pipeline and
-        // pull-tight callers); when it is null the `getArea` dereference
-        // throws NPE INSIDE the try block and the WHOLE normalization is
-        // skipped (demoted to FRLogger.error "Couldn't normalize
-        // trace."). The port has no changed-area machinery yet, so the
-        // null face is the only reachable face: normalization does not
-        // run — byte-matching the probe capture, where the substitute
-        // piece and the cutout halves stay SEPARATE traces (an
-        // unrestricted `normalize(.., None)` here would merge the
-        // piece's perpendicular end contacts via `PolylineTrace
-        // .combine()`, which ignores the clip). T10c replaces this with
-        // `normalize(.., Some(changed_area.get_area(layer)))` under
-        // active marking.
+        // Java `:545-550` — the DIRECT-DEREF face of the changed-area
+        // session: `currentSubstituteTrace.normalize(board.changedArea
+        // .getArea(layer))` inside a swallowing try/catch. With the
+        // session null the `getArea` dereference NPEs INSIDE the try
+        // block and the WHOLE normalization is skipped (demoted to
+        // FRLogger.error "Couldn't normalize trace."; bug-144). Port the
+        // CONDITIONAL: skip-when-no-session, run-when-marking with the
+        // area as the clip — normalizing with a null clip here would
+        // merge the piece's perpendicular end contacts via
+        // `PolylineTrace.combine()`, which ignores the clip.
+        if let Some(area) = board.changed_area.as_ref() {
+            let clip = area.get_area(layer);
+            // Java discards the normalize verdict here; internal
+            // failures surface as the caught exception path.
+            let _ = crate::trace_ops::normalize(manager, board, piece.id, Some(&clip));
+        }
 
         if let Some((start_corner, end_corner)) = end_corners {
             for location in [start_corner, end_corner] {

@@ -230,9 +230,20 @@ pub fn insert(
         ) {
             return false;
         }
-        // T10c: changed-area seam — Java `joinChangedArea` per bounding
-        // box corner (`:153-156`); the port has no changed-area
-        // machinery.
+        // Java `:159-162`: mark the four corners of the UNTRANSLATED
+        // tree shape's bounding box in the changed area (note the
+        // asymmetry: forcedPad ran on the translated `currentTileShape`,
+        // the join reads `currentShape`). `RoutingBoardOperations
+        // .joinChangedArea` guards on the null session internally.
+        if board.changed_area.is_some() {
+            let current_bounding_box = current_shape.bounding_box();
+            for j in 0..4 {
+                let corner = current_bounding_box.corner(j).to_float();
+                if let Some(area) = board.changed_area.as_mut() {
+                    area.join_point(&corner, current_layer);
+                }
+            }
+        }
         current_layer += 1;
     }
     drill_move_by(manager, board, drill_id, vector);
