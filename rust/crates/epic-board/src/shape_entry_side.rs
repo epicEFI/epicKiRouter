@@ -14,9 +14,9 @@ use epic_geometry::polyline::Polyline;
 use epic_geometry::tile_shape::TileShape;
 
 /// Java `ShapeEntrySide` — value struct; the four Java constructors
-/// become the named constructors below (Rust has no overloading, and
-/// two of the Java constructors share the `(Polyline, TileShape, int)`
-/// signature with different int meanings).
+/// become the named constructors below. The four Java signatures are
+/// pairwise distinct — the split into named constructors is purely
+/// because Rust has no constructor overloading.
 ///
 /// Java's `NOT_CALCULATED` singleton is [`ShapeEntrySide::NOT_CALCULATED`]
 /// (`:16`); `borderIntersection` is a mutable field in Java (the ctor-C
@@ -61,8 +61,8 @@ impl ShapeEntrySide {
     /// segment with a border intersection wins. Fallback (`:41-59`,
     /// the first corner is inside the shape): the nearest intersection
     /// of `polyline.lines[1]` with any border line, STRICTLY closer
-    /// each time (`<`, so the LAST tie candidate wins — first with the
-    /// smallest distance overall because equals never replace).
+    /// each time (`<` — equals never replace the incumbent, so the
+    /// FIRST minimal candidate wins ties).
     #[must_use]
     pub fn from_entry_no(polyline: &Polyline, no: i32, shape: &TileShape) -> Self {
         let mut fromside_no = -1;

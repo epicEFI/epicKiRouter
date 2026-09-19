@@ -456,7 +456,7 @@ impl SearchTreeManager {
     }
 
     /// Java `SearchTreeManager.reuseEntriesAfterCutout`
-    /// (`SearchTreeManager.java:283-290`) broadcasting over every live
+    /// (`SearchTreeManager.java:278-284`) broadcasting over every live
     /// tree to `ShapeSearchTree.reuseEntriesAfterCutout`
     /// (`ShapeSearchTree.java:312-346`): the tree entries of
     /// `from_trace` are split onto `start_piece` / `end_piece` after a

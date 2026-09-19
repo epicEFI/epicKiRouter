@@ -195,6 +195,14 @@ impl ShapeTraceEntries {
     /// check is for vias, otherwise for traces. If
     /// `copper_sharing_allowed`, overlaps with traces or pads of the
     /// own net are allowed.
+    ///
+    /// # Caller-order contract
+    ///
+    /// `item_list` must arrive in the M2-parity
+    /// `overlappingItemsWithClearance` order: the walk inserts entries
+    /// as it iterates, so a differently ordered list reorders the
+    /// entry CHAIN — and through the pops, the inserted substitute
+    /// pieces. T10b's shove drivers supply the parity order.
     pub fn store_items(
         &mut self,
         manager: &mut SearchTreeManager,
@@ -1129,13 +1137,14 @@ fn item_nets(board: &Board, id: ItemId) -> Vec<i32> {
         .unwrap_or_default()
 }
 
-/// Java's three-site offset construction (`cutoutTrace` `:74-84`,
-/// `storeTrace` `:326-337`, `nextSubstituteTracePiece` `:235-245`):
+/// Java's two-site offset construction (`storeTrace` `:326-337`,
+/// `nextSubstituteTracePiece` `:235-245`; `cutoutTrace` `:74-84`
+/// re-inlines the same arithmetic instead of calling the helper):
 /// one compensated single step or the two-step symmetric enlargement
-/// (half width, then clearance + 1). The three sites differ ONLY in
-/// the layer argument fed to the clearance read — cutoutTrace reads
-/// the TRACE's layer, storeTrace the trace's layer, nextSubstitute
-/// the SHAPE's layer — captured by the explicit `layer` parameter.
+/// (half width, then clearance + 1). The two sites differ ONLY in
+/// the layer argument fed to the clearance read — storeTrace reads
+/// the TRACE's layer, nextSubstitute the SHAPE's layer — captured by
+/// the explicit `layer` parameter.
 #[allow(clippy::too_many_arguments)] // the Java read set, kept flat
 fn offset_shape(
     manager: &SearchTreeManager,
@@ -1392,9 +1401,11 @@ mod tests {
     }
 
     /// s1-notcalc capture (rows 1-5): the full-shape store run. The
-    /// chain pins the resort+dedup+stack-level exit state (triple dedup
-    /// removed the middle of the 106 run, the own-net tail trim fired),
-    /// and piece 0 is the level-1 106 run after the level-2 own-net
+    /// chain pins the resort+dedup+stack-level exit state. Nets
+    /// alternate along the post-rotation chain, so the triple dedup is
+    /// a NO-OP here (its mutant survives this world — see the SEAM
+    /// mutation row); what actually fired is the own-net tail trim.
+    /// Piece 0 is the level-1 106 run after the level-2 own-net
     /// piece was popped-and-skipped (popPiece's own-net recursion).
     #[test]
     fn s1_notcalc_chain_counts_and_piece_match_the_jar() {
