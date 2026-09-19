@@ -839,12 +839,21 @@ pub(crate) fn spring_over(
                         // obstacle and take the bigger obstacle in this
                         // case. That may happen in case of fixed vias
                         // inside of pins.
+                        //
+                        // Argument direction is Java's
+                        // (`TraceShover.java:675-682` with
+                        // `IntBox.contains(other)` ==
+                        // `other.isContainedIn(this)`, IntBox.java:377):
+                        // arm 1 fires when the CURRENT box CONTAINS the
+                        // FOUND box — the current (bigger) obstacle wins,
+                        // so the scan keeps the OUTERMOST nesting box;
+                        // arm 2 fails when neither contains the other.
                         if found_obstacle_bounding_box.intersects(&current_bounding_box) {
-                            if current_bounding_box.is_contained_in(&found_obstacle_bounding_box) {
+                            if found_obstacle_bounding_box.is_contained_in(&current_bounding_box) {
                                 found_obstacle = Some(current_item);
                                 found_obstacle_bounding_box = current_bounding_box;
-                            } else if !found_obstacle_bounding_box
-                                .is_contained_in(&current_bounding_box)
+                            } else if !current_bounding_box
+                                .is_contained_in(&found_obstacle_bounding_box)
                             {
                                 return SpringOverResult::Failed;
                             }
@@ -2209,5 +2218,149 @@ mod tests {
             None,
         ));
         assert_eq!(board.shove_failing_obstacle(), Some(x));
+    }
+
+    /// The springOver containment direction (spec-review MAJOR-1, jar
+    /// capture `logs/M3-T10b/captures/spring_nest_rows_run1.jsonl` +
+    /// `_run2.jsonl`, double-run byte-identical): the nest pair is
+    /// fixture PIN 101
+    /// (net 33, bbox [180000,280000,220000,320000]) plus a USER_FIXED
+    /// +/-5000 via at its center — Java's motivating "fixed vias
+    /// inside of pins" (TraceShover.java:673-674). NOTE the obstacle
+    /// classes: the pin qualifies through the contactPins branch (the
+    /// empty contact set makes every pin an obstacle); the via only
+    /// through `!isRoutable()` (Via.isRoutable = !isUserFixed &&
+    /// netCount > 0, Via.java:147-149) — a SHOVE_FIXED via is still
+    /// routable and can never be the second obstacle. Java arm 1 fires
+    /// when the CURRENT box CONTAINS the FOUND box (replace — the
+    /// OUTERMOST nesting box wins from either encounter order;
+    /// `IntBox.contains(other)` == `other.isContainedIn(this)`,
+    /// IntBox.java:377-379). KILLER = the recursion BUDGET, not the
+    /// final geometry: at depth 20 the swapped form still converges on
+    /// the same pin circuit (it wraps the inner via first and the
+    /// wrap recursion then wraps the pin — the wrong first pick
+    /// HEALS), so the depth-1 `springOver` call (a real Java
+    /// configuration: the instance check hands each call a
+    /// decremented per-invocation budget) is the discriminator. Fixed:
+    /// the pin wrap succeeds at depth 1 and the inner scan finds
+    /// nothing. Swapped (F1): the budget burns on the via wrap and the
+    /// pin only surfaces in the depth-0 recursion -> Failed.
+    #[test]
+    fn t12_spring_over_nest_keeps_the_outer_box() {
+        let (mut manager, mut board, w) = shover_world::build_shover_world();
+        // drift guard: the capture's pin, at the captured bbox
+        let pin_bb = item_bounding_box(&board, ItemId::new(101));
+        assert_eq!(
+            (pin_bb.ll.x, pin_bb.ll.y, pin_bb.ur.x, pin_bb.ur.y),
+            (180000, 280000, 220000, 320000),
+            "capture nestPinBbox"
+        );
+        // the +/-5000 through-all via padstack, USER_FIXED at the pin
+        // center (the world's own padstack is +/-250)
+        let rect = || {
+            Some(crate::items::BoardShape::Tile(TileShape::RegularTileShape(
+                RegularTileShape::IntBox(IntBox::new(
+                    IntPoint::new(-5000, -5000),
+                    IntPoint::new(5000, 5000),
+                )),
+            )))
+        };
+        let layer_count = board.library().padstacks[0].shapes.len();
+        board
+            .library_mut()
+            .padstacks
+            .push(crate::components::BoardPadstack {
+                name: "nest_via".to_string(),
+                shapes: vec![rect(); layer_count],
+                drillable: false,
+                placed_absolute: false,
+                hole_only: false,
+            });
+        let nest_padstack = board.library().padstacks.len() as i32;
+        let _nest_via = crate::drill_item_mover::insert_via(
+            &mut manager,
+            &mut board,
+            nest_padstack,
+            IntPoint::new(200000, 300000),
+            &[2],
+            0,
+            FixedState::UserFixed,
+            false,
+        );
+        let spring = Polyline::from_two_corners(&p(170000, 300000), &p(230000, 300000));
+        // The depth-1 attempt walks the BOTTOM half (the raw CCW wrap
+        // — captured `spring_nest_rows.jsonl` row `field:"depth1"`);
+        // the captured springOverObstacles answer (part b) is the TOP
+        // wrap via the CW-wins-tie rule.
+        let depth1_expected: Vec<[f64; 2]> = vec![
+            [170000.0, 300000.0],
+            [179933.0, 300000.0],
+            [179933.0, 279973.0],
+            [179973.0, 279933.0],
+            [220027.0, 279933.0],
+            [220067.0, 279973.0],
+            [220067.0, 300000.0],
+            [230000.0, 300000.0],
+        ];
+        let capture_expected: Vec<[f64; 2]> = vec![
+            [170000.0, 300000.0],
+            [179933.0, 300000.0],
+            [179933.0, 320027.0],
+            [179973.0, 320067.0],
+            [220027.0, 320067.0],
+            [220067.0, 320027.0],
+            [220067.0, 300000.0],
+            [230000.0, 300000.0],
+        ];
+        let assert_pin_wrap = |polyline: &Polyline, ctx: &str, expected: &[[f64; 2]]| {
+            let got: Vec<[f64; 2]> = polyline
+                .corner_approx_arr()
+                .iter()
+                .map(|c| [c.x, c.y])
+                .collect();
+            assert_eq!(got.len(), expected.len(), "{ctx}: capture corner count");
+            for (g, e) in got.iter().zip(expected.iter()) {
+                assert!(
+                    (g[0] - e[0]).abs() < 1e-6 && (g[1] - e[1]).abs() < 1e-6,
+                    "{ctx}: capture corner {g:?} vs {e:?}"
+                );
+            }
+        };
+        // (a) the killer: springOver at recursion depth 1.
+        let depth_one = spring_over(
+            &mut manager,
+            &mut board,
+            &spring,
+            50,
+            0,
+            &[w.own],
+            0,
+            true, // overConnectedPins, as springOverObstacles passes it
+            1,
+            Some(&BTreeSet::new()),
+        );
+        let SpringOverResult::Changed(wrapped) = depth_one else {
+            panic!("depth-1 springOver wraps the pin directly, got {depth_one:?}")
+        };
+        assert_pin_wrap(&wrapped, "depth-1", &depth1_expected);
+        // (b) the public capture: springOverObstacles (depth 20) wraps
+        // the same circuit end to end and reports no failure.
+        let result = spring_over_obstacles(
+            &mut manager,
+            &mut board,
+            &spring,
+            50,
+            0,
+            &[w.own],
+            0,
+            Some(&BTreeSet::new()),
+        )
+        .expect("the capture wraps: the outer (pin) box wins");
+        assert_pin_wrap(&result, "capture", &capture_expected);
+        assert_eq!(
+            board.shove_failing_obstacle(),
+            None,
+            "capture shoving-state: no failure"
+        );
     }
 }

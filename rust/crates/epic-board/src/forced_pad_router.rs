@@ -88,7 +88,10 @@ pub(crate) fn calc_check_shape_for_from_side(
 /// true (the conservative "check it" default).
 ///
 /// Case 0's third disjunct reproduces Java's `lineB.x + lineB.x`
-/// self-addition bug verbatim (`:88`).
+/// self-addition bug verbatim (`:78`). Every other comparison term is
+/// Java's min/max-of-SUMS form (`Math.min(lineA.x + lineA.y,
+/// lineB.x + lineB.y)`), NOT a sum of mins/maxes — the two agree except
+/// on (1,−1)-slope segments, where Java's form is strictly larger.
 pub(crate) fn in_front_of_pad(
     line: &Line,
     pad_shape: &TileShape,
@@ -115,7 +118,7 @@ pub(crate) fn in_front_of_pad(
     let mut result = match from_side {
         0 => {
             // NOTE the `line_b.x + line_b.x` self-addition — Java's
-            // bug at `:88`, kept verbatim.
+            // bug at `:78`, kept verbatim.
             (line_a.y.min(line_b.y) >= pad.top_y + width)
                 || (f64::from((line_a.x - line_a.y).max(line_b.x - line_b.y))
                     <= f64::from(pad.upper_left_diagonal_x) - diag_width)
@@ -156,14 +159,14 @@ pub(crate) fn in_front_of_pad(
         }
         6 => {
             (line_a.x.min(line_b.x) >= pad.right_x + width)
-                || (f64::from(line_a.x.min(line_b.x) + line_a.y.min(line_b.y))
+                || (f64::from((line_a.x + line_a.y).min(line_b.x + line_b.y))
                     >= f64::from(pad.upper_right_diagonal_x) + diag_width)
                 || (f64::from((line_a.x - line_a.y).min(line_b.x - line_b.y))
                     >= f64::from(pad.lower_right_diagonal_x) + diag_width)
         }
         7 => {
             (line_a.y.min(line_b.y) >= pad.top_y + width)
-                || (f64::from(line_a.x.min(line_b.x) + line_a.y.min(line_b.y))
+                || (f64::from((line_a.x + line_a.y).min(line_b.x + line_b.y))
                     >= f64::from(pad.upper_right_diagonal_x) + diag_width)
                 || (line_a.x.min(line_b.x) >= pad.right_x + width)
         }
@@ -180,7 +183,7 @@ pub(crate) fn in_front_of_pad(
                     && (f64::from((line_a.x - line_a.y).min(line_b.x - line_b.y))
                         <= f64::from(pad.upper_left_diagonal_x) - diag_width)
                     || (line_a.x.min(line_b.x) >= pad.right_x + width)
-                        && (f64::from(line_a.x.min(line_b.x) + line_a.y.min(line_b.y))
+                        && (f64::from((line_a.x + line_a.y).min(line_b.x + line_b.y))
                             >= f64::from(pad.upper_right_diagonal_x) + diag_width)
             }
             1 => {
@@ -188,7 +191,7 @@ pub(crate) fn in_front_of_pad(
                     && (f64::from((line_a.x + line_a.y).max(line_b.x + line_b.y))
                         <= f64::from(pad.lower_left_diagonal_x) - diag_width)
                     || (line_a.y.max(line_b.y) >= pad.top_y + width)
-                        && (f64::from(line_a.x.min(line_b.x) + line_a.y.min(line_b.y))
+                        && (f64::from((line_a.x + line_a.y).min(line_b.x + line_b.y))
                             >= f64::from(pad.upper_right_diagonal_x) + diag_width)
             }
             2 => {
@@ -217,7 +220,7 @@ pub(crate) fn in_front_of_pad(
             }
             5 => {
                 (line_a.x.max(line_b.x) >= pad.right_x + width)
-                    && (f64::from(line_a.x.min(line_b.x) + line_a.y.min(line_b.y))
+                    && (f64::from((line_a.x + line_a.y).min(line_b.x + line_b.y))
                         >= f64::from(pad.upper_right_diagonal_x) + diag_width)
                     || (line_a.y.min(line_b.y) <= pad.bottom_y - width)
                         && (f64::from((line_a.x + line_a.y).max(line_b.x + line_b.y))
@@ -228,7 +231,7 @@ pub(crate) fn in_front_of_pad(
                     && (f64::from((line_a.x - line_a.y).max(line_b.x - line_b.y))
                         >= f64::from(pad.lower_right_diagonal_x) + diag_width)
                     || (line_a.y.min(line_b.y) >= pad.top_y + width)
-                        && (f64::from(line_a.x.max(line_b.x) + line_a.y.max(line_b.y))
+                        && (f64::from((line_a.x + line_a.y).max(line_b.x + line_b.y))
                             >= f64::from(pad.upper_right_diagonal_x) + diag_width)
             }
             7 => {
@@ -902,6 +905,86 @@ mod tests {
             board.shove_failing_obstacle(),
             Some(w.via),
             "the via is reported"
+        );
+    }
+
+    /// The (1,-1)-slope discriminator for the case-6 main second
+    /// disjunct (spec-review MAJOR-2; jar capture
+    /// `logs/M3-T10b/captures/pad_front_rows_run1.jsonl` +
+    /// `_run2.jsonl`, double-run
+    /// byte-identical, reflection on the private static
+    /// `inFrontOfPad`). Pad: bounding octagon of IntBox(0,0,100,100)
+    /// (field drift guards below are the capture's `pad` row). On the
+    /// anti-diagonal a=(0,210), b=(210,0) the sums are BOTH 210, so
+    /// Java's min-of-SUMS = 210 clears 200 + 4*sqrt(2) = 205.657 while
+    /// the swapped sum-of-mins = 0+0 = 0 does not — Java answers TRUE
+    /// (`main6_hit`), the swapped form FALSE. `main6_miss` (180) keeps
+    /// the negative polarity (both forms FALSE); `main6_hit_ws` rides
+    /// the withSides=true path to the same TRUE.
+    #[test]
+    fn t9_in_front_of_pad_side6_min_of_sums() {
+        let oct = shover_world::ibox(0, 0, 100, 100)
+            .bounding_octagon()
+            .expect("octagon");
+        // the captured pad-row fields
+        assert_eq!(oct.left_x, 0);
+        assert_eq!(oct.right_x, 100);
+        assert_eq!(oct.bottom_y, 0);
+        assert_eq!(oct.top_y, 100);
+        assert_eq!(oct.upper_left_diagonal_x, -100);
+        assert_eq!(oct.lower_left_diagonal_x, 0);
+        assert_eq!(oct.lower_right_diagonal_x, 100);
+        assert_eq!(oct.upper_right_diagonal_x, 200);
+        let pad = TileShape::RegularTileShape(RegularTileShape::IntOctagon(oct));
+        let hit = Polyline::from_two_corners(&shover_world::p(0, 210), &shover_world::p(210, 0))
+            .lines[1]
+            .clone();
+        let miss = Polyline::from_two_corners(&shover_world::p(0, 180), &shover_world::p(180, 0))
+            .lines[1]
+            .clone();
+        assert!(
+            in_front_of_pad(&hit, &pad, 6, 4, false),
+            "capture main6_hit=true: min-of-sums 210 >= 205.657"
+        );
+        assert!(
+            !in_front_of_pad(&miss, &pad, 6, 4, false),
+            "capture main6_miss=false: min-of-sums 180 < 205.657"
+        );
+        assert!(
+            in_front_of_pad(&hit, &pad, 6, 4, true),
+            "capture main6_hit_ws=true"
+        );
+    }
+
+    /// The withSides conj-2 max arm of case 6 (`:185`, Java
+    /// max-of-SUMS; jar capture as above, row `ws6_trap`). On
+    /// a=(0,220), b=(100,120) the partner conjunct min(y)=120 >=
+    /// top+w=120 holds; Java's max-of-sums = max(220, 220) = 220 misses
+    /// 200 + 20*sqrt(2) = 228.284 -> FALSE, while the swapped
+    /// sum-of-maxes = 100 + 220 = 320 clears it -> TRUE. Kill target:
+    /// the sum-of-maxes revert (F2's withSides face). `ws6_positive`
+    /// (240) keeps the TRUE polarity through the main second disjunct.
+    #[test]
+    fn t9_in_front_of_pad_side6_ws_max_of_sums() {
+        let pad = TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            shover_world::ibox(0, 0, 100, 100)
+                .bounding_octagon()
+                .expect("octagon"),
+        ));
+        let trap = Polyline::from_two_corners(&shover_world::p(0, 220), &shover_world::p(100, 120))
+            .lines[1]
+            .clone();
+        let positive =
+            Polyline::from_two_corners(&shover_world::p(0, 240), &shover_world::p(100, 140)).lines
+                [1]
+            .clone();
+        assert!(
+            !in_front_of_pad(&trap, &pad, 6, 20, true),
+            "capture ws6_trap=false: max-of-sums 220 < 228.284"
+        );
+        assert!(
+            in_front_of_pad(&positive, &pad, 6, 20, true),
+            "capture ws6_positive=true: main min-of-sums 240 >= 228.284"
         );
     }
 }
