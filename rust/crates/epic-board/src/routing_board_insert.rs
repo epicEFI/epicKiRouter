@@ -2451,7 +2451,7 @@ mod tests {
     /// two net-94 seeds: a vertical trace crossing the corridor MIDDLE
     /// at (502000,300000) and a COLLINEAR continuation from the
     /// corridor end (504000,300000) to (508000,300000). Flow, per the
-    /// capture step rows: `pickedSize=0`; `combined=true` — the :653
+    /// capture step rows: `pickedSize=0`; `combined=true` — the :756
     /// combine merges the continuation, so the keep point becomes the
     /// merged trace's INTERIOR (this is what makes the keep-point split
     /// real instead of an end-corner no-op); `normalize result=true,
