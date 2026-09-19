@@ -455,14 +455,17 @@ pub fn check(
         trace_shape,
         TileShape::RegularTileShape(RegularTileShape::IntBox(_))
     );
+    // Java reads maxSpringOverRecursionDepth into a MUTABLE LOCAL of
+    // THIS invocation; a successful spring-over decrements it (`:539`
+    // here, `:384` in check) for the REST of the invocation — the NEXT
+    // piece of the loop sees the decremented value at its gate and in
+    // its recursive calls. The binding therefore sits ABOVE the piece
+    // loop (per-invocation scope, not per-piece scope; pinned by t13).
+    let mut spring_over_depth = max_spring_over_recursion_depth;
     loop {
         let Some(mut piece) = entries.next_substitute_trace_piece(manager, board) else {
             break;
         };
-        // Java reads maxSpringOverRecursionDepth into a MUTABLE LOCAL
-        // per invocation; a successful spring-over decrements it for
-        // the REST of this invocation (deeper pieces included).
-        let mut spring_over_depth = max_spring_over_recursion_depth;
         if spring_over_depth > 0 {
             let compensated_half_width =
                 piece_compensated_half_width(board.rules(), tree_class, &piece);
@@ -626,6 +629,10 @@ pub fn insert(
         trace_shape,
         TileShape::RegularTileShape(RegularTileShape::IntBox(_))
     );
+    // Per-invocation spring-over budget, shared across the piece loop —
+    // Java `:539` decrements the method-parameter local for the REST of
+    // the invocation (see the matching comment in `check`).
+    let mut spring_over_depth = max_spring_over_recursion_depth;
     loop {
         let Some(mut piece) = entries.next_substitute_trace_piece(manager, board) else {
             break;
@@ -636,7 +643,6 @@ pub fn insert(
         if first_corner(&piece.lines) == last_corner(&piece.lines) {
             continue;
         }
-        let mut spring_over_depth = max_spring_over_recursion_depth;
         if spring_over_depth > 0 {
             let compensated_half_width =
                 piece_compensated_half_width(board.rules(), tree_class, &piece);
@@ -1649,6 +1655,136 @@ pub(crate) mod shover_world {
     pub(crate) fn zero_side() -> ShapeEntrySide {
         ShapeEntrySide::from_point(p(500000, 300300), &zero_shape())
     }
+
+    /// The SpringOverBudgetProbe world (jar capture
+    /// `logs/M3-T10b/captures/spring_budget_rows_run1.jsonl` +
+    /// `_run2.jsonl`, double-run byte-identical): the rig sits ~190000
+    /// west of the fixture items, in the band x[308300,311500] x
+    /// y[298500,301400]. Two UNFIXED 45-degree traces on DIFFERENT nets
+    /// cross the probe shape (X: N002, id 105, bottom -> east; Y: N003,
+    /// id 106, top -> west) and two N001 USER_FIXED ±100 vias (107 at
+    /// (311150,298980), 108 at (308850,301100)) sit in the detour-arc
+    /// corner corridors — every piece needs its spring-over. The probe
+    /// shape is the BOUNDING OCTAGON of the rig box (45-degree mode): an
+    /// IntBox would set `is_orthogonal_mode`, box-ify the recursion's
+    /// segment probes, and false-fail the wrapped corner-cut diagonals
+    /// (their bounding boxes overlap the via's box corner; the true
+    /// octagon probes are 17 clear — see the probe header's S
+    /// paragraph).
+    pub(crate) struct SpringBudgetWorld {
+        /// the N002 trace, id 105.
+        #[allow(dead_code)] // captured for the pin docs
+        pub trace_x: ItemId,
+        /// the N003 trace, id 106.
+        #[allow(dead_code)] // captured for the pin docs
+        pub trace_y: ItemId,
+        /// the N001 USER_FIXED via at (311150, 298980), id 107.
+        pub vx: ItemId,
+        /// the N001 USER_FIXED via at (308850, 301100), id 108.
+        pub vy: ItemId,
+    }
+
+    pub(crate) fn spring_budget_world() -> (SearchTreeManager, Board, SpringBudgetWorld) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../rust/harness/fixtures/locator-spike/t9_locator45.dsn");
+        let mut board = parse_board_from_path(&path.to_string_lossy());
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+
+        // net numbers are capture literals (N001=1, N002=2, N003=3).
+        let rect = || {
+            Some(BoardShape::Tile(TileShape::RegularTileShape(
+                RegularTileShape::IntBox(IntBox::new(
+                    IntPoint::new(-100, -100),
+                    IntPoint::new(100, 100),
+                )),
+            )))
+        };
+        let layer_count = board.library().padstacks[0].shapes.len();
+        board.library_mut().padstacks.push(BoardPadstack {
+            name: "spring_via".to_string(),
+            shapes: vec![rect(); layer_count],
+            drillable: false,
+            placed_absolute: false,
+            hole_only: false,
+        });
+        let padstack_no = board.library().padstacks.len() as i32;
+
+        let trace_x = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(310500, 298600), &p(311400, 299500)),
+            0,
+            50,
+            &[2],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("trace X");
+        assert_eq!(trace_x.get(), 105, "capture traceX id");
+        let trace_y = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(309500, 301300), &p(308400, 300200)),
+            0,
+            50,
+            &[3],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("trace Y");
+        assert_eq!(trace_y.get(), 106, "capture traceY id");
+        let vx = insert_via(
+            &mut manager,
+            &mut board,
+            padstack_no,
+            IntPoint::new(311150, 298980),
+            &[1],
+            0,
+            FixedState::UserFixed,
+            false,
+        );
+        assert_eq!(vx.get(), 107, "capture VX id");
+        let vy = insert_via(
+            &mut manager,
+            &mut board,
+            padstack_no,
+            IntPoint::new(308850, 301100),
+            &[1],
+            0,
+            FixedState::UserFixed,
+            false,
+        );
+        assert_eq!(vy.get(), 108, "capture VY id");
+
+        (
+            manager,
+            board,
+            SpringBudgetWorld {
+                trace_x,
+                trace_y,
+                vx,
+                vy,
+            },
+        )
+    }
+
+    /// The probe shape: the bounding octagon of the rig box
+    /// [309000,299000,311000,301000] (the probe's `probeShape()`).
+    pub(crate) fn spring_budget_shape() -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            IntBox::new(IntPoint::new(309000, 299000), IntPoint::new(311000, 301000))
+                .bounding_octagon(),
+        ))
+    }
+
+    /// `new ShapeEntrySide(new IntPoint(310000, 299000), shape)` — the
+    /// interior of the bottom side (border line 0), west of X's
+    /// crossing, so the resort break fires at the list head and X pops
+    /// first.
+    pub(crate) fn spring_budget_side() -> ShapeEntrySide {
+        ShapeEntrySide::from_point(p(310000, 299000), &spring_budget_shape())
+    }
 }
 
 #[cfg(test)]
@@ -1916,7 +2052,11 @@ mod tests {
     /// (c) depth 5 wraps a circuit that clears v3 by EXACTLY one unit
     /// (offset total 117 = hw 100 + 1 + cl 16 vs the 116 requirement),
     /// so the inner recursion returns Unchanged and the outer maps it to
-    /// Changed — the two-step-enlarge arithmetic is load-bearing here.
+    /// Changed. NOTE this depth-5 arm pins the Changed mapping, not the
+    /// enlarge arithmetic — the wrap has one unit of slack, so the
+    /// two-step vs single-step enlarge rounding stays invisible HERE;
+    /// t12's exact wrapped corners are what the two-step arithmetic is
+    /// load-bearing for.
     #[test]
     fn t4_spring_over_ladder_arms() {
         let (mut manager, mut board, w) = build_debt_world();
@@ -2362,5 +2502,134 @@ mod tests {
             None,
             "capture shoving-state: no failure"
         );
+    }
+
+    /// MAJOR-1 pin (jar capture `logs/M3-T10b/captures/
+    /// spring_budget_rows_run1.jsonl` + `_run2.jsonl`, double-run
+    /// byte-identical): the spring-over budget of ONE insert invocation
+    /// is SHARED across the substitute-piece loop — Java decrements the
+    /// mutable method-parameter local at `:539` (`:384` in check) for
+    /// the REST of the invocation, so the SECOND piece sees the
+    /// decremented value at its own gate (`:521`) and in its recursive
+    /// calls (`:556`). World (spring_budget_world): the OCTAGON probe
+    /// shape overlaps two traces on DIFFERENT nets (a same-net run
+    /// collapses to ONE piece in ShapeTraceEntries.resort) and each
+    /// trace carries a USER_FIXED via in its detour-arc corner
+    /// corridor, so BOTH substitute pieces need their spring-over
+    /// (pieceCount 2, stackDepth 1 in the capture's pieces-store row)
+    /// and the segment recursion only passes on the wrapped circuits.
+    /// X pops first (fromSide on the bottom side west of X-in).
+    ///   budget 0: both gates skip; X's straight-arc probe hits VX.
+    ///   budget 1: X wraps VX (1 -> 0); Y's gate then SKIPS — Java's
+    ///             per-invocation scope — and Y's straight-arc probe
+    ///             hits VY. The per-piece RE-ARM mutant hands Y a fresh
+    ///             budget 1, wraps VY too, and answers true.
+    ///   budget 2: both pieces wrap; end state = cut stubs 109-112 +
+    ///             wrapped pieces 113/114 (captured corners), vias
+    ///             untouched.
+    #[test]
+    fn t13_spring_over_budget_is_shared_across_the_piece_loop() {
+        // budget 0: nothing wraps, X fails on VX.
+        let (mut manager, mut board, w) = shover_world::spring_budget_world();
+        assert!(!insert(
+            &mut manager,
+            &mut board,
+            &shover_world::spring_budget_shape(),
+            Some(shover_world::spring_budget_side()),
+            0,
+            &[1],
+            0,
+            &[],
+            10,
+            10,
+            0,
+        ));
+        assert_eq!(
+            board.shove_failing_obstacle(),
+            Some(w.vx),
+            "b0: X's straight arc fails on VX"
+        );
+        // budget 1: THE pin — the second piece must see the spent budget.
+        let (mut manager, mut board, w) = shover_world::spring_budget_world();
+        assert!(
+            !insert(
+                &mut manager,
+                &mut board,
+                &shover_world::spring_budget_shape(),
+                Some(shover_world::spring_budget_side()),
+                0,
+                &[1],
+                0,
+                &[],
+                10,
+                10,
+                1,
+            ),
+            "b1: Y's gate must skip after X spent the shared budget"
+        );
+        assert_eq!(
+            board.shove_failing_obstacle(),
+            Some(w.vy),
+            "b1: Java fails the second piece on its own via"
+        );
+        // budget 2: both pieces wrap end to end.
+        let (mut manager, mut board, w) = shover_world::spring_budget_world();
+        assert!(insert(
+            &mut manager,
+            &mut board,
+            &shover_world::spring_budget_shape(),
+            Some(shover_world::spring_budget_side()),
+            0,
+            &[1],
+            0,
+            &[],
+            10,
+            10,
+            2,
+        ));
+        assert_eq!(board.shove_failing_obstacle(), None, "b2: no failure");
+        assert!(!board.is_on_the_board(w.trace_x), "capture: 105 cut away");
+        assert!(!board.is_on_the_board(w.trace_y), "capture: 106 cut away");
+        // the cut stubs.
+        assert_trace_corners(&board, 109, &[[309500.0, 301300.0], [309267.0, 301067.0]]);
+        assert_trace_corners(&board, 110, &[[308933.0, 300733.0], [308400.0, 300200.0]]);
+        assert_trace_corners(&board, 111, &[[310500.0, 298600.0], [310833.0, 298933.0]]);
+        assert_trace_corners(&board, 112, &[[311067.0, 299167.0], [311400.0, 299500.0]]);
+        // the wrapped pieces (X around VX, Y around VY — the capture's
+        // b2 inventory rows).
+        assert_trace_corners(
+            &board,
+            113,
+            &[
+                [310833.0, 298933.0],
+                [310983.0, 298933.0],
+                [310983.0, 298853.0],
+                [311023.0, 298813.0],
+                [311277.0, 298813.0],
+                [311317.0, 298853.0],
+                [311317.0, 299107.0],
+                [311277.0, 299147.0],
+                [311067.0, 299147.0],
+                [311067.0, 299167.0],
+            ],
+        );
+        assert_trace_corners(
+            &board,
+            114,
+            &[
+                [309267.0, 301067.0],
+                [309017.0, 301067.0],
+                [309017.0, 301227.0],
+                [308977.0, 301267.0],
+                [308723.0, 301267.0],
+                [308683.0, 301227.0],
+                [308683.0, 300973.0],
+                [308723.0, 300933.0],
+                [308933.0, 300933.0],
+                [308933.0, 300733.0],
+            ],
+        );
+        assert_int_center(&board, w.vx, 311150, 298980);
+        assert_int_center(&board, w.vy, 308850, 301100);
     }
 }

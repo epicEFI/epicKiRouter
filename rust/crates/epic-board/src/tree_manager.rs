@@ -965,6 +965,12 @@ impl SearchTreeManager {
 ///
 /// Rust `as` saturates where Java's `(int)` wrap-casts at ±2^31 —
 /// identical for every real clearance magnitude.
+///
+/// This is the query-reach side of the coupling the drivers lean on:
+/// the shove probes' effective reach (shape plus this clearance
+/// margin) decides which obstacles a spring-over/piece recursion can
+/// even see — see SEAM "Query-reach model" (epic-router/SEAM.md) for
+/// the two-way contract and the t11 edge that pins it.
 #[must_use]
 pub fn max_clearance_offset(max_value: i32) -> i32 {
     (1.2_f64 * f64::from(max_value)) as i32

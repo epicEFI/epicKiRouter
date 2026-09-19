@@ -476,6 +476,9 @@ impl Board {
     /// via-insertion time, `RoutingBoard.insertVia`);
     /// [`crate::tree_shapes`] tests insert synthetic padstacks through
     /// it the same way the Task 6 jar spike did through the Java API.
+    /// The production via-insertion path (padstack add + the
+    /// `splitTraces` consumption of the new padstack) lives in
+    /// [`crate::drill_item_mover::insert_via`].
     pub fn library_mut(&mut self) -> &mut BoardLibrary {
         &mut self.library
     }

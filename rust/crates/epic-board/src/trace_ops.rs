@@ -504,15 +504,14 @@ pub fn item_normal_contacts(
     }
 }
 
-/// Java `Item.getConnectionItems()` (`Item.java:746-825`) — the fork-
+/// Java `Item.getConnectionItems` (`Item.java:737-822`) — the fork-
 /// terminated connected walk (module docs). Descending ids (the
-/// `TreeSet` under `Item.compareTo`).
-/// Java `Item.getConnectionItems` (`Item.java:737-822`). The walk
-/// collects traces and vias from `item_id` until the next fork or
-/// terminal item; `stop` mirrors Java's `StopConnectionOption` —
-/// `Via` stops the walk at ANY via, `FanoutVia` only at fanout vias
-/// (the `isFanoutVia` read is a fanout-seam carry, banked M3; the
-/// arm is present but does not stop), `None` never stops.
+/// `TreeSet` under `Item.compareTo`). The walk collects traces and
+/// vias from `item_id` until the next fork or terminal item; `stop`
+/// mirrors Java's `StopConnectionOption` — `Via` stops the walk at ANY
+/// via, `FanoutVia` only at fanout vias (the `isFanoutVia` read is a
+/// fanout-seam carry, banked M3; the arm is present but does not
+/// stop), `None` never stops.
 pub fn get_connection_items(
     manager: &SearchTreeManager,
     board: &mut Board,
