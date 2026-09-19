@@ -799,6 +799,75 @@ public class ForcedInsertProbe {
     dumpInventory("after_move", board);
   }
 
+  /**
+   * QUALITY-REVIEW world (M-1): the normalize-true branch —
+   * splitTracesAtKeepPoint + the post-split re-pick (Java :809-833) —
+   * observed on a REAL keep-point split. Seeds, both net 94:
+   * a vertical trace crossing the corridor MIDDLE at cx+2000 (forces
+   * normalize true: split_clip found-splits the crossing and own-splits
+   * the inserted trace, pieces != 1), and a COLLINEAR continuation
+   * from the corridor end cx+4000 to cx+8000 (the :756 combine merges
+   * it, so the keep point lands in the merged trace's INTERIOR and the
+   * keep-point split is a real 2-piece split, not an end no-op). The
+   * re-pick then runs over the split pieces. tidyWidth stays 0 so Java
+   * performs no pull-tight on the re-picked trace (the M4 seam arm) and
+   * the final geometry is seam-independent.
+   */
+  private static void runKeepPointWorld(byte[] bytes, String fileName) throws Exception {
+    RoutingBoard board = parse(bytes, fileName);
+    int net = net94(board);
+    IntBox bbox = board.boundingBox;
+    int cx = (bbox.ll.x + bbox.ur.x) / 2;
+    int cy = (bbox.ll.y + bbox.ur.y) / 2;
+    PolylineTrace crossingTrace =
+        board.insertTraceWithoutCleaning(
+            new Polyline(new IntPoint(cx + 2000, cy - 3000), new IntPoint(cx + 2000, cy + 3000)),
+            0, 100, new int[] {net}, 0, FixedState.UNFIXED);
+    PolylineTrace continuationTrace =
+        board.insertTraceWithoutCleaning(
+            new Polyline(new IntPoint(cx + 4000, cy), new IntPoint(cx + 8000, cy)),
+            0, 100, new int[] {net}, 0, FixedState.UNFIXED);
+
+    JsonObject worldRow = obj("world");
+    worldRow.addProperty("name", "keep_point");
+    worldRow.addProperty("net", net);
+    worldRow.addProperty("crossingTrace", crossingTrace.getId());
+    worldRow.addProperty("continuationTrace", continuationTrace.getId());
+    worldRow.addProperty("cx", cx);
+    worldRow.addProperty("cy", cy);
+    worldRow.addProperty("halfWidth", 100);
+    worldRow.addProperty("layer", 0);
+    worldRow.addProperty("maxRecursionDepth", 10);
+    worldRow.addProperty("maxViaRecursionDepth", 0);
+    worldRow.addProperty("maxSpringOverRecursionDepth", 2);
+    worldRow.addProperty("tidyWidth", 0);
+    worldRow.addProperty("withCheck", true);
+    row(worldRow);
+    dumpInventory("before", board);
+    dumpChangedArea("before", board);
+
+    Point result =
+        board.insertForcedTracePolyline(
+            new Polyline(new IntPoint(cx, cy), new IntPoint(cx + 4000, cy)),
+            100,
+            0,
+            new int[] {net},
+            0,
+            10,
+            0,
+            2,
+            0,
+            100,
+            true,
+            null);
+    JsonObject resultRow = obj("insert_result");
+    resultRow.addProperty("world", "keep_point");
+    resultRow.addProperty("result", result == null ? "null" : result.toString());
+    row(resultRow);
+    dumpChangedArea("after", board);
+    dumpInventory("after", board);
+  }
+
   public static void main(String[] args) throws Exception {
     byte[] bytes = Files.readAllBytes(Paths.get(args[0]));
     String fileName = args.length > 1 ? args[1] : "t9_locator45.dsn";
@@ -821,6 +890,8 @@ public class ForcedInsertProbe {
     } else if (args.length > 2 && args[2].equals("fixrun")) {
       runRetryWorld(bytes, fileName);
       runDrillMoveWorld(bytes, fileName);
+    } else if (args.length > 2 && args[2].equals("m1run")) {
+      runKeepPointWorld(bytes, fileName);
     }
   }
 }

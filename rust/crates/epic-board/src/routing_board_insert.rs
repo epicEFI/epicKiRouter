@@ -37,6 +37,17 @@
 //! a JVM crash the pipeline never reaches from real callers; the port
 //! maps it onto the same `None` (see the `// T10c` marker at the site).
 //!
+//! ## The deferred segment wrapper
+//!
+//! Java's `insertForcedTraceSegment` (`:381-405`) — the per-segment
+//! wrapper T11's `FoundConnectionInserter` loop calls — is deferred to
+//! T11 with its consumer. Parity subtlety to carry: Java maps the
+//! insert result via REFERENCE equality (`okPoint ==
+//! insertPolyline.firstCorner()`, `RoutingBoard.java:393-401`;
+//! likewise FoundConnectionInserter's `candidateOkPoint ==
+//! targetPoint` tie-break), which Rust value equality reproduces only
+//! in the absence of value-coincident distinct points.
+//!
 //! ## The pull-tight seam (M4 fill)
 //!
 //! Java runs the `TraceTightener` both from `insertForcedTracePolyline`
@@ -110,6 +121,10 @@ pub fn join_changed_area(board: &mut Board, point: &FloatPoint, layer: i32) {
 /// Java `RoutingBoardOperations.markAllChangedArea` (`:39-50`): start
 /// a session and join the four bounding-box corners of the board on
 /// EVERY layer.
+///
+/// No consumer in Rust or in Java outside the facade wrapper (the
+/// T10c quality review verified both) — ported for trio completeness
+/// with [`start_marking_changed_area`] / [`join_changed_area`].
 pub fn mark_all_changed_area(board: &mut Board) {
     start_marking_changed_area(board);
     let bounding_box = board.bounding_box().expect("post-parse bounding box");
@@ -141,6 +156,13 @@ pub trait PullTightSeam {
     /// routed surface inside the marked area. T10c's skeleton stops at
     /// the Java null-session guard (kept in
     /// [`opt_changed_area`]) and the `clipShape != EMPTY` gate.
+    ///
+    /// PLANNED BREAK: M4 widens this signature with the tightener's
+    /// `traceCosts` / `stoppableThread` / `timeLimit` — Java's
+    /// `optChangedArea` receives all three
+    /// (`RoutingBoardOperations.java:52-60`) and feeds them into
+    /// `TraceTightener.getInstance`; T10c never reads them, so they
+    /// are absent here.
     #[allow(clippy::too_many_arguments)] // the Java read set, kept flat
     fn opt_changed_area(
         &mut self,
@@ -303,6 +325,8 @@ pub fn opt_changed_area<S: PullTightSeam>(
 /// Java `checkForcedTracePolyline` (`:408-448`): checks if a trace
 /// polyline with the input parameters can be inserted while shoving
 /// aside obstacle traces and vias — WITHOUT changing the board.
+/// Consumer: M3-T11 `FoundConnectionInserter` (per-segment
+/// feasibility probe ahead of the forced insert).
 #[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
 pub fn check_forced_trace_polyline(
     manager: &mut SearchTreeManager,
@@ -360,6 +384,37 @@ pub fn check_forced_trace_polyline(
 /// (`Some`), or `None` where Java returns null — the database may be
 /// damaged and an undo necessary (module docs, "The return-null
 /// contract").
+///
+/// Consumer: M3-T11 `FoundConnectionInserter` (per-segment forced
+/// inserts; also the deferred `insert_forced_trace_segment` wrapper —
+/// module docs, "The deferred segment wrapper").
+///
+/// Step ladder (the probe's `step=` rows map 1:1 onto these blocks):
+///
+/// 1. `clearShoveFailingObstacle` (`:469`)
+/// 2. degenerate null-corner bail → `None` (`:472-480`)
+/// 3. `fromCorner == toCorner` → `toCorner` (`:481-483`)
+/// 4. IntPoint gate → `Some(from_corner)` (`:484-487`)
+/// 5. `startMarkingChangedArea` (`:488`)
+/// 6. picked-trace candidate: `pickedItems.size()==1` +
+///    netsEqual/halfWidth/class gate (`:489-517`)
+/// 7. compensated width (`:518-520`)
+/// 8. springOver, null → `fromCorner` (`:525-535`)
+/// 9. combine + `lines < 3` → `fromCorner` (`:536-553`)
+/// 10. `startShapeNo` + tail `offsetShapes` (`:554-558`)
+/// 11. the shove loop: entry-side ShapeEntrySide index (`:567-571`),
+///     withCheck-break → `lastShapeNo` (`:585-588`), insert fail →
+///     null (`:616-618`)
+/// 12. the sampling retry (`:634-746`): `sampleWidth` (`:641`),
+///     `>100×` → `fromCorner` (`:645`), `shorten` (`:659`), IntPoint
+///     bail, recombine, `shapeIndex` (`:685`), offset+re-check,
+///     insert fail → null (`:742-745`)
+/// 13. per-corner join (`:747-750`) + `insertTraceWithoutCleaning`
+///     (`:752-754`) + `newTrace.combine()` (`:756`)
+/// 14. tidy region + pull-tight algo (`:773-785`) + the swallowing
+///     try: normalize (`:791`) → `splitTracesAtKeepPoint` (`:809`) →
+///     re-pick (`:824-833`)
+/// 15. the `pullTight` gate (`:860-862`) + return `newCorner` (`:875`)
 ///
 /// `net_numbers` models Java's nullable `int[]`: Java's probe logs
 /// gate on `!= null && length > 0` (plus a net-94 fail-row filter) —
@@ -736,6 +791,8 @@ pub fn insert_forced_trace_polyline<S: PullTightSeam>(
 /// not possible without a clearance violation. The port takes the
 /// target trace by id — the Java `instanceof PolylineTrace` gate is
 /// the trace-kind check (all ported traces are polyline traces).
+/// Consumer: M3-T11 `FoundConnectionInserter` (the post-locator
+/// target connection).
 pub fn connect_to_trace(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -833,6 +890,8 @@ pub fn connect_to_trace(
 /// was removed. The stub walk, the Via stop-option faces and the
 /// descending-id sets are kept verbatim (module docs of
 /// [`crate::trace_ops::get_connection_items`] for the walk).
+/// Consumer: M3-T11 `FoundConnectionInserter` (tail cleanup around a
+/// re-connected target).
 pub fn remove_trace_tails(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -1632,6 +1691,20 @@ mod tests {
             "capture after_c2 gone=[112]: the target removed by the tail walk"
         );
         assert!(ids.contains(&115), "capture after_c2 new=[115]");
+        // Capture `after_c2` inventory ids >= 105 = [107, 111, 115]: Java's
+        // normalize split the target 112 into transient pieces 116/117 and
+        // the end-corner tail walk removed BOTH. Asserting their absence (and
+        // the total inventory) is what witnesses the tail-walk removal —
+        // `!contains(&112)` alone is already true from the normalize split.
+        assert_eq!(
+            ids.len(),
+            107,
+            "capture after_c2 inventory: 104 fixture items + [107, 111, 115]"
+        );
+        assert!(
+            !ids.contains(&116) && !ids.contains(&117),
+            "the transient normalize-split pieces are gone: the end-corner tail walk removed them"
+        );
         assert_corners(
             &board,
             ItemId::new(115),
@@ -2366,5 +2439,140 @@ mod tests {
             (500000, 300000, 500000, 300000),
             "nested start keeps the live marker (Java :27-29)"
         );
+    }
+
+    // ---- quality-review-1 pins (M-1: the normalize-true branch) ----
+
+    /// Quality review M-1: the normalize-true branch —
+    /// `split_traces_at_keep_point` + the post-split re-pick (Java
+    /// :809-833) — observed on a REAL keep-point split (capture
+    /// `forced_insert_rows_m1_run{1,2}`, world `keep_point`;
+    /// `cmp`-identical double run; probe gate `m1run`). Bare fixture +
+    /// two net-94 seeds: a vertical trace crossing the corridor MIDDLE
+    /// at (502000,300000) and a COLLINEAR continuation from the
+    /// corridor end (504000,300000) to (508000,300000). Flow, per the
+    /// capture step rows: `pickedSize=0`; `combined=true` — the :653
+    /// combine merges the continuation, so the keep point becomes the
+    /// merged trace's INTERIOR (this is what makes the keep-point split
+    /// real instead of an end-corner no-op); `normalize result=true,
+    /// idBefore=107, idAfter=111, delta=4` — split_clip found-splits
+    /// the crossing (105 -> 108/109) and own-splits the merged trace
+    /// (107 -> 110/111), so `result = pieces != 1` is TRUE; then
+    /// `split_at_keep idBefore=111, idAfter=113, delta=2` — the
+    /// keep-point split cuts piece 111 at (504000,300000) into
+    /// 112 + 113, and the re-pick (`pickedAtEndCorner=2`,
+    /// `new_trace_null=false`) runs over {112, 113} (its picked value
+    /// feeds only the pull-tight seam, dead here at tidyWidth 0 — the
+    /// M4 arm). The keep-point split is the ONLY step that replaces
+    /// 111: a world without it cannot produce the observed id set.
+    /// Single real-split candidate: with one interior trace at the keep
+    /// point, the pick order is forced — the two-candidate design is
+    /// foreclosed because normalize's own found-splits pre-split every
+    /// same-net crossing ON the inserted polyline (and an end-abutting
+    /// second candidate is combine-eaten, the M-2 masking mechanism).
+    #[test]
+    fn t10c_keep_point_split_splits_and_re_picks() {
+        let mut board = parse_fixture();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let crossing = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(502000, 297000), &p(502000, 303000)),
+            0,
+            100,
+            &[NET],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("probe crossingTrace");
+        assert_eq!(crossing.get(), 105, "capture crossingTrace id");
+        let continuation = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(504000, 300000), &p(508000, 300000)),
+            0,
+            100,
+            &[NET],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("probe continuationTrace");
+        assert_eq!(continuation.get(), 106, "capture continuationTrace id");
+
+        let result = insert_forced_trace_polyline(
+            &mut manager,
+            &mut board,
+            &mut NoPullTight,
+            &Polyline::from_two_corners(&p(500000, 300000), &p(504000, 300000)),
+            100,
+            0,
+            Some(&[NET][..]),
+            0,
+            10,
+            0,
+            2,
+            0,
+            100,
+            true,
+            None,
+        );
+        assert_eq!(result, Some(p(504000, 300000)), "capture insert_result");
+        // after inventory ids >= 105 = [108, 109, 110, 112, 113]: 106
+        // consumed by the combine, 107 replaced by the normalize split
+        // (108/109 = the crossing's pieces, 110/111 = the merged
+        // trace's), 111 replaced by the KEEP-POINT SPLIT (112/113).
+        let ids = live_ids(&board);
+        assert_eq!(
+            ids.iter()
+                .filter(|id| **id >= 105)
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![108, 109, 110, 112, 113],
+            "capture after-inventory: the keep-point split replaced 111 with 112+113"
+        );
+        assert_corners(
+            &board,
+            ItemId::new(108),
+            &[(502000, 297000), (502000, 300000)],
+        );
+        assert_corners(
+            &board,
+            ItemId::new(109),
+            &[(502000, 300000), (502000, 303000)],
+        );
+        assert_corners(
+            &board,
+            ItemId::new(110),
+            &[(500000, 300000), (502000, 300000)],
+        );
+        assert_corners(
+            &board,
+            ItemId::new(112),
+            &[(502000, 300000), (504000, 300000)],
+        );
+        assert_corners(
+            &board,
+            ItemId::new(113),
+            &[(504000, 300000), (508000, 300000)],
+        );
+        assert_eq!(
+            board.max_generated_id(),
+            113,
+            "stream watermark: the keep-point split's second piece"
+        );
+        // after octagons: the corridor's two corners on L0; nothing on
+        // L1 (single-layer world).
+        assert_area(
+            &board,
+            0,
+            [
+                500000, 300000, 504000, 300000, 200000, 204000, 800000, 804000,
+            ],
+        );
+        let empty = [
+            CRIT_INT, CRIT_INT, -CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT,
+        ];
+        assert_area(&board, 1, empty);
     }
 }
