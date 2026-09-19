@@ -1035,8 +1035,9 @@ impl ShapeTraceEntries {
     /// Java `insertEntryPoint` (`:728-762`). Inserts the new entry
     /// into the sorted list; equal edge indices order by the scalar
     /// projection comparison (`prevCorner.scalarProduct(entryApprox,
-    /// nextCorner)` — the EARLIER insertion wins ties, since the
-    /// break on `<=` places the new entry AFTER the incumbent).
+    /// nextCorner)` — the LATER insertion wins ties, since the break
+    /// on `<=` splices the new entry BEFORE the incumbent, Java's
+    /// `newEntry.next = currentNext`).
     fn insert_entry_point(
         &mut self,
         trace_id: ItemId,
