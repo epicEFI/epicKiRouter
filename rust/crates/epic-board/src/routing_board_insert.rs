@@ -682,11 +682,15 @@ pub fn insert_forced_trace_polyline<S: PullTightSeam>(
     // the DIRECT changedArea dereference, then split at the keep point
     // and re-pick the new trace at newCorner. All three failure faces
     // (normalize false / a thrown normalize exception / the session
-    // NPE) land in the catch and skip the split+re-pick. The clip is
-    // extracted BEFORE the call: Java's `changedArea.getArea(layer)`
-    // NPEs inside the try when the session is null and the catch
-    // swallows it — normalizeResult stays false, exactly this None
-    // clip face.
+    // NPE at :791) land in the catch and skip the split+re-pick. The
+    // clip is extracted BEFORE the call, mirroring Java's
+    // `changedArea.getArea(layer)` dereference. The no-session face is
+    // UNREACHABLE in this function — step 4 starts the session and
+    // nothing tears it down mid-function — and were it reachable, Rust
+    // would run `normalize(.., None)` (the UNBOUNDED face: it may
+    // return true and split), not Java's NPE-swallowed skip. The port
+    // keeps Java's extraction order; only the two reachable failure
+    // faces behave identically.
     let normalize_clip = board.changed_area.as_ref().map(|area| area.get_area(layer));
     let normalize_result =
         crate::trace_ops::normalize(manager, board, new_trace, normalize_clip.as_ref());
@@ -2107,6 +2111,260 @@ mod tests {
         assert!(
             ids.contains(&(w.vf.get() as i32)),
             "the fanout via survives"
+        );
+    }
+
+    // ---- fix-round pins (spec review 1: MINOR-1/2/3) ----
+
+    /// Spec-review MINOR-1: the sampling-retry SHORTEN arm, observed on
+    /// SUCCESS (capture `forced_insert_rows_fix_run{1,2}`, world
+    /// `insert_retry`; `cmp`-identical double run). Bare fixture +
+    /// blocking via 105 at (560000,300000): the straight corridor
+    /// (500000,300000)->(900000,300000) at via budget 0 fails the
+    /// shape-0 check on the via (`lastShapeNo=0 <
+    /// traceShapes.length=7`), and the last segment (400000) lies
+    /// strictly between sampleWidth (20000 = 2*minTraceHalfWidth) and
+    /// 100*sampleWidth — so the shorten arm clips the corridor to
+    /// (520000,300000), the re-check on the SHORTENED shape PASSES, and
+    /// the returned newCorner is the sampled IntPoint, not the
+    /// toCorner (unlike the W3 fail world, whose re-check failed and
+    /// discarded it). Discriminates: halving `2*` moves the sampled
+    /// corner to (510000,300000); dropping the shorten arm re-fails the
+    /// full-shape check (fromCorner, no trace); a 10x cap instead of
+    /// 100x flips to the too-many-cycles arm (400000 > 200000).
+    #[test]
+    fn t10c_retry_shorten_arm_samples_the_corner() {
+        let mut board = parse_fixture();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let padstack = add_via_padstack(&mut board, "retry_via");
+        let via = insert_via(
+            &mut manager,
+            &mut board,
+            padstack,
+            IntPoint::new(560000, 300000),
+            &[THIRD_NET],
+            0,
+            FixedState::Unfixed,
+            false,
+        );
+        assert_eq!(via.get(), 105, "capture blockingVia id");
+
+        let result = insert_forced_trace_polyline(
+            &mut manager,
+            &mut board,
+            &mut NoPullTight,
+            &Polyline::from_two_corners(&p(500000, 300000), &p(900000, 300000)),
+            100,
+            0,
+            Some(&[NET][..]),
+            0,
+            10,
+            0, // maxViaRecursionDepth: the budget-0 face
+            2,
+            0,
+            100,
+            true,
+            None,
+        );
+        assert_eq!(
+            result,
+            Some(p(520000, 300000)),
+            "capture insert_result: the SAMPLED corner (shorten arm), not the toCorner"
+        );
+        assert_eq!(
+            board.shove_failing_obstacle(),
+            Some(via),
+            "capture failing_obstacle Via#105 (set by the loop's failed check; the successful retry does not clear it)"
+        );
+        assert_eq!(
+            board.drill_center(via),
+            Some(p(560000, 300000)),
+            "the blocking via unmoved"
+        );
+        // after_retry inventory: the shortened trace 106 is the only
+        // new item; the retry's check/recombine burned nothing beyond
+        // it.
+        let ids = live_ids(&board);
+        assert_eq!(ids.len(), 106, "capture after-inventory size (+1)");
+        assert!(ids.contains(&106), "capture shortened-trace id");
+        assert_corners(
+            &board,
+            ItemId::new(106),
+            &[(500000, 300000), (520000, 300000)],
+        );
+        assert_eq!(
+            board.max_generated_id(),
+            106,
+            "stream watermark: no hidden id burns past the trace"
+        );
+        // after_retry octagons: the shortened polyline's two corners on
+        // L0; the session exists but nothing joined on L1.
+        assert_area(
+            &board,
+            0,
+            [
+                500000, 300000, 520000, 300000, 200000, 220000, 800000, 820000,
+            ],
+        );
+        let empty = [
+            CRIT_INT, CRIT_INT, -CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT,
+        ];
+        assert_area(&board, 1, empty);
+        let box_ = board
+            .changed_area
+            .as_ref()
+            .expect("session")
+            .surrounding_box();
+        assert_eq!(
+            (box_.ll.x, box_.ll.y, box_.ur.x, box_.ur.y),
+            (500000, 300000, 520000, 300000),
+            "capture after_retry surroundingBox"
+        );
+    }
+
+    /// Spec-review MINOR-2: the forced_pad / drill-join RUN faces under
+    /// a LIVE marking session (capture `forced_insert_rows_fix_run{1,2}`,
+    /// world `drill_move`). Via 105 (single-layer +-250 padstack, net 3)
+    /// sits at the board center; the N002 vertical trace 106 crosses the
+    /// move target at x=504000. With the session started,
+    /// `DrillItemMover.insert` (Java :110-167) shoves the trace aside at
+    /// the target — ForcedPadRouter re-inserts the substitute pieces and
+    /// joins their corners (:434-436), then normalizes each with the
+    /// live clip (:440-450) — and joins the four corners of the
+    /// UNTRANSLATED +-250 box (:159-162). The two join webs sit ~4000
+    /// apart, so the pinned octagon discriminates either join dropped
+    /// INDEPENDENTLY (box leftX 499750 vs piece rightX 504367).
+    #[test]
+    fn t10c_drill_move_run_faces_join_under_live_session() {
+        let mut board = parse_fixture();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        // The probe's single-layer padstack: shape slot 0 only
+        // (`padstacks.add(shape, 0, 0)`), so the per-layer join loop
+        // runs layer 0 alone and L1 stays untouched.
+        let layer_count = board.library().padstacks[0].shapes.len();
+        let mut shapes: Vec<Option<BoardShape>> = (0..layer_count).map(|_| None).collect();
+        shapes[0] = Some(BoardShape::Tile(TileShape::RegularTileShape(
+            RegularTileShape::IntBox(IntBox::new(
+                IntPoint::new(-250, -250),
+                IntPoint::new(250, 250),
+            )),
+        )));
+        board.library_mut().padstacks.push(BoardPadstack {
+            name: "move_via".to_string(),
+            shapes,
+            drillable: false,
+            placed_absolute: false,
+            hole_only: false,
+        });
+        let padstack = board.library().padstacks.len() as i32;
+        let via = insert_via(
+            &mut manager,
+            &mut board,
+            padstack,
+            IntPoint::new(500000, 300000),
+            &[THIRD_NET],
+            0,
+            FixedState::Unfixed,
+            false,
+        );
+        assert_eq!(via.get(), 105, "capture movedVia id");
+        let cross = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(504000, 297000), &p(504000, 303000)),
+            0,
+            100,
+            &[FOREIGN_NET],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("probe cross trace");
+        assert_eq!(cross.get(), 106, "capture crossTrace id");
+        start_marking_changed_area(&mut board);
+
+        let vector = Point::int(IntPoint::new(504000, 300000))
+            .difference_by(&Point::int(IntPoint::new(500000, 300000)));
+        assert!(
+            crate::drill_item_mover::insert(&mut manager, &mut board, via, &vector, 10, 10, None),
+            "capture move_result true"
+        );
+        assert_eq!(
+            board.drill_center(via),
+            Some(p(504000, 300000)),
+            "capture after_move via center"
+        );
+        // The shoved trace re-formed as 109 (106 replaced; 107/108 the
+        // transient shove ids), wrapped east around the moved via.
+        let ids = live_ids(&board);
+        assert_eq!(ids.len(), 106, "capture after_move inventory size");
+        assert!(!ids.contains(&106), "the crossed trace replaced");
+        assert!(ids.contains(&109), "capture re-formed trace id");
+        assert_eq!(board.max_generated_id(), 109, "stream watermark");
+        assert_corners(
+            &board,
+            ItemId::new(109),
+            &[
+                (504000, 297000),
+                (504000, 299633),
+                (504298, 299633),
+                (504367, 299702),
+                (504367, 300298),
+                (504298, 300367),
+                (504000, 300367),
+                (504000, 303000),
+            ],
+        );
+        // The fused join webs on L0: the drill join's box corner 499750
+        // + the forced-pad piece extremes 504367/299633/300367. The
+        // single-layer padstack never joins L1 (still EMPTY).
+        assert_area(
+            &board,
+            0,
+            [
+                499750, 299633, 504367, 300367, 199500, 204665, 799500, 804665,
+            ],
+        );
+        let empty = [
+            CRIT_INT, CRIT_INT, -CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT,
+        ];
+        assert_area(&board, 1, empty);
+        let box_ = board
+            .changed_area
+            .as_ref()
+            .expect("session")
+            .surrounding_box();
+        assert_eq!(
+            (box_.ll.x, box_.ll.y, box_.ur.x, box_.ur.y),
+            (499750, 299633, 504367, 300367),
+            "capture after_move surroundingBox"
+        );
+    }
+
+    /// Spec-review MINOR-3: the nested-start semantic — Java
+    /// `RoutingBoardOperations.startMarkingChangedArea` (:27-29) creates
+    /// the session only when none is active, so a second start KEEPS the
+    /// live marker instead of resetting it.
+    #[test]
+    fn t10c_nested_start_keeps_the_live_session() {
+        let mut board = parse_fixture();
+        start_marking_changed_area(&mut board);
+        join_changed_area(&mut board, &FloatPoint::new(500000.0, 300000.0), 0);
+        let before = board.changed_area.as_ref().expect("session").get_area(0);
+        assert_eq!(
+            (before.left_x, before.bottom_y, before.right_x, before.top_y),
+            (500000, 300000, 500000, 300000),
+            "the join landed"
+        );
+        // The nested start: the joined point SURVIVES (a reset would
+        // hand back the +-CRIT_INT EMPTY octagon).
+        start_marking_changed_area(&mut board);
+        let after = board.changed_area.as_ref().expect("session").get_area(0);
+        assert_eq!(
+            (after.left_x, after.bottom_y, after.right_x, after.top_y),
+            (500000, 300000, 500000, 300000),
+            "nested start keeps the live marker (Java :27-29)"
         );
     }
 }

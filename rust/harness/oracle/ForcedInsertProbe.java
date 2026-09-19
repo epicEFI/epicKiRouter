@@ -57,6 +57,7 @@
 // no HashSet iteration reaches a row.
 package app.freerouting.board.facade;
 
+import app.freerouting.board.actions.DrillItemMover;
 import app.freerouting.board.actions.ItemIdGenerator;
 import app.freerouting.board.model.items.Item;
 import app.freerouting.board.model.items.Pin;
@@ -69,6 +70,7 @@ import app.freerouting.core.library.Padstack;
 import app.freerouting.geometry.planar.FloatPoint;
 import app.freerouting.geometry.planar.IntBox;
 import app.freerouting.geometry.planar.IntPoint;
+import app.freerouting.geometry.planar.IntVector;
 import app.freerouting.geometry.planar.LineSegment;
 import app.freerouting.geometry.planar.IntOctagon;
 import app.freerouting.geometry.planar.Point;
@@ -651,6 +653,152 @@ public class ForcedInsertProbe {
     dumpInventory("dbg_after_tail2", board);
   }
 
+  /**
+   * FIX-ROUND world (spec-review MINOR-1): the sampling-retry SHORTEN
+   * arm, observed on SUCCESS. A straight 400000 corridor through an
+   * UNFIXED via at cx+60000 with maxViaRecursionDepth 0: the shove-loop
+   * check fails at shape 0 (lastShapeNo=0 < traceShapes.length=1), the
+   * lastSegmentLength (400000) lies strictly between sampleWidth
+   * (20000) and 100*sampleWidth (2000000), so the shorten arm fires and
+   * the SHORTENED corridor (500000 -> ~520000, clear of the via) passes
+   * the re-check and INSERTS — the returned newCorner is the sampled
+   * IntPoint, not the toCorner (unlike W3, where the re-check failed and
+   * discarded it).
+   */
+  private static void runRetryWorld(byte[] bytes, String fileName) throws Exception {
+    RoutingBoard board = parse(bytes, fileName);
+    int net = net94(board);
+    IntBox bbox = board.boundingBox;
+    int cx = (bbox.ll.x + bbox.ur.x) / 2;
+    int cy = (bbox.ll.y + bbox.ur.y) / 2;
+    int thirdNet = 3;
+    Padstack viaPadstack = addViaPadstack(board, "retry_via");
+
+    int sw = board.getMinTraceHalfWidth();
+    int sampleWidth = 2 * sw;
+    int length = 40 * sw;
+    int viaX = cx + 6 * sw; // 560000: inside the corridor, far beyond
+    // the sampleWidth strip the shorten arm keeps
+    Via blockingVia =
+        board.insertVia(
+            viaPadstack, new IntPoint(viaX, cy), new int[] {thirdNet}, 0,
+            FixedState.UNFIXED, false);
+
+    JsonObject worldRow = obj("world");
+    worldRow.addProperty("name", "insert_retry");
+    worldRow.addProperty("net", net);
+    worldRow.addProperty("thirdNet", thirdNet);
+    worldRow.addProperty("blockingVia", blockingVia.getId());
+    worldRow.addProperty("cx", cx);
+    worldRow.addProperty("cy", cy);
+    worldRow.addProperty("minTraceHalfWidth", sw);
+    worldRow.addProperty("sampleWidth", sampleWidth);
+    worldRow.addProperty("length", length);
+    worldRow.addProperty("viaX", viaX);
+    worldRow.addProperty("halfWidth", 100);
+    worldRow.addProperty("layer", 0);
+    worldRow.addProperty("maxRecursionDepth", 10);
+    worldRow.addProperty("maxViaRecursionDepth", 0);
+    worldRow.addProperty("maxSpringOverRecursionDepth", 2);
+    worldRow.addProperty("tidyWidth", 0);
+    worldRow.addProperty("withCheck", true);
+    row(worldRow);
+    dumpInventory("before", board);
+    dumpChangedArea("before", board);
+
+    Point result =
+        board.insertForcedTracePolyline(
+            new Polyline(new IntPoint(cx, cy), new IntPoint(cx + length, cy)),
+            100,
+            0,
+            new int[] {net},
+            0,
+            10,
+            0,
+            2,
+            0,
+            100,
+            true,
+            null);
+    JsonObject resultRow = obj("insert_result");
+    resultRow.addProperty("world", "insert_retry");
+    resultRow.addProperty("result", result == null ? "null" : result.toString());
+    row(resultRow);
+    Item failing = board.getShoveFailingObstacle();
+    JsonObject failRow = obj("failing_obstacle");
+    failRow.addProperty(
+        "obstacle",
+        failing == null
+            ? "null"
+            : failing.getClass().getSimpleName() + "#" + failing.getId());
+    row(failRow);
+    dumpChangedArea("after_retry", board);
+    dumpInventory("after_retry", board);
+  }
+
+  /**
+   * FIX-ROUND world (spec-review MINOR-2): the forced_pad / drill-join
+   * RUN faces under a LIVE marking session. A single-layer via at the
+   * board center is moved +4000 in x by DrillItemMover.insert (Java
+   * :110-167) with the session started: forcedPad must shove the
+   * foreign N002 vertical trace at cx+4000 aside (its substitute-piece
+   * corners join, ForcedPadRouter :434-436, then normalize with the
+   * live clip :440-450), and the four corners of the UNTRANSLATED
+   * +-250 box join per layer (:159-162). The two join webs sit ~4000
+   * apart, so the pinned after_move octagon discriminates either join
+   * dropped INDEPENDENTLY.
+   */
+  private static void runDrillMoveWorld(byte[] bytes, String fileName) throws Exception {
+    RoutingBoard board = parse(bytes, fileName);
+    IntBox bbox = board.boundingBox;
+    int cx = (bbox.ll.x + bbox.ur.x) / 2;
+    int cy = (bbox.ll.y + bbox.ur.y) / 2;
+    int foreignNet = 2;
+    int thirdNet = 3;
+    Padstack movePadstack =
+        board.library.padstacks.add(
+            new IntBox(new IntPoint(-250, -250), new IntPoint(250, 250)), 0, 0);
+    Via movedVia =
+        board.insertVia(
+            movePadstack, new IntPoint(cx, cy), new int[] {thirdNet}, 0,
+            FixedState.UNFIXED, false);
+    PolylineTrace crossTrace =
+        board.insertTraceWithoutCleaning(
+            new Polyline(new IntPoint(cx + 4000, cy - 3000), new IntPoint(cx + 4000, cy + 3000)),
+            0,
+            100,
+            new int[] {foreignNet},
+            0,
+            FixedState.UNFIXED);
+    board.startMarkingChangedArea();
+
+    JsonObject worldRow = obj("world");
+    worldRow.addProperty("name", "drill_move");
+    worldRow.addProperty("foreignNet", foreignNet);
+    worldRow.addProperty("thirdNet", thirdNet);
+    worldRow.addProperty("movedVia", movedVia.getId());
+    worldRow.addProperty("crossTrace", crossTrace.getId());
+    worldRow.addProperty("cx", cx);
+    worldRow.addProperty("cy", cy);
+    worldRow.addProperty("dx", 4000);
+    worldRow.addProperty("halfWidth", 100);
+    worldRow.addProperty("layer", 0);
+    worldRow.addProperty("maxRecursionDepth", 10);
+    worldRow.addProperty("maxViaRecursionDepth", 10);
+    worldRow.addProperty("withSession", true);
+    row(worldRow);
+    dumpInventory("before_move", board);
+    dumpChangedArea("before_move", board);
+
+    boolean ok = DrillItemMover.insert(movedVia, new IntVector(4000, 0), 10, 10, null, board);
+    JsonObject resultRow = obj("move_result");
+    resultRow.addProperty("world", "drill_move");
+    resultRow.addProperty("result", ok);
+    row(resultRow);
+    dumpChangedArea("after_move", board);
+    dumpInventory("after_move", board);
+  }
+
   public static void main(String[] args) throws Exception {
     byte[] bytes = Files.readAllBytes(Paths.get(args[0]));
     String fileName = args.length > 1 ? args[1] : "t9_locator45.dsn";
@@ -670,6 +818,9 @@ public class ForcedInsertProbe {
     runTailsWorld(bytes, fileName, "fanout_via");
     if (args.length > 2 && args[2].equals("c2debug")) {
       runConnectDebugWorld(bytes, fileName);
+    } else if (args.length > 2 && args[2].equals("fixrun")) {
+      runRetryWorld(bytes, fileName);
+      runDrillMoveWorld(bytes, fileName);
     }
   }
 }
