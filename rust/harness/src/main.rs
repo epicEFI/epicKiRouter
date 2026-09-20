@@ -665,6 +665,7 @@ fn diff_double_runs(run1: &OracleRun, run2: &OracleRun, fixture: &str) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manifest::RoutingResultManifest;
     use crate::tiers::{FixtureRef, Tier};
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -794,5 +795,170 @@ mod tests {
                 actual: None,
             }]
         );
+    }
+
+    /// Fully-populated parity manifest for the diff_double_runs pins: every
+    /// one of the eight compared record fields is Some/non-default, so a
+    /// world that mutates one field cannot hide behind a None==None face.
+    const DIFF_MANIFEST: &str = r#"{
+  "schema_version": 1,
+  "app_version": "t",
+  "git_sha": "abc123",
+  "fixture": { "filename": "drift.dsn" },
+  "phases": { "autorouter": { "duration_seconds": 1.0, "passes_completed": 18 } },
+  "board_statistics": {
+    "connections": { "incomplete_count": 2, "maximum_count": 50 },
+    "clearance_violations": { "total_count": 1, "router_introduced_count": 0 }
+  },
+  "normalized_score": 986.32,
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "output_written": true
+}"#;
+
+    /// Synthetic OracleRun for the diff pins. `ses` points at a real file
+    /// only in the ses-divergence pin; elsewhere it is deliberately absent
+    /// (distill hashes nothing -> ses_sha256 None on both sides, so the
+    /// eight parity fields are the only compared faces).
+    fn diff_test_run(m: RoutingResultManifest, exit_code: i32, ses: &Path) -> OracleRun {
+        OracleRun {
+            manifest: Some(m),
+            manifest_error: None,
+            exit_code: Some(exit_code),
+            timed_out: false,
+            wall_seconds: 1.0,
+            ses_path: ses.to_path_buf(),
+            manifest_path: PathBuf::from("/nonexistent/epic-harness/manifest.json"),
+        }
+    }
+
+    fn expect_drift_named(run1: &OracleRun, run2: &OracleRun, field: &str) {
+        let err = diff_double_runs(run1, run2, "fixtures/drift.dsn")
+            .expect_err("a one-field drift must bail the capture as racy");
+        let msg = err.to_string();
+        assert!(msg.contains("double-run drift"), "unexpected error: {msg}");
+        assert!(
+            msg.contains(field),
+            "error must name the drifted field {field}: {msg}"
+        );
+        assert!(
+            msg.contains("fixtures/drift.dsn"),
+            "error must name the fixture: {msg}"
+        );
+    }
+
+    /// The trap-4 discipline is only as strong as its detector: EVERY one of
+    /// the eight parity fields must independently bail the double-run diff
+    /// naming the drifted field, and a fully agreeing pair must pass clean.
+    /// (The review mutant R2 — diff neutered to always-report-equal —
+    /// survived the rest of the suite; this pin is its dedicated killer.)
+    #[test]
+    fn diff_double_runs_bails_naming_each_drifted_parity_field_and_passes_on_agreement() {
+        let base: RoutingResultManifest =
+            serde_json::from_str(DIFF_MANIFEST).expect("manifest parses");
+        let no_ses = Path::new("/nonexistent/epic-harness/out.ses");
+        let run1 = diff_test_run(base.clone(), 0, no_ses);
+
+        // Agreement face: identical parity fields (both ses absent ->
+        // None == None) must produce no drift and no note.
+        let run2 = diff_test_run(base.clone(), 0, no_ses);
+        let note =
+            diff_double_runs(&run1, &run2, "fixtures/drift.dsn").expect("agreement must not bail");
+        assert_eq!(note, None);
+
+        // One-field drift worlds, one per parity field. exit_code is read
+        // from the OracleRun (distill takes run.exit_code); the rest come
+        // from the manifest.
+        let mut m = base.clone();
+        m.final_state = "TIMED_OUT".into();
+        expect_drift_named(&run1, &diff_test_run(m, 0, no_ses), "final_state");
+
+        expect_drift_named(&run1, &diff_test_run(base.clone(), 1, no_ses), "exit_code");
+
+        let mut m = base.clone();
+        if let Some(stats) = m.board_statistics.as_mut()
+            && let Some(c) = stats.connections.as_mut()
+        {
+            c.incomplete_count = Some(3);
+        }
+        expect_drift_named(&run1, &diff_test_run(m, 0, no_ses), "incomplete_count");
+
+        let mut m = base.clone();
+        if let Some(stats) = m.board_statistics.as_mut()
+            && let Some(c) = stats.connections.as_mut()
+        {
+            c.maximum_count = Some(51);
+        }
+        expect_drift_named(&run1, &diff_test_run(m, 0, no_ses), "maximum_count");
+
+        let mut m = base.clone();
+        if let Some(stats) = m.board_statistics.as_mut()
+            && let Some(v) = stats.clearance_violations.as_mut()
+        {
+            v.total_count = Some(2);
+        }
+        expect_drift_named(
+            &run1,
+            &diff_test_run(m, 0, no_ses),
+            "clearance_violations_total",
+        );
+
+        let mut m = base.clone();
+        if let Some(stats) = m.board_statistics.as_mut()
+            && let Some(v) = stats.clearance_violations.as_mut()
+        {
+            v.router_introduced_count = Some(1);
+        }
+        expect_drift_named(
+            &run1,
+            &diff_test_run(m, 0, no_ses),
+            "clearance_router_introduced",
+        );
+
+        let mut m = base.clone();
+        m.normalized_score = Some(986.31);
+        expect_drift_named(&run1, &diff_test_run(m, 0, no_ses), "normalized_score");
+
+        let mut m = base.clone();
+        m.phases.autorouter.passes_completed = Some(17);
+        expect_drift_named(&run1, &diff_test_run(m, 0, no_ses), "passes_completed");
+    }
+
+    /// The ses divergence face: equal parity fields but different ses bytes
+    /// must NOT bail (the SES digest is identity info, not a parity gate) —
+    /// it comes back as a note for the committed record (recorded, never
+    /// normalized away), while equal ses bytes produce no note at all.
+    #[test]
+    fn diff_double_runs_notes_ses_divergence_and_stays_silent_on_equal_ses() {
+        let base: RoutingResultManifest =
+            serde_json::from_str(DIFF_MANIFEST).expect("manifest parses");
+        let dir =
+            std::env::temp_dir().join(format!("epic-harness-diff-ses-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let ses_a = dir.join("a.ses");
+        let ses_b = dir.join("b.ses");
+        std::fs::write(&ses_a, b"(session \"one\")").expect("write ses a");
+        std::fs::write(&ses_b, b"(session \"two\")").expect("write ses b");
+
+        // Equal ses bytes: no note.
+        let run1 = diff_test_run(base.clone(), 0, &ses_a);
+        let run2 = diff_test_run(base.clone(), 0, &ses_a);
+        let note =
+            diff_double_runs(&run1, &run2, "fixtures/x.dsn").expect("equal ses must not bail");
+        assert_eq!(note, None);
+
+        // Divergent ses bytes: a note naming the face, not a bail.
+        let run2 = diff_test_run(base.clone(), 0, &ses_b);
+        let note = diff_double_runs(&run1, &run2, "fixtures/x.dsn")
+            .expect("ses divergence must be recorded, not bailed");
+        let note = note.expect("a divergence must yield a note");
+        assert!(note.contains("ses_sha256"), "unexpected note: {note}");
+        assert!(
+            note.contains("racy SES"),
+            "note should mark the emission racy: {note}"
+        );
+
+        let _ = std::fs::remove_file(&ses_a);
+        let _ = std::fs::remove_file(&ses_b);
     }
 }
