@@ -112,6 +112,14 @@ impl SearchTreeManager {
         &self.trees
     }
 
+    /// The live trees, mutable — the autoroute engine's room-tree
+    /// insert/remove through the resolved slot (Java reaches the tree
+    /// OBJECT through `autorouteSearchTree`; the port goes through the
+    /// manager slot index).
+    pub fn trees_mut(&mut self) -> &mut [SearchTree] {
+        &mut self.trees
+    }
+
     /// Java `isClearanceCompensationUsed()` (`:84-86`).
     #[must_use]
     pub fn is_clearance_compensation_used(&self) -> bool {

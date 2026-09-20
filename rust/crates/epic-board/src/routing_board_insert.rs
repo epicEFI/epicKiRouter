@@ -783,6 +783,72 @@ pub fn insert_forced_trace_polyline<S: PullTightSeam>(
 }
 
 // ---------------------------------------------------------------------------
+// insertForcedTraceSegment (RoutingBoard.java:361-402)
+// ---------------------------------------------------------------------------
+
+/// Java `RoutingBoard.insertForcedTraceSegment` (`:361-402`): the
+/// per-segment wrapper the M3-T11 `FoundConnectionInserter` loop
+/// calls — wraps the two corners into a `Polyline`, runs the forced
+/// polyline insert, and maps the result corner back onto the INPUT
+/// endpoints. `Some(to_corner)` for equal corners (Java returns the
+/// toCorner object verbatim); `None` passes the damage contract of
+/// [`insert_forced_trace_polyline`] through (Java `:398` `result =
+/// okPoint` with a null `okPoint`).
+///
+/// Parity note (the anchors' reference-`==` analysis, CONSIDERED):
+/// Java maps via REFERENCE equality against `insertPolyline`'s
+/// first/last corner objects. Rust compares by value. `==` true
+/// implies value-equal, and `==` false with value-equal points falls
+/// into Java's `result = okPoint` arm — which yields the SAME VALUE —
+/// so the two mappings are indistinguishable at the type surface.
+#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+pub fn insert_forced_trace_segment<S: PullTightSeam>(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    seam: &mut S,
+    from_corner: &Point,
+    to_corner: &Point,
+    half_width: i32,
+    layer: i32,
+    net_numbers: Option<&[i32]>,
+    clearance_class_index: i32,
+    max_recursion_depth: i32,
+    max_via_recursion_depth: i32,
+    max_spring_over_recursion_depth: i32,
+    tidy_width: i32,
+    pull_tight_accuracy: i32,
+    with_check: bool,
+    time_limit: Option<&TimeLimit>,
+) -> Option<Point> {
+    if from_corner == to_corner {
+        return Some(to_corner.clone());
+    }
+    let insert_polyline = Polyline::from_two_corners(from_corner, to_corner);
+    let ok_point = insert_forced_trace_polyline(
+        manager,
+        board,
+        seam,
+        &insert_polyline,
+        half_width,
+        layer,
+        net_numbers,
+        clearance_class_index,
+        max_recursion_depth,
+        max_via_recursion_depth,
+        max_spring_over_recursion_depth,
+        tidy_width,
+        pull_tight_accuracy,
+        with_check,
+        time_limit,
+    );
+    Some(match ok_point? {
+        ok if Some(&ok) == insert_polyline.first_corner().as_ref() => from_corner.clone(),
+        ok if Some(&ok) == insert_polyline.last_corner().as_ref() => to_corner.clone(),
+        ok => ok,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // connectToTrace (RoutingBoard.java:1116-1170)
 // ---------------------------------------------------------------------------
 

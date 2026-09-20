@@ -9,6 +9,7 @@
 
 pub mod control;
 pub mod drill;
+pub mod engine;
 pub mod expansion;
 pub mod maze;
 pub mod path;

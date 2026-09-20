@@ -85,8 +85,10 @@ const BOARD_BOX: IntBox = IntBox {
 };
 
 /// Registry keys at/above this bound are rooms (items keep their raw
-/// numeric item id as key).
-const ROOM_KEY_BASE: u64 = 1 << 40;
+/// numeric item id as key). Shared with the production engine
+/// ([`crate::engine`], which uses the same key space); the const
+/// equality is pinned in the engine's tests.
+pub(crate) const ROOM_KEY_BASE: u64 = 1 << 40;
 
 /// The engines' via clearance class (capture `ctrl` row
 /// `viaClearanceClass:1`) — the tree the AutorouteEngine builds is
@@ -1639,7 +1641,7 @@ impl DrillEngine for Harness {
     }
 
     fn check_trace_segment(
-        &self,
+        &mut self,
         line_segment: &epic_geometry::line_segment::LineSegment,
         layer: i32,
         net_numbers: &[i32],
@@ -2010,7 +2012,7 @@ fn build_rip_drill(
 /// Runs one layer-change expansion and returns the emissions in mask
 /// order (Java's TreeSet order for the equal sorting values).
 fn run_layer_change(
-    h: &Harness,
+    h: &mut Harness,
     ctrl: &AutorouteControl,
     drill: &ExpansionDrill,
     shape_entry: &FloatLine,
@@ -2039,7 +2041,7 @@ fn run_layer_change(
 fn assert_emits(
     emits: &[DrillMazeListElement],
     rows: &[(i32, i32, bool)],
-    h: &Harness,
+    h: &mut Harness,
     entry: &FloatLine,
     what: &str,
 ) {
@@ -2254,8 +2256,8 @@ fn layer_change_mask_battery_net_a() {
         .expect("the pin drill exists");
 
     // A-full.
-    let emits = run_layer_change(&h, &ctrl, pin_drill, &entry, &mut checker);
-    assert_emits(&emits, &EMITS_A_FULL, &h, &entry, "A-full");
+    let emits = run_layer_change(&mut h, &ctrl, pin_drill, &entry, &mut checker);
+    assert_emits(&emits, &EMITS_A_FULL, &mut h, &entry, "A-full");
     assert_eq!(
         checker.take_calls(),
         expected_free_calls(replay.via_t, replay.via_h),
@@ -2274,7 +2276,7 @@ fn layer_change_mask_battery_net_a() {
         to_layer: 3,
         attach_smd_allowed: false,
     }];
-    let emits = run_layer_change(&h, &ctrl, pin_drill, &entry, &mut checker);
+    let emits = run_layer_change(&mut h, &ctrl, pin_drill, &entry, &mut checker);
     assert!(emits.is_empty(), "A-mask3-noattach: no emissions");
     assert_eq!(
         checker.take_calls(),
@@ -2288,7 +2290,7 @@ fn layer_change_mask_battery_net_a() {
         to_layer: 1,
         attach_smd_allowed: false,
     }];
-    let emits = run_layer_change(&h, &ctrl, pin_drill, &entry, &mut checker);
+    let emits = run_layer_change(&mut h, &ctrl, pin_drill, &entry, &mut checker);
     assert!(emits.is_empty(), "A-mask01-noattach: no emissions");
     checker.take_calls();
 
@@ -2299,11 +2301,11 @@ fn layer_change_mask_battery_net_a() {
         to_layer: 1,
         attach_smd_allowed: true,
     }];
-    let emits = run_layer_change(&h, &ctrl, pin_drill, &entry, &mut checker);
+    let emits = run_layer_change(&mut h, &ctrl, pin_drill, &entry, &mut checker);
     assert_emits(
         &emits,
         &EMITS_A_MASK01_ATTACH,
-        &h,
+        &mut h,
         &entry,
         "A-mask01-attach",
     );
@@ -2356,8 +2358,8 @@ fn ripped_via_battery_and_via_insertions() {
     assert_eq!(rooms_a, RIP_DISCOVERY[0].3.to_vec(), "ripDiscovery A");
     ctrl_a.ripup_allowed = true;
     let entry = entry_a_rip();
-    let emits = run_layer_change(&h, &ctrl_a, &rip_drill_a, &entry, &mut checker);
-    assert_emits(&emits, &EMITS_A_RIP, &h, &entry, "A-rip-positive");
+    let emits = run_layer_change(&mut h, &ctrl_a, &rip_drill_a, &entry, &mut checker);
+    assert_emits(&emits, &EMITS_A_RIP, &mut h, &entry, "A-rip-positive");
     assert!(
         checker.take_calls().is_empty(),
         "A-rip-positive: the ripped branch never probes the checker"
@@ -2395,16 +2397,16 @@ fn ripped_via_battery_and_via_insertions() {
     let entry = entry_b();
     ctrl_b.ripup_allowed = true;
 
-    let emits = run_layer_change(&h, &ctrl_b, &free_drill, &entry, &mut checker);
-    assert_emits(&emits, &EMITS_B_FREE, &h, &entry, "B-free-control");
+    let emits = run_layer_change(&mut h, &ctrl_b, &free_drill, &entry, &mut checker);
+    assert_emits(&emits, &EMITS_B_FREE, &mut h, &entry, "B-free-control");
     assert_eq!(
         checker.take_calls(),
         expected_free_calls(replay.via_t, replay.via_h),
         "B-free-control: probe sequence (shared class-1 tree)"
     );
 
-    let emits = run_layer_change(&h, &ctrl_b, &rip_drill, &entry, &mut checker);
-    assert_emits(&emits, &EMITS_B_RIP, &h, &entry, "B-rip-positive");
+    let emits = run_layer_change(&mut h, &ctrl_b, &rip_drill, &entry, &mut checker);
+    assert_emits(&emits, &EMITS_B_RIP, &mut h, &entry, "B-rip-positive");
     assert!(
         checker.take_calls().is_empty(),
         "B-rip-positive: zero checker probes (padstack span is the via range)"
@@ -2412,7 +2414,7 @@ fn ripped_via_battery_and_via_insertions() {
 
     // Gate 1: ripupAllowed false -> nothing.
     ctrl_b.ripup_allowed = false;
-    let emits = run_layer_change(&h, &ctrl_b, &rip_drill, &entry, &mut checker);
+    let emits = run_layer_change(&mut h, &ctrl_b, &rip_drill, &entry, &mut checker);
     assert!(emits.is_empty(), "B-rip-ripup-off: no emissions");
     assert!(
         checker.take_calls().is_empty(),
@@ -2438,7 +2440,7 @@ fn ripped_via_battery_and_via_insertions() {
     let (rip_drill2, rooms2) =
         build_rip_drill(&mut h, 520000, 450000, Some((u64::from(VIA_ID_B2), 0)));
     assert_eq!(rooms2, RIP_DISCOVERY[3].3.to_vec(), "ripDiscovery B2");
-    let emits = run_layer_change(&h, &ctrl_b, &rip_drill2, &entry, &mut checker);
+    let emits = run_layer_change(&mut h, &ctrl_b, &rip_drill2, &entry, &mut checker);
     assert!(emits.is_empty(), "B-rip-wrong-class: no emissions");
     assert!(
         checker.take_calls().is_empty(),
@@ -2458,7 +2460,7 @@ fn ripped_via_battery_and_via_insertions() {
     let (rip_drill3, rooms3) =
         build_rip_drill(&mut h, 540000, 450000, Some((u64::from(VIA_ID_B3), 0)));
     assert_eq!(rooms3, RIP_DISCOVERY[4].3.to_vec(), "ripDiscovery B3");
-    let emits = run_layer_change(&h, &ctrl_b, &rip_drill3, &entry, &mut checker);
+    let emits = run_layer_change(&mut h, &ctrl_b, &rip_drill3, &entry, &mut checker);
     assert!(emits.is_empty(), "B-rip-foreign-padstack: no emissions");
     assert!(
         checker.take_calls().is_empty(),

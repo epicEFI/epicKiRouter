@@ -118,7 +118,7 @@ pub struct DrillMazeListElement {
 /// emitted elements go to the `emit` callback (the T6 seam).
 #[allow(clippy::too_many_arguments)]
 pub fn expand_to_other_layers(
-    ctx: &impl DrillEngine,
+    ctx: &mut impl DrillEngine,
     ctrl: &AutorouteControl,
     drill_key: u64,
     drill: &ExpansionDrill,
@@ -185,7 +185,7 @@ pub fn expand_to_other_layers(
                 .expect("room exists on every drill layer");
             let room_shape = ctx.room_shape(room_key);
             let drill_result = check_layer_with_any_matching_via(
-                ctx,
+                &mut *ctx,
                 ctrl,
                 drill,
                 current_layer,
@@ -223,7 +223,7 @@ pub fn expand_to_other_layers(
                 .expect("room exists on every drill layer");
             let room_shape = ctx.room_shape(room_key);
             let drill_result = check_layer_with_any_matching_via(
-                ctx,
+                &mut *ctx,
                 ctrl,
                 drill,
                 current_layer,
@@ -311,7 +311,7 @@ pub fn expand_to_other_layers(
 /// ported; the per-layer probe is the T10 seam
 /// ([`ViaLayerChecker::check_layer`]).
 pub fn check_layer_with_any_matching_via(
-    ctx: &impl DrillEngine,
+    ctx: &mut impl DrillEngine,
     ctrl: &AutorouteControl,
     drill: &ExpansionDrill,
     layer: i32,
@@ -335,7 +335,15 @@ pub fn check_layer_with_any_matching_via(
             .padstack_shape(padstack_no, layer)
             .map_or(0.0, |shape| 0.5 * shape_max_width(&shape));
         let required_radius = via_radius.max(f64::from(ctrl.trace_half_width[layer as usize]));
-        let result = checker.check_layer(
+        // The check routes THROUGH the ctx (T11): the production engine
+        // overrides [`DrillEngine::via_layer_check`] to run the real
+        // `forced_via_inserter::check_layer` (which needs `&mut
+        // manager`+`&mut board` — exactly what the ctx owns), while the
+        // capture/test engines keep the default that consults `checker`
+        // — capture behavior preserved byte-for-row.
+        let result = ctx.via_layer_check(
+            ctrl,
+            checker,
             required_radius,
             clearance_class,
             attach_smd_allowed,

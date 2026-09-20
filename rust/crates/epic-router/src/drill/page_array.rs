@@ -42,6 +42,27 @@ pub struct DrillPageArray {
     pub pages: Vec<Vec<DrillPage>>,
 }
 
+impl Default for DrillPageArray {
+    /// The EMPTY grid — the construction placeholder for the engine's
+    /// `mem::take` search window: `AutorouteEngine` owns the array, but
+    /// the maze engine needs it mutably while the engine itself is the
+    /// `DrillEngine` context, so the array swaps out for the search and
+    /// is restored after. Nothing reads the engine's copy mid-search
+    /// (the maze code goes through its own field), so the placeholder
+    /// is never indexed; the real array is built in the engine ctor
+    /// right after `Self::new` completes.
+    fn default() -> Self {
+        Self {
+            bounds: IntBox::new(IntPoint::new(0, 0), IntPoint::new(0, 0)),
+            column_count: 0,
+            row_count: 0,
+            page_width: 0,
+            page_height: 0,
+            pages: Vec::new(),
+        }
+    }
+}
+
 impl DrillPageArray {
     /// Java ctor (`:34-66`): `columnCount = ceil(length/maxPageWidth)`
     /// over doubles, then `pageWidth = ceil(length/columnCount)` —

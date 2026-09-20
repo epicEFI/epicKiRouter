@@ -296,13 +296,15 @@ pub trait DrillEngine: NeighbourEngine {
     /// Java `RoutingBoard.checkTraceSegment(segment, layer, netNumbers,
     /// halfWidth, clearanceClass, cushionsEnabled)` — the READ-ONLY
     /// clearance check the shove probe consults for the free width
-    /// (`MazeTraceShover.java:176-181`). SEAM (T10): the real body
-    /// lands with the shover; the default is Java's
-    /// `Integer.MAX_VALUE` "no shortening" verdict — the exact
-    /// semantics of an empty board (Java-unreachable on a real board,
-    /// but the no-obstacle behavior).
+    /// (`MazeTraceShover.java:176-181`). SEAM (T10→T11): since the
+    /// engine assembly the DEFAULT body still answers Java's
+    /// `Integer.MAX_VALUE` "no shortening" verdict (capture/test
+    /// engines keep it), while the production engine overrides with the
+    /// real `routing_board_search::check_trace_segment` — which needs
+    /// `&mut self` (the query re-derives stored shapes through the
+    /// manager's memoizing face), hence the receiver widening.
     fn check_trace_segment(
-        &self,
+        &mut self,
         line_segment: &epic_geometry::line_segment::LineSegment,
         layer: i32,
         net_numbers: &[i32],
@@ -319,6 +321,43 @@ pub trait DrillEngine: NeighbourEngine {
             cushions_enabled,
         );
         2147483647.0
+    }
+
+    /// The via-legality dispatch (T11): Java's
+    /// `MazeExpansionEngine.checkLayerWithAnyMatchingVia` calls
+    /// `ForcedViaInserter.checkLayer` DIRECTLY on the board; the port
+    /// routes the call through the ctx so the production engine (which
+    /// owns `&mut manager`+`&mut board`) can run the real probe, while
+    /// capture/test engines keep the default that consults the
+    /// injected [`ViaLayerChecker`] — capture behavior preserved.
+    /// `Self: Sized` because the default body needs no `dyn` dispatch
+    /// and every caller holds the concrete engine.
+    #[allow(clippy::too_many_arguments)] // the Java parameter list
+    fn via_layer_check(
+        &mut self,
+        ctrl: &crate::control::AutorouteControl,
+        checker: &mut impl ViaLayerChecker,
+        required_radius: f64,
+        clearance_class: i32,
+        attach_smd_allowed: bool,
+        room_shape: &TileShape,
+        location: &Point,
+        layer: i32,
+        net_number: i32,
+    ) -> CheckDrillResult
+    where
+        Self: Sized,
+    {
+        let _ = ctrl;
+        checker.check_layer(
+            required_radius,
+            clearance_class,
+            attach_smd_allowed,
+            room_shape,
+            location,
+            layer,
+            net_number,
+        )
     }
 
     /// Java `TraceShover.check(board, segment, shoveToTheLeft, layer,

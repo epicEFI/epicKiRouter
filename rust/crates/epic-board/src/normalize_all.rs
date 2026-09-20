@@ -211,6 +211,98 @@ pub fn normalize_all_traces(manager: &mut SearchTreeManager, board: &mut Board) 
     result
 }
 
+/// Java `BasicBoard.normalizeTraces(int)` (`BasicBoard.java:710-796`)
+/// — the PER-NET sibling of [`normalize_all_traces`]: normalizes the
+/// traces of ONE net to a fixpoint; returns whether anything changed.
+///
+/// Differences from the all-nets driver, all Java-verbatim:
+///
+/// * **The suppression set** — the net whose fixpoint hits
+///   [`MAX_NORMALIZE_ITERATIONS`] (strictly-greater: the 2000th
+///   iteration still runs, `:729`) is added to
+///   `Board::normalize_suppressed_net_nos` (`:748`) and every LATER
+///   call for that net short-circuits false (`:714-725`, the debug
+///   log there is log-only and dropped like all port logging). The
+///   set lives on the board (Java `BasicBoard.:96`), is NEVER cleared
+///   on the live board, and is unique to this sibling.
+/// * **The collect lives INSIDE the while loop** (Java `:752-783`):
+///   each iteration re-walks the item list for this net's on-board
+///   traces (descending, `containsNet && instanceof PolylineTrace &&
+///   isOnTheBoard()`), unlike the all-nets driver's group-once +
+///   re-collect-on-change shape. The collect's
+///   `catch (ConcurrentModificationException) → retry` arm (`:762-768`)
+///   is structurally unreachable in Rust (no mutation happens during
+///   the collect walk; the port mirrors [`normalize_all_traces`]'s
+///   plain-collect convention).
+/// * Per trace: `normalize(null)` true → changed; ELSE IF
+///   `!isUserFixed() && removeIfCycle(trace)` true → changed (the
+///   `:786-793` ladder, identical to the sibling's per-trace arm).
+///
+/// Caller: the M3-T11 `FoundConnectionInserter.getInstance`
+/// (`FoundConnectionInserter.java:108`) and the optimizer's
+/// `TraceTightener` — never the read path.
+pub fn normalize_traces_of_net(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    net_number: i32,
+) -> bool {
+    // Java `:711-713` re-initializes a null (deserialized) set; the
+    // Rust field is always initialized.
+    if board.normalize_suppressed_net_nos.contains(&net_number) {
+        // Java `:716-725`: the FRLogger.debug skip row — log-only,
+        // dropped by the port's logging convention.
+        return false;
+    }
+    let mut result = false;
+    let mut something_changed = true;
+    let mut iteration_count: i32 = 0;
+    while something_changed {
+        iteration_count += 1;
+        if iteration_count > MAX_NORMALIZE_ITERATIONS {
+            // Java `:729-750`: the FRLogger.warn oscillation row
+            // (log-only, dropped) + the suppression latch `:748`.
+            board.normalize_suppressed_net_nos.insert(net_number);
+            break;
+        }
+        something_changed = false;
+        // Java `:752-783`: the per-iteration collect (descending
+        // walk; CME-retry structurally unreachable, see module doc).
+        let net_traces: Vec<ItemId> = board
+            .iter_descending()
+            .filter(|entry| {
+                matches!(entry.data, ItemData::Trace { .. })
+                    && entry.on_the_board
+                    && contains_net(&entry.nets, net_number)
+            })
+            .map(|entry| entry.id)
+            .collect();
+        for trace_id in &net_traces {
+            // Java `:784`: the isOnTheBoard re-check — a trace an
+            // earlier iteration of this same loop removed (split
+            // replaces) must not be normalized again.
+            if !board.is_on_the_board(*trace_id) {
+                continue;
+            }
+            if normalize(manager, board, *trace_id, None) {
+                something_changed = true;
+                result = true;
+            } else {
+                // Java reads `isUserFixed()` off the (possibly
+                // just-removed) object; a gone entry maps to
+                // "not user-fixed" (the sibling's convention).
+                let not_user_fixed = board
+                    .get(*trace_id)
+                    .is_none_or(|entry| !is_user_fixed(entry));
+                if not_user_fixed && remove_if_cycle(manager, board, *trace_id) {
+                    something_changed = true;
+                    result = true;
+                }
+            }
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

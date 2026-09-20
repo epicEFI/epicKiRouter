@@ -45,6 +45,7 @@ pub mod items;
 pub mod layers;
 pub mod normalize_all;
 pub mod routing_board_insert;
+pub mod routing_board_search;
 pub mod rules_surf;
 pub mod session_contacts;
 pub mod shape_and_entry_side;

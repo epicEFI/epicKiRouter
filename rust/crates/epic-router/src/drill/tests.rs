@@ -1280,7 +1280,7 @@ fn expand_to_other_layers_sweeps_costs_and_emits() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1367,7 +1367,7 @@ fn expand_to_other_layers_occupancy_gates_emission() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1412,7 +1412,7 @@ fn expand_to_other_layers_ctrl_upper_bound_clamps_the_sweep() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1465,12 +1465,12 @@ fn expand_to_other_layers_not_drillable_tightens_bounds() {
         (world, ctrl, drill)
     };
     // Row A: layer 0 not drillable -> viaLowerBound = 1 > firstLayer -> return.
-    let (world, ctrl, drill) = build();
+    let (mut world, ctrl, drill) = build();
     let mut checker = ScriptedChecker::new(CheckDrillResult::NotDrillable);
     checker.script(1, 4, CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1490,12 +1490,12 @@ fn expand_to_other_layers_not_drillable_tightens_bounds() {
     // Row B: layer 2 not drillable -> viaUpperBound = 1 < lastLayer 3
     // -> the post-sweep check aborts the whole expansion (the probe
     // count separates this row from row A's early return).
-    let (world, ctrl, drill) = build();
+    let (mut world, ctrl, drill) = build();
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     checker.script(2, 4, CheckDrillResult::NotDrillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1547,7 +1547,7 @@ fn expand_to_other_layers_mask_gate_truth_table() {
     };
     // Rows A + B: both flags set, full-range mask.
     for (attach_allowed, expected) in [(false, Vec::<i32>::new()), (true, vec![0, 2, 3])] {
-        let (world, drill) = build();
+        let (mut world, drill) = build();
         let ctrl = test_ctrl(
             4,
             vec![ViaMask {
@@ -1559,7 +1559,7 @@ fn expand_to_other_layers_mask_gate_truth_table() {
         let mut checker = ScriptedChecker::new(CheckDrillResult::DrillableWithAttachSmd);
         let mut emitted = Vec::new();
         expand_to_other_layers(
-            &world,
+            &mut world,
             &ctrl,
             777,
             &drill,
@@ -1577,7 +1577,7 @@ fn expand_to_other_layers_mask_gate_truth_table() {
         );
     }
     // Row C: edge-free mask, attach=false, both flags set.
-    let (world, drill) = build();
+    let (mut world, drill) = build();
     let ctrl = test_ctrl(
         4,
         vec![ViaMask {
@@ -1589,7 +1589,7 @@ fn expand_to_other_layers_mask_gate_truth_table() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::DrillableWithAttachSmd);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1614,7 +1614,7 @@ fn expand_to_other_layers_mask_gate_truth_table() {
     // and lets to-layers {0, 2} through. Rows A-C coincide under both
     // readings; THIS row is what kills the ||->&& mutant inside this
     // pin (verified by mutation).
-    let (world, drill) = build();
+    let (mut world, drill) = build();
     let ctrl = test_ctrl(
         4,
         vec![ViaMask {
@@ -1626,7 +1626,7 @@ fn expand_to_other_layers_mask_gate_truth_table() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::DrillableWithAttachSmd);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1678,7 +1678,7 @@ fn expand_to_other_layers_component_edge_flag_bites_only_at_layer_zero() {
         checker.script(attached_layer, 4, CheckDrillResult::DrillableWithAttachSmd);
         let mut emitted = Vec::new();
         expand_to_other_layers(
-            &world,
+            &mut world,
             &ctrl,
             777,
             &drill,
@@ -1751,12 +1751,12 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
         (world, ctrl, drill)
     };
     // Row 1: ripup forbidden -> immediate return.
-    let (world, mut ctrl, drill) = build(true, 2, 5);
+    let (mut world, mut ctrl, drill) = build(true, 2, 5);
     ctrl.ripup_allowed = false;
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1772,13 +1772,13 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
 
     // Row 2 (positive): the padstack span IS the via range, no
     // completion probes, roomRipped set on every emission.
-    let (world, ctrl, drill) = build(true, 2, 5);
+    let (mut world, ctrl, drill) = build(true, 2, 5);
     let mut ctrl = ctrl;
     ctrl.ripup_allowed = true;
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1804,13 +1804,13 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
     );
 
     // Row 3: clearance class mismatch -> gated.
-    let (world, ctrl, drill) = build(true, 3, 5);
+    let (mut world, ctrl, drill) = build(true, 3, 5);
     let mut ctrl = ctrl;
     ctrl.ripup_allowed = true;
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1827,13 +1827,13 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
     );
 
     // Row 4: padstack not in the via rule -> gated.
-    let (world, ctrl, drill) = build(true, 2, 9);
+    let (mut world, ctrl, drill) = build(true, 2, 9);
     let mut ctrl = ctrl;
     ctrl.ripup_allowed = true;
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -1857,7 +1857,7 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -2125,7 +2125,7 @@ fn expand_to_other_layers_from_layer_offsets_by_drill_first_layer() {
     let mut checker = ScriptedChecker::new(CheckDrillResult::Drillable);
     let mut emitted = Vec::new();
     expand_to_other_layers(
-        &world,
+        &mut world,
         &ctrl,
         777,
         &drill,
@@ -2191,8 +2191,15 @@ fn check_layer_with_any_matching_via_radius_span_and_short_circuit() {
     // (null shape -> radius 0 -> required 50) -> WITH_ATTACH_SMD.
     let mut checker = ScriptedChecker::new(CheckDrillResult::NotDrillable);
     checker.script(1, 5, CheckDrillResult::DrillableWithAttachSmd);
-    let result =
-        check_layer_with_any_matching_via(&world, &ctrl, &drill, 1, &room_shape, &mut checker, 1);
+    let result = check_layer_with_any_matching_via(
+        &mut world,
+        &ctrl,
+        &drill,
+        1,
+        &room_shape,
+        &mut checker,
+        1,
+    );
     assert_eq!(result, CheckDrillResult::DrillableWithAttachSmd);
     assert_eq!(
         checker.calls,
@@ -2202,16 +2209,30 @@ fn check_layer_with_any_matching_via_radius_span_and_short_circuit() {
 
     // Layer 3: only via 7 spans it -> plain NotDrillable.
     let mut checker = ScriptedChecker::new(CheckDrillResult::NotDrillable);
-    let result =
-        check_layer_with_any_matching_via(&world, &ctrl, &drill, 3, &room_shape, &mut checker, 1);
+    let result = check_layer_with_any_matching_via(
+        &mut world,
+        &ctrl,
+        &drill,
+        3,
+        &room_shape,
+        &mut checker,
+        1,
+    );
     assert_eq!(result, CheckDrillResult::NotDrillable);
     assert_eq!(checker.calls.len(), 1, "the out-of-span via 8 is filtered");
 
     // Short-circuit: via 7 DRILLABLE on layer 1 -> via 8 never probed.
     let mut checker = ScriptedChecker::new(CheckDrillResult::NotDrillable);
     checker.script(1, 4, CheckDrillResult::Drillable);
-    let result =
-        check_layer_with_any_matching_via(&world, &ctrl, &drill, 1, &room_shape, &mut checker, 1);
+    let result = check_layer_with_any_matching_via(
+        &mut world,
+        &ctrl,
+        &drill,
+        1,
+        &room_shape,
+        &mut checker,
+        1,
+    );
     assert_eq!(result, CheckDrillResult::Drillable);
     assert_eq!(checker.calls.len(), 1, "DRILLABLE returns immediately");
 }

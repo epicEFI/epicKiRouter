@@ -245,6 +245,16 @@ pub struct Board {
     /// (nested starts keep the session) and nulled by
     /// `optChangedArea`. Not part of undo (Java never snapshots it).
     pub(crate) changed_area: Option<crate::changed_area::ChangedArea>,
+    /// Java `BasicBoard.normalizeSuppressedNetNos` (`:96`, `transient
+    /// Set<Integer>`, field-initialized) — the per-net oscillation
+    /// suppression of [`crate::normalize_all::normalize_traces_of_net`]:
+    /// a net whose outer fixpoint hit the 2000-iteration cap is added
+    /// here and every later call for it short-circuits false. Java
+    /// never clears it on the live board (no reset site), it is unique
+    /// to the PER-NET sibling (`normalizeAllTraces` has none), and T12's
+    /// restore-by-copy semantics decide whether it crosses a restore —
+    /// flagged for T12, ported verbatim here.
+    pub(crate) normalize_suppressed_net_nos: std::collections::BTreeSet<i32>,
 }
 
 impl Board {
@@ -927,6 +937,49 @@ impl Board {
         }
     }
 
+    /// The [`Self::item_shape_layer`] read WITHOUT the drill-span memo
+    /// fill: the `&self` sibling the warm-cache tree reads use (the
+    /// autoroute engine's peek design — engine queries run with live
+    /// `&self` borrows and must not mutate the memo caches). The drill
+    /// branch substitutes the pure span halves
+    /// ([`Self::compute_drill_first_layer`]
+    /// /[`Self::compute_drill_last_layer`]) for the memoizing wrappers;
+    /// every other branch is `&self` already, so the two faces agree
+    /// whenever the memo is warm (the equality pin in the router's
+    /// engine tests scans a parsed fixture end to end).
+    pub fn item_shape_layer_read(&self, id: ItemId, index: i32) -> Option<i32> {
+        match self.get(id).map(|entry| &entry.data) {
+            Some(ItemData::Pin { .. }) | Some(ItemData::Via { .. }) => {
+                let first = self.compute_drill_first_layer(id)?;
+                let last = self.compute_drill_last_layer(id)?;
+                Some(first + index.max(0).min(last - first))
+            }
+            Some(ItemData::Trace { .. }) => self.trace_layer(id),
+            Some(ItemData::ObstacleArea { .. }) | Some(ItemData::ConductionArea { .. }) => {
+                self.area_layer(id)
+            }
+            Some(ItemData::ComponentOutline { layer, .. }) => Some(*layer),
+            Some(ItemData::BoardOutline { .. }) => {
+                let layer_count = self.layers().layers.len() as i32;
+                let keepout_outside = self.outline_keepout_outside_generated(id)?;
+                let shape_count = if keepout_outside {
+                    let area = self.outline_keepout_area(id)?;
+                    crate::tree_shapes::area_split_to_convex(&area)
+                        .map_or(0, |pieces| pieces.len() as i32 * layer_count)
+                } else {
+                    let shapes = self.outline_shapes(id)?;
+                    crate::items::outline::line_count(shapes) as i32 * layer_count
+                };
+                Some(if shape_count > 0 {
+                    index * layer_count / shape_count
+                } else {
+                    0
+                })
+            }
+            Some(ItemData::Other) | None => None,
+        }
+    }
+
     /// Java `Item.isObstacle(int netNumber)` (`Item.java:162-164`) =
     /// `!containsNet(netNumber)`, with `containsNet`'s guard
     /// (`Item.java:149-152`): a net number `<= 0` NEVER counts as
@@ -1063,6 +1116,25 @@ impl Board {
             .or_default()
             .insert(tree_object_id, shapes.clone());
         shapes
+    }
+
+    /// The read-only face of [`Self::tree_shape_precalc`]: the cached
+    /// shapes for `(id, tree)` WITHOUT computing on a miss. The
+    /// autoroute engine's warm-cache invariant —
+    /// `SearchTreeManager::get_autoroute_tree` bulk-inserts every live
+    /// item through the caching path, and routing mutations flow
+    /// through manager remove+insert which clears/refills it — makes a
+    /// peek miss an invariant violation, so the peek answers `None`
+    /// and the caller asserts with a distinctive message.
+    pub fn tree_shape_precalc_peek(
+        &self,
+        id: ItemId,
+        tree_object_id: u64,
+    ) -> Option<&[Option<TileShape>]> {
+        self.shape_precalc
+            .get(&id)
+            .and_then(|by_tree| by_tree.get(&tree_object_id))
+            .map(|shapes| shapes.as_slice())
     }
 
     /// The fresh-computation half of [`Board::drill_first_layer`].

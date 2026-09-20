@@ -45,6 +45,93 @@ impl crate::board::Board {
             index,
         )
     }
+
+    /// The RAW padstack bounding box the width faces read — Java
+    /// `Pin.getMaxWidth`/`getMinWidth` resolve
+    /// `getPadstackLayer(layer - firstLayer())` and take the
+    /// PADSTACK's shape there (NO pin rotation/translation), so the
+    /// mirror-side mapping is the only transform in play. `None` is
+    /// Java's warn-and-0 face (a null shape slot; log-only).
+    fn pin_raw_padstack_bbox_on_layer(
+        &self,
+        id: ItemId,
+        layer: i32,
+    ) -> Option<epic_geometry::int_box::IntBox> {
+        let entry = self.get(id)?;
+        let ItemData::Pin { padstack_no, .. } = &entry.data else {
+            return None;
+        };
+        let component_id = u32::try_from(entry.component_id).ok()?;
+        let component = self.components().get(component_id)?;
+        let padstack = self.library().padstack(*padstack_no)?;
+        let first_layer = crate::components::pin_first_layer(component, padstack);
+        let padstack_layer =
+            crate::components::padstack_layer(component, padstack, layer - first_layer);
+        // Java `Padstack.getShape` (`Padstack.java:128-133`) answers
+        // null (its warn row is log-only) for an out-of-range layer;
+        // the port maps that onto None → the callers' Java warn-and-0
+        // arms.
+        let shape = if padstack_layer < 0 {
+            None
+        } else {
+            padstack.get_shape(padstack_layer as usize)
+        }?;
+        Some(shape.bounding_box())
+    }
+
+    /// Java `Pin.getMaxWidth(layer)` (`Pin.java:517-531`): the largest
+    /// width of the pin shape on `layer` — the raw padstack shape's
+    /// bounding box `maxWidth()`. Java's null-shape warn arms return 0.
+    #[must_use]
+    pub fn pin_max_width_on_layer(&self, id: ItemId, layer: i32) -> f64 {
+        self.pin_raw_padstack_bbox_on_layer(id, layer)
+            .map_or(0.0, |bbox| bbox.max_width())
+    }
+
+    /// Java `Pin.getMinWidth(layer)` (`Pin.java:488-505`): the smallest
+    /// width of the pin shape on `layer` — the raw padstack shape's
+    /// bounding box `minWidth()`. Java's null-shape warn arms return 0.
+    #[must_use]
+    pub fn pin_min_width_on_layer(&self, id: ItemId, layer: i32) -> f64 {
+        self.pin_raw_padstack_bbox_on_layer(id, layer)
+            .map_or(0.0, |bbox| bbox.min_width())
+    }
+
+    /// Java `Pin.getTraceNeckdownHalfwidth(layer)` (`Pin.java:511-515`):
+    /// `(int) Math.max(0.5 * getMinWidth(layer) - 1, 1)` — the neckdown
+    /// half width a trace needs to enter/leave a pin narrower than the
+    /// trace. The double→int cast truncates (positive domain), the
+    /// Rust `as` cast saturates identically here.
+    #[must_use]
+    pub fn pin_trace_neckdown_halfwidth(&self, id: ItemId, layer: i32) -> i32 {
+        let result = (0.5 * self.pin_min_width_on_layer(id, layer) - 1.0).max(1.0);
+        result as i32
+    }
+
+    /// Java `DrillItem.isOnLayer(layer)` (`DrillItem.java:157-159`) for
+    /// a PIN — `firstLayer() <= layer <= lastLayer()` over the pin's
+    /// (mirrored) layer span. `false` for a non-pin item.
+    #[must_use]
+    pub fn pin_is_on_layer(&self, id: ItemId, layer: i32) -> bool {
+        let Some(entry) = self.get(id) else {
+            return false;
+        };
+        let ItemData::Pin { padstack_no, .. } = &entry.data else {
+            return false;
+        };
+        let Some(component_id) = u32::try_from(entry.component_id).ok() else {
+            return false;
+        };
+        let Some(component) = self.components().get(component_id) else {
+            return false;
+        };
+        let Some(padstack) = self.library().padstack(*padstack_no) else {
+            return false;
+        };
+        let first_layer = crate::components::pin_first_layer(component, padstack);
+        let last_layer = crate::components::pin_last_layer(component, padstack);
+        layer >= first_layer && layer <= last_layer
+    }
 }
 
 #[cfg(test)]
