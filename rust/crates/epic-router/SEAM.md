@@ -450,9 +450,9 @@ roll it back), `board.rs` (marking session, `reset_transient_after_restore`,
 `trace_ops` `remove_trace_tails` publish; router `engine.rs`
 (`RippedItemSeed`, `RouteBudget`, `take_budget`), `control.rs`
 (`resolve_trace_costs`, pub `ExpansionCostFactor`), `maze/search_engine.rs`,
-`drill/mod.rs`. PIN ARITHMETIC: 40 new tests (board_hash 4 +
-board_history 9 + failure_log 1 + board.rs 1 + batch 8 + pass_runner 7
-+ board_statistics 7 + connection_router 3), workspace 1167 → 1207.
+`drill/mod.rs`. PIN ARITHMETIC: 41 new tests (board_hash 4 +
+board_history 9 + failure_log 1 + board.rs 1 + batch 9 + pass_runner 7
++ board_statistics 7 + connection_router 3), workspace 1167 → 1208.
 Capture `logs/M3-T12/captures/batch-driver-probe.jsonl` (840 rows;
 839/840 BYTE-STABLE + 1 known-racy family — see the capture-commit
 row; committed md5 a9db46eae82119fd57cfd7dbbe494cbc),
