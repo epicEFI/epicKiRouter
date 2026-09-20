@@ -1061,4 +1061,91 @@ mod tests {
             "CA6_TRACE_ITEM id=4001 corners (full literal row)"
         );
     }
+
+    /// T11 spec-review F1 (reviewer mutants R1/R2): the suppression
+    /// set carried NO pin while `inserter.rs` claimed one. This pins
+    /// the READ face — a latched net short-circuits false BEFORE any
+    /// trace walk (Java `:714-725`) — by direct injection (the set is
+    /// `pub(crate)`, so the crate test plants the post-latch state;
+    /// Java reaches it only through the cap latch `:748`, and no
+    /// crafted geometry reaches that cap: every split/combine/
+    /// degenerate candidate converges — the WRITE face is banked in
+    /// SEAM's T11 section with the discriminating-world designs).
+    #[test]
+    fn suppressed_net_short_circuits_before_any_walk() {
+        // Positive control: the same collinear geometry WITHOUT the
+        // latch folds to one trace (the world can fire — the pin is
+        // not observability-vacuous, cerebrum mode 10).
+        {
+            let (mut manager, mut board) = fresh();
+            insert_like_spike(
+                &mut manager,
+                &mut board,
+                &[ip(10000, 45000), ip(20000, 45000)],
+                &[1],
+                FixedState::Unfixed,
+            );
+            insert_like_spike(
+                &mut manager,
+                &mut board,
+                &[ip(20000, 45000), ip(30000, 45000)],
+                &[1],
+                FixedState::Unfixed,
+            );
+            assert!(
+                normalize_traces_of_net(&mut manager, &mut board, 1),
+                "control: unlatched net 1 folds (result=true)"
+            );
+            assert_eq!(
+                trace_ids(&board),
+                vec![11, 9, 8, 7, 4],
+                "control: 10 consumed into the descending-first 11"
+            );
+            assert_eq!(
+                corners_of(&board, ItemId::new(11)),
+                vec!["10000,45000", "30000,45000"],
+                "control: the survivor spans the whole chain"
+            );
+        }
+        // The pin: identical world, net 1 pre-latched.
+        let (mut manager, mut board) = fresh();
+        insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(10000, 45000), ip(20000, 45000)],
+            &[1],
+            FixedState::Unfixed,
+        );
+        insert_like_spike(
+            &mut manager,
+            &mut board,
+            &[ip(20000, 45000), ip(30000, 45000)],
+            &[1],
+            FixedState::Unfixed,
+        );
+        board.normalize_suppressed_net_nos.insert(1);
+        assert!(
+            !normalize_traces_of_net(&mut manager, &mut board, 1),
+            "the latched net short-circuits false (Java `:714-725`)"
+        );
+        assert_eq!(
+            trace_ids(&board),
+            vec![11, 10, 9, 8, 7, 4],
+            "the short-circuit must leave the chain unfolded"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(10)),
+            vec!["10000,45000", "20000,45000"],
+            "trace 10 untouched by the latched call"
+        );
+        assert_eq!(
+            corners_of(&board, ItemId::new(11)),
+            vec!["20000,45000", "30000,45000"],
+            "trace 11 untouched by the latched call"
+        );
+        assert!(
+            board.normalize_suppressed_net_nos.contains(&1),
+            "the set is never cleared on the live board"
+        );
+    }
 }

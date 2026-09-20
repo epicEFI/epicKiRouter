@@ -1346,8 +1346,13 @@ mod tests {
             ),
             "stub-cleanup twin missing:\n{joined}"
         );
-        // (The suppression set is crate-private in epic-board; its
-        // add-on-cap face is pinned there — normalize_all tests.)
+        // The trailing per-net normalize here is a fixpoint (nothing to
+        // fold). The normalize suppression set's READ face is pinned by
+        // direct injection in epic-board's normalize_all tests
+        // (`suppressed_net_short_circuits_before_any_walk`); its WRITE
+        // face (the add-on-cap latch) is BANKED in SEAM — no crafted
+        // geometry reaches the 2000-iteration cap (spec review F1, was
+        // falsely claimed pinned here).
     }
 
     /// Java `:225-227`: a same-layer insertVia short-circuits to true
@@ -1511,6 +1516,468 @@ mod tests {
         assert!(
             !joined.contains("FANOUT_DIAG"),
             "the U28- prefix must not open the gate:\n{joined}"
+        );
+    }
+
+    /// F4 (spec review): the neckdown ladder, exercised for the first
+    /// time. The start-pin arm (`insert_neckdown` → `try_neck_down`,
+    /// Java `:525-676`): the full-width forced insert FAILS all-or-
+    /// nothing (okPoint = the from corner — the target sits inside a
+    /// foreign obstacle's clearance shadow, so no detour can end
+    /// there), the arm fires, and the final NARROWED insert (the pin's
+    /// `pin_trace_neckdown_halfwidth` = 499 for this fixture's
+    /// 1000-wide pad) lands the whole window back to the pin. The
+    /// foreign class-1 pinch (surface gap 3516 below the line) blocks
+    /// the full width (need 1500+2516+100 = 4116 > 3655) while the
+    /// narrowed width passes (499+2516+100 = 3115 ≤ 3655). Kills the
+    /// verdict comparison and an out-of-span `pin_is_on_layer` answer
+    /// (the in-span `&&` boundary is NOT discriminable here: the
+    /// fixture's pins span both layers, so the `&&`→`||` looseness is
+    /// world-impossible — banked in SEAM).
+    #[test]
+    fn t11_neckdown_start_pin_narrows_blocked_target_to_pin_halfwidth() {
+        let (mut manager, mut board) = parse_fixture();
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(668000, 16384)),
+                &Point::Int(corner(672000, 16384)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        let layer_count = board.layers().layers.len();
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        ctrl.with_neckdown = true;
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![corner(663500, 20000), corner(667000, 20000)],
+            layer: 0,
+        };
+        assert!(
+            instance.insert_trace(&item),
+            "the neckdown narrows through the pinch. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "decision=ADVANCE, neckdown=true, micro_neckdown=false, \
+                 okPoint=(663500,20000), first=(663500,20000), last=(667000,20000)"
+            ),
+            "the neckdown ADVANCE row missing or wrong:\n{joined}"
+        );
+        assert!(
+            joined.contains(
+                "[FoundConnectionInserter.insert_trace] [compare_trace_insert_segment] \
+                 net=94, layer=0, i=1, fromCornerNo=1, decision=ADVANCE, neckdown=true, \
+                 micro_neckdown=false, okPoint=(663500,20000), first=(663500,20000), \
+                 last=(667000,20000): Net #94"
+            ),
+            "the neckdown ADVANCE twin missing or wrong:\n{joined}"
+        );
+        // Exactly ONE net-94 trace survives: the narrowed one. The
+        // failed full-width attempt landed nothing (all-or-nothing).
+        let traces: Vec<(i32, Vec<(i32, i32)>)> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        assert_eq!(
+            traces,
+            vec![(499, vec![(667000, 20000), (663500, 20000)])],
+            "the narrowed trace at the pin's neckdown halfwidth"
+        );
+        // The stub cleanup at corners[0] finds the PIN contact — no tail.
+        assert!(
+            joined.contains(
+                "[FoundConnectionInserter.insert_trace] [compare_trace_stub_cleanup] \
+                 net=94, layer=0, removed_stubs=0, trace_enabled=true: Net #94"
+            ),
+            "the pin contact must keep the route off the tail list:\n{joined}"
+        );
+    }
+
+    /// F4: the OPEN side of the neckdown-distance gate
+    /// (`pin_center.distance(to_corner) >= pin_neck_down_distance →
+    /// None`, Java `:549-551`). The fixture pin's gate value is
+    /// `2 * (0.5 * 1000 + 2516) = 6032`; a 3-corner item whose second
+    /// window fails on an endpoint shadow hands the arm `ok = M` with
+    /// `|pin → M| = 6031` — one BELOW the gate — so the ladder runs
+    /// and the narrowed insert reaches the stop point (the success
+    /// verdict `Some(ok) == Some(from_corner)`). The twin test below
+    /// sits at EXACTLY 6032 and must reject.
+    #[test]
+    fn t11_neckdown_distance_gate_open_side_narrows_to_stop_point() {
+        let (mut manager, mut board) = parse_fixture();
+        // The foreign pinch END casts the shadow over B = (663500,32000):
+        // |B → end| = 4000 < 4116 (full need) but ≥ 3115 (narrowed need),
+        // and the vertical route line stays 4000 clear of the whole body.
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(667500, 32000)),
+                &Point::Int(corner(671500, 32000)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        let layer_count = board.layers().layers.len();
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        ctrl.with_neckdown = true;
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![
+                corner(663500, 20000),
+                corner(663500, 26031), // |pin → M| = 6031 < 6032: gate OPEN
+                corner(663500, 32000),
+            ],
+            layer: 0,
+        };
+        assert!(
+            instance.insert_trace(&item),
+            "the open gate narrows to the stop point. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "net=94, layer=0, i=2, fromCornerNo=2, decision=ADVANCE, neckdown=true, \
+                 micro_neckdown=false, okPoint=(663500,26031)"
+            ),
+            "the i=2 neckdown ADVANCE row missing or wrong:\n{joined}"
+        );
+        let mut traces: Vec<(i32, Vec<(i32, i32)>)> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        traces.sort();
+        assert_eq!(
+            traces,
+            vec![
+                (499, vec![(663500, 32000), (663500, 26031)]),
+                (1500, vec![(663500, 20000), (663500, 26031)]),
+            ],
+            "full-width to the stop point + narrowed through the shadow"
+        );
+    }
+
+    /// F4: the CLOSED side of the neckdown-distance gate, at EXACT
+    /// equality — `|pin → M| = 6032 = pin_neck_down_distance`, where
+    /// Java's `>=` REFUSES (`None` from `tryNeckDown`, Java `:549`).
+    /// The world is the open-side twin with M one unit higher: the
+    /// verdict flips to FAIL, and NO narrowed trace may exist. The
+    /// `>=` → `>` mutant opens the gate, the narrowed insert lands
+    /// (4000 ≥ 3115) and the test's verdict/trace asserts fail — the
+    /// boundary is the discriminator.
+    #[test]
+    fn t11_neckdown_distance_gate_boundary_rejects() {
+        let (mut manager, mut board) = parse_fixture();
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(667500, 32000)),
+                &Point::Int(corner(671500, 32000)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        let layer_count = board.layers().layers.len();
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        ctrl.with_neckdown = true;
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![
+                corner(663500, 20000),
+                corner(663500, 26032), // |pin → M| = 6032 == gate: REFUSED
+                corner(663500, 32000),
+            ],
+            layer: 0,
+        };
+        assert!(
+            !instance.insert_trace(&item),
+            "the boundary must refuse the neckdown. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "net=94, layer=0, i=2, fromCornerNo=1, decision=FAIL, neckdown=false, \
+                 micro_neckdown=false, okPoint=(663500,26032)"
+            ),
+            "the i=2 FAIL row missing or wrong:\n{joined}"
+        );
+        // No narrowed trace anywhere — the mutant's tell.
+        let narrowed = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .filter(|entry| board.trace_half_width(entry.id) == Some(499))
+            .count();
+        assert_eq!(narrowed, 0, "the refused gate must not narrow");
+        // The faithful stub cleanup: at M the stranded full-width trace
+        // is a tail (its endpoint contacts nothing) and is REMOVED —
+        // the board ends with NO net-94 traces at all.
+        assert!(
+            joined.contains("compare_trace_stub_found net=94, corner_idx=1, corner=(663500,26032)"),
+            "the stub-found row at M missing:\n{joined}"
+        );
+        assert!(
+            joined.contains(
+                "[FoundConnectionInserter.insert_trace] [compare_trace_stub_cleanup] \
+                 net=94, layer=0, removed_stubs=1, trace_enabled=true: Net #94"
+            ),
+            "the stranded trace must be cleaned as a stub:\n{joined}"
+        );
+        let net94 = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .count();
+        assert_eq!(net94, 0, "the FAIL ate its own progress (stub cleanup)");
+    }
+
+    /// F4: the fanout MICRO-neckdown candidate ORDER (Java `:455-523`):
+    /// the base-width insert fails all-or-nothing (the target sits in
+    /// the pinch's shadow), and the FIRST succeeding candidate of the
+    /// `(pin widths, 3/4, 3/5, 1/2)` insertion-ordered dedup list wins.
+    /// The pinch surface gap 3642 blocks full width (need 4116) AND
+    /// the 1200 that a `3/4 → 4/5` mutant would try first (need 3716),
+    /// while the real first fraction candidate 1125 (need 3641) passes
+    /// with 1 unit to spare. The row literal `candidate_half_width=1125`
+    /// plus the hw-1125 trace kill both the reorder and the fraction
+    /// mutants (each hands the win to 900).
+    #[test]
+    fn t11_fanout_micro_neckdown_candidate_order() {
+        let (mut manager, mut board) = parse_fixture();
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(668000, 16258)),
+                &Point::Int(corner(672000, 16258)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        let layer_count = board.layers().layers.len();
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        ctrl.is_fanout = true;
+        ctrl.fanout_start_pin_name = Some("U27-P1".to_string());
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![corner(663500, 20000), corner(669300, 20000)],
+            layer: 0,
+        };
+        assert!(
+            instance.insert_trace(&item),
+            "the micro neckdown squeezes through. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "FANOUT_DIAG event=trace_insert_micro_neckdown_success, pin=U27-P1, net=94, \
+                 layer=0, candidate_half_width=1125, baseHalfWidth=1500, traceClearanceClass=1, \
+                 from=(663500,20000), to=(669300,20000)"
+            ),
+            "the micro success diag missing or wrong (candidate order):\n{joined}"
+        );
+        assert!(
+            joined.contains(
+                "decision=ADVANCE, neckdown=false, micro_neckdown=true, \
+                 okPoint=(663500,20000), first=(663500,20000), last=(669300,20000)"
+            ),
+            "the micro ADVANCE row missing or wrong:\n{joined}"
+        );
+        let traces: Vec<(i32, Vec<(i32, i32)>)> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        assert_eq!(
+            traces,
+            vec![(1125, vec![(663500, 20000), (669300, 20000)])],
+            "the winning candidate's trace"
+        );
+    }
+
+    /// F5 (spec review): the insert_via span gate REJECTION face —
+    /// a via rule whose only entry references PADD (a single-layer
+    /// F.Cu padstack, padstack_no 6) cannot cover the requested 0→1
+    /// span; the scan finds no suitable span, emits the debug row AND
+    /// the gated `via_mask_not_found` diag, and returns false with
+    /// ZERO id burn (Java `:703-720`). The inverted-gate mutant admits
+    /// PADD and answers true (or hits the check) — the verdict +
+    /// id-burn + row asserts all flip.
+    #[test]
+    fn t11_insert_via_span_gate_rejects_missing_span() {
+        let (mut manager, mut board) = parse_fixture();
+        let layer_count = board.layers().layers.len();
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        let mut padd_no = 0;
+        for no in 1..=32 {
+            if board
+                .library()
+                .padstack(no)
+                .is_some_and(|p| p.name == "PADD")
+            {
+                padd_no = no;
+                break;
+            }
+        }
+        assert_eq!(padd_no, 6, "PADD is the single-layer F.Cu padstack");
+        let new_index = board.rules().via_infos.len() as i32;
+        board.rules_mut().via_infos.push(ViaInfo {
+            name: "PADD_VIA".to_string(),
+            padstack_no: padd_no,
+            clearance_class: 0,
+            attach_smd_allowed: false,
+        });
+        ctrl.via_rule = Some(epic_board::rules_surf::ViaRule {
+            id: u32::MAX,
+            name: "t11-span-gate".to_string(),
+            via_infos: vec![new_index],
+        });
+        ctrl.is_fanout = true;
+        ctrl.fanout_start_pin_name = Some("U27-P1".to_string());
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let id_before = instance.board.max_generated_id();
+        assert!(
+            !instance.insert_via(&Point::Int(corner(700000, 30000)), 0, 1),
+            "the span-missing rule must be rejected"
+        );
+        assert_eq!(
+            instance.board.max_generated_id(),
+            id_before,
+            "no via may be built (zero id burn)"
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "DEBUG FoundConnectionInserter: via mask not found for net #94 \
+                 covering layers 0 to 1"
+            ),
+            "the span-miss debug missing:\n{joined}"
+        );
+        assert!(
+            joined.contains(
+                "FANOUT_DIAG event=via_mask_not_found, pin=U27-P1, net=94, fromLayer=0, \
+                 toLayer=1, location=(700000,30000), traceClearanceClass=1, \
+                 viaClearanceClass=1, trace_half_width_from=1500, trace_half_width_to=1500"
+            ),
+            "the gated via_mask_not_found diag missing or wrong:\n{joined}"
         );
     }
 }
