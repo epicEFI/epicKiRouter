@@ -102,13 +102,20 @@ pub struct StopFace {
     /// The driver-local stop bit (Java's `stopRequested` on the same
     /// thread object; the split is a port ownership artifact).
     local: bool,
+    /// Set only by the pass runner's maxItems face — the stop-CAUSE
+    /// mark [`Self::take_max_items_faced`] consumes.
+    max_items_faced: bool,
 }
 
 impl StopFace {
     /// A face over a pre-existing shared flag (`None` = local only).
     #[must_use]
     pub fn from_flag(flag: Option<Arc<AtomicBool>>) -> Self {
-        Self { flag, local: false }
+        Self {
+            flag,
+            local: false,
+            max_items_faced: false,
+        }
     }
 
     /// Java `isStopAutoRouterRequested()`.
@@ -135,6 +142,22 @@ impl StopFace {
     #[must_use]
     pub fn flag(&self) -> Option<&Arc<AtomicBool>> {
         self.flag.as_ref()
+    }
+
+    /// The pass runner's maxItems face (`AutoroutePassRunner:211-220`)
+    /// marks ITSELF here when it raises the stop, so the driver can
+    /// attribute [`StopReason::MaxItemsReached`] exactly — an external
+    /// raise of the shared flag during a max-items-bounded run is NOT
+    /// the face (quality MINOR-3; Java's diagnosis is the face's info
+    /// row, the port's is this bit).
+    pub(crate) fn mark_max_items_faced(&mut self) {
+        self.max_items_faced = true;
+    }
+
+    /// Reads and clears the face mark (`take` semantics — a reused
+    /// face cannot leak the mark into a later run).
+    pub(crate) fn take_max_items_faced(&mut self) -> bool {
+        std::mem::take(&mut self.max_items_faced)
     }
 }
 
@@ -417,9 +440,15 @@ impl<'a> BatchDriver<'a> {
             sink.task_state("RUNNING", current_pass, &current_board_hash);
             history.add(self.manager, self.board);
 
-            // Java `:324-329` / `:383-389` — the traceEntry/traceExit
-            // pair around the pass (trace-gated; the exit pair's
-            // duration is the pass wall clock, asserted never in pins).
+            // Java `:324-329` / `:383-389` — the pass's trace pair,
+            // MODELED not verbatim (quality MINOR-4, banked in SEAM):
+            // Java's traceEntry is SILENT (a perfData timestamp,
+            // FRLogger.java:159-172) and traceExit emits ONE row of a
+            // different shape ("Method '…' was performed in X.",
+            // FRLogger.java:194-224); the port emits two
+            // entry-formatted rows. Log-only, asserted never in pins;
+            // the load-bearing face is the pass wall clock below
+            // feeding the pass-completed row.
             let pass_started = std::time::Instant::now();
             if sink.is_trace_enabled() {
                 sink.trace(&format!(
@@ -441,10 +470,13 @@ impl<'a> BatchDriver<'a> {
                     "BatchAutorouter.autoroute_pass #{current_pass} on board '{current_board_hash}'"
                 ));
             }
-            if self.stop.is_requested() && self.settings.max_items.is_some() {
+            if self.stop.is_requested() {
                 // The maxItems face is the pass-side stop source; the
-                // distinguishing info row already fired there.
-                if self.stop_reason.is_none() {
+                // distinguishing info row already fired there. The
+                // pass runner MARKS the face when it fires — an
+                // external stop on the shared flag must not be
+                // attributed here (quality MINOR-3).
+                if self.stop_reason.is_none() && self.stop.take_max_items_faced() {
                     self.stop_reason = Some(StopReason::MaxItemsReached);
                 }
             }
@@ -962,6 +994,7 @@ mod tests {
     use crate::control::RouterSettingsIr;
     use crate::pipeline::board_statistics::RouterSettingsScoring;
     use crate::pipeline::event_sink::CaptureDriverSink;
+    use crate::pipeline::pass_runner::RouterCounters;
     use crate::test_util::parse;
     use epic_board::tree_manager::SearchTreeManager;
 
@@ -1173,6 +1206,91 @@ mod tests {
         assert!(
             !sink.any_contains("Restoring an earlier board"),
             "equal best/current scores must not restore"
+        );
+    }
+
+    /// A capture sink that raises an EXTERNAL stop (the shared flag)
+    /// on the pass-1 final-fill counters row — the deterministic
+    /// mid-run hook for the [`StopReason::MaxItemsReached`]
+    /// misattribution pin below.
+    struct StopOnPassOneFillSink {
+        inner: CaptureDriverSink,
+        flag: Arc<AtomicBool>,
+        fired: bool,
+    }
+
+    impl DriverSink for StopOnPassOneFillSink {
+        fn is_trace_enabled(&self) -> bool {
+            self.inner.is_trace_enabled()
+        }
+        fn info(&mut self, message: &str) {
+            self.inner.info(message);
+        }
+        fn warn(&mut self, message: &str) {
+            self.inner.warn(message);
+        }
+        fn debug(&mut self, message: &str) {
+            self.inner.debug(message);
+        }
+        fn trace(&mut self, message: &str) {
+            self.inner.trace(message);
+        }
+        fn task_state(&mut self, state: &str, pass: i32, hash: &str) {
+            self.inner.task_state(state, pass, hash);
+        }
+        fn board_updated(&mut self, counters: &RouterCounters) {
+            // The pass-1 FINAL fill (4 failed attempts on the starved
+            // world) — by this row every attempt has run, so the
+            // maxItems face never fired (total 4 < 5 at every attempt
+            // head) and the flip is purely external.
+            if !self.fired && counters.pass_count == 1 && counters.failed_to_be_routed_count == 4 {
+                self.fired = true;
+                self.flag.store(true, Ordering::Relaxed);
+            }
+            self.inner.board_updated(counters);
+        }
+    }
+
+    /// An EXTERNAL stop raised during a max-items-bounded run must NOT
+    /// be attributed to [`StopReason::MaxItemsReached`] — the pre-fix
+    /// classification tested the SETTING (`max_items.is_some()`), not
+    /// the cause (quality MINOR-3). World: starved settings with
+    /// `max_items = Some(5)` (the 4 failed attempts never reach it —
+    /// the face never fires, no info row) and the shared flag flipped
+    /// by the sink on the pass-1 final-fill row. The run must report
+    /// [`StopReason::UserStop`] and CANCELLED after pass 1. Reverting
+    /// the cause-mark fix makes this pin fail (the old code reports
+    /// MaxItemsReached here).
+    #[test]
+    fn t12_driver_external_stop_is_not_max_items() {
+        let (mut manager, mut board) = parse_fixture();
+        let mut settings = starved_settings();
+        settings.max_items = Some(5);
+        let flag = Arc::new(AtomicBool::new(false));
+        let mut sink = StopOnPassOneFillSink {
+            inner: CaptureDriverSink::default(),
+            flag: Arc::clone(&flag),
+            fired: false,
+        };
+        let stop = StopFace::from_flag(Some(flag));
+        let mut driver = BatchDriver::new(&mut manager, &mut board, settings, stop);
+        let outcome = driver.run(&mut sink).expect("run completes");
+        assert!(!outcome, "a stop was raised");
+        assert_eq!(
+            driver.stop_reason,
+            Some(StopReason::UserStop),
+            "an external stop is NOT MaxItemsReached"
+        );
+        assert_eq!(driver.total_items_routed, 4, "all 4 attempts ran");
+        assert!(
+            !sink.inner.any_contains("Max items limit reached"),
+            "the maxItems face never fired: {info}",
+            info = sink.inner.joined("info")
+        );
+        let states_text = sink.inner.joined("task_state");
+        assert!(
+            states_text.contains("task_state state=CANCELLED pass=1 hash="),
+            "cancelled after pass 1: {states_text}"
         );
     }
 

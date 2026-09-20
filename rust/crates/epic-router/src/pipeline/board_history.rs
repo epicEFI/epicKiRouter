@@ -681,6 +681,13 @@ mod tests {
     /// the search tree answers spatial queries again with EXACTLY the
     /// snapshot items (kills the forgot-insert mutant → empty pick,
     /// and the forgot-manager-reset mutant → double entries).
+    ///
+    /// COVERAGE NOTE (quality MINOR-5): the batch-side wiring that
+    /// CALLS this function — the mid-loop restore arm (rank check +
+    /// recompute + restore row) and the final best-restore body — is
+    /// unreachable-on-fixture in EITHER engine and stays covered by
+    /// this pin ONLY until a natural regressing-pass world exists;
+    /// see SEAM's "Mid-loop restore gate reachability" row.
     #[test]
     fn bhe_restore_from_snapshot_model() {
         let (mut manager, mut board) = parse_fixture();

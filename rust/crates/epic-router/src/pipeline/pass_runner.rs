@@ -16,15 +16,17 @@
 //!   every one of them); not ported. `recordPass`'s wall-clock pass
 //!   duration and the `currentRipupCost = startRipupCosts * passNo`
 //!   render belong to that family.
-//! * **The GUI progress event is a row.** Java fires
+//! * **The GUI progress event is a sink call.** Java fires
 //!   `fireBoardUpdatedEvent(progressStatistics, counters, board)` —
 //!   the `progressStatistics` snapshot and the
 //!   `shouldFireBoardUpdate()` throttle are event-bus faces; the port
-//!   renders the [`RouterCounters`] into one `board_updated` row at
-//!   the pre-pass fire (`:195`) and the post-pass fire (`:320`). The
-//!   per-item `updateProgress` keeps the LIVE interval counter
-//!   (`progressItemsSinceStatistics`, pinnable) and drops only the
-//!   snapshot + throttle around it.
+//!   fires the TYPED [`RouterCounters`] through
+//!   [`DriverSink::board_updated`](crate::pipeline::event_sink::DriverSink::board_updated)
+//!   at the pre-pass fire (`:195`) and the post-pass fire (`:320`) —
+//!   the sink impls render (the capture sink via [`render_counters`],
+//!   the null sink not at all). The per-item `updateProgress` keeps
+//!   the LIVE interval counter (`progressItemsSinceStatistics`,
+//!   pinnable) and drops only the snapshot + throttle around it.
 //! * **`router.airLine = null`** — the GUI airline seam, no-op here.
 //! * **The failure log's `firstNet`** is read at record creation on
 //!   the port (`epic_board::failure_log`); Java reads
@@ -52,8 +54,10 @@ use crate::pipeline::event_sink::DriverSink;
 // ---------------------------------------------------------------------------
 
 /// Java `core.RouterCounters` — the per-pass counters the progress
-/// event carries. The port renders them into one `board_updated` row
-/// ([`render_counters`]); the GUI consumer is the host's business.
+/// event carries. They flow TYPED through
+/// [`DriverSink::board_updated`](crate::pipeline::event_sink::DriverSink::board_updated);
+/// [`render_counters`] is the canonical row text the capture sink
+/// emits (the GUI consumer is the host's business).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RouterCounters {
     /// Java `phase`.
@@ -77,9 +81,11 @@ pub struct RouterCounters {
     pub fanout_extra_vias_count: i32,
 }
 
-/// The port's rendering of the counters row (Java ships the OBJECT
+/// The canonical rendering of the counters row (Java ships the OBJECT
 /// through the event; the row is the port-defined observability face).
-fn render_counters(counters: &RouterCounters) -> String {
+/// Consumed by the capture sink's `board_updated` impl — the
+/// production null sink renders nothing (logging off).
+pub(crate) fn render_counters(counters: &RouterCounters) -> String {
     format!(
         "phase={} pass={} queued={} skipped={} ripped={} failed={} routed={} \
          incomplete={} fanout_extra_vias={}",
@@ -328,7 +334,7 @@ pub fn run_single_thread(
         counters.incomplete_count,
         &incomplete_rows,
     );
-    sink.board_updated(&render_counters(&counters));
+    sink.board_updated(&counters);
 
     let mut ripped_item_count: i32 = 0;
     let mut not_routed: i32 = 0;
@@ -358,6 +364,11 @@ pub fn run_single_thread(
                     "Max items limit reached ({max_items}). Stopping auto-router."
                 ));
                 stop.request();
+                // Mark the CAUSE (quality MINOR-3): the driver
+                // attributes `StopReason::MaxItemsReached` only off
+                // this mark, so an external shared-flag stop during a
+                // max-items-bounded run is never misclassified.
+                stop.mark_max_items_faced();
                 break;
             }
             *total_items_routed += 1;
@@ -476,7 +487,7 @@ pub fn run_single_thread(
     counters.failed_to_be_routed_count = not_routed;
     counters.routed_count = routed;
     counters.incomplete_count = calculate_incomplete_count(manager, board);
-    sink.board_updated(&render_counters(&counters));
+    sink.board_updated(&counters);
 
     // Java `:322-329` — PerformanceProfiler.recordPass + the benchmark
     // profile render are banked; `router.airLine = null` is the GUI

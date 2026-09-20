@@ -8,6 +8,8 @@
 //! event bus) is the host's business, and tests capture the rows
 //! verbatim.
 
+use crate::pipeline::pass_runner::{RouterCounters, render_counters};
+
 /// The batch driver's event sink (Java's log + event surfaces).
 pub trait DriverSink {
     /// `job.logInfo` / `FRLogger.info`.
@@ -31,8 +33,13 @@ pub trait DriverSink {
     /// router, taskState, currentPass, hash))`.
     fn task_state(&mut self, _state: &str, _pass: i32, _hash: &str) {}
     /// `router.fireBoardUpdatedEvent(stats, counters, board)` — the
-    /// progress event; the counters are rendered into one row.
-    fn board_updated(&mut self, _message: &str) {}
+    /// progress event, carrying the TYPED [`RouterCounters`] (Java
+    /// ships the object through the event too). Rendering is the
+    /// sink's business: the capture sink emits the canonical
+    /// [`render_counters`] row, the silent sink renders nothing
+    /// (logging off). T13's manifest reads the fields without
+    /// re-parsing row text (quality MINOR-2).
+    fn board_updated(&mut self, _counters: &RouterCounters) {}
 }
 
 /// The silent sink (the headless default — Java with logging off).
@@ -96,7 +103,9 @@ impl DriverSink for CaptureDriverSink {
         ));
     }
 
-    fn board_updated(&mut self, message: &str) {
-        self.rows.push(("board_updated", message.to_string()));
+    fn board_updated(&mut self, counters: &RouterCounters) {
+        // The canonical row text, byte-identical to the pre-reshape
+        // emissions (the counter-row pins assert these literals).
+        self.rows.push(("board_updated", render_counters(counters)));
     }
 }
