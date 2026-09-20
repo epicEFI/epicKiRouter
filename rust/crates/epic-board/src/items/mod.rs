@@ -461,6 +461,27 @@ impl ItemData {
             ItemData::Other => BoardItemType::Other,
         }
     }
+
+    /// Java `item.getClass().getSimpleName()` for the driver's log rows
+    /// (the batch queue row, the ripped-item row, and the net-94 dump):
+    /// the class simple names of the routed kinds. The obstacle kinds
+    /// fold to `"ObstacleArea"` (Java's concrete subclasses differ, but
+    /// obstacle items are never connectable, so they can never reach a
+    /// row that renders this face); `Other` falls back to `"Item"` the
+    /// same way the callers' null arms do.
+    #[must_use]
+    pub fn java_simple_name(&self) -> &'static str {
+        match self {
+            ItemData::Pin { .. } => "Pin",
+            ItemData::Trace { .. } => "PolylineTrace",
+            ItemData::Via { .. } => "Via",
+            ItemData::ConductionArea { .. } => "ConductionArea",
+            ItemData::ObstacleArea { .. } => "ObstacleArea",
+            ItemData::ComponentOutline { .. } => "ComponentOutline",
+            ItemData::BoardOutline { .. } => "BoardOutline",
+            ItemData::Other => "Item",
+        }
+    }
 }
 
 #[cfg(test)]

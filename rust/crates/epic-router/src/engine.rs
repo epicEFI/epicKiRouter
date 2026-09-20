@@ -94,6 +94,7 @@
 //!   earlier); the `touchingSides[1]` index and the layer index reads
 //!   keep Java's AIOOBE face as panics.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -206,6 +207,103 @@ impl AutorouteAttemptResult {
 impl std::fmt::Display for AutorouteAttemptResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.state.as_str(), self.details)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// the ripped-item row seed (T12)
+// ---------------------------------------------------------------------------
+
+/// The per-ripped-item row faces (`AutoroutePassRunner.logRippedItems`,
+/// `:360-394`): Java reads `getClass().getSimpleName()`, `netCount()`
+/// and `getNetNo(ix)` off the ripped items AFTER the engine has removed
+/// them from the board — legal there because the ripped list is a
+/// `TreeSet<Item>` of live objects that survives the removal. The
+/// port's list carries keys, not object identity, so
+/// [`AutorouteEngine::autoroute_connection`] snapshots the faces into
+/// this seed at the last moment they are readable (right after the
+/// locator harvest, BEFORE the ripup removal walk and the FAILED early
+/// returns — Java's map keeps its entries on those paths too).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RippedItemSeed {
+    /// The item key (Java `Item.getId()` — the row's `ripped_id`; the
+    /// map key is the same id as an `i32`).
+    pub key: u64,
+    /// Java `item.getClass().getSimpleName()`.
+    pub simple_name: &'static str,
+    /// Java `item.netCount()` / `getNetNo(ix)` at harvest time.
+    pub nets: Vec<i32>,
+}
+
+// ---------------------------------------------------------------------------
+// the per-connection budget (T12)
+// ---------------------------------------------------------------------------
+
+/// The per-connection stop budget (Java `datastructures.TimeLimit` as
+/// consumed by `AutorouteEngine.isStopRequested`, `:287-295`).
+///
+/// Java builds a wall-clock `TimeLimit` PER CONNECTION ROUTE with the
+/// exact arithmetic `maxMilliseconds = 100000 * 2^(ripupPassNo - 1)`
+/// capped at `Integer.MAX_VALUE` (`AutorouteConnectionRouter.java:72-74`),
+/// and `isStopRequested` answers `elapsed > limit` BEFORE reading the
+/// stoppable-thread flag. The wall clock is the only run-to-run
+/// variance source in the whole engine, so the deterministic corpus
+/// profile replaces its CONSUMPTION with a call-tick counter
+/// ([`RouteBudget::Deterministic`]) carrying the SAME limit value,
+/// spent at the SAME call sites with the SAME strict `>`; the
+/// wall-clock face stays available as [`RouteBudget::Wall`]
+/// (SEAM: the units deviation — Java spends milliseconds, the
+/// deterministic variant spends `is_stop_requested` calls).
+#[derive(Debug)]
+pub enum RouteBudget {
+    /// The Java wall-clock face (`new TimeLimit(limitMillis)`).
+    Wall(TimeLimit),
+    /// Deterministic consumption: `limit` ticks, one per
+    /// `is_stop_requested` consultation; stops when `spent > limit`
+    /// (the strict `>` mirrors `TimeLimit.limitExceeded`).
+    Deterministic { limit: u64, spent: Cell<u64> },
+}
+
+impl RouteBudget {
+    /// Java `AutorouteConnectionRouter.route` (`:72-74`):
+    /// `double maxMilliseconds = 100000 * Math.pow(2, ripupPassNo - 1);
+    /// maxMilliseconds = Math.min(maxMilliseconds, Integer.MAX_VALUE);
+    /// new TimeLimit((int) maxMilliseconds)`. The limit VALUE is
+    /// Java-exact; only the consumption units differ (see the type
+    /// docs).
+    #[must_use]
+    pub fn deterministic_for_pass(ripup_pass_no: i32) -> RouteBudget {
+        let mut max_milliseconds = 100_000.0f64 * (2.0f64).powi(ripup_pass_no - 1);
+        max_milliseconds = max_milliseconds.min(f64::from(i32::MAX));
+        // Java's (int) cast of an in-range double truncates; every
+        // value on this ladder is integral, so the cast is exact.
+        let limit = i64::from(max_milliseconds as i32);
+        RouteBudget::Deterministic {
+            limit: u64::try_from(limit).unwrap_or(0),
+            spent: Cell::new(0),
+        }
+    }
+
+    /// Java `TimeLimit.limitExceeded` — strict `>`. Each deterministic
+    /// consultation burns one tick.
+    fn limit_exceeded(&self) -> bool {
+        match self {
+            RouteBudget::Wall(time_limit) => time_limit.limit_exceeded(),
+            RouteBudget::Deterministic { limit, spent } => {
+                let ticks = spent.get().saturating_add(1);
+                spent.set(ticks);
+                ticks > *limit
+            }
+        }
+    }
+
+    /// The construction value (Java `(int) maxMilliseconds`).
+    #[must_use]
+    pub fn limit_value(&self) -> u64 {
+        match self {
+            RouteBudget::Wall(time_limit) => u64::try_from(time_limit.limit_millis()).unwrap_or(0),
+            RouteBudget::Deterministic { limit, .. } => *limit,
+        }
     }
 }
 
@@ -355,8 +453,9 @@ pub struct AutorouteEngine<'a> {
     net_number: i32,
     /// Java `stoppableThread` — the split-walk abort flag.
     stoppable_flag: Option<Arc<AtomicBool>>,
-    /// Java `timeLimit`.
-    time_limit: Option<TimeLimit>,
+    /// Java `timeLimit` — the [`RouteBudget`] replaces the raw
+    /// `TimeLimit` (wall-clock + deterministic consumption faces).
+    budget: Option<RouteBudget>,
     /// Java `drillPageArray`.
     drill_page_array: DrillPageArray,
     /// The room registry (Java's room objects; creation-ordered like
@@ -408,7 +507,7 @@ impl<'a> AutorouteEngine<'a> {
             maintain_database,
             net_number: -1,
             stoppable_flag: None,
-            time_limit: None,
+            budget: None,
             drill_page_array: DrillPageArray::default(),
             rooms: Vec::new(),
             keys: Vec::new(),
@@ -469,25 +568,34 @@ impl<'a> AutorouteEngine<'a> {
         self.net_number
     }
 
-    /// Java `isStopRequested` (`:287-295`): the time limit first, then
-    /// the stoppable-thread flag. T12 POINTER: the pass driver's
-    /// deterministic budgets (maxPasses/maxItems faces replacing the
-    /// wall-clock `TimeLimit` — see `logs/M3-T12/anchors.md`,
-    /// the `:211-220` maxItems budget and the `:72-74` maxMilliseconds
-    /// face) land on this same decision; the limit-first face order
-    /// here is the contract they extend.
+    /// Java `isStopRequested` (`:287-295`): the budget first, then the
+    /// stoppable-thread flag. The T12 pass driver hands in a
+    /// [`RouteBudget`]: the wall-clock face mirrors Java's `TimeLimit`
+    /// directly; the deterministic face spends Java's exact
+    /// construction value as call ticks (SEAM: units deviation).
     #[must_use]
     pub fn is_stop_requested(&self) -> bool {
         if self
-            .time_limit
+            .budget
             .as_ref()
-            .is_some_and(TimeLimit::limit_exceeded)
+            .is_some_and(RouteBudget::limit_exceeded)
         {
             return true;
         }
         self.stoppable_flag
             .as_deref()
             .is_some_and(|flag| flag.load(Ordering::Relaxed))
+    }
+
+    /// Reclaim the budget for the NECKED RETRY: Java hands the SAME
+    /// `TimeLimit` instance to the second
+    /// `board.initAutoroute` call (`AutorouteConnectionRouter.java`,
+    /// `retryConnectionNecked`'s last argument), so the deadline (and
+    /// the deterministic tick count) carries across both attempts.
+    /// The engine owns its budget, so the retry takes it out of the
+    /// spent engine and re-lends it to the fresh one.
+    pub fn take_budget(&mut self) -> Option<RouteBudget> {
+        self.budget.take()
     }
 
     /// Java `initConnection` (`:96-124`): under a maintained database,
@@ -497,12 +605,12 @@ impl<'a> AutorouteEngine<'a> {
     /// on-board item of the new net (Java walks `board.getItems()` in
     /// insertion order = ascending id; off-board items carry no tree
     /// shapes, so the Java loop no-ops for them and the port skips
-    /// them). Always assigns net/stop/time state.
+    /// them). Always assigns net/stop/budget state.
     pub fn init_connection(
         &mut self,
         net_number: i32,
         stoppable_flag: Option<Arc<AtomicBool>>,
-        time_limit: Option<TimeLimit>,
+        budget: Option<RouteBudget>,
     ) {
         if self.maintain_database && net_number != self.net_number {
             if !self.keys.is_empty() {
@@ -530,7 +638,7 @@ impl<'a> AutorouteEngine<'a> {
         }
         self.net_number = net_number;
         self.stoppable_flag = stoppable_flag;
-        self.time_limit = time_limit;
+        self.budget = budget;
     }
 
     /// Java `RoutingBoard.initAutoroute`'s reuse condition
@@ -845,6 +953,22 @@ impl<'a> AutorouteEngine<'a> {
             .unwrap_or(&[])
     }
 
+    /// The [`RippedItemSeed`] snapshot of a just-harvested ripped item
+    /// (Java reads the same faces off the live object after removal —
+    /// see the type docs).
+    fn ripped_item_seed(&self, item_key: u64) -> RippedItemSeed {
+        let id = ItemId::new(u32::try_from(item_key).expect("item key fits u32"));
+        let entry = self
+            .board
+            .get(id)
+            .expect("a harvested ripped item is still on the board");
+        RippedItemSeed {
+            key: item_key,
+            simple_name: entry.data.java_simple_name(),
+            nets: entry.nets.clone(),
+        }
+    }
+
     // ---- the connection entry point ----
 
     /// Java `autorouteConnection` (`:131-282`): run the maze search,
@@ -859,7 +983,7 @@ impl<'a> AutorouteEngine<'a> {
         start_items: &[u64],
         dest_items: &[u64],
         ctrl: &mut AutorouteControl,
-        ripped_item_list: &mut BTreeMap<i32, u64>,
+        ripped_item_list: &mut BTreeMap<i32, RippedItemSeed>,
         ripup_costs: &mut HashMap<u64, i32>,
         seam: &mut S,
         sink: &mut E,
@@ -873,6 +997,16 @@ impl<'a> AutorouteEngine<'a> {
         // The page array is swapped out for the search (the maze holds
         // it alongside the engine borrow) and restored before cleanup.
         let mut pages = std::mem::take(&mut self.drill_page_array);
+
+        // The locator harvests into a KEY-only scratch map: its generic
+        // access layer reads through `NeighbourEngine` and cannot
+        // snapshot board faces. Right after it returns — while every
+        // listed item is still on the board, and BEFORE the cleanup
+        // gates and the ripup removal below — the keys are converted to
+        // the row seeds the caller observes (Java reads the same faces
+        // off the live `TreeSet<Item>` objects, which keep the entries
+        // readable on the FAILED early-return paths too).
+        let mut harvested: BTreeMap<i32, u64> = BTreeMap::new();
 
         let autoroute_result = {
             let mut destination_distance = ProdDistance::from_ctrl(ctrl);
@@ -906,11 +1040,14 @@ impl<'a> AutorouteEngine<'a> {
                 search_result.as_ref(),
                 &*maze.ctrl,
                 angle_restriction,
-                ripped_item_list,
+                &mut harvested,
                 ripup_costs,
             )
         };
         self.drill_page_array = pages;
+        for (item_id, item_key) in harvested {
+            ripped_item_list.insert(item_id, self.ripped_item_seed(item_key));
+        }
 
         // Always clean up expansion rooms from the search tree,
         // regardless of search outcome (Java `:204-209`, the v1.9
@@ -969,7 +1106,7 @@ impl<'a> AutorouteEngine<'a> {
         };
         // Java's `rippedItemList` is a TreeSet<Item> (descending id);
         // the map is ascending-keyed, so the walk is reversed.
-        let ripped_keys: Vec<u64> = ripped_item_list.values().copied().collect();
+        let ripped_keys: Vec<u64> = ripped_item_list.values().map(|seed| seed.key).collect();
         let mut ripped_connections: BTreeSet<ItemId> = BTreeSet::new();
         let mut changed_nets: BTreeSet<i32> = BTreeSet::new();
         for key in ripped_keys.iter().rev() {
@@ -1437,6 +1574,12 @@ impl DrillEngine for AutorouteEngine<'_> {
 
     fn stop_flag(&self) -> Option<&AtomicBool> {
         self.stoppable_flag.as_deref()
+    }
+
+    fn is_stop_requested(&self) -> bool {
+        // The inherent method (budget BEFORE flag — Java `:287-295`);
+        // qualified call to avoid trait-impl recursion.
+        AutorouteEngine::is_stop_requested(self)
     }
 
     fn overlapping_items(&self, shape: &TileShape, layer: i32) -> Vec<u64> {
@@ -2058,8 +2201,10 @@ fn expandable_object_type_name(object: &ExpandableObject) -> &'static str {
 /// (`Pin.java:676-690`): the lowercase class simple name, for a pin
 /// with a positive index the ` #index` suffix, and for
 /// `componentId > 0` the ` of component #id` suffix. Traces are
-/// `PolylineTrace` → `polylinetrace`.
-fn item_to_string(board: &Board, key: u64) -> String {
+/// `PolylineTrace` → `polylinetrace`. `pub(crate)`: the batch driver's
+/// unrouted-connections report (`AutorouteUnroutedReport.describeItem`)
+/// falls back to the same face — one port, two consumers (T12).
+pub(crate) fn item_to_string(board: &Board, key: u64) -> String {
     let id = ItemId::new(u32::try_from(key).expect("item key fits u32"));
     let entry = board.get(id).expect("a routed set holds live items");
     let mut name = match &entry.data {
@@ -2140,11 +2285,11 @@ pub fn init_autoroute<'a>(
     trace_clearance_class_index: i32,
     retain_database: bool,
     stoppable_flag: Option<Arc<AtomicBool>>,
-    time_limit: Option<TimeLimit>,
+    budget: Option<RouteBudget>,
 ) -> AutorouteEngine<'a> {
     let mut engine =
         AutorouteEngine::new(manager, board, trace_clearance_class_index, retain_database);
-    engine.init_connection(net_number, stoppable_flag, time_limit);
+    engine.init_connection(net_number, stoppable_flag, budget);
     engine
 }
 
@@ -2270,20 +2415,78 @@ mod tests {
     }
 
     /// The stop faces: no flag/limit → false; an already-exceeded time
-    /// limit → true; a raised stoppable flag → true.
+    /// limit → true; a raised stoppable flag → true; the deterministic
+    /// budget answers true strictly AFTER its limit-th tick (the `>`
+    /// mirrors `TimeLimit.limitExceeded`), consuming one tick per
+    /// consultation. The flag is CLEAR during the deterministic ticks:
+    /// Java's budget only short-circuits on its own true
+    /// (`AutorouteEngine.java:291-294`); while unspent the walk falls
+    /// through to the flag (`:295-296`), so a raised flag answers true
+    /// under a live budget — pinned by the both-raised arm at the end
+    /// (a budget that suppressed the flag while unspent fails it).
     #[test]
     fn t11_is_stop_requested_faces() {
         let (mut manager, mut board) = parse_fixture();
         let (mut engine, _ctrl) = build_engine(&mut manager, &mut board, 94, true);
         assert!(!engine.is_stop_requested(), "no limit, no flag");
-        engine.time_limit = Some(TimeLimit::new(-1));
+        engine.budget = Some(RouteBudget::Wall(TimeLimit::new(-1)));
         assert!(engine.is_stop_requested(), "an expired limit stops");
-        engine.time_limit = None;
+        engine.budget = None;
         let flag = Arc::new(AtomicBool::new(false));
         engine.stoppable_flag = Some(Arc::clone(&flag));
         assert!(!engine.is_stop_requested(), "a clear flag does not stop");
         flag.store(true, Ordering::Relaxed);
         assert!(engine.is_stop_requested(), "a raised flag stops");
+
+        // The deterministic face (SEAM: units deviation — Java's
+        // wall-clock `TimeLimit` becomes a call-tick budget): limit 2
+        // → ticks 1 and 2 answer false, tick 3 answers true (the
+        // strict `>`); construction mirrors the Java
+        // `(int) min(100000 * 2^(pass-1), Integer.MAX_VALUE)` ladder.
+        // The flag is cleared FIRST — Java still consults it while the
+        // budget says not-stop (`:295-296`), so a raised flag would
+        // answer true under a live budget.
+        flag.store(false, Ordering::Relaxed);
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(1).limit_value(),
+            100_000,
+            "pass 1: 100000 ms"
+        );
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(2).limit_value(),
+            200_000,
+            "pass 2: 200000 ms"
+        );
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(30).limit_value(),
+            i32::MAX as u64,
+            "the ladder caps at Integer.MAX_VALUE"
+        );
+        engine.budget = Some(RouteBudget::Deterministic {
+            limit: 2,
+            spent: std::cell::Cell::new(0),
+        });
+        assert!(!engine.is_stop_requested(), "tick 1 of 2");
+        assert!(!engine.is_stop_requested(), "tick 2 of 2");
+        assert!(engine.is_stop_requested(), "tick 3 exceeds the strict >");
+        // The spent budget keeps stopping (flag clear — its own true).
+        assert!(
+            engine.is_stop_requested(),
+            "the spent budget keeps stopping"
+        );
+        // BOTH raised, budget NOT spent: Java still answers true,
+        // through the FLAG (`:295-296` — the budget short-circuits
+        // only on its own true). A budget that suppressed the flag
+        // while unspent answers false here and fails this arm.
+        engine.budget = Some(RouteBudget::Deterministic {
+            limit: 5,
+            spent: std::cell::Cell::new(0),
+        });
+        flag.store(true, Ordering::Relaxed);
+        assert!(
+            engine.is_stop_requested(),
+            "both raised, budget unspent: the flag answers"
+        );
     }
 
     /// The warm-cache equality pin: the engine's `tree_shape` and
@@ -2612,11 +2815,17 @@ mod tests {
             "the world seeds the two net-2 traces; before: {net2_before:?}"
         );
         // The ripped list is keyed by the Java item id (= the key for
-        // board items; `object_id` is `i32::try_from`).
+        // board items; `object_id` is `i32::try_from`). A caller
+        // pre-seed carries the full seed face — production callers
+        // always start from an empty map, the engine fills the seeds.
         let mut ripped = BTreeMap::new();
         ripped.insert(
             i32::try_from(listed_key).expect("item key fits i32"),
-            listed_key,
+            RippedItemSeed {
+                key: listed_key,
+                simple_name: "PolylineTrace",
+                nets: vec![2],
+            },
         );
         let (routed, joined) = {
             let (mut engine, mut ctrl) = build_engine(&mut manager, &mut board, 94, true);

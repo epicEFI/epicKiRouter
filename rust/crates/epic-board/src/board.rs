@@ -255,6 +255,20 @@ pub struct Board {
     /// restore-by-copy semantics decide whether it crosses a restore —
     /// flagged for T12, ported verbatim here.
     pub(crate) normalize_suppressed_net_nos: std::collections::BTreeSet<i32>,
+    /// Java `RoutingBoard.failureLog` (`RoutingBoard.java:64`, built at
+    /// `:91`) — the per-item routing failure logbook
+    /// ([`crate::failure_log::RoutingFailureLog`]). A non-transient
+    /// field in Java, so board snapshots carry it and restores ROLL IT
+    /// BACK; a plain field here gives the identical clone semantics.
+    pub failure_log: crate::failure_log::RoutingFailureLog,
+    /// Java `BasicBoard.preExistingClearanceViolationsCount`
+    /// (`BasicBoard.java:101`, field-initialized 0) — the violation
+    /// count measured on the FRESHLY LOADED board
+    /// (`HeadlessBoardManager.java:789-793`); `BoardStatistics` splits
+    /// `clearanceViolations.totalCount` into pre-existing vs
+    /// router-introduced against it. A plain field gives the identical
+    /// snapshot/restore semantics as Java's non-transient member.
+    pub pre_existing_clearance_violations_count: i32,
 }
 
 impl Board {
@@ -439,6 +453,74 @@ impl Board {
     /// is nullable on the failure paths that report it).
     pub fn set_shove_failing_obstacle(&mut self, item: Option<ItemId>) {
         self.shove_failing_obstacle = item;
+    }
+
+    /// The board-restore RESET face for the suppression set
+    /// (`normalizeSuppressedNetNos` is `transient` in Java
+    /// (`BasicBoard.java:96`) — a deserialized board comes back with
+    /// the field-INITIALIZED empty set, so a restore clears every
+    /// oscillation suppression). Resolves the T12 question flagged on
+    /// the field docs: the set does NOT cross a restore.
+    pub fn clear_normalize_suppressed_net_nos(&mut self) {
+        self.normalize_suppressed_net_nos.clear();
+    }
+
+    /// The full post-deserialize TRANSIENT reset (T12's
+    /// restore-by-copy model calls this after `*board =
+    /// snapshot.clone()`): Java's `BasicBoard.readObject`
+    /// (`:1386-1393`) resets `normalizeSuppressedNetNos` to a fresh
+    /// set, and every `transient` RoutingBoard member comes back
+    /// field-initialized (`RoutingBoard.java:69-75`: `changedArea`
+    /// null, `shoveFailingObstacle` null, `shoveFailingLayer` -1).
+    /// Deliberately NOT touched: `failureLog` (non-transient,
+    /// `RoutingBoard.java:64` — snapshots carry it, restores ROLL IT
+    /// BACK; the clone already did that), the id generator
+    /// (non-transient inside `Communication` — the SNAPSHOT-TIME
+    /// watermark, i.e. the rollback), and every persistent arena
+    /// field.
+    pub fn reset_transient_after_restore(&mut self) {
+        self.normalize_suppressed_net_nos.clear();
+        self.changed_area = None;
+        self.shove_failing_obstacle = None;
+        self.shove_failing_layer = None;
+    }
+
+    /// Java `RoutingBoardOperations.startMarkingChangedArea`
+    /// (`:29-34`): opens the TRANSIENT marking session; a session
+    /// already open is kept (the `changedArea == null` guard — nested
+    /// starts never reset the accumulated box). Consumed by
+    /// [`crate::routing_board_insert::opt_changed_area`].
+    pub fn start_marking_changed_area(&mut self) {
+        if self.changed_area.is_none() {
+            self.changed_area = Some(crate::changed_area::ChangedArea::new(
+                self.layers().layers.len(),
+            ));
+        }
+    }
+
+    /// The T12 board-hash walk over `itemList`'s reachable node graph
+    /// (see [`UndoableObjects::digest_walk`]). The field is
+    /// `pub(crate)`; this is the public read face the pipeline hash
+    /// consumes (Java `serialize(true)` writes the whole
+    /// `UndoableObjects` object — BoardSnapshotManager.java:33).
+    pub fn undo_digest_walk(
+        &self,
+        visit: impl FnMut(crate::undo::UndoDigestNode<'_, Reverse<ItemId>, ItemEntry>),
+    ) {
+        self.item_undo.digest_walk(visit);
+    }
+
+    /// Java `UndoableObjects.stackLevel` — the hash walk's plain-field
+    /// read (public wrapper over the `pub(crate)` field's getter).
+    #[must_use]
+    pub fn undo_stack_level(&self) -> usize {
+        self.item_undo.stack_level()
+    }
+
+    /// Java `UndoableObjects.redoPossible` — ditto.
+    #[must_use]
+    pub fn undo_redo_possible(&self) -> bool {
+        self.item_undo.redo_possible()
     }
 
     /// Java `RoutingBoard.getShoveFailingLayer` (`:1367-1369`) —
@@ -2238,5 +2320,52 @@ mod tests {
         );
         board.rules_mut().via_rules[0].via_infos.clear();
         assert_eq!(board.default_via_diameter(), 0.0, "rule without vias");
+    }
+
+    /// T12 restore model, the epic-board half: `reset_transient_after_restore`
+    /// mirrors Java's deserialize transients — the oscillation
+    /// suppression lifts (`BasicBoard.readObject:1393` reinitializes
+    /// `normalizeSuppressedNetNos`), the shove-failure report and the
+    /// marking session return to their field-initialized state
+    /// (`RoutingBoard.java:69-75`), while the NON-transient failure
+    /// log (`RoutingBoard.java:64`) and id watermark
+    /// (`Communication.java:30`) are PRESERVED — they roll back
+    /// through the snapshot COPY, not through this reset. A reset that
+    /// also cleared the log or the generator breaks the restore model.
+    #[test]
+    fn reset_transient_after_restore_clears_transients_keeps_persistent() {
+        let mut board = Board::new();
+        let id = board.alloc_id();
+        board.insert_item(pin_entry(id));
+        // poison every transient
+        board.normalize_suppressed_net_nos.insert(3);
+        board.changed_area = Some(crate::changed_area::ChangedArea::new(2));
+        board.set_shove_failing_obstacle(Some(id));
+        board.set_shove_failing_layer(1);
+        // persistent state that must SURVIVE the reset
+        board
+            .failure_log
+            .record_failure(u64::from(id.get()), 1, 3, "FAILED", None);
+        let watermark = board.max_generated_id();
+
+        board.reset_transient_after_restore();
+
+        assert!(
+            board.normalize_suppressed_net_nos.is_empty(),
+            "the suppression set lifts (readObject :1393)"
+        );
+        assert!(board.changed_area.is_none(), "changedArea is transient");
+        assert_eq!(board.shove_failing_obstacle(), None, "transient");
+        assert_eq!(board.shove_failing_layer(), -1, "transient");
+        assert_eq!(
+            board.failure_log.failure_count(u64::from(id.get())),
+            1,
+            "failureLog is NON-transient — it rolls back via the copy, never here"
+        );
+        assert_eq!(
+            board.max_generated_id(),
+            watermark,
+            "the generator is non-transient — the snapshot-time watermark"
+        );
     }
 }

@@ -38,6 +38,7 @@ pub mod changed_area;
 pub mod components;
 pub mod contacts;
 pub mod drill_item_mover;
+pub mod failure_log;
 pub mod forced_pad_router;
 pub mod forced_via_inserter;
 pub mod id;

@@ -38,4 +38,11 @@ impl TimeLimit {
         let elapsed = self.time_stamp.elapsed().as_millis() as i64;
         elapsed > self.limit_millis
     }
+
+    /// Java `timeLimit` — the construction value (read-only face for
+    /// the T12 `RouteBudget::Wall` diagnostics).
+    #[must_use]
+    pub fn limit_millis(&self) -> i64 {
+        self.limit_millis
+    }
 }

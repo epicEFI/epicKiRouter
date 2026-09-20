@@ -1,0 +1,840 @@
+{"type":"settings_witness","layers":[{"horizontal":"1.0","vertical":"2.7","bend":"0.0","active":true},{"horizontal":"1.6","vertical":"1.0","bend":"0.0","active":true}],"via_costs":1,"plane_via_costs":1,"vias_allowed":true,"automatic_neckdown":false,"start_ripup_costs":1,"fanout_enabled":false,"run_router":true}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"queue","count":4,"items":[{"id":104,"kind":"Pin","nets":"[98]"},{"id":103,"kind":"Pin","nets":"[98]"},{"id":102,"kind":"Pin","nets":"[33]"},{"id":101,"kind":"Pin","nets":"[33]"}]}
+{"type":"task_state","state":"STARTED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing stage started on board \u0027\u003cboardhash\u003e\u0027 with baseline score 0.00 for 2 unrouted items."}
+{"type":"task_state","state":"RUNNING","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d1 incomplete\u003d1 fanout_extra_vias\u003dnull"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d0 skipped\u003d2 ripped\u003d0 failed\u003d0 routed\u003d2 incomplete\u003d0 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #1 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (0 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #2 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (0 unrouted and 32 violations)."}
+{"type":"task_state","state":"FINISHED","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"completion_fanout_off","returned":true}
+{"type":"incompletes","world":"completion_fanout_off","incomplete_count":0,"max_connections":2}
+{"type":"task_state","state":"STARTED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d1 queued\u003d100 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d1 queued\u003d99 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d1 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d4 incomplete\u003d2 fanout_extra_vias\u003d4"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d2 queued\u003d100 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d2 queued\u003d99 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d2 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing stage started on board \u0027\u003cboardhash\u003e\u0027 with baseline score 0.00 for 2 unrouted items."}
+{"type":"task_state","state":"RUNNING","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 3/6)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 3/6)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 3/6)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 3/6)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d1 incomplete\u003d1 fanout_extra_vias\u003dnull"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d0 skipped\u003d2 ripped\u003d0 failed\u003d0 routed\u003d2 incomplete\u003d0 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #1 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (0 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #2 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (0 unrouted and 32 violations)."}
+{"type":"task_state","state":"FINISHED","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"completion_fanout_on","returned":true}
+{"type":"incompletes","world":"completion_fanout_on","incomplete_count":0,"max_connections":2}
+{"type":"task_state","state":"STARTED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing stage started on board \u0027\u003cboardhash\u003e\u0027 with baseline score 0.00 for 2 unrouted items."}
+{"type":"task_state","state":"RUNNING","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d1 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 1 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 1 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #1 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d2 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 2 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d2 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #2 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":3,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d3 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 3 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d3 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #3 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":4,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d4 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 4 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 4 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 4 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 4 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d4 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #4 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":5,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d5 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 5 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 5 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 5 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 5 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d5 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #5 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":6,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d6 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 6 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 6 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 6 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 6 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d6 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #6 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":7,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d7 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 7 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 7 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 7 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 7 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d7 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #7 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":8,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d8 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 8 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 8 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 8 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 8 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d8 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #8 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":9,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d9 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 9 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 9 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 9 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 9 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d9 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #9 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":10,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d10 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 10 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 10 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 10 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 10 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d10 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #10 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":11,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d11 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 11 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 11 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 11 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 11 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d11 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #11 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":12,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d12 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 12 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 12 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 12 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 12 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d12 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #12 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":13,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d13 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 13 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 13 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 13 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 13 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d13 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #13 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":14,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d14 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 14 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 14 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 14 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 14 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d14 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #14 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":15,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d15 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 15 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d15 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d1 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 15 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 15 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 15 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d15 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #15 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":16,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d16 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 16 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 16 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 16 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 16 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d16 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #16 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":17,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d17 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 17 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 17 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 17 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 17 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d17 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #17 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":18,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d18 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 18 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 18 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 18 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 18 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d18 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #18 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"log_row","level":"INFO","msg":"[PROBE] The router\u0027s score (0.00) has not improved by more than 0.5 points in the last 10 passes (2 items still unconnected). Stopping the auto-router.\nThe following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net \u0027NET_33\u0027 (1 unrouted connection):\n    - KA-PA  -\u003e  KB-PB\n  Net \u0027NET_98\u0027 (1 unrouted connection):\n    - TA-PT  -\u003e  TB-PU"}
+{"type":"task_state","state":"CANCELLED","pass":18,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"starved_local","returned":false}
+{"type":"incompletes","world":"starved_local","incomplete_count":2,"max_connections":2}
+{"type":"task_state","state":"STARTED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d1 queued\u003d100 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d1 queued\u003d99 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"board_updated","counters":"phase\u003dfanout pass\u003d1 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003d0"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing stage started on board \u0027\u003cboardhash\u003e\u0027 with baseline score 0.00 for 2 unrouted items."}
+{"type":"task_state","state":"RUNNING","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d1 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 1 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 1 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #1 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d2 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 2 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d2 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #2 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":3,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d3 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 3 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d3 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #3 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":4,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d4 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 4 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 4 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 4 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #4: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 4 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d4 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #4 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":5,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d5 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 5 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 5 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 5 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #5: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 5 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d5 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #5 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":6,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d6 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 6 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 6 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 6 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #6: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 6 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d6 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #6 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":7,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d7 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 7 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 7 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 7 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #7: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 7 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d7 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #7 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":8,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d8 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 8 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 8 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 8 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #8: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 8 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d8 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #8 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":9,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d9 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 9 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 9 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 9 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #9: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 9 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d9 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #9 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":10,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d10 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 10 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 10 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 10 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #10: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 10 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d10 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #10 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":11,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d11 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 11 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 11 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 11 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #11: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 11 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d11 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #11 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Applied one-time fanout recovery cleanup (removed fanout tails/vias). Incompletes: 2 -\u003e 2."}
+{"type":"task_state","state":"RUNNING","pass":12,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d12 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 12 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 12 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 12 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #12: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 12 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d12 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #12 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":13,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d13 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 13 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 13 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 13 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #13: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 13 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d13 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #13 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":14,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d14 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 14 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 14 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 14 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #14: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 14 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d14 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #14 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":15,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d15 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 15 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 15 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 15 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #15: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 15 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d15 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #15 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":16,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d16 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 16 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 16 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 16 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #16: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 16 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d16 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #16 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":17,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d17 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 17 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 17 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 17 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #17: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 17 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d17 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #17 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":18,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d18 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 18 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 18 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 18 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #18: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 18 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d18 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #18 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"log_row","level":"INFO","msg":"[PROBE] The router\u0027s best score (0.00) has not improved by more than 0.5 points since pass #8. Stopping the auto-router after 18 passes (2 items still unconnected).\nThe following connections could not be routed -- please review your design (e.g. check pad clearances, trace width rules, and available routing space):\n  Net \u0027NET_33\u0027 (1 unrouted connection):\n    - KB-PB  -\u003e  KA-PA\n  Net \u0027NET_98\u0027 (1 unrouted connection):\n    - TA-PT  -\u003e  TB-PU"}
+{"type":"task_state","state":"CANCELLED","pass":18,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"starved_global","returned":false}
+{"type":"incompletes","world":"starved_global","incomplete_count":2,"max_connections":2}
+{"type":"task_state","state":"STARTED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing stage started on board \u0027\u003cboardhash\u003e\u0027 with baseline score 0.00 for 2 unrouted items."}
+{"type":"task_state","state":"RUNNING","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d1 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 1 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 1 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #1 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":2,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d2 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 2 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #2: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 2 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d2 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #2 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"RUNNING","pass":3,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d3 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #100 and pin of component #99, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_98\u0027 (3 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #97 and pin of component #98, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_33\u0027 (2 items remaining, 3 failures). State: FAILED"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #98 and pin of component #97, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #3: Failed to route Pin on net \u0027NET_33\u0027 (1 items remaining, 3 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d3 queued\u003d0 skipped\u003d0 ripped\u003d0 failed\u003d4 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #3 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"CANCELLED","pass":4,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"max_passes","returned":false}
+{"type":"incompletes","world":"max_passes","incomplete_count":2,"max_connections":2}
+{"type":"task_state","state":"STARTED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing stage started on board \u0027\u003cboardhash\u003e\u0027 with baseline score 0.00 for 2 unrouted items."}
+{"type":"task_state","state":"RUNNING","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_98\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"Queuing item for routing: Pin on net \u0027NET_33\u0027 (connected: 1/2)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: 2 incompletes across 4 items to route"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_33\u0027 has 1 incomplete(s)"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE]   Net \u0027NET_98\u0027 has 1 incomplete(s)"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d4 skipped\u003d0 ripped\u003d0 failed\u003d0 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Autorouter Failed to route connection between pin of component #99 and pin of component #100, because no connection was found between their nets."}
+{"type":"log_row","level":"DEBUG","msg":"[PROBE] Pass #1: Failed to route Pin on net \u0027NET_98\u0027 (4 items remaining, 1 failures). State: FAILED"}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d1 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Max items limit reached (1). Stopping auto-router."}
+{"type":"board_updated","counters":"phase\u003dautoroute pass\u003d1 queued\u003d3 skipped\u003d0 ripped\u003d0 failed\u003d1 routed\u003d0 incomplete\u003d2 fanout_extra_vias\u003dnull"}
+{"type":"log_row","level":"INFO","msg":"[PROBE] Auto-routing pass #1 on board \u0027\u003cboardhash\u003e\u0027 was completed in \u003ct\u003e seconds with score 0.00 (2 unrouted and 32 violations)."}
+{"type":"task_state","state":"CANCELLED","pass":1,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"max_items","returned":false}
+{"type":"incompletes","world":"max_items","incomplete_count":2,"max_connections":2}
+{"type":"log_row","level":"WARN","msg":"Cannot start autorouter: all layers are disabled."}
+{"type":"task_state","state":"CANCELLED","pass":0,"hash":"\u003cboardhash\u003e"}
+{"type":"run","world":"no_layers","caught":"IllegalArgumentException","message":"Cannot start autorouter: all layers are disabled."}
+{"type":"incompletes","world":"no_layers","incomplete_count":2,"max_connections":2}

@@ -33,17 +33,24 @@
 //!    `enlarge(0)` is not applied); the violation exists iff the
 //!    intersection has dimension 2.
 //!
-//! NOT ported (label-only for this surface): `smallestClearance` and
-//! `actualClearance` — the latter is a 16-iteration binary search
-//! (`Item.java:497-519`) whose value never feeds the emitted
-//! (first, second, layer) rows.
+//! `smallestClearance` stays unported (label-only in every surface).
+//! `actualClearance` was label-only until T12: the V2 router score's
+//! `clearanceViolations.totalViolationUm` (BoardStatistics) consumes
+//! the per-violation shortfall, so [`ViolationRec`] and
+//! [`all_clearance_violation_depths`] now carry it — the 16-iteration
+//! bisection port ([`calculate_clearance_between_two_shapes`],
+//! `Item.java:497-519`). The (a, b, layer) rows are unchanged.
 //!
 //! ## The dedup (`DesignRulesChecker.java:56-87`)
 //!
 //! The board walk (insertion order = ascending id for a parse board)
 //! dedups A-B vs B-A by the sorted-id pair + layer key, keeping the
-//! FIRST occurrence; rows are then canonicalized by (a, b, layer) —
-//! exactly the DrcOracle emission.
+//! FIRST occurrence; the corpus rows are then canonicalized by
+//! (a, b, layer) — exactly the DrcOracle emission. NOTE: Java's
+//! `getAllClearanceViolations` itself returns the collection in WALK
+//! order (no sort); the depth sum in `BoardStatistics` iterates THAT
+//! order, so [`all_clearance_violation_depths`] is walk-ordered and
+//! UNSORTED — float addition order matters for the parity sum.
 
 use std::collections::HashSet;
 
@@ -66,6 +73,83 @@ pub struct ViolationRow {
     pub b: i64,
     /// The 0-based layer of the walking item's shape.
     pub layer: i64,
+}
+
+/// One violation WITH the clearance depth fields (Java
+/// `ClearanceViolation.expectedClearance` / `.actualClearance`, board
+/// units) — the T12 face consumed by the V2 router score's
+/// `totalViolationUm`. Java `ClearanceViolation.java`: the fields are
+/// plain doubles in BOARD UNITS; the um scaling happens in
+/// `BoardStatistics` via `boardUnitToUmFactor`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViolationRec {
+    /// The OTHER item of the pair (Java `secondItem`; the walker is
+    /// `firstItem`).
+    pub other: ItemId,
+    /// The walking item's shape layer.
+    pub layer: i32,
+    /// Java `expectedClearance` = the matrix value
+    /// (current class, walker class, layer) in board units.
+    pub expected_clearance: f64,
+    /// Java `actualClearance` = the 16-iteration bisection result in
+    /// board units (0.0 when the raw shapes already overlap in 2D).
+    pub actual_clearance: f64,
+}
+
+/// A walk-ordered deduped violation with its depth fields, the ids
+/// canonicalized exactly like [`ViolationRow`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DepthRow {
+    pub a: i64,
+    pub b: i64,
+    pub layer: i64,
+    pub expected_clearance: f64,
+    pub actual_clearance: f64,
+}
+
+/// Java `Item.calculateClearanceBetweenTwoShapes`
+/// (`Item.java:497-521`): the raw shapes ALREADY overlapping in 2D
+/// answer 0.0; otherwise a 16-iteration bisection over
+/// `[0, minimumClearance]` — each mid enlarges shape1 by
+/// `mid * clComp1 / (clComp1 + clComp2)` and shape2 by the
+/// complementary fraction (0.5/0.5 when the compensations sum to 0),
+/// and the bracket shrinks toward the exact contact distance; `low`
+/// (the largest non-overlapping enlargement) is the answer.
+#[must_use]
+fn calculate_clearance_between_two_shapes(
+    raw_shape1: &TileShape,
+    raw_shape2: &TileShape,
+    minimum_clearance: f64,
+    cl_comp1: i32,
+    cl_comp2: i32,
+) -> f64 {
+    if raw_shape1.intersection(raw_shape2).dimension() == 2 {
+        return 0.0;
+    }
+    let mut low = 0.0f64;
+    let mut high = minimum_clearance;
+    let sum_comp = f64::from(cl_comp1) + f64::from(cl_comp2);
+    let factor1 = if sum_comp > 0.0 {
+        f64::from(cl_comp1) / sum_comp
+    } else {
+        0.5
+    };
+    let factor2 = if sum_comp > 0.0 {
+        f64::from(cl_comp2) / sum_comp
+    } else {
+        0.5
+    };
+    for _ in 0..16 {
+        let mid = (low + high) * 0.5;
+        let s1 = raw_shape1.enlarge(mid * factor1);
+        let s2 = raw_shape2.enlarge(mid * factor2);
+        if s1.intersection(&s2).dimension() == 2 {
+            high = mid;
+        } else {
+            low = mid;
+        }
+    }
+    low
 }
 
 #[must_use]
@@ -274,15 +358,15 @@ fn tie_pin_exemption(
     true
 }
 
-/// Java `Item.clearanceViolations()` minus the label-only fields: the
-/// `(other item, layer)` pairs this item violates against. See the
-/// module docs for the walk. `&mut` on both arguments: the entry
-/// query fills the shape-precalc caches as it runs.
-pub fn item_clearance_violations(
+/// Java `Item.clearanceViolations()` with the depth fields filled in —
+/// the records face of the walk. See the module docs for the walk.
+/// `&mut` on both arguments: the entry query fills the shape-precalc
+/// caches as it runs.
+pub fn item_clearance_violation_records(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     id: ItemId,
-) -> Vec<(ItemId, i32)> {
+) -> Vec<ViolationRec> {
     let Some(this_class) = board.item_clearance_class(id) else {
         return Vec::new();
     };
@@ -425,15 +509,80 @@ pub fn item_clearance_violations(
             let enlarged2 = if cl_comp2 > 0 {
                 shape2.enlarge(f64::from(cl_comp2))
             } else {
-                shape2
+                shape2.clone()
             };
             let intersection = enlarged1.intersection(&enlarged2);
             if intersection.dimension() == 2 {
-                result.push((current, layer));
+                // Java measures actualClearance from the RAW shapes at
+                // exactly this site (`Item.java:462-467`).
+                let actual_clearance = calculate_clearance_between_two_shapes(
+                    &shape1,
+                    &shape2,
+                    f64::from(minimum_clearance),
+                    cl_comp1,
+                    cl_comp2,
+                );
+                result.push(ViolationRec {
+                    other: current,
+                    layer,
+                    expected_clearance: f64::from(minimum_clearance),
+                    actual_clearance,
+                });
             }
         }
     }
     result
+}
+
+/// Java `Item.clearanceViolations()` minus the label-only fields: the
+/// `(other item, layer)` pairs this item violates against — the
+/// historical (a, b, layer) face over [`item_clearance_violation_records`].
+pub fn item_clearance_violations(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    id: ItemId,
+) -> Vec<(ItemId, i32)> {
+    item_clearance_violation_records(manager, board, id)
+        .into_iter()
+        .map(|rec| (rec.other, rec.layer))
+        .collect()
+}
+
+/// Java `getAllClearanceViolations` (`DesignRulesChecker.java:56-87`)
+/// WITH depths: the board walk (ascending id = insertion order), the
+/// A-B/B-A dedup keyed by the sorted pair + layer keeping the FIRST
+/// occurrence, returned in WALK ORDER (Java's collection order; the
+/// V2 score's float sum depends on it — see the module docs).
+/// Returns the deduped total and the rows.
+pub fn all_clearance_violation_depths(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+) -> (i64, Vec<DepthRow>) {
+    // Collect the walk ids up front: the iterator borrows the board,
+    // the per-item query needs it mutably (Java's getItems() snapshot
+    // has the same snapshot semantics on a static board).
+    let walkers: Vec<ItemId> = board.iter_ascending().map(|entry| entry.id).collect();
+    let mut seen: HashSet<(i64, i64, i64)> = HashSet::new();
+    let mut rows = Vec::new();
+    for walker in walkers {
+        for rec in item_clearance_violation_records(manager, board, walker) {
+            let a = i64::from(walker.get().min(rec.other.get()));
+            let b = i64::from(walker.get().max(rec.other.get()));
+            let layer = i64::from(rec.layer);
+            if seen.insert((a, b, layer)) {
+                rows.push(DepthRow {
+                    a,
+                    b,
+                    layer,
+                    expected_clearance: rec.expected_clearance,
+                    actual_clearance: rec.actual_clearance,
+                });
+            }
+        }
+    }
+    // Deliberately UNSORTED: Java returns the walk-ordered ArrayList.
+    let total = rows.len() as i64;
+    (total, rows)
 }
 
 /// Java `getAllClearanceViolations` (`DesignRulesChecker.java:56-87`):
@@ -445,24 +594,16 @@ pub fn all_clearance_violations(
     manager: &mut SearchTreeManager,
     board: &mut Board,
 ) -> (i64, Vec<ViolationRow>) {
-    // Collect the walk ids up front: the iterator borrows the board,
-    // the per-item query needs it mutably (Java's getItems() snapshot
-    // has the same snapshot semantics on a static board).
-    let walkers: Vec<ItemId> = board.iter_ascending().map(|entry| entry.id).collect();
-    let mut seen: HashSet<(i64, i64, i64)> = HashSet::new();
-    let mut rows = Vec::new();
-    for walker in walkers {
-        for (other, layer) in item_clearance_violations(manager, board, walker) {
-            let a = i64::from(walker.get().min(other.get()));
-            let b = i64::from(walker.get().max(other.get()));
-            let layer = i64::from(layer);
-            if seen.insert((a, b, layer)) {
-                rows.push(ViolationRow { a, b, layer });
-            }
-        }
-    }
+    let (total, depths) = all_clearance_violation_depths(manager, board);
+    let mut rows: Vec<ViolationRow> = depths
+        .into_iter()
+        .map(|row| ViolationRow {
+            a: row.a,
+            b: row.b,
+            layer: row.layer,
+        })
+        .collect();
     rows.sort_unstable_by_key(|row| (row.a, row.b, row.layer));
-    let total = rows.len() as i64;
     (total, rows)
 }
 

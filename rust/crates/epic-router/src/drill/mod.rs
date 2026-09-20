@@ -101,6 +101,15 @@ pub trait DrillEngine: NeighbourEngine {
     /// handed to `PolylineArea.splitToConvex`; `None` disables
     /// stopping (the default for tests).
     fn stop_flag(&self) -> Option<&AtomicBool>;
+    /// Java `autorouteEngine.isStopRequested` (`:287-295`) as the maze
+    /// and drill walks see it. The flag-only default serves the
+    /// capture/test engines; the production override (T12) consults
+    /// the [`crate::engine::RouteBudget`] FIRST, mirroring Java's
+    /// budget-before-flag order.
+    fn is_stop_requested(&self) -> bool {
+        self.stop_flag()
+            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+    }
 
     // ---- the calcPinCenterInDrill / getDrills item reads ----
     /// Java `board.overlappingItems(area, layer)`

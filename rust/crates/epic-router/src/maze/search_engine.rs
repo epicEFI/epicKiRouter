@@ -159,9 +159,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     }
 
     fn is_stop_requested(&self) -> bool {
-        self.ctx
-            .stop_flag()
-            .is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed))
+        self.ctx.is_stop_requested()
     }
 
     /// Java `findConnection` (`:300-308`).

@@ -1,0 +1,1039 @@
+//! Java `autoroute/pipeline/AutoroutePassRunner.java` — the
+//! single-threaded pass walk (`runSingleThread`, `:150-335`): the item
+//! queue walk with the per-(item, net) route attempts, the
+//! `compare_trace_*` rows, the failure log, and the per-pass tail
+//! removal. The multi-thread variant (`runMultiThread`) — board
+//! deep-copies, the seeded shuffle, and the cross-thread
+//! `BoardHistory` reduction — is the parallelism milestone's seam.
+//!
+//! ## Banks (SEAM carries the dossier)
+//!
+//! * **`catch (Exception) → no Rust catch`** (`:330-334`): a panic
+//!   propagates (the batch-loop IAE→`Result` face, applied down the
+//!   stack).
+//! * **The benchmark profile + `PerformanceProfiler` faces** are
+//!   profile-only instrumentation (`isBenchmarkProfileEnabled()` gates
+//!   every one of them); not ported. `recordPass`'s wall-clock pass
+//!   duration and the `currentRipupCost = startRipupCosts * passNo`
+//!   render belong to that family.
+//! * **The GUI progress event is a row.** Java fires
+//!   `fireBoardUpdatedEvent(progressStatistics, counters, board)` —
+//!   the `progressStatistics` snapshot and the
+//!   `shouldFireBoardUpdate()` throttle are event-bus faces; the port
+//!   renders the [`RouterCounters`] into one `board_updated` row at
+//!   the pre-pass fire (`:195`) and the post-pass fire (`:320`). The
+//!   per-item `updateProgress` keeps the LIVE interval counter
+//!   (`progressItemsSinceStatistics`, pinnable) and drops only the
+//!   snapshot + throttle around it.
+//! * **`router.airLine = null`** — the GUI airline seam, no-op here.
+//! * **The failure log's `firstNet`** is read at record creation on
+//!   the port (`epic_board::failure_log`); Java reads
+//!   `currentItem`'s nets internally the same way.
+
+use std::collections::{BTreeMap, HashMap};
+
+use epic_board::board::Board;
+use epic_board::items::ItemData;
+use epic_board::trace_ops::StopConnectionOption;
+use epic_board::tree_manager::SearchTreeManager;
+use epic_drc::incompletes::{NetIncompleteRow, all_incompletes};
+use epic_geometry::point::Point;
+
+use crate::engine::{AutorouteAttemptResult, AutorouteAttemptState, RippedItemSeed};
+use crate::pipeline::batch::{
+    BatchSettings, PROGRESS_STATISTICS_ITEM_INTERVAL, StopFace, calculate_incomplete_count,
+    get_autoroute_items, remove_tails,
+};
+use crate::pipeline::connection_router::route as route_connection;
+use crate::pipeline::event_sink::DriverSink;
+
+// ---------------------------------------------------------------------------
+// the counters (Java core.RouterCounters)
+// ---------------------------------------------------------------------------
+
+/// Java `core.RouterCounters` — the per-pass counters the progress
+/// event carries. The port renders them into one `board_updated` row
+/// ([`render_counters`]); the GUI consumer is the host's business.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RouterCounters {
+    /// Java `phase`.
+    pub phase: String,
+    /// Java `passCount`.
+    pub pass_count: i32,
+    /// Java `queuedToBeRoutedCount`.
+    pub queued_to_be_routed_count: i32,
+    /// Java `skippedCount`.
+    pub skipped_count: i32,
+    /// Java `rippedCount`.
+    pub ripped_count: i32,
+    /// Java `failedToBeRoutedCount`.
+    pub failed_to_be_routed_count: i32,
+    /// Java `routedCount`.
+    pub routed_count: i32,
+    /// Java `incompleteCount`.
+    pub incomplete_count: i32,
+    /// Java `fanoutExtraViasCount` — the M4 fanout stage's face;
+    /// stays 0 until that stage lands.
+    pub fanout_extra_vias_count: i32,
+}
+
+/// The port's rendering of the counters row (Java ships the OBJECT
+/// through the event; the row is the port-defined observability face).
+fn render_counters(counters: &RouterCounters) -> String {
+    format!(
+        "phase={} pass={} queued={} skipped={} ripped={} failed={} routed={} \
+         incomplete={} fanout_extra_vias={}",
+        counters.phase,
+        counters.pass_count,
+        counters.queued_to_be_routed_count,
+        counters.skipped_count,
+        counters.ripped_count,
+        counters.failed_to_be_routed_count,
+        counters.routed_count,
+        counters.incomplete_count,
+        counters.fanout_extra_vias_count,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// row helpers
+// ---------------------------------------------------------------------------
+
+/// Java `IntPoint.toString()` — `"(" + x + "," + y + ")"`, no space.
+/// The `Rational` arm renders the float approximation in the same
+/// shape (Java's `RationalPoint.toString` is a numeric form too;
+/// rational corners never occur on parsed-board items reaching these
+/// rows).
+fn point_to_string(point: &Point) -> String {
+    match point {
+        Point::Int(p) => format!("({},{})", p.x, p.y),
+        Point::Rational(_) => {
+            let f = point.to_float();
+            format!("({},{})", f.x, f.y)
+        }
+    }
+}
+
+/// Java `net != null ? net.name : "net#" + netNo`.
+fn net_name_or(board: &Board, net_no: i32) -> String {
+    board
+        .rules()
+        .nets
+        .get(net_no)
+        .map(|net| net.name.clone())
+        .unwrap_or_else(|| format!("net#{net_no}"))
+}
+
+/// Java `logIncompleteDetails` (`:337-358`): the pass header row and
+/// the per-net breakdown. `rows` arrives net-ascending from
+/// [`all_incompletes`] (Java loops `1..=maxNetNumber`).
+fn log_incomplete_details(
+    board: &Board,
+    sink: &mut dyn DriverSink,
+    pass_no: i32,
+    items_to_go_count: i32,
+    incomplete_count: i32,
+    rows: &[NetIncompleteRow],
+) {
+    if incomplete_count <= 0 {
+        return;
+    }
+    sink.debug(&format!(
+        "Pass #{pass_no}: {incomplete_count} incompletes across {items_to_go_count} \
+         items to route"
+    ));
+    for row in rows {
+        if row.incomplete_count > 0 {
+            let name = net_name_or(board, row.net_no);
+            sink.debug(&format!(
+                "  Net '{name}' has {} incomplete(s)",
+                row.incomplete_count
+            ));
+        }
+    }
+}
+
+/// Java `logRippedItems` (`:360-394`): one row per harvested seed.
+/// Java iterates the `TreeSet<Item>` in DESCENDING id order; the map
+/// is ascending-keyed, so the iteration is reversed. The `ripped_*`
+/// faces come from the seed (Java reads them off the live object after
+/// removal — the seed is the port's snapshot of exactly those faces,
+/// captured pre-removal; see [`RippedItemSeed`]).
+fn log_ripped_items(
+    sink: &mut dyn DriverSink,
+    source_item_id: i32,
+    source_net: i32,
+    ripped_item_list: &BTreeMap<i32, RippedItemSeed>,
+    ripped_item_costs: &HashMap<u64, i32>,
+) {
+    for (item_id, seed) in ripped_item_list.iter().rev() {
+        let ripped_nets = seed
+            .nets
+            .iter()
+            .map(|net| net.to_string())
+            .collect::<Vec<_>>()
+            .join("|");
+        // Java `rippedItemCosts.getOrDefault(rippedItem, -1)`.
+        let ripup_cost = ripped_item_costs.get(&seed.key).copied().unwrap_or(-1);
+        sink.trace(&format!(
+            "compare_trace_ripped_item source_item={source_item_id}, source_net={source_net}, \
+             ripped_id={item_id}, ripped_type={}, ripped_net_count={}, \
+             ripped_nets={ripped_nets}, ripupCost={ripup_cost}",
+            seed.simple_name,
+            seed.nets.len()
+        ));
+    }
+}
+
+/// Java `logTraceRouteComparison` (`:396-441`): the fresh per-item DRC
+/// walk (`innerDrc`) plus the net-population and id-watermark reads.
+/// Trace-gated by the caller (Java `FRLogger.isTraceEnabled()`).
+#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+fn log_trace_route_comparison(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    sink: &mut dyn DriverSink,
+    simple_name: &str,
+    net_no: i32,
+    result: &AutorouteAttemptResult,
+    ripped_count: usize,
+    net_items_before: usize,
+) {
+    // Java `:400-405`: `innerDrc.getIncompleteCount()` (the SUM over
+    // nets) + `getIncompleteCount(net)` (this net's own count).
+    let (_max_connections, rows) = all_incompletes(manager, board);
+    let temp_incomp: usize = rows.iter().map(|row| row.incomplete_count).sum();
+    let temp_net_incomp = rows
+        .iter()
+        .find(|row| row.net_no == net_no)
+        .map_or(0, |row| row.incomplete_count);
+    let net_items_after = board.get_connectable_items(net_no).len();
+    let max_item_id = board.max_generated_id();
+    sink.trace(&format!(
+        "compare_trace_route_item Routing {simple_name} -> result={}, details={}, \
+         incompletes={temp_incomp}, netIncomplete={temp_net_incomp}, ripped={ripped_count}, \
+         netItems={net_items_before}->{net_items_after}, maxItemId={max_item_id}",
+        result.state.as_str(),
+        result.details
+    ));
+}
+
+/// Java `logNet94Items` (`:444-487`): the net-94 debug dump. The pin
+/// faces read through the component/package chain (`Pin.name()` —
+/// Java's missing-name arms render as the literal `"null"` in the
+/// string concat; mirrored, though unreachable on a live board).
+fn log_net94_items(board: &mut Board, sink: &mut dyn DriverSink) {
+    sink.trace("compare_trace_dump_net_items Dump net 94 items");
+    for id in board.get_connectable_items(94) {
+        let Some(entry) = board.get(id) else {
+            continue;
+        };
+        match &entry.data {
+            ItemData::Trace { layer, lines, .. } => {
+                let first = lines
+                    .first_corner()
+                    .map(|p| point_to_string(&p))
+                    .unwrap_or_else(|| "null".to_string());
+                let last = lines
+                    .last_corner()
+                    .map(|p| point_to_string(&p))
+                    .unwrap_or_else(|| "null".to_string());
+                sink.trace(&format!(
+                    "compare_trace_dump_net_item Trace layer={layer} corners={first} to {last}"
+                ));
+            }
+            ItemData::Via { center, .. } => {
+                let point = Point::Int(*center);
+                sink.trace(&format!(
+                    "compare_trace_dump_net_item Via center={}",
+                    point_to_string(&point)
+                ));
+            }
+            ItemData::Pin { pin_index, .. } => {
+                let center = board
+                    .pin_center(id)
+                    .map(|p| point_to_string(&p))
+                    .unwrap_or_else(|| "null".to_string());
+                let component = u32::try_from(entry.component_id)
+                    .ok()
+                    .and_then(|cid| board.components().get(cid));
+                let name = component
+                    .and_then(|component| board.library().package(component.package_no()))
+                    .and_then(|package| package.get_pin(*pin_index))
+                    .map(|pin| pin.name.clone())
+                    .unwrap_or_else(|| "null".to_string());
+                let comp_name = component
+                    .map(|component| component.name.clone())
+                    .unwrap_or_else(|| "null".to_string());
+                sink.trace(&format!(
+                    "compare_trace_dump_net_item Pin center={center} name={name} comp={comp_name}"
+                ));
+            }
+            _ => {
+                let simple = entry.data.java_simple_name();
+                sink.trace(&format!("compare_trace_dump_net_item Item {simple}"));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// the pass walk (Java runSingleThread, :150-335)
+// ---------------------------------------------------------------------------
+
+/// Java `AutoroutePassRunner.runSingleThread(passNo)` (`:150-335`):
+/// one pass over the item queue. Returns Java's `anyProgress` —
+/// `routed > 0 || notRouted > 0` (`:329`); an empty queue returns
+/// `false` (`:162-165`).
+#[allow(clippy::too_many_lines)] // the Java body is one flat walk
+#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+pub fn run_single_thread(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    settings: &BatchSettings,
+    pass_no: i32,
+    total_items_routed: &mut i32,
+    progress_items_since_statistics: &mut i32,
+    stop: &mut StopFace,
+    sink: &mut dyn DriverSink,
+) -> bool {
+    let autoroute_item_list = get_autoroute_items(manager, board, sink);
+    if autoroute_item_list.is_empty() {
+        // Java `router.airLine = null` — banked GUI seam.
+        return false;
+    }
+    // Java `router.progressStatistics = new BoardStatistics(...)` —
+    // the snapshot is the GUI event (banked); the counter reset is the
+    // live residue.
+    *progress_items_since_statistics = 0;
+
+    let mut items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
+    let mut counters = RouterCounters {
+        phase: "autoroute".to_string(),
+        pass_count: pass_no,
+        queued_to_be_routed_count: items_to_go_count,
+        ..RouterCounters::default()
+    };
+    // Java `:185-189`: `tempDrc.getIncompleteCount()` — the SUM of the
+    // per-net airline counts (NOT `maxConnections`; see
+    // [`crate::pipeline::batch::calculate_incomplete_count`]).
+    let (_max_connections, incomplete_rows) = all_incompletes(manager, board);
+    let total_incompletes: usize = incomplete_rows.iter().map(|row| row.incomplete_count).sum();
+    counters.incomplete_count = i32::try_from(total_incompletes).unwrap_or(i32::MAX);
+    log_incomplete_details(
+        board,
+        sink,
+        pass_no,
+        items_to_go_count,
+        counters.incomplete_count,
+        &incomplete_rows,
+    );
+    sink.board_updated(&render_counters(&counters));
+
+    let mut ripped_item_count: i32 = 0;
+    let mut not_routed: i32 = 0;
+    let mut routed: i32 = 0;
+    let mut skipped: i32 = 0;
+    for item_id in &autoroute_item_list {
+        if stop.is_requested() {
+            break;
+        }
+        // The current item's faces, read BEFORE any attempt can touch
+        // the board (Java reads the live object throughout; the queued
+        // items are non-routable connectables, so the read is stable —
+        // capturing early keeps the borrows flat).
+        let (nets, simple_name): (Vec<i32>, &'static str) = match board.get(*item_id) {
+            Some(entry) => (entry.nets.clone(), entry.data.java_simple_name()),
+            None => (Vec::new(), "Item"),
+        };
+        for net in &nets {
+            if stop.is_requested() {
+                break;
+            }
+            if let Some(max_items) = settings.max_items
+                && max_items > 0
+                && *total_items_routed >= max_items
+            {
+                sink.info(&format!(
+                    "Max items limit reached ({max_items}). Stopping auto-router."
+                ));
+                stop.request();
+                break;
+            }
+            *total_items_routed += 1;
+            board.start_marking_changed_area();
+
+            // Fresh per-attempt accumulators (Java `:224-225`).
+            let mut ripped_item_list: BTreeMap<i32, RippedItemSeed> = BTreeMap::new();
+            let mut ripped_item_costs: HashMap<u64, i32> = HashMap::new();
+            let net_items_before = board.get_connectable_items(*net).len();
+
+            let result = route_connection(
+                manager,
+                board,
+                settings,
+                *item_id,
+                *net,
+                &mut ripped_item_list,
+                &mut ripped_item_costs,
+                pass_no,
+                stop.flag(),
+                sink,
+            );
+
+            log_ripped_items(
+                sink,
+                i32::try_from(item_id.get()).unwrap_or(i32::MAX),
+                *net,
+                &ripped_item_list,
+                &ripped_item_costs,
+            );
+            if sink.is_trace_enabled() {
+                log_trace_route_comparison(
+                    manager,
+                    board,
+                    sink,
+                    simple_name,
+                    *net,
+                    &result,
+                    ripped_item_list.len(),
+                    net_items_before,
+                );
+            }
+            if *net == 94 {
+                log_net94_items(board, sink);
+            }
+
+            match result.state {
+                AutorouteAttemptState::Routed => {
+                    routed += 1;
+                }
+                AutorouteAttemptState::AlreadyConnected
+                | AutorouteAttemptState::NoUnconnectedNets
+                | AutorouteAttemptState::ConnectedToPlane => {
+                    skipped += 1;
+                }
+                _ => {
+                    // Java records the failure against the ITEM with
+                    // the item's first net read at creation.
+                    let first_net = nets.first().copied().unwrap_or(-1);
+                    board.failure_log.record_failure(
+                        u64::from(item_id.get()),
+                        first_net,
+                        i64::from(pass_no),
+                        result.state.as_str(),
+                        Some(&result.details),
+                    );
+                    sink.debug(&format!("Autorouter {}", result.details));
+                    let failure_count = board.failure_log.failure_count(u64::from(item_id.get()));
+                    if items_to_go_count <= 5 || failure_count >= 3 {
+                        let name = net_name_or(board, *net);
+                        sink.debug(&format!(
+                            "Pass #{pass_no}: Failed to route {simple_name} on net '{name}' \
+                             ({items_to_go_count} items remaining, {failure_count} failures). \
+                             State: {}",
+                            result.state.as_str()
+                        ));
+                    }
+                    not_routed += 1;
+                }
+            }
+            // Java decrements AFTER the failure row — the row's
+            // "items remaining" still counts the current item.
+            items_to_go_count -= 1;
+            ripped_item_count += i32::try_from(ripped_item_list.len()).unwrap_or(i32::MAX);
+            update_progress(progress_items_since_statistics);
+        }
+    }
+
+    // Java `:296-302` — the tail removal with its before/after rows.
+    let incompletes_before = calculate_incomplete_count(manager, board);
+    sink.trace(&format!(
+        "compare_trace_remove_tails Incompletes before remove_tails={incompletes_before}"
+    ));
+    let stop_connection_option = if settings.remove_unconnected_vias {
+        StopConnectionOption::None
+    } else {
+        StopConnectionOption::FanoutVia
+    };
+    remove_tails(
+        manager,
+        board,
+        stop_connection_option,
+        settings.pull_tight_accuracy,
+    );
+    let incompletes_after = calculate_incomplete_count(manager, board);
+    sink.trace(&format!(
+        "compare_trace_remove_tails Incompletes after remove_tails={incompletes_after}"
+    ));
+
+    // Java `:308-320` — the final statistics + counters fill and the
+    // (ungated) board-update fire.
+    counters.pass_count = pass_no;
+    counters.queued_to_be_routed_count = items_to_go_count;
+    counters.skipped_count = skipped;
+    counters.ripped_count = ripped_item_count;
+    counters.failed_to_be_routed_count = not_routed;
+    counters.routed_count = routed;
+    counters.incomplete_count = calculate_incomplete_count(manager, board);
+    sink.board_updated(&render_counters(&counters));
+
+    // Java `:322-329` — PerformanceProfiler.recordPass + the benchmark
+    // profile render are banked; `router.airLine = null` is the GUI
+    // seam.
+    routed > 0 || not_routed > 0
+}
+
+/// Java `updateProgress` (`:489-513`): bump the interval counter and
+/// reset it at the interval (the snapshot + `shouldFireBoardUpdate()`
+/// throttle around it are the banked GUI event faces).
+fn update_progress(progress_items_since_statistics: &mut i32) {
+    *progress_items_since_statistics += 1;
+    if *progress_items_since_statistics >= PROGRESS_STATISTICS_ITEM_INTERVAL {
+        *progress_items_since_statistics = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::control::RouterSettingsIr;
+    use crate::pipeline::batch::{BatchSettings, StopFace};
+    use crate::pipeline::board_statistics::RouterSettingsScoring;
+    use crate::pipeline::event_sink::CaptureDriverSink;
+    use crate::test_util::parse;
+    use epic_board::board::ItemEntry;
+    use epic_board::id::ItemId;
+    use epic_board::items::{Area, BoardShape, FixedState};
+    use epic_board::trace_ops::insert_trace_without_cleaning;
+    use epic_geometry::int_box::IntBox;
+    use epic_geometry::int_point::IntPoint;
+    use epic_geometry::polyline::Polyline;
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+    use epic_geometry::tile_shape::TileShape;
+
+    /// The T9/T10c locator-world fixture (2 layers, `unit um`,
+    /// resolution 10; ALL nets single-pin; the net-94 pin D093 sits at
+    /// DB (663500, 20000)).
+    pub(crate) fn parse_fixture() -> (SearchTreeManager, Board) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../harness/fixtures/locator-spike/t9_locator45.dsn");
+        let text = std::fs::read_to_string(&path).expect("fixture present");
+        parse(&text)
+    }
+
+    /// The jar world's cost table (the t11 capture row `ctrl_costs`).
+    fn settings_ir() -> RouterSettingsIr {
+        RouterSettingsIr {
+            trace_costs: vec![
+                crate::control::ExpansionCostFactor {
+                    horizontal: 1.0,
+                    vertical: 2.7,
+                },
+                crate::control::ExpansionCostFactor {
+                    horizontal: 1.6,
+                    vertical: 1.0,
+                },
+            ],
+            via_costs: 1,
+            vias_allowed: true,
+            bend_costs: vec![0.0, 0.0],
+            layer_active: vec![true, true],
+            automatic_neckdown: false,
+            start_ripup_costs: 1,
+        }
+    }
+
+    /// The starved batch settings: only the fixture's UNUSED layer (1)
+    /// active — Java's maze reads `ctrl.layerActive` at every
+    /// expansion (`MazeSearchEngine.java:396-397/478/493`), so every
+    /// attempt on this layer-0 world fails deterministically with zero
+    /// expansion work (the t11 `layer_active` world A, driver-shaped).
+    pub(crate) fn starved_settings() -> BatchSettings {
+        let mut settings = BatchSettings::new(settings_ir(), RouterSettingsScoring::default());
+        settings.router_settings.layer_active = vec![false, true];
+        settings
+    }
+
+    fn corner(x: i32, y: i32) -> IntPoint {
+        IntPoint::new(x, y)
+    }
+
+    /// The t11 anchor trace: net 94's dangling stub in the y=300000
+    /// corridor (UNFIXED → `is_routable` true → never queued itself,
+    /// but it doubles net 94's connectable population so the pin
+    /// queues).
+    fn insert_anchor(manager: &mut SearchTreeManager, board: &mut Board) -> ItemId {
+        insert_trace_without_cleaning(
+            manager,
+            board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(600_000, 300_000)),
+                &Point::Int(corner(620_000, 300_000)),
+            ),
+            0,
+            1500,
+            &[94],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("anchor trace")
+    }
+
+    /// A hand-inserted net-49 conduction area (the port's second
+    /// endpoint kind — Java `NetIncompletes` counts Pin/CA endpoints;
+    /// traces are never endpoints). Component-attached so the
+    /// connected-set walk enters it (Java `Item.java:666-669` skips
+    /// free pours).
+    fn insert_ca(
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        net: i32,
+        component_id: i32,
+        lo: (i32, i32),
+        hi: (i32, i32),
+    ) -> ItemId {
+        let id = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id,
+            data: ItemData::ConductionArea {
+                layer: 0,
+                area: Area::simple(BoardShape::Tile(TileShape::RegularTileShape(
+                    RegularTileShape::IntBox(IntBox::new(
+                        IntPoint::new(lo.0, lo.1),
+                        IntPoint::new(hi.0, hi.1),
+                    )),
+                ))),
+                is_obstacle: false,
+                is_filled: true,
+            },
+            nets: vec![net],
+            clearance_class: 1,
+            component_id,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        manager.insert(board, id);
+        id
+    }
+
+    /// The fixture's net-94 pin's component id (the CA arms reuse it —
+    /// the pin rides that component in the fixture).
+    fn pin94_component_id(board: &Board) -> i32 {
+        board
+            .iter_ascending()
+            .find(|entry| entry.nets.contains(&94) && matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.component_id)
+            .expect("net 94 has a pin")
+    }
+
+    /// The starved three-attempt world: net 94's pin (population
+    /// doubled by the dangling anchor) plus net 49's pin + dangling CA
+    /// (one PERMANENT incomplete — 2 endpoints that never connect).
+    /// Queue order is seed order (descending id): the CA (newest) is
+    /// queued first.
+    fn starved_world() -> (SearchTreeManager, Board, BatchSettings) {
+        let (mut manager, mut board) = parse_fixture();
+        let _anchor = insert_anchor(&mut manager, &mut board);
+        let comp = pin94_component_id(&board);
+        let _ca = insert_ca(
+            &mut manager,
+            &mut board,
+            49,
+            comp,
+            (640_000, 10_000),
+            (650_000, 20_000),
+        );
+        let settings = starved_settings();
+        (manager, board, settings)
+    }
+
+    /// Fixture pins ride components (`component_id > 0`), so
+    /// `remove_item_through_repository`'s `is_deletion_forbidden` guard
+    /// refuses them (Java `Item.isDeletionForbidden` parity). The
+    /// empty-queue world removes them directly — same tree+arena
+    /// removal pair, guard skipped (synthetic test world only).
+    fn remove_item_unguarded(manager: &mut SearchTreeManager, board: &mut Board, id: ItemId) {
+        manager.remove(board, id);
+        board.remove_item(id);
+    }
+
+    /// The empty-queue face: with nets 33/98's four pins removed, every
+    /// remaining net is a lone pin (its connected set covers the net's
+    /// population), so the queue is empty and the pass returns Java's
+    /// `anyProgress` = false WITHOUT touching the caller's progress
+    /// counter (the reset sits behind the empty gate).
+    #[test]
+    fn pr_empty_queue_returns_false() {
+        let (mut manager, mut board) = parse_fixture();
+        // The fixture's only under-connected nets are 33 and 98 (one
+        // pin pair each) — remove all four pins and the queue empties.
+        let pins: Vec<ItemId> = board
+            .iter_ascending()
+            .filter(|entry| entry.nets.contains(&33) || entry.nets.contains(&98))
+            .filter(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.id)
+            .collect();
+        assert_eq!(pins.len(), 4, "two pin pairs");
+        for id in pins {
+            remove_item_unguarded(&mut manager, &mut board, id);
+        }
+        let settings = starved_settings();
+        let mut total = 0;
+        let mut progress = 7;
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        let any_progress = run_single_thread(
+            &mut manager,
+            &mut board,
+            &settings,
+            1,
+            &mut total,
+            &mut progress,
+            &mut stop,
+            &mut sink,
+        );
+        assert!(!any_progress, "an empty queue is no progress");
+        assert_eq!(total, 0, "no attempts");
+        assert_eq!(progress, 7, "the counter reset sits behind the empty gate");
+        assert!(!stop.is_requested(), "no stop");
+        assert!(
+            !sink.any_contains("Queuing item"),
+            "nothing queued after the pairs are gone"
+        );
+    }
+
+    /// The counters row render: Java ships the `RouterCounters` OBJECT
+    /// through the event; the row is the port-defined rendering and is
+    /// pinned verbatim (a dropped field dies here).
+    #[test]
+    fn pr_render_counters_exact() {
+        let counters = RouterCounters {
+            phase: "autoroute".to_string(),
+            pass_count: 3,
+            queued_to_be_routed_count: 12,
+            skipped_count: 4,
+            ripped_count: 5,
+            failed_to_be_routed_count: 2,
+            routed_count: 6,
+            incomplete_count: 7,
+            fanout_extra_vias_count: 1,
+        };
+        assert_eq!(
+            render_counters(&counters),
+            "phase=autoroute pass=3 queued=12 skipped=4 ripped=5 failed=2 routed=6 \
+             incomplete=7 fanout_extra_vias=1"
+        );
+    }
+
+    /// Java `logRippedItems` (`:360-394`): the TreeSet iterates
+    /// DESCENDING id, the net list joins with `|`, and the cost lookup
+    /// defaults to -1 (`getOrDefault`). The exact rows, in order, kill
+    /// the `.rev()` drop, the default-cost change, and a type-name
+    /// read from the wrong source.
+    #[test]
+    fn pr_log_ripped_items_descending_join_default() {
+        let mut sink = CaptureDriverSink::default();
+        let mut ripped = BTreeMap::new();
+        ripped.insert(
+            5,
+            RippedItemSeed {
+                key: 105,
+                simple_name: "PolylineTrace",
+                nets: vec![2, 7],
+            },
+        );
+        ripped.insert(
+            3,
+            RippedItemSeed {
+                key: 103,
+                simple_name: "Via",
+                nets: vec![9],
+            },
+        );
+        let mut costs = HashMap::new();
+        costs.insert(105_u64, 120_i32);
+        log_ripped_items(&mut sink, 11, 94, &ripped, &costs);
+        let trace = sink.joined("trace");
+        let rows: Vec<&str> = trace.lines().collect();
+        assert_eq!(rows.len(), 2, "one row per seed: {trace}");
+        assert_eq!(
+            rows[0],
+            "compare_trace_ripped_item source_item=11, source_net=94, ripped_id=5, \
+             ripped_type=PolylineTrace, ripped_net_count=2, ripped_nets=2|7, ripupCost=120",
+            "the HIGHER id first (descending TreeSet)"
+        );
+        assert_eq!(
+            rows[1],
+            "compare_trace_ripped_item source_item=11, source_net=94, ripped_id=3, \
+             ripped_type=Via, ripped_net_count=1, ripped_nets=9, ripupCost=-1",
+            "a seed missing from the cost map renders the -1 default"
+        );
+    }
+
+    /// Java `logIncompleteDetails` (`:337-358`): the gate (no rows at
+    /// zero incompletes), the pass header with the item count, and the
+    /// per-net rows for exactly the non-empty nets, in net-ascending
+    /// order (the `all_incompletes` row order).
+    #[test]
+    fn pr_log_incomplete_details_rows_and_gate() {
+        let (manager, mut board, _settings) = starved_world();
+        let (total, rows) = all_incompletes(&manager, &mut board);
+        assert_eq!(
+            total, 3,
+            "NET_33 + NET_49 (the hand-inserted pair) + NET_98"
+        );
+        let mut sink = CaptureDriverSink::default();
+        log_incomplete_details(
+            &board,
+            &mut sink,
+            3,
+            7,
+            i32::try_from(total).expect("fits"),
+            &rows,
+        );
+        let debug = sink.joined("debug");
+        let lines: Vec<&str> = debug.lines().collect();
+        assert_eq!(
+            lines.first().copied(),
+            Some("Pass #3: 3 incompletes across 7 items to route"),
+            "the pass header: {debug}"
+        );
+        assert_eq!(lines.len(), 4, "header + three non-empty nets: {debug}");
+        assert!(
+            lines[1].contains("Net 'NET_33' has 1 incomplete(s)"),
+            "net-ascending order: {debug}"
+        );
+        assert!(
+            lines[2].contains("Net 'N048' has 1 incomplete(s)"),
+            "net 49's generated name (N + zero-padded index-1): {debug}"
+        );
+        assert!(
+            lines[3].contains("Net 'NET_98' has 1 incomplete(s)"),
+            "net-ascending order: {debug}"
+        );
+
+        // The gate: zero incompletes → NO rows at all (the bare
+        // fixture minus its pairs has none).
+        let (mut manager, mut board) = parse_fixture();
+        let pins: Vec<ItemId> = board
+            .iter_ascending()
+            .filter(|entry| entry.nets.contains(&33) || entry.nets.contains(&98))
+            .filter(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.id)
+            .collect();
+        for id in pins {
+            remove_item_unguarded(&mut manager, &mut board, id);
+        }
+        let (total, rows) = all_incompletes(&manager, &mut board);
+        assert_eq!(total, 0, "the pair-less fixture has no incompletes");
+        let mut sink = CaptureDriverSink::default();
+        log_incomplete_details(
+            &board,
+            &mut sink,
+            1,
+            0,
+            i32::try_from(total).expect("fits"),
+            &rows,
+        );
+        assert!(
+            sink.rows.is_empty(),
+            "the zero gate emits nothing: {:?}",
+            sink.rows
+        );
+    }
+
+    /// Java `logTraceRouteComparison` (`:396-441`): the row renders
+    /// the attempt state, details, the FRESH incompletes total, the
+    /// net's own incomplete count, the ripped count, the net
+    /// population before→after, and the id watermark (the world's
+    /// stable high-water: anchor 103 + CA 104 → allocation head 106
+    /// after the registry's internal keys... the parse+2-inserts
+    /// high-water is deterministic and pinned).
+    #[test]
+    fn pr_route_comparison_row() {
+        let (mut manager, mut board, _settings) = starved_world();
+        let mut sink = CaptureDriverSink::default();
+        let result = AutorouteAttemptResult::with_details(
+            AutorouteAttemptState::Failed,
+            "unit failure".to_string(),
+        );
+        log_trace_route_comparison(
+            &mut manager,
+            &mut board,
+            &mut sink,
+            "Pin",
+            49,
+            &result,
+            0,
+            2,
+        );
+        let trace = sink.joined("trace");
+        let rows: Vec<&str> = trace.lines().collect();
+        assert_eq!(rows.len(), 1, "one row: {trace}");
+        assert_eq!(
+            rows[0],
+            "compare_trace_route_item Routing Pin -> result=FAILED, details=unit failure, \
+             incompletes=3, netIncomplete=1, ripped=0, netItems=2->2, maxItemId=106",
+            "the full row, including the fresh walk's totals"
+        );
+    }
+
+    /// Java `logNet94Items` (`:444-487`): the header, the trace row
+    /// with `IntPoint.toString` corners (no space), and the pin row
+    /// resolved through the component/package chain (`Pin.name()` =
+    /// the package pad name PD; the component refdes D093 renders in
+    /// the comp field).
+    #[test]
+    fn pr_net94_dump_rows() {
+        let (mut manager, mut board) = parse_fixture();
+        let _anchor = insert_anchor(&mut manager, &mut board);
+        let mut sink = CaptureDriverSink::default();
+        log_net94_items(&mut board, &mut sink);
+        let trace = sink.joined("trace");
+        let rows: Vec<&str> = trace.lines().collect();
+        assert_eq!(rows.len(), 3, "header + anchor trace + pin: {trace}");
+        assert_eq!(rows[0], "compare_trace_dump_net_items Dump net 94 items");
+        assert_eq!(
+            rows[1],
+            "compare_trace_dump_net_item Trace layer=0 corners=(600000,300000) to (620000,300000)",
+            "the anchor trace row, Java IntPoint.toString corners"
+        );
+        assert_eq!(
+            rows[2], "compare_trace_dump_net_item Pin center=(663500,20000) name=PD comp=D093",
+            "the pin row: package pin name + component refdes"
+        );
+    }
+
+    /// The full pass walk on the starved world: 7 queued attempts (the
+    /// fixture's own NET_33/NET_98 pin pairs plus the hand-inserted
+    /// NET_49 pair and the anchor-inflated net 94), all FAILED, the
+    /// queue-row ORDER (CA first — descending seed ids), the pre-pass
+    /// and final counters rows, the per-attempt failure rows with the
+    /// not-yet-decremented counter, and the tail-removal rows. Java
+    /// `runSingleThread` (`:150-335`) end to end.
+    #[test]
+    fn pr_pass_walk_rows_and_tally() {
+        let (mut manager, mut board, settings) = starved_world();
+        let anchor = board
+            .iter_descending()
+            .find(|entry| entry.nets.contains(&94) && matches!(entry.data, ItemData::Trace { .. }))
+            .map(|entry| entry.id)
+            .expect("anchor present");
+        let mut total = 0;
+        let mut progress = 0;
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        let any_progress = run_single_thread(
+            &mut manager,
+            &mut board,
+            &settings,
+            1,
+            &mut total,
+            &mut progress,
+            &mut stop,
+            &mut sink,
+        );
+        assert!(any_progress, "failures ARE progress (Java :329)");
+        assert_eq!(total, 7, "one attempt per queued (item, net) pair");
+        assert!(!stop.is_requested(), "no stop source fired");
+        assert_eq!(progress, 7, "the interval counter counts the 7 attempts");
+
+        // Queue rows: descending seed id — the CA (newest) first, then
+        // the fixture pins; each carries the connected/population pair.
+        let debug = sink.joined("debug");
+        let queue: Vec<&str> = debug
+            .lines()
+            .filter(|row| row.contains("Queuing item for routing:"))
+            .collect();
+        assert_eq!(queue.len(), 7, "seven queue rows: {debug}");
+        assert!(
+            queue[0].contains("Queuing item for routing: ConductionArea")
+                && queue[0].contains("(connected: 1/2)"),
+            "the newest id seeds first, lone CA set vs net population: {queue:?}"
+        );
+        assert_eq!(
+            queue
+                .iter()
+                .filter(|row| row.contains("ConductionArea"))
+                .count(),
+            1,
+            "only the hand-inserted CA queues"
+        );
+
+        // The pass header + the pre-pass counters row.
+        assert!(
+            sink.any_contains("Pass #1: 3 incompletes across 7 items to route"),
+            "the pass header"
+        );
+        let updates_text = sink.joined("board_updated");
+        let updates: Vec<&str> = updates_text.lines().collect();
+        assert_eq!(updates.len(), 2, "pre-pass + final fire: {updates_text}");
+        assert_eq!(
+            updates[0],
+            "phase=autoroute pass=1 queued=7 skipped=0 ripped=0 failed=0 routed=0 \
+             incomplete=3 fanout_extra_vias=0",
+        );
+        assert_eq!(
+            updates[1],
+            "phase=autoroute pass=1 queued=0 skipped=0 ripped=0 failed=7 routed=0 \
+             incomplete=3 fanout_extra_vias=0",
+            "the final fill: queue drained, 7 failures, incompletes unchanged"
+        );
+
+        // The engine's failure-detail debug row fires for EVERY
+        // attempt (7), but the pass-runner failure ROW is gated at
+        // `items_to_go <= 5` — the first two attempts (the CA at 7
+        // remaining, the first NET_98 pin at 6) are suppressed.
+        let details_rows: Vec<&str> = debug
+            .lines()
+            .filter(|row| row.starts_with("Autorouter Failed to route connection"))
+            .collect();
+        assert_eq!(details_rows.len(), 7, "one engine detail per attempt");
+        let failures: Vec<&str> = debug
+            .lines()
+            .filter(|row| row.contains("State: FAILED"))
+            .collect();
+        assert_eq!(
+            failures.len(),
+            5,
+            "the gate suppresses rows above 5: {debug}"
+        );
+        assert!(
+            failures
+                .iter()
+                .all(|row| !row.contains("(7 items remaining")
+                    && !row.contains("(6 items remaining")),
+            "the >5 gate really suppressed the first two: {failures:?}"
+        );
+        assert!(
+            failures[0].contains("Pin on net 'NET_98' (5 items remaining, 1 failures)")
+                && failures[0].ends_with("State: FAILED"),
+            "the first VISIBLE failure row: {failures:?}"
+        );
+        assert!(
+            failures[1].contains("(4 items remaining, 1 failures)"),
+            "the row's counter still includes the CURRENT item: {failures:?}"
+        );
+        assert!(
+            failures[4].contains("Pin on net 'N048' (1 items remaining, 1 failures)"),
+            "the last item's row: {failures:?}"
+        );
+
+        // The tail-removal rows + the sweep itself: the dangling
+        // anchor is a free-floating trace → swept (Java's
+        // removeTails runs at the end of every pass).
+        assert!(
+            sink.any_contains("compare_trace_remove_tails Incompletes before remove_tails=3"),
+            "the before row"
+        );
+        assert!(
+            sink.any_contains("compare_trace_remove_tails Incompletes after remove_tails=3"),
+            "the after row (the anchor is not an endpoint — incompletes stay 3)"
+        );
+        assert!(
+            !board.get(anchor).is_some_and(|entry| entry.on_the_board),
+            "the dangling anchor was swept"
+        );
+    }
+}

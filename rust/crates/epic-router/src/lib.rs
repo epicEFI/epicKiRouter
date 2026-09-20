@@ -13,6 +13,7 @@ pub mod engine;
 pub mod expansion;
 pub mod maze;
 pub mod path;
+pub mod pipeline;
 
 #[cfg(test)]
 pub(crate) mod test_util;

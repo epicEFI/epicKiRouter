@@ -293,6 +293,66 @@ impl AutorouteControl {
         control
     }
 
+    /// Java ctor 5-arg overload
+    /// `AutorouteControl(RoutingBoard, int, RouterSettings, int viaCosts,
+    /// ExpansionCostFactor[] traceCosts)` (`AutorouteControl.java:122-128`):
+    /// the shared ctor body with the CALLER's trace-cost table, then
+    /// `initNet(netNumber, board, viaCosts)` with the caller's via
+    /// cost. The batch driver resolves both once per run
+    /// (`BatchDriver::trace_costs`: the settings table when
+    /// preferred directions are kept, the per-layer `(preferred,
+    /// preferred)` flattening otherwise — BatchAutorouter.java:138-149)
+    /// and the connection router passes
+    /// `plane ? planeViaCosts : viaCosts` per net
+    /// (`AutorouteConnectionRouter.java:37-46`).
+    pub fn new_with_costs(
+        board: &mut Board,
+        net_number: i32,
+        settings: &RouterSettingsIr,
+        via_costs: i32,
+        trace_costs: &[ExpansionCostFactor],
+    ) -> Self {
+        let mut control = Self::new(board, net_number, settings);
+        control.trace_costs = trace_costs.to_vec();
+        // Re-run the net init with the caller's via costs (Java would
+        // have used them from the start; `init_net` is idempotent in
+        // its non-via fields, so the only double-run residue is a
+        // repeated warn on a power-plane layer — log-only).
+        control.init_net(board, net_number, via_costs);
+        control
+    }
+
+    /// The BatchAutorouter trace-cost resolution
+    /// (`BatchAutorouter.java:138-149`): keep the settings table, or
+    /// flatten every layer to its preferred-direction cost (the
+    /// remove-preferred-direction mode). Java reads
+    /// `settings.getPreferredDirectionTraceCosts(i)` — the raw
+    /// PREFERRED array value, which by construction
+    /// (applyBoardSpecificOptimizations) never exceeds the
+    /// against-direction cost, so `min(horizontal, vertical)` is the
+    /// same value for every reachable settings state (an inverted
+    /// user table is not a driver-reachable state; banked in SEAM).
+    #[must_use]
+    pub fn resolve_trace_costs(
+        settings: &RouterSettingsIr,
+        with_preferred_directions: bool,
+    ) -> Vec<ExpansionCostFactor> {
+        if with_preferred_directions {
+            return settings.trace_costs.clone();
+        }
+        settings
+            .trace_costs
+            .iter()
+            .map(|factor| {
+                let min = factor.horizontal.min(factor.vertical);
+                ExpansionCostFactor {
+                    horizontal: min,
+                    vertical: min,
+                }
+            })
+            .collect()
+    }
+
     /// Java `initNet(netNumber, board, viaCosts)` (`:204-231`).
     fn init_net(&mut self, board: &mut Board, net_number: i32, via_costs: i32) {
         self.net_number = net_number;

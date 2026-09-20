@@ -108,6 +108,42 @@ struct Node<K, T> {
     redo_object: Option<NodeIdx>,
 }
 
+/// Why a node is reachable in [`UndoableObjects::digest_walk`] — the
+/// role is digest bookkeeping only (Java's stream carries no such tag;
+/// it is emitted so two structurally different reachability shapes
+/// cannot collide).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UndoDigestRole {
+    /// A current entry of the live `objects` map.
+    Live,
+    /// A `deletedObjectsStack` entry at the given snapshot level.
+    Deleted {
+        /// The 0-based snapshot level owning the delete list.
+        stack_level: usize,
+    },
+    /// Reached through a live node's `undoObject`/`redoObject` chain.
+    LiveChain,
+    /// Reached through a deleted node's chain.
+    DeletedChain {
+        /// The 0-based snapshot level owning the delete list root.
+        stack_level: usize,
+    },
+}
+
+/// One visited node of [`UndoableObjects::digest_walk`].
+#[derive(Clone, Copy, Debug)]
+pub struct UndoDigestNode<'a, K, T> {
+    /// The node's key (the board: `Reverse<ItemId>`).
+    pub key: &'a K,
+    /// The node's value snapshot (the board: an [`ItemEntry`]-shaped
+    /// value; Java's node holds the `Item` object).
+    pub value: &'a T,
+    /// Java `UndoableObjectNode.level`.
+    pub level: usize,
+    /// The reachability role.
+    pub role: UndoDigestRole,
+}
+
 /// Java `UndoableObjects`: a level stack of value snapshots keyed by
 /// `K` (the board passes `Reverse<ItemId>` so map order is descending
 /// id, matching the Java `ConcurrentSkipListMap`).
@@ -401,6 +437,91 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
             .iter()
             .filter(|entry| self.nodes[*entry.1].level <= self.stack_level)
             .map(|(k, &idx)| (k, &self.nodes[idx].value))
+    }
+
+    /// The canonical whole-structure walk for the T12 board hash
+    /// (`serialize(true)` covers `itemList`'s FULL reachable node
+    /// graph, not just the live map — BoardSnapshotManager.java:26-43
+    /// writes the `UndoableObjects` object, and Java serialization
+    /// follows every reference: the live nodes, the
+    /// `deletedObjectsStack` entries, and their `undoObject`/
+    /// `redoObject` chains; `stackLevel`/`redoPossible` are plain
+    /// fields, served by the existing getters).
+    ///
+    /// Unreachable nodes (replaced `map.put` clones Java's GC drops)
+    /// are NOT visited — they are outside Java's stream, so including
+    /// them would break the equal-state-equal-hash contract
+    /// (insert-then-remove must hash like the untouched board).
+    ///
+    /// Visit order: live map entries in map order (each followed by
+    /// its undo chain, then its redo chain), then the deleted-object
+    /// lists level by level (list order, chains ditto). Every node is
+    /// visited at most once even when reachable from several roots
+    /// (Java serializes back-references, not copies).
+    pub fn digest_walk(&self, mut visit: impl FnMut(UndoDigestNode<'_, K, T>)) {
+        let mut seen = vec![false; self.nodes.len()];
+        // A node's chains: walk undo links first (older versions), then
+        // redo links (newer versions), skipping already-visited nodes.
+        let walk_chains = |start: NodeIdx,
+                           seen: &mut Vec<bool>,
+                           visit: &mut dyn FnMut(UndoDigestNode<'_, K, T>),
+                           role: UndoDigestRole| {
+            for link in ["undo", "redo"] {
+                let mut cur = Some(start);
+                while let Some(idx) = cur {
+                    let next = if link == "undo" {
+                        self.nodes[idx].undo_object
+                    } else {
+                        self.nodes[idx].redo_object
+                    };
+                    cur = next;
+                    let node = &self.nodes[idx];
+                    if seen[idx] {
+                        continue;
+                    }
+                    seen[idx] = true;
+                    visit(UndoDigestNode {
+                        key: &node.key,
+                        value: &node.value,
+                        level: node.level,
+                        role,
+                    });
+                }
+            }
+        };
+        for (&key, &idx) in &self.objects {
+            let node = &self.nodes[idx];
+            if !seen[idx] {
+                seen[idx] = true;
+                visit(UndoDigestNode {
+                    key: &key,
+                    value: &node.value,
+                    level: node.level,
+                    role: UndoDigestRole::Live,
+                });
+            }
+            walk_chains(idx, &mut seen, &mut visit, UndoDigestRole::LiveChain);
+        }
+        for (stack_level, list) in self.deleted_objects_stack.iter().enumerate() {
+            for &idx in list {
+                let node = &self.nodes[idx];
+                if !seen[idx] {
+                    seen[idx] = true;
+                    visit(UndoDigestNode {
+                        key: &node.key,
+                        value: &node.value,
+                        level: node.level,
+                        role: UndoDigestRole::Deleted { stack_level },
+                    });
+                }
+                walk_chains(
+                    idx,
+                    &mut seen,
+                    &mut visit,
+                    UndoDigestRole::DeletedChain { stack_level },
+                );
+            }
+        }
     }
 
     /// Java `disableRedo` (:293-309) — runs on every mutator.

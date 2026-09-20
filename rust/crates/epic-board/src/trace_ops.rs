@@ -315,7 +315,9 @@ pub fn is_shove_fixed(board: &Board, id: ItemId) -> bool {
 /// routable and is walked into (capture `PINWALK_ROUTABLE
 /// pin=false via=true trace=true`, `PINWALK_FROM_TRACE_A [10:T]`,
 /// `PINWALK_FROM_PIN [10:T]`, `PINWALK_FROM_VIA [11:T,5:V]`).
-pub(crate) fn is_routable(board: &Board, id: ItemId) -> bool {
+/// The T12 item-queue gate (`BatchAutorouter.getAutorouteItems` /
+/// `Item.isRoutable`) — public with its first cross-crate consumer.
+pub fn is_routable(board: &Board, id: ItemId) -> bool {
     match board.get(id) {
         Some(entry) => {
             matches!(entry.data, ItemData::Trace { .. } | ItemData::Via { .. })

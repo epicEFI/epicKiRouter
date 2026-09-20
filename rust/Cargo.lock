@@ -227,9 +227,11 @@ name = "epic-router"
 version = "0.1.0"
 dependencies = [
  "epic-board",
+ "epic-drc",
  "epic-dsn",
  "epic-geometry",
  "epic-index",
+ "sha2",
 ]
 
 [[package]]
