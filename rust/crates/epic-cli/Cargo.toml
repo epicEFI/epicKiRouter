@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 epic-board = { path = "../epic-board" }
+epic-drc = { path = "../epic-drc" }
 epic-dsn = { path = "../epic-dsn" }
 epic-geometry = { path = "../epic-geometry" }
 epic-router = { path = "../epic-router" }

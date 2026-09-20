@@ -8,9 +8,14 @@
 //!
 //! 1. **The non-determinism family is OMITTED** from the emitted
 //!    manifest (generated_at, all duration_seconds, cpu/memory rows,
-//!    resource_usage, cpu_score, settings_snapshot, bounds) — Gson
-//!    omits nulls, the harness mirror marks everything optional, so a
-//!    skipped key is byte-invisible to the parity gates.
+//!    resource_usage, cpu_score). This is a DELIBERATE DIVERGENCE, not
+//!    a Gson nulls-parity claim: Java EMITS those keys with real
+//!    payloads (they are never null in this flow), the harness mirror
+//!    reader ignores them, and T13 chooses not to emit them.
+//!    `settings_snapshot`/`bounds` fall in the same bucket (Java emits
+//!    both — non-null whenever the job ran); `optimizer_score`'s
+//!    absence reflects the missing T13 optimizer stage (brief-permitted
+//!    and SEAM-documented), not null-elision.
 //! 2. **The final-state mapping** follows the Java scheduler, not the
 //!    driver's internal stops: `Ok(true)` -> COMPLETED; `Ok(false)` is
 //!    CANCELLED only for an EXTERNAL stop (`StopReason::UserStop`) —
@@ -24,6 +29,7 @@
 use epic_board::board::Board;
 use epic_board::items::{FixedState, ItemData};
 use epic_board::tree_manager::SearchTreeManager;
+use epic_drc::clearance::all_clearance_violations;
 use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
 use epic_dsn::ses_board::{ItemIr, SesBoard};
@@ -347,6 +353,36 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// The manifest's clearance-violations face (`BoardStatistics.java:
+/// 390-393`): `routerIntroducedCount = max(0, total - preExisting)`,
+/// with the pre-existing side seeded at load (the flow's step 2b,
+/// `HeadlessBoardManager.java:793`) — a board that LOADS with
+/// violations must not report them as router-introduced. Separated
+/// from the flow so the subtraction face is directly pinnable.
+fn clearance_face(total_count: Option<i32>, pre_existing: i32) -> ManifestClearanceViolations {
+    let total = total_count.unwrap_or(0);
+    ManifestClearanceViolations {
+        total_count: i64::from(total),
+        // Java's face is Math.max(0, ...) — the floor is ZERO, not the
+        // i32::MIN that saturating_sub would give (caught by the PG3
+        // pin on the (3, 5) world).
+        router_introduced_count: 0.max(i64::from(total) - i64::from(pre_existing)),
+    }
+}
+
+/// Java `BoardFileDetails.getFilenameWithoutExtension`
+/// (`BoardFileDetails.java:205-210`): the name up to the LAST dot when
+/// it contains one, else unchanged. This — not the raw file name — is
+/// the job name Java hands `SesWriter.write` (`RoutingJob.java:519`), so
+/// the session scope's design face carries NO `.dsn` (the writer's
+/// `.replace(".dsn", ".ses")` is a no-op on it).
+fn filename_without_extension(filename: &str) -> &str {
+    match filename.rfind('.') {
+        Some(dot) => &filename[..dot],
+        None => filename,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // the flow
 // ---------------------------------------------------------------------------
@@ -407,14 +443,27 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     manager.reinsert_tree_items(&mut board);
     epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
 
+    // 2b. The load-time violation seed (`HeadlessBoardManager.java:
+    //     788-793`: `preExistingClearanceViolationsCount =
+    //     getAllClearanceViolations().size()` before any routing —
+    //     deferred to a background thread there, synchronous here, so
+    //     the manifest's router_introduced_count subtracts the REAL
+    //     load-time face and never reads the not-yet-measured 0).
+    let (pre_total, _) = all_clearance_violations(&mut manager, &mut board);
+    board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
+
     // 3. Resolve the settings: Default(0) -> Dsn(20) -> Cli(60), then
-    //    the unconditional geometry pass (bug-compat fact 1).
+    //    the merger's trailing validate() (SettingsMerger.java:189),
+    //    then the unconditional geometry pass (bug-compat fact 1).
     let dsn_layer = DsnLayer::from_metadata(
         ses.metadata.autoroute_settings.as_ref(),
         usize::try_from(ses.metadata.layer_count).unwrap_or(0),
     );
     let mut merged = MergedSettings::default();
     merged = merge(&merged, &dsn_layer, &args.layer);
+    for warning in crate::settings::validate(&mut merged) {
+        eprintln!("Warning: {warning}");
+    }
     apply_board_specific_optimizations(&mut merged, &board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
 
@@ -458,22 +507,25 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             maximum_count: i64::from(maximum_count),
         }
     });
-    let pre_existing = board.pre_existing_clearance_violations_count;
-    let clearance_total = stats.clearance_violations.total_count.unwrap_or(0);
-    let clearance_violations = Some(ManifestClearanceViolations {
-        total_count: i64::from(clearance_total),
-        router_introduced_count: i64::from(clearance_total.saturating_sub(pre_existing)),
-    });
+    let clearance_violations = Some(clearance_face(
+        stats.clearance_violations.total_count,
+        board.pre_existing_clearance_violations_count,
+    ));
     let last_counters = sink.last_counters.take();
 
     // 6. Project the routed items into the parse SES board and write
     //    the session file.
     project_routed_items(&board, &mut ses);
-    let design_name = dsn_path
+    // The SES design name is the job name WITHOUT extension
+    // (`RoutingJob.java:519` -> `SesWriter.write`: the writer's
+    // `.replace(".dsn", ".ses")` is a no-op on it, so no `.dsn` lands
+    // in the session scope). The MANIFEST keeps the raw input name —
+    // it identifies the input file.
+    let input_name = dsn_path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("board.dsn");
-    let ses_text = write_session(&ses, design_name);
+    let ses_text = write_session(&ses, filename_without_extension(input_name));
     std::fs::write(ses_path, ses_text)
         .map_err(|error| format!("cannot write session {}: {error}", ses_path.display()))?;
     let output_written = std::fs::metadata(ses_path)
@@ -494,7 +546,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         env!("CARGO_PKG_VERSION"),
         &std::env::var("FREEROUTING_GIT_SHA").unwrap_or_else(|_| "unknown".to_string()),
         ManifestFixture {
-            filename: Some(design_name),
+            filename: Some(input_name),
             sha256: Some(&sha256_hex(&bytes)),
         },
     );
@@ -730,7 +782,133 @@ mod tests {
         );
     }
 
-    /// The end-to-end smoke: the locator fixture, one pass, headless —
+    /// PG3 (review F3): the router_introduced face subtracts the
+    /// LOAD-TIME seed (`BoardStatistics.java:390-393` = max(0, total -
+    /// preExisting); the seed itself is the flow's step 2b,
+    /// `HeadlessBoardManager.java:793`). A board that loads with 5
+    /// violations and ends with 9 reports 4 router-introduced, NOT 9;
+    /// a post-route total BELOW the seed (router ripped up violating
+    /// load-time wiring) floors at 0; an unmeasured walk reports 0/0.
+    #[test]
+    fn router_introduced_subtracts_pre_existing_seed() {
+        let face = clearance_face(Some(9), 5);
+        assert_eq!(face.total_count, 9);
+        assert_eq!(face.router_introduced_count, 4);
+
+        let face = clearance_face(Some(3), 5);
+        assert_eq!(face.total_count, 3);
+        assert_eq!(face.router_introduced_count, 0, "saturating floor");
+
+        let face = clearance_face(None, 5);
+        assert_eq!((face.total_count, face.router_introduced_count), (0, 0));
+
+        let face = clearance_face(Some(7), 0);
+        assert_eq!(face.router_introduced_count, 7, "no seed -> all introduced");
+    }
+
+    /// F1 end-to-end (review F1): a NEGATIVE `max_passes` must route,
+    /// not silently skip — validate() resets it to 0 (= unlimited)
+    /// with a warn before the driver's router-enabled gate reads it.
+    /// Bounded with `max_items=1` so the witness stays cheap. Mutant
+    /// face: dropping the validate() call leaves -5 in the batch
+    /// settings, the gate reads it as router-disabled, and the run
+    /// "completes" having routed nothing (0 passes, 0 path rows).
+    #[test]
+    fn negative_max_passes_routes_after_validate_reset() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
+        );
+        let out_dir = std::env::temp_dir().join(format!("epic-t13-f1-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let ses_path = out_dir.join("out.ses");
+        let manifest_path = out_dir.join("out.json");
+
+        let argv = vec![
+            "-de".to_string(),
+            fixture_path.to_string(),
+            "-do".to_string(),
+            ses_path.to_string_lossy().into_owned(),
+            "--result-json".to_string(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--router.autorouter.max_passes=-5".to_string(),
+            "--router.autorouter.max_items=1".to_string(),
+        ];
+        let args = parse_route_args(&argv).expect("args parse");
+        let exit = run_route(&args).expect("route run");
+
+        assert_eq!(exit, 0, "the reset-to-unlimited face routes");
+        let manifest_text = std::fs::read_to_string(&manifest_path).expect("manifest written");
+        let value: serde_json::Value = serde_json::from_str(&manifest_text).expect("json");
+        assert_eq!(value["final_state"], "COMPLETED");
+        let passes = value
+            .pointer("/phases/autorouter/passes_completed")
+            .and_then(serde_json::Value::as_i64)
+            .expect("at least one pass ran (a dropped validate() leaves none)");
+        assert!(passes >= 1);
+
+        let ses_text = std::fs::read_to_string(&ses_path).expect("ses written");
+        assert!(
+            ses_text.contains("(path "),
+            "the board ROUTED (a dropped validate() leaves 0 path rows)"
+        );
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// F3 wiring witness (review F3/PG3): on a violation-bearing input
+    /// (harness/corpus/craft/drc-main.dsn, golden drc-0015 = 3
+    /// load-time violations) the manifest must NOT report the
+    /// load-time rows as router-introduced — the seed walk (flow step
+    /// 2b) runs BEFORE the driver, so `router_introduced < total`.
+    /// Mutant face: deleting the seed block leaves the count at 0 and
+    /// `router_introduced == total`.
+    #[test]
+    fn pre_existing_violations_seeded_from_load() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/corpus/craft/drc-main.dsn"
+        );
+        let out_dir = std::env::temp_dir().join(format!("epic-t13-f3-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let ses_path = out_dir.join("out.ses");
+        let manifest_path = out_dir.join("out.json");
+
+        let argv = vec![
+            "-de".to_string(),
+            fixture_path.to_string(),
+            "-do".to_string(),
+            ses_path.to_string_lossy().into_owned(),
+            "--result-json".to_string(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--router.autorouter.max_passes=1".to_string(),
+            "--router.autorouter.max_items=1".to_string(),
+        ];
+        let args = parse_route_args(&argv).expect("args parse");
+        let exit = run_route(&args).expect("route run");
+        assert_eq!(exit, 0);
+
+        let manifest_text = std::fs::read_to_string(&manifest_path).expect("manifest written");
+        let value: serde_json::Value = serde_json::from_str(&manifest_text).expect("json");
+        let total = value["board_statistics"]["clearance_violations"]["total_count"]
+            .as_i64()
+            .expect("total count present");
+        let introduced =
+            value["board_statistics"]["clearance_violations"]["router_introduced_count"]
+                .as_i64()
+                .expect("router-introduced count present");
+        assert!(
+            total >= 1,
+            "the craft board loads with violations (golden drc-0015 = 3), got {total}"
+        );
+        assert!(
+            introduced < total,
+            "load-time rows must be excluded from router_introduced \
+             (a deleted-seed mutant reports {introduced} == {total})"
+        );
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
     /// SES written + parses, manifest fields asserted, exit 0.
     #[test]
     fn smoke_route_locator_fixture() {
@@ -783,8 +961,19 @@ mod tests {
         // M1b reader is DSN-only — so the assertion is on the emitted
         // text, matching the Java session shape).
         let ses_text = std::fs::read_to_string(&ses_path).expect("ses written");
-        assert!(ses_text.contains("(session"), "session header");
-        assert!(ses_text.contains("t9_locator45"), "design name present");
+        // F4 face: the job name carries NO extension — the stripped
+        // name in BOTH the session header and the base_design row
+        // (RoutingJob.java:519 -> SesWriter.write), and no ".dsn"
+        // anywhere in the emitted document.
+        assert!(
+            ses_text.starts_with("(session \"t9_locator45\""),
+            "session header carries the extension-less job name: {ses_text:.80}"
+        );
+        assert!(
+            ses_text.contains("(base_design \"t9_locator45\")"),
+            "base_design row carries the extension-less name"
+        );
+        assert!(!ses_text.contains(".dsn"), "no .dsn in the session");
         let routed_rows = ses_text.matches("(path ").count();
         assert!(
             routed_rows >= 1,

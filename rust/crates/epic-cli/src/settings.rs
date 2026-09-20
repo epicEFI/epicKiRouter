@@ -343,7 +343,12 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
                 .to_string(),
             ),
             "lower_bound" | "lower-bound" => Some("V2_LOWER_BOUND".to_string()),
-            _ => Some(value.trim().to_uppercase()),
+            // Java's default arm passes the value RAW to valueOf
+            // (`CliSettings.java:142` `default -> value`) — only the
+            // alias table above is case-insensitive; a mixed-case
+            // constant (`V2_Continuous`) or padded value fails valueOf
+            // and warns with the field unset.
+            _ => Some(value.to_string()),
         };
         match constant.as_deref() {
             Some("V1_LEGACY") => {
@@ -777,6 +782,69 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
         merged.router_scoring.version = v;
     }
     merged
+}
+
+/// Java `RouterSettings.validate()` (`RouterSettings.java:938-977`) —
+/// the merger's TRAILING step (`SettingsMerger.java:189`
+/// `mergedSettings.validate()`), which the flow runs immediately after
+/// [`merge`] and BEFORE
+/// [`apply_board_specific_optimizations`]. Normalizes the merged
+/// values in place and returns the warn rows in emission order:
+///
+/// * `maxPasses` `< 0`, or `> 9999` when not the `i32::MAX` sentinel,
+///   warns and resets to 0 (= unlimited).
+/// * `maxThreads`: `None` takes the default `max(1, cores - 1)`
+///   (`defaultMaxThreads`, `:127-129`); `< 0` warns and takes the
+///   default; `> cores` warns and caps (0 survives — Java only
+///   rejects the two faces).
+/// * `tracePullTightAccuracy` `< 1` warns and resets to 500 (Java
+///   unboxes directly; the merged flow always carries the
+///   DefaultSettings 500, so the `None` arm is deserialization armor).
+#[must_use]
+pub fn validate(merged: &mut MergedSettings) -> Vec<String> {
+    let mut warnings = Vec::new();
+
+    if let Some(max_passes) = merged.max_passes
+        && (max_passes < 0 || (max_passes > 9999 && max_passes != i32::MAX))
+    {
+        warnings.push(format!(
+            "Invalid maxPasses value: {max_passes}, using default 0 (no limit)"
+        ));
+        merged.max_passes = Some(0);
+    }
+
+    let available = {
+        let cores =
+            std::thread::available_parallelism().map_or(1usize, std::num::NonZeroUsize::get);
+        i32::try_from(cores).unwrap_or(i32::MAX)
+    };
+    let default_max_threads = (available - 1).max(1);
+    match merged.max_threads {
+        None => merged.max_threads = Some(default_max_threads),
+        Some(value) if value < 0 => {
+            warnings.push(format!(
+                "Invalid maxThreads value: {value}, using {default_max_threads}"
+            ));
+            merged.max_threads = Some(default_max_threads);
+        }
+        Some(value) if value > available => {
+            warnings.push(format!(
+                "Invalid maxThreads value: {value}, capping at {available}"
+            ));
+            merged.max_threads = Some(available);
+        }
+        Some(_) => {}
+    }
+
+    let accuracy = merged.trace_pull_tight_accuracy.unwrap_or(0);
+    if accuracy < 1 {
+        warnings.push(format!(
+            "Invalid tracePullTightAccuracy value: {accuracy}, using default 500"
+        ));
+        merged.trace_pull_tight_accuracy = Some(500);
+    }
+
+    warnings
 }
 
 /// `RouterSettings.applyBoardSpecificOptimizations`
@@ -1622,5 +1690,251 @@ mod tests {
         let router_scoring = default_router_score_settings();
         assert_eq!(router_scoring.version, RouterScoringVersion::V2Continuous);
         assert_eq!(router_scoring.unrouted_free_fraction, Some(0.5));
+    }
+
+    // -------------------------------------------------------------------
+    // the fix-round pins (spec review F1/F2, PG1/PG2)
+    // -------------------------------------------------------------------
+
+    /// F1: the merger's trailing validate() (`RouterSettings.java:
+    /// 938-977`). A negative maxPasses (or one over 9999 that is not
+    /// the MAX sentinel) warns and resets to 0 = UNLIMITED — the
+    /// driver's router-enabled gate then routes, which the flow-level
+    /// witness in route.rs covers end-to-end. maxThreads normalizes
+    /// (default / negative / over-cap; 0 survives); accuracy < 1
+    /// resets to 500.
+    #[test]
+    fn validate_resets_max_passes_threads_and_accuracy() {
+        // Negative maxPasses: warn + reset to 0.
+        let mut merged = MergedSettings {
+            max_passes: Some(-5),
+            ..MergedSettings::default()
+        };
+        let warnings = validate(&mut merged);
+        assert_eq!(merged.max_passes, Some(0), "negative resets to unlimited");
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("Invalid maxPasses value: -5") && w.contains("no limit")),
+            "warn verbatim: {warnings:?}"
+        );
+
+        // Over 9999 (not the MAX sentinel) resets too.
+        let mut merged = MergedSettings {
+            max_passes: Some(10_000),
+            ..MergedSettings::default()
+        };
+        let warnings = validate(&mut merged);
+        assert_eq!(merged.max_passes, Some(0));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("maxPasses value: 10000"))
+        );
+
+        // 9999 and the i32::MAX sentinel survive untouched, no warn.
+        let mut merged = MergedSettings {
+            max_passes: Some(9999),
+            ..MergedSettings::default()
+        };
+        assert!(validate(&mut merged).is_empty());
+        assert_eq!(merged.max_passes, Some(9999));
+        let mut merged = MergedSettings {
+            max_passes: Some(i32::MAX),
+            ..MergedSettings::default()
+        };
+        assert!(validate(&mut merged).is_empty());
+
+        // maxThreads: default fill for None; negative -> default
+        // max(1, cores - 1); over-cap -> capped at cores; 0 survives.
+        let cores = std::thread::available_parallelism().map_or(1usize, |n| n.get());
+        let available = i32::try_from(cores).unwrap_or(i32::MAX);
+        let default_max_threads = (available - 1).max(1);
+        let mut merged = MergedSettings {
+            max_threads: Some(-2),
+            ..MergedSettings::default()
+        };
+        let warnings = validate(&mut merged);
+        assert_eq!(merged.max_threads, Some(default_max_threads));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("Invalid maxThreads value: -2, using "))
+        );
+        let mut merged = MergedSettings {
+            max_threads: Some(available.saturating_add(1)),
+            ..MergedSettings::default()
+        };
+        let warnings = validate(&mut merged);
+        assert_eq!(merged.max_threads, Some(available));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains(&format!(", capping at {available}")))
+        );
+        let mut merged = MergedSettings {
+            max_threads: Some(0),
+            ..MergedSettings::default()
+        };
+        assert!(validate(&mut merged).is_empty());
+        assert_eq!(merged.max_threads, Some(0));
+
+        // tracePullTightAccuracy < 1: warn + reset 500.
+        let mut merged = MergedSettings {
+            trace_pull_tight_accuracy: Some(0),
+            ..MergedSettings::default()
+        };
+        let warnings = validate(&mut merged);
+        assert_eq!(merged.trace_pull_tight_accuracy, Some(500));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("Invalid tracePullTightAccuracy value: 0, using default 500"))
+        );
+    }
+
+    /// F2: the scoring-version DEFAULT arm passes the value RAW to
+    /// valueOf (`CliSettings.java:142`) — a mixed-case constant
+    /// (`V2_Continuous`) and non-alias lowercase junk warn with the
+    /// field UNSET; only the alias table is case-insensitive; an
+    /// exactly-typed constant name applies through the raw arm.
+    #[test]
+    fn scoring_version_default_arm_is_raw() {
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "-scoring-version",
+            "V2_Continuous",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.layer.router_scoring_version, None);
+        assert_eq!(parsed.layer.optimizer_scoring_version, None);
+        assert!(
+            parsed
+                .layer
+                .warnings
+                .iter()
+                .any(|w| w.contains("V2_Continuous")),
+            "mixed case warns: {:?}",
+            parsed.layer.warnings
+        );
+
+        // Lowercase non-alias junk: raw to valueOf -> warn + unset
+        // (the OLD Rust uppercased it into a silent hit).
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "-scoring-version",
+            "v2_continuous",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.layer.router_scoring_version, None);
+        assert!(
+            parsed
+                .layer
+                .warnings
+                .iter()
+                .any(|w| w.contains("v2_continuous"))
+        );
+
+        // An exactly-typed constant name applies through the raw arm.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "-router-scoring-version",
+            "V2_CONTINUOUS",
+        ]))
+        .expect("parses");
+        assert_eq!(
+            parsed.layer.router_scoring_version,
+            Some(RouterScoringVersion::V2Continuous)
+        );
+        assert!(parsed.layer.warnings.is_empty());
+    }
+
+    /// PG1: non-signal layers are FORCE-DISABLED by the geometry pass
+    /// (`RouterSettings.java:341-343`) — a power slot resolves
+    /// routable Some(false) although no DSN opinion spoke, while the
+    /// signal slots fill Some(true); the direction alternation toggles
+    /// per SIGNAL layer only (the power slot inherits the current
+    /// direction without toggling), and a 2-signal board takes no
+    /// outer surcharge.
+    #[test]
+    fn geometry_pass_force_disables_non_signal_layers() {
+        let mut ses = SesBoard::new();
+        ses.create_board(CreateBoardIr {
+            bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(100_000, 50_000)),
+            layer_structure: LayerStructure::new(vec![
+                Layer::new("S1", 0, true),
+                Layer::new("PWR", 1, false),
+                Layer::new("S2", 2, true),
+            ]),
+            outline_shapes: Vec::new(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: BoardRulesIr::new(3),
+            transform: CoordinateTransform::new(10.0, 0.0, 0.0),
+        });
+        let board = Board::from_ses_board(&ses);
+        let mut merged = MergedSettings::default();
+        apply_board_specific_optimizations(&mut merged, &board);
+
+        assert_eq!(merged.layers[0].routable, Some(true));
+        assert_eq!(
+            merged.layers[1].routable,
+            Some(false),
+            "the power slot is force-disabled"
+        );
+        assert_eq!(merged.layers[2].routable, Some(true));
+
+        // Direction: seed hw<vw = false; L0 signal toggles -> true;
+        // PWR inherits true WITHOUT toggling; L2 signal toggles ->
+        // false.
+        let directions: Vec<bool> = merged
+            .layers
+            .iter()
+            .map(|slot| slot.preferred_direction_is_horizontal.expect("filled"))
+            .collect();
+        assert_eq!(directions, vec![true, true, false]);
+
+        // 2 signal layers -> no outer surcharge; undesired costs ride
+        // the direction face (L0/L1 horizontal +2.0, L2 vertical
+        // +0.5) — L1's cost row is DERIVED like any other row even
+        // though the slot is disabled.
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        let costs: Vec<(f64, f64)> = resolved
+            .router_settings
+            .trace_costs
+            .iter()
+            .map(|factor| (factor.horizontal, factor.vertical))
+            .collect();
+        assert_eq!(costs[0], (1.0, 3.0));
+        assert_eq!(costs[1], (1.0, 3.0));
+        assert_eq!(costs[2], (1.5, 1.0));
+    }
+
+    /// PG2: an unknown SHORT flag is SILENTLY skipped (`CliSettings.
+    /// java:90-96` + `mapFlagToProperty`'s null face) — no error, no
+    /// warning, and its operand is consumed by the `-flag value` rule
+    /// (it never leaks into a later position or a setting).
+    #[test]
+    fn unknown_short_flag_is_silently_skipped() {
+        let parsed = parse_route_args(&args(&["-zz", "3", "-de", "a.dsn", "-do", "b.ses"]))
+            .expect("an unknown short flag must not error");
+        assert!(
+            parsed.layer.warnings.is_empty(),
+            "silent skip: {:?}",
+            parsed.layer.warnings
+        );
+        assert!(parsed.batch_mode());
+        assert_eq!(
+            parsed.layer.max_passes, None,
+            "the -zz operand was consumed, not applied"
+        );
     }
 }
