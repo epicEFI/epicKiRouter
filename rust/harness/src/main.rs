@@ -876,6 +876,12 @@ mod tests {
         let raw = std::fs::read_to_string(&record_path).expect("full-flow record written");
         let record: BaselineRecord = serde_json::from_str(&raw).expect("parses");
         assert_eq!(record.profile, None, "full-flow record carries no marker");
+        // The repo-relative path T15 keys baselines on (distill gets
+        // fixtures_root_raw joined with the tier fixture path).
+        assert_eq!(
+            record.fixture,
+            "scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn"
+        );
         assert_eq!(record.engine, "java");
         assert_eq!(record.final_state, "COMPLETED");
         assert_eq!(record.exit_code, Some(0));
