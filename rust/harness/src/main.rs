@@ -282,6 +282,17 @@ fn run() -> Result<()> {
                             fixture.path, tier.name
                         )
                     })?;
+                    // Defense symmetry with capture (quality-review MINOR-3):
+                    // the verify re-run is proved stages-off under the
+                    // router-only profile BEFORE its record is distilled, so
+                    // a disable flag dropped at this call site fails here —
+                    // even on fixtures where the stages don't bind (bm08/
+                    // ecc83 verify green either way on the numbers alone).
+                    if let Some(manifest) = run.manifest.as_ref() {
+                        profile.assert_stages_off(manifest).with_context(|| {
+                            format!("verify run for {} (tier {})", fixture.path, tier.name)
+                        })?;
+                    }
                     let actual = baseline::distill_profiled(
                         profile.marker(),
                         &fixtures_rel.join(&fixture.path).to_string_lossy(),
@@ -462,9 +473,12 @@ fn capture_tier(
         // the router-only profile, a typo'd or dropped disable flag would
         // silently capture a full-flow baseline into the router-only
         // directory — the gate makes that fail fast, per fixture, on BOTH
-        // double-runs.
+        // double-runs. Scoped BY PROFILE (quality-review MAJOR-1): a
+        // full-flow manifest legitimately carries the stage faces, so the
+        // gate must never fire for FullFlow (the ungated call site broke
+        // every default capture).
         if let Some(manifest) = run.manifest.as_ref() {
-            oracle::assert_router_only_manifest(manifest).with_context(|| {
+            profile.assert_stages_off(manifest).with_context(|| {
                 format!(
                     "fixture {} captured under profile {:?}",
                     fixture.path,
@@ -498,7 +512,7 @@ fn capture_tier(
                 )
             })?;
             if let Some(manifest) = run2.manifest.as_ref() {
-                oracle::assert_router_only_manifest(manifest).with_context(|| {
+                profile.assert_stages_off(manifest).with_context(|| {
                     format!(
                         "fixture {} double-run under profile router-only",
                         fixture.path
@@ -770,7 +784,9 @@ mod tests {
         )
         .expect("oracle run");
         let manifest = run.manifest.as_ref().expect("manifest written");
-        oracle::assert_router_only_manifest(manifest).expect("stages proven off");
+        oracle::OracleProfile::RouterOnly
+            .assert_stages_off(manifest)
+            .expect("stages proven off");
 
         let actual = baseline::distill_profiled(
             oracle::OracleProfile::RouterOnly.marker(),
@@ -795,6 +811,83 @@ mod tests {
                 actual: None,
             }]
         );
+
+        // Prove-off-side face (quality-review MINOR-3): a disable flag
+        // dropped AT the verify call site shows up as stages-on faces under
+        // the router-only profile — the profile-scoped gate must reject it
+        // before compare, while the SAME manifest is legitimate under
+        // FullFlow (a full-flow verify runs the stages).
+        let mut stages_on = manifest.clone();
+        stages_on.phases.optimizer.duration_seconds = Some(4.37);
+        let err = oracle::OracleProfile::RouterOnly
+            .assert_stages_off(&stages_on)
+            .expect_err("stages-on manifest must fail the router-only verify gate");
+        assert!(
+            err.to_string().contains("PROVE-stages-off"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            oracle::OracleProfile::FullFlow
+                .assert_stages_off(&stages_on)
+                .is_ok(),
+            "a full-flow verify must not be gated by the prove-off gate"
+        );
+    }
+
+    /// MAJOR-1 regression witness (quality review Probe A): the DEFAULT
+    /// full-flow capture path must work end to end — `capture_tier` scopes
+    /// the prove-off gate to RouterOnly, so a stages-on manifest is
+    /// legitimate here and the sanctioned regeneration path for
+    /// `baselines/java/` stays alive. Also the first pin reaching
+    /// `capture_tier` itself. Requires the jar + JDK 25; run explicitly
+    /// with `cargo test -- --ignored`.
+    #[test]
+    #[ignore]
+    fn full_flow_capture_tier_writes_a_correct_record_and_stays_green() {
+        let root = oracle::find_repo_root().expect("repo root");
+        let java = oracle::resolve_java().expect("resolving java");
+        let jar = oracle::jar_path(&root);
+        let scratch = std::env::temp_dir().join("epic-harness-full-flow-capture-test");
+        let baselines_root = scratch.join("baselines/java");
+        let runs_root = scratch.join("runs");
+        let tier = Tier {
+            name: "A".into(),
+            fixtures: vec![FixtureRef {
+                path: "DAC2020_boards/DAC2020_bm08.dsn".into(),
+                timeout_seconds: 120,
+            }],
+        };
+        capture_tier(
+            &tier,
+            &root.join("scripts/benchmark/fixtures"),
+            Path::new("scripts/benchmark/fixtures"),
+            &java,
+            &jar,
+            &baselines_root,
+            &runs_root,
+            "4g",
+            oracle::OracleProfile::FullFlow,
+        )
+        .expect("full-flow capture must not bail on stages-on manifests (MAJOR-1)");
+
+        let record_path = baselines_root
+            .join("A")
+            .join("DAC2020_boards/DAC2020_bm08.dsn.baseline.json");
+        let raw = std::fs::read_to_string(&record_path).expect("full-flow record written");
+        let record: BaselineRecord = serde_json::from_str(&raw).expect("parses");
+        assert_eq!(record.profile, None, "full-flow record carries no marker");
+        assert_eq!(record.engine, "java");
+        assert_eq!(record.final_state, "COMPLETED");
+        assert_eq!(record.exit_code, Some(0));
+        assert!(
+            record.optimizer_score.is_some() && record.optimizer_seconds.is_some(),
+            "a full-flow record must carry POPULATED optimizer faces"
+        );
+        assert!(record.ses_sha256.is_some());
+        // notes=None proves the capture ran clean (no race note, no
+        // degraded/infra-suspect acknowledgement demanded).
+        assert_eq!(record.notes, None);
+        let _ = std::fs::remove_dir_all(&scratch);
     }
 
     /// Fully-populated parity manifest for the diff_double_runs pins: every

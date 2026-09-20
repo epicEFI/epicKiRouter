@@ -278,7 +278,7 @@ mod tests {
           },
           "board_statistics": {
             "connections": { "incomplete_count": 2, "maximum_count": 50 },
-            "clearance_violations": { "total_count": 1, "router_introduced_count": 1 }
+            "clearance_violations": { "total_count": 2, "router_introduced_count": 1 }
           },
           "normalized_score": 990.0,
           "optimizer_score": 980.0,
@@ -314,9 +314,15 @@ mod tests {
         assert_eq!(b.final_state, "COMPLETED");
         assert_eq!(b.incomplete_count, Some(2));
         assert_eq!(b.maximum_count, Some(50));
-        assert_eq!(b.clearance_violations_total, Some(1));
+        // Non-degenerate world (total=2, introduced=1): an extraction swap
+        // (introduced <- total, mutant Q2) cannot hide behind equal values.
+        assert_eq!(b.clearance_violations_total, Some(2));
+        assert_eq!(b.clearance_router_introduced, Some(1));
         assert_eq!(b.normalized_score, Some(990.0));
         assert_eq!(b.autorouter_seconds, Some(10.0));
+        // Never-asserted before the quality review (mutant Q2b survived the
+        // whole suite): the optimizer-phase duration extraction.
+        assert_eq!(b.optimizer_seconds, Some(5.0));
         assert_eq!(b.passes_completed, Some(20));
         assert_eq!(b.ses_sha256, None); // ses file does not exist in test
         assert_eq!(b.profile, None); // full-flow default

@@ -123,6 +123,22 @@ pub fn assert_router_only_manifest(manifest: &RoutingResultManifest) -> Result<(
     }
 }
 
+impl OracleProfile {
+    /// The PROVE-stages-off gate, SCOPED BY PROFILE: only `RouterOnly` has
+    /// disabled stages to prove, so only it gates. A full-flow manifest
+    /// necessarily carries optimizer/fanout faces, which is why an
+    /// unconditional call site bailed every default `capture` after a
+    /// successful run (quality-review MAJOR-1, live-witnessed) — folding the
+    /// profile decision into the gate itself makes that mis-scoping
+    /// unrepresentable at any call site, capture or verify.
+    pub fn assert_stages_off(self, manifest: &RoutingResultManifest) -> Result<()> {
+        match self {
+            Self::FullFlow => Ok(()),
+            Self::RouterOnly => assert_router_only_manifest(manifest),
+        }
+    }
+}
+
 /// Where results of one oracle invocation land.
 #[derive(Debug)]
 pub struct OracleRun {
@@ -430,6 +446,14 @@ mod tests {
         );
         assert!(run.manifest_error.is_none());
         assert!(!run.manifest_path.is_file());
+        // The stale-SES face is the worse hazard: a reused work dir that
+        // keeps the previous run's SES lets distill_profiled hash STALE
+        // bytes into the record (and the double-run diff compare
+        // fresh-vs-stale digests). The file must be gone with the manifest.
+        assert!(
+            !run.ses_path.is_file(),
+            "stale ses must be removed, not left for the next distill to hash"
+        );
         let _ = std::fs::remove_file(&stale_manifest);
         let _ = std::fs::remove_file(&stale_ses);
     }
@@ -609,6 +633,70 @@ mod tests {
         assert!(
             err.to_string().contains("unknown profile"),
             "unexpected error: {err}"
+        );
+    }
+
+    /// The gate is SCOPED BY PROFILE (quality-review MAJOR-1): a full-flow
+    /// capture must sail through on a stages-on manifest (the ungated call
+    /// site bailed every default capture after a successful run), while the
+    /// SAME manifest under RouterOnly is the flag-drop signature. Both
+    /// directions of the scoping decision are pinned; the mutants (FullFlow
+    /// gated too / RouterOnly no-op) die here.
+    #[test]
+    fn stages_off_gate_is_profile_scoped() {
+        let stages_on: RoutingResultManifest = serde_json::from_str(
+            r#"{
+              "schema_version": 1,
+              "app_version": "t",
+              "git_sha": "abc123",
+              "fixture": {},
+              "phases": {
+                "fanout": { "duration_seconds": 0.53 },
+                "autorouter": { "duration_seconds": 3.0, "passes_completed": 2 },
+                "optimizer": { "duration_seconds": 4.37, "passes_completed": 2 }
+              },
+              "optimizer_score": 823.79,
+              "final_state": "COMPLETED",
+              "exit_code": 0,
+              "output_written": true
+            }"#,
+        )
+        .expect("parses");
+        // FullFlow face: stages-on is the LEGITIMATE full-flow shape — no
+        // gate, ever, regardless of what the manifest carries.
+        assert!(
+            OracleProfile::FullFlow
+                .assert_stages_off(&stages_on)
+                .is_ok(),
+            "full-flow capture must never be gated by the prove-off gate"
+        );
+        // RouterOnly face: the same manifest means a disable flag was
+        // dropped — the gate must reject and name the faces.
+        let err = OracleProfile::RouterOnly
+            .assert_stages_off(&stages_on)
+            .expect_err("stages-on manifest must fail the router-only gate");
+        let msg = err.to_string();
+        assert!(msg.contains("PROVE-stages-off"), "unexpected error: {msg}");
+        assert!(msg.contains("optimizer") && msg.contains("fanout"), "{msg}");
+
+        // All-clear router-only shape passes its own profile's gate.
+        let all_clear: RoutingResultManifest = serde_json::from_str(
+            r#"{
+              "schema_version": 1,
+              "app_version": "t",
+              "git_sha": "abc123",
+              "fixture": {},
+              "phases": { "fanout": {}, "autorouter": {}, "optimizer": {} },
+              "final_state": "COMPLETED",
+              "exit_code": 0,
+              "output_written": true
+            }"#,
+        )
+        .expect("parses");
+        assert!(
+            OracleProfile::RouterOnly
+                .assert_stages_off(&all_clear)
+                .is_ok()
         );
     }
 
