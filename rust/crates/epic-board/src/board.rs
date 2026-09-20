@@ -498,6 +498,36 @@ impl Board {
         }
     }
 
+    /// Java `BasicBoard.getSmdPins().size()` (`:661-664` via
+    /// `BoardItemRepository.getSmdPins` `:94-102`): the ON-BOARD pins
+    /// whose (mirrored) layer span is single-layer —
+    /// `firstLayer() == lastLayer()`. The batch driver's fanout
+    /// pre-pass rows read the count (`AutorouteBatchLoop.java:86-90`
+    /// debug row, `:100-103` skip row); netless pins count here
+    /// exactly as in Java (the net-connected filter is BatchFanout's
+    /// own, one block deeper).
+    pub fn smd_pin_count(&self) -> usize {
+        self.iter_ascending()
+            .filter(|entry| entry.on_the_board)
+            .filter(|entry| {
+                let ItemData::Pin { padstack_no, .. } = &entry.data else {
+                    return false;
+                };
+                let Some(component) = u32::try_from(entry.component_id)
+                    .ok()
+                    .and_then(|cid| self.components().get(cid))
+                else {
+                    return false;
+                };
+                let Some(padstack) = self.library().padstack(*padstack_no) else {
+                    return false;
+                };
+                crate::components::pin_first_layer(component, padstack)
+                    == crate::components::pin_last_layer(component, padstack)
+            })
+            .count()
+    }
+
     /// The T12 board-hash walk over `itemList`'s reachable node graph
     /// (see [`UndoableObjects::digest_walk`]). The field is
     /// `pub(crate)`; this is the public read face the pipeline hash

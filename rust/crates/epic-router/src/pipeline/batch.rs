@@ -5,7 +5,9 @@
 //! the pass loop ([`BatchDriver::run`]) with the board-history
 //! restore gate, the pass-local + global stagnation trackers, and the
 //! task-state events. The fanout pre-pass stage (Java `:86-246`) is
-//! the M4 seam — the gate is kept as a documented no-op.
+//! the M4 seam — the gate is kept, the stage body is a documented
+//! no-op, and the stage's two pre-pass log rows are live (see the
+//! bank below).
 //!
 //! ## Banks (SEAM carries the dossier)
 //!
@@ -15,10 +17,11 @@
 //!   change per-pass"); only the `clear()` calls survive. The port
 //!   keeps the doc, drops the field (a live unused field would trip
 //!   `dead_code`).
-//! * **The fanout pre-pass stage is the M4 seam.** The
-//!   `settings.fanout_enabled` gate is kept; the stage body (SMD pin
-//!   collection, `BatchFanout`, the recovery bookkeeping) lands in
-//!   M4. The `fanout_timed_out` job flag rides with it.
+//! * **The fanout pre-pass stage is the M4 seam.** The stage body
+//!   (SMD pin collection, `BatchFanout`, the recovery bookkeeping)
+//!   lands in M4 — its OBSERVABILITY faces are live here (the
+//!   `:86-90` check row and the `:100-103` empty-SMD skip row).
+//!   The `fanout_timed_out` job flag rides with the stage.
 //! * **`IllegalArgumentException` → `Result`.** Java's run abort
 //!   (`:59-61`) throws after emitting the CANCELLED event; the port
 //!   returns [`BatchLoopError::NoActiveSignalLayers`] with the same
@@ -353,11 +356,23 @@ impl<'a> BatchDriver<'a> {
         // host's summary rendering is banked; the count is kept).
         let _initial_unrouted_count = self.calculate_incomplete_count();
 
-        // The fanout pre-pass stage (Java `:86-246`) is the M4 seam:
-        // the gate is kept, the stage is a documented no-op here.
-        let _ = self.settings.fanout_enabled;
-
         let mut history = BoardHistory::new(self.settings.scoring.clone());
+
+        // The fanout pre-pass stage (Java `:86-246`) is the M4 seam:
+        // the STAGE body (BatchFanout + recovery bookkeeping) lands in
+        // M4. Its observability faces are live here: Java `:86-90`
+        // fires the check row unconditionally (before any
+        // router-enabled gate), and `:100-103` fires the skip row when
+        // fanout is enabled and the board has no SMD pins.
+        let smd_pins = self.board.smd_pin_count();
+        sink.debug(&format!(
+            "Checking fanout pre-pass. settings.fanout.enabled={}, smdPins={}",
+            self.settings.fanout_enabled, smd_pins
+        ));
+        if self.settings.fanout_enabled && smd_pins == 0 {
+            sink.info("Fanout stage is enabled but skipped because the board has no SMD pins.");
+        }
+
         // Java `:249-252`.
         let is_router_enabled = self.settings.run_router
             && (self.settings.max_passes.is_none()
@@ -1025,6 +1040,62 @@ mod tests {
             "cancelled before any pass: {states_text}"
         );
         assert_eq!(states_text.lines().count(), 1, "no STARTED/RUNNING events");
+    }
+
+    /// The fanout pre-pass OBSERVABILITY faces (Java `AutorouteBatchLoop
+    /// :86-90` + `:100-103`): the check row fires UNCONDITIONALLY (even
+    /// with the router disabled via `maxPasses < 0`), the skip row only
+    /// when fanout is enabled AND the board has no SMD pins. World 1:
+    /// all pins removed → `smdPins=0` + the skip row. World 2 (positive
+    /// control, the bare fixture): the check row carries the real SMD
+    /// count (100 — the M4 dossier's "4/100") and NO skip row.
+    #[test]
+    fn t12_driver_fanout_pre_pass_rows() {
+        let (mut manager, mut board) = parse_fixture();
+        let pins: Vec<ItemId> = board
+            .iter_ascending()
+            .filter(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.id)
+            .collect();
+        for id in pins {
+            manager.remove(&mut board, id);
+            board.remove_item(id);
+        }
+        let mut settings = starved_settings();
+        settings.max_passes = Some(-1); // router disabled; the rows fire anyway
+        let mut sink = CaptureDriverSink::default();
+        let mut driver = BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
+        let outcome = driver.run(&mut sink).expect("run completes");
+        assert!(outcome, "no stop source");
+        let debug = sink.joined("debug");
+        assert!(
+            debug.contains("Checking fanout pre-pass. settings.fanout.enabled=true, smdPins=0"),
+            "the unconditional check row: {debug}"
+        );
+        assert!(
+            sink.any_contains(
+                "Fanout stage is enabled but skipped because the board has no SMD pins."
+            ),
+            "the empty-SMD skip row: {debug}"
+        );
+
+        // Positive control: the bare fixture keeps its 100 SMD pins —
+        // the check row fires with the real count, no skip row.
+        let (mut manager, mut board) = parse_fixture();
+        let mut settings = starved_settings();
+        settings.max_passes = Some(-1);
+        let mut sink = CaptureDriverSink::default();
+        let mut driver = BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
+        driver.run(&mut sink).expect("run completes");
+        let debug = sink.joined("debug");
+        assert!(
+            debug.contains("Checking fanout pre-pass. settings.fanout.enabled=true, smdPins=100"),
+            "the check row carries the real SMD count: {debug}"
+        );
+        assert!(
+            !sink.any_contains("Fanout stage is enabled but skipped"),
+            "no skip row with SMD pins present: {debug}"
+        );
     }
 
     /// The `currentPass > maxPasses` gate (`:308-313`): passes 1..3 run,
