@@ -1756,10 +1756,14 @@ mod tests {
         };
         let warnings = validate(&mut merged);
         assert_eq!(merged.max_threads, Some(default_max_threads));
+        // The FULL Java text carries the numeric default
+        // (RouterSettings.java:958-961) — a prefix-only assert accepted
+        // a "using default" mutant.
         assert!(
             warnings
                 .iter()
-                .any(|w| w.contains("Invalid maxThreads value: -2, using "))
+                .any(|w| *w == format!("Invalid maxThreads value: -2, using {default_max_threads}")),
+            "warn verbatim: {warnings:?}"
         );
         let mut merged = MergedSettings {
             max_threads: Some(available.saturating_add(1)),
@@ -1936,5 +1940,143 @@ mod tests {
             parsed.layer.max_passes, None,
             "the -zz operand was consumed, not applied"
         );
+    }
+
+    // -------------------------------------------------------------------
+    // the quality-round pins (review Q5, Q10c)
+    // -------------------------------------------------------------------
+
+    /// Q5 (quality review): the merge is EXHAUSTIVE — every CliLayer
+    /// and DsnLayer field lands in the merged model. A deleted copy arm
+    /// (the `dsn.run_optimizer` mutant passed the whole suite before
+    /// this pin) is a loud failure here, which is the exhaustiveness
+    /// the hand-rolled merge lacks before M4 grows it.
+    #[test]
+    fn merge_copies_every_field_from_both_layers() {
+        // The DSN face: every DsnLayer field distinct from the default.
+        let dsn = DsnLayer {
+            run_router: Some(false),
+            run_optimizer: Some(false),
+            vias_allowed: Some(false),
+            via_costs: Some(7),
+            plane_via_costs: Some(8),
+            start_ripup_costs: Some(9),
+            layer_count: 1,
+            layers: vec![DsnLayerSlot {
+                routable: Some(false),
+                preferred_direction_is_horizontal: Some(true),
+                bend_cost: None,
+            }],
+        };
+        let merged = merge(&MergedSettings::default(), &dsn, &CliLayer::default());
+        assert_eq!(merged.autorouter_enabled, Some(false), "dsn.run_router");
+        assert_eq!(merged.optimizer_enabled, Some(false), "dsn.run_optimizer");
+        assert_eq!(merged.vias_allowed, Some(false), "dsn.vias_allowed");
+        assert_eq!(merged.scoring.via_costs, Some(7), "dsn.via_costs");
+        assert_eq!(
+            merged.scoring.plane_via_costs,
+            Some(8),
+            "dsn.plane_via_costs"
+        );
+        assert_eq!(
+            merged.scoring.start_ripup_costs,
+            Some(9),
+            "dsn.start_ripup_costs"
+        );
+        assert_eq!(merged.layers.len(), 1, "dsn.layers");
+        assert_eq!(merged.layers[0].routable, Some(false));
+        assert_eq!(
+            merged.layers[0].preferred_direction_is_horizontal,
+            Some(true)
+        );
+
+        // The CLI face: every CliLayer merge-consumed field distinct.
+        let cli = CliLayer {
+            autorouter_enabled: Some(false),
+            max_passes: Some(3),
+            max_items: Some(44),
+            max_threads: Some(2),
+            improvement_threshold: Some(7.5),
+            router_scoring_version: Some(RouterScoringVersion::V1Legacy),
+            optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
+            vias_allowed: Some(true),
+            via_costs: Some(11),
+            plane_via_costs: Some(12),
+            start_ripup_costs: Some(13),
+            automatic_neckdown: Some(false),
+            trace_pull_tight_accuracy: Some(123),
+            strict_drc: Some(true),
+            fanout_enabled: Some(false),
+            warnings: Vec::new(),
+        };
+        let merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
+        assert_eq!(
+            merged.autorouter_enabled,
+            Some(false),
+            "cli.autorouter_enabled"
+        );
+        assert_eq!(merged.max_passes, Some(3), "cli.max_passes");
+        assert_eq!(merged.max_items, Some(44), "cli.max_items");
+        assert_eq!(merged.max_threads, Some(2), "cli.max_threads");
+        assert_eq!(
+            merged.improvement_threshold,
+            Some(7.5),
+            "cli.improvement_threshold"
+        );
+        assert_eq!(
+            merged.router_scoring.version,
+            RouterScoringVersion::V1Legacy,
+            "cli.router_scoring_version"
+        );
+        assert_eq!(merged.vias_allowed, Some(true), "cli.vias_allowed");
+        assert_eq!(
+            merged.automatic_neckdown,
+            Some(false),
+            "cli.automatic_neckdown"
+        );
+        assert_eq!(
+            merged.trace_pull_tight_accuracy,
+            Some(123),
+            "cli.trace_pull_tight_accuracy"
+        );
+        assert_eq!(merged.strict_drc, Some(true), "cli.strict_drc");
+        assert_eq!(merged.fanout_enabled, Some(false), "cli.fanout_enabled");
+        assert_eq!(merged.scoring.via_costs, Some(11), "cli.via_costs");
+        assert_eq!(
+            merged.scoring.plane_via_costs,
+            Some(12),
+            "cli.plane_via_costs"
+        );
+        assert_eq!(
+            merged.scoring.start_ripup_costs,
+            Some(13),
+            "cli.start_ripup_costs"
+        );
+        // optimizer_scoring_version deliberately has NO merge arm
+        // (parsed and banked for the optimizer milestone — module docs).
+
+        // Silence from BOTH layers reproduces the DefaultSettings seed
+        // exactly (copy-if-set never nulls and never invents).
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &CliLayer::default(),
+        );
+        assert_eq!(merged, MergedSettings::default());
+    }
+
+    /// Q10(c) (quality review): the `=` form of the manifest flag
+    /// parses too — the flow witnesses exercise only the space form.
+    #[test]
+    fn result_json_equals_form_parses() {
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--result-json=m.json",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.result_json.as_deref(), Some("m.json"));
     }
 }

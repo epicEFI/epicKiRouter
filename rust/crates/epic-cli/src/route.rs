@@ -29,7 +29,7 @@
 use epic_board::board::Board;
 use epic_board::items::{FixedState, ItemData};
 use epic_board::tree_manager::SearchTreeManager;
-use epic_drc::clearance::all_clearance_violations;
+use epic_drc::clearance::all_clearance_violation_depths;
 use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
 use epic_dsn::ses_board::{ItemIr, SesBoard};
@@ -183,6 +183,10 @@ pub struct RouteTelemetry {
     pub clearance_violations: Option<ManifestClearanceViolations>,
     /// The router score (`None` = the no-scoring-face gate).
     pub normalized_score: Option<f64>,
+    /// Whether a session file was actually written with content — the
+    /// flow's real write outcome (Java `fromJob`'s `outputWritten`,
+    /// `RoutingResultManifest.java:191`), not a constant.
+    pub output_written: bool,
 }
 
 /// The final-state mapping (module docs for the Java-scheduler rule).
@@ -251,8 +255,8 @@ pub fn render_manifest(
         // absent (the iff-gate).
         optimizer_score: None,
         final_state: &telemetry.final_state,
-        exit_code: exit_code_for(&telemetry.final_state, true),
-        output_written: true,
+        exit_code: exit_code_for(&telemetry.final_state, telemetry.output_written),
+        output_written: telemetry.output_written,
     };
     // Serialization of plain data cannot fail.
     serde_json::to_string(&manifest).expect("manifest serialization cannot fail")
@@ -370,6 +374,31 @@ fn clearance_face(total_count: Option<i32>, pre_existing: i32) -> ManifestCleara
     }
 }
 
+/// The `BatchSettings` assembly from the resolved product — the flow's
+/// step 4, separated so the wiring is directly pinnable. The
+/// load-bearing line is the job-ctor derivation
+/// `removeUnconnectedVias = !isFanoutEnabled()`: fanout-off ALSO flips
+/// the batch tail sweep, so a silently broken coupling changes routing
+/// outcomes, not just via counts.
+fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
+    let mut batch = BatchSettings::new(resolved.router_settings.clone(), resolved.scoring.clone());
+    batch.max_passes = resolved.max_passes;
+    batch.max_items = resolved.max_items;
+    batch.fanout_enabled = resolved.fanout_enabled;
+    // The job ctor derives removeUnconnectedVias = !isFanoutEnabled().
+    batch.remove_unconnected_vias = !resolved.fanout_enabled;
+    batch.pull_tight_accuracy = resolved.pull_tight_accuracy;
+    batch.strict_drc = resolved.strict_drc;
+    batch.run_router = resolved.run_router;
+    batch.deterministic_budgets = resolved.deterministic_budgets;
+    // The via-cost pair: the merged scoring box (DefaultSettings seeds
+    // 50/5; the CLI/DSN layers can override).
+    let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();
+    batch.via_costs = scoring_box.via_costs.unwrap_or(50);
+    batch.plane_via_costs = scoring_box.plane_via_costs.unwrap_or(5);
+    batch
+}
+
 /// Java `BoardFileDetails.getFilenameWithoutExtension`
 /// (`BoardFileDetails.java:205-210`): the name up to the LAST dot when
 /// it contains one, else unchanged. This — not the raw file name — is
@@ -394,9 +423,10 @@ fn filename_without_extension(filename: &str) -> &str {
 ///
 /// # Errors
 ///
-/// Unreadable input, a parse error, an unwritable output, or an
-/// unwritable manifest is a hard `Err` (exit 1 at the caller); a
-/// routing that ends CANCELLED/without output still returns the mapped
+/// Unreadable input, a parse error, or an unwritable session output is
+/// a hard `Err` (exit 1 at the caller); an unwritable manifest is
+/// LOG-ONLY (Java parity, `Freerouting.java:367-374`); a routing that
+/// ends CANCELLED/TERMINATED writes no session and returns the mapped
 /// exit code.
 pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     let dsn_path = std::path::Path::new(
@@ -435,6 +465,16 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         }
     }
 
+    // Java deletes a pre-existing output file right after the input
+    // load succeeds (Freerouting.java:122-127) — a failed RUN must not
+    // leave the previous run's session in place masquerading as fresh
+    // output. (On an input LOAD failure Java aborts BEFORE this point
+    // and keeps the old file — the ordering is pinned by the contrast
+    // face of the stale-output test.)
+    if ses_path.exists() && std::fs::remove_file(ses_path).is_err() {
+        eprintln!("Warning: Couldn't delete the file '{}'", ses_path.display());
+    }
+
     // 2. Build the live board + the search tree, normalize the traces
     //    (bug-131 convention: the parse's corner collapse must not leak
     //    into the router's geometry).
@@ -449,7 +489,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     //     deferred to a background thread there, synchronous here, so
     //     the manifest's router_introduced_count subtracts the REAL
     //     load-time face and never reads the not-yet-measured 0).
-    let (pre_total, _) = all_clearance_violations(&mut manager, &mut board);
+    let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
     board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
 
     // 3. Resolve the settings: Default(0) -> Dsn(20) -> Cli(60), then
@@ -459,8 +499,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         ses.metadata.autoroute_settings.as_ref(),
         usize::try_from(ses.metadata.layer_count).unwrap_or(0),
     );
-    let mut merged = MergedSettings::default();
-    merged = merge(&merged, &dsn_layer, &args.layer);
+    let mut merged = merge(&MergedSettings::default(), &dsn_layer, &args.layer);
     for warning in crate::settings::validate(&mut merged) {
         eprintln!("Warning: {warning}");
     }
@@ -468,21 +507,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
 
     // 4. The batch driver (single-threaded by construction).
-    let mut batch = BatchSettings::new(resolved.router_settings, resolved.scoring.clone());
-    batch.max_passes = resolved.max_passes;
-    batch.max_items = resolved.max_items;
-    batch.fanout_enabled = resolved.fanout_enabled;
-    // The job ctor derives removeUnconnectedVias = !isFanoutEnabled().
-    batch.remove_unconnected_vias = !resolved.fanout_enabled;
-    batch.pull_tight_accuracy = resolved.pull_tight_accuracy;
-    batch.strict_drc = resolved.strict_drc;
-    batch.run_router = resolved.run_router;
-    batch.deterministic_budgets = resolved.deterministic_budgets;
-    // The via-cost pair: the merged scoring box (DefaultSettings seeds
-    // 50/5; the CLI/DSN layers can override).
-    let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();
-    batch.via_costs = scoring_box.via_costs.unwrap_or(50);
-    batch.plane_via_costs = scoring_box.plane_via_costs.unwrap_or(5);
+    let batch = build_batch_settings(&resolved);
 
     let mut sink = CliDriverSink::default();
     let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
@@ -513,9 +538,6 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     ));
     let last_counters = sink.last_counters.take();
 
-    // 6. Project the routed items into the parse SES board and write
-    //    the session file.
-    project_routed_items(&board, &mut ses);
     // The SES design name is the job name WITHOUT extension
     // (`RoutingJob.java:519` -> `SesWriter.write`: the writer's
     // `.replace(".dsn", ".ses")` is a no-op on it, so no `.dsn` lands
@@ -525,12 +547,21 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("board.dsn");
-    let ses_text = write_session(&ses, filename_without_extension(input_name));
-    std::fs::write(ses_path, ses_text)
-        .map_err(|error| format!("cannot write session {}: {error}", ses_path.display()))?;
-    let output_written = std::fs::metadata(ses_path)
-        .map(|metadata| metadata.len() > 0)
-        .unwrap_or(false);
+    // 6. Project the routed items and write the session file — GATED on
+    //    the job state exactly like Java's writeCliOutputIfAvailable
+    //    (Freerouting.java:265-267): only COMPLETED/TIMED_OUT produce
+    //    output; every failure face leaves NO session file.
+    let output_written = if matches!(final_state.as_str(), "COMPLETED" | "TIMED_OUT") {
+        project_routed_items(&board, &mut ses);
+        let ses_text = write_session(&ses, filename_without_extension(input_name));
+        std::fs::write(ses_path, ses_text)
+            .map_err(|error| format!("cannot write session {}: {error}", ses_path.display()))?;
+        std::fs::metadata(ses_path)
+            .map(|metadata| metadata.len() > 0)
+            .unwrap_or(false)
+    } else {
+        false
+    };
     let exit_code = exit_code_for(&final_state, output_written);
 
     // 7. The manifest.
@@ -540,6 +571,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         connections,
         clearance_violations,
         normalized_score,
+        output_written,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -551,8 +583,13 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         },
     );
     if let Some(result_json) = &args.result_json {
-        std::fs::write(result_json, manifest)
-            .map_err(|error| format!("cannot write manifest {result_json}: {error}"))?;
+        // Java computes the exit code BEFORE the manifest write and
+        // treats a manifest IOException as log-only (Freerouting.java:
+        // 166-168, 367-374) — an unwritable --result-json path must not
+        // flip the SES-derived exit code.
+        if let Err(error) = std::fs::write(result_json, manifest) {
+            eprintln!("Error: cannot write manifest {result_json}: {error}");
+        }
     }
     Ok(exit_code)
 }
@@ -561,6 +598,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
 mod tests {
     use super::*;
     use crate::settings::parse_route_args;
+    use epic_dsn::coordinate_transform::CoordinateTransform;
+    use epic_dsn::layer_structure::{Layer, LayerStructure};
+    use epic_dsn::sink::{BoardRulesIr, BoardSink, CreateBoardIr};
+    use epic_geometry::int_box::IntBox;
 
     /// The final-state mapping (module-docs rule): run-finished ->
     /// COMPLETED; external stop -> CANCELLED; every internal stop ->
@@ -689,6 +730,7 @@ mod tests {
                 router_introduced_count: 2,
             }),
             normalized_score: Some(812.5),
+            output_written: true,
         };
         let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
         for omitted in [
@@ -727,7 +769,9 @@ mod tests {
     }
 
     /// The iff-gates: with no statistics and no score, the members are
-    /// absent (Gson-omits-nulls parity) while the object still parses.
+    /// absent (the deliberate omission family — module docs item 1:
+    /// Java emits these keys only alongside real payloads, and no
+    /// payload exists here) while the object still parses.
     #[test]
     fn manifest_iff_gates() {
         let telemetry = RouteTelemetry {
@@ -740,6 +784,21 @@ mod tests {
         assert!(value.get("optimizer_score").is_none());
         assert!(value.get("board_statistics").is_none());
         assert_eq!(value["exit_code"], 1, "CANCELLED without output is exit 1");
+
+        // Even WITH output on disk, a non-COMPLETED state stays exit 1
+        // (the pair gate in exit_code_for).
+        let telemetry = RouteTelemetry {
+            final_state: "CANCELLED".to_string(),
+            output_written: true,
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert_eq!(value["output_written"], true);
+        assert_eq!(
+            value["exit_code"], 1,
+            "CANCELLED with output is still exit 1"
+        );
     }
 
     /// The rounded corner view: Int passes through; a rational corner
@@ -981,5 +1040,288 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    // -------------------------------------------------------------------
+    // the quality-round pins (review Q1-Q7, Q10)
+    // -------------------------------------------------------------------
+
+    /// The no-signal-layer variant of the locator fixture: both
+    /// `(type signal)` rows become `(type power)`. The parse succeeds,
+    /// but the driver refuses to start ("Cannot start autorouter: all
+    /// layers are disabled") and the run ends TERMINATED. Binary
+    /// witness on `2b62b09bc`: exit 1 with a 4290-byte SES of the
+    /// unrouted board on disk (Java leaves NO output —
+    /// `Freerouting.java:265-267`).
+    fn no_signal_layer_dsn() -> String {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
+        );
+        let text = std::fs::read_to_string(fixture_path).expect("fixture present");
+        let patched = text.replace("(type signal)", "(type power)");
+        assert_ne!(patched, text, "both layer types patched");
+        patched
+    }
+
+    fn route_argv(
+        dsn: &std::path::Path,
+        ses: &std::path::Path,
+        json: Option<&std::path::Path>,
+    ) -> Vec<String> {
+        let mut argv = vec![
+            "-de".to_string(),
+            dsn.to_string_lossy().into_owned(),
+            "-do".to_string(),
+            ses.to_string_lossy().into_owned(),
+        ];
+        if let Some(json) = json {
+            argv.push("--result-json".to_string());
+            argv.push(json.to_string_lossy().into_owned());
+        }
+        argv
+    }
+
+    /// Q1 (quality review): the session write is GATED on the job state
+    /// (Java `writeCliOutputIfAvailable`, Freerouting.java:265-267) and
+    /// the manifest carries the REAL write outcome
+    /// (`RoutingResultManifest.java:191`). A TERMINATED run leaves no
+    /// SES on disk and reports `output_written: false` / exit 1.
+    /// Mutant faces: removing the gate re-creates the witnessed stray
+    /// SES; hardcoding `output_written: true` in the renderer flips the
+    /// manifest booleans.
+    #[test]
+    fn terminated_run_writes_no_ses_and_reports_output_unwritten() {
+        let out_dir = std::env::temp_dir().join(format!("epic-t13-q1-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let dsn_path = out_dir.join("nolayers.dsn");
+        std::fs::write(&dsn_path, no_signal_layer_dsn()).expect("dsn written");
+        let ses_path = out_dir.join("out.ses");
+        let manifest_path = out_dir.join("out.json");
+
+        let args = parse_route_args(&route_argv(&dsn_path, &ses_path, Some(&manifest_path)))
+            .expect("args parse");
+        let exit = run_route(&args).expect("the flow returns the mapped code, not an Err");
+
+        assert_eq!(exit, 1, "no output on TERMINATED");
+        assert!(
+            !ses_path.exists(),
+            "a TERMINATED run must leave NO session file (the Java gate)"
+        );
+        let manifest_text = std::fs::read_to_string(&manifest_path).expect("manifest written");
+        let value: serde_json::Value = serde_json::from_str(&manifest_text).expect("json");
+        assert_eq!(value["final_state"], "TERMINATED");
+        assert_eq!(value["output_written"], false);
+        assert_eq!(value["exit_code"], 1);
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// Q3 (quality review): the pre-existing `-do` file is deleted
+    /// right after the input load succeeds (Freerouting.java:122-127) —
+    /// a failed RUN must not leave the PREVIOUS session in place
+    /// masquerading as fresh output. The CONTRAST face pins the Java
+    /// ORDERING: an input LOAD failure aborts BEFORE the delete
+    /// (`Freerouting.java:114-118` returns before `:122`), so the stale
+    /// file SURVIVES there.
+    #[test]
+    fn stale_output_deleted_after_input_load() {
+        let out_dir = std::env::temp_dir().join(format!("epic-t13-q3-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let dsn_path = out_dir.join("nolayers.dsn");
+        std::fs::write(&dsn_path, no_signal_layer_dsn()).expect("dsn written");
+
+        // World 1: the run gets past the load, then TERMINATES — the
+        // stale session must be GONE.
+        let ses_path = out_dir.join("out.ses");
+        std::fs::write(&ses_path, "(session \"stale\")").expect("stale planted");
+        let args = parse_route_args(&route_argv(&dsn_path, &ses_path, None)).expect("args parse");
+        let exit = run_route(&args).expect("flow runs");
+        assert_eq!(exit, 1);
+        assert!(
+            !ses_path.exists(),
+            "the stale session is deleted before the run (a deleted-delete mutant keeps it)"
+        );
+
+        // World 2 (contrast): an UNREADABLE input aborts BEFORE the
+        // delete — the stale file survives. (A mutant that moves the
+        // delete ahead of the load fails here.)
+        let dsn_missing = out_dir.join("does-not-exist.dsn");
+        let ses_path2 = out_dir.join("stale2.ses");
+        std::fs::write(&ses_path2, "(session \"stale\")").expect("stale planted");
+        let args2 =
+            parse_route_args(&route_argv(&dsn_missing, &ses_path2, None)).expect("args parse");
+        assert!(
+            run_route(&args2).is_err(),
+            "an unreadable input is a hard error"
+        );
+        assert!(
+            ses_path2.exists(),
+            "load failure: Java keeps the stale file (delete comes AFTER the load)"
+        );
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// Q2 (quality review): a manifest-write failure is LOG-ONLY —
+    /// Java computes `cliExitCode` before the manifest write and the
+    /// IOException is swallowed (Freerouting.java:166-168, 367-374),
+    /// so a completed run with an unwritable `--result-json` path
+    /// still exits 0 with the SES on disk.
+    #[test]
+    fn manifest_write_failure_keeps_ses_exit_code() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
+        );
+        let out_dir = std::env::temp_dir().join(format!("epic-t13-q2-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let ses_path = out_dir.join("out.ses");
+        // The parent directory does not exist -> the manifest write fails.
+        let manifest_path = out_dir.join("no-such-dir").join("out.json");
+
+        let mut argv = route_argv(
+            std::path::Path::new(fixture_path),
+            &ses_path,
+            Some(&manifest_path),
+        );
+        argv.push("--router.autorouter.max_passes=1".to_string());
+        let args = parse_route_args(&argv).expect("args parse");
+        let exit = run_route(&args).expect("the manifest failure is log-only, not an Err");
+
+        assert_eq!(
+            exit, 0,
+            "the SES-derived exit code survives the manifest failure"
+        );
+        assert!(
+            ses_path.exists(),
+            "the session file is complete despite the manifest failure"
+        );
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// Q4 (quality review): the fanout -> `remove_unconnected_vias`
+    /// wiring (the job ctor's `!isFanoutEnabled()`); fanout-off ALSO
+    /// flips the batch tail sweep, so the coupling is
+    /// double-load-bearing for T14. The pin asserts the REAL batch face
+    /// through the same builder the flow uses (the `= false` mutant
+    /// passed the whole suite before this pin existed).
+    #[test]
+    fn batch_settings_wiring_fanout_to_remove_unconnected_vias() {
+        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(
+            &MergedSettings::default(),
+            None,
+        ));
+        assert!(
+            default_batch.fanout_enabled,
+            "the DefaultSettings seed fans out"
+        );
+        assert!(
+            !default_batch.remove_unconnected_vias,
+            "fanout on -> the tail sweep is NOT run"
+        );
+
+        let merged = MergedSettings {
+            fanout_enabled: Some(false),
+            ..MergedSettings::default()
+        };
+        let batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
+        assert!(!batch.fanout_enabled);
+        assert!(
+            batch.remove_unconnected_vias,
+            "fanout off -> the tail sweep removes unconnected vias"
+        );
+    }
+
+    /// Q6 (quality review): the LAST-dot cut (BoardFileDetails.java:
+    /// 205-210) — a two-dot input name must keep the middle segment
+    /// (the first-dot mutant emitted `(session my` for `my.bad.dsn`).
+    #[test]
+    fn filename_without_extension_cuts_at_last_dot() {
+        assert_eq!(filename_without_extension("my.bad.dsn"), "my.bad");
+        assert_eq!(filename_without_extension("plain.dsn"), "plain");
+        assert_eq!(filename_without_extension("noext"), "noext");
+    }
+
+    /// Q7a (quality review): the fixed-state ladder is permutation-
+    /// sensitive — each `FixedState` maps to the SAME-named IR variant
+    /// (the UserFixed/SystemFixed arm swap passed the whole suite and
+    /// was invisible to every compare before this pin).
+    #[test]
+    fn fixed_to_ir_ladder_is_permutation_sensitive() {
+        assert!(matches!(
+            fixed_to_ir(FixedState::Unfixed),
+            FixedStateIr::Unfixed
+        ));
+        assert!(matches!(
+            fixed_to_ir(FixedState::ShoveFixed),
+            FixedStateIr::ShoveFixed
+        ));
+        assert!(matches!(
+            fixed_to_ir(FixedState::UserFixed),
+            FixedStateIr::UserFixed
+        ));
+        assert!(matches!(
+            fixed_to_ir(FixedState::SystemFixed),
+            FixedStateIr::SystemFixed
+        ));
+    }
+
+    /// A two-signal-layer shell for the projection pins (the board
+    /// build needs the layer structure + rules only).
+    fn two_layer_ses() -> SesBoard {
+        let mut ses = SesBoard::new();
+        ses.create_board(CreateBoardIr {
+            bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(100_000, 60_000)),
+            layer_structure: LayerStructure::new(vec![
+                Layer::new("F.Cu", 0, true),
+                Layer::new("B.Cu", 1, true),
+            ]),
+            outline_shapes: Vec::new(),
+            outline_clearance_class: Some("default".to_string()),
+            rules: BoardRulesIr::new(2),
+            transform: CoordinateTransform::new(10.0, 0.0, 0.0),
+        });
+        ses
+    }
+
+    /// Q7b (quality review): the projection chain carries the fixed
+    /// state through the round trip (ses -> Board ->
+    /// `project_routed_items` -> ses) — the emitted session inherits
+    /// the item's fixed state verbatim.
+    #[test]
+    fn projection_preserves_fixed_state() {
+        let corners = [IntPoint::new(0, 0), IntPoint::new(10_000, 0)];
+        let mut ses_in = two_layer_ses();
+        ses_in.push_routed_item(ItemIr::Trace {
+            id: 500,
+            trace: TraceIr {
+                layer_no: 0,
+                half_width: 500,
+                corners: corners.to_vec(),
+                polyline: TraceIr::polyline_of_corners(&corners),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: FixedStateIr::UserFixed,
+            },
+        });
+        let board = Board::from_ses_board(&ses_in);
+        let mut ses_out = two_layer_ses();
+        project_routed_items(&board, &mut ses_out);
+
+        let projected: Vec<(i32, FixedStateIr)> = ses_out
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                ItemIr::Trace { id, trace } => Some((*id, trace.fixed)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            projected,
+            vec![(500, FixedStateIr::UserFixed)],
+            "id and fixed state survive the projection verbatim"
+        );
     }
 }
