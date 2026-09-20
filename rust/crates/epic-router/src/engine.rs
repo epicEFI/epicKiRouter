@@ -51,6 +51,20 @@
 //!   `None`. [`Self::autoroute_connection`] always emits the
 //!   no-connection row. State and downstream handling are identical;
 //!   only the details string of a degenerate/aborted init differs.
+//!   The SAME fold absorbs Java's THIRD arm (`AutorouteEngine.java
+//!   :215-219`): when the locator returns null after a found search,
+//!   Java emits a plain `"Failed to route connection between X."`
+//!   (no because-clause). That arm is dead-defensive in Java itself —
+//!   `FoundConnectionLocator.getInstance` (`FoundConnectionLocator.java
+//!   :192-194`) answers null ONLY for a null maze search result, which
+//!   the earlier `:206-213` arm already handled — and the ported
+//!   locator mirrors it: `locator::get_instance` returns None only
+//!   through the `maze_search_result?` guard (`locator.rs:188`); on a
+//!   Some search every path returns Some (the bail arms carry the
+//!   null-ish FIELDS, not a None). The single Rust arm therefore
+//!   always serves the reachable search-null face and keeps the
+//!   no-connection literal; the plain-literal arm is unreachable in
+//!   BOTH engines — an unobservable collapse (quality-review F-Q2).
 //! * **The SKIPPED arm is unrepresentable.** Java's
 //!   `autorouteResult.connectionItems == null` arm cannot occur (the
 //!   locator owns its item list; no null exists).
@@ -451,7 +465,12 @@ impl<'a> AutorouteEngine<'a> {
     }
 
     /// Java `isStopRequested` (`:287-295`): the time limit first, then
-    /// the stoppable-thread flag.
+    /// the stoppable-thread flag. T12 POINTER: the pass driver's
+    /// deterministic budgets (maxPasses/maxItems faces replacing the
+    /// wall-clock `TimeLimit` — see `logs/M3-T12/anchors.md`,
+    /// the `:211-220` maxItems budget and the `:72-74` maxMilliseconds
+    /// face) land on this same decision; the limit-first face order
+    /// here is the contract they extend.
     #[must_use]
     pub fn is_stop_requested(&self) -> bool {
         if self
@@ -507,6 +526,22 @@ impl<'a> AutorouteEngine<'a> {
         self.net_number = net_number;
         self.stoppable_flag = stoppable_flag;
         self.time_limit = time_limit;
+    }
+
+    /// Java `RoutingBoard.initAutoroute`'s reuse condition
+    /// (`:888-897`): the HELD engine serves the next connection when
+    /// the database is maintained AND this engine's compensated tree
+    /// already carries the wanted clearance class. True → the caller
+    /// only re-runs [`Self::init_connection`] (Java's reuse arm: the
+    /// room registry and the Java room ids carry over; a same-net
+    /// init purges nothing). The slot-parameter form of this branch is
+    /// unrepresentable in the port's ownership model — see
+    /// [`init_autoroute`].
+    #[must_use]
+    pub fn is_reusable_for(&self, trace_clearance_class_index: i32, retain_database: bool) -> bool {
+        retain_database
+            && self.manager.trees()[self.autoroute_tree].compensated_clearance_class
+                == trace_clearance_class_index
     }
 
     /// Java `RoutingBoard.additionalUpdateAfterChange`
@@ -2067,54 +2102,45 @@ fn describe_connection(board: &Board, start_items: &[u64], dest_items: &[u64]) -
 // the lifecycle faces (Java RoutingBoard.initAutoroute/finishAutoroute)
 // ---------------------------------------------------------------------------
 
-/// Java `RoutingBoard.initAutoroute` (`:882-897`): reuse the slot's
-/// engine iff the database is retained AND its tree is compensated for
-/// the same clearance class; otherwise replace it. NOTE the Java face:
-/// a replaced engine is dropped WITHOUT `clear()` — its completed
-/// rooms legitimately remain in the shared (same-class) tree, exactly
-/// as in Java; the pipeline always calls [`finish_autoroute`] before
-/// re-initing, so the phantom-room state is unreachable there. Either
-/// way the returned engine is [`Self::init_connection`]-primed.
-#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+/// Java `RoutingBoard.initAutoroute` (`:882-905`) — the REBUILD arm of
+/// the lifecycle: construct a fresh engine over the class-resolved
+/// compensated tree and prime it with
+/// [`AutorouteEngine::init_connection`]. A replaced engine is dropped
+/// WITHOUT `clear()` (the caller's choice — see [`finish_autoroute`]):
+/// its completed rooms legitimately remain in the shared (same-class)
+/// tree, exactly as in Java, and the tree-level continuity is carried
+/// by the manager (the same class resolves to the same tree index).
+///
+/// OWNERSHIP NOTE (quality-review F-Q3, upgraded to a signature fix):
+/// Java's reuse branch (`:888-897` — keep the engine iff
+/// `maintainDatabase` AND its tree is already compensated for the same
+/// class, then only `initConnection`) works by mutating the
+/// `this.autorouteEngine` FIELD. The port's engine OWNS its `&mut`
+/// manager/board borrows, so a `slot: Option<AutorouteEngine<'a>>`
+/// parameter could never be called — passing the slot holds those
+/// borrows while the same call re-lends them (E0499; verified by
+/// compile probe; no caller can exist). The reuse face therefore lives
+/// on the HELD engine: [`AutorouteEngine::is_reusable_for`] is the
+/// verbatim `:888-897` condition, and the T12 pass loop expresses the
+/// Java branch as
+/// `if engine.is_reusable_for(class, retain) {
+///     engine.init_connection(..)            // the reuse arm
+/// } else {
+///     engine = init_autoroute(..)           // this rebuild arm
+/// }`.
 pub fn init_autoroute<'a>(
     manager: &'a mut SearchTreeManager,
     board: &'a mut Board,
-    slot: Option<AutorouteEngine<'a>>,
     net_number: i32,
     trace_clearance_class_index: i32,
     retain_database: bool,
     stoppable_flag: Option<Arc<AtomicBool>>,
     time_limit: Option<TimeLimit>,
 ) -> AutorouteEngine<'a> {
-    let reuse = match &slot {
-        Some(engine) => {
-            retain_database
-                && manager.trees()[engine.autoroute_tree].compensated_clearance_class
-                    == trace_clearance_class_index
-        }
-        None => false,
-    };
-    match slot {
-        Some(mut engine) if reuse => {
-            engine.init_connection(net_number, stoppable_flag, time_limit);
-            engine
-        }
-        Some(engine) => {
-            // Java: the old engine is replaced without clear(); its
-            // rooms stay in the shared tree (see the doc above).
-            drop(engine);
-            let mut engine =
-                AutorouteEngine::new(manager, board, trace_clearance_class_index, retain_database);
-            engine.init_connection(net_number, stoppable_flag, time_limit);
-            engine
-        }
-        None => {
-            let mut engine =
-                AutorouteEngine::new(manager, board, trace_clearance_class_index, retain_database);
-            engine.init_connection(net_number, stoppable_flag, time_limit);
-            engine
-        }
-    }
+    let mut engine =
+        AutorouteEngine::new(manager, board, trace_clearance_class_index, retain_database);
+    engine.init_connection(net_number, stoppable_flag, time_limit);
+    engine
 }
 
 /// Java `RoutingBoard.finishAutoroute` (`:900-905`): clear the
@@ -2362,6 +2388,32 @@ mod tests {
             routed,
             "ROUTED + empty details + closed gate. rows:\n{joined}"
         );
+        // The id-burn row FIELDS at discriminating values (quality
+        // OBS-Q5): the delta is not constant — the three forced inserts
+        // burn 5/1/0 — and the maxItemId watermark CHAINS across rows
+        // (105 → 110 → 111 → 111), so a constant-delta or
+        // before/after-swap mutant cannot satisfy all three literals.
+        assert!(
+            joined.contains(
+                "compare_trace_insert_segment_ids net=94, i=1, \
+                 maxItemIdBefore=105, maxItemIdAfter=110, delta=5"
+            ),
+            "i=1 id-burn row. rows:\n{joined}"
+        );
+        assert!(
+            joined.contains(
+                "compare_trace_insert_segment_ids net=94, i=2, \
+                 maxItemIdBefore=110, maxItemIdAfter=111, delta=1"
+            ),
+            "i=2 id-burn row. rows:\n{joined}"
+        );
+        assert!(
+            joined.contains(
+                "compare_trace_insert_segment_ids net=94, i=3, \
+                 maxItemIdBefore=111, maxItemIdAfter=111, delta=0"
+            ),
+            "i=3 id-burn row. rows:\n{joined}"
+        );
         // The route landed on the anchor: some net-94 trace now has a
         // corner at the anchor's end point (the target splice +
         // normalize).
@@ -2462,6 +2514,255 @@ mod tests {
         assert!(
             rooms_present,
             "completed rooms persist under maintain_database"
+        );
+    }
+
+    /// The ripup-removal block (Java `:230-249`, quality-review F-Q1):
+    /// a caller-seeded `ripped_item_list` drives the walk even when the
+    /// maze never needed a rip (the list is caller-owned input — the
+    /// locator only ever INSERTS into it). Witnesses: the LISTED
+    /// foreign trace vanishes (the block runs: accumulation →
+    /// `remove_item_through_repository`), and the per-changed-net
+    /// `remove_trace_tails` sweep takes the UNLISTED lone net-2 tail
+    /// (fired by the listed item's net set alone). Mutation matrix:
+    /// block-drop KILLED (listed survives), tail-sweep-drop KILLED
+    /// (unlisted survives while listed is gone); accumulation-drop is
+    /// SWEEP-SUBSUMED in every single-net trace world — a chain always
+    /// dies from its 1-contact ends through the sweep's own
+    /// connection walk, so dropping the accumulation is
+    /// board-final-state-equivalent there (applied + survived;
+    /// the SEAM bank carries the multi-net-via discriminating design).
+    /// The two `.rev()` ORDER faces are board-final-state-invariant
+    /// (set removal is order-independent) — their bank also lives in
+    /// SEAM.md (the discriminator would be the undo-record order).
+    /// WORLD-DESIGN HAZARD (learned the hard way): never shape the
+    /// listed item's connection as a CLOSED LOOP — both engines'
+    /// `getConnectionItems` walk has no cycle termination (Java
+    /// `Item.java:746-817` spins the same way; `remove_if_cycle` is
+    /// the only cycle-safe walk) and the pin hangs.
+    #[test]
+    fn t11_ripup_removal_walk_removes_listed_connection_and_net_tails() {
+        let (mut manager, mut board) = parse_fixture();
+        let pin_key = net_pin_key(&board, 94);
+        let anchor = epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(600000, 300000)),
+                &Point::Int(corner(620000, 300000)),
+            ),
+            0,
+            1500,
+            &[94],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("anchor trace");
+        let anchor_key = u64::from(anchor.get());
+        // Two foreign net-2 traces in free space far west of the route
+        // corridor (the canon path stays at x >= 480738): A is LISTED
+        // (its whole connection accumulates through
+        // `get_connection_items` and is removed), B is not — a lone
+        // zero-contact trace only the per-changed-net sweep can take.
+        let listed = epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(200000, 100000)),
+                &Point::Int(corner(240000, 100000)),
+            ),
+            0,
+            1500,
+            &[2],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("listed foreign trace");
+        let unlisted = epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(300000, 100000)),
+                &Point::Int(corner(340000, 100000)),
+            ),
+            0,
+            1500,
+            &[2],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("unlisted foreign tail");
+        let listed_key = u64::from(listed.get());
+        let unlisted_key = u64::from(unlisted.get());
+        // World self-check: both seeded traces are on the board (the
+        // fixture carries a pre-existing net-2 item too — id 6 — which
+        // the keyed asserts below simply ignore).
+        let net2_before: Vec<u64> = board
+            .iter_descending()
+            .filter(|entry| entry.on_the_board && entry.nets.contains(&2))
+            .map(|entry| u64::from(entry.id.get()))
+            .collect();
+        assert!(
+            net2_before.contains(&listed_key) && net2_before.contains(&unlisted_key),
+            "the world seeds the two net-2 traces; before: {net2_before:?}"
+        );
+        // The ripped list is keyed by the Java item id (= the key for
+        // board items; `object_id` is `i32::try_from`).
+        let mut ripped = BTreeMap::new();
+        ripped.insert(
+            i32::try_from(listed_key).expect("item key fits i32"),
+            listed_key,
+        );
+        let (routed, joined) = {
+            let (mut engine, mut ctrl) = build_engine(&mut manager, &mut board, 94, true);
+            engine.init_connection(94, None, None);
+            let mut sink = CaptureSink::default();
+            let result = engine.autoroute_connection(
+                &[pin_key],
+                &[anchor_key],
+                &mut ctrl,
+                &mut ripped,
+                &mut HashMap::new(),
+                &mut NoPullTight,
+                &mut sink,
+            );
+            (
+                result.state == AutorouteAttemptState::Routed,
+                sink.rows.join("\n"),
+            )
+        };
+        assert!(
+            routed,
+            "the off-corridor rip leaves the route untouched. rows:\n{joined}"
+        );
+        let net2_after: Vec<u64> = board
+            .iter_descending()
+            .filter(|entry| entry.on_the_board && entry.nets.contains(&2))
+            .map(|entry| u64::from(entry.id.get()))
+            .collect();
+        assert!(
+            !net2_after.contains(&listed_key),
+            "the LISTED connection must be removed by the ripup block; \
+             remaining: {net2_after:?}. rows:\n{joined}"
+        );
+        assert!(
+            !net2_after.contains(&unlisted_key),
+            "the UNLISTED lone net-2 tail must be swept by \
+             remove_trace_tails(2, _); remaining: {net2_after:?}. rows:\n{joined}"
+        );
+        // The route itself still landed on the anchor end.
+        let anchor_end_reached = board.iter_descending().any(|entry| {
+            entry.nets.contains(&94)
+                && matches!(entry.data, ItemData::Trace { .. })
+                && board.trace_polyline(entry.id).is_some_and(|polyline| {
+                    polyline
+                        .corners()
+                        .contains(&Point::Int(corner(620000, 300000)))
+                })
+        });
+        assert!(
+            anchor_end_reached,
+            "the route reached the anchor. rows:\n{joined}"
+        );
+    }
+
+    /// The `init_autoroute` reuse faces (Java `RoutingBoard.initAutoroute`
+    /// `:888-897`, quality-review F-Q3): the reuse CONDITION
+    /// (`is_reusable_for` — maintain AND same compensated class) is
+    /// true for the held engine, and honoring it carries the registry
+    /// through `init_connection` (same net purges nothing); both
+    /// mismatch faces are false. The rebuild arm (a fresh engine) gets
+    /// an empty registry and zeroed room ids; the manager carries the
+    /// TREE continuity (same class → same tree index) while a
+    /// different class resolves a different tree. Both directions kill
+    /// the retain-flip mutant (`retain_database &&` →
+    /// `!retain_database &&`): face 1 (maintain) must answer true,
+    /// face 2 (no maintain) must answer false.
+    #[test]
+    fn t11_init_autoroute_reuse_faces() {
+        let (mut manager, mut board) = parse_fixture();
+        // Resolve the class the way build_engine does, then populate a
+        // first engine's registry with a real route.
+        let layer_count = board.layers().layers.len();
+        let probe = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        let class = probe.trace_clearance_class_index;
+        let pin_key = net_pin_key(&board, 94);
+        let anchor = epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(600000, 300000)),
+                &Point::Int(corner(620000, 300000)),
+            ),
+            0,
+            1500,
+            &[94],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("anchor trace");
+        let anchor_key = u64::from(anchor.get());
+        let (mut engine, mut ctrl) = build_engine(&mut manager, &mut board, 94, true);
+        engine.init_connection(94, None, None);
+        let result = engine.autoroute_connection(
+            &[pin_key],
+            &[anchor_key],
+            &mut ctrl,
+            &mut BTreeMap::new(),
+            &mut HashMap::new(),
+            &mut NoPullTight,
+            &mut CaptureSink::default(),
+        );
+        assert_eq!(result.state, AutorouteAttemptState::Routed);
+        let tree_a = engine.autoroute_tree;
+        let counter_a = engine.id_counter;
+        assert!(counter_a > 0, "the route created rooms (Java room ids)");
+        assert!(!engine.keys.is_empty(), "the registry is populated");
+
+        // Face 1 — the reuse condition, HELD engine, same class,
+        // maintain: TRUE, and honoring it carries the registry.
+        assert!(
+            engine.is_reusable_for(class, true),
+            "maintain + same compensated class reuses the engine"
+        );
+        engine.init_connection(94, None, None);
+        assert_eq!(
+            engine.id_counter, counter_a,
+            "the registry carries over (reuse, not rebuild)"
+        );
+        assert!(!engine.keys.is_empty(), "the rooms survive the re-init");
+
+        // Face 2 — same class, NOT maintained: FALSE (fresh engine in
+        // Java's branch).
+        assert!(
+            !engine.is_reusable_for(class, false),
+            "a not-maintained database never reuses"
+        );
+        // Face 3 — maintained, DIFFERENT class: FALSE (the tree is not
+        // compensated for it).
+        assert!(
+            !engine.is_reusable_for(0, true),
+            "a different class forces the rebuild arm"
+        );
+        drop(engine);
+
+        // Face 4 — the REBUILD arm, same class: fresh registry, but
+        // the MANAGER carries the tree continuity.
+        let engine = init_autoroute(&mut manager, &mut board, 94, class, true, None, None);
+        assert_eq!(
+            engine.id_counter, 0,
+            "a replaced engine starts an empty registry (Java room ids restart)"
+        );
+        assert!(engine.keys.is_empty(), "a fresh registry");
+        assert_eq!(engine.autoroute_tree, tree_a, "same class, same tree");
+        drop(engine);
+
+        // Face 5 — the REBUILD arm, different class: a different
+        // compensated tree.
+        let engine = init_autoroute(&mut manager, &mut board, 94, 0, true, None, None);
+        assert_ne!(
+            engine.autoroute_tree, tree_a,
+            "the different class re-resolves the tree"
         );
     }
 
@@ -3141,8 +3442,7 @@ mod tests {
             let engine = AutorouteEngine::new(&mut manager, &mut board, class, true);
             engine.tree().leaf_count()
         };
-        let mut engine =
-            init_autoroute(&mut manager, &mut board, None, 94, class, true, None, None);
+        let mut engine = init_autoroute(&mut manager, &mut board, 94, class, true, None, None);
         assert_eq!(engine.net_number(), 94, "init_autoroute primes the net");
         let tree_index = engine.autoroute_tree;
         let result = engine.autoroute_connection(

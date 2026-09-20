@@ -509,7 +509,12 @@ impl<S: PullTightSeam, E: InserterEventSink> FoundConnectionInserter<'_, S, E> {
 
             // Java `:174-188`: the id-burn bookkeeping + the forced
             // polyline insertion (tidyWidth = Integer.MAX_VALUE, the
-            // pull-tight seam decides whether it runs).
+            // pull-tight seam decides whether it runs). T12 POINTER:
+            // the BoardHistory id-watermark work (T12's pass/stagnation
+            // bookkeeping — the bug-150 `alloc_id` burn in
+            // `check_polyline_trace` is the other watermark site) keys
+            // off these maxGeneratedId deltas; the `delta=` row below
+            // is the capture-visible surface of that watermark.
             let max_item_id_before = self.board.max_generated_id();
             let ok_point: Option<Point> = insert_forced_trace_polyline(
                 self.manager,
