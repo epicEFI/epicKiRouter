@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/KiCad_10_demos/sonde xilinx.dsn",
+  "fixture_sha256": "63d1d5206c2e2f980bcf637858e7193a24cdfe1f6b0f3007e4f03ac1a79aaeda",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 1,
+  "maximum_count": 67,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 980.1,
+  "optimizer_score": null,
+  "ses_sha256": "865360717e417c7675067a1e6c21a2f5b31c568d44bf63a093b9015d3a148c1f",
+  "autorouter_seconds": 6.86,
+  "optimizer_seconds": null,
+  "passes_completed": 18,
+  "profile": "router-only",
+  "captured_at_unix": 1789939638,
+  "notes": null
+}

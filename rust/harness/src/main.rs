@@ -64,12 +64,24 @@ enum Command {
         /// Only capture this tier (A/B/C); omit for all.
         #[arg(long)]
         tier: Option<String>,
+        /// The oracle profile: "full-flow" (default) or "router-only"
+        /// (fanout + optimizer disabled via JAVA jar flags only). The
+        /// flags NEVER go to epic-cli (the Rust CLI drops
+        /// `--optimizer.enabled=false` with a spurious warning).
+        #[arg(long)]
+        profile: Option<String>,
     },
     /// Re-run the oracle and compare against committed baselines.
     Verify {
         /// Only verify this tier; omit for all.
         #[arg(long)]
         tier: Option<String>,
+        /// Must match the profile the baselines were captured with — the
+        /// profile threads through to the re-run (trap 3: an unthreaded
+        /// verify captures a full-flow run and the profile gate in
+        /// compare fails the mismatch loudly).
+        #[arg(long)]
+        profile: Option<String>,
     },
     /// Geometry differential corpus (M1a): generate cases, capture Java
     /// goldens, compare epic-geometry against them.
@@ -168,7 +180,8 @@ fn run() -> Result<()> {
                 );
             }
         }
-        Command::Capture { tier } => {
+        Command::Capture { tier, profile } => {
+            let profile = oracle::OracleProfile::from_name(profile.as_deref())?;
             // Validate the selection before paying for a gradle build.
             let selected = select_tiers(&tier_file, tier.as_deref())?;
             oracle::build_jar(&repo_root)?;
@@ -181,6 +194,15 @@ fn run() -> Result<()> {
                 .parent()
                 .map(|p| p.join("runs"))
                 .unwrap_or_else(|| repo_root.join("rust/harness/runs"));
+            // Profile-routed output: full-flow keeps the classic
+            // baselines/java/ + runs/<tier>/ layout; router-only writes
+            // baselines/router-only/ with scratch under runs/router-only/
+            // so the profiles never clobber each other.
+            let profile_baselines_root = baselines_root.join(profile.dir_name());
+            let profile_runs_root = match profile {
+                oracle::OracleProfile::FullFlow => runs_root,
+                oracle::OracleProfile::RouterOnly => runs_root.join(profile.dir_name()),
+            };
             for tier in selected {
                 capture_tier(
                     tier,
@@ -188,14 +210,19 @@ fn run() -> Result<()> {
                     &tier_file.fixtures_root,
                     &java,
                     &jar,
-                    &baselines_root,
-                    &runs_root,
+                    &profile_baselines_root,
+                    &profile_runs_root,
                     &cli.jvm_xmx,
+                    profile,
                 )?;
             }
             Ok(())
         }
-        Command::Verify { tier } => {
+        Command::Verify { tier, profile } => {
+            // The profile must be threaded into BOTH the record lookup and
+            // the re-run's argv, or verify would capture a full-flow run and
+            // compare it against router-only records (trap 3).
+            let profile = oracle::OracleProfile::from_name(profile.as_deref())?;
             // Validate the tier name before paying for the gradle build.
             let selected = select_tiers(&tier_file, tier.as_deref())?;
             let harness_root = tiers_path
@@ -203,8 +230,11 @@ fn run() -> Result<()> {
                 .and_then(Path::parent)
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| repo_root.join("rust/harness"));
-            let baselines_root = harness_root.join("baselines").join("java");
-            let run_root = harness_root.join("runs").join("verify");
+            let baselines_root = harness_root.join("baselines").join(profile.dir_name());
+            let run_root = harness_root
+                .join("runs")
+                .join("verify")
+                .join(profile.dir_name());
             let fixtures_rel = &tier_file.fixtures_root;
             // Pre-flight: every selected fixture's baseline must exist, parse
             // strictly, and carry the current schema version — checked for all
@@ -244,6 +274,7 @@ fn run() -> Result<()> {
                         &work_dir,
                         Duration::from_secs(fixture.timeout_seconds),
                         &cli.jvm_xmx,
+                        profile,
                     )
                     .with_context(|| {
                         format!(
@@ -251,7 +282,8 @@ fn run() -> Result<()> {
                             fixture.path, tier.name
                         )
                     })?;
-                    let actual = baseline::distill(
+                    let actual = baseline::distill_profiled(
+                        profile.marker(),
                         &fixtures_rel.join(&fixture.path).to_string_lossy(),
                         &run,
                     );
@@ -374,6 +406,7 @@ fn capture_tier(
     baselines_root: &Path,
     runs_root: &Path,
     jvm_xmx: &str,
+    profile: oracle::OracleProfile,
 ) -> Result<()> {
     let mut infra_suspects: Vec<String> = Vec::new();
     let mut degraded: Vec<String> = Vec::new();
@@ -390,18 +423,30 @@ fn capture_tier(
                 tier.name
             );
         }
-        let work_dir = runs_root.join(&tier.name).join(&fixture.path);
+        let timeout = Duration::from_secs(fixture.timeout_seconds);
+        let work_base = runs_root.join(&tier.name).join(&fixture.path);
+        let work_dir = |run_no: usize| {
+            if profile.double_run() {
+                work_base.join(format!("run{run_no}"))
+            } else {
+                work_base.clone()
+            }
+        };
         println!(
-            "[tier {}] routing {} (timeout {}s)…",
-            tier.name, fixture.path, fixture.timeout_seconds
+            "[tier {}] routing {} (timeout {}s, profile {})…",
+            tier.name,
+            fixture.path,
+            fixture.timeout_seconds,
+            profile.marker().unwrap_or("full-flow")
         );
         let run: OracleRun = oracle::run_oracle(
             java,
             jar,
             &dsn,
-            &work_dir,
-            Duration::from_secs(fixture.timeout_seconds),
+            &work_dir(1),
+            timeout,
             jvm_xmx,
+            profile,
         )
         .with_context(|| {
             format!(
@@ -412,15 +457,75 @@ fn capture_tier(
                 tier.name
             )
         })?;
+
+        // PROVE-stages-off pre-gate, baked into the capture command: under
+        // the router-only profile, a typo'd or dropped disable flag would
+        // silently capture a full-flow baseline into the router-only
+        // directory — the gate makes that fail fast, per fixture, on BOTH
+        // double-runs.
+        if let Some(manifest) = run.manifest.as_ref() {
+            oracle::assert_router_only_manifest(manifest).with_context(|| {
+                format!(
+                    "fixture {} captured under profile {:?}",
+                    fixture.path,
+                    profile.marker().unwrap_or("full-flow")
+                )
+            })?;
+        }
+
+        // Double-run + diff discipline (the T12 MINOR-2 snapshot-race
+        // lesson): stable fields must agree EXACTLY across the two runs or
+        // the capture is racy and must not pass silently. Racy-but-tracked
+        // faces (the SES digest) are returned as a note and stamped onto the
+        // committed record — recorded, never normalized away (trap 4).
+        let race_note = if profile.double_run() {
+            let run2: OracleRun = oracle::run_oracle(
+                java,
+                jar,
+                &dsn,
+                &work_dir(2),
+                timeout,
+                jvm_xmx,
+                profile,
+            )
+            .with_context(|| {
+                format!(
+                    "oracle double-run failed for {} (captured {}/{} fixtures in tier {} before failure)",
+                    fixture.path,
+                    captured,
+                    tier.fixtures.len(),
+                    tier.name
+                )
+            })?;
+            if let Some(manifest) = run2.manifest.as_ref() {
+                oracle::assert_router_only_manifest(manifest).with_context(|| {
+                    format!(
+                        "fixture {} double-run under profile router-only",
+                        fixture.path
+                    )
+                })?;
+            }
+            diff_double_runs(&run, &run2, &fixture.path)?
+        } else {
+            None
+        };
+
         // The record's `fixture` field is repo-relative (resolvable without
         // tiers.yaml); the raw yaml fixtures_root is joined, not the
-        // absolute one used for I/O.
-        let record = baseline::distill(
+        // absolute one used for I/O. The kept run is the FIRST one; the
+        // second run is the determinism witness.
+        let mut record = baseline::distill_profiled(
+            profile.marker(),
             &fixtures_root_raw.join(&fixture.path).to_string_lossy(),
             &run,
         );
+        if let Some(note) = race_note {
+            record.notes = Some(match record.notes.take() {
+                Some(existing) => format!("{existing}; {note}"),
+                None => note,
+            });
+        }
         let out = baselines_root
-            .join("java")
             .join(&tier.name)
             .join(format!("{}.baseline.json", fixture.path));
         if let Some(parent) = out.parent() {
@@ -481,6 +586,80 @@ fn capture_tier(
         );
     }
     Ok(())
+}
+
+/// The double-run diff (router-only capture discipline): the parity-relevant
+/// fields must agree EXACTLY across two oracle runs of the same fixture —
+/// any drift is a racy capture and bails rather than passing silently. Time
+/// fields (seconds) legitimately vary and are not diffed. Returns a note for
+/// the committed record when the SES digest diverges (a determinism face
+/// T15 must know about) — recorded, never normalized away (trap 4).
+fn diff_double_runs(run1: &OracleRun, run2: &OracleRun, fixture: &str) -> Result<Option<String>> {
+    let record1 = baseline::distill_profiled(None, "", run1);
+    let record2 = baseline::distill_profiled(None, "", run2);
+    let mut drifted: Vec<String> = Vec::new();
+    for (name, a, b) in [
+        (
+            "final_state",
+            record1.final_state.clone(),
+            record2.final_state.clone(),
+        ),
+        (
+            "exit_code",
+            format!("{:?}", record1.exit_code),
+            format!("{:?}", record2.exit_code),
+        ),
+        (
+            "incomplete_count",
+            format!("{:?}", record1.incomplete_count),
+            format!("{:?}", record2.incomplete_count),
+        ),
+        (
+            "maximum_count",
+            format!("{:?}", record1.maximum_count),
+            format!("{:?}", record2.maximum_count),
+        ),
+        (
+            "clearance_violations_total",
+            format!("{:?}", record1.clearance_violations_total),
+            format!("{:?}", record2.clearance_violations_total),
+        ),
+        (
+            "clearance_router_introduced",
+            format!("{:?}", record1.clearance_router_introduced),
+            format!("{:?}", record2.clearance_router_introduced),
+        ),
+        (
+            "normalized_score",
+            format!("{:?}", record1.normalized_score),
+            format!("{:?}", record2.normalized_score),
+        ),
+        (
+            "passes_completed",
+            format!("{:?}", record1.passes_completed),
+            format!("{:?}", record2.passes_completed),
+        ),
+    ] {
+        if a != b {
+            drifted.push(format!("{name}: {a} vs {b}"));
+        }
+    }
+    if !drifted.is_empty() {
+        bail!(
+            "fixture {} double-run drift in parity fields — capture is racy, NOT committed as clean: {}",
+            fixture,
+            drifted.join("; ")
+        );
+    }
+    if record1.ses_sha256 != record2.ses_sha256 {
+        let msg = format!(
+            "ses_sha256 differs across the double-run (racy SES emission; record keeps run 1): {:?} vs {:?}",
+            record1.ses_sha256, record2.ses_sha256
+        );
+        eprintln!("NOTE ({fixture}): {msg}");
+        return Ok(Some(msg));
+    }
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -551,5 +730,69 @@ mod tests {
         .expect("write baseline");
         let record = load_baseline_record(&java_path).expect("java record passes pre-flight");
         assert_eq!(record.engine, "java");
+    }
+
+    /// The trap-3 witness, end-to-end: the committed router-only bm08
+    /// baseline must verify green against a Java re-run WITH the same
+    /// disable flags, through the same distill+compare path the Verify
+    /// subcommand uses — and the SAME run distilled without the marker
+    /// (an unthreaded verify's record) must fail with exactly the Profile
+    /// gate. Requires the jar + JDK 25; run explicitly with
+    /// `cargo test -- --ignored` (the capture battery is the fuller gate).
+    #[test]
+    #[ignore]
+    fn router_only_bm08_baseline_verifies_green_and_profile_gate_bites() {
+        let root = oracle::find_repo_root().expect("repo root");
+        let java = oracle::resolve_java().expect("resolving java");
+        let jar = oracle::jar_path(&root);
+        let fixture_repo_rel = "scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn";
+        let dsn = root.join(fixture_repo_rel);
+        let baseline_path = root
+            .join("rust/harness/baselines")
+            .join(oracle::OracleProfile::RouterOnly.dir_name())
+            .join("A")
+            .join("DAC2020_boards/DAC2020_bm08.dsn.baseline.json");
+        let raw = std::fs::read_to_string(&baseline_path)
+            .expect("committed router-only baseline (run the capture first)");
+        let expected: BaselineRecord = serde_json::from_str(&raw).expect("baseline parses");
+        assert_eq!(expected.profile.as_deref(), Some("router-only"));
+
+        let work = std::env::temp_dir().join("epic-harness-router-only-verify-test");
+        let run = oracle::run_oracle(
+            &java,
+            &jar,
+            &dsn,
+            &work,
+            Duration::from_secs(300),
+            "4g",
+            oracle::OracleProfile::RouterOnly,
+        )
+        .expect("oracle run");
+        let manifest = run.manifest.as_ref().expect("manifest written");
+        oracle::assert_router_only_manifest(manifest).expect("stages proven off");
+
+        let actual = baseline::distill_profiled(
+            oracle::OracleProfile::RouterOnly.marker(),
+            fixture_repo_rel,
+            &run,
+        );
+        assert_eq!(
+            baseline::compare(&expected, &actual),
+            Vec::new(),
+            "router-only re-run must verify green against the committed record"
+        );
+
+        // Contrast face: the identical run distilled WITHOUT the marker is
+        // exactly what an unthreaded verify would compare — the profile
+        // gate must be its sole failure.
+        let unthreaded = baseline::distill_profiled(None, fixture_repo_rel, &run);
+        let failures = baseline::compare(&expected, &unthreaded);
+        assert_eq!(
+            failures,
+            vec![baseline::GateFailure::Profile {
+                expected: Some("router-only".into()),
+                actual: None,
+            }]
+        );
     }
 }

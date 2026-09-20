@@ -38,6 +38,13 @@ pub struct BaselineRecord {
     pub autorouter_seconds: Option<f64>,
     pub optimizer_seconds: Option<f64>,
     pub passes_completed: Option<i64>,
+    /// The capture profile marker (oracle::OracleProfile::marker): None =
+    /// full-flow (and every pre-T14 record), Some("router-only") = captured
+    /// with fanout + optimizer disabled. In code, not by path alone —
+    /// compare() gates it so an unthreaded verify (a full-flow re-run
+    /// against router-only records, the trap-3 mismatch) fails loudly.
+    /// Option: absent parses as None, so pre-T14 records stay readable.
+    pub profile: Option<String>,
     pub captured_at_unix: i64,
     pub notes: Option<String>,
 }
@@ -49,8 +56,14 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(format!("{digest:x}"))
 }
 
-/// Reduces one oracle run to the committed baseline record.
-pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
+/// Reduces one oracle run to the committed baseline record. `profile_marker`
+/// is `oracle::OracleProfile::marker()` for the run — None for full-flow
+/// (the capture/verify default), Some("router-only") for the T14 profile.
+pub fn distill_profiled(
+    profile_marker: Option<&str>,
+    fixture_rel: &str,
+    run: &OracleRun,
+) -> BaselineRecord {
     let (manifest, mut note): (&RoutingResultManifest, Option<String>) = match &run.manifest {
         Some(m) => (m, None),
         None => (
@@ -121,6 +134,7 @@ pub fn distill(fixture_rel: &str, run: &OracleRun) -> BaselineRecord {
         autorouter_seconds: manifest.phases.autorouter.duration_seconds,
         optimizer_seconds: manifest.phases.optimizer.duration_seconds,
         passes_completed: manifest.phases.autorouter.passes_completed,
+        profile: profile_marker.map(str::to_string),
         captured_at_unix: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
@@ -153,6 +167,12 @@ pub enum GateFailure {
         expected: Option<f64>,
         actual: Option<f64>,
     },
+    /// The capture profiles differ (e.g. a full-flow verify run compared
+    /// against router-only records — the trap-3 silent mismatch).
+    Profile {
+        expected: Option<String>,
+        actual: Option<String>,
+    },
 }
 
 /// Compares a fresh run against a committed baseline. Counts/state/exit are
@@ -161,6 +181,12 @@ pub enum GateFailure {
 /// honest bound).
 pub fn compare(expected: &BaselineRecord, actual: &BaselineRecord) -> Vec<GateFailure> {
     let mut failures = Vec::new();
+    if expected.profile != actual.profile {
+        failures.push(GateFailure::Profile {
+            expected: expected.profile.clone(),
+            actual: actual.profile.clone(),
+        });
+    }
     if expected.final_state != actual.final_state {
         failures.push(GateFailure::FinalState {
             expected: expected.final_state.clone(),
@@ -282,7 +308,7 @@ mod tests {
         let m: RoutingResultManifest =
             serde_json::from_str(&sample_manifest_json()).expect("manifest parses");
         let run = synthetic_run(Some(m), false);
-        let b = distill("fixtures/x.dsn", &run);
+        let b = distill_profiled(None, "fixtures/x.dsn", &run);
         assert_eq!(b.schema_version, 1);
         assert_eq!(b.engine, "java");
         assert_eq!(b.final_state, "COMPLETED");
@@ -293,12 +319,66 @@ mod tests {
         assert_eq!(b.autorouter_seconds, Some(10.0));
         assert_eq!(b.passes_completed, Some(20));
         assert_eq!(b.ses_sha256, None); // ses file does not exist in test
+        assert_eq!(b.profile, None); // full-flow default
+    }
+
+    /// The profile marker must land on the record BOTH ways — a router-only
+    /// capture that lost its marker would be indistinguishable from a
+    /// full-flow record in code (and would then verify against full-flow
+    /// runs).
+    #[test]
+    fn distill_stamps_and_round_trips_the_profile_marker() {
+        let m: RoutingResultManifest =
+            serde_json::from_str(&sample_manifest_json()).expect("manifest parses");
+
+        let router_only = distill_profiled(
+            Some("router-only"),
+            "fixtures/x.dsn",
+            &synthetic_run(Some(m.clone()), false),
+        );
+        assert_eq!(router_only.profile, Some("router-only".into()));
+        // The marker survives the strict JSON round trip.
+        let json = serde_json::to_string(&router_only).expect("serialize");
+        let back: BaselineRecord = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.profile, Some("router-only".into()));
+
+        // A pre-T14 record (no profile key) still parses — schema-safe.
+        let legacy: BaselineRecord = serde_json::from_str(
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
+        )
+        .expect("legacy record must parse");
+        assert_eq!(legacy.profile, None);
+    }
+
+    /// ses_sha256 must digest the bytes AT ses_path — not some other file —
+    /// with a contrast witness (different bytes → different digest).
+    #[test]
+    fn distill_hashes_the_ses_bytes_present_at_ses_path() {
+        let dir = std::env::temp_dir().join("epic-harness-ses-hash-test");
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let ses = dir.join("out.ses");
+        std::fs::write(&ses, b"(session \"router-only\")").expect("write ses");
+        let mut run = synthetic_run(None, false);
+        run.ses_path = ses.clone();
+
+        let record = distill_profiled(Some("router-only"), "fixtures/x.dsn", &run);
+        let expected = sha256_file(&ses).expect("hash ses");
+        assert_eq!(record.ses_sha256, Some(expected.clone()));
+        // Contrast: other bytes at the same path would hash differently —
+        // the pin discriminates wrong-byte mutants.
+        std::fs::write(&ses, b"(session \"full-flow and different\")").expect("rewrite ses");
+        let other = sha256_file(&ses).expect("hash other ses");
+        assert_ne!(expected, other);
+        let record2 = distill_profiled(Some("router-only"), "fixtures/x.dsn", &run);
+        assert_eq!(record2.ses_sha256, Some(other));
+        assert_ne!(record.ses_sha256, record2.ses_sha256);
+        let _ = std::fs::remove_file(&ses);
     }
 
     #[test]
     fn records_harness_timeout_honestly() {
         let run = synthetic_run(None, true);
-        let b = distill("fixtures/x.dsn", &run);
+        let b = distill_profiled(None, "fixtures/x.dsn", &run);
         assert_eq!(b.final_state, "HARNESS_TIMED_OUT");
         assert!(
             b.notes
@@ -313,7 +393,7 @@ mod tests {
     fn records_manifest_parse_failure_honestly() {
         let mut run = synthetic_run(None, false);
         run.manifest_error = Some("expected value at line 1 column 1".into());
-        let b = distill("fixtures/x.dsn", &run);
+        let b = distill_profiled(None, "fixtures/x.dsn", &run);
         let note = b.notes.as_deref().expect("note present");
         assert!(note.contains("manifest unparseable"));
         assert!(note.contains("expected value"));
@@ -325,7 +405,7 @@ mod tests {
         let m: RoutingResultManifest =
             serde_json::from_str(&sample_manifest_json()).expect("manifest parses");
         let run = synthetic_run(Some(m), false);
-        let mut record = distill("fixtures/x.dsn", &run);
+        let mut record = distill_profiled(None, "fixtures/x.dsn", &run);
         // Make the round trip non-trivial: populate a field distill left
         // None-ish and clear another, so Some/None survive JSON equally.
         record.notes = Some("captured on CI runner".into());
@@ -344,7 +424,7 @@ mod tests {
         let m: RoutingResultManifest =
             serde_json::from_str(&sample_manifest_json()).expect("manifest parses");
         let run = synthetic_run(Some(m), false);
-        let record = distill("fixtures/x.dsn", &run);
+        let record = distill_profiled(None, "fixtures/x.dsn", &run);
         let mut value = serde_json::to_value(&record).expect("serialize");
         value
             .as_object_mut()
@@ -406,6 +486,7 @@ mod compare_tests {
             autorouter_seconds: Some(10.0),
             optimizer_seconds: None,
             passes_completed: Some(20),
+            profile: None,
             captured_at_unix: 0,
             notes: None,
         }
@@ -461,5 +542,47 @@ mod compare_tests {
         let both_absent_a = record("COMPLETED", Some(0), Some(0), None);
         let both_absent_b = record("COMPLETED", Some(0), Some(0), None);
         assert_eq!(compare(&both_absent_a, &both_absent_b), Vec::new());
+    }
+
+    /// The profile marker is gated: a full-flow run (profile None) compared
+    /// against a router-only record must FAIL with exactly the Profile
+    /// failure — the trap-3 silent-mismatch detector — while matching
+    /// markers (Some==Some and None==None) stay green.
+    #[test]
+    fn compare_gates_profile_mismatch_and_agreement() {
+        let router_only = {
+            let mut r = record("COMPLETED", Some(0), Some(0), Some(990.0));
+            r.profile = Some("router-only".into());
+            r
+        };
+        let full_flow = record("COMPLETED", Some(0), Some(0), Some(990.0));
+
+        let failures = compare(&router_only, &full_flow);
+        assert_eq!(
+            failures.len(),
+            1,
+            "marker mismatch must be the sole failure"
+        );
+        assert_eq!(
+            failures[0],
+            GateFailure::Profile {
+                expected: Some("router-only".into()),
+                actual: None,
+            }
+        );
+
+        // Symmetric face: expected full-flow, actual router-only also fails
+        // (the direction verify actually hits).
+        let failures = compare(&full_flow, &router_only);
+        assert_eq!(
+            failures[0],
+            GateFailure::Profile {
+                expected: None,
+                actual: Some("router-only".into()),
+            }
+        );
+
+        assert_eq!(compare(&router_only, &router_only), Vec::new());
+        assert_eq!(compare(&full_flow, &full_flow), Vec::new());
     }
 }

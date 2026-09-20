@@ -10,7 +10,7 @@
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RoutingResultManifest {
     pub schema_version: u32,
     pub app_version: String,
@@ -25,13 +25,13 @@ pub struct RoutingResultManifest {
     pub output_written: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FixtureInfo {
     pub filename: Option<String>,
     pub sha256: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct PhaseMetrics {
     #[serde(default)]
     pub fanout: PhaseDetail,
@@ -41,25 +41,25 @@ pub struct PhaseMetrics {
     pub optimizer: PhaseDetail,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct PhaseDetail {
     pub duration_seconds: Option<f64>,
     pub passes_completed: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BoardStatistics {
     pub connections: Option<Connections>,
     pub clearance_violations: Option<ClearanceViolations>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Connections {
     pub incomplete_count: Option<i64>,
     pub maximum_count: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ClearanceViolations {
     pub total_count: Option<i64>,
     pub router_introduced_count: Option<i64>,

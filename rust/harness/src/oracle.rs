@@ -11,6 +11,118 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+/// Which stages the Java oracle runs (M3-T14) and where its baselines live.
+/// The disable flags go to the JAVA jar argv ONLY — never to epic-cli:
+/// `--optimizer.enabled=false` does not parse into the Rust CLI (it warns
+/// "unsupported path in the route subset" and is dropped — there is no
+/// optimizer stage to disable), so feeding it there would put a spurious
+/// warning in the logs and a false "flag honored" reading. When T15 runs
+/// the Rust router in this profile, fanout-off expresses via
+/// `--router.fanout.enabled=false` on the Rust side instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OracleProfile {
+    /// Full pipeline (fanout + autorouter + optimizer): the classic
+    /// `baselines/java/` captures.
+    FullFlow,
+    /// Fanout and optimizer disabled; only the maze autorouter runs.
+    /// Behavioral coupling: with fanout off the Java job derives
+    /// `removeUnconnectedVias = true` (BatchAutorouter.java:111-117), which
+    /// skips the final tail sweep (AutorouteBatchLoop.java:594-600) — these
+    /// captures are NOT comparable to the full-flow ones.
+    RouterOnly,
+}
+
+impl OracleProfile {
+    /// Parses the `--profile` CLI value; omitted means full-flow.
+    pub fn from_name(name: Option<&str>) -> Result<Self> {
+        match name {
+            None | Some("full-flow") => Ok(Self::FullFlow),
+            Some("router-only") => Ok(Self::RouterOnly),
+            Some(other) => {
+                bail!("unknown profile {other:?} (expected \"full-flow\" or \"router-only\")")
+            }
+        }
+    }
+
+    /// Extra flags appended to the oracle argv, after the base contract.
+    /// Both defaults are ON in DefaultSettings (fanout.enabled :165,
+    /// optimizer.enabled :178), so the router-only profile must pass BOTH
+    /// disables explicitly; the property paths reach RouterSettings through
+    /// the CliSettings `router.`/`optimizer.` prefix gates (the bridge keeps
+    /// `fanout.enabled` verbatim).
+    pub fn extra_args(&self) -> &'static [&'static str] {
+        match self {
+            Self::FullFlow => &[],
+            Self::RouterOnly => &["--optimizer.enabled=false", "--router.fanout.enabled=false"],
+        }
+    }
+
+    /// Baselines directory under `rust/harness/baselines/`.
+    pub fn dir_name(&self) -> &'static str {
+        match self {
+            Self::FullFlow => "java",
+            Self::RouterOnly => "router-only",
+        }
+    }
+
+    /// The record marker that makes a router-only record unmistakable from
+    /// a full-flow one in code, not by path alone (compare() gates it).
+    pub fn marker(&self) -> Option<&'static str> {
+        match self {
+            Self::FullFlow => None,
+            Self::RouterOnly => Some("router-only"),
+        }
+    }
+
+    /// The T14 capture discipline: router-only captures double-run + diff
+    /// every fixture (the T12 MINOR-2 snapshot-race lesson); the committed
+    /// full-flow captures predate this profile machinery.
+    pub fn double_run(&self) -> bool {
+        matches!(self, Self::RouterOnly)
+    }
+}
+
+/// The PROVE-stages-off gate (M3-T14): a router-only manifest must show BOTH
+/// disabled stages silent. The faces are read off the Java, not guessed:
+/// - optimizer off (RoutingPipeline.java:36 — the optimizer stage is never
+///   constructed): its PhaseDetail is never touched, so duration_seconds and
+///   passes_completed are absent, and RoutingResultManifest.java:200-203
+///   emits top-level optimizer_score only iff the optimizer phase carried a
+///   before/after snapshot — absent here.
+/// - fanout off (AutorouteBatchLoop.java:96-102 — the phase block at
+///   :232-251 runs only when isFanoutEnabled()): duration_seconds and
+///   passes_completed absent.
+///   Any populated face means a disable flag was dropped or typo'd: fail
+///   fast instead of committing a full-flow run into the router-only
+///   directory.
+pub fn assert_router_only_manifest(manifest: &RoutingResultManifest) -> Result<()> {
+    let mut faces: Vec<String> = Vec::new();
+    if let Some(d) = manifest.phases.optimizer.duration_seconds {
+        faces.push(format!("phases.optimizer.duration_seconds={d}"));
+    }
+    if let Some(p) = manifest.phases.optimizer.passes_completed {
+        faces.push(format!("phases.optimizer.passes_completed={p}"));
+    }
+    if let Some(s) = manifest.optimizer_score {
+        faces.push(format!("optimizer_score={s}"));
+    }
+    if let Some(d) = manifest.phases.fanout.duration_seconds {
+        faces.push(format!("phases.fanout.duration_seconds={d}"));
+    }
+    if let Some(p) = manifest.phases.fanout.passes_completed {
+        faces.push(format!("phases.fanout.passes_completed={p}"));
+    }
+    if faces.is_empty() {
+        Ok(())
+    } else {
+        bail!(
+            "PROVE-stages-off gate failed — the router-only flags did not take \
+             (disabled-stage activity in the manifest): {}",
+            faces.join("; ")
+        )
+    }
+}
+
 /// Where results of one oracle invocation land.
 #[derive(Debug)]
 pub struct OracleRun {
@@ -94,6 +206,9 @@ pub fn build_jar(repo_root: &Path) -> Result<()> {
 
 /// Pure argv builder (unit-tested; no I/O). Paths may contain spaces —
 /// callers pass this directly to `Command::args`, never through a shell.
+/// `extra_args` (the profile's flags) is appended verbatim AFTER the base
+/// contract — one suffix site shared by capture AND verify, so the two paths
+/// cannot drift.
 pub fn oracle_argv(
     java: &Path,
     jar: &Path,
@@ -101,8 +216,9 @@ pub fn oracle_argv(
     dsn: &Path,
     ses_out: &Path,
     manifest_out: &Path,
+    extra_args: &[&str],
 ) -> Vec<String> {
-    vec![
+    let mut argv = vec![
         java.to_string_lossy().into_owned(),
         format!("-Xmx{jvm_xmx}"),
         "-jar".into(),
@@ -119,12 +235,17 @@ pub fn oracle_argv(
         // Mirror scripts/benchmark/lib/BenchmarkRunner.ps1.
         "--gui.enabled=false".into(),
         "--api_server.enabled=false".into(),
-    ]
+    ];
+    argv.extend(extra_args.iter().map(|s| (*s).to_string()));
+    argv
 }
 
-/// Spawns one oracle run. `work_dir` receives `out.ses`, `manifest.json`,
-/// `stdout.log`, `stderr.log`. Output goes to files (not pipes) so a chatty
-/// JVM can never deadlock on a full pipe buffer.
+/// Spawns one oracle run under `profile`. `work_dir` receives `out.ses`,
+/// `manifest.json`, `stdout.log`, `stderr.log`. Output goes to files (not
+/// pipes) so a chatty JVM can never deadlock on a full pipe buffer. Taking
+/// the profile here (not raw flags) forces every caller — capture AND
+/// verify — through the same flag threading; there is no second argv site
+/// to forget the suffix on.
 pub fn run_oracle(
     java: &Path,
     jar: &Path,
@@ -132,6 +253,7 @@ pub fn run_oracle(
     work_dir: &Path,
     timeout: Duration,
     jvm_xmx: &str,
+    profile: OracleProfile,
 ) -> Result<OracleRun> {
     let ses_path = work_dir.join("out.ses");
     let manifest_path = work_dir.join("manifest.json");
@@ -144,7 +266,15 @@ pub fn run_oracle(
     let _ = std::fs::remove_file(&manifest_path);
     let _ = std::fs::remove_file(&ses_path);
 
-    let argv = oracle_argv(java, jar, jvm_xmx, dsn, &ses_path, &manifest_path);
+    let argv = oracle_argv(
+        java,
+        jar,
+        jvm_xmx,
+        dsn,
+        &ses_path,
+        &manifest_path,
+        profile.extra_args(),
+    );
     let (java_bin, rest) = argv.split_first().expect("argv is never empty");
     let stdout_file = std::fs::File::create(&stdout_path)
         .with_context(|| format!("creating {}", stdout_path.display()))?;
@@ -288,6 +418,7 @@ mod tests {
             &work,
             Duration::from_secs(10),
             "4g",
+            OracleProfile::FullFlow,
         )
         .expect("oracle run");
 
@@ -312,6 +443,7 @@ mod tests {
             Path::new("/repo/fixtures/sonde xilinx.dsn"),
             Path::new("/tmp/w/out.ses"),
             Path::new("/tmp/w/manifest.json"),
+            OracleProfile::FullFlow.extra_args(),
         );
         assert_eq!(argv[0], "/jdks/jdk-25/bin/java");
         assert_eq!(argv[1], "-Xmx4g");
@@ -331,6 +463,155 @@ mod tests {
         assert_eq!(argv.len(), 12);
     }
 
+    /// The router-only profile appends EXACTLY the two disable flags, in
+    /// order, as an argv suffix — never interleaved with the base contract,
+    /// never fed anywhere but the Java jar (epic-cli would drop
+    /// `--optimizer.enabled=false` with a warning).
+    #[test]
+    fn router_only_argv_appends_disable_flags_as_suffix() {
+        let argv = oracle_argv(
+            Path::new("/jdks/jdk-25/bin/java"),
+            Path::new("/repo/build/libs/freerouting-current-executable.jar"),
+            "4g",
+            Path::new("/repo/fixtures/x.dsn"),
+            Path::new("/tmp/w/out.ses"),
+            Path::new("/tmp/w/manifest.json"),
+            OracleProfile::RouterOnly.extra_args(),
+        );
+        assert_eq!(argv.len(), 14);
+        // The base contract is untouched (contrast face: the profile only
+        // ever ADDS a suffix).
+        assert_eq!(&argv[..12][4], "-de");
+        assert_eq!(argv[8], "--router.result_json=/tmp/w/manifest.json");
+        assert_eq!(argv[11], "--api_server.enabled=false");
+        // The suffix is exactly the two disables, in order.
+        assert_eq!(argv[12], "--optimizer.enabled=false");
+        assert_eq!(argv[13], "--router.fanout.enabled=false");
+    }
+
+    /// The PROVE-stages-off gate: each disabled-stage face must be rejected
+    /// INDEPENDENTLY (a gate keying on only one field would pass a run where
+    /// just that other stage stayed on), and the all-clear router-only face
+    /// must pass.
+    #[test]
+    fn prove_off_gate_rejects_each_disabled_stage_face_independently() {
+        let base = r#"{
+          "schema_version": 1,
+          "app_version": "t",
+          "git_sha": "abc123",
+          "fixture": {},
+          "phases": { "fanout": {}, "autorouter": {}, "optimizer": {} },
+          "final_state": "COMPLETED",
+          "exit_code": 0,
+          "output_written": true
+        }"#;
+        let all_clear: RoutingResultManifest = serde_json::from_str(base).expect("parses");
+        assert!(assert_router_only_manifest(&all_clear).is_ok());
+
+        for (field, json) in [
+            (
+                "optimizer duration",
+                r#""phases": { "fanout": {}, "optimizer": { "duration_seconds": 0.0 } }"#,
+            ),
+            (
+                "optimizer passes",
+                r#""phases": { "fanout": {}, "optimizer": { "passes_completed": 0 } }"#,
+            ),
+            (
+                "optimizer score",
+                r#""phases": { "fanout": {}, "optimizer": {} }, "optimizer_score": 980.0"#,
+            ),
+            (
+                "fanout duration",
+                r#""phases": { "fanout": { "duration_seconds": 0.5 }, "optimizer": {} }"#,
+            ),
+            (
+                "fanout passes",
+                r#""phases": { "fanout": { "passes_completed": 1 }, "optimizer": {} }"#,
+            ),
+        ] {
+            let raw = base.replacen(
+                r#""phases": { "fanout": {}, "autorouter": {}, "optimizer": {} }"#,
+                json,
+                1,
+            );
+            let m: RoutingResultManifest = serde_json::from_str(&raw).expect("world must parse");
+            let err = assert_router_only_manifest(&m)
+                .expect_err(&format!("{field} face must fail the gate"));
+            let msg = err.to_string();
+            assert!(
+                msg.contains("PROVE-stages-off"),
+                "unexpected error for {field}: {msg}"
+            );
+            assert!(
+                msg.contains(field.split_once(' ').expect("two words").0),
+                "error for {field} must name the stage: {msg}"
+            );
+        }
+    }
+
+    /// A full-flow-shaped manifest (BOTH stages on) trips every face —
+    /// the gate cannot be satisfied by fixing only one stage.
+    #[test]
+    fn prove_off_gate_rejects_full_flow_manifest_listing_both_stages() {
+        let raw = r#"{
+          "schema_version": 1,
+          "app_version": "t",
+          "git_sha": "abc123",
+          "fixture": {},
+          "phases": {
+            "fanout": { "duration_seconds": 0.5, "passes_completed": 1 },
+            "autorouter": { "duration_seconds": 10.0, "passes_completed": 20 },
+            "optimizer": { "duration_seconds": 5.0, "passes_completed": 3 }
+          },
+          "optimizer_score": 980.0,
+          "final_state": "COMPLETED",
+          "exit_code": 0,
+          "output_written": true
+        }"#;
+        let m: RoutingResultManifest = serde_json::from_str(raw).expect("parses");
+        let err = assert_router_only_manifest(&m).expect_err("full-flow manifest must fail");
+        let msg = err.to_string();
+        assert!(msg.contains("optimizer") && msg.contains("fanout"), "{msg}");
+        assert!(msg.contains("optimizer_score"), "{msg}");
+    }
+
+    /// The profile contract: exact flag set, dir routing, record marker,
+    /// double-run discipline, and name parsing (both faces + the unknown
+    /// face).
+    #[test]
+    fn router_only_profile_contract_flags_dirs_marker_and_names() {
+        assert_eq!(OracleProfile::FullFlow.extra_args(), &[] as &[&str]);
+        assert_eq!(
+            OracleProfile::RouterOnly.extra_args(),
+            &["--optimizer.enabled=false", "--router.fanout.enabled=false"]
+        );
+        assert_eq!(OracleProfile::FullFlow.dir_name(), "java");
+        assert_eq!(OracleProfile::RouterOnly.dir_name(), "router-only");
+        assert_eq!(OracleProfile::FullFlow.marker(), None);
+        assert_eq!(OracleProfile::RouterOnly.marker(), Some("router-only"));
+        assert!(!OracleProfile::FullFlow.double_run());
+        assert!(OracleProfile::RouterOnly.double_run());
+        assert!(matches!(
+            OracleProfile::from_name(None),
+            Ok(OracleProfile::FullFlow)
+        ));
+        assert!(matches!(
+            OracleProfile::from_name(Some("full-flow")),
+            Ok(OracleProfile::FullFlow)
+        ));
+        assert!(matches!(
+            OracleProfile::from_name(Some("router-only")),
+            Ok(OracleProfile::RouterOnly)
+        ));
+        let err = OracleProfile::from_name(Some("routeronly"))
+            .expect_err("a typo'd profile name must be rejected, not silently full-flow");
+        assert!(
+            err.to_string().contains("unknown profile"),
+            "unexpected error: {err}"
+        );
+    }
+
     /// End-to-end smoke on the tiniest fixture. Requires the jar + JDK 25;
     /// run explicitly with `cargo test -- --ignored`.
     #[test]
@@ -342,8 +623,16 @@ mod tests {
         let jar = jar_path(&root);
         let dsn = root.join("scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn");
         let work = std::env::temp_dir().join("epic-harness-bm08-smoke");
-        let run = run_oracle(&java, &jar, &dsn, &work, Duration::from_secs(300), "4g")
-            .expect("oracle run");
+        let run = run_oracle(
+            &java,
+            &jar,
+            &dsn,
+            &work,
+            Duration::from_secs(300),
+            "4g",
+            OracleProfile::FullFlow,
+        )
+        .expect("oracle run");
         let m = run.manifest.as_ref().expect("manifest must be written");
         assert_eq!(m.final_state, "COMPLETED");
         assert_eq!(m.exit_code, 0);
