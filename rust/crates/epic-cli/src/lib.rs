@@ -1,12 +1,12 @@
-//! `epicrouter -de board.dsn -do out.ses` drop-in CLI (design §4.1; content
-//! lands in M3).
+//! `epic-cli route -de board.dsn -do out.ses` — the headless
+//! DSN -> route -> SES + manifest pipeline (M3-T13).
+//!
+//! - [`settings`]: the settings subset resolver, Default(0) ->
+//!   DsnFile(20) -> Cli(60), plus the CLI parse surface
+//!   (`CliSettings.java` port).
+//! - [`route`]: the flow (epic-dsn read -> epic-board build +
+//!   import normalize -> T12 batch driver -> SES writer -> result
+//!   JSON) and the manifest emitter.
 
-#[cfg(test)]
-mod tests {
-    /// The crate is a scaffold in M0; content lands in M3.
-    #[test]
-    fn crate_scaffolds() {
-        let name = env!("CARGO_PKG_NAME");
-        assert_eq!(name, "epic-cli");
-    }
-}
+pub mod route;
+pub mod settings;

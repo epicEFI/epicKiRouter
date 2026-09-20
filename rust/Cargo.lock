@@ -166,6 +166,16 @@ dependencies = [
 [[package]]
 name = "epic-cli"
 version = "0.1.0"
+dependencies = [
+ "epic-board",
+ "epic-dsn",
+ "epic-geometry",
+ "epic-router",
+ "num-bigint",
+ "serde",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "epic-drc"

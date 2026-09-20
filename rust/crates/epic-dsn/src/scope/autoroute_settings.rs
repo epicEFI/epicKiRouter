@@ -39,19 +39,35 @@ use crate::scope::structure::{read_float_scope, read_integer_scope, read_on_off_
 /// One layer's rule slice: the observable `RouterSettings` layer getters
 /// (`getLayerActive`, `getPreferredDirectionIsHorizontal`,
 /// `getPreferredDirectionTraceCosts`, `getAgainstPreferredDirectionTraceCosts`).
+///
+/// The `*_set` flags are the T13 settings-merger face (M3-T13): the Java
+/// parse (`AutorouteSettings.readLayerRule`) calls the setters ONLY for
+/// the layer_rule sub-scopes that appear, so the extracted
+/// `RouterSettings` layers carry NULL elsewhere — and
+/// `ReflectionUtil.copyFields` copies a field only when the source value
+/// is non-null. The IR materializes the getter defaults (D15); the flags
+/// restore the set-vs-inherited distinction the layered resolver needs.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayerRuleIr {
     /// `getLayerActive` — default true (`RouterSettings.java:664-668`).
     pub active: bool,
+    /// `(active on|off)` appeared — `setLayerActive` was called.
+    pub active_set: bool,
     /// `getPreferredDirectionIsHorizontal` — default `i % 2 == 1`
     /// (`:747-750`).
     pub preferred_direction_is_horizontal: bool,
+    /// `(preferred_direction ...)` appeared.
+    pub preferred_direction_is_horizontal_set: bool,
     /// `getPreferredDirectionTraceCosts` — default 1.0, clamped
     /// `max(v, 0.1)` on set (`:778`, `:793-797`).
     pub preferred_direction_trace_costs: f64,
+    /// `(preferred_direction_trace_costs ...)` appeared.
+    pub preferred_direction_trace_costs_set: bool,
     /// `getAgainstPreferredDirectionTraceCosts` — default 1.0, clamped
     /// `max(v, 0.1)` on set.
     pub against_preferred_direction_trace_costs: f64,
+    /// `(against_preferred_direction_trace_costs ...)` appeared.
+    pub against_preferred_direction_trace_costs_set: bool,
 }
 
 impl LayerRuleIr {
@@ -59,28 +75,45 @@ impl LayerRuleIr {
     fn new(layer_index: i32) -> Self {
         Self {
             active: true,
+            active_set: false,
             preferred_direction_is_horizontal: layer_index % 2 == 1,
+            preferred_direction_is_horizontal_set: false,
             preferred_direction_trace_costs: 1.0,
+            preferred_direction_trace_costs_set: false,
             against_preferred_direction_trace_costs: 1.0,
+            against_preferred_direction_trace_costs_set: false,
         }
     }
 }
 
 /// The whole `(autoroute_settings ...)` read result (D15).
+///
+/// T13 set-flags (see [`LayerRuleIr`]): `readScope` calls
+/// `setRunRouter`/`setRunOptimizer` post-loop UNCONDITIONALLY (even an
+/// empty scope sets both), so those two carry no flag; the four scalars
+/// are set only when their sub-scope appeared.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutorouteSettingsIr {
-    /// `getRunRouter` — the post-loop `withAutoroute` (`:68`).
+    /// `getRunRouter` — the post-loop `withAutoroute` (`:68`); ALWAYS set.
     pub run_router: bool,
-    /// `getRunOptimizer` — the post-loop `withPostroute` (`:69`).
+    /// `getRunOptimizer` — the post-loop `withPostroute` (`:69`); ALWAYS set.
     pub run_optimizer: bool,
     /// `getViasAllowed` — default true.
     pub vias_allowed: bool,
+    /// `(vias on|off)` appeared.
+    pub vias_allowed_set: bool,
     /// `getViaCosts` — default 1, clamped `max(v, 1)` (`:613`).
     pub via_costs: i32,
+    /// `(via_costs ...)` appeared.
+    pub via_costs_set: bool,
     /// `getPlaneViaCosts` — default 1, clamped `max(v, 1)` (`:626`).
     pub plane_via_costs: i32,
+    /// `(plane_via_costs ...)` appeared.
+    pub plane_via_costs_set: bool,
     /// `getStartRipupCosts` — default 1, clamped `max(v, 1)` (`:549`).
     pub start_ripup_costs: i32,
+    /// `(start_ripup_costs ...)` appeared.
+    pub start_ripup_costs_set: bool,
     /// One entry per layer at read time (`setLayerCount(layerCount)`, `:20`).
     pub layer_rules: Vec<LayerRuleIr>,
 }
@@ -95,9 +128,13 @@ impl AutorouteSettingsIr {
             // the CONSTRUCTOR default; readScope overwrites it post-loop
             run_optimizer: false,
             vias_allowed: true,
+            vias_allowed_set: false,
             via_costs: 1,
+            via_costs_set: false,
             plane_via_costs: 1,
+            plane_via_costs_set: false,
             start_ripup_costs: 1,
+            start_ripup_costs_set: false,
             layer_rules: (0..layer_count as i32).map(LayerRuleIr::new).collect(),
         }
     }
@@ -139,18 +176,22 @@ pub fn read_scope(
                 }
                 Token::Keyword(Keyword::Vias) => {
                     result.vias_allowed = read_on_off_scope(scanner);
+                    result.vias_allowed_set = true;
                 }
                 Token::Keyword(Keyword::ViaCosts) => {
                     let value = read_integer_scope(scanner);
                     result.via_costs = value.max(1);
+                    result.via_costs_set = true;
                 }
                 Token::Keyword(Keyword::PlaneViaCosts) => {
                     let value = read_integer_scope(scanner);
                     result.plane_via_costs = value.max(1);
+                    result.plane_via_costs_set = true;
                 }
                 Token::Keyword(Keyword::StartRipupCosts) => {
                     let value = read_integer_scope(scanner);
                     result.start_ripup_costs = value.max(1);
+                    result.start_ripup_costs_set = true;
                 }
                 Token::Keyword(Keyword::LayerRule) => {
                     read_layer_rule(scanner, layer_structure, &mut result)?;
@@ -206,7 +247,9 @@ fn read_layer_rule(
         if prev_token == Some(Token::Open) {
             match next_token {
                 Token::Keyword(Keyword::Active) => {
-                    settings.layer_rules[layer_index].active = read_on_off_scope(scanner);
+                    let rule = &mut settings.layer_rules[layer_index];
+                    rule.active = read_on_off_scope(scanner);
+                    rule.active_set = true;
                 }
                 Token::Keyword(Keyword::PreferredDirection) => {
                     // Java `:120-141`: VERTICAL/HORIZONTAL cascade; an
@@ -221,8 +264,9 @@ fn read_layer_rule(
                         // unexpected key word at '<id>'" (log-only).
                         _ => return None,
                     }
-                    settings.layer_rules[layer_index].preferred_direction_is_horizontal =
-                        pref_dir_is_horizontal;
+                    let rule = &mut settings.layer_rules[layer_index];
+                    rule.preferred_direction_is_horizontal = pref_dir_is_horizontal;
+                    rule.preferred_direction_is_horizontal_set = true;
                     if scanner.next_token() != Token::Close {
                         // Java: warn "... closing bracket expected at
                         // '<id>'" (log-only).
@@ -231,13 +275,15 @@ fn read_layer_rule(
                 }
                 Token::Keyword(Keyword::PreferredDirectionTraceCosts) => {
                     let value = read_float_scope(scanner);
-                    settings.layer_rules[layer_index].preferred_direction_trace_costs =
-                        value.max(0.1);
+                    let rule = &mut settings.layer_rules[layer_index];
+                    rule.preferred_direction_trace_costs = value.max(0.1);
+                    rule.preferred_direction_trace_costs_set = true;
                 }
                 Token::Keyword(Keyword::AgainstPreferredDirectionTraceCosts) => {
                     let value = read_float_scope(scanner);
-                    settings.layer_rules[layer_index].against_preferred_direction_trace_costs =
-                        value.max(0.1);
+                    let rule = &mut settings.layer_rules[layer_index];
+                    rule.against_preferred_direction_trace_costs = value.max(0.1);
+                    rule.against_preferred_direction_trace_costs_set = true;
                 }
                 _ => {
                     let _ = skip_scope(scanner);
@@ -421,5 +467,45 @@ mod tests {
         let settings = run_settings("").expect("settings read");
         assert!(settings.run_router);
         assert!(settings.run_optimizer);
+    }
+
+    /// T13 (M3-T13): the explicit-set flags mirror Java's null-vs-set
+    /// surface in the extracted `RouterSettings` — the post-loop
+    /// `setRunRouter`/`setRunOptimizer` fire ALWAYS; every scalar and
+    /// per-layer field is set ONLY when its sub-scope appeared. The
+    /// materialized values keep their getter defaults either way.
+    #[test]
+    fn explicit_set_flags_track_the_scopes() {
+        let settings = run_settings(
+            "(autoroute on)\
+             (postroute off)\
+             (via_costs 3)\
+             (layer_rule In1.Cu (preferred_direction vertical))",
+        )
+        .expect("settings read");
+        // ALWAYS set (post-loop assignment, empty scope included).
+        assert!(settings.run_router);
+        assert!(!settings.run_optimizer);
+        // Sub-scope-gated: via_costs yes, the rest no.
+        assert!(!settings.vias_allowed_set);
+        assert!(settings.via_costs_set);
+        assert_eq!(settings.via_costs, 3);
+        assert!(!settings.plane_via_costs_set);
+        assert!(!settings.start_ripup_costs_set);
+        assert_eq!(settings.plane_via_costs, 1);
+        // In1.Cu = layer 1: only the direction sub-scope appeared.
+        let in1 = &settings.layer_rules[1];
+        assert!(!in1.active_set);
+        assert!(in1.active);
+        assert!(in1.preferred_direction_is_horizontal_set);
+        assert!(!in1.preferred_direction_is_horizontal);
+        assert!(!in1.preferred_direction_trace_costs_set);
+        assert!(!in1.against_preferred_direction_trace_costs_set);
+        // Untouched layer: nothing set.
+        let untouched = &settings.layer_rules[0];
+        assert!(!untouched.active_set);
+        assert!(!untouched.preferred_direction_is_horizontal_set);
+        assert!(!untouched.preferred_direction_trace_costs_set);
+        assert!(!untouched.against_preferred_direction_trace_costs_set);
     }
 }

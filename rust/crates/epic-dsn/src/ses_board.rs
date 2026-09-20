@@ -320,6 +320,22 @@ impl SesBoard {
         self.next_item_id - 1
     }
 
+    /// T13 (M3-T13): appends a ROUTER-created item projection after the
+    /// parse items. The id is the LIVE BOARD item's id (`Board::
+    /// from_ses_board` seeds the generator past the parse ids, so every
+    /// routed trace/via carries a higher id — the ascending order of
+    /// `items` is preserved when the caller walks the board ascending).
+    /// Deliberately NOT the [`BoardSink::insert_trace`] face: that one
+    /// assigns a fresh id and applies the parse drop guards, neither of
+    /// which belongs to a projection of already-inserted board items.
+    pub fn push_routed_item(&mut self, item: ItemIr) {
+        let id = item.id();
+        if id >= self.next_item_id {
+            self.next_item_id = id.saturating_add(1);
+        }
+        self.items.push(item);
+    }
+
     /// The 1-based padstack name, `None` (Java null) out of range.
     pub fn padstack_name(&self, padstack_no: i32) -> Option<&str> {
         let index = usize::try_from(padstack_no.checked_sub(1)?).ok()?;
