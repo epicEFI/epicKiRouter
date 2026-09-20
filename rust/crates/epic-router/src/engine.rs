@@ -64,7 +64,12 @@
 //!   null-ish FIELDS, not a None). The single Rust arm therefore
 //!   always serves the reachable search-null face and keeps the
 //!   no-connection literal; the plain-literal arm is unreachable in
-//!   BOTH engines — an unobservable collapse (quality-review F-Q2).
+//!   the port outright (no locator exceptions exist to swallow), and
+//!   in Java reachable ONLY through the swallowed `getInstance`
+//!   exception (`AutorouteEngine.java:180-191`: `autorouteResult`
+//!   null-initialized, any exception logged and absorbed, leaving the
+//!   null that `:215-219` fires on) — a path the port does not
+//!   reproduce (quality-review F-Q2; precision fix R-1).
 //! * **The SKIPPED arm is unrepresentable.** Java's
 //!   `autorouteResult.connectionItems == null` arm cannot occur (the
 //!   locator owns its item list; no null exists).
