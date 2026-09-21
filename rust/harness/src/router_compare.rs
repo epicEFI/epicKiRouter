@@ -1316,9 +1316,16 @@ fn compare_cmd(
         // The detail pass: forced by --detail, otherwise only on a red
         // gate (the localizer). Panic-caught + deadline-bounded inside
         // — the subprocess tier timeout doubles as the detail wall (the
-        // same bound both faces of the fixture's run get).
+        // same bound both faces of the fixture's run get). A KILLED run
+        // (harness timeout) is EXCLUDED unless --detail forces it: the
+        // in-process re-run on a wall-truncated board can only re-burn
+        // the same wall up to its own deadline — it localizes nothing
+        // for a slowness timeout — so without the exclusion one fixture
+        // burns TWO tier walls and its verdict row waits out the second
+        // in silence (the T17b controller round: a 3400s external bound
+        // died inside bm01's post-kill detail pass, zero rows printed).
         let mut detail: Option<RustDetail> = None;
-        if force_detail || !failures.is_empty() {
+        if detail_pass_should_run(force_detail, &failures, run.timed_out) {
             match run_detail_pass(&dsn, Duration::from_secs(entry.timeout_seconds)) {
                 Ok(pass) => {
                     report.rust_trace_count = Some(pass.trace_count);
@@ -1346,6 +1353,16 @@ fn compare_cmd(
                     );
                 }
             }
+        } else if run.timed_out {
+            // The killed-skip arm (the only reachable else-if case:
+            // killed ⇒ integrity failure ⇒ failures non-empty, so an
+            // unforced killed run lands here exactly when the guard
+            // excluded it). Explicit, so the row's missing detail
+            // fields never read as an accident.
+            println!(
+                "  NOTE {}: detail pass skipped — the routing run was killed at the tier wall (a re-run would only re-burn it); the verdict stands on the integrity gate.",
+                entry.tier_path
+            );
         }
 
         let line = verdict_line(
@@ -1412,6 +1429,19 @@ pub fn battery_exit(report_only: bool, red: usize) -> Result<()> {
     } else {
         bail!("router compare: {red} fixture(s) RED")
     }
+}
+
+/// The battery loop's detail-pass decision (the T17b controller
+/// round): `--detail` (force) ALWAYS runs it — the flag is an explicit
+/// opt-in that accepts the wall — otherwise the localizer runs only
+/// for a red verdict on a run the harness did NOT kill. A KILLED run
+/// is excluded because the in-process re-run on a wall-truncated
+/// board cannot converge: it re-burns the same wall up to its own
+/// deadline and localizes nothing for a slowness timeout, so honoring
+/// it would let ONE fixture burn two tier walls before its verdict row
+/// prints. Pure so the pin can hold the full flag × killed matrix.
+fn detail_pass_should_run(force_detail: bool, failures: &[GateFailure], timed_out: bool) -> bool {
+    force_detail || (!failures.is_empty() && !timed_out)
 }
 
 // ---------------------------------------------------------------------------
@@ -2399,6 +2429,56 @@ mod pins {
         assert!(battery_exit(false, 0).is_ok(), "a clean gate exits 0");
         let err = battery_exit(false, 10).expect_err("a red gate must exit nonzero");
         assert!(err.to_string().contains("10 fixture(s) RED"), "{err}");
+    }
+
+    /// THE killed-run detail-skip pin (T17b controller round): the
+    /// battery must never burn a SECOND tier wall inside one fixture.
+    /// A harness-KILLED run skips the detail pass (the in-process
+    /// re-run on a wall-truncated board would only re-burn the same
+    /// wall — it localizes nothing for a slowness timeout), a
+    /// COMPLETED red keeps the localizer (the panic-class reproducer),
+    /// and `--detail` (force) overrides even the skip. The matrix
+    /// crosses flag × killed at every row and column
+    /// (pin-failure-mode 13a); the killed × unforced cell is the
+    /// discriminator the T17a-era `force || !failures.is_empty()`
+    /// behavior fails. Mutation-verified: M1 (dropping `&& !timed_out`)
+    /// dies on the killed-red arm, M2 (inverting to `&& timed_out`)
+    /// dies on the completed-red arm, M3 (dropping the force term) dies
+    /// on both force arms.
+    #[test]
+    fn detail_pass_policy_skips_killed_runs_and_keeps_the_localizer() {
+        let integrity = vec![GateFailure::RunIntegrity {
+            reason: "harness timeout — the run was killed".into(),
+        }];
+        // force column (both rows).
+        assert!(
+            detail_pass_should_run(true, &integrity, true),
+            "--detail explicitly accepts the wall even on a killed run"
+        );
+        assert!(
+            detail_pass_should_run(true, &[], false),
+            "--detail on a green run"
+        );
+        // unforced column (both rows).
+        assert!(
+            detail_pass_should_run(false, &integrity, false),
+            "a COMPLETED red keeps the detail-pass localizer"
+        );
+        assert!(
+            !detail_pass_should_run(false, &integrity, true),
+            "a KILLED red skips — no second tier wall inside one fixture"
+        );
+        assert!(
+            !detail_pass_should_run(false, &[], false),
+            "a green run stays silent (the historic face)"
+        );
+        // killed ⇒ integrity failure is structural (compare_directional
+        // pushes it unconditionally on timed_out), so this cell is
+        // unreachable in the loop; its conservative face stays silent.
+        assert!(
+            !detail_pass_should_run(false, &[], true),
+            "killed-with-no-failures (structural dead arm) stays silent"
+        );
     }
 
     /// THE truncation-boundary pin (quality-review NOTE-A / Q6 survivor):

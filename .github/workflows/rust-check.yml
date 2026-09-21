@@ -101,15 +101,18 @@ jobs:
       # THE EXIT-CONDITION FLIP: drop `--report-only` from this line
       # once every Tier A fixture passes all three directional gates
       # (incomplete <= Java, violations <= Java, score >= Java − 2%).
-      # WALL WARNING (refreshed post-T17a, quality-review T17a-2 Q-2):
-      # the wall ROSE, it did not drop — bm01's subprocess alone burns
-      # its full 1800s tier timeout (pass #1 measured 1074s vs Java's
-      # 106s total) and every red fixture additionally burns an
-      # UNBOUNDED in-process detail pass (bm01 >50 min observed), so a
-      # full-battery push WILL trip this 30-min step bound until the
-      # buglog-175 watchdog lands (wall-clock deadline in the driver
-      # loop or thread + channel timeout); until then this step is the
-      # CI tripwire for that wall, by design.
+      # WALL WARNING (refreshed post-T17b): the buglog-175 watchdog now
+      # bounds the detail pass at the fixture's tier value, and a
+      # harness-KILLED run skips the detail pass outright (an in-process
+      # re-run of a wall-truncated board would only re-burn the same
+      # wall) — so the battery's wall is the SUM of tier timeouts (in
+      # this debug-profile CI: bm01 1800s + bm06/bm11 600s each + the
+      # rest ≈ 3200s+) and a full-battery push STILL trips this 30-min
+      # step bound. The trip is the designed CI tripwire for the wall:
+      # release-profile routing is ~10x faster with byte-identical
+      # outcomes (T17b witnessed: bm01 pass #1 debug 1074s vs release
+      # 103s, same score 466.67 / 78 unrouted / 0 violations). Retiring
+      # the trip needs the wall to drop or this bound to rise — T17c.
       - run: cargo run -q -p epic-harness -- router compare --report-only
         timeout-minutes: 30
         env:
