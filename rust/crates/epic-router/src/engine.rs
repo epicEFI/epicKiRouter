@@ -104,7 +104,7 @@ use epic_board::forced_pad_router::CheckDrillResult as BoardCheckDrillResult;
 use epic_board::id::ItemId;
 use epic_board::items::{FixedState, ItemData};
 use epic_board::routing_board_insert::{PullTightSeam, remove_trace_tails};
-use epic_board::routing_board_search::check_trace_segment_points;
+use epic_board::routing_board_search::check_trace_segment as check_trace_segment_facade;
 use epic_board::time_limit::TimeLimit;
 use epic_board::trace_ops::{
     StopConnectionOption, get_connection_items, remove_item_through_repository,
@@ -1674,6 +1674,14 @@ impl DrillEngine for AutorouteEngine<'_> {
         self.board.pin_center(id)
     }
 
+    fn via_center(&self, item_key: u64) -> Option<Point> {
+        let id = ItemId::new(u32::try_from(item_key).expect("item key fits u32"));
+        // Java `DrillItem.getCenter()` — the stored center (buglog
+        // 170: endPointsMatching reads it directly, never the lazy
+        // drill-info transient).
+        self.board.drill_center(id)
+    }
+
     fn item_is_via(&self, item_key: u64) -> bool {
         let id = ItemId::new(u32::try_from(item_key).expect("item key fits u32"));
         self.board
@@ -2119,14 +2127,25 @@ impl DrillEngine for AutorouteEngine<'_> {
         clearance_class: i32,
         cushions_enabled: bool,
     ) -> f64 {
-        // The PRODUCTION body (Java `RoutingBoard.checkTraceSegment`):
-        // the read-only clearance probe. The last flag is the Java
+        // Java `RoutingBoard.checkTraceSegment(LineSegment, ...)`
+        // (`RoutingBoard.java:223-233`) delegates the SEGMENT straight
+        // through to the facade overload — `lineSegment.toPolyline()`
+        // over the segment's OWN start/middle/end lines; it never
+        // materializes the corner points. The old port decomposed to
+        // `startPoint()`/`endPoint()` and re-ran the POINTS overload:
+        // `middle.intersection(end)` is a RationalPoint whenever the
+        // corner is not int-divisible (Polyline.java:11-13 — the
+        // designed-for case), and `Polyline(Point, Point)` then carries
+        // rational endpoints into `Line.intersectionApprox`, whose
+        // `(IntPoint)` casts Java never executes on this path (a CCE
+        // Java never hits, because Java never builds that
+        // reconstruction — buglog 169; the decomposition also skew
+        // rebuilt closing lines). The last flag is the Java
         // `onlyNotShovableObstacles` arm of the same overload family.
-        check_trace_segment_points(
+        check_trace_segment_facade(
             self.manager,
             self.board,
-            &line_segment.start_point(),
-            &line_segment.end_point(),
+            line_segment,
             layer,
             net_numbers,
             half_width,
@@ -2731,6 +2750,123 @@ mod tests {
         assert!(
             rooms_present,
             "completed rooms persist under maintain_database"
+        );
+    }
+
+    /// THE buglog-169 pin (T17a, RED-BEFORE-GREEN): the engine's
+    /// segment-face `checkTraceSegment` passes the segment's OWN
+    /// start/middle/end lines through, like Java
+    /// `RoutingBoard.checkTraceSegment(LineSegment, ...)`
+    /// (`RoutingBoard.java:223-233` → facade overload →
+    /// `lineSegment.toPolyline()`); it must NOT decompose to
+    /// `startPoint()`/`endPoint()` and re-run the points overload.
+    /// This segment's end corner `middle ∩ end` is RATIONAL — x =
+    /// 9_799_970_000 / 20_000 = 489998.5, the Polyline.java:11-13
+    /// designed-for case: the decomposition materializes it and
+    /// re-enters `Polyline(Point, Point)` with rational endpoints,
+    /// where `Line.intersectionApprox`'s int cast panics — a cast
+    /// Java NEVER executes on this path (its segment face never
+    /// builds that reconstruction; Java's own points overload would
+    /// CCE there too, and the oracle completes these boards). The
+    /// corridor is the one the epic-board jar-literal world pins
+    /// clear (`t11_check_trace_segment_jar_literals` S0): the verdict
+    /// is Java's no-conflict `Integer.MAX_VALUE`.
+    #[test]
+    fn t17_segment_face_survives_a_rational_corner() {
+        let (mut manager, mut board) = parse_fixture();
+        // vertical start closing line at x=480000, horizontal middle
+        // along y=300000, slope-2 end closing line crossing the
+        // middle at (489998.5, 300000).
+        let start = epic_geometry::line::Line::from_int_coords(480000, 300000, 480000, 301000);
+        let middle = epic_geometry::line::Line::from_int_coords(480000, 300000, 490000, 300000);
+        let end = epic_geometry::line::Line::from_int_coords(489999, 300001, 490000, 300003);
+        let segment = LineSegment::new(start, middle, end);
+        // The pin's premise: the end corner really is rational (an
+        // int-corner world cannot witness the decomposition panic).
+        assert!(
+            matches!(segment.end_point(), Point::Rational(_)),
+            "the crafted end corner is the designed-for rational case"
+        );
+        let (mut engine, _ctrl) = build_engine(&mut manager, &mut board, 94, true);
+        let verdict = engine.check_trace_segment(&segment, 0, &[94], 1500, 0, false);
+        assert_eq!(verdict, 2147483647.0, "clear corridor answers MAX_VALUE");
+    }
+
+    /// The buglog-169 int-world literal pin: the engine segment face
+    /// answers the SAME jar-captured literals as the free-function
+    /// face (epic-board `t11_check_trace_segment_jar_literals`,
+    /// S1_unfixed_false / S2_fixed_true) on the identical world —
+    /// the unfixed wall at x=505000 and the USER_FIXED wall at
+    /// x=545000, ids replaying 105/106. This is the no-int-world-
+    /// behavior-change witness the events corpus posture rides on
+    /// (int corners are equivalent through both faces; rational
+    /// corners are not).
+    #[test]
+    fn t17_segment_face_answers_the_jar_literals() {
+        let (mut manager, mut board) = parse_fixture();
+        let unfixed_wall = epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(505000, 100000)),
+                &Point::Int(corner(505000, 500000)),
+            ),
+            0,
+            1000,
+            &[2],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("unfixed wall");
+        assert_eq!(unfixed_wall.get(), 105, "id replay (the t11 jar world)");
+        let fixed_wall = epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(545000, 100000)),
+                &Point::Int(corner(545000, 500000)),
+            ),
+            0,
+            1000,
+            &[2],
+            0,
+            FixedState::UserFixed,
+        )
+        .expect("fixed wall");
+        assert_eq!(fixed_wall.get(), 106, "id replay (the t11 jar world)");
+
+        let s1 = Polyline::from_two_corners(
+            &Point::Int(corner(500000, 300000)),
+            &Point::Int(corner(520000, 300000)),
+        );
+        let s2 = Polyline::from_two_corners(
+            &Point::Int(corner(535000, 300000)),
+            &Point::Int(corner(555000, 300000)),
+        );
+        let (mut engine, _ctrl) = build_engine(&mut manager, &mut board, 94, true);
+        assert_eq!(
+            engine.check_trace_segment(
+                &LineSegment::from_polyline(&s1, 1),
+                0,
+                &[94],
+                1500,
+                0,
+                false
+            ),
+            2483.0,
+            "S1_unfixed_false through the engine segment face"
+        );
+        assert_eq!(
+            engine.check_trace_segment(
+                &LineSegment::from_polyline(&s2, 1),
+                0,
+                &[94],
+                1500,
+                0,
+                true
+            ),
+            7483.0,
+            "S2_fixed_true through the engine segment face"
         );
     }
 

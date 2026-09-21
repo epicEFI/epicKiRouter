@@ -5686,3 +5686,116 @@ fn t7_shove_seam_force_contract() {
         "at least one probe responds to the forced shove verdict"
     );
 }
+
+// ---- the T17a buglog-170 pin ----
+
+/// The via-match craft (PURE_DSN shape): net MINE carries W1
+/// (40000,40000)→(30000,40000) — a corner AT the via center — W2
+/// (10000,10000)→(20000,10000) — corners far from it — and the via
+/// at (40000,40000). Net OTHER carries only the pin.
+const T17_VIA_MATCH_DSN: &str = "\
+(pcb t17-via-match.dsn\n\
+  (parser\n\
+    (string_quote \")\n\
+    (space_in_quoted_tokens on)\n\
+  )\n\
+  (resolution um 1)\n\
+  (unit um)\n\
+  (structure\n\
+    (layer F.Cu (type signal))\n\
+    (layer B.Cu (type signal))\n\
+    (boundary (rect pcb 0 0 100000 60000))\n\
+    (rule (width 250) (clearance 14))\n\
+  )\n\
+  (placement\n\
+    (component CMP1\n\
+      (place CMP1 20000 40000 front 0)\n\
+    )\n\
+  )\n\
+  (library\n\
+    (padstack PAD_C600\n\
+      (shape (circle F.Cu 600 0 0))\n\
+    )\n\
+    (image CMP1\n\
+      (pin PAD_C600 P1 0 0)\n\
+    )\n\
+  )\n\
+  (network\n\
+    (net MINE)\n\
+    (net OTHER (pins CMP1-P1))\n\
+  )\n\
+  (wiring\n\
+    (wire (path F.Cu 250  40000 40000  30000 40000) (net MINE))\n\
+    (via PAD_C600 40000 40000 (net MINE))\n\
+    (wire (path F.Cu 250  10000 10000  20000 10000) (net MINE))\n\
+  )\n\
+)\n";
+
+/// THE buglog-170 pin (T17a): `endPointsMatching`'s via arm reads the
+/// via's STORED CENTER (Java `item.getCenter()`,
+/// MazeTraceShover.java:329-332) — never the lazily-computed
+/// `getAutorouteDrillInfo` transient (Via.java:204-216). The harness
+/// engine leaves `via_drill_info` at its default `None` — exactly the
+/// absent-drill-info world that panicked at the old `expect` — and the
+/// arms still answer: a W1 corner AT the center matches (Java's
+/// `fromCenter.equals(firstCorner)`), W2's distant corners do not,
+/// and the foreign-net pin dies at the `sharesNet` gate before the
+/// via arm is ever reached.
+#[test]
+fn t17_end_points_matching_computes_the_via_center_not_drill_info() {
+    let harness = Harness::build_with(T17_VIA_MATCH_DSN, 1);
+    use crate::drill::DrillEngine;
+    let mut via_key = None;
+    let mut w1_key = None;
+    let mut w2_key = None;
+    let mut pin_key = None;
+    for key in 1u64..=32 {
+        if harness.item_is_via(key) {
+            via_key = Some(key);
+        } else if harness.item_is_pin(key) {
+            pin_key = Some(key);
+        } else if harness.item_is_polyline_trace(key) {
+            let Some(trace) = harness.item_trace_polyline(key) else {
+                continue;
+            };
+            let near_via = [trace.first_corner(), trace.last_corner()].iter().any(
+                |corner| {
+                    matches!(corner, Some(epic_geometry::point::Point::Int(center)) if (center.x, center.y) == (40000, 40000))
+                },
+            );
+            if near_via {
+                w1_key = Some(key);
+            } else {
+                w2_key = Some(key);
+            }
+        }
+    }
+    let (via_key, w1_key, w2_key, pin_key) = (
+        via_key.expect("the craft carries a via"),
+        w1_key.expect("W1 ends at the via center"),
+        w2_key.expect("W2 is the far trace"),
+        pin_key.expect("the OTHER-net pin"),
+    );
+    // The arm's premise: this via's drill info is ABSENT (the default
+    // seam answers None — the buglog-170 world).
+    assert!(
+        harness.via_drill_info(via_key).is_none(),
+        "the witness world leaves drill info absent"
+    );
+    assert_eq!(
+        harness.via_center(via_key).map(|p| p.to_float()),
+        Some(FloatPoint::new(40000.0, 40000.0))
+    );
+    assert!(
+        super::shove_probe::end_points_matching(&harness, w1_key, via_key),
+        "via center == W1 end corner: Java's TRUE arm"
+    );
+    assert!(
+        !super::shove_probe::end_points_matching(&harness, w2_key, via_key),
+        "W2's corners are not at the via center: FALSE"
+    );
+    assert!(
+        !super::shove_probe::end_points_matching(&harness, w1_key, pin_key),
+        "foreign net: the sharesNet gate answers FALSE"
+    );
+}

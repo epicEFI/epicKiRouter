@@ -484,6 +484,12 @@ impl DrillEngine for SynthWorld {
         self.item(item_key).pin_center.clone()
     }
 
+    fn via_center(&self, item_key: u64) -> Option<Point> {
+        // The scripted world's single center field (a scripted via
+        // carries None — no endPointsMatching replay runs here).
+        self.item(item_key).pin_center.clone()
+    }
+
     fn item_is_via(&self, item_key: u64) -> bool {
         self.item(item_key).is_via
     }

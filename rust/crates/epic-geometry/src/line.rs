@@ -1146,4 +1146,27 @@ mod tests {
         let normal = line(0, 0, 2, 2);
         assert_eq!(normal.opposite(), line(2, 2, 0, 0));
     }
+
+    /// THE buglog-169 boundary pin (T17a): `intersection_approx`
+    /// keeps Java's `(IntPoint)` cast face — a line carrying rational
+    /// endpoints makes Java throw ClassCastException
+    /// (Line.java:315-318), and the port panics with the same
+    /// meaning. The bug-169 fix routes rational corners AWAY from
+    /// this face (the engine segment delegation never materializes
+    /// them); it must not loosen the cast — a float fallback here
+    /// would silently accept what Java rejects.
+    #[test]
+    #[should_panic(expected = "Line only implemented for IntPoints till now")]
+    fn t17_intersection_approx_still_rejects_rational_lines() {
+        let rational_line = Line::new(
+            Point::rational(RationalPoint::new(
+                num_bigint::BigInt::from(1_i32),
+                num_bigint::BigInt::from(1_i32),
+                num_bigint::BigInt::from(2_i32),
+            )),
+            Point::int(IntPoint::new(3, 4)),
+        );
+        let other = line(0, 0, 1, 0);
+        let _ = rational_line.intersection_approx(&other);
+    }
 }

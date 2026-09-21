@@ -130,6 +130,14 @@ pub trait DrillEngine: NeighbourEngine {
     // ---- the ripped-via branch reads ----
     /// Java `currentObstacleItem instanceof Via`.
     fn item_is_via(&self, item_key: u64) -> bool;
+    /// Java `DrillItem.getCenter()` as the via arm of
+    /// `MazeTraceShover.endPointsMatching` reads it (:329-332): the
+    /// STORED center — total and always present for a live via — and
+    /// NEVER the lazily-computed `getAutorouteDrillInfo` transient
+    /// (`Via.java:204-216`; buglog 170). `None` is unreachable for a
+    /// live via; the Option is the port's defensive shape for a
+    /// non-via key.
+    fn via_center(&self, item_key: u64) -> Option<Point>;
     /// Java `((Via) item).getPadstack()` — the 1-based padstack number.
     fn item_padstack_no(&self, item_key: u64) -> Option<i32>;
     /// Java `Item.clearanceClassIndex()`.

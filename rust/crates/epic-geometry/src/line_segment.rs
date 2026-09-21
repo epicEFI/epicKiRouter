@@ -1042,4 +1042,35 @@ mod tests {
             vec![line(14717832, -17304286, 14720647, -17307101)] // I-INF
         );
     }
+
+    /// THE buglog-169 construction-face pin (T17a): a segment's end
+    /// corner is `middle.intersection(end)` — the EXACT rational of
+    /// Java `Line.intersection` (Line.java:277-303 returns
+    /// `new RationalPoint(isX, isY, det)`), never a rounded or
+    /// int-truncated value. The end corner of this corridor segment
+    /// is (9_799_970_000, 6_000_000_000) / 20_000 = (489998.5,
+    /// 300000): the exact triple survives only when the BigInteger
+    /// path runs unrounded — a float-rounding or int-truncating
+    /// mutant answers `Int(489998)` / a doubled 489998.0 and dies
+    /// here. The float face of the SAME corner (the Java
+    /// `intersectionApprox` domain) is exactly representable: 0.5.
+    #[test]
+    fn t17_end_point_is_the_exact_rational_corner() {
+        let start = line(480000, 300000, 480000, 301000);
+        let middle = line(480000, 300000, 490000, 300000);
+        let end = line(489999, 300001, 490000, 300003);
+        let segment = LineSegment::new(start, middle, end);
+        assert_eq!(
+            segment.end_point(),
+            Point::rational(crate::rational_point::RationalPoint::new(
+                num_bigint::BigInt::from(9_799_970_000_i64),
+                num_bigint::BigInt::from(6_000_000_000_i64),
+                num_bigint::BigInt::from(20_000_i64),
+            ))
+        );
+        assert_eq!(
+            segment.end_point_approx(),
+            FloatPoint::new(489998.5, 300000.0)
+        );
+    }
 }

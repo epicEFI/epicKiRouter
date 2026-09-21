@@ -534,7 +534,7 @@ impl<E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngin
 /// Java `MazeTraceShover.endPointsMatching` (`:320-342`) — check if
 /// the endpoints of trace and fromItem are matching, so that the shove
 /// can continue through a link door.
-fn end_points_matching<E: DrillEngine>(ctx: &E, trace_key: u64, from_item: u64) -> bool {
+pub(crate) fn end_points_matching<E: DrillEngine>(ctx: &E, trace_key: u64, from_item: u64) -> bool {
     if from_item == trace_key {
         return true;
     }
@@ -546,10 +546,18 @@ fn end_points_matching<E: DrillEngine>(ctx: &E, trace_key: u64, from_item: u64) 
         .expect("a polyline trace carries its polyline");
     if ctx.item_is_via(from_item) {
         // Java `fromItem instanceof DrillItem` — a via is the only
-        // DrillItem the maze search produces here.
-        let (from_center, _, _, _) = ctx
-            .via_drill_info(from_item)
-            .expect("a via carries its drill info");
+        // DrillItem the maze search produces here. The comparison
+        // reads `item.getCenter()` (MazeTraceShover.java:329-332) —
+        // the STORED center, total and always present. It never
+        // touches `getAutorouteDrillInfo` (Via.java:204-216), the
+        // transient the maze EXPANSION computes lazily from the tree;
+        // the old port demanded it here (buglog 170: bm06/bm07
+        // panicked) — an expect on data Java never reads at this
+        // site. `None` is unreachable for a live via; the defensive
+        // arm answers "no match".
+        let Some(from_center) = ctx.via_center(from_item) else {
+            return false;
+        };
         let Some(first_corner) = trace_polyline.first_corner() else {
             return false;
         };

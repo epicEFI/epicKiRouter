@@ -1197,6 +1197,15 @@ impl DrillEngine for Harness {
         ))
     }
 
+    fn via_center(&self, item_key: u64) -> Option<Point> {
+        // Java `DrillItem.getCenter()` — the stored center (buglog
+        // 170: endPointsMatching reads it directly, never the lazy
+        // drill-info transient).
+        self.board.drill_center(ItemId::new(
+            u32::try_from(item_key).expect("item key fits u32"),
+        ))
+    }
+
     fn item_is_via(&self, item_key: u64) -> bool {
         self.board
             .get(ItemId::new(
