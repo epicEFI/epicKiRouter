@@ -8,6 +8,13 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod baseline;
+// THE workflow tripwire pin (M3-T17c; closes banked mutant S6): the CI
+// test step's 30-minute wall and the router-compare step's
+// `--report-only` are pinned — the exit flip or a wall move must be a
+// conscious same-commit act with the pin. Pin-only module (no command
+// consumes it), so it exists for the test target alone.
+#[cfg(test)]
+mod ci_tripwire;
 mod corpus;
 // The shared corpus shell (M3 Task 1, M2 carry-forward): manifest row +
 // byte format, strict JSONL, positional alignment, diff rendering, the
