@@ -1646,6 +1646,24 @@ mod pins {
                 "t7_ripup" => 5,
                 other => panic!("unmapped fixture {other}"),
             };
+            // The prefix is not a free parameter (spec re-review R-A,
+            // reviewer mutant S1 5→4 survived an unpinned literal): the
+            // loop above only self-detects a prefix that is too LONG
+            // (drift rows enter `.take()` and byte-equality fails), so
+            // the boundary itself is executable — it must land exactly
+            // on the FIRST aligned row whose non-id faces drift. A
+            // shortened prefix shrinks the aligned window and lets that
+            // drift hide behind it; this assert kills the shortening.
+            let first_non_id_drift = golden_routes
+                .iter()
+                .zip(&rust_routes)
+                .position(|(g, r)| strip_id_family(g) != strip_id_family(r))
+                .unwrap_or(golden_routes.len());
+            assert_eq!(
+                strict_prefix, first_non_id_drift,
+                "{fixture} strict prefix must land exactly on the first \
+                 non-id drift row"
+            );
             for (i, (g, r)) in golden_routes
                 .iter()
                 .zip(&rust_routes)
