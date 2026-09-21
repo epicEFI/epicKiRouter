@@ -64,3 +64,31 @@ jobs:
       - run: cargo run -q -p epic-harness -- drc compare
         env:
           EPIC_SKIP_GRADLE: "1"
+      # M3 T15 router quality scoreboard: epic-cli must exist for the
+      # two steps below (the harness resolves target/debug/epic-cli).
+      - run: cargo build -q -p epic-cli
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M3 T15 determinism self-gate: same DSN, two epic-cli runs to
+      # separate output paths, byte-identical SES + manifest (java-free,
+      # ~1s on the smallest Tier A board). HARD gate: any divergence is a
+      # real determinism bug and fails CI.
+      - run: cargo run -q -p epic-harness -- router determinism
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M3 T15 router compare: full 11-fixture Tier A battery (fanout-off
+      # epic-cli runs vs the committed router-only Java records), REPORT
+      # mode — every fixture gets an explicit verdict in the CI log, but
+      # exit stays 0. Landed green ON PURPOSE: 10/11 fixtures are red on
+      # run integrity today (two engine panic classes — see
+      # .wolf/buglog.json 169/170); that list is T17's gap inventory.
+      # THE T17 EXIT-CONDITION FLIP: drop `--report-only` from this line
+      # once every Tier A fixture passes all three directional gates
+      # (incomplete <= Java, violations <= Java, score >= Java − 2%).
+      # Measured wall (T15, debug, 1 fixture-class local): ~220s — the 10
+      # red fixtures each auto-run the panic-caught in-process detail pass
+      # for the localizer, so the wall is roughly double the subprocess
+      # time; it drops once T17 fixes the panics.
+      - run: cargo run -q -p epic-harness -- router compare --report-only
+        env:
+          EPIC_SKIP_GRADLE: "1"

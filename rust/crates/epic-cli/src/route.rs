@@ -380,7 +380,13 @@ fn clearance_face(total_count: Option<i32>, pre_existing: i32) -> ManifestCleara
 /// `removeUnconnectedVias = !isFanoutEnabled()`: fanout-off ALSO flips
 /// the batch tail sweep, so a silently broken coupling changes routing
 /// outcomes, not just via counts.
-fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
+///
+/// `pub` for the harness's T15 first-divergence localizer: the in-process
+/// detail pass must build its batch settings through THIS function, not a
+/// copy, so the fanout coupling has exactly one source (the harness's
+/// subprocess run is the real flow either way; this only keeps the
+/// diagnostic re-run honest).
+pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     let mut batch = BatchSettings::new(resolved.router_settings.clone(), resolved.scoring.clone());
     batch.max_passes = resolved.max_passes;
     batch.max_items = resolved.max_items;

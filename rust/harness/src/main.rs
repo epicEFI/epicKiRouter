@@ -27,6 +27,10 @@ mod drc_corpus;
 mod index_corpus;
 mod manifest;
 mod oracle;
+// Router quality scoreboard (M3 Task 15): directional Rust-vs-Java-record
+// compare gates (java-free), the Rust-vs-Rust determinism self-gate, and
+// the first-divergence localizer.
+mod router_compare;
 // SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
 mod ses_compare;
 mod tiers;
@@ -117,6 +121,15 @@ enum Command {
         #[command(subcommand)]
         cmd: drc_corpus::DrcCommand,
     },
+    /// Router quality scoreboard (M3 Task 15): per-Tier-A directional
+    /// compare gates against the committed router-only Java records
+    /// (java-free — the records ARE the Java side), the Rust-vs-Rust
+    /// determinism self-gate, and the first-divergence localizer.
+    /// Resolves tiers.yaml + epic-cli itself; never touches the JVM.
+    Router {
+        #[command(subcommand)]
+        cmd: router_compare::RouterCommand,
+    },
 }
 
 fn main() {
@@ -155,6 +168,12 @@ fn run() -> Result<()> {
         // needs one.
         return drc_corpus::run(cmd, &cli.jvm_xmx);
     }
+    if let Command::Router { cmd } = cli.command {
+        // Same shape: tiers.yaml + epic-cli resolved inside; the compare
+        // is java-free (the committed records are the Java side) so no
+        // JVM resolution ever happens on this path.
+        return router_compare::run(cmd);
+    }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
     let tier_file = TierFile::load(&tiers_path)?;
@@ -163,11 +182,12 @@ fn run() -> Result<()> {
     let jar = oracle::jar_path(&repo_root);
 
     match cli.command {
-        // Index/Undo/Drc/Corpus/Dsn returned before the tier/JVM
+        // Index/Undo/Drc/Router/Corpus/Dsn returned before the tier/JVM
         // resolution above; this arm only satisfies the match.
         Command::Index { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Undo { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Drc { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::Router { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {

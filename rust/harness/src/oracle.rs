@@ -325,7 +325,10 @@ pub fn run_oracle(
 /// wrote one (both `None`). A present-but-unparseable file — Gson-vs-mirror
 /// schema drift, or a write truncated by our own timeout kill — must not
 /// masquerade as "no manifest produced", so the error is surfaced separately.
-fn parse_manifest_file(path: &Path) -> (Option<RoutingResultManifest>, Option<String>) {
+/// `pub(crate)` for the T15 router compare: the Rust epic-cli manifest
+/// parses through the SAME tolerant mirror as the Java manifest (the
+/// mirror deliberately has no `deny_unknown_fields`).
+pub(crate) fn parse_manifest_file(path: &Path) -> (Option<RoutingResultManifest>, Option<String>) {
     if !path.is_file() {
         return (None, None);
     }
@@ -340,7 +343,13 @@ fn parse_manifest_file(path: &Path) -> (Option<RoutingResultManifest>, Option<St
     }
 }
 
-fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> (Option<i32>, bool) {
+/// `pub(crate)` for the T15 router compare: one timeout-wait loop shared
+/// by the oracle and the epic-cli subprocess runs (200ms poll, kill at the
+/// deadline, `(None, true)` on timeout).
+pub(crate) fn wait_with_timeout(
+    child: &mut std::process::Child,
+    timeout: Duration,
+) -> (Option<i32>, bool) {
     let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
