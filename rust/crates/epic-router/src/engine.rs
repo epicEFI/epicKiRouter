@@ -2795,12 +2795,23 @@ mod tests {
     /// The buglog-169 int-world literal pin: the engine segment face
     /// answers the SAME jar-captured literals as the free-function
     /// face (epic-board `t11_check_trace_segment_jar_literals`,
-    /// S1_unfixed_false / S2_fixed_true) on the identical world —
-    /// the unfixed wall at x=505000 and the USER_FIXED wall at
-    /// x=545000, ids replaying 105/106. This is the no-int-world-
-    /// behavior-change witness the events corpus posture rides on
-    /// (int corners are equivalent through both faces; rational
-    /// corners are not).
+    /// S1_unfixed_false / S2_fixed_true / S3_unfixed_true) on the
+    /// identical world — the unfixed wall at x=505000 and the
+    /// USER_FIXED wall at x=545000, ids replaying 105/106. S3 is the
+    /// FLAG CROSSING the S1/S2 pair never makes (fix round F-2 /
+    /// SR-3: S1 is unfixed×false, S2 fixed×true — neither crosses
+    /// flag × shovability): the S1 span with
+    /// `onlyNotShovableObstacles=true` makes the UNFIXED wall
+    /// INVISIBLE (RoutingBoard.java:196 — "unfixed traces and vias
+    /// are ignored"; facade `:67-71` skips `isRoutable() &&
+    /// !isShoveFixed()` obstacles), so the corridor answers
+    /// MAX_VALUE. Oracle row `S1_unfixed_true` =
+    /// 2.147483647E9/max_value=true
+    /// (logs/M3-T11/captures/autoroute_engine_rows_run1.jsonl —
+    /// also the empty-case answer NO other fixed obstacle hides in
+    /// this span). This is the no-int-world-behavior-change witness
+    /// the events corpus posture rides on (int corners are
+    /// equivalent through both faces; rational corners are not).
     #[test]
     fn t17_segment_face_answers_the_jar_literals() {
         let (mut manager, mut board) = parse_fixture();
@@ -2856,6 +2867,23 @@ mod tests {
             2483.0,
             "S1_unfixed_false through the engine segment face"
         );
+        // The flag crossing (fix round F-2): the SAME S1 span, the
+        // flag FLIPPED — the only difference between this assert and
+        // S1 is `onlyNotShovableObstacles`, so the two asserts
+        // together observe the flag's passthrough on the engine face.
+        assert_eq!(
+            engine.check_trace_segment(
+                &LineSegment::from_polyline(&s1, 1),
+                0,
+                &[94],
+                1500,
+                0,
+                true
+            ),
+            2147483647.0,
+            "S3_unfixed_true through the engine segment face: the \
+             unfixed wall is ignored, the corridor answers MAX_VALUE"
+        );
         assert_eq!(
             engine.check_trace_segment(
                 &LineSegment::from_polyline(&s2, 1),
@@ -2867,6 +2895,81 @@ mod tests {
             ),
             7483.0,
             "S2_fixed_true through the engine segment face"
+        );
+    }
+
+    /// The buglog-170 PRODUCTION-impl pin (T17a fix round, review
+    /// F-3 / SR-4): P4 (`maze/pins.rs`) drives the pins-Harness
+    /// `DrillEngine` impl; the impl the battery actually routes
+    /// through is THIS engine's `via_center` (the
+    /// `impl DrillEngine for AutorouteEngine` body →
+    /// `Board::drill_center`, the STORED center — Java
+    /// `DrillItem.getCenter()`, `DrillItem.java:229`, never the lazy
+    /// `getAutorouteDrillInfo` transient of `Via.java:204-216`).
+    /// The P4 craft replayed through the PRODUCTION handle:
+    /// `parse` → `build_engine` → the premise (drill info ABSENT —
+    /// exactly the world whose old `expect` panicked the battery's
+    /// bm06/bm07 at this face), the literal stored center, and the
+    /// `endPointsMatching` TRUE / FALSE / foreign-net arms through
+    /// the production engine's own trait impl.
+    #[test]
+    fn t17_production_engine_via_center_answers_the_stored_center() {
+        let (mut manager, mut board) = parse(crate::maze::pins::T17_VIA_MATCH_DSN);
+        let mine = crate::test_util::net_no(&board, "MINE");
+        let mut via_key = None;
+        let mut w1_key = None;
+        let mut w2_key = None;
+        let mut pin_key = None;
+        for entry in board.iter_ascending() {
+            let key = u64::from(entry.id.get());
+            match &entry.data {
+                ItemData::Via { .. } => via_key = Some(key),
+                ItemData::Pin { .. } => pin_key = Some(key),
+                ItemData::Trace { lines, .. } => {
+                    // The P4 discovery rule: W1's far corner sits AT
+                    // the via center; W2 is the far trace.
+                    let near_via = lines.corners().iter().any(|corner| {
+                        matches!(corner, Point::Int(center) if (center.x, center.y) == (40000, 40000))
+                    });
+                    if near_via {
+                        w1_key = Some(key);
+                    } else {
+                        w2_key = Some(key);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let (via_key, w1_key, w2_key, pin_key) = (
+            via_key.expect("the craft carries a via"),
+            w1_key.expect("W1 ends at the via center"),
+            w2_key.expect("W2 is the far trace"),
+            pin_key.expect("the OTHER-net pin"),
+        );
+        let (engine, _ctrl) = build_engine(&mut manager, &mut board, mine, false);
+        use crate::drill::DrillEngine;
+        assert!(
+            engine.via_drill_info(via_key).is_none(),
+            "the witness world leaves drill info absent (the buglog-170 world)"
+        );
+        assert_eq!(
+            engine.via_center(via_key).map(|point| point.to_float()),
+            Some(epic_geometry::float_point::FloatPoint::new(
+                40000.0, 40000.0
+            )),
+            "the PRODUCTION via_center reads the stored center"
+        );
+        assert!(
+            crate::maze::shove_probe::end_points_matching(&engine, w1_key, via_key),
+            "via center == W1 end corner: Java's TRUE arm, production engine"
+        );
+        assert!(
+            !crate::maze::shove_probe::end_points_matching(&engine, w2_key, via_key),
+            "W2's corners are not at the via center: FALSE, production engine"
+        );
+        assert!(
+            !crate::maze::shove_probe::end_points_matching(&engine, w1_key, pin_key),
+            "foreign net: the sharesNet gate answers FALSE, production engine"
         );
     }
 

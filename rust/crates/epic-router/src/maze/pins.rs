@@ -5693,7 +5693,7 @@ fn t7_shove_seam_force_contract() {
 /// (40000,40000)→(30000,40000) — a corner AT the via center — W2
 /// (10000,10000)→(20000,10000) — corners far from it — and the via
 /// at (40000,40000). Net OTHER carries only the pin.
-const T17_VIA_MATCH_DSN: &str = "\
+pub(crate) const T17_VIA_MATCH_DSN: &str = "\
 (pcb t17-via-match.dsn\n\
   (parser\n\
     (string_quote \")\n\

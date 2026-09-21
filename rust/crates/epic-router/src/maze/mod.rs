@@ -31,4 +31,4 @@ pub mod search_engine;
 pub mod shove_probe;
 
 #[cfg(test)]
-mod pins;
+pub(crate) mod pins;
