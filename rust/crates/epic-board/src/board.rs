@@ -1111,6 +1111,50 @@ impl Board {
         }
     }
 
+    /// Java `Item.isTraceObstacle(int)` (`Item.java:170-172`) — the
+    /// VIRTUAL dispatch every maze-side consumer performs
+    /// (`SearchTreeObject.isTraceObstacle`, `SearchTreeObject.java:12`;
+    /// consumed at `SortedRoomNeighbours.java:223`,
+    /// `Sorted45DegreeRoomNeighbours.java:123`,
+    /// `SortedOrthogonalRoomNeighbours.java:154`,
+    /// `CompleteFreeSpaceExpansionRoom.java:178`,
+    /// `ShapeSearchTree.java:634`, `ShapeSearchTree45Degree.java:160`,
+    /// `ShapeSearchTree90Degree.java:82`, and
+    /// `BasicBoard.checkTraceShape:1019`). The base `Item` face is
+    /// `!containsNet(netNumber)` (net `<= 0` never contained,
+    /// `Item.java:149-152`), overridden by exactly three subclasses:
+    ///
+    /// * `ConductionArea` (`:398-400`):
+    ///   `isObstacle && !containsNet(netNumber)` — every parse-time
+    ///   plane/pour is inserted NON-obstacle (`Structure.java:1113`,
+    ///   `:562-568`, `Wiring.java:485`), so foreign-net traces and vias
+    ///   route THROUGH it (buglog 176: the Rust maze treated the
+    ///   ecc83-pp_v2 GND plane as a hard blocker);
+    /// * `ComponentObstacleArea` (`:71-73`) and `ViaObstacleArea`
+    ///   (`:100-102`): unconditionally `false` — place keepouts and
+    ///   via keepouts never block traces (a via keepout blocks DRILLS,
+    ///   not traces).
+    ///
+    /// A foreign id keeps the net-less verdict `true` (`Item` with no
+    /// shared net), matching [`Board::item_is_obstacle`] on unknown keys.
+    #[must_use]
+    pub fn item_is_trace_obstacle(&self, id: ItemId, net_number: i32) -> bool {
+        match self.get(id).map(|entry| (&entry.data, &entry.nets)) {
+            Some((ItemData::ConductionArea { is_obstacle, .. }, nets)) => {
+                *is_obstacle && !nets.contains(&net_number)
+            }
+            Some((
+                ItemData::ObstacleArea {
+                    kind: ObstacleKind::ComponentObstacleArea | ObstacleKind::ViaObstacleArea,
+                    ..
+                },
+                _,
+            )) => false,
+            Some((_, nets)) => !nets.contains(&net_number),
+            None => true,
+        }
+    }
+
     /// Java `ConductionArea.getArea()` for a CONDUCTION item — the
     /// STORED area, verbatim: a parse-time conduction area always
     /// carries identity placement fields, so the inherited
@@ -2397,5 +2441,113 @@ mod tests {
             watermark,
             "the generator is non-transient — the snapshot-time watermark"
         );
+    }
+
+    /// T17b (buglog 176): the VIRTUAL `Item.isTraceObstacle(int)`
+    /// dispatch — [`Board::item_is_trace_obstacle`]. THE CROSSING CELL
+    /// is the parity bug: a parse-time `ConductionArea` (every DSN
+    /// plane/pour is inserted `isObstacle=false`,
+    /// `Structure.java:1113`) is NOT a trace obstacle for a foreign
+    /// net — Java's maze routes THROUGH the ecc83-pp_v2 GND plane,
+    /// while the pre-fix net-membership arm blocked it and froze the
+    /// board at incomplete 1. Every row and column of the
+    /// kind × flag × net discriminator is pinned (mode 13: the
+    /// crossing cell is the pin, not the corners): the CA flag arms
+    /// (`ConductionArea.java:398-400`), the keepout arms
+    /// (`ComponentObstacleArea.java:71-73`, `ViaObstacleArea.java:100-102`
+    /// — both unconditionally false), the plain-keepout BASE arm
+    /// (`Item.java:170-172` — no override), the net-`<= 0` faces
+    /// (`Item.java:149-152` — a non-positive net is never contained,
+    /// so the base face is true and the CA face degrades to its flag),
+    /// and the unknown-id verdict.
+    #[test]
+    fn item_is_trace_obstacle_pins_the_java_virtual_dispatch() {
+        let area = || {
+            crate::items::Area::simple(BoardShape::Tile(TileShape::RegularTileShape(
+                epic_geometry::regular_tile_shape::RegularTileShape::IntBox(IntBox::new(
+                    IntPoint::new(0, 0),
+                    IntPoint::new(1000, 1000),
+                )),
+            )))
+        };
+        let entry = |board: &mut Board, data: ItemData, nets: Vec<i32>| {
+            let id = board.alloc_id();
+            board.insert_item(ItemEntry {
+                id,
+                data,
+                nets,
+                clearance_class: 1,
+                component_id: 1,
+                fixed: FixedState::Unfixed,
+                on_the_board: false,
+            });
+            id
+        };
+        let conduction = |is_obstacle: bool| ItemData::ConductionArea {
+            layer: 1,
+            area: area(),
+            is_obstacle,
+            is_filled: true,
+        };
+        let keepout = |kind: ObstacleKind| ItemData::ObstacleArea {
+            kind,
+            layer: 1,
+            area: area(),
+            translation: IntPoint::new(0, 0),
+            rotation: 0.0,
+            side_changed: false,
+            name: None,
+        };
+
+        let mut board = Board::new();
+        // THE CROSSING ROW: flag=false × foreign net → NOT a trace
+        // obstacle (buglog 176 — the GND plane the maze must route
+        // through).
+        let plane = entry(&mut board, conduction(false), vec![2]);
+        assert!(!board.item_is_trace_obstacle(plane, 6));
+        // flag=false × own net → false (both terms agree).
+        assert!(!board.item_is_trace_obstacle(plane, 2));
+        // flag=false × net <= 0 → false (`isObstacle && !containsNet`).
+        assert!(!board.item_is_trace_obstacle(plane, 0));
+        // flag=true flips the foreign verdict to true — the router-set
+        // obstacle face (`setIsObstacle`).
+        let solid_plane = entry(&mut board, conduction(true), vec![2]);
+        assert!(board.item_is_trace_obstacle(solid_plane, 6));
+        // flag=true × own net stays false (containsNet wins).
+        assert!(!board.item_is_trace_obstacle(solid_plane, 2));
+        // flag=true × net <= 0 → true (the flag degrades to itself).
+        assert!(board.item_is_trace_obstacle(solid_plane, 0));
+
+        // Keepout arms: place/via keepouts NEVER block traces.
+        let place_keepout = entry(
+            &mut board,
+            keepout(ObstacleKind::ComponentObstacleArea),
+            vec![],
+        );
+        let via_keepout = entry(&mut board, keepout(ObstacleKind::ViaObstacleArea), vec![]);
+        assert!(!board.item_is_trace_obstacle(place_keepout, 6));
+        assert!(!board.item_is_trace_obstacle(via_keepout, 6));
+        // A plain keepout has NO override — the base face applies
+        // (net-less, so every positive net is foreign → true).
+        let plain_keepout = entry(&mut board, keepout(ObstacleKind::ObstacleArea), vec![]);
+        assert!(board.item_is_trace_obstacle(plain_keepout, 6));
+
+        // Base face on a connectable item: own net false, foreign true,
+        // net <= 0 true.
+        let pin = entry(
+            &mut board,
+            ItemData::Pin {
+                pin_index: 0,
+                padstack_no: 1,
+            },
+            vec![6],
+        );
+        assert!(!board.item_is_trace_obstacle(pin, 6));
+        assert!(board.item_is_trace_obstacle(pin, 7));
+        assert!(board.item_is_trace_obstacle(pin, 0));
+
+        // Unknown id: the net-less foreign verdict `true` the pre-fix
+        // arm produced (`!nets.contains` on no nets).
+        assert!(board.item_is_trace_obstacle(ItemId::new(999_999), 6));
     }
 }

@@ -369,13 +369,15 @@ fn is_room_key(key: u64) -> bool {
     key >= ROOM_KEY_BASE
 }
 
-/// The nets of an item key (empty for rooms and unknown keys).
-fn entry_nets(board: &Board, key: u64) -> Vec<i32> {
+/// Java's VIRTUAL `Item.isTraceObstacle(int)` dispatch for a tree key —
+/// [`Board::item_is_trace_obstacle`] (CA flag + keepout kinds) with the
+/// unknown-key verdict `true` the pre-fix net-membership arm produced
+/// (`!nets.contains` on an empty net list).
+fn item_is_trace_obstacle(board: &Board, key: u64, net_number: i32) -> bool {
     u32::try_from(key)
         .ok()
-        .and_then(|raw| board.get(ItemId::new(raw)))
-        .map(|entry| entry.nets.clone())
-        .unwrap_or_default()
+        .map(ItemId::new)
+        .is_none_or(|id| board.item_is_trace_obstacle(id, net_number))
 }
 
 impl CompleteShapeObjects for EngineShapeView<'_> {
@@ -391,11 +393,16 @@ impl CompleteShapeObjects for EngineShapeView<'_> {
                 return true;
             }
             if let RoomKind::Obstacle { item_key, .. } = room.kind {
-                return !entry_nets(self.board, item_key).contains(&net_number);
+                // Java queries the room's CONTAINED ITEM (obstacle rooms
+                // are not tree objects — `SortedRoomNeighbours.java:217-223`
+                // casts the tree entry to the item), so the VIRTUAL
+                // `Item.isTraceObstacle` face applies (CA flag, keepout
+                // kinds) via [`Board::item_is_trace_obstacle`].
+                return item_is_trace_obstacle(self.board, item_key, net_number);
             }
             return false;
         }
-        !entry_nets(self.board, object_key).contains(&net_number)
+        item_is_trace_obstacle(self.board, object_key, net_number)
     }
 
     fn shape_layer(&self, object_key: u64, shape_index: u32) -> i32 {
@@ -2106,10 +2113,27 @@ impl DrillEngine for AutorouteEngine<'_> {
             if !SearchTree::entry_intersects(shape, &stored) {
                 continue;
             }
-            if ignore_nets
-                .iter()
-                .all(|&net| NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net))
-            {
+            // Java `:412-413` filters on the BASE `isObstacle(int)` face
+            // (`Item.java:162-164`, overridden by NO item subclass):
+            // keep an object when it does not CONTAIN every ignore net —
+            // the trace-obstacle overrides (ConductionArea `:398`,
+            // Component/ViaObstacleArea `:71`/`:100`) do NOT apply to
+            // this walk, so a foreign NON-obstacle conduction area STAYS
+            // in the results. (Pre-fix this called `is_trace_obstacle`,
+            // which coincided with the base face before the virtual
+            // dispatch was ported.) Rooms keep the trait face (Java tree
+            // rooms are CompleteFreeSpaceExpansionRoom, whose
+            // `isObstacle(int)` is unconditionally true — `:77-79`).
+            if ignore_nets.iter().all(|&net| {
+                if is_room_key(leaf.object_key) {
+                    NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net)
+                } else {
+                    u32::try_from(leaf.object_key)
+                        .ok()
+                        .map(ItemId::new)
+                        .is_none_or(|id| self.board.item_is_obstacle(id, net))
+                }
+            }) {
                 out.push(leaf.object_key);
             }
         }

@@ -565,6 +565,20 @@ impl Harness {
         self.board.get(id).map(|e| e.nets.as_slice()).unwrap_or(&[])
     }
 
+    /// Java's VIRTUAL `Item.isTraceObstacle(int)` face for a tree key —
+    /// [`Board::item_is_trace_obstacle`] (CA flag + keepout kinds) with
+    /// the unknown-key verdict `true` the pre-fix net-membership arm
+    /// produced. (Panic-preserving twin of [`Self::item_nets`]: an
+    /// oversized key cannot be a live item.)
+    fn board_item_is_trace_obstacle(&self, key: u64, net_number: i32) -> bool {
+        match u32::try_from(key) {
+            Ok(raw) => self
+                .board
+                .item_is_trace_obstacle(ItemId::new(raw), net_number),
+            Err(_) => true,
+        }
+    }
+
     fn remove_room(&mut self, key: u64) {
         // Java `removeIncompleteExpansionRoom` (`:368-371`): the doors
         // go FIRST (`removeAllDoors` — the back-edge cleanup is what
@@ -731,11 +745,16 @@ impl NeighbourEngine for Harness {
                 return true;
             }
             if let RoomKind::Obstacle { item_key, .. } = room.kind {
-                return !self.item_nets(item_key).contains(&net_number);
+                // Java queries the room's CONTAINED ITEM
+                // (`SortedRoomNeighbours.java:217-223` casts the tree
+                // entry to the item), so the VIRTUAL
+                // `Item.isTraceObstacle` face applies (CA flag, keepout
+                // kinds) via [`Board::item_is_trace_obstacle`].
+                return self.board_item_is_trace_obstacle(item_key, net_number);
             }
             return false;
         }
-        !self.item_nets(object_key).contains(&net_number)
+        self.board_item_is_trace_obstacle(object_key, net_number)
     }
 
     fn tree_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {

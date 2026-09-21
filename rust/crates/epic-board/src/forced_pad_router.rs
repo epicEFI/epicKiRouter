@@ -34,7 +34,7 @@ use crate::shape_and_entry_side::shape_and_entry_side_core;
 use crate::shape_entry_side::ShapeEntrySide;
 use crate::shape_trace_entries::ShapeTraceEntries;
 use crate::time_limit::TimeLimit;
-use crate::trace_ops::{contains_net, normalize};
+use crate::trace_ops::normalize;
 use crate::trace_shover::{
     board_outline_id, combine_traces, contains_trace_tails, get_trace_tail,
     piece_compensated_half_width, remove_items,
@@ -747,14 +747,18 @@ pub(crate) fn check_trace_shape(
         let current_nets = item_nets(board, current_id);
         let mut is_obstacle = true;
         for net in net_numbers {
-            // Java `if (!currentItem.isTraceObstacle(netNumbers[i]))`:
-            // isTraceObstacle(net) is `!containsNet(net)`, so the flag
-            // clears when the item CONTAINS the net (an own-net entry
-            // is not an obstacle). Inverting this made every OWN-net
-            // trace an obstacle and every foreign entry pass — caught
-            // by the T10c connect-ladder pins (the connection into the
-            // own-net target was rejected by the target itself).
-            if contains_net(&current_nets, *net) {
+            // Java `if (!currentItem.isTraceObstacle(netNumbers[i]))` —
+            // the VIRTUAL dispatch (`Item.isTraceObstacle` `:170-172`
+            // base `!containsNet`, overridden by ConductionArea `:398`
+            // `isObstacle && !containsNet`, ComponentObstacleArea `:71`
+            // / ViaObstacleArea `:100` both `false`). The flag clears
+            // when the item is NOT a trace obstacle for the net: an
+            // own-net entry (base face), a NON-obstacle conduction area
+            // (a parse-time plane/pour foreign nets route THROUGH,
+            // buglog 176), or a place/via keepout. The first port read
+            // only the base face — inverted on top of that (bug 149) —
+            // and inverted again in T10c; this is the Java face.
+            if !board.item_is_trace_obstacle(current_id, *net) {
                 is_obstacle = false;
             }
         }
@@ -1004,5 +1008,131 @@ mod tests {
             in_front_of_pad(&positive, &pad, 6, 20, true),
             "capture ws6_positive=true: main min-of-sums 240 >= 228.284"
         );
+    }
+    /// The T17b buglog-176 world: a parse-time `ConductionArea` (a DSN
+    /// `(plane ...)` — every one is inserted `isObstacle=false`,
+    /// `Structure.java:1113`) under the [`check_trace_shape`] gate.
+    /// Java `BasicBoard.checkTraceShape:1017-1022` gates each
+    /// overlapping entry on the VIRTUAL `currentItem.isTraceObstacle`
+    /// — so a foreign NON-obstacle plane is NOT an obstacle and the
+    /// trace shape is insertable THROUGH it (the pre-fix port read the
+    /// base net-membership face, blocking the plane and failing the
+    /// final insert segments). The flag × net discriminator at the
+    /// insert gate: foreign × false → true (THE CROSSING CELL),
+    /// own-net × false → true, foreign × true → false,
+    /// own-net × true → true.
+    #[test]
+    fn t17b_check_trace_shape_routes_through_a_non_obstacle_plane() {
+        use crate::tree_manager::SearchTreeManager;
+        use epic_dsn::reader::{DsnReadResult, read_board};
+        use epic_dsn::ses_board::SesBoard;
+
+        const PLANE_DSN: &str = r#"(pcb t17b-plane.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer In1.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+    (plane GND
+      (polygon In1.Cu 0  1000 1000  9000 1000  9000 9000  1000 9000)
+    )
+  )
+  (network
+    (net SIG)
+    (net GND)
+  )
+  (wiring
+    (wire (path F.Cu 125  2000 1000  3000 1000) (net SIG))
+  )
+)
+"#;
+        let mut ses = SesBoard::new();
+        match read_board(PLANE_DSN.as_bytes(), &mut ses) {
+            DsnReadResult::Success { warnings } => {
+                assert!(warnings.is_empty(), "WARN_COUNT 0, got {warnings:?}");
+            }
+            other => panic!("expected Success, got {other:?}"),
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+
+        // The plane item (a ConductionArea) and the two net numbers.
+        let plane_id = board
+            .iter_descending()
+            .find(|entry| matches!(entry.data, ItemData::ConductionArea { .. }))
+            .expect("the plane parsed as a ConductionArea")
+            .id;
+        let plane_entry = board.get(plane_id).expect("plane");
+        let (gnd, parse_flag) = match &plane_entry.data {
+            ItemData::ConductionArea { is_obstacle, .. } => (plane_entry.nets[0], *is_obstacle),
+            other => panic!("not a plane: {other:?}"),
+        };
+        let sig = board
+            .iter_descending()
+            .find(|entry| matches!(entry.data, ItemData::Trace { .. }))
+            .expect("the SIG wire")
+            .nets[0];
+        assert_ne!(sig, gnd, "SIG and GND are different nets");
+        assert!(
+            !parse_flag,
+            "a parse-time plane is NON-obstacle (Structure.java:1113)"
+        );
+
+        // The check shape sits INSIDE the plane polygon on In1.Cu
+        // (index 1) — in INTERNAL units: `(resolution um 10)` scales
+        // every DSN coordinate ×10, so the polygon [1000, 9000] DSN is
+        // [10000, 90000] internal and the probe [30000, 70000] sits
+        // strictly inside (the T17b debugging that produced this pin:
+        // a DSN-unit probe lands in empty space and the world goes
+        // vacuous).
+        let over_plane = shover_world::ibox(30000, 30000, 70000, 70000);
+        // THE CROSSING CELL: a FOREIGN net's trace shape over the
+        // NON-obstacle plane is insertable — Java's virtual face
+        // clears the obstacle flag (BasicBoard.java:1019).
+        assert!(
+            check_trace_shape(&mut manager, &mut board, &over_plane, 1, &[sig], 0, None),
+            "a foreign non-obstacle plane must not block the trace shape"
+        );
+        // Own net: not an obstacle under either flag.
+        assert!(check_trace_shape(
+            &mut manager,
+            &mut board,
+            &over_plane,
+            1,
+            &[gnd],
+            0,
+            None
+        ));
+
+        // The router-set flag (`setIsObstacle`): the same foreign
+        // shape becomes uninsertable, the own-net one stays clear.
+        let mut entry = board.remove_item(plane_id).expect("remove the plane");
+        let ItemData::ConductionArea { is_obstacle, .. } = &mut entry.data else {
+            unreachable!("checked above");
+        };
+        *is_obstacle = true;
+        board.insert_item(entry);
+        assert!(
+            !check_trace_shape(&mut manager, &mut board, &over_plane, 1, &[sig], 0, None),
+            "an obstacle-flagged plane blocks the foreign trace shape"
+        );
+        assert!(check_trace_shape(
+            &mut manager,
+            &mut board,
+            &over_plane,
+            1,
+            &[gnd],
+            0,
+            None
+        ));
     }
 }
