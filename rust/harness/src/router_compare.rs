@@ -1142,6 +1142,30 @@ fn determinism_cmd(
     // helper, so neither the path naming nor the run2-from-run1 aliasing
     // can slip through unobserved.
     let pair = pair_from_runs(&run1_dir, &run2_dir);
+    // Call-site consistency (spec-rereview-2 MINOR-C / NEW-D survivor):
+    // the helper's ARGUMENTS are the one face no pin can reach (pins see
+    // the helper's output, not this call site), so the call site asserts
+    // its own wiring against the RUNNER's truth. Under the NEW-D mutant
+    // (`pair_from_runs(&run1_dir, &run1_dir)`) run2 is never read and the
+    // HARD gate prints a false OK — here the aliasing dies loudly INSTEAD.
+    assert_eq!(
+        pair.run1.ses, run1.ses_path,
+        "determinism call-site slip: run1's SES digest source must be run1's own output file"
+    );
+    assert_eq!(
+        pair.run2.ses, run2.ses_path,
+        "determinism call-site slip: run2's SES digest source must be run2's own output file (NEW-D guard)"
+    );
+    assert_eq!(
+        pair.run1.manifest,
+        run1_dir.join(RUN_MANIFEST_FILE),
+        "determinism call-site slip: run1's manifest digest source must be run1's own dir"
+    );
+    assert_eq!(
+        pair.run2.manifest,
+        run2_dir.join(RUN_MANIFEST_FILE),
+        "determinism call-site slip: run2's manifest digest source must be run2's own dir"
+    );
     let (ses_1, ses_2, manifest_1, manifest_2) = determinism_digests(&pair)?;
     match determinism_verdict(ses_1, ses_2, manifest_1, manifest_2) {
         Ok(line) => {
