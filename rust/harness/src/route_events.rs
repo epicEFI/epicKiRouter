@@ -1493,6 +1493,48 @@ mod pins {
             "a witness-less block must not lose the outcome face silently: {err}"
         );
 
+        // RR-A face (quality re-review): a 4th DISTINCT well-formed
+        // block must trip the block-count check (4 golden blocks vs 3
+        // manifest entries). Built from e1's own lines with the fixture
+        // renamed, so the block is schema-valid and passes sanity — the
+        // COUNT check is the only tripwire that can catch it. With the
+        // check gutted (reviewer mutant RR-1) the zip silently ignores
+        // the extra block and e1's Class-B divergence surfaces instead.
+        let rename =
+            |line: &str| line.replace("\"fixture\":\"e1_ripup\"", "\"fixture\":\"zz_extra\"");
+        let first_line = golden_raw.lines().next().expect("first golden line");
+        assert!(
+            first_line.contains("\"fixture\":\"e1_ripup\""),
+            "the surgery anchor was found"
+        );
+        let extra_witness = rename(first_line);
+        let extra_trace = rename(golden_raw.lines().nth(1).expect("a trace row"));
+        let extra_run = rename(
+            golden_raw
+                .lines()
+                .find(|line| line.contains("\"type\":\"run\""))
+                .expect("a run witness row"),
+        );
+        let extra_incompletes = rename(
+            golden_raw
+                .lines()
+                .find(|line| line.contains("\"type\":\"incompletes\""))
+                .expect("an incompletes witness row"),
+        );
+        let with_extra = format!(
+            "{golden_raw}{extra_witness}\n{extra_trace}\n{extra_run}\n{extra_incompletes}\n"
+        );
+        std::fs::write(&golden_path, with_extra).expect("write extra-block golden");
+        let err = err_of(compare(&repo_root, &manifest_path, &golden_path));
+        assert!(
+            err.contains("covers 4 fixture(s)") && err.contains("lists 3"),
+            "RR-A face: {err}"
+        );
+        assert!(
+            !err.contains("FIRST DIFFERING FIELD"),
+            "an unlisted block must not sail into the divergence face: {err}"
+        );
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 
