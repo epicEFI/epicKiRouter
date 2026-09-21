@@ -1338,12 +1338,28 @@ fn compare_cmd(
         started.elapsed().as_secs_f64(),
         if report_only { "report" } else { "gate" }
     );
-    // Report mode ALWAYS exits 0 (the CI face); gate mode exits 0 only
-    // when every fixture passed.
+    // A filter that matched NOTHING must not false-green: gate mode's
+    // `red == 0` is vacuously true when zero fixtures ran, in BOTH modes
+    // (quality-review MINOR-2, witnessed live with a typo'd filter).
+    if let Some(filter) = fixture_filter
+        && green + red == 0
+    {
+        bail!("--fixture {filter:?} matched no Tier A fixture");
+    }
+    // The exit ladder, extracted pure for the pin (MINOR-3).
+    battery_exit(report_only, red)
+}
+
+/// The battery's exit ladder — THE T17 flip face (CI drops
+/// `--report-only` and this starts biting). Pure so the pin can hold
+/// both directions: report mode ALWAYS exits 0 (the CI face); gate mode
+/// exits 0 only when every fixture passed. (Quality-review MINOR-3: the
+/// inline ladder was guttable with all 13 pins green.)
+pub fn battery_exit(report_only: bool, red: usize) -> Result<()> {
     if report_only || red == 0 {
         Ok(())
     } else {
-        bail!("router compare: {red} fixture(s) RED");
+        bail!("router compare: {red} fixture(s) RED")
     }
 }
 
@@ -1474,6 +1490,10 @@ mod pins {
         assert_eq!(epsilon_for(500.0), 10.0);
         assert_eq!(epsilon_for(1000.0), 20.0);
         assert_eq!(epsilon_for(0.5), SCORE_RELATIVE_EPSILON, "the 1.0 floor");
+        // The .abs() face (quality-review MINOR-5 / Q2 survivor): a
+        // NEGATIVE Java score must not shrink ε — dropping .abs() makes
+        // ε negative there, silently stricter than the policy.
+        assert_eq!(epsilon_for(-500.0), 10.0);
 
         let java = java_record(0, 0, 500.0);
         // Equal passes; strictly better passes.
@@ -2198,5 +2218,121 @@ mod pins {
         // back; take it and reinstall the original).
         let _ = std::panic::take_hook();
         std::panic::set_hook(before);
+    }
+
+    /// THE exit-ladder pin (quality-review MINOR-3 / Q3 survivor): report
+    /// mode exits 0 REGARDLESS of red; gate mode exits 0 only at red == 0
+    /// and names the count otherwise. This is THE T17 flip face — a
+    /// gutted ladder silently kept a red battery green. Mutation-verified:
+    /// gutting [`battery_exit`] to `Ok(())` fails the gate+red direction.
+    #[test]
+    fn battery_exit_pins_the_gate_report_ladder() {
+        assert!(battery_exit(true, 0).is_ok());
+        assert!(
+            battery_exit(true, 7).is_ok(),
+            "report mode ALWAYS exits 0 — that is the CI face"
+        );
+        assert!(battery_exit(false, 0).is_ok(), "a clean gate exits 0");
+        let err = battery_exit(false, 10).expect_err("a red gate must exit nonzero");
+        assert!(err.to_string().contains("10 fixture(s) RED"), "{err}");
+    }
+
+    /// THE truncation-boundary pin (quality-review NOTE-A / Q6 survivor):
+    /// a world with MORE violation pairs than FIRST_N renders EXACTLY
+    /// FIRST_N rows and says so in the header. The single-pair world of
+    /// the shape pin could not see the `FIRST_N 10 -> 9` mutant
+    /// (`min(9, 1) == min(10, 1)`); at 12 pairs the mutant renders 9 rows
+    /// and this pin dies.
+    #[test]
+    fn localizer_truncates_violation_pairs_at_exactly_first_n() {
+        let java = java_record(2, 0, 986.32);
+        let outcome = rust_outcome(5, 12, 900.0);
+        let failures = compare_directional(&java, &outcome);
+        let detail = RustDetail {
+            incomplete_total: 5,
+            incomplete_nets: Vec::new(),
+            violations: (0..12)
+                .map(|i| ViolationPair {
+                    a: i,
+                    b: 100 + i,
+                    layer: 1,
+                    expected_clearance: 200.0,
+                    actual_clearance: 100.0,
+                })
+                .collect(),
+            terms: ScoreTerms {
+                maximum: 1000.0,
+                unrouted: 50.0,
+                violation: 10.0,
+                bend: 0.0,
+                via: 0.0,
+                trace_length: 0.0,
+                normalized: 940.0,
+            },
+            trace_count: 1,
+            via_count: 0,
+            bend_count: 0,
+        };
+        let lines = localization_lines("x.dsn", &java, &outcome, &failures, Some(&detail), &[]);
+        let text = lines.join("\n");
+        let rendered_rows = lines
+            .iter()
+            .filter(|line| line.contains(" <-> item "))
+            .count();
+        assert_eq!(
+            rendered_rows, 10,
+            "exactly FIRST_N violation pairs may render: {text}"
+        );
+        assert!(
+            text.contains("violation pairs (12 total, first 10 in walk order):"),
+            "the header must state the total AND the truncation: {text}"
+        );
+    }
+
+    /// THE dispatch smoke (quality-review MINOR-4 / Q5 survivor): the
+    /// `run()` dispatcher's Determinism arm is clap wiring no pin can
+    /// reach — the Q5 mutant swapped the arm to `compare_cmd` and the
+    /// HARD gate silently became a report step (exit 0, ~0.6s, all pins
+    /// green). This e2e runs the BUILT `epic-harness` binary's
+    /// `router determinism` as a real subprocess and asserts the output
+    /// is the DETERMINISM gate's own OK line. Java-free; ~1s; requires
+    /// `cargo build -p epic-cli` (the determinism run spawns it). Run
+    /// explicitly: `cargo test -p epic-harness --bin epic-harness
+    /// e2e_router_determinism -- --ignored` (also after any dispatch
+    /// refactor).
+    #[test]
+    #[ignore]
+    fn e2e_router_determinism_subcommand_is_the_determinism_gate() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        // The unit-test exe lives in target/<profile>/deps/; the bin
+        // target is one level up (same layout resolve_epic_cli relies on).
+        let bin = std::env::current_exe()
+            .expect("test exe")
+            .parent()
+            .and_then(|parent| parent.parent())
+            .map(|profile_dir| profile_dir.join("epic-harness"))
+            .filter(|candidate| candidate.is_file())
+            .unwrap_or_else(|| root.join("rust/target/debug/epic-harness"));
+        let output = Command::new(&bin)
+            .args([
+                "router",
+                "determinism",
+                "--fixture",
+                DEFAULT_DETERMINISM_FIXTURE,
+            ])
+            .env("EPIC_SKIP_GRADLE", "1")
+            .output()
+            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        assert!(
+            output.status.success(),
+            "the determinism gate must exit 0: {} stderr: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("determinism: OK"),
+            "the Determinism arm must run the DETERMINISM gate, not some other cmd: {stdout}"
+        );
     }
 }

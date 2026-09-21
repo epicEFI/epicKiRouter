@@ -66,14 +66,20 @@ jobs:
           EPIC_SKIP_GRADLE: "1"
       # M3 T15 router quality scoreboard: epic-cli must exist for the
       # two steps below (the harness resolves target/debug/epic-cli).
+      # Step bounds (quality-review MINOR-1): 5 min ≈ a cold `cargo
+      # build -q -p epic-cli` with headroom (warm cache: seconds).
       - run: cargo build -q -p epic-cli
+        timeout-minutes: 5
         env:
           EPIC_SKIP_GRADLE: "1"
       # M3 T15 determinism self-gate: same DSN, two epic-cli runs to
       # separate output paths, byte-identical SES + manifest (java-free,
       # ~1s on the smallest Tier A board). HARD gate: any divergence is a
-      # real determinism bug and fails CI.
+      # real determinism bug and fails CI. Step bound: 30 min = 7.5x the
+      # worst case (two runs x the 120s tiers timeout) — a hang trips
+      # here instead of the 360-min job default.
       - run: cargo run -q -p epic-harness -- router determinism
+        timeout-minutes: 30
         env:
           EPIC_SKIP_GRADLE: "1"
       # M3 T15 router compare: full 11-fixture Tier A battery (fanout-off
@@ -88,7 +94,15 @@ jobs:
       # Measured wall (T15, debug, 1 fixture-class local): ~220s — the 10
       # red fixtures each auto-run the panic-caught in-process detail pass
       # for the localizer, so the wall is roughly double the subprocess
-      # time; it drops once T17 fixes the panics.
+      # time; it drops once T17 fixes the panics. Step bound: 30 min ≈ 8x
+      # the measured wall (slower-runner headroom; completing fixtures
+      # route FASTER than their tier timeouts, so the bound stays valid
+      # post-T17). NOTE for T17: the in-process detail pass has NO
+      # deadline of its own — today it is fast only because 10 fixtures
+      # panic out of it; a T17 hang would trip this 30-min bound (and
+      # then needs a real watchdog: wall-clock deadline in the driver
+      # loop or a thread + channel timeout).
       - run: cargo run -q -p epic-harness -- router compare --report-only
+        timeout-minutes: 30
         env:
           EPIC_SKIP_GRADLE: "1"
