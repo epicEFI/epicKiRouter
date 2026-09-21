@@ -94,10 +94,10 @@ jobs:
       # epic-cli runs vs the committed router-only Java records), REPORT
       # mode — every fixture gets an explicit verdict in the CI log, but
       # exit stays 0. Landed green ON PURPOSE: the T17a integrity close
-      # fixed both panic classes (buglog 169/170 closed); the battery now
-      # reads 5 green / 1 quality-red (ecc83-pp_v2, buglog 176) /
-      # 5 timeout-integrity-red (bm01/bm06/bm11/pic_programmer/sonde,
-      # buglog 175; sonde also carries the new buglog-177 panic class).
+      # fixed both panic classes (buglog 169/170 closed) and the T17b
+      # virtual-dispatch fix (buglog 176) turned ecc83-pp_v2 green; the
+      # battery now reads 8 green / 3 red (bm06 quality-red, 10 vs 9
+      # incomplete; bm01/bm11 wall-killed at their tiers, buglog 175).
       # THE EXIT-CONDITION FLIP: drop `--report-only` from this line
       # once every Tier A fixture passes all three directional gates
       # (incomplete <= Java, violations <= Java, score >= Java − 2%).

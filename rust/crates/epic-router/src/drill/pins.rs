@@ -1656,10 +1656,26 @@ impl DrillEngine for Harness {
             if !SearchTree::entry_intersects(shape, &stored) {
                 continue;
             }
-            if ignore_nets
-                .iter()
-                .all(|&net| NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net))
-            {
+            // Java `:412-413` filters on the BASE `isObstacle(int)` face
+            // (`Item.java:162-164`, overridden by NO item subclass — the
+            // trace-obstacle overrides do NOT apply to this walk), so a
+            // foreign NON-obstacle conduction area STAYS in the results
+            // while an own-net object drops out. Rooms keep the trait
+            // face (Java tree rooms are CompleteFreeSpaceExpansionRoom,
+            // whose `isObstacle(int)` is unconditionally true, `:77-79`).
+            // The same room/item branch shape as the production engine
+            // (spec-review T17b M-2: the T17b-D fix had silently flipped
+            // this harness walk's ITEM keys to the virtual face).
+            if ignore_nets.iter().all(|&net| {
+                if Self::is_room_key(leaf.object_key) {
+                    NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net)
+                } else {
+                    u32::try_from(leaf.object_key)
+                        .ok()
+                        .map(ItemId::new)
+                        .is_none_or(|id| self.board.item_is_obstacle(id, net))
+                }
+            }) {
                 out.push(leaf.object_key);
             }
         }
@@ -2628,4 +2644,144 @@ fn completion_probe_first_calls() {
             "probe ({what}) ({x},{y}) layer {layer}: cumulative incomplete rooms"
         );
     }
+}
+
+// ---- T17b spec-review M-2: the ignore-nets walk's ITEM face ----
+
+/// The M-2 world: a parse-time plane (a NON-obstacle
+/// [`ItemData::ConductionArea`], `isObstacle=false` — every parse-time
+/// plane/pour is inserted that way, `Structure.java:1113`) and a
+/// netless keepout on the SAME layer, probed through the harness's
+/// [`NeighbourEngine::overlapping_objects_ignore_nets`]. Internal
+/// units: `(resolution um 10)` scales every DSN coordinate ×10 (the
+/// plane polygon [1000,9000] DSN is [10000,90000] internal; the probe
+/// [30000,70000]² sits strictly inside both it and the keepout
+/// polygon [20000,40000] — a DSN-unit probe lands in empty space and
+/// the world goes vacuous).
+const PLANE_WALK_DSN: &str = r#"(pcb t17b-plane-walk.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer In1.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary
+      (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
+    )
+    (plane GND
+      (polygon In1.Cu 0  1000 1000  9000 1000  9000 9000  1000 9000)
+    )
+    (keepout ""
+      (polygon In1.Cu 0  2000 2000  4000 2000  4000 4000  2000 4000  2000 2000)
+    )
+  )
+  (network
+    (net SIG)
+    (net GND)
+  )
+)
+"#;
+
+/// Pin 7 — T17b spec-review M-2: the drill harness's
+/// [`DrillEngine::overlapping_objects_ignore_nets`] filters ITEM
+/// keys on the BASE `Item.isObstacle(int)` face (`Item.java:162-164`,
+/// overridden by NO item subclass), NOT the virtual `isTraceObstacle`
+/// face — Java `ShapeSearchTree.overlappingObjects` `:412-413`. The
+/// flag × net discriminator, every row and column pinned:
+///
+/// | object | ignore net | base face (Java) | virtual face | expected |
+/// |---|---|---|---|---|
+/// | plane (non-obstacle CA, GND) | SIG (foreign) | `!contains`=true | `false && …`=false | **STAYS** (the crossing cell) |
+/// | plane (non-obstacle CA, GND) | GND (own) | `!contains`=false | false | drops |
+/// | keepout (netless obstacle) | SIG (foreign) | true | true | stays |
+/// | keepout (netless obstacle) | GND (own) | true | true | stays |
+///
+/// The trait-face-for-all-keys mutant (the M-2 divergence the T17b-D
+/// fix introduced) flips exactly the crossing cell. Rooms are not
+/// probed: the only rooms ever in the tree are complete-free-space
+/// rooms, whose `isObstacle(int)` is unconditionally true on EVERY
+/// face (`CompleteFreeSpaceExpansionRoom.java:77-84`) — an agreement
+/// cell by Java's own definition.
+#[test]
+fn t17b_ignore_nets_walk_filters_items_on_the_base_obstacle_face() {
+    let h = Harness::build_with(PLANE_WALK_DSN, 1);
+
+    // The world: the plane is a NON-obstacle ConductionArea on GND
+    // (parse flag), the keepout a plain netless ObstacleArea.
+    let plane_entry = h
+        .board
+        .iter_descending()
+        .find(|e| matches!(e.data, ItemData::ConductionArea { .. }))
+        .expect("the plane parsed as a ConductionArea");
+    let plane_id = plane_entry.id;
+    let (gnd, plane_flag) = match &plane_entry.data {
+        ItemData::ConductionArea { is_obstacle, .. } => (plane_entry.nets[0], *is_obstacle),
+        other => panic!("not a plane: {other:?}"),
+    };
+    let keepout_key = u64::from(
+        h.board
+            .iter_descending()
+            .find(|e| matches!(e.data, ItemData::ObstacleArea { .. }))
+            .expect("the keepout parsed as an ObstacleArea")
+            .id
+            .get(),
+    );
+    let sig = crate::test_util::net_no(&h.board, "SIG");
+    assert!(
+        !plane_flag,
+        "a parse-time plane is NON-obstacle (Structure.java:1113)"
+    );
+    assert_ne!(sig, gnd, "SIG is foreign to the plane");
+    let plane_key = u64::from(plane_id.get());
+    // The two faces genuinely DISAGREE on the crossing cell — the
+    // premise of the whole pin (base keeps the foreign plane, the
+    // virtual face never does).
+    assert!(
+        h.board.item_is_obstacle(plane_id, sig),
+        "base face: the foreign plane is an obstacle w.r.t. SIG"
+    );
+    assert!(
+        !h.board.item_is_trace_obstacle(plane_id, sig),
+        "virtual face: a non-obstacle plane never is"
+    );
+
+    // The probe over the plane + keepout on In1.Cu (index 1), in
+    // INTERNAL units.
+    let probe = box_tile(30000, 30000, 70000, 70000);
+
+    // Sanity (observability): with NO ignore nets everything stays —
+    // the plane and the keepout both reach the walk at all.
+    let all = DrillEngine::overlapping_objects_ignore_nets(&h, &probe, 1, &[]);
+    assert!(
+        all.contains(&plane_key),
+        "no ignore nets: the plane is in the walk"
+    );
+    assert!(
+        all.contains(&keepout_key),
+        "no ignore nets: the keepout is in the walk"
+    );
+
+    // THE CROSSING CELL (plane × foreign): the BASE face keeps the
+    // NON-obstacle plane in the results — the trait-face-for-all-keys
+    // mutant drops it exactly here.
+    let foreign = DrillEngine::overlapping_objects_ignore_nets(&h, &probe, 1, &[sig]);
+    assert!(
+        foreign.contains(&plane_key),
+        "foreign net: a NON-obstacle plane STAYS (base face, :412-413)"
+    );
+    assert!(foreign.contains(&keepout_key), "foreign net: keepout stays");
+
+    // Plane × own: the plane drops (`!containsNet` false under every
+    // face). Keepout × own: a netless obstacle stays for every net —
+    // the both-faces-agree control arm.
+    let own = DrillEngine::overlapping_objects_ignore_nets(&h, &probe, 1, &[gnd]);
+    assert!(!own.contains(&plane_key), "own net: the plane drops");
+    assert!(
+        own.contains(&keepout_key),
+        "own net: the netless keepout stays"
+    );
 }
