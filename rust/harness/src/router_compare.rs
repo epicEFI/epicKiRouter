@@ -96,6 +96,49 @@ pub const SCORE_RELATIVE_EPSILON: f64 = 0.02;
 /// would produce no output to compare).
 pub const DEFAULT_DETERMINISM_FIXTURE: &str = "DAC2020_boards/DAC2020_bm08.dsn";
 
+/// THE comparability flag (module docs): fanout-off flips the batch tail
+/// sweep via [`epic_cli::route::build_batch_settings`] — the exact
+/// router-only face the committed T14 records witness. It lives here as a
+/// const so the argv builder is the single source and the banner phrase is
+/// DERIVED from the built argv (they cannot drift: a dropped flag stops
+/// the log claiming fanout-off). Spec-review OW-M2 survivor hardening.
+pub const COMPARABILITY_FLAG: &str = "--router.fanout.enabled=false";
+
+/// THE one argv builder for every `router compare` subprocess run (the
+/// run faces cannot drift between sites — there is no second argv). The
+/// comparability flag rides EXACTLY once, as the argv suffix.
+#[must_use]
+pub fn route_argv(
+    cli_bin: &Path,
+    dsn: &Path,
+    ses_path: &Path,
+    manifest_path: &Path,
+) -> Vec<String> {
+    vec![
+        cli_bin.to_string_lossy().into_owned(),
+        "route".to_string(),
+        "-de".to_string(),
+        dsn.to_string_lossy().into_owned(),
+        "-do".to_string(),
+        ses_path.to_string_lossy().into_owned(),
+        "--result-json".to_string(),
+        manifest_path.to_string_lossy().into_owned(),
+        COMPARABILITY_FLAG.to_string(),
+    ]
+}
+
+/// The banner's comparability phrase, DERIVED from an actual built argv —
+/// if the flag ever leaves [`route_argv`], the log stops claiming
+/// fanout-off instead of lying (the OW-M2 "hardcoded banner" face).
+#[must_use]
+pub fn comparability_banner_phrase(argv: &[String]) -> String {
+    if argv.iter().any(|arg| arg == COMPARABILITY_FLAG) {
+        format!("{COMPARABILITY_FLAG} vs committed router-only records")
+    } else {
+        "COMPARABILITY FLAG MISSING FROM THE ARGV vs committed router-only records".into()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
@@ -294,19 +337,9 @@ pub fn run_cli(cli_bin: &Path, dsn: &Path, work_dir: &Path, timeout: Duration) -
     let _ = std::fs::remove_file(&ses_path);
     let _ = std::fs::remove_file(&manifest_path);
 
-    let argv = [
-        cli_bin.to_string_lossy().into_owned(),
-        "route".to_string(),
-        "-de".to_string(),
-        dsn.to_string_lossy().into_owned(),
-        "-do".to_string(),
-        ses_path.to_string_lossy().into_owned(),
-        "--result-json".to_string(),
-        manifest_path.to_string_lossy().into_owned(),
-        // THE comparability flag (module docs): fanout-off flips the batch
-        // tail sweep — the exact router-only face the records witness.
-        "--router.fanout.enabled=false".to_string(),
-    ];
+    // THE single argv source ([`route_argv`]): the comparability flag
+    // cannot drift between the run faces.
+    let argv = route_argv(cli_bin, dsn, &ses_path, &manifest_path);
     let stdout_file = std::fs::File::create(work_dir.join("stdout.log"))
         .with_context(|| format!("creating {}", work_dir.join("stdout.log").display()))?;
     let stderr_file = std::fs::File::create(work_dir.join("stderr.log"))
@@ -812,12 +845,20 @@ pub fn localization_lines(
 /// Runs the in-process detail pass: the SAME flow as the subprocess
 /// (`epic_cli::route::run_route`'s steps, fanout-off argv face), stopped
 /// after the post-route statistics. Panic-caught: an engine panic becomes
-/// an Err stop-cause (today's Tier A reality on 10 of 11 fixtures).
+/// an Err stop-cause (today's Tier A reality on 10 of 11 fixtures). The
+/// default panic hook is silenced for the duration (spec-review NOTE: the
+/// hook would print the caught panic to stderr before the harness renders
+/// its own NOTE) and restored on EVERY path out — the hook swap is
+/// process-global, which is safe here because the harness is
+/// single-threaded on this path and nothing else can panic concurrently.
 fn run_detail_pass(dsn: &Path) -> Result<RustDetail, String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         route_detail_inner(dsn).map_err(|e| e.to_string())
-    }))
-    .unwrap_or_else(|payload| {
+    }));
+    std::panic::set_hook(previous_hook);
+    result.unwrap_or_else(|payload| {
         Err(format!(
             "detail pass panicked: {}",
             payload
@@ -855,7 +896,9 @@ fn route_detail_inner(dsn: &Path) -> Result<RustDetail, anyhow::Error> {
         dsn.to_string_lossy().into_owned(),
         "-do".to_string(),
         scratch_ses.to_string_lossy().into_owned(),
-        "--router.fanout.enabled=false".to_string(),
+        // The SAME const the subprocess argv builder uses — every run face
+        // single-sources the comparability flag.
+        COMPARABILITY_FLAG.to_string(),
     ];
     let args = parse_route_args(&argv).map_err(anyhow::Error::msg)?;
 
@@ -984,6 +1027,47 @@ pub fn determinism_verdict(
     ))
 }
 
+/// One run's on-disk determinism artifacts (review OW-M3 hardening).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeterminismArtifacts {
+    pub ses: PathBuf,
+    pub manifest: PathBuf,
+}
+
+/// The two runs' artifacts as a STRUCTURAL pair: the digest step takes
+/// both, so "which run's files feed which digest" is typed, not implied
+/// by loose locals — a run1/run2 path slip cannot silently hash one run
+/// twice (CI's only HARD gate rides on this).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeterminismPair {
+    pub run1: DeterminismArtifacts,
+    pub run2: DeterminismArtifacts,
+}
+
+/// The four run digests in verdict order: `(ses1, ses2, manifest1,
+/// manifest2)` — one per [`DeterminismPair`] artifact (`None` when that
+/// run wrote nothing).
+pub type DeterminismDigests = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
+/// Hashes the pair: `(ses1, ses2, manifest1, manifest2)`, each digest
+/// computed from its OWN run's path (`None` when that run wrote nothing).
+pub fn determinism_digests(pair: &DeterminismPair) -> Result<DeterminismDigests> {
+    let digest = |path: &Path| -> Result<Option<String>> {
+        path.is_file().then(|| sha256_file(path)).transpose()
+    };
+    Ok((
+        digest(&pair.run1.ses)?,
+        digest(&pair.run2.ses)?,
+        digest(&pair.run1.manifest)?,
+        digest(&pair.run2.manifest)?,
+    ))
+}
+
 fn determinism_cmd(
     repo_root: &Path,
     fixture: Option<&str>,
@@ -1028,26 +1112,20 @@ fn determinism_cmd(
         &run2_dir,
         Duration::from_secs(entry.timeout_seconds),
     )?;
-    let ses_1 = run1
-        .ses_path
-        .is_file()
-        .then(|| sha256_file(&run1.ses_path))
-        .transpose()?;
-    let ses_2 = run2
-        .ses_path
-        .is_file()
-        .then(|| sha256_file(&run2.ses_path))
-        .transpose()?;
-    let manifest_path_1 = run1_dir.join("manifest.json");
-    let manifest_path_2 = run2_dir.join("manifest.json");
-    let manifest_1 = manifest_path_1
-        .is_file()
-        .then(|| sha256_file(&manifest_path_1))
-        .transpose()?;
-    let manifest_2 = manifest_path_2
-        .is_file()
-        .then(|| sha256_file(&manifest_path_2))
-        .transpose()?;
+    // The digest sources are a STRUCTURAL run1/run2 pair (review OW-M3
+    // hardening): a path slip cannot silently feed one run's files to
+    // both sides of the verdict.
+    let pair = DeterminismPair {
+        run1: DeterminismArtifacts {
+            ses: run1.ses_path.clone(),
+            manifest: run1_dir.join("manifest.json"),
+        },
+        run2: DeterminismArtifacts {
+            ses: run2.ses_path.clone(),
+            manifest: run2_dir.join("manifest.json"),
+        },
+    };
+    let (ses_1, ses_2, manifest_1, manifest_2) = determinism_digests(&pair)?;
     match determinism_verdict(ses_1, ses_2, manifest_1, manifest_2) {
         Ok(line) => {
             println!(
@@ -1088,10 +1166,20 @@ fn compare_cmd(
             }
         })
         .unwrap_or_else(|| repo_root.join("rust/harness/runs/router-compare"));
+    // The banner's fanout-off claim is DERIVED from the actual argv
+    // builder (not hardcoded): if the comparability flag ever leaves
+    // [`route_argv`], the log says so instead of lying (OW-M2).
+    let banner_comparability = comparability_banner_phrase(&route_argv(
+        &cli_bin,
+        Path::new("<fixture.dsn>"),
+        Path::new("<out.ses>"),
+        Path::new("<manifest.json>"),
+    ));
     println!(
-        "router compare: {} Tier A fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli --router.fanout.enabled=false vs committed router-only records; mode: {}",
+        "router compare: {} Tier A fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli {} ; mode: {}",
         fixtures.len(),
         (SCORE_RELATIVE_EPSILON * 100.0),
+        banner_comparability,
         if report_only {
             "report (exit 0)"
         } else {
@@ -1817,5 +1905,118 @@ mod pins {
         assert!(approx(terms.normalized, 0.0), "floored: {terms:?}");
         let engine = f64::from(stats.get_legacy_normalized_score(&scoring));
         assert!(approx(engine, 0.0), "engine floors too: {engine}");
+    }
+
+    /// THE comparability argv pin (spec-review MINOR-1 / OW-M2 survivor):
+    /// `route_argv` — the ONE builder `run_cli` spawns from — carries the
+    /// fanout-off flag EXACTLY once, as the argv suffix, and the banner
+    /// phrase derived from that argv claims fanout-off. Mutation-verified:
+    /// dropping the flag from the builder makes BOTH asserts fail (and the
+    /// banner face flips to "MISSING" instead of a hardcoded lie).
+    #[test]
+    fn run_cli_argv_carries_the_comparability_flag() {
+        let argv = route_argv(
+            Path::new("/bin/epic-cli"),
+            Path::new("/f/x.dsn"),
+            Path::new("/w/out.ses"),
+            Path::new("/w/manifest.json"),
+        );
+        let flag_positions: Vec<usize> = argv
+            .iter()
+            .enumerate()
+            .filter_map(|(i, arg)| (*arg == COMPARABILITY_FLAG).then_some(i))
+            .collect();
+        assert_eq!(
+            flag_positions,
+            vec![argv.len() - 1],
+            "the comparability flag must ride EXACTLY once, as the argv suffix: {argv:?}"
+        );
+        // The banner face is DERIVED: a correct argv yields the claim.
+        let phrase = comparability_banner_phrase(&argv);
+        assert!(
+            phrase.contains(COMPARABILITY_FLAG),
+            "the banner must claim fanout-off from the actual argv: {phrase}"
+        );
+        // Degraded face: an argv WITHOUT the flag (the OW-M2 mutant) must
+        // make the banner say MISSING — the log can never lie about the
+        // comparability face.
+        let mutant_argv: Vec<String> = argv
+            .iter()
+            .filter(|arg| *arg != COMPARABILITY_FLAG)
+            .cloned()
+            .collect();
+        let phrase = comparability_banner_phrase(&mutant_argv);
+        assert!(
+            phrase.contains("COMPARABILITY FLAG MISSING"),
+            "a flag-less argv must stop the banner claiming fanout-off: {phrase}"
+        );
+    }
+
+    /// THE determinism digest-source pin (spec-review MINOR-2 / OW-M3
+    /// survivor): the digests are computed from the pair's DISTINCT
+    /// run1/run2 paths — planted-different bytes MUST produce different
+    /// digests (and a failing verdict), planted-equal bytes MUST produce
+    /// equal digests (and the OK verdict). Mutation-verified: feeding
+    /// run1's files to BOTH sides makes the differing-bytes world produce
+    /// equal digests and this pin fail.
+    #[test]
+    fn determinism_digests_read_distinct_run_paths() {
+        let dir = std::env::temp_dir().join(format!("epic-t15-digest-pair-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("run1")).expect("run1 dir");
+        std::fs::create_dir_all(dir.join("run2")).expect("run2 dir");
+        // Planted-different bytes: run1 and run2 wrote DIFFERENT output.
+        std::fs::write(dir.join("run1/out.ses"), b"session one").expect("ses1");
+        std::fs::write(dir.join("run1/manifest.json"), b"{\"m\":1}").expect("man1");
+        std::fs::write(dir.join("run2/out.ses"), b"session two").expect("ses2");
+        std::fs::write(dir.join("run2/manifest.json"), b"{\"m\":2}").expect("man2");
+        let pair = DeterminismPair {
+            run1: DeterminismArtifacts {
+                ses: dir.join("run1/out.ses"),
+                manifest: dir.join("run1/manifest.json"),
+            },
+            run2: DeterminismArtifacts {
+                ses: dir.join("run2/out.ses"),
+                manifest: dir.join("run2/manifest.json"),
+            },
+        };
+        // Structural distinctness first: the pair cannot alias.
+        assert_ne!(pair.run1.ses, pair.run2.ses);
+        assert_ne!(pair.run1.manifest, pair.run2.manifest);
+
+        let (ses_1, ses_2, man_1, man_2) = determinism_digests(&pair).expect("digests");
+        // Distinct bytes MUST hash differently — the OW-M3 mutant (run1's
+        // files hashed for both sides) fails right here.
+        assert_ne!(
+            ses_1, ses_2,
+            "run1/run2 SES bytes differ, so their digests must differ"
+        );
+        assert_ne!(
+            man_1, man_2,
+            "run1/run2 manifest bytes differ, so their digests must differ"
+        );
+        // And the verdict must catch it, naming the SES face.
+        let err = determinism_verdict(ses_1.clone(), ses_2.clone(), man_1.clone(), man_2.clone())
+            .expect_err("planted divergence must fail");
+        assert!(err.contains("SES"), "{err}");
+
+        // Planted-equal bytes: identical output in both runs is the OK face.
+        std::fs::write(dir.join("run2/out.ses"), b"session one").expect("ses2 equal");
+        std::fs::write(dir.join("run2/manifest.json"), b"{\"m\":1}").expect("man2 equal");
+        let (ses_1, ses_2, man_1, man_2) = determinism_digests(&pair).expect("digests equal");
+        assert_eq!(ses_1, ses_2, "equal bytes must hash equal");
+        assert_eq!(man_1, man_2);
+        determinism_verdict(ses_1, ses_2, man_1, man_2)
+            .expect("equal digests from distinct paths are OK");
+
+        // The missing-file face still flows through the pair: an absent
+        // run2 SES digests to None and the verdict names the absence.
+        std::fs::remove_file(dir.join("run2/out.ses")).expect("remove ses2");
+        let (ses_1, ses_2, man_1, man_2) = determinism_digests(&pair).expect("digests partial");
+        assert!(ses_1.is_some() && ses_2.is_none(), "{ses_1:?} {ses_2:?}");
+        let err =
+            determinism_verdict(ses_1, ses_2, man_1, man_2).expect_err("missing run2 ses fails");
+        assert!(err.contains("no session file"), "{err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
