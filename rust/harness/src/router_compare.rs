@@ -330,8 +330,8 @@ pub struct CliRun {
 /// Stale outputs are deleted BEFORE the spawn so a run that dies early
 /// never reads the previous run's files as its own.
 pub fn run_cli(cli_bin: &Path, dsn: &Path, work_dir: &Path, timeout: Duration) -> Result<CliRun> {
-    let ses_path = work_dir.join("out.ses");
-    let manifest_path = work_dir.join("manifest.json");
+    let ses_path = work_dir.join(RUN_SES_FILE);
+    let manifest_path = work_dir.join(RUN_MANIFEST_FILE);
     std::fs::create_dir_all(work_dir)
         .with_context(|| format!("creating work dir {}", work_dir.display()))?;
     let _ = std::fs::remove_file(&ses_path);
@@ -1044,6 +1044,31 @@ pub struct DeterminismPair {
     pub run2: DeterminismArtifacts,
 }
 
+/// The canonical artifact names inside one run's work dir — single-sourced
+/// between [`run_cli`] (which WRITES them) and [`pair_from_runs`] (which
+/// READS them), so the runner and the pair builder cannot drift.
+pub const RUN_SES_FILE: &str = "out.ses";
+pub const RUN_MANIFEST_FILE: &str = "manifest.json";
+
+/// Builds the two runs' artifact pair from their SEPARATE work dirs
+/// (spec-rereview MINOR-A hardening, NEW-B survivor): run2's paths derive
+/// from `run2_dir` ONLY. The construction lives in one named function so
+/// the pin can hold it — a mutant that builds run2 from run1's dir
+/// aliases the pair and dies on `pair_from_runs_derives_run2_from_run2_dir_only`.
+#[must_use]
+pub fn pair_from_runs(run1_dir: &Path, run2_dir: &Path) -> DeterminismPair {
+    DeterminismPair {
+        run1: DeterminismArtifacts {
+            ses: run1_dir.join(RUN_SES_FILE),
+            manifest: run1_dir.join(RUN_MANIFEST_FILE),
+        },
+        run2: DeterminismArtifacts {
+            ses: run2_dir.join(RUN_SES_FILE),
+            manifest: run2_dir.join(RUN_MANIFEST_FILE),
+        },
+    }
+}
+
 /// The four run digests in verdict order: `(ses1, ses2, manifest1,
 /// manifest2)` — one per [`DeterminismPair`] artifact (`None` when that
 /// run wrote nothing).
@@ -1112,19 +1137,11 @@ fn determinism_cmd(
         &run2_dir,
         Duration::from_secs(entry.timeout_seconds),
     )?;
-    // The digest sources are a STRUCTURAL run1/run2 pair (review OW-M3
-    // hardening): a path slip cannot silently feed one run's files to
-    // both sides of the verdict.
-    let pair = DeterminismPair {
-        run1: DeterminismArtifacts {
-            ses: run1.ses_path.clone(),
-            manifest: run1_dir.join("manifest.json"),
-        },
-        run2: DeterminismArtifacts {
-            ses: run2.ses_path.clone(),
-            manifest: run2_dir.join("manifest.json"),
-        },
-    };
+    // The digest sources are a STRUCTURAL run1/run2 pair (review OW-M3 +
+    // MINOR-A hardening): the construction is the pinned `pair_from_runs`
+    // helper, so neither the path naming nor the run2-from-run1 aliasing
+    // can slip through unobserved.
+    let pair = pair_from_runs(&run1_dir, &run2_dir);
     let (ses_1, ses_2, manifest_1, manifest_2) = determinism_digests(&pair)?;
     match determinism_verdict(ses_1, ses_2, manifest_1, manifest_2) {
         Ok(line) => {
@@ -2018,5 +2035,144 @@ mod pins {
         assert!(err.contains("no session file"), "{err}");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// THE pair-construction pin (spec-rereview MINOR-A / NEW-B survivor):
+    /// `pair_from_runs` derives run2's artifacts from `run2_dir` ONLY —
+    /// witnessed structurally (the exact paths) AND behaviorally (planted-
+    /// different bytes in the two dirs MUST digest differently). Mutation-
+    /// verified: the reviewer's NEW-B (run2's joins taken from run1_dir)
+    /// fails BOTH the path asserts and the digest face.
+    #[test]
+    fn pair_from_runs_derives_run2_from_run2_dir_only() {
+        let dir = std::env::temp_dir().join(format!("epic-t15-pair-runs-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("run1")).expect("run1 dir");
+        std::fs::create_dir_all(dir.join("run2")).expect("run2 dir");
+        // Different bytes per run: a pair that aliases run2 onto run1
+        // cannot produce different digests.
+        std::fs::write(dir.join("run1").join(RUN_SES_FILE), b"session one").expect("ses1");
+        std::fs::write(dir.join("run1").join(RUN_MANIFEST_FILE), b"{\"m\":1}").expect("man1");
+        std::fs::write(dir.join("run2").join(RUN_SES_FILE), b"session two").expect("ses2");
+        std::fs::write(dir.join("run2").join(RUN_MANIFEST_FILE), b"{\"m\":2}").expect("man2");
+
+        let pair = pair_from_runs(&dir.join("run1"), &dir.join("run2"));
+        // Structural faces: each run's artifacts live in ITS OWN dir,
+        // under the same canonical names the runner writes.
+        assert_eq!(
+            pair.run1.ses,
+            dir.join("run1").join(RUN_SES_FILE),
+            "{pair:?}"
+        );
+        assert_eq!(
+            pair.run1.manifest,
+            dir.join("run1").join(RUN_MANIFEST_FILE),
+            "{pair:?}"
+        );
+        assert_eq!(
+            pair.run2.ses,
+            dir.join("run2").join(RUN_SES_FILE),
+            "run2's SES must derive from run2_dir: {pair:?}"
+        );
+        assert_eq!(
+            pair.run2.manifest,
+            dir.join("run2").join(RUN_MANIFEST_FILE),
+            "run2's manifest must derive from run2_dir: {pair:?}"
+        );
+        assert_ne!(pair.run1.ses, pair.run2.ses);
+        assert_ne!(pair.run1.manifest, pair.run2.manifest);
+        // Behavioral face: planted-different bytes digest differently —
+        // the NEW-B aliasing fails right here too.
+        let (ses_1, ses_2, man_1, man_2) = determinism_digests(&pair).expect("digests");
+        assert_ne!(
+            ses_1, ses_2,
+            "run2 built from run2_dir must read run2's bytes"
+        );
+        assert_ne!(
+            man_1, man_2,
+            "run2 built from run2_dir must read run2's manifest"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// THE hook-restore pin (spec-rereview MINOR-B / NEW-C survivor): the
+    /// previous panic hook is restored on EVERY path out of
+    /// [`run_detail_pass`] — the early-error path (a DSN that fails to
+    /// read) AND the caught-panic path (a Tier A fixture whose engine
+    /// route panics; bm01 today, class A). Sentinel mechanics: install a
+    /// recording hook as the "previous" hook, run the pass, then panic
+    /// deliberately — the DELIBERATE panic must reach the SENTINEL (the
+    /// restored hook), not a lingering no-op. Mutation-verified: deleting
+    /// the `set_hook(previous_hook)` restore (the reviewer's NEW-C) makes
+    /// the sentinel stay silent and this pin fail.
+    #[test]
+    fn detail_pass_restores_the_previous_panic_hook_on_every_path() {
+        let sentinel_fires: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+
+        // Self-cleaning: whatever hook the test harness installed before
+        // this pin goes back when the pin ends.
+        let before = std::panic::take_hook();
+        let fires = std::sync::Arc::clone(&sentinel_fires);
+        std::panic::set_hook(Box::new(move |info| {
+            fires.lock().expect("sentinel mutex").push(
+                info.payload()
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        info.payload()
+                            .downcast_ref::<&str>()
+                            .map(|s| (*s).to_string())
+                            .unwrap_or_default()
+                    }),
+            );
+        }));
+
+        // World 1 — the early-error path: a DSN that cannot be read makes
+        // route_detail_inner bail INSIDE the guarded body; the restore
+        // must still run (a future early return between the hook swap and
+        // the restore is exactly the leak this world catches).
+        let err = run_detail_pass(Path::new("/nonexistent/epic-t15-world.dsn"))
+            .expect_err("unreadable DSN must be an Err");
+        assert!(err.contains("reading"), "the read-context error: {err}");
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            panic!("T15-SENTINEL-after-early-error");
+        }));
+        assert!(
+            sentinel_fires
+                .lock()
+                .expect("sentinel mutex")
+                .iter()
+                .any(|m| m.contains("T15-SENTINEL-after-early-error")),
+            "the previous hook must be restored on the early-error path"
+        );
+
+        // World 2 — the caught-panic path: a real Tier A fixture whose
+        // in-process route panics (bm01, class A today; if T17 ever fixes
+        // it, this world degrades to the success path and STILL pins the
+        // restore).
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let bm01 = tier_a_fixtures(&root)
+            .expect("tier A walk")
+            .into_iter()
+            .find(|f| f.tier_path == "DAC2020_boards/DAC2020_bm01.dsn")
+            .expect("bm01 is a Tier A fixture");
+        let _ = run_detail_pass(&root.join(&bm01.repo_rel_dsn));
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            panic!("T15-SENTINEL-after-panic-path");
+        }));
+        assert!(
+            sentinel_fires
+                .lock()
+                .expect("sentinel mutex")
+                .iter()
+                .any(|m| m.contains("T15-SENTINEL-after-panic-path")),
+            "the previous hook must be restored on the caught-panic path too"
+        );
+
+        // Restore the harness's own hook (run_detail_pass put the sentinel
+        // back; take it and reinstall the original).
+        let _ = std::panic::take_hook();
+        std::panic::set_hook(before);
     }
 }
