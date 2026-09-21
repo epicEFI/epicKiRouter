@@ -411,11 +411,17 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, jvm_xmx: &str) -> Resul
     Ok(())
 }
 
-/// Capture sanity: every fixture's rows are CONTIGUOUS and every
-/// fixture opens with its settings_witness, closes with run +
-/// incompletes (the probe's world structure).
+/// Capture sanity: every fixture's rows are CONTIGUOUS and each block
+/// carries the probe's world shape — it OPENS with its settings_witness,
+/// the trace rows run before the outcome witnesses, and it CLOSES with
+/// exactly one run + one incompletes. The closing shape is load-bearing:
+/// compare()'s outcome faces are `if let Some`, so a block missing its
+/// closers would silently LOSE the outcome witness instead of failing.
 fn sanity_check(records: &[GoldenRow]) -> Result<()> {
     let mut seen_fixtures: Vec<String> = Vec::new();
+    // Closing-witness state of the CURRENT fixture block.
+    let mut run_seen = false;
+    let mut incompletes_seen = false;
     for record in records {
         let fixture = match record {
             GoldenRow::Witness(w) => {
@@ -443,18 +449,64 @@ fn sanity_check(records: &[GoldenRow]) -> Result<()> {
                 i.fixture.clone()
             }
         };
-        // Contiguity: a fixture's rows never interleave with another's.
-        match seen_fixtures.last() {
-            Some(last) if *last == fixture => {}
-            Some(last) => {
-                anyhow::ensure!(
-                    !seen_fixtures.contains(&fixture),
-                    "fixture {fixture} rows re-open after {last} — the stream is not contiguous"
-                );
-                seen_fixtures.push(fixture);
+        if seen_fixtures.last() == Some(&fixture) {
+            // Inside a block: the closers end it — nothing follows the
+            // incompletes witness, no trace after the run, each closer
+            // exactly once.
+            anyhow::ensure!(
+                !incompletes_seen,
+                "fixture {fixture} continues after its closing incompletes witness"
+            );
+            match record {
+                GoldenRow::Witness(_) => {
+                    bail!("fixture {fixture} has a second settings_witness row")
+                }
+                GoldenRow::Trace(_) => anyhow::ensure!(
+                    !run_seen,
+                    "fixture {fixture} has trace rows after its run witness"
+                ),
+                GoldenRow::Run(_) => {
+                    anyhow::ensure!(!run_seen, "fixture {fixture} has a second run witness")
+                }
+                GoldenRow::Incompletes(_) => {}
             }
-            None => seen_fixtures.push(fixture),
+        } else {
+            // Block boundary: the previous block must have closed, the
+            // stream must never re-open a fixture, and the new block
+            // must OPEN with the witness.
+            if let Some(prev) = seen_fixtures.last() {
+                anyhow::ensure!(
+                    run_seen && incompletes_seen,
+                    "fixture {prev} does not close with run + incompletes witnesses"
+                );
+            }
+            anyhow::ensure!(
+                !seen_fixtures.contains(&fixture),
+                "fixture {fixture} rows re-open after {} — the stream is not contiguous",
+                seen_fixtures
+                    .last()
+                    .expect("a re-open implies a previous fixture")
+            );
+            seen_fixtures.push(fixture.clone());
+            anyhow::ensure!(
+                matches!(record, GoldenRow::Witness(_)),
+                "fixture {fixture} does not open with a settings_witness row"
+            );
+            run_seen = false;
+            incompletes_seen = false;
         }
+        if matches!(record, GoldenRow::Run(_)) {
+            run_seen = true;
+        }
+        if matches!(record, GoldenRow::Incompletes(_)) {
+            incompletes_seen = true;
+        }
+    }
+    if let Some(last) = seen_fixtures.last() {
+        anyhow::ensure!(
+            run_seen && incompletes_seen,
+            "fixture {last} does not close with run + incompletes witnesses"
+        );
     }
     Ok(())
 }
@@ -739,6 +791,45 @@ fn diff_kind_streams(fixture: &str, kind: &str, gold: &[&String], rust: &[&Strin
     Ok(())
 }
 
+/// The per-fixture manifest↔golden glue of [`compare`]: the golden
+/// block must BELONG to the manifest entry (the manifest path's stem
+/// names the fixture), must OPEN with the settings witness, and its
+/// witness must carry the manifest's tuned scalar — a mismatch means
+/// the two files drifted apart: recapture, don't compare. Returns the
+/// witness (compare builds the Rust world's settings from it).
+/// Extracted so a pin can exercise the decision core; the corpus-backed
+/// `compare_glue_tripwires_fire_before_the_divergence_face` pin binds
+/// it INTO compare() (a helper-only pin cannot see the call site).
+fn check_manifest_entry<'a>(
+    entry: &EventsManifestEntry,
+    fixture: &str,
+    rows: &[&'a GoldenRow],
+) -> Result<&'a SettingsWitness> {
+    let fixture_name = Path::new(&entry.path)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .with_context(|| format!("manifest path {} has no stem", entry.path))?
+        .to_string();
+    anyhow::ensure!(
+        fixture == fixture_name,
+        "manifest entry {} maps to fixture {fixture_name} but the golden rows say {fixture}",
+        entry.id
+    );
+    let GoldenRow::Witness(witness) = rows
+        .first()
+        .with_context(|| format!("fixture {fixture} has an empty golden row block"))?
+    else {
+        bail!("fixture {fixture} does not open with a settings_witness row");
+    };
+    anyhow::ensure!(
+        witness.start_ripup_costs == entry.start_ripup_costs,
+        "fixture {fixture}: manifest start_ripup_costs {} != witness {} — recapture needed",
+        entry.start_ripup_costs,
+        witness.start_ripup_costs
+    );
+    Ok(witness)
+}
+
 fn compare(repo_root: &Path, manifest: &Path, golden: &Path) -> Result<()> {
     let started = std::time::Instant::now();
     let manifest_path = crate::dsn_corpus::resolve_input(repo_root, manifest);
@@ -778,32 +869,7 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path) -> Result<()> {
 
     let mut total_rows = 0usize;
     for (entry, (fixture, rows)) in entries.iter().zip(&per_fixture) {
-        let fixture_name = Path::new(&entry.path)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .with_context(|| format!("manifest path {} has no stem", entry.path))?
-            .to_string();
-        anyhow::ensure!(
-            *fixture == fixture_name,
-            "manifest entry {} maps to fixture {fixture_name} but the golden rows say {fixture}",
-            entry.id
-        );
-
-        // The witness opens the fixture's row block.
-        let GoldenRow::Witness(witness) = rows
-            .first()
-            .with_context(|| format!("fixture {fixture} has an empty golden row block"))?
-        else {
-            bail!("fixture {fixture} does not open with a settings_witness row");
-        };
-        // The manifest's tuned scalar must AGREE with the witness
-        // (a mismatch means the manifest and the golden drifted apart).
-        anyhow::ensure!(
-            witness.start_ripup_costs == entry.start_ripup_costs,
-            "fixture {fixture}: manifest start_ripup_costs {} != witness {} — recapture needed",
-            entry.start_ripup_costs,
-            witness.start_ripup_costs
-        );
+        let witness = check_manifest_entry(entry, fixture, rows)?;
 
         let dsn = repo_root.join(&entry.path);
         let world = run_rust_world(&dsn, witness)
@@ -1150,55 +1216,93 @@ mod pins {
         assert!(batch.router_settings.layer_active.iter().all(|&a| a));
     }
 
+    // Synthetic row builders shared by the sanity/glue pins (a golden
+    // row of each variant with the minimal valid payload).
+
+    /// The rejection face of a pin world as its error text (an `Ok` is
+    /// the pin failing; `unwrap_err` is lint-banned in this workspace).
+    fn err_of<T>(result: anyhow::Result<T>) -> String {
+        match result {
+            Ok(_) => panic!("expected the pin world to be rejected, got Ok"),
+            Err(err) => err.to_string(),
+        }
+    }
+
+    fn mk_trace_row(fixture: &str, msg: &str) -> GoldenRow {
+        GoldenRow::Trace(TraceRow {
+            fixture: fixture.to_string(),
+            kind: "trace_row".to_string(),
+            msg: msg.to_string(),
+        })
+    }
+    fn mk_witness_row(fixture: &str, start_ripup_costs: i32) -> GoldenRow {
+        GoldenRow::Witness(SettingsWitness {
+            fixture: fixture.to_string(),
+            kind: "settings_witness".to_string(),
+            layers: vec![],
+            via_costs: 1,
+            plane_via_costs: 1,
+            vias_allowed: true,
+            automatic_neckdown: false,
+            start_ripup_costs,
+            fanout_enabled: false,
+            run_router: true,
+            max_items: None,
+            unrouted_net_penalty: "5000000.0".to_string(),
+            clearance_violation_penalty: "1000000.0".to_string(),
+            bend_penalty: "10.0".to_string(),
+            scoring_via_costs: 1,
+            max_passes: 10,
+        })
+    }
+    fn mk_run_row(fixture: &str) -> GoldenRow {
+        GoldenRow::Run(RunRow {
+            fixture: fixture.to_string(),
+            kind: "run".to_string(),
+            returned: true,
+        })
+    }
+    fn mk_incompletes_row(fixture: &str) -> GoldenRow {
+        GoldenRow::Incompletes(IncompletesRow {
+            fixture: fixture.to_string(),
+            kind: "incompletes".to_string(),
+            incomplete_count: 0,
+            max_connections: 2,
+        })
+    }
+
     /// The capture's fixture-contiguity sanity: a well-formed stream
     /// (witness → traces → run → incompletes per fixture) passes; a
     /// fixture RE-OPENING after another fixture fails (the stream is
     /// world-serialized — interleaving means machinery drift).
     #[test]
     fn sanity_check_rejects_interleaved_fixtures() {
-        let mk_trace = |fixture: &str, msg: &str| {
-            GoldenRow::Trace(TraceRow {
-                fixture: fixture.to_string(),
-                kind: "trace_row".to_string(),
-                msg: msg.to_string(),
-            })
-        };
-        let mk_witness = |fixture: &str| {
-            GoldenRow::Witness(SettingsWitness {
-                fixture: fixture.to_string(),
-                kind: "settings_witness".to_string(),
-                layers: vec![],
-                via_costs: 1,
-                plane_via_costs: 1,
-                vias_allowed: true,
-                automatic_neckdown: false,
-                start_ripup_costs: 1,
-                fanout_enabled: false,
-                run_router: true,
-                max_items: None,
-                unrouted_net_penalty: "5000000.0".to_string(),
-                clearance_violation_penalty: "1000000.0".to_string(),
-                bend_penalty: "10.0".to_string(),
-                scoring_via_costs: 1,
-                max_passes: 10,
-            })
-        };
         let straight = vec![
-            mk_witness("a"),
-            mk_trace("a", "RAW_SECTION assign x"),
-            mk_witness("b"),
-            mk_trace("b", "RAW_SECTION assign y"),
+            mk_witness_row("a", 1),
+            mk_trace_row("a", "RAW_SECTION assign x"),
+            mk_run_row("a"),
+            mk_incompletes_row("a"),
+            mk_witness_row("b", 1),
+            mk_trace_row("b", "RAW_SECTION assign y"),
+            mk_run_row("b"),
+            mk_incompletes_row("b"),
         ];
         assert!(sanity_check(&straight).is_ok(), "straight worlds pass");
         let interleaved = vec![
-            mk_witness("a"),
-            mk_trace("a", "RAW_SECTION assign x"),
-            mk_witness("b"),
-            mk_trace("a", "RAW_SECTION assign x2"),
+            mk_witness_row("a", 1),
+            mk_trace_row("a", "RAW_SECTION assign x"),
+            mk_run_row("a"),
+            mk_incompletes_row("a"),
+            mk_witness_row("b", 1),
+            mk_trace_row("b", "RAW_SECTION assign y"),
+            mk_run_row("b"),
+            mk_incompletes_row("b"),
+            mk_trace_row("a", "RAW_SECTION assign x2"),
         ];
+        let err = err_of(sanity_check(&interleaved));
         assert!(
-            sanity_check(&interleaved).is_err(),
-            "fixture a re-opening after b must fail"
+            err.contains("the stream is not contiguous"),
+            "fixture a re-opening after b must fail at the contiguity face: {err}"
         );
         // A wrong type tag inside a variant is rejected too.
         let wrong_tag = vec![GoldenRow::Run(RunRow {
@@ -1207,6 +1311,228 @@ mod pins {
             returned: true,
         })];
         assert!(sanity_check(&wrong_tag).is_err());
+    }
+
+    /// MIN-2 (quality review): sanity_check ENFORCES the documented
+    /// world shape, not just contiguity — a block missing its closers
+    /// would silently lose compare()'s `if let Some` outcome faces at
+    /// the CLI, so the closers are mandatory and ordered.
+    #[test]
+    fn sanity_check_enforces_the_probe_world_shape() {
+        // Missing closers entirely (the pre-MIN-2 code accepted this).
+        let short = vec![
+            mk_witness_row("a", 1),
+            mk_trace_row("a", "RAW_SECTION assign x"),
+        ];
+        let err = err_of(sanity_check(&short));
+        assert!(
+            err.contains("does not close with run + incompletes witnesses"),
+            "{err}"
+        );
+        // No trace row after the run witness (closers END the block).
+        let late_trace = vec![
+            mk_witness_row("a", 1),
+            mk_trace_row("a", "RAW_SECTION assign x"),
+            mk_run_row("a"),
+            mk_trace_row("a", "RAW_SECTION assign y"),
+        ];
+        let err = err_of(sanity_check(&late_trace));
+        assert!(err.contains("trace rows after its run witness"), "{err}");
+        // Exactly one run witness.
+        let dup_run = vec![
+            mk_witness_row("a", 1),
+            mk_run_row("a"),
+            mk_run_row("a"),
+            mk_incompletes_row("a"),
+        ];
+        let err = err_of(sanity_check(&dup_run));
+        assert!(err.contains("second run witness"), "{err}");
+        // The block must OPEN with the witness.
+        let lead_trace = vec![
+            mk_trace_row("a", "RAW_SECTION assign x"),
+            mk_run_row("a"),
+            mk_incompletes_row("a"),
+        ];
+        let err = err_of(sanity_check(&lead_trace));
+        assert!(
+            err.contains("does not open with a settings_witness row"),
+            "{err}"
+        );
+        // Nothing follows the closing incompletes witness.
+        let trailing = vec![
+            mk_witness_row("a", 1),
+            mk_trace_row("a", "RAW_SECTION assign x"),
+            mk_run_row("a"),
+            mk_incompletes_row("a"),
+            mk_trace_row("a", "RAW_SECTION assign y"),
+        ];
+        let err = err_of(sanity_check(&trailing));
+        assert!(
+            err.contains("continues after its closing incompletes witness"),
+            "{err}"
+        );
+    }
+
+    /// MIN-1 (quality review, synthetic faces): the manifest↔golden
+    /// glue decision core — name check, witness-opening check, and the
+    /// tuned-scalar cross-check whose loss let a drifted manifest sail
+    /// into the ordinary divergence (reviewer mutant Q1). The CALL SITE
+    /// is bound by `compare_glue_tripwires_fire_before_the_divergence_face`
+    /// below — a helper pin cannot see the call.
+    #[test]
+    fn check_manifest_entry_rejects_name_drift_and_missing_witness() {
+        let entry = EventsManifestEntry {
+            id: "f1".to_string(),
+            path: "some/dir/f1.dsn".to_string(),
+            start_ripup_costs: 7,
+        };
+        let witness_row = mk_witness_row("f1", 7);
+        let trace_row = mk_trace_row("f1", "RAW_SECTION assign x");
+        let rows = vec![&witness_row, &trace_row];
+        assert!(check_manifest_entry(&entry, "f1", &rows).is_ok());
+
+        // Drifted scalar → the recapture face, naming both values.
+        let drifted = EventsManifestEntry {
+            start_ripup_costs: 9999,
+            ..entry.clone()
+        };
+        let err = err_of(check_manifest_entry(&drifted, "f1", &rows));
+        assert!(err.contains("recapture needed"), "{err}");
+        assert!(err.contains("9999") && err.contains("7"), "{err}");
+
+        // Name mismatch (the block belongs to another fixture).
+        let err = err_of(check_manifest_entry(&entry, "other", &rows));
+        assert!(
+            err.contains("maps to fixture f1 but the golden rows say other"),
+            "{err}"
+        );
+
+        // Missing opening witness + empty block.
+        let tail_first = vec![&trace_row, &witness_row];
+        let err = err_of(check_manifest_entry(&entry, "f1", &tail_first));
+        assert!(
+            err.contains("does not open with a settings_witness row"),
+            "{err}"
+        );
+        let err = err_of(check_manifest_entry(&entry, "f1", &[]));
+        assert!(err.contains("empty golden row block"), "{err}");
+    }
+
+    /// MIN-1/Q1+Q6 (quality review): compare()'s glue — the sanity call,
+    /// the block count, and the manifest cross-check — is bound by
+    /// running the REAL command path against the committed corpus with
+    /// one corrupted input per face. Each tripwire must fire with its
+    /// own hygiene error, NOT the ordinary divergence face the corrupted
+    /// input would otherwise sail into (that sail-through is exactly
+    /// what the reviewer witnessed under Q1/Q6).
+    #[test]
+    fn compare_glue_tripwires_fire_before_the_divergence_face() {
+        let dir = std::env::temp_dir().join(format!("events-glue-pin-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus");
+        let manifest_raw =
+            std::fs::read_to_string(corpus.join("events-manifest.jsonl")).expect("manifest");
+        let golden_raw =
+            std::fs::read_to_string(corpus.join("events-golden.jsonl")).expect("golden");
+        let manifest_path = dir.join("manifest.jsonl");
+        let golden_path = dir.join("golden.jsonl");
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("repo root");
+
+        // Q1 face: e1's tuned scalar drifts in the manifest → the
+        // cross-check bails with the recapture face (instantly, before
+        // any Rust world runs), never the Class-B divergence.
+        let drifted = manifest_raw.replacen(
+            "\"start_ripup_costs\":40000",
+            "\"start_ripup_costs\":9999",
+            1,
+        );
+        assert_ne!(drifted, manifest_raw, "the e1 scalar line was found");
+        std::fs::write(&manifest_path, drifted).expect("write drifted manifest");
+        std::fs::write(&golden_path, &golden_raw).expect("write golden");
+        let err = err_of(compare(&repo_root, &manifest_path, &golden_path));
+        assert!(err.contains("recapture needed"), "Q1 face: {err}");
+        assert!(
+            !err.contains("FIRST DIFFERING FIELD"),
+            "the drift must not sail into the divergence face: {err}"
+        );
+
+        // Q6 face A: a fixture re-opens after another (the first golden
+        // line re-appended) → sanity_check's contiguity face fires. With
+        // the sanity call removed from compare(), the count check would
+        // fire instead (4 golden blocks vs 3 manifest entries).
+        let reopened = format!(
+            "{golden_raw}{}\n",
+            golden_raw.lines().next().expect("first golden line")
+        );
+        std::fs::write(&manifest_path, &manifest_raw).expect("restore manifest");
+        std::fs::write(&golden_path, reopened).expect("write reopened golden");
+        let err = err_of(compare(&repo_root, &manifest_path, &golden_path));
+        assert!(
+            err.contains("the stream is not contiguous"),
+            "Q6 face A: {err}"
+        );
+
+        // Q6 face B / MIN-2: the LAST fixture's closing run+incompletes
+        // witnesses are stripped → the block-shape face fires. With the
+        // sanity call removed, the `if let Some` outcome faces would be
+        // silently skipped and e1's Class-B divergence would surface.
+        let mut lines: Vec<&str> = golden_raw.lines().collect();
+        lines.truncate(lines.len() - 2);
+        let stripped = format!("{}\n", lines.join("\n"));
+        std::fs::write(&golden_path, stripped).expect("write stripped golden");
+        let err = err_of(compare(&repo_root, &manifest_path, &golden_path));
+        assert!(
+            err.contains("does not close with run + incompletes witnesses"),
+            "Q6 face B: {err}"
+        );
+        assert!(
+            !err.contains("FIRST DIFFERING FIELD"),
+            "a witness-less block must not lose the outcome face silently: {err}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// O-2 (quality review): the `", "` split grammar is invariant per
+    /// kind across the WHOLE committed corpus — assign 13 segments,
+    /// skip 11, ripped 7, route 7 — zero exceptions over all 3520 trace
+    /// rows. The synthetic grammar pin covers one real row per kind;
+    /// this seals the split-safety claim corpus-wide (the reviewer's
+    /// census, made executable).
+    #[test]
+    fn golden_trace_rows_carry_the_per_kind_segment_census() {
+        let golden_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus/events-golden.jsonl");
+        let raw = std::fs::read_to_string(&golden_path).expect("committed events golden");
+        let expected_segments = [13usize, 11, 7, 7];
+        let mut tally = [0usize; 4];
+        let mut trace_rows = 0usize;
+        for line in raw.lines() {
+            if let GoldenRow::Trace(t) = serde_json::from_str(line).expect("golden line parses") {
+                trace_rows += 1;
+                let slot = EVENT_KINDS
+                    .iter()
+                    .position(|kind| t.msg.starts_with(kind))
+                    .expect("every committed trace row classifies");
+                assert_eq!(
+                    t.msg.split(", ").count(),
+                    expected_segments[slot],
+                    "kind {} segment count drifted: {}",
+                    EVENT_KINDS[slot],
+                    crate::corpus_common::truncate(&t.msg)
+                );
+                tally[slot] += 1;
+            }
+        }
+        assert_eq!(trace_rows, 3520, "the committed trace-row count");
+        assert_eq!(
+            tally,
+            [3498, 6, 1, 15],
+            "per-kind row census (assign/skip/ripped/route)"
+        );
     }
 
     // -----------------------------------------------------------------------

@@ -99,6 +99,15 @@ public class RouteEventProbe {
    */
   private static String currentFixture = "?";
 
+  /**
+   * Tap-breadth asymmetry (quality review O-1): the Java tap matches
+   * SUBSTRINGS (contains) while the Rust classifier
+   * (route_events.rs kind_of) is starts_with. Harmless for the corpus —
+   * every tapped row leads with its token — and any over-capture is
+   * LOUD at compare time: a leaked extra kind fails the golden's strict
+   * unpinned-row face (witnessed: a broadened tap grows e1 340 to 904
+   * rows and the compare rejects the grown golden).
+   */
   private static boolean isTappedRow(String msg) {
     for (String token : TAP_TOKENS) {
       if (msg.contains(token)) {
@@ -319,6 +328,14 @@ public class RouteEventProbe {
       throws Exception {
     String fixture = fileName.replaceFirst("\\.dsn$", "");
     currentFixture = fixture;
+    // Quality review MIN-3: the identity map is PER-WORLD state. Without
+    // this clear, a hash-carrying row's ordinal would depend on first
+    // appearance ACROSS fixtures (deterministic only for a fixed
+    // manifest order; silently re-stamped by a reorder). Dead-in-practice
+    // today (zero '@' in the committed golden) — the clear changes no
+    // captured bytes and is untestable until a hash row exists, so it
+    // deliberately carries no pin.
+    IDENTITY_ORDINALS.clear();
     RoutingBoard board = parse(bytes, fileName);
     RouterSettings settings = baseSettings(board);
     settings.setFanoutEnabled(false);
