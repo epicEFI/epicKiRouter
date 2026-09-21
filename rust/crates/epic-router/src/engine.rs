@@ -1018,6 +1018,15 @@ impl<'a> AutorouteEngine<'a> {
                 &mut checker,
                 &mut pages,
             );
+            // T16: attach the one-arg trace backend (Java
+            // `FRLogger.trace(String)`). The maze engine's RAW_SECTION
+            // rows ride the connection's own event sink — the capture
+            // sink records them, `NullSink` drops them (Java's silent
+            // backend). The sink is borrowed for the search's whole
+            // life, so the post-search row below forwards through the
+            // maze's own emit face (`emit_raw_row`) — identical
+            // backend, identical stream position.
+            maze.trace_sink(&mut *sink);
             let search_result = maze.find_connection_between(start_items, dest_items);
 
             // The raw maze-result row (Java `:163-178`) — log-only.
@@ -1025,7 +1034,7 @@ impl<'a> AutorouteEngine<'a> {
                 && (net == 33 || net == 66 || net == 67)
             {
                 let destination_type = expandable_object_type_name(&result.destination_door);
-                sink.trace(&format!(
+                maze.emit_raw_row(&format!(
                     "compare_trace_maze_result_raw net={net}, section={}, \
                          destination_type={destination_type}",
                     result.section_no_of_door

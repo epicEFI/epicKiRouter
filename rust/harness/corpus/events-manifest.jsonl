@@ -1,0 +1,3 @@
+{"id":"e1_ripup","path":"rust/harness/fixtures/event-stream/e1_ripup.dsn","start_ripup_costs":40000}
+{"id":"t7_ripup","path":"rust/harness/fixtures/maze-spike/t7_ripup.dsn","start_ripup_costs":1}
+{"id":"t9_locator45","path":"rust/harness/fixtures/locator-spike/t9_locator45.dsn","start_ripup_costs":1}

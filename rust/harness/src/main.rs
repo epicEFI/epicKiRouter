@@ -31,6 +31,13 @@ mod oracle;
 // compare gates (java-free), the Rust-vs-Rust determinism self-gate, and
 // the first-divergence localizer.
 mod router_compare;
+// Route event-stream corpus (M3 Task 16): the maze-level trace stream
+// (RAW_SECTION assign/skip + compare_trace_ripped/route_item) captured
+// from the Java runBatchLoop by the RouteEventProbe, mirrored by the Rust
+// batch driver, compared kind-ordinally field-by-field (java-free CI
+// compare; the golden carries the settings witness the Rust world builds
+// from).
+mod route_events;
 // SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
 mod ses_compare;
 mod tiers;
@@ -130,6 +137,14 @@ enum Command {
         #[command(subcommand)]
         cmd: router_compare::RouterCommand,
     },
+    /// Route event-stream corpus (M3 Task 16): the Java probe capture
+    /// (double-run byte-identical) into the committed golden, and the
+    /// java-free kind-ordinal field-level compare of the Rust engine's
+    /// stream against it.
+    Events {
+        #[command(subcommand)]
+        cmd: route_events::EventsCommand,
+    },
 }
 
 fn main() {
@@ -174,6 +189,12 @@ fn run() -> Result<()> {
         // JVM resolution ever happens on this path.
         return router_compare::run(cmd);
     }
+    if let Command::Events { cmd } = cli.command {
+        // The events pipeline: `golden` spawns the probe JVM itself
+        // (javac + jar, resolved inside); `compare` is java-free. No
+        // tier-file resolution either way.
+        return route_events::run(cmd, &cli.jvm_xmx);
+    }
     let repo_root = oracle::find_repo_root()?;
     let tiers_path = resolve_tiers_path(&repo_root, &cli.tiers);
     let tier_file = TierFile::load(&tiers_path)?;
@@ -182,12 +203,13 @@ fn run() -> Result<()> {
     let jar = oracle::jar_path(&repo_root);
 
     match cli.command {
-        // Index/Undo/Drc/Router/Corpus/Dsn returned before the tier/JVM
-        // resolution above; this arm only satisfies the match.
+        // Index/Undo/Drc/Router/Events/Corpus/Dsn returned before the
+        // tier/JVM resolution above; this arm only satisfies the match.
         Command::Index { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Undo { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Drc { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Router { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::Events { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {
