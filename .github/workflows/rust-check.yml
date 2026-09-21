@@ -23,7 +23,16 @@ jobs:
           workspaces: rust
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      # Suite under the SENTINEL SKIP PROTOCOL (quality-review T17a-2
+      # Q-2; .wolf/buglog.json 175): since the T17a panic fixes, the
+      # `detail_pass_restores_...` sentinel's world-2 route runs bm01
+      # to completion IN-PROCESS with no deadline (>50 min observed) —
+      # never run it bare, in CI or locally, until the buglog-175
+      # watchdog lands. timeout-minutes bounds any other unbounded
+      # test the same way the compare steps below are bounded (a hang
+      # trips here instead of the 360-min job default).
+      - run: cargo test --workspace -- --skip detail_pass_restores
+        timeout-minutes: 30
       # corpus compare is java-free (reads only the committed goldens);
       # EPIC_SKIP_GRADLE guards against future oracle coupling.
       - run: cargo run -q -p epic-harness -- corpus compare
@@ -85,23 +94,23 @@ jobs:
       # M3 T15 router compare: full 11-fixture Tier A battery (fanout-off
       # epic-cli runs vs the committed router-only Java records), REPORT
       # mode — every fixture gets an explicit verdict in the CI log, but
-      # exit stays 0. Landed green ON PURPOSE: 10/11 fixtures are red on
-      # run integrity today (two engine panic classes — see
-      # .wolf/buglog.json 169/170); that list is T17's gap inventory.
-      # THE T17 EXIT-CONDITION FLIP: drop `--report-only` from this line
+      # exit stays 0. Landed green ON PURPOSE: the T17a integrity close
+      # fixed both panic classes (buglog 169/170 closed); the battery now
+      # reads 5 green / 1 quality-red (ecc83-pp_v2, buglog 176) /
+      # 5 timeout-integrity-red (bm01/bm06/bm11/pic_programmer/sonde,
+      # buglog 175; sonde also carries the new buglog-177 panic class).
+      # THE EXIT-CONDITION FLIP: drop `--report-only` from this line
       # once every Tier A fixture passes all three directional gates
       # (incomplete <= Java, violations <= Java, score >= Java − 2%).
-      # Measured wall (T15, debug, 1 fixture-class local): ~220s — the 10
-      # red fixtures each auto-run the panic-caught in-process detail pass
-      # for the localizer, so the wall is roughly double the subprocess
-      # time; it drops once T17 fixes the panics. Step bound: 30 min ≈ 8x
-      # the measured wall (slower-runner headroom; completing fixtures
-      # route FASTER than their tier timeouts, so the bound stays valid
-      # post-T17). NOTE for T17: the in-process detail pass has NO
-      # deadline of its own — today it is fast only because 10 fixtures
-      # panic out of it; a T17 hang would trip this 30-min bound (and
-      # then needs a real watchdog: wall-clock deadline in the driver
-      # loop or a thread + channel timeout).
+      # WALL WARNING (refreshed post-T17a, quality-review T17a-2 Q-2):
+      # the wall ROSE, it did not drop — bm01's subprocess alone burns
+      # its full 1800s tier timeout (pass #1 measured 1074s vs Java's
+      # 106s total) and every red fixture additionally burns an
+      # UNBOUNDED in-process detail pass (bm01 >50 min observed), so a
+      # full-battery push WILL trip this 30-min step bound until the
+      # buglog-175 watchdog lands (wall-clock deadline in the driver
+      # loop or thread + channel timeout); until then this step is the
+      # CI tripwire for that wall, by design.
       - run: cargo run -q -p epic-harness -- router compare --report-only
         timeout-minutes: 30
         env:

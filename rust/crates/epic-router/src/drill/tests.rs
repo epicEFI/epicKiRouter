@@ -46,7 +46,11 @@ struct SynthItem {
     is_via: bool,
     drillable: bool,
     pin_drill_allowed: bool,
-    pin_center: Option<Point>,
+    /// The scripted STORED center — a via's own or a pin's, mirroring
+    /// `Board::drill_center` (the shared field IS the Java
+    /// `DrillItem.getCenter` shape: Some for a drill item, None for a
+    /// plain item).
+    stored_center: Option<Point>,
     padstack_no: i32,
     clearance_class: i32,
 }
@@ -174,7 +178,7 @@ impl SynthWorld {
             is_via: false,
             drillable: false,
             pin_drill_allowed: false,
-            pin_center: None,
+            stored_center: None,
             padstack_no: 0,
             clearance_class: 1,
         });
@@ -191,13 +195,20 @@ impl SynthWorld {
             is_via: false,
             drillable: false,
             pin_drill_allowed: drill_allowed,
-            pin_center: center,
+            stored_center: center,
             padstack_no: 0,
             clearance_class: 1,
         });
     }
 
-    fn add_via(&mut self, id: i32, layer: i32, padstack_no: i32, clearance_class: i32) {
+    fn add_via(
+        &mut self,
+        id: i32,
+        layer: i32,
+        padstack_no: i32,
+        clearance_class: i32,
+        center: Point,
+    ) {
         self.items.push(SynthItem {
             id,
             shapes: Vec::new(),
@@ -205,7 +216,7 @@ impl SynthWorld {
             is_via: true,
             drillable: false,
             pin_drill_allowed: false,
-            pin_center: None,
+            stored_center: Some(center),
             padstack_no,
             clearance_class,
         });
@@ -481,13 +492,17 @@ impl DrillEngine for SynthWorld {
     }
 
     fn pin_center(&self, item_key: u64) -> Option<Point> {
-        self.item(item_key).pin_center.clone()
+        self.item(item_key).stored_center.clone()
     }
 
     fn via_center(&self, item_key: u64) -> Option<Point> {
-        // The scripted world's single center field (a scripted via
-        // carries None — no endPointsMatching replay runs here).
-        self.item(item_key).pin_center.clone()
+        // The scripted STORED center — the via's own (every add_via
+        // scripts one), mirroring `Board::drill_center`'s
+        // via arm. Honored contract face (quality-review T17a-2 Q-4):
+        // Some for a live scripted via, None only for a center-less
+        // plain item (the trait's defensive shape). Observed by
+        // `synth_via_center_answers_the_scripted_stored_center`.
+        self.item(item_key).stored_center.clone()
     }
 
     fn item_is_via(&self, item_key: u64) -> bool {
@@ -1726,8 +1741,10 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
         let mut world = rooms_world();
         world.add_padstack(5, (0, 3), None);
         world.add_padstack(9, (0, 3), None);
-        // Item 11: the ripped via sitting in the from-room.
-        world.add_via(11, 1, 5, item_class);
+        // Item 11: the ripped via sitting in the from-room (center
+        // scripted per the stored-center contract; these gate rows
+        // never read it).
+        world.add_via(11, 1, 5, item_class, Point::Int(IntPoint::new(50, 50)));
         // Swap the from-room (102) to an obstacle room over item 11.
         world.rooms[1].obstacle = true;
         world.rooms[1].obstacle_item = Some(SynthWorld::item_key(11));
@@ -1877,6 +1894,40 @@ fn expand_to_other_layers_ripped_via_branch_gates() {
     assert!(
         emitted.is_empty(),
         "only vias re-expand through the obstacle branch"
+    );
+}
+
+/// The stored-center contract on the SYNTH impl (quality-review
+/// T17a-2 Q-4, closing the QR-1 survival): `via_center` answers the
+/// via's OWN scripted stored center — Some for every live scripted
+/// via, never None (the trait doc's "None is unreachable for a live
+/// via"), None only for a center-less plain item (the defensive
+/// shape). Two vias at DISTINCT centers kill the constant-center and
+/// wrong-item mutants alongside the reviewer's unconditional-panic
+/// QR-1. (The full `end_points_matching` replay stays with P4/P5 —
+/// SynthWorld carries no net/polyline model, and the via arm's other
+/// faces are already pinned through the two impls callers actually
+/// use.)
+#[test]
+fn synth_via_center_answers_the_scripted_stored_center() {
+    let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 2);
+    world.add_via(11, 1, 5, 2, Point::Int(IntPoint::new(50, 50)));
+    world.add_via(12, 1, 5, 2, Point::Int(IntPoint::new(700, 200)));
+    world.add_item(13, 0, vec![box_tile(2000, 2000, 3000, 3000)]);
+    assert_eq!(
+        DrillEngine::via_center(&world, SynthWorld::item_key(11)),
+        Some(Point::Int(IntPoint::new(50, 50))),
+        "via 11 answers its own stored center"
+    );
+    assert_eq!(
+        DrillEngine::via_center(&world, SynthWorld::item_key(12)),
+        Some(Point::Int(IntPoint::new(700, 200))),
+        "via 12 answers its own stored center (not via 11's)"
+    );
+    assert_eq!(
+        DrillEngine::via_center(&world, SynthWorld::item_key(13)),
+        None,
+        "a center-less plain item answers None (the defensive shape)"
     );
 }
 

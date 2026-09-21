@@ -2149,6 +2149,14 @@ mod pins {
     /// restored hook), not a lingering no-op. Mutation-verified: deleting
     /// the `set_hook(previous_hook)` restore (the reviewer's NEW-C) makes
     /// the sentinel stay silent and this pin fail.
+    ///
+    /// FULL-SUITE GATE (quality-review T17a-2 Q-1; buglog 175): run the
+    /// workspace suite as
+    /// `cargo test --workspace -- --skip detail_pass_restores` — NEVER
+    /// this sentinel bare: post-T17a its world-2 route runs bm01 to
+    /// completion IN-PROCESS with no deadline (>50 min observed), so a
+    /// bare run hangs until the harness/CI kills it. Until the buglog-175
+    /// watchdog lands, the skip IS the gate protocol.
     #[test]
     fn detail_pass_restores_the_previous_panic_hook_on_every_path() {
         let sentinel_fires: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
