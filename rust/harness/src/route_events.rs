@@ -625,6 +625,26 @@ fn run_rust_world(dsn: &Path, witness: &SettingsWitness) -> Result<RustWorld> {
     })
 }
 
+/// The field name of one `", "` segment: the head before `=` with the
+/// row's kind prefix stripped (the kind prefix rides the FIRST segment
+/// — `"RAW_SECTION assign selected_section=0"` names
+/// `selected_section`; a segment that is nothing but a kind token
+/// stays as-is, which never occurs in real rows). Shared by
+/// [`first_differing_field`] and the route-row skeleton pin.
+#[must_use]
+pub fn field_name_of_segment(segment: &str) -> String {
+    let body = segment.split('=').next().unwrap_or(segment);
+    EVENT_KINDS
+        .iter()
+        .find_map(|kind| {
+            body.strip_prefix(kind)
+                .map(str::trim_start)
+                .filter(|rest| !rest.is_empty())
+                .map(ToString::to_string)
+        })
+        .unwrap_or_else(|| body.to_string())
+}
+
 /// The field-level diff of two same-kind rows: the FIRST differing
 /// `key=value` segment (the `", "` split is safe — no pinned value
 /// carries the two-char sequence), rendered as
@@ -636,22 +656,7 @@ pub fn first_differing_field(golden: &str, rust: &str) -> Option<(String, String
     let rust_segments: Vec<&str> = rust.split(", ").collect();
     let index = (0..golden_segments.len().max(rust_segments.len()))
         .find(|&i| golden_segments.get(i) != rust_segments.get(i))?;
-    let field = |segment: &str| {
-        let body = segment.split('=').next().unwrap_or(segment);
-        // The kind prefix rides the FIRST segment ("RAW_SECTION assign
-        // selected_section=0") — the field name is what trails it. A
-        // segment that is nothing but a kind token stays as-is (never
-        // occurs in real rows; defensive).
-        EVENT_KINDS
-            .iter()
-            .find_map(|kind| {
-                body.strip_prefix(kind)
-                    .map(str::trim_start)
-                    .filter(|rest| !rest.is_empty())
-                    .map(ToString::to_string)
-            })
-            .unwrap_or_else(|| body.to_string())
-    };
+    let field = |segment: &str| field_name_of_segment(segment);
     match (golden_segments.get(index), rust_segments.get(index)) {
         (Some(g), Some(r)) => Some((field(g), (*g).to_string(), (*r).to_string())),
         (Some(g), None) => Some((field(g), (*g).to_string(), "<missing>".to_string())),
@@ -1078,8 +1083,11 @@ mod pins {
             )
             .is_err()
         );
-        // Every variant is sealed (a permissive TraceRow would let a
-        // tap leak smuggle fields into the canonical bytes).
+        // Every variant is sealed (a permissive variant would let a
+        // tap leak smuggle fields into the canonical bytes) — all
+        // FOUR shapes, including the witness (review R4: the first
+        // draft covered the other three and a witness unknown-field
+        // drop SURVIVED the battery).
         assert!(
             serde_json::from_str::<GoldenRow>(
                 "{\"fixture\":\"x\",\"type\":\"trace_row\",\"msg\":\"m\",\"extra\":1}",
@@ -1089,6 +1097,12 @@ mod pins {
         assert!(
             serde_json::from_str::<GoldenRow>(
                 "{\"fixture\":\"x\",\"type\":\"incompletes\",\"incomplete_count\":0,\"max_connections\":2,\"extra\":1}",
+            )
+            .is_err()
+        );
+        assert!(
+            serde_json::from_str::<GoldenRow>(
+                &witness_line.replace("\"max_passes\":10}", "\"max_passes\":10,\"extra\":1}",)
             )
             .is_err()
         );
@@ -1273,8 +1287,9 @@ mod pins {
         }
 
         // LITERAL captured rows (the divergence witnesses of the triage):
-        // e1's first-diverging assign (the door-partition split), t7's
-        // only golden skip, and t9's first route row (the maxItemId face).
+        // e1's first-diverging assign (the door-partition split), e1's
+        // only ripped row (the forced-ripup face), t7's only golden
+        // skip, and t9's first route row (the maxItemId face).
         let msg = |fixture: &str, kind_slot: usize, ordinal0: usize| -> String {
             records
                 .iter()
@@ -1301,6 +1316,13 @@ mod pins {
              from_door=TargetItemExpansionDoor/item=7/tree_entry=0/dim=2/sections=1, \
              from_door_bounds=[(583750,103750)..(616250,136250)], net=2",
             "e1 assign #58 — the golden's door spans the full wall in 7 sections"
+        );
+        assert_eq!(
+            msg("e1_ripup", 2, 0),
+            "compare_trace_ripped_item source_item=6, source_net=1, ripped_id=9, \
+             ripped_type=PolylineTrace, ripped_net_count=1, ripped_nets=2, \
+             ripupCost=21474836",
+            "e1's only ripped row — the corpus's sole forced-ripup harvest face"
         );
         assert_eq!(
             msg("t7_ripup", 1, 0),
@@ -1500,6 +1522,150 @@ mod pins {
                 (world.incomplete_count, world.max_connections),
                 (0, 2),
                 "{fixture} incompletes"
+            );
+        }
+    }
+
+    /// The Class-C face (buglog 174), pinned at the level that is TRUE
+    /// today: the route-row GRAMMAR. The live id values (e.g. e1
+    /// maxItemId 62 vs 390, t9 130 vs 122) ARE the divergence and rest
+    /// on buglog-174 manual runs until Classes A/B close — they are
+    /// deliberately NOT pinned here (they move with the fix). Pinned
+    /// instead, via the real [`field_name_of_segment`] the diff
+    /// localizer uses:
+    /// (a) the field SKELETON (names + order) of every ALIGNED route
+    ///     row is identical on both sides;
+    /// (b) through a per-fixture STRICT prefix, stripping
+    ///     `netItems=`/`maxItemId=` leaves the rows byte-equal (id
+    ///     churn, nothing else). e1/t9: all rows. t7: rows 0-4 — its
+    ///     attempt-structure churn ALSO shifts the running
+    ///     `incompletes=`/`netIncomplete=` snapshots from row 5 on
+    ///     (the pin caught its author's first-draft "id-only
+    ///     everywhere" overclaim on exactly that row);
+    /// (c) the per-fixture count face: e1 4==4 and t9 4==4 (aligned
+    ///     slot counts agree), while t7's 7-vs-8 drift is the triaged
+    ///     churn witness it is (Rust makes one extra attempt).
+    ///
+    /// A rendering drift (renamed, reordered, or dropped field) breaks
+    /// (a); a non-id value drift breaks (b); a Class-C fix that greens
+    /// the values collapses the difference faces and moves the t7
+    /// count — update report + SEAM triage with it, never silently.
+    #[test]
+    fn route_rows_share_the_field_skeleton_and_diverge_only_in_id_values() {
+        let golden_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus/events-golden.jsonl");
+        let raw = std::fs::read_to_string(&golden_path).expect("committed events golden");
+        let records: Vec<GoldenRow> = raw
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("golden row parses"))
+            .collect();
+        let manifest: Vec<EventsManifestEntry> = load_jsonl(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus/events-manifest.jsonl"),
+            "manifest",
+        )
+        .expect("manifest");
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("repo root");
+
+        let id_family_segment =
+            |segment: &str| segment.starts_with("netItems=") || segment.starts_with("maxItemId=");
+        let strip_id_family = |row: &str| {
+            row.split(", ")
+                .filter(|segment| !id_family_segment(segment))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+
+        for entry in &manifest {
+            let fixture = entry
+                .path
+                .rsplit('/')
+                .next()
+                .and_then(|stem| stem.strip_suffix(".dsn"))
+                .expect("fixture stem");
+            let witness = records
+                .iter()
+                .find_map(|r| match r {
+                    GoldenRow::Witness(w) if w.fixture == fixture => Some(w.clone()),
+                    _ => None,
+                })
+                .expect("witness row");
+            let world = run_rust_world(&repo_root.join(&entry.path), &witness)
+                .unwrap_or_else(|err| panic!("Rust world {fixture}: {err:#}"));
+            let golden_routes: Vec<&String> = records
+                .iter()
+                .filter_map(|r| match r {
+                    GoldenRow::Trace(t) if t.fixture == fixture => Some(&t.msg),
+                    _ => None,
+                })
+                .filter(|msg| msg.starts_with("compare_trace_route_item"))
+                .collect();
+            let rust_routes: Vec<&String> = world
+                .rows
+                .iter()
+                .map(|(_, msg)| msg)
+                .filter(|msg| msg.starts_with("compare_trace_route_item"))
+                .collect();
+
+            // (c) the count face: equal on e1/t9, triaged drift on t7.
+            match fixture {
+                "e1_ripup" | "t9_locator45" => assert_eq!(
+                    golden_routes.len(),
+                    rust_routes.len(),
+                    "{fixture} route-slot counts must agree"
+                ),
+                "t7_ripup" => assert_eq!(
+                    (golden_routes.len(), rust_routes.len()),
+                    (7, 8),
+                    "{fixture} triaged route-slot count drift (the extra Rust attempt)"
+                ),
+                other => panic!("unmapped fixture {other}"),
+            }
+
+            // (a) the skeleton face holds on EVERY aligned row.
+            for (i, (g, r)) in golden_routes.iter().zip(&rust_routes).enumerate() {
+                let g_skeleton: Vec<String> = g.split(", ").map(field_name_of_segment).collect();
+                let r_skeleton: Vec<String> = r.split(", ").map(field_name_of_segment).collect();
+                assert_eq!(
+                    g_skeleton, r_skeleton,
+                    "{fixture} route row {i}: the field skeleton must be identical"
+                );
+            }
+            // (b) outside the id-family segments the rows are
+            // byte-equal — id churn, nothing else. TRUE through a
+            // per-fixture STRICT prefix: on t7 the attempt-structure
+            // churn (the 7-vs-8 count drift) ALSO shifts the running
+            // `incompletes=`/`netIncomplete=` snapshots from row 5 on
+            // (attempt-sequence faces, same churn class — the pin
+            // caught its author's first-draft "id-only everywhere"
+            // overclaim here); on e1/t9 the strict prefix is all rows.
+            let strict_prefix = match fixture {
+                "e1_ripup" | "t9_locator45" => golden_routes.len(),
+                "t7_ripup" => 5,
+                other => panic!("unmapped fixture {other}"),
+            };
+            for (i, (g, r)) in golden_routes
+                .iter()
+                .zip(&rust_routes)
+                .take(strict_prefix)
+                .enumerate()
+            {
+                assert_eq!(
+                    strip_id_family(g),
+                    strip_id_family(r),
+                    "{fixture} route row {i}: non-id faces must be byte-equal"
+                );
+            }
+
+            // The C face is real: at least one aligned row carries an
+            // id-value divergence (e1's first is row 2 — its rows 0-1
+            // are byte-identical; t7/t9 diverge from row 0).
+            let probe_index = if fixture == "e1_ripup" { 2 } else { 0 };
+            assert_ne!(
+                golden_routes[probe_index], rust_routes[probe_index],
+                "{fixture} route row {probe_index}: the id churn must be live"
             );
         }
     }
