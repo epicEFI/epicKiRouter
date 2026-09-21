@@ -842,30 +842,79 @@ pub fn localization_lines(
     lines
 }
 
-/// Runs the in-process detail pass: the SAME flow as the subprocess
-/// (`epic_cli::route::run_route`'s steps, fanout-off argv face), stopped
-/// after the post-route statistics. Panic-caught: an engine panic becomes
-/// an Err stop-cause (today's Tier A reality on 10 of 11 fixtures). The
-/// default panic hook is silenced for the duration (spec-review NOTE: the
-/// hook would print the caught panic to stderr before the harness renders
-/// its own NOTE) and restored on EVERY path out — the hook swap is
-/// process-global, which is safe here because the harness is
-/// single-threaded on this path and nothing else can panic concurrently.
-fn run_detail_pass(dsn: &Path) -> Result<RustDetail, String> {
+/// Runs the in-process detail pass behind the T17b wall watchdog: the
+/// body executes on a worker thread and the caller waits with a
+/// [`Duration`] deadline. Three verdict classes, each DISTINGUISHABLE
+/// in the returned `Err`/`Ok` shape:
+///
+/// * the pass finishes inside the deadline → the body's OWN result
+///   untouched (`Ok(RustDetail)` compared by the directional gates, or
+///   `Err("detail pass panicked: …")`) — the watchdog is silent and the
+///   deterministic outcome is byte-for-byte what an unwatched run
+///   produces (the engine has no thread-local state; the worker is a
+///   plain relocation);
+/// * the deadline overruns → `Err("detail pass deadline exceeded after
+///   …s …")` — the wall bound, distinct from a panic and from a
+///   quality failure;
+/// * the worker cannot start / exits without reporting → a distinct
+///   infra `Err`.
+///
+/// The default panic hook is silenced for the wait (spec-review NOTE:
+/// the hook would print the caught panic to stderr before the harness
+/// renders its own NOTE) and RESTORED ON EVERY PATH OUT — the T17b
+/// deadline path included (the hook swap is process-global, safe here
+/// because nothing else can panic concurrently while the caller
+/// waits). On a deadline the worker LEAKS by design (Rust has no safe
+/// thread kill): it owns its board, writes only its process-unique
+/// scratch ses, cannot reach the receiver again, and dies at process
+/// exit; if it panics after the restore the restored hook fires —
+/// stderr noise, never corruption. The engine's tick-budget currency
+/// is untouched (controller constraint, buglog 175): only the WALL
+/// bound is non-deterministic.
+fn run_detail_pass(dsn: &Path, deadline: Duration) -> Result<RustDetail, String> {
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        route_detail_inner(dsn).map_err(|e| e.to_string())
-    }));
+    let body = |dsn: &Path| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            route_detail_inner(dsn).map_err(|e| e.to_string())
+        }))
+        .unwrap_or_else(|payload| {
+            Err(format!(
+                "detail pass panicked: {}",
+                payload
+                    .downcast_ref::<&str>()
+                    .map(|s| (*s).to_string())
+                    .or_else(|| payload.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "unknown panic payload".into())
+            ))
+        })
+    };
+    let (tx, rx) = std::sync::mpsc::channel();
+    let worker_dsn = dsn.to_path_buf();
+    let worker = std::thread::Builder::new()
+        .name("epic-detail-pass".to_string())
+        .spawn(move || {
+            let _ = tx.send(body(&worker_dsn));
+        });
+    let outcome = match worker {
+        Ok(_) => match rx.recv_timeout(deadline) {
+            Ok(result) => Some(result),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Some(Err(
+                "detail pass worker exited without reporting".to_string(),
+            )),
+        },
+        Err(spawn_err) => Some(Err(format!(
+            "detail pass worker could not start: {spawn_err}"
+        ))),
+    };
+    // The restore runs on EVERY path — the deadline path included
+    // (T17b: this is the sentinel's asserted invariant).
     std::panic::set_hook(previous_hook);
-    result.unwrap_or_else(|payload| {
+    outcome.unwrap_or_else(|| {
         Err(format!(
-            "detail pass panicked: {}",
-            payload
-                .downcast_ref::<&str>()
-                .map(|s| (*s).to_string())
-                .or_else(|| payload.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "unknown panic payload".into())
+            "detail pass deadline exceeded after {:.0}s (wall watchdog; the engine outcome was not observed — a bound, not a quality verdict or a panic)",
+            deadline.as_secs_f32()
         ))
     })
 }
@@ -1265,10 +1314,12 @@ fn compare_cmd(
         let mut report = extract_report_only(&java, &run);
 
         // The detail pass: forced by --detail, otherwise only on a red
-        // gate (the localizer). Panic-caught inside.
+        // gate (the localizer). Panic-caught + deadline-bounded inside
+        // — the subprocess tier timeout doubles as the detail wall (the
+        // same bound both faces of the fixture's run get).
         let mut detail: Option<RustDetail> = None;
         if force_detail || !failures.is_empty() {
-            match run_detail_pass(&dsn) {
+            match run_detail_pass(&dsn, Duration::from_secs(entry.timeout_seconds)) {
                 Ok(pass) => {
                     report.rust_trace_count = Some(pass.trace_count);
                     report.rust_via_count = Some(pass.via_count);
@@ -1370,6 +1421,20 @@ pub fn battery_exit(report_only: bool, red: usize) -> Result<()> {
 #[cfg(test)]
 mod pins {
     use super::*;
+
+    /// The watchdog tests' generous wall for the worker-reported paths
+    /// (worlds that finish far inside it — the early-error body is
+    /// immediate). Only the deadline worlds use short walls.
+    const WATCHDOG_TEST_WALL: Duration = Duration::from_secs(60);
+
+    /// Serializes the hook-observing watchdog tests: the panic-hook
+    /// swap inside [`run_detail_pass`] is PROCESS-GLOBAL, so concurrent
+    /// `run_detail_pass` calls race the take/silence/restore sequence —
+    /// one test restores ANOTHER test's silence hook and the victim's
+    /// assert panics into the no-op (observed: the sentinel FAILED with
+    /// its assertion message swallowed). One lock, held for the WHOLE
+    /// body of each hook-observing test.
+    static WATCHDOG_HOOK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// A fully-populated synthetic Java record (the router-only face:
     /// profile Some, optimizer null).
@@ -2141,24 +2206,29 @@ mod pins {
 
     /// THE hook-restore pin (spec-rereview MINOR-B / NEW-C survivor): the
     /// previous panic hook is restored on EVERY path out of
-    /// [`run_detail_pass`] — the early-error path (a DSN that fails to
-    /// read) AND the caught-panic path (a Tier A fixture whose engine
-    /// route panics; bm01 today, class A). Sentinel mechanics: install a
-    /// recording hook as the "previous" hook, run the pass, then panic
-    /// deliberately — the DELIBERATE panic must reach the SENTINEL (the
-    /// restored hook), not a lingering no-op. Mutation-verified: deleting
-    /// the `set_hook(previous_hook)` restore (the reviewer's NEW-C) makes
-    /// the sentinel stay silent and this pin fail.
+    /// [`run_detail_pass`] — the worker-reported path (an early error
+    /// sent through the watchdog channel) AND the T17b deadline path (a
+    /// real Tier A fixture whose in-process route overruns the wall —
+    /// bm01's detail pass alone is >50 min in the debug build). Sentinel
+    /// mechanics: install a recording hook as the "previous" hook, run
+    /// the pass, then panic deliberately — the DELIBERATE panic must
+    /// reach the SENTINEL (the restored hook), not a lingering no-op.
+    /// Mutation-verified: deleting the `set_hook(previous_hook)` restore
+    /// (the reviewer's NEW-C) makes the sentinel stay silent and this
+    /// pin fail — on BOTH worlds, so the deadline-path restore is
+    /// covered by the same kill.
     ///
-    /// FULL-SUITE GATE (quality-review T17a-2 Q-1; buglog 175): run the
-    /// workspace suite as
-    /// `cargo test --workspace -- --skip detail_pass_restores` — NEVER
-    /// this sentinel bare: post-T17a its world-2 route runs bm01 to
-    /// completion IN-PROCESS with no deadline (>50 min observed), so a
-    /// bare run hangs until the harness/CI kills it. Until the buglog-175
-    /// watchdog lands, the skip IS the gate protocol.
+    /// FULL-SUITE GATE (T17b; buglog 175): the watchdog bounds this
+    /// sentinel (world 2 fires a 10s deadline — bm01's route is orders
+    /// of magnitude past it), so the bare suite runs again:
+    /// `cargo test --workspace` — the `--skip detail_pass_restores`
+    /// protocol AND the workflow step are RETIRED. The leaked world-2
+    /// worker keeps routing until the test binary exits (documented in
+    /// [`run_detail_pass`]) — it owns its board and cannot affect any
+    /// later test's state.
     #[test]
     fn detail_pass_restores_the_previous_panic_hook_on_every_path() {
+        let _hook_guard = WATCHDOG_HOOK_LOCK.lock().expect("watchdog hook lock");
         let sentinel_fires: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
@@ -2180,12 +2250,16 @@ mod pins {
             );
         }));
 
-        // World 1 — the early-error path: a DSN that cannot be read makes
-        // route_detail_inner bail INSIDE the guarded body; the restore
-        // must still run (a future early return between the hook swap and
-        // the restore is exactly the leak this world catches).
-        let err = run_detail_pass(Path::new("/nonexistent/epic-t15-world.dsn"))
-            .expect_err("unreadable DSN must be an Err");
+        // World 1 — the worker-reported early-error path: a DSN that
+        // cannot be read makes route_detail_inner bail inside the worker;
+        // the result travels the channel and the restore must still run
+        // (a future early return between the hook swap and the restore is
+        // exactly the leak this world catches).
+        let err = run_detail_pass(
+            Path::new("/nonexistent/epic-t15-world.dsn"),
+            WATCHDOG_TEST_WALL,
+        )
+        .expect_err("unreadable DSN must be an Err");
         assert!(err.contains("reading"), "the read-context error: {err}");
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             panic!("T15-SENTINEL-after-early-error");
@@ -2199,33 +2273,115 @@ mod pins {
             "the previous hook must be restored on the early-error path"
         );
 
-        // World 2 — the caught-panic path: a real Tier A fixture whose
-        // in-process route panics (bm01, class A today; if T17 ever fixes
-        // it, this world degrades to the success path and STILL pins the
-        // restore).
+        // World 2 — the DEADLINE path: bm01's in-process detail route
+        // overruns the 10s watchdog wall (pass 1 alone measured 1074s in
+        // the debug build, buglog 175) — the verdict must be the
+        // deadline class AND the hook must come back before it is
+        // returned.
         let root = crate::oracle::find_repo_root().expect("repo root");
         let bm01 = tier_a_fixtures(&root)
             .expect("tier A walk")
             .into_iter()
             .find(|f| f.tier_path == "DAC2020_boards/DAC2020_bm01.dsn")
             .expect("bm01 is a Tier A fixture");
-        let _ = run_detail_pass(&root.join(&bm01.repo_rel_dsn));
+        let verdict = run_detail_pass(&root.join(&bm01.repo_rel_dsn), Duration::from_secs(10))
+            .expect_err("bm01's detail route cannot finish inside 10s (pass 1 alone >1000s)");
+        assert!(
+            verdict.contains("deadline exceeded"),
+            "the deadline verdict class: {verdict}"
+        );
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            panic!("T15-SENTINEL-after-panic-path");
+            panic!("T15-SENTINEL-after-deadline-path");
         }));
         assert!(
             sentinel_fires
                 .lock()
                 .expect("sentinel mutex")
                 .iter()
-                .any(|m| m.contains("T15-SENTINEL-after-panic-path")),
-            "the previous hook must be restored on the caught-panic path too"
+                .any(|m| m.contains("T15-SENTINEL-after-deadline-path")),
+            "the previous hook must be restored on the deadline path too"
         );
 
         // Restore the harness's own hook (run_detail_pass put the sentinel
         // back; take it and reinstall the original).
         let _ = std::panic::take_hook();
         std::panic::set_hook(before);
+    }
+
+    /// T17b deadline-FIRES pin: an in-process route that overruns its
+    /// wall returns the DEADLINE verdict class — distinguishable from
+    /// the panic class (`detail pass panicked: …`) and from any quality
+    /// face (an `Ok` detail). bm01's detail route is orders of
+    /// magnitude past a 2s wall (pass 1 alone measured 1074s in the
+    /// debug build, buglog 175), so the deadline fires mid-route, not
+    /// before the worker starts. Mutants: relabeling the deadline Err
+    /// with the `panicked:` phrasing dies at the second assert; a
+    /// watchdog that waits forever instead of
+    /// [`std::sync::mpsc::RecvTimeoutError::Timeout`] turns this pin
+    /// into a hang the suite cannot miss.
+    #[test]
+    fn detail_pass_deadline_fires_distinguishably() {
+        let _hook_guard = WATCHDOG_HOOK_LOCK.lock().expect("watchdog hook lock");
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let bm01 = tier_a_fixtures(&root)
+            .expect("tier A walk")
+            .into_iter()
+            .find(|f| f.tier_path == "DAC2020_boards/DAC2020_bm01.dsn")
+            .expect("bm01 is a Tier A fixture");
+        let verdict = run_detail_pass(&root.join(&bm01.repo_rel_dsn), Duration::from_secs(2))
+            .expect_err("bm01's detail route cannot finish inside 2s");
+        assert!(
+            verdict.contains("deadline exceeded"),
+            "the deadline verdict class: {verdict}"
+        );
+        assert!(
+            !verdict.contains("panicked"),
+            "deadline-red is NOT panic-red (buglog 175's distinguishable-verdict requirement): {verdict}"
+        );
+    }
+
+    /// T17b deadline-SILENT pin: a completing fixture under a generous
+    /// wall returns the body's OWN outcome — the watchdog machinery
+    /// (worker thread + channel round-trip) does not perturb the
+    /// deterministic result. ecc83-pp_v2 is the buglog-176 fingerprint
+    /// fixture (the T17b-measured POST-fix battery row: incomplete 0 —
+    /// the isTraceObstacle parity fix let the maze route net 6 — 16
+    /// violation pairs, 15 traces / 0 vias / 66 bends, wall ~0.2s
+    /// release; the PRE-fix row was incomplete 1 / 51 bends / ~6.4s) —
+    /// the unwatched subprocess run and the watched in-process run
+    /// must agree on all of them (the subprocess row equals the
+    /// committed JAVA record exactly: 991.32 / 0 unrouted / 16
+    /// violations). Mutants: a
+    /// machinery that fabricates or swallows the worker result dies
+    /// here; a wall that fires early turns this `Ok` into the deadline
+    /// `Err` and dies here; a regression of the buglog-176 fix (the CA
+    /// flag leaving the virtual dispatch again) resurrects incomplete
+    /// 1 and dies here (witnessed RED at the fix, 2026-09-21).
+    #[test]
+    fn detail_pass_deadline_silent_preserves_the_deterministic_outcome() {
+        let _hook_guard = WATCHDOG_HOOK_LOCK.lock().expect("watchdog hook lock");
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let fixture = tier_a_fixtures(&root)
+            .expect("tier A walk")
+            .into_iter()
+            .find(|f| f.tier_path == "KiCad_10_demos/ecc83-pp_v2.dsn")
+            .expect("ecc83-pp_v2 is a Tier A fixture");
+        let detail = run_detail_pass(&root.join(&fixture.repo_rel_dsn), Duration::from_secs(600))
+            .expect("the generous wall must stay silent on a ~6s route");
+        assert_eq!(
+            detail.incomplete_total, 0,
+            "buglog-176 fingerprint: net 6 ROUTES (the isTraceObstacle parity fix)"
+        );
+        assert_eq!(
+            detail.violations.len(),
+            16,
+            "buglog-176 fingerprint: 16 violation pairs"
+        );
+        assert_eq!(
+            (detail.trace_count, detail.via_count, detail.bend_count),
+            (15, 0, 66),
+            "buglog-176 geometry counts: 15 traces / 0 vias / 66 bends"
+        );
     }
 
     /// THE exit-ladder pin (quality-review MINOR-3 / Q3 survivor): report

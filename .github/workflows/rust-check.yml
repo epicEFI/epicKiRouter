@@ -23,15 +23,14 @@ jobs:
           workspaces: rust
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      # Suite under the SENTINEL SKIP PROTOCOL (quality-review T17a-2
-      # Q-2; .wolf/buglog.json 175): since the T17a panic fixes, the
-      # `detail_pass_restores_...` sentinel's world-2 route runs bm01
-      # to completion IN-PROCESS with no deadline (>50 min observed) —
-      # never run it bare, in CI or locally, until the buglog-175
-      # watchdog lands. timeout-minutes bounds any other unbounded
-      # test the same way the compare steps below are bounded (a hang
-      # trips here instead of the 360-min job default).
-      - run: cargo test --workspace -- --skip detail_pass_restores
+      # Suite BARE (T17b): the buglog-175 watchdog bounds the
+      # `detail_pass_restores_...` sentinel (its world-2 route fires a
+      # 10s wall deadline; bm01's detail pass alone is >50 min in this
+      # build), so the T17a skip protocol is RETIRED — the bare suite
+      # is the gate again. timeout-minutes still bounds any other
+      # unbounded test (a hang trips here instead of the 360-min job
+      # default).
+      - run: cargo test --workspace
         timeout-minutes: 30
       # corpus compare is java-free (reads only the committed goldens);
       # EPIC_SKIP_GRADLE guards against future oracle coupling.
