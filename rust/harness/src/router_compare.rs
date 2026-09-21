@@ -2242,7 +2242,10 @@ mod pins {
     /// FIRST_N rows and says so in the header. The single-pair world of
     /// the shape pin could not see the `FIRST_N 10 -> 9` mutant
     /// (`min(9, 1) == min(10, 1)`); at 12 pairs the mutant renders 9 rows
-    /// and this pin dies.
+    /// and this pin dies. The re-review R3 extension also holds the WALK
+    /// ORDER (first = pair 0, last = pair 9): the `.take` →
+    /// `.rev().take` mutant rendered the wrong 10 rows under the "first
+    /// 10 in walk order" header with the count and header asserts green.
     #[test]
     fn localizer_truncates_violation_pairs_at_exactly_first_n() {
         let java = java_record(2, 0, 986.32);
@@ -2287,6 +2290,44 @@ mod pins {
             text.contains("violation pairs (12 total, first 10 in walk order):"),
             "the header must state the total AND the truncation: {text}"
         );
+        // Walk order (re-review R3): the FIRST rendered row must be the
+        // walk-first pair (a=0) and the LAST the truncation boundary
+        // (a=9) — a `.rev().take(FIRST_N)` renders the wrong 10 rows
+        // under the same count+header.
+        let rows: Vec<&str> = lines
+            .iter()
+            .filter(|line| line.contains(" <-> item "))
+            .map(String::as_str)
+            .collect();
+        assert!(
+            rows.first()
+                .is_some_and(|row| row.contains("item 0 <-> item 100")),
+            "the first rendered row must be the walk-first pair (a=0): {text}"
+        );
+        assert!(
+            rows.last()
+                .is_some_and(|row| row.contains("item 9 <-> item 109")),
+            "the last rendered row must be pair 9 (the truncation boundary): {text}"
+        );
+    }
+
+    /// The BUILT `epic-harness` binary, located the way the e2e smokes
+    /// (and `resolve_epic_cli`) do: the unit-test exe lives in
+    /// `target/<profile>/deps/`, so the bin target is one level up; fall
+    /// back to the repo-relative debug path. STALENESS WARNING: these
+    /// smokes spawn the BUILT ARTIFACT, not the freshly-compiled test
+    /// exe — `cargo test --bin` does not rebuild the bin — so before
+    /// judging mutants (or trusting a green) run `cargo build -p
+    /// epic-harness` first. CI orders its steps the same way (build →
+    /// run).
+    fn e2e_built_harness_bin(root: &std::path::Path) -> std::path::PathBuf {
+        std::env::current_exe()
+            .expect("test exe")
+            .parent()
+            .and_then(|parent| parent.parent())
+            .map(|profile_dir| profile_dir.join("epic-harness"))
+            .filter(|candidate| candidate.is_file())
+            .unwrap_or_else(|| root.join("rust/target/debug/epic-harness"))
     }
 
     /// THE dispatch smoke (quality-review MINOR-4 / Q5 survivor): the
@@ -2304,15 +2345,7 @@ mod pins {
     #[ignore]
     fn e2e_router_determinism_subcommand_is_the_determinism_gate() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        // The unit-test exe lives in target/<profile>/deps/; the bin
-        // target is one level up (same layout resolve_epic_cli relies on).
-        let bin = std::env::current_exe()
-            .expect("test exe")
-            .parent()
-            .and_then(|parent| parent.parent())
-            .map(|profile_dir| profile_dir.join("epic-harness"))
-            .filter(|candidate| candidate.is_file())
-            .unwrap_or_else(|| root.join("rust/target/debug/epic-harness"));
+        let bin = e2e_built_harness_bin(&root);
         let output = Command::new(&bin)
             .args([
                 "router",
@@ -2333,6 +2366,80 @@ mod pins {
         assert!(
             stdout.contains("determinism: OK"),
             "the Determinism arm must run the DETERMINISM gate, not some other cmd: {stdout}"
+        );
+    }
+
+    /// THE gate-exit smoke (quality re-review MINOR-R1): the
+    /// `battery_exit(report_only, red)` CALL SITE is the extraction's
+    /// remaining unguarded face — the R1 mutant bypassed the call
+    /// (`let _ = (report_only, red); Ok(())` at the `compare_cmd` tail,
+    /// fn left correct) and kept every unit pin green while gate mode
+    /// exited 0 with a red fixture; post-T17-flip that makes a red
+    /// battery exit 0 with CI green. This e2e runs the BUILT binary's
+    /// `router compare --fixture bm01` in GATE mode (bm01 is a
+    /// panic-class fixture: the subprocess dies fast, no T17 needed) and
+    /// asserts the exit code is NONZERO and the output carries the RED
+    /// verdict line. Java-free; ~2s (measured 1.8s); requires `cargo
+    /// build -p epic-cli` (the battery spawns it). Run explicitly:
+    /// `cargo test -p epic-harness --bin epic-harness
+    /// e2e_router_compare_gate_mode -- --ignored` (also after any
+    /// compare_cmd tail refactor).
+    #[test]
+    #[ignore]
+    fn e2e_router_compare_gate_mode_exits_nonzero_on_a_red_battery() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let bin = e2e_built_harness_bin(&root);
+        let output = Command::new(&bin)
+            .args(["router", "compare", "--fixture", "bm01"])
+            .env("EPIC_SKIP_GRADLE", "1")
+            .output()
+            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        assert!(
+            !output.status.success(),
+            "a red battery in gate mode must exit NONZERO (the battery_exit call site must be \
+             reachable): status {}, stderr: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("[RED] DAC2020_boards/DAC2020_bm01.dsn"),
+            "the red fixture's [RED] verdict line must render: {stdout}"
+        );
+    }
+
+    /// THE empty-battery smoke (quality re-review MINOR-R2): the bail's
+    /// tally condition is cmd-level glue no pin can reach — the R2
+    /// mutant (`green + red == 0` → `== 2`) survived every pin and
+    /// silently restored the round-1 hazard (`--fixture zzz` exits 0 in
+    /// both modes). This e2e runs the BUILT binary's
+    /// `router compare --fixture zzz` in gate mode — the filter matches
+    /// nothing, so the bail fires before any fixture runs (~0s) — and
+    /// asserts the exit is NONZERO with the exact bail message on
+    /// stderr. Java-free; needs the built `epic-harness` binary (no
+    /// epic-cli: nothing spawns). Run explicitly: `cargo test -p
+    /// epic-harness --bin epic-harness e2e_router_compare_empty_filter
+    /// -- --ignored`.
+    #[test]
+    #[ignore]
+    fn e2e_router_compare_empty_filter_bails_instantly() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let bin = e2e_built_harness_bin(&root);
+        let output = Command::new(&bin)
+            .args(["router", "compare", "--fixture", "zzz"])
+            .env("EPIC_SKIP_GRADLE", "1")
+            .output()
+            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        assert!(
+            !output.status.success(),
+            "a --fixture filter matching ZERO fixtures must exit NONZERO (the empty-battery \
+             bail must fire): status {}",
+            output.status
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("--fixture \"zzz\" matched no Tier A fixture"),
+            "the bail must name the unmatched filter: stderr: {stderr}"
         );
     }
 }
