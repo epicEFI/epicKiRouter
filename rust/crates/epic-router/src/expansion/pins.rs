@@ -45,7 +45,7 @@ use epic_index::complete_shape::{
 use epic_index::search_tree::SearchTree;
 
 use super::door::ExpansionDoor;
-use super::neighbours::TreeEntry;
+use super::neighbours::{ROOM_KEY_BASE, TreeEntry, board_item_is_trace_obstacle};
 use super::room::{ExpansionRoom, RoomKind};
 use super::target_door::TargetItemExpansionDoor;
 use super::{CalculationMode, NeighbourEngine, select_calculation_mode};
@@ -62,10 +62,6 @@ const BOARD_BOX: IntBox = IntBox {
     ll: IntPoint::new(-1000, -1000),
     ur: IntPoint::new(1001000, 601000),
 };
-
-/// Registry keys at/above this bound are rooms (items keep their raw
-/// numeric item id as key).
-const ROOM_KEY_BASE: u64 = 1 << 40;
 
 // the battery tags used by the literal tables
 const T_E1: u8 = 0;
@@ -1233,20 +1229,6 @@ impl Harness {
         self.board.get(id).map(|e| e.nets.as_slice()).unwrap_or(&[])
     }
 
-    /// Java's VIRTUAL `Item.isTraceObstacle(int)` face for a tree key —
-    /// [`Board::item_is_trace_obstacle`] (CA flag + keepout kinds) with
-    /// the unknown-key verdict `true` the pre-fix net-membership arm
-    /// produced. (Panic-preserving twin of [`Self::item_nets`]: an
-    /// oversized key cannot be a live item.)
-    fn board_item_is_trace_obstacle(&self, key: u64, net_number: i32) -> bool {
-        match u32::try_from(key) {
-            Ok(raw) => self
-                .board
-                .item_is_trace_obstacle(ItemId::new(raw), net_number),
-            Err(_) => true,
-        }
-    }
-
     /// The most recently created room with `id` (the content formula
     /// ids of incomplete rooms legitimately collide across rounds —
     /// the capture shows 98239 twice in E2; the door endpoint is the
@@ -1611,11 +1593,11 @@ impl NeighbourEngine for Harness {
                 // entry to the item), so the VIRTUAL
                 // `Item.isTraceObstacle` face applies (CA flag, keepout
                 // kinds) via [`Board::item_is_trace_obstacle`].
-                return self.board_item_is_trace_obstacle(item_key, net_number);
+                return board_item_is_trace_obstacle(&self.board, item_key, net_number);
             }
             return false;
         }
-        self.board_item_is_trace_obstacle(object_key, net_number)
+        board_item_is_trace_obstacle(&self.board, object_key, net_number)
     }
 
     fn tree_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {

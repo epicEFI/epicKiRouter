@@ -70,6 +70,9 @@ use super::{
     expand_to_other_layers, max_drill_page_width,
 };
 use crate::control::{AngleRestriction, AutorouteControl, RouterSettingsIr, ViaMask};
+use crate::expansion::neighbours::{
+    ROOM_KEY_BASE, board_item_is_trace_obstacle, ignore_nets_key_is_obstacle,
+};
 use crate::expansion::{
     ExpansionDoor, ExpansionRoom, NeighbourEngine, RoomKind, TargetItemExpansionDoor, TreeEntry,
 };
@@ -83,12 +86,6 @@ const BOARD_BOX: IntBox = IntBox {
     ll: IntPoint::new(-1000, -1000),
     ur: IntPoint::new(1001000, 601000),
 };
-
-/// Registry keys at/above this bound are rooms (items keep their raw
-/// numeric item id as key). Shared with the production engine
-/// ([`crate::engine`], which uses the same key space); the const
-/// equality is pinned in the engine's tests.
-pub(crate) const ROOM_KEY_BASE: u64 = 1 << 40;
 
 /// The engines' via clearance class (capture `ctrl` row
 /// `viaClearanceClass:1`) — the tree the AutorouteEngine builds is
@@ -565,20 +562,6 @@ impl Harness {
         self.board.get(id).map(|e| e.nets.as_slice()).unwrap_or(&[])
     }
 
-    /// Java's VIRTUAL `Item.isTraceObstacle(int)` face for a tree key —
-    /// [`Board::item_is_trace_obstacle`] (CA flag + keepout kinds) with
-    /// the unknown-key verdict `true` the pre-fix net-membership arm
-    /// produced. (Panic-preserving twin of [`Self::item_nets`]: an
-    /// oversized key cannot be a live item.)
-    fn board_item_is_trace_obstacle(&self, key: u64, net_number: i32) -> bool {
-        match u32::try_from(key) {
-            Ok(raw) => self
-                .board
-                .item_is_trace_obstacle(ItemId::new(raw), net_number),
-            Err(_) => true,
-        }
-    }
-
     fn remove_room(&mut self, key: u64) {
         // Java `removeIncompleteExpansionRoom` (`:368-371`): the doors
         // go FIRST (`removeAllDoors` — the back-edge cleanup is what
@@ -750,11 +733,11 @@ impl NeighbourEngine for Harness {
                 // entry to the item), so the VIRTUAL
                 // `Item.isTraceObstacle` face applies (CA flag, keepout
                 // kinds) via [`Board::item_is_trace_obstacle`].
-                return self.board_item_is_trace_obstacle(item_key, net_number);
+                return board_item_is_trace_obstacle(&self.board, item_key, net_number);
             }
             return false;
         }
-        self.board_item_is_trace_obstacle(object_key, net_number)
+        board_item_is_trace_obstacle(&self.board, object_key, net_number)
     }
 
     fn tree_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {
@@ -1663,19 +1646,14 @@ impl DrillEngine for Harness {
             // while an own-net object drops out. Rooms keep the trait
             // face (Java tree rooms are CompleteFreeSpaceExpansionRoom,
             // whose `isObstacle(int)` is unconditionally true, `:77-79`).
-            // The same room/item branch shape as the production engine
-            // (spec-review T17b M-2: the T17b-D fix had silently flipped
-            // this harness walk's ITEM keys to the virtual face).
-            if ignore_nets.iter().all(|&net| {
-                if Self::is_room_key(leaf.object_key) {
-                    NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net)
-                } else {
-                    u32::try_from(leaf.object_key)
-                        .ok()
-                        .map(ItemId::new)
-                        .is_none_or(|id| self.board.item_is_obstacle(id, net))
-                }
-            }) {
+            // ONE shared branch with the production walk (quality-review
+            // T17b M-Q1; spec-review T17b M-2 before it: the T17b-D fix
+            // had silently flipped this harness walk's ITEM keys to the
+            // virtual face — the duplication is what let the two drift).
+            if ignore_nets
+                .iter()
+                .all(|&net| ignore_nets_key_is_obstacle(self, &self.board, leaf.object_key, net))
+            {
                 out.push(leaf.object_key);
             }
         }
@@ -2651,14 +2629,21 @@ fn completion_probe_first_calls() {
 /// The M-2 world: a parse-time plane (a NON-obstacle
 /// [`ItemData::ConductionArea`], `isObstacle=false` — every parse-time
 /// plane/pour is inserted that way, `Structure.java:1113`) and a
-/// netless keepout on the SAME layer, probed through the harness's
-/// [`NeighbourEngine::overlapping_objects_ignore_nets`]. Internal
-/// units: `(resolution um 10)` scales every DSN coordinate ×10 (the
-/// plane polygon [1000,9000] DSN is [10000,90000] internal; the probe
-/// [30000,70000]² sits strictly inside both it and the keepout
-/// polygon [20000,40000] — a DSN-unit probe lands in empty space and
-/// the world goes vacuous).
-const PLANE_WALK_DSN: &str = r#"(pcb t17b-plane-walk.dsn
+/// netless keepout on the SAME layer, probed through BOTH impls of
+/// [`DrillEngine::overlapping_objects_ignore_nets`] — the drill
+/// harness here, and the PRODUCTION engine (engine.rs's
+/// `t17b_production_ignore_nets_walk_…`, quality-review T17b
+/// M-Q1(3)). Internal units: `(resolution um 10)` scales every DSN
+/// coordinate ×10 (the plane polygon [1000,9000] DSN is
+/// [10000,90000] internal; the probe [30000,70000]² sits strictly
+/// inside both it and the keepout polygon [20000,40000] — a DSN-unit
+/// probe lands in empty space and the world goes vacuous). TWO signal
+/// layers exactly (F.Cu, In1.Cu — the probe layer In1.Cu keeps index
+/// 1): the production pin goes through `settings_ir`, whose capture
+/// cost table is hardcoded 2-layer (the pre-M-Q1 three-layer variant
+/// with an unused B.Cu was reduced, not re-designed — the world's
+/// discriminator lives on In1.Cu alone).
+pub(crate) const PLANE_WALK_DSN: &str = r#"(pcb t17b-plane-walk.dsn
   (parser
     (string_quote ")
     (space_in_quoted_tokens on)
@@ -2668,7 +2653,6 @@ const PLANE_WALK_DSN: &str = r#"(pcb t17b-plane-walk.dsn
   (structure
     (layer F.Cu (type signal))
     (layer In1.Cu (type signal))
-    (layer B.Cu (type signal))
     (boundary
       (path pcb 0  0 0  10000 0  10000 10000  0 10000  0 0)
     )
@@ -2690,7 +2674,11 @@ const PLANE_WALK_DSN: &str = r#"(pcb t17b-plane-walk.dsn
 /// [`DrillEngine::overlapping_objects_ignore_nets`] filters ITEM
 /// keys on the BASE `Item.isObstacle(int)` face (`Item.java:162-164`,
 /// overridden by NO item subclass), NOT the virtual `isTraceObstacle`
-/// face — Java `ShapeSearchTree.overlappingObjects` `:412-413`. The
+/// face — Java `ShapeSearchTree.overlappingObjects` `:412-413`. Since
+/// quality-review T17b M-Q1 the production walk shares the branch
+/// (`ignore_nets_key_is_obstacle`) and has its own twin pin
+/// (engine.rs `t17b_production_ignore_nets_walk_…`); this one drives
+/// the HARNESS impl. The
 /// flag × net discriminator, every row and column pinned:
 ///
 /// | object | ignore net | base face (Java) | virtual face | expected |

@@ -27,6 +27,11 @@ mod drc_corpus;
 mod index_corpus;
 mod manifest;
 mod oracle;
+// The ONE home for the process-global panic-hook swap (quality-review
+// T17b M-Q2): shared lock + RAII silence guard used by BOTH hook
+// participants in the test binary (run_detail_pass's watchdog pins and
+// corpus::compare) so their take/silence/restore windows cannot race.
+mod panic_hook;
 // Router quality scoreboard (M3 Task 15): directional Rust-vs-Java-record
 // compare gates (java-free), the Rust-vs-Rust determinism self-gate, and
 // the first-divergence localizer.

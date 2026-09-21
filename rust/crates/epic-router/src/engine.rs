@@ -125,6 +125,9 @@ use crate::control::{AngleRestriction, AutorouteControl};
 use crate::drill::DrillPageArray;
 use crate::drill::expand_other_layers::CheckDrillResult as RouterCheckDrillResult;
 use crate::drill::{DrillEngine, ViaLayerChecker, ViaRuleVia, max_drill_page_width};
+use crate::expansion::neighbours::{
+    ROOM_KEY_BASE, board_item_is_trace_obstacle, ignore_nets_key_is_obstacle,
+};
 use crate::expansion::{
     ExpansionDoor, ExpansionRoom, NeighbourEngine, RoomKind, TargetItemExpansionDoor, TreeEntry,
 };
@@ -134,11 +137,6 @@ use crate::maze::search_engine::MazeSearchEngine;
 use crate::path::inserter::get_instance as insert_found_connection;
 use crate::path::inserter::{InserterEventSink, router_angle_restriction};
 use crate::path::locator;
-
-/// Registry keys at/above this bound are rooms (items keep their raw
-/// numeric item id as key). Const-equal to the T5 harness copy
-/// (`drill::pins::ROOM_KEY_BASE`, pinned).
-pub(crate) const ROOM_KEY_BASE: u64 = 1 << 40;
 
 // ---------------------------------------------------------------------------
 // the attempt result
@@ -369,17 +367,6 @@ fn is_room_key(key: u64) -> bool {
     key >= ROOM_KEY_BASE
 }
 
-/// Java's VIRTUAL `Item.isTraceObstacle(int)` dispatch for a tree key —
-/// [`Board::item_is_trace_obstacle`] (CA flag + keepout kinds) with the
-/// unknown-key verdict `true` the pre-fix net-membership arm produced
-/// (`!nets.contains` on an empty net list).
-fn item_is_trace_obstacle(board: &Board, key: u64, net_number: i32) -> bool {
-    u32::try_from(key)
-        .ok()
-        .map(ItemId::new)
-        .is_none_or(|id| board.item_is_trace_obstacle(id, net_number))
-}
-
 impl CompleteShapeObjects for EngineShapeView<'_> {
     fn is_trace_obstacle(&self, object_key: u64, net_number: i32) -> bool {
         if is_room_key(object_key) {
@@ -398,11 +385,11 @@ impl CompleteShapeObjects for EngineShapeView<'_> {
                 // casts the tree entry to the item), so the VIRTUAL
                 // `Item.isTraceObstacle` face applies (CA flag, keepout
                 // kinds) via [`Board::item_is_trace_obstacle`].
-                return item_is_trace_obstacle(self.board, item_key, net_number);
+                return board_item_is_trace_obstacle(self.board, item_key, net_number);
             }
             return false;
         }
-        item_is_trace_obstacle(self.board, object_key, net_number)
+        board_item_is_trace_obstacle(self.board, object_key, net_number)
     }
 
     fn shape_layer(&self, object_key: u64, shape_index: u32) -> i32 {
@@ -2124,16 +2111,12 @@ impl DrillEngine for AutorouteEngine<'_> {
             // dispatch was ported.) Rooms keep the trait face (Java tree
             // rooms are CompleteFreeSpaceExpansionRoom, whose
             // `isObstacle(int)` is unconditionally true — `:77-79`).
-            if ignore_nets.iter().all(|&net| {
-                if is_room_key(leaf.object_key) {
-                    NeighbourEngine::is_trace_obstacle(self, leaf.object_key, net)
-                } else {
-                    u32::try_from(leaf.object_key)
-                        .ok()
-                        .map(ItemId::new)
-                        .is_none_or(|id| self.board.item_is_obstacle(id, net))
-                }
-            }) {
+            // ONE shared branch with the drill replay harness
+            // (quality-review T17b M-Q1) — [`ignore_nets_key_is_obstacle`].
+            if ignore_nets
+                .iter()
+                .all(|&net| ignore_nets_key_is_obstacle(self, self.board, leaf.object_key, net))
+            {
                 out.push(leaf.object_key);
             }
         }
@@ -2435,13 +2418,19 @@ mod tests {
         (engine, ctrl)
     }
 
-    /// The const-equality pin for the shared room-key space (the
-    /// engine's registry and the T5 harness replay must never disagree
-    /// on the item/room boundary).
+    /// The room-key-space boundary pin. Before quality-review T17b
+    /// M-Q1 this compared three module-local consts for equality
+    /// (engine, drill harness, expansion harness); they are now ONE
+    /// definition re-imported everywhere, so the equality face is
+    /// enforced by construction and this pin guards the BOUNDARY VALUE
+    /// itself: keys `ROOM_KEY_BASE - 1` are items, `ROOM_KEY_BASE` and
+    /// above are rooms (the key-space partition the tree dispatch and
+    /// the ignore-nets walk branch on).
     #[test]
     fn t11_room_key_base_const_equality() {
-        assert_eq!(ROOM_KEY_BASE, crate::drill::pins::ROOM_KEY_BASE);
         assert_eq!(ROOM_KEY_BASE, 1u64 << 40);
+        assert!(!is_room_key(ROOM_KEY_BASE - 1));
+        assert!(is_room_key(ROOM_KEY_BASE));
     }
 
     /// The ctor faces: net -1 before the first init_connection, the
@@ -2994,6 +2983,110 @@ mod tests {
         assert!(
             !crate::maze::shove_probe::end_points_matching(&engine, w1_key, pin_key),
             "foreign net: the sharesNet gate answers FALSE, production engine"
+        );
+    }
+
+    /// Quality-review T17b M-Q1(3) — the PRODUCTION ignore-nets walk
+    /// pin (pin mode 13(c): a trait with multiple impls needs its pin
+    /// driven through EACH impl the callers actually use; the M-2 pin
+    /// in `drill/pins.rs` drives the harness copy, THIS one drives
+    /// the `impl DrillEngine for AutorouteEngine` copy the ripup
+    /// resolver consumes — `maze/ripup.rs` — through
+    /// `build_engine`, the real `settings_ir` cost table, and the
+    /// real manager tree). The SAME `PLANE_WALK_DSN` world and the
+    /// SAME flag × net discriminator as the harness pin: a foreign
+    /// NON-obstacle plane STAYS in the walk's results (the base-face
+    /// crossing cell), an own-net object drops, the netless keepout
+    /// stays on both. The trait-face-for-all-keys mutant at the
+    /// shared helper (`ignore_nets_key_is_obstacle`) must kill BOTH
+    /// this pin and the harness pin.
+    #[test]
+    fn t17b_production_ignore_nets_walk_filters_items_on_the_base_obstacle_face() {
+        let (mut manager, mut board) = parse(crate::drill::pins::PLANE_WALK_DSN);
+        let sig = crate::test_util::net_no(&board, "SIG");
+
+        // The world, read off the parsed board BEFORE the engine
+        // borrows it: the plane is a NON-obstacle ConductionArea on
+        // GND (parse flag), the keepout a plain netless ObstacleArea.
+        let plane_entry = board
+            .iter_descending()
+            .find(|e| matches!(e.data, ItemData::ConductionArea { .. }))
+            .expect("the plane parsed as a ConductionArea");
+        let plane_id = plane_entry.id;
+        let (gnd, plane_flag) = match &plane_entry.data {
+            ItemData::ConductionArea { is_obstacle, .. } => (plane_entry.nets[0], *is_obstacle),
+            other => panic!("not a plane: {other:?}"),
+        };
+        let keepout_key = u64::from(
+            board
+                .iter_descending()
+                .find(|e| matches!(e.data, ItemData::ObstacleArea { .. }))
+                .expect("the keepout parsed as an ObstacleArea")
+                .id
+                .get(),
+        );
+        let plane_key = u64::from(plane_id.get());
+        assert!(
+            !plane_flag,
+            "a parse-time plane is NON-obstacle (Structure.java:1113)"
+        );
+        assert_ne!(sig, gnd, "SIG is foreign to the plane");
+        // The premise — the two faces genuinely DISAGREE on the
+        // crossing item (base keeps the foreign plane, the virtual
+        // face never does).
+        assert!(
+            board.item_is_obstacle(plane_id, sig),
+            "base face: the foreign plane is an obstacle w.r.t. SIG"
+        );
+        assert!(
+            !board.item_is_trace_obstacle(plane_id, sig),
+            "virtual face: a non-obstacle plane never is"
+        );
+
+        let (engine, _ctrl) = build_engine(&mut manager, &mut board, sig, false);
+        use crate::drill::DrillEngine;
+
+        // The probe over the plane + keepout on In1.Cu (index 1), in
+        // INTERNAL units — the same probe as the harness pin.
+        let probe = TileShape::RegularTileShape(
+            epic_geometry::regular_tile_shape::RegularTileShape::IntBox(
+                epic_geometry::int_box::IntBox::new(
+                    epic_geometry::int_point::IntPoint::new(30000, 30000),
+                    epic_geometry::int_point::IntPoint::new(70000, 70000),
+                ),
+            ),
+        );
+
+        // Sanity (observability): with NO ignore nets everything
+        // stays — both items reach the production walk at all (the
+        // engine's manager tree, not the harness's).
+        let all = DrillEngine::overlapping_objects_ignore_nets(&engine, &probe, 1, &[]);
+        assert!(
+            all.contains(&plane_key),
+            "no ignore nets: the plane is in the production walk"
+        );
+        assert!(
+            all.contains(&keepout_key),
+            "no ignore nets: the keepout is in the production walk"
+        );
+
+        // THE CROSSING CELL (plane × foreign): the BASE face keeps
+        // the NON-obstacle plane — the trait-face-for-all-keys mutant
+        // drops it exactly here.
+        let foreign = DrillEngine::overlapping_objects_ignore_nets(&engine, &probe, 1, &[sig]);
+        assert!(
+            foreign.contains(&plane_key),
+            "foreign net: a NON-obstacle plane STAYS (base face, :412-413)"
+        );
+        assert!(foreign.contains(&keepout_key), "foreign net: keepout stays");
+
+        // Plane × own: drops (`!containsNet` false under every face).
+        // Keepout × own: the both-faces-agree control arm.
+        let own = DrillEngine::overlapping_objects_ignore_nets(&engine, &probe, 1, &[gnd]);
+        assert!(!own.contains(&plane_key), "own net: the plane drops");
+        assert!(
+            own.contains(&keepout_key),
+            "own net: the netless keepout stays"
         );
     }
 

@@ -1351,22 +1351,6 @@ fn read_jsonl(path: &Path) -> Result<Vec<Value>> {
     Ok(out)
 }
 
-/// RAII guard: reinstalls the previous panic hook on drop. An early `?` in
-/// `compare` (malformed input — exactly when diagnostics matter) must not
-/// leave the silenced hook installed for the rest of the process, including
-/// unrelated panics under cargo's multithreaded test runner.
-type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
-
-struct PanicHookGuard(Option<PanicHook>);
-
-impl Drop for PanicHookGuard {
-    fn drop(&mut self) {
-        if let Some(hook) = self.0.take() {
-            std::panic::set_hook(hook);
-        }
-    }
-}
-
 /// Evaluates all cases with epic-geometry and diffs against the Java goldens.
 /// Prints the first 20 mismatches; exits nonzero on any mismatch or count
 /// divergence. Per-case Rust panics are reported as mismatches, never crash.
@@ -1387,8 +1371,15 @@ pub fn compare(cases_path: &Path, golden_path: &Path) -> Result<()> {
         golden.insert(id, out);
     }
 
-    let _hook_guard = PanicHookGuard(Some(std::panic::take_hook()));
-    std::panic::set_hook(Box::new(|_| {}));
+    // Quality-review T17b M-Q2: the shared lock + RAII silence. This
+    // is the SECOND hook participant in the epic-harness test binary
+    // (run_detail_pass's watchdog pins being the first): without the
+    // lock, a corpus silence-up window racing a watchdog swap can
+    // permanently leak a silenced hook — the sentinel then fails with
+    // its assertion message swallowed. In the BIN process the lock is
+    // uncontended (this is the only participant).
+    let _hook_lock = crate::panic_hook::lock();
+    let _silence = crate::panic_hook::Silenced::new();
     let mut mismatches: Vec<String> = Vec::new();
     let mut total_mismatches = 0usize;
     for case in &cases {

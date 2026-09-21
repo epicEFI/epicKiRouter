@@ -862,9 +862,11 @@ pub fn localization_lines(
 /// The default panic hook is silenced for the wait (spec-review NOTE:
 /// the hook would print the caught panic to stderr before the harness
 /// renders its own NOTE) and RESTORED ON EVERY PATH OUT — the T17b
-/// deadline path included (the hook swap is process-global, safe here
-/// because nothing else can panic concurrently while the caller
-/// waits). On a deadline the worker LEAKS by design (Rust has no safe
+/// deadline path included (the RAII `panic_hook::Silenced` guard's
+/// Drop; the hook swap is process-global, so TEST callers must hold
+/// `panic_hook::lock()` around this call — the three watchdog pins
+/// do, and corpus::compare takes the same lock for its own window;
+/// quality-review T17b M-Q2). On a deadline the worker LEAKS by design (Rust has no safe
 /// thread kill): it owns its board, writes only its process-unique
 /// scratch ses, cannot reach the receiver again, and dies at process
 /// exit; if it panics after the restore the restored hook fires —
@@ -872,8 +874,14 @@ pub fn localization_lines(
 /// is untouched (controller constraint, buglog 175): only the WALL
 /// bound is non-deterministic.
 fn run_detail_pass(dsn: &Path, deadline: Duration) -> Result<RustDetail, String> {
-    let previous_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
+    // RAII silence (quality-review T17b M-Q2): the drop restores the
+    // previous hook on EVERY path out — the T17b deadline path
+    // included (the sentinel's asserted invariant). NO lock HERE: the
+    // sentinel pin holds `panic_hook::lock()` across this call and
+    // std's Mutex is not reentrant, so the LOCK is the callers'
+    // contract — the three watchdog pins hold it; the bin's
+    // compare_cmd is the only participant in its own process.
+    let _silence = crate::panic_hook::Silenced::new();
     let body = |dsn: &Path| {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             route_detail_inner(dsn).map_err(|e| e.to_string())
@@ -909,8 +917,9 @@ fn run_detail_pass(dsn: &Path, deadline: Duration) -> Result<RustDetail, String>
         ))),
     };
     // The restore runs on EVERY path — the deadline path included
-    // (T17b: this is the sentinel's asserted invariant).
-    std::panic::set_hook(previous_hook);
+    // (T17b: this is the sentinel's asserted invariant) — via the
+    // `_silence` guard's Drop, which fires before this function's
+    // return value reaches the caller.
     outcome.unwrap_or_else(|| {
         Err(format!(
             "detail pass deadline exceeded after {:.0}s (wall watchdog; the engine outcome was not observed — a bound, not a quality verdict or a panic)",
@@ -1326,7 +1335,7 @@ fn compare_cmd(
         // died inside bm01's post-kill detail pass, zero rows printed).
         let mut detail: Option<RustDetail> = None;
         if detail_pass_should_run(force_detail, &failures, run.timed_out) {
-            match run_detail_pass(&dsn, Duration::from_secs(entry.timeout_seconds)) {
+            match run_detail_pass(&dsn, detail_deadline(entry)) {
                 Ok(pass) => {
                     report.rust_trace_count = Some(pass.trace_count);
                     report.rust_via_count = Some(pass.via_count);
@@ -1360,7 +1369,7 @@ fn compare_cmd(
             // excluded it). Explicit, so the row's missing detail
             // fields never read as an accident.
             println!(
-                "  NOTE {}: detail pass skipped — the routing run was killed at the tier wall (a re-run would only re-burn it); the verdict stands on the integrity gate.",
+                "  NOTE {}: detail pass skipped — the routing run was killed at the tier wall (a re-run would only re-burn it); the verdict stands on the integrity gate; pass --detail to force it.",
                 entry.tier_path
             );
         }
@@ -1444,6 +1453,17 @@ fn detail_pass_should_run(force_detail: bool, failures: &[GateFailure], timed_ou
     force_detail || (!failures.is_empty() && !timed_out)
 }
 
+/// The battery loop's detail-pass WALL: the fixture's own tier timeout
+/// (the same bound both faces of the fixture's run get — the subprocess
+/// tier timeout doubles as the detail wall). Pure fn extracted at the
+/// loop call site (quality-review T17b M-Q4) so the tier-scaling is
+/// unit-observed — a global constant here would mis-scale both bm08's
+/// 120s and bm01's 1800s, and nothing else in the suite would notice.
+#[must_use]
+fn detail_deadline(entry: &RouterFixture) -> Duration {
+    Duration::from_secs(entry.timeout_seconds)
+}
+
 // ---------------------------------------------------------------------------
 // Pins
 // ---------------------------------------------------------------------------
@@ -1456,15 +1476,6 @@ mod pins {
     /// (worlds that finish far inside it — the early-error body is
     /// immediate). Only the deadline worlds use short walls.
     const WATCHDOG_TEST_WALL: Duration = Duration::from_secs(60);
-
-    /// Serializes the hook-observing watchdog tests: the panic-hook
-    /// swap inside [`run_detail_pass`] is PROCESS-GLOBAL, so concurrent
-    /// `run_detail_pass` calls race the take/silence/restore sequence —
-    /// one test restores ANOTHER test's silence hook and the victim's
-    /// assert panics into the no-op (observed: the sentinel FAILED with
-    /// its assertion message swallowed). One lock, held for the WHOLE
-    /// body of each hook-observing test.
-    static WATCHDOG_HOOK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// A fully-populated synthetic Java record (the router-only face:
     /// profile Some, optimizer null).
@@ -2258,7 +2269,7 @@ mod pins {
     /// later test's state.
     #[test]
     fn detail_pass_restores_the_previous_panic_hook_on_every_path() {
-        let _hook_guard = WATCHDOG_HOOK_LOCK.lock().expect("watchdog hook lock");
+        let _hook_guard = crate::panic_hook::lock();
         let sentinel_fires: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
@@ -2351,7 +2362,7 @@ mod pins {
     /// into a hang the suite cannot miss.
     #[test]
     fn detail_pass_deadline_fires_distinguishably() {
-        let _hook_guard = WATCHDOG_HOOK_LOCK.lock().expect("watchdog hook lock");
+        let _hook_guard = crate::panic_hook::lock();
         let root = crate::oracle::find_repo_root().expect("repo root");
         let bm01 = tier_a_fixtures(&root)
             .expect("tier A walk")
@@ -2368,6 +2379,39 @@ mod pins {
             !verdict.contains("panicked"),
             "deadline-red is NOT panic-red (buglog 175's distinguishable-verdict requirement): {verdict}"
         );
+    }
+
+    /// Quality-review T17b M-Q4 — the loop's deadline WIRING pin
+    /// (closes the banked T17B-Q1 mutant): the three watchdog pins
+    /// call `run_detail_pass` with their own walls, so a mutant that
+    /// replaced the LOOP's call-site value with a constant (Q1 used
+    /// 1s) left every gate green. [`detail_deadline`] is the extracted
+    /// pure wiring: it must equal the fixture's tiers.yaml timeout AND
+    /// scale across fixtures (bm08's 120s wall vs bm01's 1800s).
+    #[test]
+    fn detail_deadline_equals_the_tier_wall_and_scales_across_fixtures() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let fixtures = tier_a_fixtures(&root).expect("tier A walk");
+        let find = |tier_path: &str| {
+            fixtures
+                .iter()
+                .find(|f| f.tier_path == tier_path)
+                .unwrap_or_else(|| panic!("{tier_path} is a Tier A fixture"))
+        };
+        let bm08 = find("DAC2020_boards/DAC2020_bm08.dsn");
+        let bm01 = find("DAC2020_boards/DAC2020_bm01.dsn");
+        // The literal walls are tiers.yaml's at pin time — if the tier
+        // changes, this pin forces the change to be acknowledged here.
+        assert_eq!(bm08.timeout_seconds, 120, "bm08's tier wall");
+        assert_eq!(bm01.timeout_seconds, 1800, "bm01's tier wall");
+        // The wiring: the deadline IS the tier wall, per fixture.
+        assert_eq!(detail_deadline(bm08), Duration::from_secs(120));
+        assert_eq!(detail_deadline(bm01), Duration::from_secs(1800));
+        // The scaling face: one fn, two walls an order of magnitude
+        // apart (the constant-deadline mutant dies here and at the
+        // equalities above).
+        assert_ne!(bm08.timeout_seconds, bm01.timeout_seconds);
+        assert_ne!(detail_deadline(bm08), detail_deadline(bm01));
     }
 
     /// T17b deadline-SILENT pin: a completing fixture under a generous
@@ -2389,7 +2433,7 @@ mod pins {
     /// 1 and dies here (witnessed RED at the fix, 2026-09-21).
     #[test]
     fn detail_pass_deadline_silent_preserves_the_deterministic_outcome() {
-        let _hook_guard = WATCHDOG_HOOK_LOCK.lock().expect("watchdog hook lock");
+        let _hook_guard = crate::panic_hook::lock();
         let root = crate::oracle::find_repo_root().expect("repo root");
         let fixture = tier_a_fixtures(&root)
             .expect("tier A walk")

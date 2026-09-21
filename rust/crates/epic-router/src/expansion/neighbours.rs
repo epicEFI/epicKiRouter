@@ -46,6 +46,8 @@
 
 use std::cmp::Ordering;
 
+use epic_board::board::Board;
+use epic_board::id::ItemId;
 use epic_geometry::line::Line;
 use epic_geometry::point::Point;
 use epic_geometry::side::Side;
@@ -108,6 +110,63 @@ pub(crate) fn compare_tree_entries(
         return id_diff.cmp(&0);
     }
     (a.shape_index_in_object as i32).cmp(&(b.shape_index_in_object as i32))
+}
+
+/// Registry keys at/above this bound are rooms (items keep their raw
+/// numeric item id as key). ONE definition shared by the production
+/// engine ([`crate::engine`]) and both replay harnesses
+/// (quality-review T17b M-Q1: the const previously lived in THREE
+/// copies — engine.rs, drill/pins.rs, expansion/pins.rs — held
+/// together only by a test asserting their equality; the room/item
+/// key-space boundary is now single-sourced by construction).
+pub(crate) const ROOM_KEY_BASE: u64 = 1 << 40;
+
+/// Java's VIRTUAL `Item.isTraceObstacle(int)` face for a tree key —
+/// [`Board::item_is_trace_obstacle`] (CA flag + keepout kinds) with
+/// the unknown-key verdict `true` the pre-fix net-membership arm
+/// produced (`!nets.contains` on an empty net list). The u32 key
+/// dispatch is shared by the production engine's shape view
+/// ([`crate::engine`]) and both replay harnesses (quality-review
+/// T17b M-Q1: three byte-identical copies collapsed into this one).
+pub(crate) fn board_item_is_trace_obstacle(board: &Board, key: u64, net_number: i32) -> bool {
+    u32::try_from(key)
+        .ok()
+        .map(ItemId::new)
+        .is_none_or(|id| board.item_is_trace_obstacle(id, net_number))
+}
+
+/// Java `ShapeSearchTree.overlappingObjects(shape, layer, ignoreNetNos)`
+/// `:412-413`: an object is kept only when it is an obstacle w.r.t.
+/// EVERY ignore net — the BASE `Item.isObstacle(int)` face
+/// (`Item.java:162-164`, overridden by NO item subclass — the
+/// trace-obstacle overrides do NOT apply to that walk) for ITEM keys,
+/// so a foreign NON-obstacle conduction area STAYS in the results
+/// while an own-net object drops out; ROOM keys keep the trait face
+/// (Java tree rooms are `CompleteFreeSpaceExpansionRoom`, whose
+/// `isObstacle(int)` is unconditionally true, `:77-79`). ONE shared
+/// branch for the production walk ([`crate::engine`], consumed by the
+/// ripup resolver) and the drill replay harness — quality-review
+/// T17b M-Q1: the two hand copies drifted apart once already (the
+/// T17b-D fix silently flipped the harness's ITEM keys to the virtual
+/// face, spec-review M-2); both impls are now pinned on the
+/// PLANE_WALK_DSN crossing cell.
+pub(crate) fn ignore_nets_key_is_obstacle<E: NeighbourEngine>(
+    engine: &E,
+    board: &Board,
+    key: u64,
+    net: i32,
+) -> bool {
+    if key >= ROOM_KEY_BASE {
+        engine.is_trace_obstacle(key, net)
+    } else {
+        // The BASE-face twin of the dispatch above — same u32 key
+        // unwrap, a DIFFERENT board method (`item_is_obstacle`, not
+        // the virtual `item_is_trace_obstacle`).
+        u32::try_from(key)
+            .ok()
+            .map(ItemId::new)
+            .is_none_or(|id| board.item_is_obstacle(id, net))
+    }
 }
 
 /// The engine seam behind the sorters (the
