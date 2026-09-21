@@ -374,6 +374,54 @@ pub fn check_forced_trace_polyline(
     true
 }
 
+/// The picked-trace geometry the Java combine sites read (bug 177).
+///
+/// Java `RoutingBoard.insertForcedTracePolyline` picks a same-net
+/// trace OBJECT at `:489-517` and reads `pickedTrace.polyline()` —
+/// the object's CURRENT `lines` field — at both combine sites
+/// (`:536-542` and, in the sampling retry, `:682`). The reference
+/// stays readable across the whole shove dance even when the dance
+/// REMOVES the picked trace from the board: a read after removal
+/// answers the geometry AS OF REMOVAL (the JVM object dies with its
+/// last field write, which the removal paths do not perform —
+/// removals only unregister).
+///
+/// The id-based port models the reference as the id plus the
+/// PICK-TIME geometry snapshot: re-read the id while it still
+/// resolves (the port's in-place geometry writes keep the id, so the
+/// current field is observable there — the same answer Java's live
+/// reference gives); once the id is dead, answer the snapshot — equal
+/// to Java's removal-time geometry in every death the current engine
+/// produces (all removal paths unregister WITHOUT changing geometry
+/// first). The residual corner — an in-place geometry write FOLLOWED
+/// by removal between pick and re-read — would make Java answer the
+/// changed (removal-time) geometry where the port answers the
+/// pick-time snapshot; no current code path writes-then-removes a
+/// picked trace inside the dance (in-place writes are combine
+/// receivers, which stay live), so the corner is documented, not
+/// handled (SEAM T17b).
+///
+/// Vacuity disclosure (T17b mutation analysis): both orderings are
+/// behaviorally indistinguishable in reachable worlds — a live,
+/// CHANGED picked trace cannot occur before either site (site 1 sits
+/// behind the board-read-only `spring_over_obstacles`; the loop's
+/// in-place writes are combine receivers that keep the id AND the
+/// change would need to precede the site re-read), and at site 2 the
+/// recombined value propagates only through `shape_index =
+/// lines - 3`, the entry-side corner VALUE at that index, and the
+/// `< 3 lines` gate — all invariant under prepending the picked
+/// chain (the pick forces the chain to attach at the front corner,
+/// `shorten` keeps the front). The fix's observable content is the
+/// no-panic + Java's VALUE; a skip-when-dead shape would be
+/// equivalent today, and the port still computes Java's value (the
+/// contract shape) rather than skipping.
+fn picked_trace_lines(board: &Board, picked: &(ItemId, Polyline)) -> Polyline {
+    board
+        .trace_polyline(picked.0)
+        .cloned()
+        .unwrap_or_else(|| picked.1.clone())
+}
+
 // ---------------------------------------------------------------------------
 // insertForcedTracePolyline (RoutingBoard.java:456-876)
 // ---------------------------------------------------------------------------
@@ -466,21 +514,38 @@ pub fn insert_forced_trace_polyline<S: PullTightSeam>(
     // fromCorner — its geometry will be used to cut off dog ears of
     // the check shape. The picked item must be a polyline trace with
     // equal nets, half width and clearance class.
+    //
+    // Java holds the picked POLYLINE TRACE OBJECT (a live reference)
+    // across the whole method; both combine sites read
+    // `pickedTrace.polyline()` — the object's CURRENT `lines` field.
+    // The object stays readable even after the shove dance REMOVES it
+    // from the board (memory-alive: the read answers the geometry as
+    // of removal). The id-based port models this as the id plus the
+    // PICK-TIME polyline snapshot: a live re-read while the id still
+    // names the trace (in-place geometry writes are id-preserving
+    // here, so the current field is observable), the snapshot once
+    // the id is dead. See `picked_trace_lines` + the bug-177 SEAM row.
     let picked_items = pick_traces_at(manager, board, &from_corner, layer);
-    let mut picked_trace: Option<ItemId> = None;
-    if picked_items.len() == 1 {
-        let candidate = picked_items[0];
-        let qualifies = match board.get(candidate) {
-            Some(entry) => {
-                matches!(entry.data, ItemData::Trace { .. })
-                    && crate::trace_ops::nets_equal(&entry.nets, net_slice)
-                    && board.trace_half_width(candidate) == Some(half_width)
-                    && board.item_clearance_class(candidate) == Some(clearance_class_index)
-            }
-            None => false,
+    let mut picked_trace: Option<(ItemId, Polyline)> = None;
+    if let [candidate] = picked_items[..] {
+        // Qualify + snapshot in one pass: the snapshot is the `lines`
+        // field the Java reference would capture — the tombstone half
+        // of the contract below.
+        let snapshot = match board.get(candidate) {
+            Some(entry) => match &entry.data {
+                ItemData::Trace { lines, .. }
+                    if crate::trace_ops::nets_equal(&entry.nets, net_slice)
+                        && board.trace_half_width(candidate) == Some(half_width)
+                        && board.item_clearance_class(candidate) == Some(clearance_class_index) =>
+                {
+                    Some(lines.clone())
+                }
+                _ => None,
+            },
+            None => None,
         };
-        if qualifies {
-            picked_trace = Some(candidate);
+        if let Some(snapshot) = snapshot {
+            picked_trace = Some((candidate, snapshot));
         }
     }
 
@@ -505,15 +570,9 @@ pub fn insert_forced_trace_polyline<S: PullTightSeam>(
     };
 
     // Java `:536-542`: combine with the picked trace's geometry.
-    let mut combined_polyline = match picked_trace {
+    let mut combined_polyline = match &picked_trace {
         None => new_polyline.clone(),
-        Some(picked) => {
-            let picked_lines = board
-                .trace_polyline(picked)
-                .expect("picked trace polyline")
-                .clone();
-            new_polyline.combine(Some(&picked_lines))
-        }
+        Some(picked) => new_polyline.combine(Some(&picked_trace_lines(board, picked))),
     };
     if combined_polyline.lines.len() < 3 {
         // Java `:543-553`: the fail row (net-94-gated, probe-side).
@@ -613,15 +672,9 @@ pub fn insert_forced_trace_polyline<S: PullTightSeam>(
                 return Some(from_corner);
             };
             new_corner = Point::Int(current_last_corner);
-            combined_polyline = match picked_trace {
+            combined_polyline = match &picked_trace {
                 None => new_polyline.clone(),
-                Some(picked) => {
-                    let picked_lines = board
-                        .trace_polyline(picked)
-                        .expect("picked trace polyline")
-                        .clone();
-                    new_polyline.combine(Some(&picked_lines))
-                }
+                Some(picked) => new_polyline.combine(Some(&picked_trace_lines(board, picked))),
             };
             if combined_polyline.lines.len() < 3 {
                 // Java `:682-684`: silent newCorner return (no fail
@@ -2640,5 +2693,174 @@ mod tests {
             CRIT_INT, CRIT_INT, -CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT, CRIT_INT, -CRIT_INT,
         ];
         assert_area(&board, 1, empty);
+    }
+
+    /// T17b (bug 177): the picked-trace TOMBSTONE contract at the
+    /// forced-insertion face. The picked same-net trace A (105) is
+    /// picked ALIVE at `:489-517`, then DIES mid-shove-loop — during
+    /// insert(shape 0) the foreign via V1 dodges north (the
+    /// W2-captured nearest-border tie-break) and its pad lands on A's
+    /// east leg; the forcedPad replacement removes A's id (the
+    /// `drill_move`-captured mechanism) — and the sampling-retry
+    /// recombine at `:682` must still answer the picked geometry.
+    /// Java holds the live `PolylineTrace` reference: it reads the
+    /// object's CURRENT `lines` field and stays readable after board
+    /// removal (memory-alive — the read answers removal-time
+    /// geometry, equal to pick-time here because removal never
+    /// rewrote A). The port models it as the id + pick-time snapshot
+    /// ([`picked_trace_lines`]). RED witness: pre-fix, the id re-read
+    /// panicked `picked trace polyline` at the site-2 `expect` (this
+    /// exact world, caught under `catch_unwind` during the probe —
+    /// the panic IS the red).
+    ///
+    /// The pinned board discriminates the surviving mutants:
+    /// * result = the SAMPLED corner (521000,299800) — the shorten
+    ///   arm ran and the retry SUCCEEDED (a fail would answer
+    ///   fromCorner (500000,300000); the `>100x` arm the same);
+    /// * 116 = T's 45°-wrap substitute around the RETRIED east
+    ///   segment — reachable only when the site-2 recombine used the
+    ///   snapshot: the combine sets `shapeIndex = lines-3` to the
+    ///   LONG east segment, whose insert shoves T (a skip-when-dead
+    ///   mutant re-checks the SHORT south segment instead: no wrap);
+    /// * 117 = the merged route + A's surviving substitute lineage —
+    ///   the west end keeps A's shape (cut at 501133 by the dodge
+    ///   pad), the south end the sampled corner;
+    /// * V1 (106) dodged to (501500,300368), U (108) untouched.
+    #[test]
+    fn t17b_picked_trace_tombstone_recombines_after_midloop_death() {
+        let mut board = parse_fixture();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        // A: contains from_corner at its first corner, rises NE, then
+        // runs east UNDER V1's dodge landing pad.
+        let a = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_points(&[p(500000, 300000), p(500600, 300600), p(501600, 300600)]),
+            0,
+            100,
+            &[NET],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("A");
+        assert_eq!(a.get(), 105, "the picked trace id");
+        let route =
+            Polyline::from_points(&[p(500000, 300000), p(521000, 300000), p(521000, 290000)]);
+        let padstack = add_via_padstack(&mut board, "t17b_via");
+        // V1 on shape 0's band: dodges north (the W2-captured
+        // nearest-border tie-break), its pad landing on A's east leg.
+        let v1 = insert_via(
+            &mut manager,
+            &mut board,
+            padstack,
+            IntPoint::new(501500, 300000),
+            &[THIRD_NET],
+            0,
+            FixedState::Unfixed,
+            false,
+        );
+        assert_eq!(v1.get(), 106, "the dodging via id");
+        // T crosses shape 1's band below shape 0's floor; U crosses
+        // T's substitute wrap path — the stack-depth pair that fails
+        // check(shape 1) and gates the sampling retry.
+        let t = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(520500, 299700), &p(521500, 299700)),
+            0,
+            100,
+            &[FOREIGN_NET],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("T");
+        assert_eq!(t.get(), 107, "the wrapped trace id");
+        let u = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(&p(520500, 295000), &p(521500, 295000)),
+            0,
+            100,
+            &[FIFTH_NET],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("U");
+        assert_eq!(u.get(), 108, "the untouched trace id");
+        assert_eq!(live_ids(&board).len(), 108, "the seed inventory");
+
+        let result = insert_forced_trace_polyline(
+            &mut manager,
+            &mut board,
+            &mut NoPullTight,
+            &route,
+            100,
+            0,
+            Some(&[NET][..]),
+            0,
+            10,
+            1,
+            2,
+            0,
+            100,
+            true,
+            None,
+        );
+        assert_eq!(
+            result,
+            Some(p(521000, 299800)),
+            "the SAMPLED corner: the shorten arm + a successful retry"
+        );
+        // The picked trace DIED (the dodge-pad replacement removed it)
+        // and T died (replaced by its wrap substitute); V1 and U live.
+        let ids = live_ids(&board);
+        assert!(!ids.contains(&105), "the picked trace died mid-loop");
+        assert!(!ids.contains(&107), "T replaced by the wrap substitute");
+        assert_eq!(
+            ids.iter()
+                .filter(|id| **id >= 105)
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![106, 108, 116, 117],
+            "the post-death inventory"
+        );
+        assert_eq!(
+            board.drill_center(v1),
+            Some(p(501500, 300368)),
+            "V1 dodged north (the tie-break capture)"
+        );
+        assert_corners(&board, u, &[(520500, 295000), (521500, 295000)]);
+        // The wrap substitute — the retried east segment's shove.
+        assert_corners(
+            &board,
+            ItemId::new(116),
+            &[
+                (520500, 299700),
+                (520794, 299700),
+                (520911, 299583),
+                (521089, 299583),
+                (521206, 299700),
+                (521500, 299700),
+            ],
+        );
+        // The final net-94 trace: A's substitute lineage west, the
+        // sampled route east.
+        assert_corners(
+            &board,
+            ItemId::new(117),
+            &[
+                (501133, 300600),
+                (500600, 300600),
+                (500000, 300000),
+                (521000, 300000),
+                (521000, 299800),
+            ],
+        );
+        assert_eq!(
+            board.get(ItemId::new(117)).map(|e| e.nets.clone()),
+            Some(vec![NET]),
+            "117 is the surviving net-94 trace"
+        );
     }
 }
