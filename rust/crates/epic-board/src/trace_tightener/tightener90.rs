@@ -159,7 +159,9 @@ fn try_skip_corners(
                 line_arr[(i - 2) as usize].clone()
             };
             let check_polyline = Polyline::new(check_lines.to_vec());
-            // Java `:91-92`.
+            // Java `TraceTightener90.trySkipCorners`, the `skipLines`
+            // length/clip test (`:96-99`; `:91-92` is the concluding-line
+            // else-arm).
             skip_lines = check_polyline.lines.len() == 4
                 && state
                     .current_clip_shape

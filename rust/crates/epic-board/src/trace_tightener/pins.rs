@@ -154,6 +154,95 @@ mod before {
     ];
 }
 
+/// Every trace's corner chain, id-tagged, descending-id order — the
+/// whole-board geometry fingerprint for the inertness pin.
+fn trace_chains(board: &crate::board::Board) -> Vec<(i32, Vec<(i32, i32)>)> {
+    board
+        .iter_descending()
+        .filter(|entry| matches!(entry.data, ItemData::Trace { .. }))
+        .map(|entry| {
+            let lines = board.trace_polyline(entry.id).expect("live trace");
+            (
+                entry.id.get() as i32,
+                (0..lines.corner_count())
+                    .map(|i| {
+                        let c = lines.corner_approx(i as i32);
+                        (c.x as i32, c.y as i32)
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+/// The 45°-inertness pin (quality-review MINOR-1, reviewer mutant
+/// T3-Q1): the seam's 45° face is asserted BYTE-EXACT end to end, not
+/// just at the gate value. Two arms:
+/// (a) the production-adjacent locator fixture `t9_locator45.dsn` —
+/// it carries NO routed traces (pins + keepouts only), so its
+/// inertness is STRUCTURAL; this arm pins the gate face on the shared
+/// fixture and survives T3-M6 by construction (disclosed, not the
+/// killer);
+/// (b) the killer: the crafted 45° board `tightener45.dsn` (one
+/// 6-corner 45° staircase) with the region joined over the trace's
+/// own corners — under the dormancy contract nothing moves. NOT
+/// vacuous: mutant T3-M6 (the T4 mis-integration shape — `active_for`
+/// wired open AND the 45° arm of `pull_tight_polyline` dispatched to
+/// the 90° tightener) collapses the staircase and dies at the
+/// byte-exact assert. Gate-open ALONE stays green by design (T3-Q1:
+/// the T4 fallback is identity) — the pin dies only when inertness is
+/// actually broken.
+#[test]
+fn t3_seam_inert_on_fortyfive_degree_boards() {
+    for (rel, joins) in [
+        (
+            "../../../rust/harness/fixtures/locator-spike/t9_locator45.dsn",
+            vec![(200000, 300000), (800000, 300000), (150000, 450000)],
+        ),
+        (
+            "../../../rust/harness/fixtures/trace-tightener/tightener45.dsn",
+            vec![
+                (100000, 100000),
+                (200000, 100000),
+                (300000, 200000),
+                (400000, 200000),
+                (500000, 300000),
+                (600000, 300000),
+            ],
+        ),
+    ] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+        let mut board = parse_board_from_path(&path.to_string_lossy());
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let before = trace_chains(&board);
+        start_marking_changed_area(&mut board);
+        for (x, y) in &joins {
+            join_changed_area(
+                &mut board,
+                &FloatPoint::new(f64::from(*x), f64::from(*y)),
+                0,
+            );
+        }
+        opt_changed_area(
+            &mut manager,
+            &mut board,
+            &mut TraceTightenerSeam,
+            &[],
+            None,
+            100,
+            None,
+            0,
+            None,
+            None,
+            0,
+            false,
+        );
+        let after = trace_chains(&board);
+        assert_eq!(before, after, "45° board byte-exact under the seam: {rel}");
+    }
+}
+
 /// The `stair` world (capture world 1): the 6-corner N1 staircase
 /// joins its own six corners; the reposition + skipSegmentsOfLength0
 /// ladder collapses it to the capture's 3-corner L — and every OTHER
@@ -286,8 +375,13 @@ fn t3_block_two_sweep_fixpoint_jar() {
 /// class-selection face — TRUE only for `NinetyDegree`. Parsed-fixture
 /// arms: the 90° fixture (this one) activates; the 45° locator and the
 /// any-angle locator stay no-ops. The full 23-tier-fixture census
-/// (0 ninety / 23 fortyfive / 0 any-angle) is report-level evidence
-/// (grep of the fixtures' snap_angle); the ENUM mapping is pinned here.
+/// (0 ninety / 23 fortyfive / 0 any-angle) rests on the Java parser
+/// DEFAULT — no tier fixture carries a `snap_angle` keyword at all
+/// (`ReadScopeParameter.snapAngle`, `ReadScopeParameter.java:59`,
+/// defaults to FORTYFIVE_DEGREE; spec-review whole-root sweep: 0 hits
+/// across all 2334 fixture DSNs) — and is machine-tripwired by the
+/// dsn-compare goldens' Java-captured `snap_angle:"45"` field
+/// (1331/1331 parseable fixtures); the ENUM mapping is pinned here.
 #[test]
 fn t3_dispatch_active_for_census() {
     assert!(active_for(AngleRestriction::NinetyDegree));
@@ -394,11 +488,18 @@ fn t3_stoppable_flag_face() {
 /// `second_last_corner_skipped` tail fires (instrumented-reach
 /// evidence in logs/M4-T3/evidence/); the final geometry is the jar's
 /// fixpoint literal per trace. The two L-shaped traces pin the
-/// middle-corner skip path. Caveat (banked-inert T3-M2): killing the
-/// flag arm heals to the SAME finals on every world/face probed —
-/// these literals pin the arm-execution path downstream, so a change
-/// to reposition_lines or Polyline construction that breaks the heal
-/// surfaces here.
+/// middle-corner skip path. Caveat (the T4-revisit condition, TWO
+/// banked mutants): (1) T3-M2 — killing the
+/// `second_last_corner_skipped` flag arm heals to the SAME finals on
+/// every world/face probed; (2) quality-review T3-Q4 — removing
+/// `reposition_line`'s `first_time` biggest-change break (Java
+/// `:313-315`) also heals: it fires 8x across the pin run yet
+/// converges to the same finals. Both are reposition faces the outer
+/// fixpoint heals; if T4's 45° port changes `reposition_lines` or
+/// Polyline construction, RE-PROBE BOTH — witnessing the break needs
+/// a world where first-accepted ≠ fixpoint (a clearance-borderline
+/// bisection). These literals pin the arm-execution path downstream
+/// so a heal-break surfaces here.
 #[test]
 fn t3_last_corner_skip_corner_worlds_jar() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

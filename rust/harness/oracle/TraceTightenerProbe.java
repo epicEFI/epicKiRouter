@@ -264,7 +264,7 @@ public class TraceTightenerProbe {
    * joining that trace's own corners on layer 0 — the same
    * production-shape opt call. Used to jar-witness crafted end-geometry
    * candidates (e.g. the last-corner-skip arm census on
-   * t3m2-census.dsn). One "corner_world" row per trace with the before
+   * last-corner-skip.dsn). One "corner_world" row per trace with the before
    * and after chains.
    */
   private static void runCornerWorlds(byte[] bytes, String fileName) throws Exception {
