@@ -3,7 +3,8 @@
 //! after tail removal, and after each fanout escape
 //! (`RoutingBoardOperations.optChangedArea`, the [`PullTightSeam`]
 //! consumption). M4-T3 ports the base class plus the 90° variant
-//! ([`tightener90`]); the 45°/any-angle variants are T4.
+//! ([`tightener90`]); M4-T4 adds the 45° variant ([`tightener45`]) —
+//! the angle restriction of every tier fixture — and defers any-angle.
 //!
 //! ## The fixpoint (`TraceTightener.optChangedArea`, `:121-169`)
 //!
@@ -60,12 +61,28 @@
 //!   geometry equality on via-bearing boards is impossible until T5 —
 //!   the determinism-digest and events-compare expectations account
 //!   for this.
-//! * **45°/any-angle variants** — Java `getInstance` dispatches
-//!   FORTYFIVE_DEGREE → `TraceTightener45`, else →
-//!   `TraceTightenerAnyAngle`; both are T4. [`TraceTightenerSeam`]
-//!   therefore ACTIVATES only on `NINETY_DEGREE` boards and keeps the
-//!   T10c no-op face everywhere else (tier census: every fixture the
-//!   battery measures is 45°, so the T3 gates run the no-op face).
+//! * **45° variant (T4)** — `TraceTightener45` (674 l) is ported in
+//!   [`tightener45`]: the diagonal `pullTight` fixpoint
+//!   (reduce-corner → smoothen → reposition), the clip-gated
+//!   corner-reduction arms, the REAL smoothen bodies the 90° variant
+//!   only stubs, and the at-trace start/end corner overrides.
+//!   [`TraceTightenerSeam`] ACTIVATES on 45° and 90° boards.
+//! * **Any-angle variant (deferred)** — Java `getInstance` dispatches
+//!   `AngleRestriction.NONE` → `TraceTightenerAnyAngle` (~800 l with
+//!   its own reposition/avoid-acid faces and the `c_max_cos_angle`
+//!   consumer); the census found 0 any-angle fixtures (the parse
+//!   default is FORTYFIVE_DEGREE), so T4 defers it: [`active_for`]
+//!   keeps the no-op gate on `NONE` and the `pull_tight_polyline`
+//!   identity fallback is unreachable through the seam. A future
+//!   any-angle fixture fails loudly at the dispatch pin.
+//! * **The `PolylineTrace.pullTight` pin-connection tail (deferred)** —
+//!   Java `swapConnectionToPin`/`correctConnectionToPin`
+//!   (`PolylineTrace.java:842-855`, gated
+//!   `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`) is
+//!   LIVE on every 45° board (the parser defaults `pinEdgeToTurnDist`
+//!   to `minTraceHalfWidth`, `Structure.java:667-668`) but is NOT
+//!   ported in T4; the tail-deferral counter-witness pin isolates the
+//!   divergence to exactly this face. T6 re-triage owns the port.
 //! * **`joinGraphicsUpdateBox`** — GUI update box, dropped (the
 //!   headless D-divergence documented in
 //!   [`crate::routing_board_insert`]).
@@ -103,13 +120,20 @@ use crate::trace_ops::{
 use crate::tree_manager::SearchTreeManager;
 use crate::tree_shapes::clearance_compensation_value;
 
+pub(crate) mod tightener45;
 pub(crate) mod tightener90;
+pub(crate) use tightener45::{
+    pull_tight_45, smoothen_end_corner_at_trace_45, smoothen_start_corner_at_trace_45,
+};
 pub(crate) use tightener90::pull_tight_90;
 
 /// Java `TraceTightener.c_min_corner_dist_square` (`:36`) — "with
 /// angles too close to 180 degree the algorithm becomes numerically
-/// unstable". (`c_max_cos_angle` (`:33`) has no 90°-variant consumer;
-/// it lands with T4's 45° port.)
+/// unstable". (`c_max_cos_angle` (`:33`) has no 90°/45°-variant
+/// consumer — only `TraceTightenerAnyAngle.java:405` reads it; it
+/// lands with the any-angle port. CORRECTION, T4: the T3 comment
+/// claimed it lands with T4's 45° port — wrong; TraceTightener45
+/// never reads it.)
 const C_MIN_CORNER_DIST_SQUARE: f64 = 0.9;
 
 /// The epic-board mirror of Java's
@@ -374,9 +398,10 @@ impl TraceTightener {
     }
 
     /// Java `public abstract Polyline pullTight(Polyline)` (`:192`) —
-    /// the variant dispatch. T3 ports the 90° arm; the 45°/any-angle
-    /// arms are T4 identity fallbacks (the seam never constructs this
-    /// instance on those boards — see [`TraceTightenerSeam`]).
+    /// the variant dispatch. T3 ports the 90° arm, T4 the 45° arm;
+    /// any-angle keeps the identity fallback (the variant is deferred —
+    /// census 0 any-angle fixtures — and unreachable through the seam,
+    /// which [`active_for`] gates to the two built variants).
     fn pull_tight_polyline(
         &mut self,
         manager: &mut SearchTreeManager,
@@ -385,8 +410,10 @@ impl TraceTightener {
     ) -> Polyline {
         match self.variant {
             AngleRestriction::NinetyDegree => pull_tight_90(self, manager, board, polyline),
-            // T4: TraceTightener45 / TraceTightenerAnyAngle.
-            _ => polyline,
+            AngleRestriction::FortyfiveDegree => pull_tight_45(self, manager, board, polyline),
+            // Java `TraceTightenerAnyAngle` — deferred (T4 boundary,
+            // SEAM); never constructed while `active_for` gates None.
+            AngleRestriction::None => polyline,
         }
     }
 
@@ -849,28 +876,39 @@ impl TraceTightener {
         })
     }
 
-    /// Java `smoothenStartCornerAtTrace` (`:544`, abstract) — the
-    /// 90° variant answers null (`TraceTightener90.java:161-163`).
+    /// Java `smoothenStartCornerAtTrace` (`:544`, abstract) — the 90°
+    /// variant answers null (`TraceTightener90.java:161-163`); the 45°
+    /// variant carries the REAL body (`TraceTightener45.java:462-565`,
+    /// ported in [`tightener45`]). Any-angle stays deferred.
     fn smoothen_start_corner_at_trace(
         &mut self,
-        _manager: &mut SearchTreeManager,
-        _board: &mut Board,
-        _trace_id: ItemId,
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        trace_id: ItemId,
     ) -> Option<Polyline> {
-        None
+        match self.variant {
+            AngleRestriction::FortyfiveDegree => {
+                smoothen_start_corner_at_trace_45(self, manager, board, trace_id)
+            }
+            _ => None,
+        }
     }
 
     /// Java `smoothenEndCornerAtTrace` (`:546`, abstract) — the 90°
-    /// variant answers null (`TraceTightener90.java:166-168`); the
-    /// whole smoothen arm is therefore inert on 90° boards (T4 lands
-    /// the real bodies with the 45° variant).
+    /// variant answers null (`TraceTightener90.java:166-168`); the 45°
+    /// variant carries the REAL body (`TraceTightener45.java:568-673`).
     fn smoothen_end_corner_at_trace(
         &mut self,
-        _manager: &mut SearchTreeManager,
-        _board: &mut Board,
-        _trace_id: ItemId,
+        manager: &mut SearchTreeManager,
+        board: &mut Board,
+        trace_id: ItemId,
     ) -> Option<Polyline> {
-        None
+        match self.variant {
+            AngleRestriction::FortyfiveDegree => {
+                smoothen_end_corner_at_trace_45(self, manager, board, trace_id)
+            }
+            _ => None,
+        }
     }
 
     /// Java `avoidAcidTraps` (`:517-542`) — verbatim the identity:
@@ -935,8 +973,9 @@ impl ItemData {
 /// :810-859`) — the gate ladder + the 6-arg `pullTight` dispatch + the
 /// `change` consumption. The `swapConnectionToPin` /
 /// `correctConnectionToPin` tail (`:842-855`) is gated on
-/// `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0` and is
-/// unreachable on 90° boards; it lands with T4's 45° variant.
+/// `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`:
+/// unreachable on 90° boards, LIVE on 45° boards, and DEFERRED in T4
+/// (module docs + the tail comment below).
 pub(crate) fn polyline_trace_pull_tight(
     state: &mut TraceTightener,
     manager: &mut SearchTreeManager,
@@ -1017,8 +1056,15 @@ pub(crate) fn polyline_trace_pull_tight(
         return true;
     }
     // Java `:842-855`: the swap/correct pin-connection tail —
-    // `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`,
-    // unreachable on the boards this seam activates for (T4).
+    // `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`.
+    // T4 BOUNDARY (SEAM, disclosed): this tail is LIVE on every 45°
+    // board (the DSN parser defaults pinEdgeToTurnDist to
+    // minTraceHalfWidth, `Structure.java:667-668`, and no tier fixture
+    // carries `smd_to_turn_gap`) but is DEFERRED — it drags in
+    // `swapConnectionToPin`/`correctConnectionToPin` (~300 l Java) and
+    // the exit-restriction plumbing. The tail-deferral counter-witness
+    // pin proves the divergence is exactly this face (main arms inert
+    // BY CONSTRUCTION on its world, Java capture shows the movement).
     false
 }
 
@@ -1050,9 +1096,9 @@ fn join_approx(board: &mut Board, a: &Line, b: &Line, layer: i32) {
 
 /// The M4 production [`PullTightSeam`] — Java's
 /// `RoutingBoardOperations.optChangedArea` tightener arm and the
-/// `insertForcedTracePolyline` per-trace face, behind the 90°
-/// activation gate (module docs: the 45°/any-angle variants are T4,
-/// so non-90 boards keep the T10c no-op behavior).
+/// `insertForcedTracePolyline` per-trace face, behind the
+/// [`active_for`] activation gate (45° + 90° live as of T4; any-angle
+/// keeps the T10c no-op face until its variant lands).
 pub struct TraceTightenerSeam;
 
 impl PullTightSeam for TraceTightenerSeam {
@@ -1118,15 +1164,17 @@ impl PullTightSeam for TraceTightenerSeam {
     }
 }
 
-/// The T3 activation face of the variant dispatch: Java `getInstance`
-/// (`:96-110`) selects the 90° algorithm on NINETY_DEGREE boards and
-/// the 45°/any-angle algorithms otherwise; the T3 port has only the
-/// 90° variant, so the seam ACTIVATES only here and defers the rest
-/// to T4. The dispatch pin asserts this mapping over the tier
-/// fixtures (census: 0 ninety / 23 fortyfive / 0 any-angle).
+/// The T4 activation face of the variant dispatch: Java `getInstance`
+/// (`:96-110`) selects TraceTightener90 on NINETY_DEGREE boards,
+/// TraceTightener45 on FORTYFIVE_DEGREE boards, and
+/// TraceTightenerAnyAngle otherwise. The port carries the first two
+/// variants; any-angle stays DEFERRED (census: 0 any-angle fixtures —
+/// the parse default is FORTYFIVE_DEGREE, `ReadScopeParameter.java:59`),
+/// so the seam keeps the T10c no-op face only on `NONE` and a future
+/// any-angle fixture fails loudly at the dispatch pin, not silently.
 #[must_use]
 pub fn active_for(angle_restriction: AngleRestriction) -> bool {
-    angle_restriction == AngleRestriction::NinetyDegree
+    !matches!(angle_restriction, AngleRestriction::None)
 }
 
 #[cfg(test)]

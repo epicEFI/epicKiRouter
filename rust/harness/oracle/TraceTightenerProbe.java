@@ -242,6 +242,20 @@ public class TraceTightenerProbe {
 
   /** The corner chain of trace p_id as one string ("x:y;x:y;..."). */
   private static String traceCorners(RoutingBoard board, int id) {
+    String s = traceCornersOrNull(board, id);
+    if (s == null) {
+      throw new IllegalStateException("no trace " + id);
+    }
+    return s;
+  }
+
+  /**
+   * Null when the id is gone: the 45-degree pin-connection tail
+   * (swapConnectionToPin/correctConnectionToPin) may REMOVE and
+   * REINSERT the trace under a new id (or split it), so a corner-world
+   * row must tolerate a vanished focal id instead of killing the run.
+   */
+  private static String traceCornersOrNull(RoutingBoard board, int id) {
     for (Item item : board.getItems()) {
       if (item instanceof PolylineTrace trace && item.getId() == id) {
         StringBuilder b = new StringBuilder();
@@ -255,7 +269,7 @@ public class TraceTightenerProbe {
         return b.toString();
       }
     }
-    throw new IllegalStateException("no trace " + id);
+    return null;
   }
 
   /**
@@ -266,8 +280,20 @@ public class TraceTightenerProbe {
    * candidates (e.g. the last-corner-skip arm census on
    * last-corner-skip.dsn). One "corner_world" row per trace with the before
    * and after chains.
+   *
+   * <p>T4 extension: each world also dumps the FULL inventory
+   * (every item, every trace's corner chain at Double.toString
+   * precision) before and after — the 45-degree witnesses need the
+   * whole board, not just the focal trace: the smoothen-at-trace arms
+   * reshape the CONTACT trace, the junction worlds move the partner,
+   * and the pin-connection tail may insert a shove-fixed exit stub
+   * under a NEW trace id. Traces with no PolylineTrace corners (pins,
+   * vias, keepouts) still appear with kind+nets so id churn is visible.
    */
-  private static void runCornerWorlds(byte[] bytes, String fileName) throws Exception {
+  private static void runCornerWorlds(byte[] bytes, String dsnPath) throws Exception {
+    // The row's `fixture` field is the DSN BASENAME (the caller's
+    // second argument is the mode string "cornerworlds", not a name).
+    String fileName = Paths.get(dsnPath).getFileName().toString();
     RoutingBoard once = parse(bytes, fileName);
     List<Integer> ids = new ArrayList<>();
     for (Item item : once.getItems()) {
@@ -278,7 +304,7 @@ public class TraceTightenerProbe {
     ids.sort(Comparator.comparingInt(Integer::intValue));
     for (int id : ids) {
       RoutingBoard board = parse(bytes, fileName);
-      String before = traceCorners(board, id);
+      String before = traceCornersOrNull(board, id);
       board.startMarkingChangedArea();
       for (Item item : board.getItems()) {
         if (item instanceof PolylineTrace trace && item.getId() == id) {
@@ -288,9 +314,12 @@ public class TraceTightenerProbe {
           }
         }
       }
+      dumpInventory("before", board);
       board.optChangedArea(new int[0], null, 100, null, null, 0);
-      String after = traceCorners(board, id);
+      String after = traceCornersOrNull(board, id);
+      dumpInventory("after", board);
       JsonObject r = obj("corner_world");
+      r.addProperty("fixture", fileName);
       r.addProperty("trace", id);
       r.addProperty("before", before);
       r.addProperty("after", after);
@@ -306,7 +335,7 @@ public class TraceTightenerProbe {
       return;
     }
     if (args.length > 1 && args[1].equals("cornerworlds")) {
-      runCornerWorlds(bytes, fileName);
+      runCornerWorlds(bytes, args[0]);
       return;
     }
 

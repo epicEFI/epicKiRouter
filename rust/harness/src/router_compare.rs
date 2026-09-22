@@ -74,6 +74,16 @@
 //! SES files AND byte-identical manifests expected (the manifest omits
 //! the non-determinism family by construction; deterministic budgets
 //! default ON). Any divergence is a real determinism bug — buglog it.
+//!
+//! REBUILD CAVEAT (witnessed M4-T4): the gate spawns the BUILT
+//! `target/release/epic-cli` (the [`resolve_epic_cli`] sibling rule),
+//! and `cargo run/build -p epic-harness` does NOT rebuild that bin —
+//! epic-cli is linked only as a LIBRARY dependency here, so a stale
+//! `epic-cli` executable silently routes with OLD engine code and the
+//! gate stays green on stale bytes. Run `cargo build -p epic-cli`
+//! (release) before judging any digest — the same staleness warning
+//! the e2e smokes carry, which a real digest rotation masked for a
+//! full A/B round on 2026-09-22.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -2420,12 +2430,15 @@ mod pins {
     /// deterministic result. ecc83-pp_v2 is the buglog-176 fingerprint
     /// fixture (the T17b-measured POST-fix battery row: incomplete 0 —
     /// the isTraceObstacle parity fix let the maze route net 6 — 16
-    /// violation pairs, 15 traces / 0 vias / 66 bends, wall ~0.2s
-    /// release; the PRE-fix row was incomplete 1 / 51 bends / ~6.4s) —
-    /// the unwatched subprocess run and the watched in-process run
-    /// must agree on all of them (the subprocess row equals the
-    /// committed JAVA record exactly: 991.32 / 0 unrouted / 16
-    /// violations). Mutants: a
+    /// violation pairs, wall ~0.2s release; the PRE-fix row was
+    /// incomplete 1 / ~6.4s) — the unwatched subprocess run and the
+    /// watched in-process run must agree on all of them (the
+    /// subprocess row equals the committed JAVA record exactly: 991.32
+    /// / 0 unrouted / 16 violations). M4-T4 geometry rotation: with
+    /// the 45° tightener live the detail pass straightens its own
+    /// output — 15 traces / 0 vias / 66 bends became 14 traces / 0
+    /// vias / 19 bends (score and violations UNCHANGED: the Java
+    /// record 991.32 / 0 / 16 still matches). Mutants: a
     /// machinery that fabricates or swallows the worker result dies
     /// here; a wall that fires early turns this `Ok` into the deadline
     /// `Err` and dies here; a regression of the buglog-176 fix (the CA
@@ -2453,8 +2466,9 @@ mod pins {
         );
         assert_eq!(
             (detail.trace_count, detail.via_count, detail.bend_count),
-            (15, 0, 66),
-            "buglog-176 geometry counts: 15 traces / 0 vias / 66 bends"
+            (14, 0, 19),
+            "buglog-176 geometry counts post M4-T4: 14 traces / 0 vias / \
+             19 bends (the live tightener's straightening; was 15/0/66)"
         );
     }
 

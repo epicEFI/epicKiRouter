@@ -164,7 +164,12 @@ cargo run -q -p epic-harness --release -- router compare
 # paragraph); the rust-check.yml comment records the condition.
 cargo run -q -p epic-harness -- router compare --report-only
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
-# manifest (digests 96ba7300… / 16714d5e… at the M3 exit).
+# manifest (post-M4-T4 digests 8bd773fca… / 16714d5e…; the M3-exit
+# values were 96ba7300… / 16714d5e… — the SES rotated with the live
+# 45° tightener, the manifest counts did not). REBUILD FIRST:
+# `-p epic-harness` does not rebuild the spawned target/release/epic-cli
+# bin (library-only dep) — a stale bin routes with old engine code.
+cargo build -q -p epic-cli --release
 cargo run -q -p epic-harness -- router determinism
 # DRC compare: parse-time incompletes + clearance violations on 17
 # fixtures (11 Tier A + 3 PCBench pre-routed + 3 crafted pin boards).

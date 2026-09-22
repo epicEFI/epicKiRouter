@@ -22,7 +22,7 @@
 //! (Java's budget is wall clock): they pin the Rust-deterministic
 //! tick face and are disclosed as such in the task report.
 
-use super::{TraceTightenerSeam, active_for};
+use super::{TraceTightener, TraceTightenerSeam, active_for};
 use crate::id::ItemId;
 use crate::items::ItemData;
 use crate::routing_board_insert::{
@@ -31,17 +31,33 @@ use crate::routing_board_insert::{
 use crate::rules_surf::AngleRestriction;
 use crate::test_util::parse_board_from_path;
 use crate::tree_manager::SearchTreeManager;
+use epic_geometry::direction::Direction;
 use epic_geometry::float_point::FloatPoint;
+use epic_geometry::int_point::IntPoint;
+use epic_geometry::line::Line;
+use epic_geometry::point::Point;
+use epic_geometry::polyline::Polyline;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-/// A fresh fixture parse + tree reinsert (the probe's `parse`).
+/// A fresh fixture parse + tree reinsert + the wiring-scope-tail
+/// normalize (the probe's `parse` = Java `DsnReader.readBoard` — which
+/// fires `board.normalizeAllTraces()` at the `(wiring ...)` scope tail,
+/// `Wiring.java:347` — plus `reinsertTreeItems()`). The epic-dsn reader
+/// deliberately omits the normalize pass (the D11 deferral,
+/// `epic-dsn/src/reader.rs`): every consumer MUST run
+/// [`crate::normalize_all::normalize_all_traces`] after building its
+/// `SearchTreeManager` (the production recipe,
+/// `epic-cli/src/route.rs:486-490`). Omitting it is invisible on
+/// disjoint-wire fixtures (normalize is a no-op) but diverges the
+/// moment same-net wires touch — the smooth fixture's T junctions.
 fn parse_fixture() -> (SearchTreeManager, crate::board::Board) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../rust/harness/fixtures/trace-tightener/tightener90.dsn");
     let mut board = parse_board_from_path(&path.to_string_lossy());
     let mut manager = SearchTreeManager::new();
     manager.reinsert_tree_items(&mut board);
+    crate::normalize_all::normalize_all_traces(&mut manager, &mut board);
     (manager, board)
 }
 
@@ -154,93 +170,70 @@ mod before {
     ];
 }
 
-/// Every trace's corner chain, id-tagged, descending-id order — the
-/// whole-board geometry fingerprint for the inertness pin.
-fn trace_chains(board: &crate::board::Board) -> Vec<(i32, Vec<(i32, i32)>)> {
-    board
-        .iter_descending()
-        .filter(|entry| matches!(entry.data, ItemData::Trace { .. }))
-        .map(|entry| {
-            let lines = board.trace_polyline(entry.id).expect("live trace");
-            (
-                entry.id.get() as i32,
-                (0..lines.corner_count())
-                    .map(|i| {
-                        let c = lines.corner_approx(i as i32);
-                        (c.x as i32, c.y as i32)
-                    })
-                    .collect(),
-            )
-        })
-        .collect()
-}
-
-/// The 45°-inertness pin (quality-review MINOR-1, reviewer mutant
-/// T3-Q1): the seam's 45° face is asserted BYTE-EXACT end to end, not
-/// just at the gate value. Two arms:
-/// (a) the production-adjacent locator fixture `t9_locator45.dsn` —
-/// it carries NO routed traces (pins + keepouts only), so its
-/// inertness is STRUCTURAL; this arm pins the gate face on the shared
-/// fixture and survives T3-M6 by construction (disclosed, not the
-/// killer);
-/// (b) the killer: the crafted 45° board `tightener45.dsn` (one
-/// 6-corner 45° staircase) with the region joined over the trace's
-/// own corners — under the dormancy contract nothing moves. NOT
-/// vacuous: mutant T3-M6 (the T4 mis-integration shape — `active_for`
-/// wired open AND the 45° arm of `pull_tight_polyline` dispatched to
-/// the 90° tightener) collapses the staircase and dies at the
-/// byte-exact assert. Gate-open ALONE stays green by design (T3-Q1:
-/// the T4 fallback is identity) — the pin dies only when inertness is
-/// actually broken.
+/// The 45°-LIVENESS pin (the T3 dormancy pin
+/// `t3_seam_inert_on_fortyfive_degree_boards`, converted per the T4
+/// contract): the crafted 45° board `tightener45.dsn` (one 6-corner
+/// staircase, net N1) joined over its own corners must converge to
+/// the JAR's fixpoint literal — the cornerworlds capture row
+/// (`logs/M4-T4/evidence/tightener45_cornerworlds_run3.jsonl`,
+/// double-run byte-identical): before
+/// `100000:100000;200000:100000;300000:200000;400000:200000;500000:300000;600000:300000`
+/// → after `100000:100000;400000:100000;600000:300000` (the
+/// reposition ladder folds the three staircase steps and the
+/// skipSegmentsOfLength0 arm removes the zero-length tails). This is
+/// also the T3-M6 composite mis-dispatch killer: dispatching the 45°
+/// arm to `pull_tight_90` produces a DIFFERENT final
+/// `(100000:100000;100000:-100000;500000:300000;600000:300000)`
+/// shape — the literal dies. Non-termination of the fixpoint hangs
+/// the test (the termination face).
 #[test]
-fn t3_seam_inert_on_fortyfive_degree_boards() {
-    for (rel, joins) in [
-        (
-            "../../../rust/harness/fixtures/locator-spike/t9_locator45.dsn",
-            vec![(200000, 300000), (800000, 300000), (150000, 450000)],
-        ),
-        (
-            "../../../rust/harness/fixtures/trace-tightener/tightener45.dsn",
-            vec![
-                (100000, 100000),
-                (200000, 100000),
-                (300000, 200000),
-                (400000, 200000),
-                (500000, 300000),
-                (600000, 300000),
-            ],
-        ),
-    ] {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
-        let mut board = parse_board_from_path(&path.to_string_lossy());
-        let mut manager = SearchTreeManager::new();
-        manager.reinsert_tree_items(&mut board);
-        let before = trace_chains(&board);
-        start_marking_changed_area(&mut board);
-        for (x, y) in &joins {
-            join_changed_area(
-                &mut board,
-                &FloatPoint::new(f64::from(*x), f64::from(*y)),
-                0,
-            );
-        }
-        opt_changed_area(
-            &mut manager,
+fn t4_staircase_liveness_jar_final() {
+    let joins = [
+        (100000, 100000),
+        (200000, 100000),
+        (300000, 200000),
+        (400000, 200000),
+        (500000, 300000),
+        (600000, 300000),
+    ];
+    let (mut manager, mut board) =
+        parse_fixture_rel("../../../rust/harness/fixtures/trace-tightener/tightener45.dsn");
+    let before = trace_fingerprint(&board);
+    assert_eq!(
+        before,
+        vec![
+            "1|100000:100000;200000:100000;300000:200000;400000:200000;500000:300000;600000:300000"
+        ],
+        "staircase parse shape"
+    );
+    start_marking_changed_area(&mut board);
+    for (x, y) in &joins {
+        join_changed_area(
             &mut board,
-            &mut TraceTightenerSeam,
-            &[],
-            None,
-            100,
-            None,
+            &FloatPoint::new(f64::from(*x), f64::from(*y)),
             0,
-            None,
-            None,
-            0,
-            false,
         );
-        let after = trace_chains(&board);
-        assert_eq!(before, after, "45° board byte-exact under the seam: {rel}");
     }
+    opt_changed_area(
+        &mut manager,
+        &mut board,
+        &mut TraceTightenerSeam,
+        &[],
+        None,
+        100,
+        None,
+        0,
+        None,
+        None,
+        0,
+        false,
+    );
+    let after = trace_fingerprint(&board);
+    assert_eq!(
+        after,
+        vec!["1|100000:100000;400000:100000;600000:300000"],
+        "staircase jar fixpoint (the 90°-dispatch composite makes a different final)"
+    );
 }
 
 /// The `stair` world (capture world 1): the 6-corner N1 staircase
@@ -371,21 +364,26 @@ fn t3_block_two_sweep_fixpoint_jar() {
     assert_corners(&board, b, &[(480000, 360000), (480000, 420000)]);
 }
 
-/// The dispatch pin (M4-T3 census): `active_for` is the getInstance
-/// class-selection face — TRUE only for `NinetyDegree`. Parsed-fixture
-/// arms: the 90° fixture (this one) activates; the 45° locator and the
-/// any-angle locator stay no-ops. The full 23-tier-fixture census
-/// (0 ninety / 23 fortyfive / 0 any-angle) rests on the Java parser
-/// DEFAULT — no tier fixture carries a `snap_angle` keyword at all
-/// (`ReadScopeParameter.snapAngle`, `ReadScopeParameter.java:59`,
-/// defaults to FORTYFIVE_DEGREE; spec-review whole-root sweep: 0 hits
-/// across all 2334 fixture DSNs) — and is machine-tripwired by the
-/// dsn-compare goldens' Java-captured `snap_angle:"45"` field
-/// (1331/1331 parseable fixtures); the ENUM mapping is pinned here.
+/// The dispatch pin (M4-T3 census, LIVE contract as of T4 — the T3
+/// dormancy form asserted `FortyfiveDegree => false`, superseded with
+/// disclosure): `active_for` is the getInstance class-selection face
+/// — TRUE for `NinetyDegree` and (since T4) `FortyfiveDegree`, FALSE
+/// for `None`. Parsed-fixture arms: the 90° and 45° fixtures
+/// activate; the any-angle locator (the only fixture carrying an
+/// explicit `(snap_angle none)`) stays a no-op — that arm is the
+/// any-angle DEFERRAL stub (no tier fixture selects any-angle: no
+/// tier fixture carries a `snap_angle` keyword at all beyond the
+/// locators — `ReadScopeParameter.snapAngle`,
+/// `ReadScopeParameter.java:59`, defaults to FORTYFIVE_DEGREE;
+/// spec-review whole-root sweep: 0 hits across all 2334 fixture
+/// DSNs — machine-tripwired by the dsn-compare goldens'
+/// Java-captured `snap_angle:"45"` field, 1331/1331 parseable
+/// fixtures); the SEAM's any-angle boundary opens with the
+/// any-angle port, not before.
 #[test]
 fn t3_dispatch_active_for_census() {
     assert!(active_for(AngleRestriction::NinetyDegree));
-    assert!(!active_for(AngleRestriction::FortyfiveDegree));
+    assert!(active_for(AngleRestriction::FortyfiveDegree));
     assert!(!active_for(AngleRestriction::None));
 
     for (rel, expected) in [
@@ -394,8 +392,12 @@ fn t3_dispatch_active_for_census() {
             true,
         ),
         (
+            "../../../rust/harness/fixtures/trace-tightener/tightener45.dsn",
+            true,
+        ),
+        (
             "../../../rust/harness/fixtures/locator-spike/t9_locator45.dsn",
-            false,
+            true,
         ),
         (
             "../../../rust/harness/fixtures/locator-spike/t9_locator_any.dsn",
@@ -495,11 +497,16 @@ fn t3_stoppable_flag_face() {
 /// `reposition_line`'s `first_time` biggest-change break (Java
 /// `:313-315`) also heals: it fires 8x across the pin run yet
 /// converges to the same finals. Both are reposition faces the outer
-/// fixpoint heals; if T4's 45° port changes `reposition_lines` or
-/// Polyline construction, RE-PROBE BOTH — witnessing the break needs
-/// a world where first-accepted ≠ fixpoint (a clearance-borderline
-/// bisection). These literals pin the arm-execution path downstream
-/// so a heal-break surfaces here.
+/// fixpoint heals; T4 (the 45° port + pin set) RE-PROBED BOTH as
+/// required — still 14/14 green with each arm killed
+/// (`reprobe_T3-M2_second_last_corner_killed_on_45.log`,
+/// `reprobe_T3-Q4_first_time_break_removed.log`), so BOTH STAY BANKED,
+/// now with 45° evidence. Witnessing the break needs a world where
+/// first-accepted ≠ fixpoint (a clearance-borderline bisection). The
+/// T4 mutant round added the same-class healers T4-M1 (reposition
+/// nearer-corner tie flip, fires 11x on the 45° pins) and T4-M2
+/// (smoothen tie flip, fires once). These literals pin the
+/// arm-execution path downstream so a heal-break surfaces here.
 #[test]
 fn t3_last_corner_skip_corner_worlds_jar() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -515,6 +522,7 @@ fn t3_last_corner_skip_corner_worlds_jar() {
         let mut board = parse_board_from_path(&path.to_string_lossy());
         let mut manager = SearchTreeManager::new();
         manager.reinsert_tree_items(&mut board);
+        crate::normalize_all::normalize_all_traces(&mut manager, &mut board);
         let id = board
             .iter_descending()
             .find(|entry| {
@@ -555,4 +563,553 @@ fn t3_last_corner_skip_corner_worlds_jar() {
         );
         assert_corners(&board, id, expected);
     }
+}
+
+// ======================================================================
+// M4-T4 — the 45° tightener LIVE. Jar oracle: the `cornerworlds` mode
+// of `rust/harness/oracle/TraceTightenerProbe.java` (one world per
+// trace of the fixture, fresh parse each, joining the focal trace's
+// own corners, the production-consumption call
+// `optChangedArea(new int[0], null, 100, null, null, 0)`) on the three
+// crafted 45° fixtures. Captures:
+// `logs/M4-T4/evidence/tightener45*_cornerworlds_run3.jsonl`, each
+// captured TWICE and `cmp`-identical (run3b twins). Every literal
+// below is read off the run3 after-inventories; the fingerprint
+// format is one sorted string per trace `net1,net2|x:y;x:y;...` with
+// ids dropped — the smoothen ladder removes/reinserts moved traces
+// under FRESH ids, so only geometry is stable across the ladder.
+//
+// The fixtures (DSN units x10 = DBU, all corners integral):
+// - tightener45_diag.dsn: four INDEPENDENT single-trace nets. N1/N3
+//   are the reposition NEAR-TIE worlds (+9990/+10010 DBU offsets):
+//   the fixpoint final has 3 corners. (Mutation verdict T4-M1: the
+//   `<` → `<=` flip of repositionLine's nearer-corner pick fires 11x
+//   on these worlds and HEALS to the same finals — banked healer, see
+//   the DIAG_AFTER_N1 note.) N2 is the EXACT tie (symmetric wire):
+//   strict `<` picks NEXT on the tie; the pinned final is the shared
+//   one (both picks converge to it). N4 is the reduceCorners dog-ear
+//   Z (5 → 3 corners).
+// - tightener45_smooth.dsn: the smoothen/at-trace cluster. S1a/S1b/
+//   S1c chamfer worlds (S1b/S1c pin the smoothenCorner `prevDist <=
+//   nextDist` PREV-tie at a 10-DBU jog — both flip directions die);
+//   S2+B2 the greedy-null → smoothenSharpCorner fallback shave
+//   (fail band covers every bisection probe; shaved corners
+//   179416/20584); S3 the acute splice at a mid-trace T junction
+//   (the parse recipe's wiring-scope-tail normalizeAllTraces splits
+//   the crossbar at the touch point, the splice consolidates the net
+//   to one trace); S4 the bend splice (the jog
+//   slides flush to y=55000); S5 a self-overlapping diagonal crossbar
+//   whose world consolidates the whole net into ONE straight trace
+//   (the deepest fixpoint cascade in the set); S6 the pin-kill
+//   control (pin at the junction → whole world byte-exact).
+// - tightener45_tail.dsn: the pin-connection tail face (DEFERRED in
+//   the port — the counter-witness pin).
+// ======================================================================
+
+/// Fresh parse of a trace-tightener fixture (relative to the repo
+/// root via `CARGO_MANIFEST_DIR`) + tree reinsert + the
+/// wiring-scope-tail normalize (the full consumer recipe — see
+/// [`parse_fixture`]).
+fn parse_fixture_rel(rel: &str) -> (SearchTreeManager, crate::board::Board) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+    let mut board = parse_board_from_path(&path.to_string_lossy());
+    let mut manager = SearchTreeManager::new();
+    manager.reinsert_tree_items(&mut board);
+    crate::normalize_all::normalize_all_traces(&mut manager, &mut board);
+    (manager, board)
+}
+
+/// The whole-board trace geometry fingerprint: one sorted string per
+/// trace, `net1,net2|x:y;x:y;...`, ids dropped. All fixture corners
+/// are integral DBU (the jar rows are Double.toString of integral
+/// values); the casts assert exactness.
+#[track_caller]
+fn trace_fingerprint(board: &crate::board::Board) -> Vec<String> {
+    let mut out: Vec<String> = board
+        .iter_descending()
+        .filter(|entry| matches!(entry.data, ItemData::Trace { .. }))
+        .map(|entry| {
+            let lines = board.trace_polyline(entry.id).expect("live trace");
+            let mut nets = entry.nets.clone();
+            nets.sort_unstable();
+            let nets = nets
+                .iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            let chain = (0..lines.corner_count())
+                .map(|i| {
+                    let c = lines.corner_approx(i as i32);
+                    assert_eq!(c.x, c.x.round(), "integral corner x");
+                    assert_eq!(c.y, c.y.round(), "integral corner y");
+                    format!("{}:{}", c.x as i64, c.y as i64)
+                })
+                .collect::<Vec<_>>()
+                .join(";");
+            format!("{nets}|{chain}")
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// One 45° corner world: fresh parse of `rel`, join the focal trace's
+/// own corners (identified by the jar's trace id — the Rust parse
+/// assigns the same ids, asserted by the before fingerprints), then
+/// the probe's production-consumption opt call.
+#[track_caller]
+fn run_45_corner_world(rel: &str, focal_id: i32) -> (SearchTreeManager, crate::board::Board) {
+    let (mut manager, mut board) = parse_fixture_rel(rel);
+    let joins: Vec<(i32, i32)> = {
+        let entry = board
+            .iter_descending()
+            .find(|entry| entry.id.get() as i32 == focal_id)
+            .expect("focal id present (parse id parity with the jar)");
+        let lines = board.trace_polyline(entry.id).expect("focal polyline");
+        (0..lines.corner_count())
+            .map(|i| {
+                let c = lines.corner_approx(i as i32);
+                (c.x as i32, c.y as i32)
+            })
+            .collect()
+    };
+    start_marking_changed_area(&mut board);
+    for (x, y) in &joins {
+        join_changed_area(
+            &mut board,
+            &FloatPoint::new(f64::from(*x), f64::from(*y)),
+            0,
+        );
+    }
+    opt_changed_area(
+        &mut manager,
+        &mut board,
+        &mut TraceTightenerSeam,
+        &[],
+        None,
+        100,
+        None,
+        0,
+        None,
+        None,
+        0,
+        false,
+    );
+    (manager, board)
+}
+
+/// The run3 jar literals (see the module docs for the capture).
+mod jar45 {
+    /// tightener45_diag.dsn before (also the parse-parity pin).
+    pub(super) const DIAG_BEFORE: &[&str] = &[
+        "1|10000:30000;20000:40000;30000:40000;39990:30010;39990:20010",
+        "2|60000:30000;70000:40000;80000:40000;90000:30000;90000:20000",
+        "3|110000:30000;120000:40000;130000:40000;140010:29990;140010:19990",
+        "4|310000:200000;320000:210000;330000:210000;340000:220000;350000:220000",
+    ];
+    /// World focal 3 (N1, near-tie +9990): final 3 corners. NOTE
+    /// (mutation-verdict correction): an earlier working note claimed a
+    /// `<` → `<=` flip of `reposition_line`'s nearer-corner pick dies
+    /// here — FALSE. The flip fires 11x across the T4 pin suite
+    /// (instrumented reach,
+    /// `logs/M4-T4/evidence/mut_T4-M1_tie_reach_t4pins_11hits.log`) and
+    /// heals to the SAME finals everywhere (mutant run
+    /// `mut_T4-M1_reposition_tie_flip.log`, 14/14 green) — BANKED
+    /// HEALER, same class as T3-M2/T3-Q4. The near-tie literals pin
+    /// the arm-execution path so a heal-break surfaces here.
+    pub(super) const DIAG_AFTER_N1: &[&str] = &[
+        "1|10000:30000;30000:30000;39990:20010",
+        "2|60000:30000;70000:40000;80000:40000;90000:30000;90000:20000",
+        "3|110000:30000;120000:40000;130000:40000;140010:29990;140010:19990",
+        "4|310000:200000;320000:210000;330000:210000;340000:220000;350000:220000",
+    ];
+    /// World focal 4 (N2, exact tie): the shared 3-corner final.
+    pub(super) const DIAG_AFTER_N2: &[&str] = &[
+        "1|10000:30000;20000:40000;30000:40000;39990:30010;39990:20010",
+        "2|60000:30000;80000:30000;90000:20000",
+        "3|110000:30000;120000:40000;130000:40000;140010:29990;140010:19990",
+        "4|310000:200000;320000:210000;330000:210000;340000:220000;350000:220000",
+    ];
+    /// World focal 5 (N3, near-tie +10010, the N1 mirror).
+    pub(super) const DIAG_AFTER_N3: &[&str] = &[
+        "1|10000:30000;20000:40000;30000:40000;39990:30010;39990:20010",
+        "2|60000:30000;70000:40000;80000:40000;90000:30000;90000:20000",
+        "3|110000:30000;130000:30000;140010:19990",
+        "4|310000:200000;320000:210000;330000:210000;340000:220000;350000:220000",
+    ];
+    /// World focal 6 (N4 dog-ear Z): 5 → 3 corners.
+    pub(super) const DIAG_AFTER_Z: &[&str] = &[
+        "1|10000:30000;20000:40000;30000:40000;39990:30010;39990:20010",
+        "2|60000:30000;70000:40000;80000:40000;90000:30000;90000:20000",
+        "3|110000:30000;120000:40000;130000:40000;140010:29990;140010:19990",
+        "4|310000:200000;330000:220000;350000:220000",
+    ];
+
+    /// tightener45_smooth.dsn before (also pins the parse faces: the
+    /// wiring-scope-tail `normalizeAllTraces` (`Wiring.java:347`) —
+    /// run by the parse recipe, see [`parse_fixture`] — SPLITS the
+    /// S3/S4 crossbars at the T touch points (`PolylineTrace.split`:
+    /// intersecting same-net traces split at contact points) and
+    /// MERGES the S5 overlap (T's end segment lies exactly on the
+    /// diagonal crossbar, same-net, split at first/last common point +
+    /// `combine`), leaving
+    /// `8|420000:30000;430000:40000` / `8|420000:40000;430000:40000` /
+    /// `8|430000:40000;440000:50000;460000:30000`).
+    pub(super) const SMOOTH_BEFORE: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// World focal 3 (S1a): chamfer worlds collapse to the diagonal
+    /// (the tie-flip mutant converges to the SAME shape here — the
+    /// discriminators are S1b/S1c).
+    pub(super) const SMOOTH_AFTER_S1A: &[&str] = &[
+        "1|10000:10000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// World focal 4 (S1b): the 10-DBU jog survives at (79990,29990)
+    /// — the smoothenCorner `<=` PREV-tie face.
+    pub(super) const SMOOTH_AFTER_S1B: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;79990:29990;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// World focal 5 (S1c): the mirrored 10-DBU jog at (130000,30000).
+    pub(super) const SMOOTH_AFTER_S1C: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;130000:30000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// Worlds focal 6+7 (S2 + blocker B2): the fallback shave fired on
+    /// S2 (corners 179416/20584), B2 byte-exact throughout.
+    pub(super) const SMOOTH_AFTER_S2_B2: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;179416:20000;180000:20584;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// Worlds focal 8/16/17 (S3 acute-splice cluster): the net
+    /// consolidates to ONE trace (20000,40000)→(30000,50000)→(60000,
+    /// 50000) — the splice + normalize-merge + fixpoint cascade.
+    pub(super) const SMOOTH_AFTER_S3: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// Worlds focal 10/18/19 (S4 bend-splice cluster): the SE+E jog
+    /// slides flush to y=55000, the crossbar re-splits there.
+    pub(super) const SMOOTH_AFTER_S4: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;235000:55000",
+        "7|235000:40000;235000:55000",
+        "7|235000:55000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// Worlds focal 14+15 (S6 pin-kill control): the pin at the
+    /// junction makes every at-trace arm return null — the WHOLE world
+    /// byte-exact at its before state. (Equals `SMOOTH_BEFORE`.)
+    pub(super) const SMOOTH_AFTER_S6_INERT: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;430000:40000",
+        "8|420000:40000;430000:40000",
+        "8|430000:40000;440000:50000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+    /// Worlds focal 20/22/24 (S5 self-overlap cascade): the whole net
+    /// consolidates into ONE straight trace (420000,30000)→(460000,
+    /// 30000).
+    pub(super) const SMOOTH_AFTER_S5: &[&str] = &[
+        "1|10000:10000;20000:20000;30000:20000;30000:30000",
+        "2|60000:10000;70000:20000;80000:20000;80000:29990",
+        "3|110000:10000;120000:20000;130000:20000;130000:30010",
+        "4|160000:10000;170000:20000;180000:20000;180000:40000",
+        "5|170600:22300;177700:22300",
+        "6|20000:40000;30000:40000;40000:50000",
+        "6|20000:50000;40000:50000",
+        "6|40000:50000;60000:50000",
+        "7|220000:55000;225000:50000;235000:50000",
+        "7|235000:40000;235000:50000",
+        "7|235000:50000;235000:65000",
+        "8|420000:30000;460000:30000",
+        "9|520000:40000;530000:40000;540000:50000",
+        "9|540000:50000;520000:50000",
+    ];
+}
+
+/// The four diagonal-fixture corner worlds (jar run3, byte-identical
+/// double run). The before literal pins the Rust PARSE of the fixture;
+/// each after literal is a whole-board fixpoint final.
+#[test]
+fn t4_diag_corner_worlds_jar() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_diag.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    assert_eq!(trace_fingerprint(&board), jar45::DIAG_BEFORE, "diag parse");
+    for (focal, expected) in [
+        (3, &jar45::DIAG_AFTER_N1),
+        (4, &jar45::DIAG_AFTER_N2),
+        (5, &jar45::DIAG_AFTER_N3),
+        (6, &jar45::DIAG_AFTER_Z),
+    ] {
+        let (_manager, board) = run_45_corner_world(rel, focal);
+        assert_eq!(
+            trace_fingerprint(&board),
+            *expected,
+            "diag world focal {focal}"
+        );
+    }
+}
+
+/// The sixteen smooth-fixture corner worlds (jar run3, byte-identical
+/// double run), keyed by focal id into the eight distinct jar finals.
+#[test]
+fn t4_smooth_corner_worlds_jar() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_smooth.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    assert_eq!(
+        trace_fingerprint(&board),
+        jar45::SMOOTH_BEFORE,
+        "smooth parse (splits + self-overlap merge)"
+    );
+    let worlds: [(i32, &[&str]); 16] = [
+        (3, jar45::SMOOTH_AFTER_S1A),
+        (4, jar45::SMOOTH_AFTER_S1B),
+        (5, jar45::SMOOTH_AFTER_S1C),
+        (6, jar45::SMOOTH_AFTER_S2_B2),
+        (7, jar45::SMOOTH_AFTER_S2_B2),
+        (8, jar45::SMOOTH_AFTER_S3),
+        (10, jar45::SMOOTH_AFTER_S4),
+        (14, jar45::SMOOTH_AFTER_S6_INERT),
+        (15, jar45::SMOOTH_AFTER_S6_INERT),
+        (16, jar45::SMOOTH_AFTER_S3),
+        (17, jar45::SMOOTH_AFTER_S3),
+        (18, jar45::SMOOTH_AFTER_S4),
+        (19, jar45::SMOOTH_AFTER_S4),
+        (20, jar45::SMOOTH_AFTER_S5),
+        (22, jar45::SMOOTH_AFTER_S5),
+        (24, jar45::SMOOTH_AFTER_S5),
+    ];
+    for (focal, expected) in worlds {
+        let (_manager, board) = run_45_corner_world(rel, focal);
+        assert_eq!(
+            trace_fingerprint(&board),
+            expected,
+            "smooth world focal {focal}"
+        );
+    }
+}
+
+/// The pin-connection tail face, DEFERRED in the port: the jar's tail
+/// (swap/correctConnectionToPin inside `PolylineTrace.pullTight`)
+/// splits the diagonal into an L-stub plus a pad-side stub —
+/// jar after (run3 capture): `1|150000:150000;58517:58517;58517:50000`
+/// and `1|50000:50000;58517:50000`. The Rust seam has no tail yet, so
+/// the pin asserts the RUST world stays byte-exact (the deferral
+/// contract); the jar literal is the counter-witness that isolates
+/// any FUTURE tail work to this face, and the unsplit-diagonal literal
+/// dies the day the tail lands unreviewed.
+#[test]
+fn t4_tail_deferral_counter_witness() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    let before = trace_fingerprint(&board);
+    assert_eq!(before, vec!["1|150000:150000;50000:50000"], "tail parse");
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        before,
+        "Rust tail deferral: byte-exact (jar counter-witness splits this)"
+    );
+}
+
+/// The `c_min_corner_dist_square` boundary (Java
+/// `TraceTightener.java:36`, consumed by `skipSegmentsOfLength0`
+/// `:352`): middle corners (NOT the exact-retention i==1 / i==len-2
+/// faces — those are pinned by the T3 last-corner-skip worlds) closer
+/// than sqrt(0.9) DBU collapse. Direct pin through the production
+/// `skip_segments_of_length_0` on hand-built 3-corner polylines whose
+/// middle-corner gap squared distance brackets the constant: 0.5
+/// (skip) and 1.0 (keep) — the two NEAREST points of the exactly
+/// constructible 45° lattice (integer anchors + 45°-multiple lines
+/// only admit middle gaps d² ∈ {k²/2, k², …}; no constructible world
+/// lands nearer 0.9, so the pinned envelope is (0.5, 1.0] — a mutant
+/// constant drifting INSIDE it survives, disclosed here; both coarse
+/// directions die, mutation-verified: c ≤ 0.5 keeps the skip world
+/// (`mut_T4-M5b_cmin_0p4.log`), c > 1.0 skips the keep world
+/// (`mut_T4-M5a_cmin_1p5.log` — whose first run SURVIVED an E/N/E
+/// keep world whose parallel-collapse veto, not the threshold, did
+/// the rejecting; the keep world was redesigned E/N/SE so the
+/// threshold alone vetoes). All-Int construction: the Rational route
+/// through
+/// `Polyline::from_points` panics (line.rs implements IntPoint lines
+/// only); the cap lines mirror `Polyline::from_two_corners`
+/// (`Line::get_instance(corner, dir.turn_45_degree(2))` — the same
+/// caps `from_polygon` builds). Each tiny middle segment is
+/// 45°-multiple, so `skipSegmentsOfLength0` runs its
+/// no-clearance-check branch for it (Java :355-357) — the face under
+/// test is purely the distance threshold.
+#[test]
+fn t4_skip_length0_min_corner_dist_boundary() {
+    let (manager, board) = parse_fixture();
+    let mut state =
+        TraceTightener::get_instance(&manager, &board, &[], None, 100, None, 0, false, None, 0);
+    let mut manager = manager;
+    let mut board = board;
+    let pt = |x: i32, y: i32| Point::int(IntPoint::new(x, y));
+    let dir_e = Direction::get_instance_from_points(&pt(0, 0), &pt(1, 0))
+        .expect("distinct points have a direction");
+
+    // Skip world: E → NE → SE. corner(1) = (10000, 0) (E∩NE),
+    // corner(2) = (10000.5, 0.5) (NE∩SE): d² = 0.5 < 0.9 → the NE
+    // line collapses (no consecutive parallels remain).
+    let skip_l2 = Line::new(pt(10000, 0), pt(10001, 1));
+    let skip_l3 = Line::new(pt(10001, 0), pt(10002, -1));
+    let skip_cap4 = skip_l3.direction().clone().turn_45_degree(2);
+    let skip_world = Polyline::new(vec![
+        Line::get_instance(pt(0, 0), dir_e.turn_45_degree(2)),
+        Line::new(pt(0, 0), pt(10000, 0)),
+        skip_l2,
+        skip_l3,
+        Line::get_instance(pt(10002, -1), skip_cap4),
+    ]);
+    assert_eq!(skip_world.lines.len(), 5, "skip world: 3 corners + 2 caps");
+    let d2_skip = skip_world
+        .corner_approx(2)
+        .distance_square(&skip_world.corner_approx(1));
+    assert_eq!(d2_skip, 0.5, "skip world middle gap (the pin's premise)");
+
+    // Keep world: E → N → SE. corner(1) = (10000, 0), corner(2) =
+    // (10000, 1): d² = 1.0 ≥ 0.9 → no skip (5 lines in, 5 out). The
+    // middle N line is deliberately flanked by E and SE (NOT E and E):
+    // an E/N/E world's skip attempt is vetoed by the
+    // consecutive-parallel collapse of `Polyline::new`, not by the
+    // threshold — the veto must not do the constant's job (mutation
+    // round T4-M5a: constant → 1.5 survived the E/N/E world before
+    // this redesign; it kills this one, since removal here is
+    // otherwise valid and the 45° fast path accepts it).
+    let keep_l2 = Line::new(pt(10000, 0), pt(10000, 1));
+    let keep_l3 = Line::new(pt(10001, 0), pt(10002, -1));
+    let keep_cap4 = keep_l3.direction().clone().turn_45_degree(2);
+    let keep_world = Polyline::new(vec![
+        Line::get_instance(pt(0, 0), dir_e.turn_45_degree(2)),
+        Line::new(pt(0, 0), pt(10000, 0)),
+        keep_l2,
+        keep_l3,
+        Line::get_instance(pt(10002, -1), keep_cap4),
+    ]);
+    assert_eq!(keep_world.lines.len(), 5, "keep world: 3 corners + 2 caps");
+    let d2_keep = keep_world
+        .corner_approx(2)
+        .distance_square(&keep_world.corner_approx(1));
+    assert_eq!(d2_keep, 1.0, "keep world middle gap (the pin's premise)");
+
+    let shortened = state.skip_segments_of_length_0(&mut manager, &mut board, &skip_world);
+    assert_eq!(
+        shortened.lines.len(),
+        4,
+        "d² = 0.5 < 0.9: the middle corner collapses"
+    );
+    let kept = state.skip_segments_of_length_0(&mut manager, &mut board, &keep_world);
+    assert_eq!(
+        kept.lines.len(),
+        5,
+        "d² = 1.0 >= 0.9: the middle corner stays"
+    );
 }

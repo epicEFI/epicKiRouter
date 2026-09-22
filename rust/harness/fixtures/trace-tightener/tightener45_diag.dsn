@@ -1,0 +1,57 @@
+(PCB tightener45_diag.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary (rect pcb 0 0 120000 60000))
+    (snap_angle fortyfive_degree)
+    (rule (width 200) (clearance 250))
+  )
+  (placement
+    (component "CDUMMY"
+      (place "PD_COMP" 100000 50000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CDUMMY"
+      (pin "PADD" "PD" 0 0)
+    )
+    (padstack "PADD"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+  )
+  (network
+    (net "N1")
+    (net "N2")
+    (net "N3")
+    (net "N4")
+    (class kicad_default "N1" "N2" "N3" "N4"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+  (wiring
+    (wire (path F.Cu 200  1000 3000 2000 4000 3000 4000 3999 3001 3999 2001) (net N1))
+    (wire (path F.Cu 200  6000 3000 7000 4000 8000 4000 9000 3000 9000 2000) (net N2))
+    (wire (path F.Cu 200  11000 3000 12000 4000 13000 4000 14001 2999 14001 1999) (net N3))
+    (wire (path F.Cu 200  31000 20000 32000 21000 33000 21000 34000 22000 35000 22000) (net N4))
+  )
+)
