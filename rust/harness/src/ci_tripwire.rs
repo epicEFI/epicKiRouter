@@ -52,6 +52,24 @@ pub fn workflow_step_blocks(raw: &str) -> Vec<String> {
     blocks
 }
 
+/// Every `run:` line containing `needle` across ALL blocks — the
+/// diagnostic twin of [`find_step_run_line`], so a trip can name the
+/// actual condition: zero matches (the step is gone) vs N matches (a
+/// duplicated step is the usual cause).
+fn matching_run_lines<'a>(blocks: &'a [String], needle: &str) -> Vec<&'a str> {
+    let mut found = Vec::new();
+    for block in blocks {
+        for line in block.lines() {
+            let stripped = line.trim_start();
+            let stripped = stripped.strip_prefix("- ").unwrap_or(stripped);
+            if stripped.starts_with("run:") && stripped.contains(needle) {
+                found.push(line);
+            }
+        }
+    }
+    found
+}
+
 /// The ONE `run:` line containing `needle` across ALL blocks — the run
 /// line, not the block text: comment lines routinely mention step names
 /// (`# M3 T15 router compare: ...` precedes the compare step) and a
@@ -60,36 +78,33 @@ pub fn workflow_step_blocks(raw: &str) -> Vec<String> {
 /// silently pick one).
 #[must_use]
 pub fn find_step_run_line<'a>(blocks: &'a [String], needle: &str) -> Option<&'a str> {
-    let mut found: Option<&str> = None;
-    for block in blocks {
-        for line in block.lines() {
-            let stripped = line.trim_start();
-            let stripped = stripped.strip_prefix("- ").unwrap_or(stripped);
-            if stripped.starts_with("run:") && stripped.contains(needle) {
-                if found.is_some() {
-                    return None; // ambiguous: more than one matching run line
-                }
-                found = Some(line);
-            }
-        }
+    let mut found = matching_run_lines(blocks, needle);
+    match found.len() {
+        1 => found.pop(),
+        _ => None, // zero (missing) or many (duplicate): trip, never guess
     }
-    found
 }
 
 /// The step's OWN `timeout-minutes:` value — a line inside `block`
-/// whose stripped text is exactly `timeout-minutes: <int>` at deeper
-/// indent than the step head (the step-scoped property, not a comment
-/// mention and not another step's). Zero such lines or a
-/// non-integer value → `None`; more than one → `None` (ambiguous).
+/// whose stripped text is `timeout-minutes: <int>` at deeper indent
+/// than the step head (the step-scoped property, not a comment mention
+/// and not another step's). Zero such lines or a non-integer value →
+/// `None`; more than one → `None` (ambiguous). A trailing INLINE
+/// comment is tolerated (`timeout-minutes: 30 # note` — cosmetics, not
+/// a contract change), while a comment in the VALUE position
+/// (`timeout-minutes: # 30`) leaves the value empty and still trips.
 #[must_use]
-pub fn step_timeout_seconds(block: &str) -> Option<u64> {
+pub fn step_timeout_minutes(block: &str) -> Option<u64> {
     let mut found: Option<u64> = None;
     for line in block.lines().skip(1) {
         let stripped = line.trim();
         let Some(rest) = stripped.strip_prefix("timeout-minutes:") else {
             continue;
         };
-        let value = rest.trim();
+        // Strip a trailing inline comment BEFORE the digit test, then
+        // trim: `30  # hang tripwire` reads 30; `# 30` (a comment where
+        // the value belongs) reads empty and trips below.
+        let value = rest.split('#').next().unwrap_or("").trim();
         if found.is_some() || value.is_empty() || !value.chars().all(|c| c.is_ascii_digit()) {
             return None; // duplicate or non-integer: trip, never guess
         }
@@ -140,16 +155,16 @@ jobs:
             .iter()
             .find(|b| b.contains("cargo test --workspace"))
             .expect("test step");
-        assert_eq!(step_timeout_seconds(test), Some(30));
+        assert_eq!(step_timeout_minutes(test), Some(30));
         let build = blocks
             .iter()
             .find(|b| b.contains("epic-cli"))
             .expect("build step");
-        assert_eq!(step_timeout_seconds(build), Some(5));
+        assert_eq!(step_timeout_minutes(build), Some(5));
 
         // (ii) the missing arm: no property → None (never a default).
         let fmt = blocks.first().expect("fmt step");
-        assert_eq!(step_timeout_seconds(fmt), None);
+        assert_eq!(step_timeout_minutes(fmt), None);
 
         // (iii) THE comment-trap: the needle search must anchor on the
         // run line of the LATER step, not the earlier comment.
@@ -175,11 +190,19 @@ jobs:
 
         // The non-integer face: a wall typo reads None, never a guess.
         let typoed = "      - run: x\n        timeout-minutes: soon\n".to_string();
-        assert_eq!(step_timeout_seconds(&typoed), None);
+        assert_eq!(step_timeout_minutes(&typoed), None);
         // The duplicate face: two walls in one step are ambiguous.
         let doubled =
             "      - run: x\n        timeout-minutes: 30\n        timeout-minutes: 5\n".to_string();
-        assert_eq!(step_timeout_seconds(&doubled), None);
+        assert_eq!(step_timeout_minutes(&doubled), None);
+        // The TOLERANT face (T17c quality MINOR-3): a trailing inline
+        // comment is cosmetics, not a contract change — the value reads.
+        let commented = "      - run: x\n        timeout-minutes: 30  # hang tripwire\n";
+        assert_eq!(step_timeout_minutes(commented), Some(30));
+        // But a comment in the VALUE position leaves nothing to read —
+        // it must still trip (the comment-before-value face).
+        let value_comment = "      - run: x\n        timeout-minutes: # 30\n";
+        assert_eq!(step_timeout_minutes(value_comment), None);
     }
 
     /// THE tripwire (real repo file): the bare-suite test step keeps
@@ -200,8 +223,16 @@ jobs:
         let blocks = workflow_step_blocks(&raw);
 
         // THE TEST STEP: exact bare argv + its own 30-minute wall.
-        let test_line = find_step_run_line(&blocks, "cargo test --workspace")
-            .expect("the workflow must run the bare suite (cargo test --workspace)");
+        let test_line =
+            find_step_run_line(&blocks, "cargo test --workspace").unwrap_or_else(|| {
+                let hits = matching_run_lines(&blocks, "cargo test --workspace");
+                panic!(
+                    "the bare-suite run line must exist UNIQUELY — {} matching run \
+                     line(s) (zero = the step is gone; multiple = a duplicated step \
+                     is the usual cause): {hits:?}",
+                    hits.len()
+                );
+            });
         let test_argv = test_line
             .trim_start()
             .strip_prefix("- ")
@@ -215,7 +246,7 @@ jobs:
             .find(|b| b.lines().any(|l| l == test_line))
             .expect("the test step's own block");
         assert_eq!(
-            step_timeout_seconds(test_block),
+            step_timeout_minutes(test_block),
             Some(30),
             "the test step's 30-minute wall is the hang tripwire: {}",
             test_block
@@ -223,8 +254,15 @@ jobs:
 
         // THE COMPARE STEP: --report-only rides the run line (never a
         // comment), and the designed battery-wall tripwire stays 30.
-        let compare_line = find_step_run_line(&blocks, "router compare")
-            .expect("the router-compare step must exist");
+        let compare_line = find_step_run_line(&blocks, "router compare").unwrap_or_else(|| {
+            let hits = matching_run_lines(&blocks, "router compare");
+            panic!(
+                "the router-compare run line must exist UNIQUELY — {} matching run \
+                 line(s) (zero = the step is gone; multiple = a duplicated step is \
+                 the usual cause): {hits:?}",
+                hits.len()
+            );
+        });
         assert!(
             compare_line.contains("--report-only"),
             "the compare step must still be REPORT mode — dropping the flag is THE exit \
@@ -235,7 +273,7 @@ jobs:
             .find(|b| b.lines().any(|l| l == compare_line))
             .expect("the compare step's own block");
         assert_eq!(
-            step_timeout_seconds(compare_block),
+            step_timeout_minutes(compare_block),
             Some(30),
             "the compare step's 30-minute wall is the designed wall tripwire (the YAML's \
              WALL WARNING): {compare_block}"
