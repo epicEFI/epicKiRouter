@@ -233,3 +233,194 @@ fn calc_door_line_segment(
         second_corner.to_float(),
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use epic_geometry::int_octagon::IntOctagon;
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+
+    /// An exact rectangle (or octagon) built from raw border
+    /// coordinates, normalized like the engine's shapes.
+    fn oct(
+        left_x: i32,
+        bottom_y: i32,
+        right_x: i32,
+        top_y: i32,
+        ulx: i32,
+        lrx: i32,
+        llx: i32,
+        urx: i32,
+    ) -> TileShape {
+        TileShape::RegularTileShape(RegularTileShape::IntOctagon(
+            IntOctagon::new(left_x, bottom_y, right_x, top_y, ulx, lrx, llx, urx).normalize(),
+        ))
+    }
+
+    /// The section lines as raw `(ax, ay, bx, by)` f64 tuples, for
+    /// bit-exact comparison against the Java-double literals.
+    fn section_coords(sections: &[FloatLine]) -> Vec<(f64, f64, f64, f64)> {
+        sections
+            .iter()
+            .map(|line| (line.a.x, line.a.y, line.b.x, line.b.y))
+            .collect()
+    }
+
+    /// M4-T2 PIN (T2-P1) — the e1_ripup net-2 full-wall door, the
+    /// events-golden divergence face at 1-based assign ordinal 58.
+    ///
+    /// Java verdicts: the golden rows 58-64 expand
+    /// `ExpansionDoor/bounds=[(216250,238750)..(983750,238750)]/dim=1
+    /// /sections=7` through selected sections 0..=6 (seven sections on
+    /// the FULL wall); the lazy door shape
+    /// `Oct(lx=216250,ly=238750,rx=983750,uy=238750,ulx=-22500,
+    /// lrx=745000,llx=455000,urx=1222500)` is the Java-side measured
+    /// intersection of complete room 1 with item 20's single straight
+    /// tree shape (probed via the oracle at the first net-2 assign).
+    ///
+    /// The section LINES are the Java `getSectionSegments` double
+    /// arithmetic on those witnessed inputs (offsetParam =
+    /// compensatedTraceHalfWidth = 11250, tolerance +2, shrink, count
+    /// = (int)(767500/112520)+1 = 7, even divide) — every value here
+    /// is an exact integer, so the literals are the unique Java
+    /// verdict, not a reimplementation.
+    #[test]
+    fn door_sections_full_wall_e1_net2_ordinal58() {
+        let door_shape = oct(
+            216250, 238750, 983750, 238750, -22500, 745000, 455000, 1222500,
+        );
+        let room1 = oct(
+            216250, 91250, 983750, 238750, -22500, 892500, 307500, 1222500,
+        );
+        // dim=1: the room shapes are unread (Java only reaches them in
+        // the dim=2 free-space branch).
+        let door = ExpansionDoor::new(1, 20480, 1);
+        let (count, sections) =
+            door.get_section_segments(&door_shape, false, &room1, &room1, 11250.0);
+        assert_eq!(count, 7, "golden ords 58-64: sections=7");
+        assert_eq!(
+            section_coords(&sections),
+            vec![
+                (227502.0, 238750.0, 333930.0, 238750.0),
+                (333930.0, 238750.0, 440358.0, 238750.0),
+                (440358.0, 238750.0, 546786.0, 238750.0),
+                (546786.0, 238750.0, 653214.0, 238750.0),
+                (653214.0, 238750.0, 759642.0, 238750.0),
+                (759642.0, 238750.0, 866070.0, 238750.0),
+                (866070.0, 238750.0, 972498.0, 238750.0),
+            ],
+            "Java shrinkSegment + divideSegmentIntoSections on the full wall"
+        );
+    }
+
+    /// M4-T2 PIN (T2-P2) — the e1_ripup net-2 free-space overlap door
+    /// (complete room 1 x complete room 4), the second witnessed wall.
+    ///
+    /// Java verdicts: the golden rows from ordinal 65 expand
+    /// `ExpansionDoor/bounds=[(216250,91250)..(539482,233750)]/dim=2
+    /// /sections=4`. The room shapes are the walk-measured octagons
+    /// whose COMPLETE_ROOM rows sit inside the matched stream prefix
+    /// (room 4 carries the cut lower-right/upper-right corners of the
+    /// restart-restrained completeShape): the door shape is their
+    /// intersection — a trapezoid whose restraint line runs
+    /// (539482,91250) -> (216250,233750) (the only corners on BOTH
+    /// room borders), length sqrt(124785175824) < 4*max section
+    /// width, count = 3+1 = 4. The literals are the exact Java-double
+    /// shrink/divide results on that line (ulp-faithful: Java's
+    /// shrinkSegment computes newB from the ORIGINAL a with the
+    /// REDUCED length, and the divide snaps the LAST endpoint to the
+    /// exact b).
+    #[test]
+    fn door_sections_free_space_trapezoid_e1_net2_ordinal65() {
+        // Raw max/min intersection coordinates; normalize() relaxes the
+        // inactive upper-left diagonal to lx-uy = -17500.
+        let door_shape = oct(
+            216250, 91250, 539482, 233750, -22500, 448232, 307500, 630732,
+        );
+        let room1 = oct(
+            216250, 91250, 983750, 238750, -22500, 892500, 307500, 1222500,
+        );
+        let room4 = oct(1350, 1350, 539482, 233750, -232400, 448232, 2700, 630732);
+        let door = ExpansionDoor::new(1, 4, 2);
+        let (count, sections) =
+            door.get_section_segments(&door_shape, true, &room1, &room4, 11250.0);
+        assert_eq!(count, 4, "golden ordinal 65+: sections=4");
+        assert_eq!(
+            section_coords(&sections),
+            vec![
+                (
+                    529186.1412624135,
+                    95789.0303871711,
+                    453526.07063120673,
+                    129144.51519358555
+                ),
+                (453526.07063120673, 129144.51519358555, 377866.0, 162500.0),
+                (377866.0, 162500.0, 302205.9293687933, 195855.48480641446),
+                (
+                    302205.9293687933,
+                    195855.48480641446,
+                    226545.8587375866,
+                    229210.96961282892
+                ),
+            ],
+            "Java shrink/divide on the restraint line (539482,91250)->(216250,233750)"
+        );
+    }
+
+    /// M4-T2 PIN (T2-P3) — the SMALL dim=2 free-space door is NOT
+    /// expanded (Java `:128-131`: distanceSquare < 4*offset*offset →
+    /// empty sections; "2 dimensional small doors are not yet
+    /// expanded"). Two side-by-side rectangles overlapping in a
+    /// 5000x30000 strip: the restraint line is the 5000-long bottom
+    /// strip edge, length^2 = 2.5e7 < 5.06430016e8.
+    #[test]
+    fn small_dim2_free_space_door_not_expanded() {
+        // rectangle (0,0)..(20000,30000)
+        let room1 = oct(0, 0, 20000, 30000, -30000, 20000, 0, 50000);
+        // rectangle (15000,0)..(35000,30000)
+        let room2 = oct(15000, 0, 35000, 30000, -15000, 35000, 15000, 65000);
+        // intersection (15000,0)..(20000,30000)
+        let door_shape = oct(15000, 0, 20000, 30000, -15000, 20000, 15000, 50000);
+        let door = ExpansionDoor::new(1, 2, 2);
+        let (count, sections) =
+            door.get_section_segments(&door_shape, true, &room1, &room2, 11250.0);
+        assert_eq!(count, 0, "small door: no sections (Java :128-131)");
+        assert!(sections.is_empty());
+    }
+
+    /// M4-T2 PIN (T2-P4) — the dim=2 door that is NOT between two
+    /// complete free-space rooms takes the gravity-point arm (Java
+    /// `:133-137`): a zero-length line at the centre of gravity,
+    /// count = (0/max)+1 = 1, the single section collapsed onto it.
+    #[test]
+    fn dim2_obstacle_door_single_gravity_section() {
+        let door_shape = oct(0, 0, 10000, 20000, -20000, 10000, 0, 30000);
+        let room = oct(0, 0, 10000, 20000, -20000, 10000, 0, 30000);
+        let door = ExpansionDoor::new(1, 2, 2);
+        let (count, sections) =
+            door.get_section_segments(&door_shape, false, &room, &room, 11250.0);
+        assert_eq!(count, 1, "gravity-point arm: exactly one section");
+        assert_eq!(sections.len(), 1);
+        let line = &sections[0];
+        assert_eq!(line.a, line.b, "zero-length section line");
+        assert_eq!(
+            (line.a.x, line.a.y),
+            (5000.0, 10000.0),
+            "the rectangle's centre of gravity"
+        );
+    }
+
+    /// Sanity for the pin worlds: the two witnessed door shapes have
+    /// the dimensions the golden rows declare (dim=1 / dim=2).
+    #[test]
+    fn witnessed_door_shapes_dimensions() {
+        let wall1 = oct(
+            216250, 238750, 983750, 238750, -22500, 745000, 455000, 1222500,
+        );
+        assert_eq!(wall1.dimension(), 1, "full-wall door is dim=1");
+        let trapezoid = oct(
+            216250, 91250, 539482, 233750, -22500, 448232, 307500, 630732,
+        );
+        assert_eq!(trapezoid.dimension(), 2, "overlap door is dim=2");
+    }
+}
