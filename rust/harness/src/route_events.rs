@@ -618,20 +618,35 @@ fn batch_settings_from_witness(
     Ok(batch)
 }
 
-/// Runs one fixture through the Rust batch driver in-process with the
-/// CALLER's sink — the probe's parse (read_board → board → reinsert;
-/// NO normalize, the probe parses fresh like `DsnReader.readBoard`) +
-/// the witness world. Split from [`run_rust_world`] so the gating pin
-/// can inject a trace-disabled sink and watch which rows still flow.
-fn run_world_with_sink(
+/// The parse prelude of the probe world — `read_board` →
+/// [`Board::from_ses_board`] → `SearchTreeManager` reinsert → the
+/// in-read normalize — shared by [`run_world_with_sink`] and the
+/// id-sequence pin, so the pin drives the SAME world construction the
+/// compare routes through.
+///
+/// The normalize call is the M4-T1 fix (buglog 172): Java's read path
+/// ends the `(wiring ...)` scope with `board.normalizeAllTraces()`
+/// (`Wiring.java:347`, in try/catch → the "Wiring: normalization of
+/// traces failed" warning). Collinear connected same-net wires
+/// COMBINE — the absorbed trace is deleted (its id stays burned; ids
+/// are never reused) and the survivor is extended in place — so the
+/// board routing starts from carries FEWER items than the file's wire
+/// count (t7: 19, not 20; wire id 10 absorbed into id 13). The
+/// harness-side D11 deferral (epic-dsn parse does NOT normalize) makes
+/// this the consumer's job — the pattern every other consumer already
+/// follows (`epic-cli/src/route.rs`, `undo_corpus.rs`, `dsn_corpus.rs`,
+/// `ses_compare.rs`, `epic-router/src/drill/pins.rs`); the events world
+/// was the one consumer missing it, which is exactly why its t7 doors
+/// were labeled `item=10` where Java's golden labels `item=13`.
+fn parse_world_board(
     dsn: &Path,
-    witness: &SettingsWitness,
-    sink: &mut dyn epic_router::pipeline::event_sink::DriverSink,
-) -> Result<(bool, i32, i32)> {
+) -> Result<(
+    epic_board::tree_manager::SearchTreeManager,
+    epic_board::board::Board,
+)> {
     use epic_board::board::Board;
     use epic_board::tree_manager::SearchTreeManager;
     use epic_dsn::reader::{DsnReadResult, read_board};
-    use epic_router::pipeline::batch::{BatchDriver, StopFace};
 
     let bytes = std::fs::read(dsn).with_context(|| format!("reading {}", dsn.display()))?;
     let mut ses = epic_dsn::ses_board::SesBoard::new();
@@ -645,6 +660,26 @@ fn run_world_with_sink(
     let mut board = Board::from_ses_board(&ses);
     let mut manager = SearchTreeManager::new();
     manager.reinsert_tree_items(&mut board);
+    // Java `Wiring.java:347` — the readScope tail. The tree manager is
+    // passed so the merge maintains the trees exactly like the CLI /
+    // corpora consumers (and like Java, whose parse inserts live items
+    // into the default tree before normalizing).
+    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+    Ok((manager, board))
+}
+
+/// Runs one fixture through the Rust batch driver in-process with the
+/// CALLER's sink — the probe's parse ([`parse_world_board`]) + the
+/// witness world. Split from [`run_rust_world`] so the gating pin
+/// can inject a trace-disabled sink and watch which rows still flow.
+fn run_world_with_sink(
+    dsn: &Path,
+    witness: &SettingsWitness,
+    sink: &mut dyn epic_router::pipeline::event_sink::DriverSink,
+) -> Result<(bool, i32, i32)> {
+    use epic_router::pipeline::batch::{BatchDriver, StopFace};
+
+    let (mut manager, mut board) = parse_world_board(dsn)?;
 
     let batch = batch_settings_from_witness(witness)?;
     let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
@@ -1710,17 +1745,206 @@ mod pins {
         );
     }
 
+    /// M4-T1 (buglog 172): the post-parse board pin. Every expected row
+    /// is a LITERAL capture of the JAVA jar's own post-parse board walk
+    /// (`rust/harness/oracle/IdOrderProbe.java`, harness-side oracle;
+    /// run from the repo root with the JDK-25 JVM):
+    ///
+    /// ```text
+    /// ~/.jdks/jdk-25.0.4.1+1/bin/java -cp \
+    ///   build/libs/freerouting-current-executable.jar \
+    ///   rust/harness/oracle/IdOrderProbe.java <fixture>.dsn
+    /// ```
+    ///
+    /// Java's read path ends the `(wiring ...)` scope with
+    /// `board.normalizeAllTraces()` (`Wiring.java:347`): collinear
+    /// connected same-net wires COMBINE — the absorbed trace is deleted
+    /// (its id stays burned in the generator; ids are never reused) and
+    /// the survivor is extended in place. On t7_ripup, wires id 10
+    /// ((582000,350000)..(600000,350000)) and id 13 merge into id 13 =
+    /// (600000,350000)..(558000,350000), so the Java board routing
+    /// starts from carries 19 items with NO id 10 — the parse-time
+    /// board the events-golden doors label. Two arms:
+    /// * t7 (normalize-ACTIVE): the exact 19-row descending sequence,
+    ///   the id-13 merged corners, the id-9 contrast corners (a wire
+    ///   that must NOT merge), GEN_MAX 20 (the delete does not unburn
+    ///   id 10). An un-normalized board coincides on every other row,
+    ///   so the 10/13 faces are the discriminators;
+    /// * e1 (normalize-INERT): the exact 10-row sequence, GEN_MAX 10 —
+    ///   the same code path where nothing merges (guards against
+    ///   over-merging).
+    ///
+    /// Pin discipline: pinned against the JAVA capture, not a Rust-side
+    /// restatement (mode 11); driven through the same
+    /// [`parse_world_board`] prelude `run_world_with_sink` routes
+    /// through, not a parallel test construction (mode 13).
+    #[test]
+    fn parse_world_board_matches_the_jar_post_parse_id_sequence() {
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("repo root");
+
+        // (id, Java simple name, trace corners when the item is a
+        // PolylineTrace — engine units, the DSN um-10 resolution ×10).
+        let expected_t7: [(&str, &str, &[&str]); 19] = [
+            ("20", "Via", &[]),
+            ("19", "Via", &[]),
+            ("18", "Via", &[]),
+            (
+                "17",
+                "PolylineTrace",
+                &["(660000,398000)", "(690000,398000)"],
+            ),
+            (
+                "16",
+                "PolylineTrace",
+                &["(595000,398000)", "(631000,398000)"],
+            ),
+            (
+                "15",
+                "PolylineTrace",
+                &["(559000,398000)", "(595000,398000)"],
+            ),
+            (
+                "14",
+                "PolylineTrace",
+                &["(548000,294000)", "(548000,310000)", "(576000,310000)"],
+            ),
+            // THE MERGED TRACE: 13 absorbed collinear 10 in place.
+            (
+                "13",
+                "PolylineTrace",
+                &["(600000,350000)", "(558000,350000)"],
+            ),
+            (
+                "12",
+                "PolylineTrace",
+                &["(600000,350000)", "(600000,370000)"],
+            ),
+            (
+                "11",
+                "PolylineTrace",
+                &["(600000,350000)", "(618000,350000)"],
+            ),
+            (
+                "9",
+                "PolylineTrace",
+                &["(600000,290000)", "(600000,314000)"],
+            ),
+            ("8", "Pin", &[]),
+            ("7", "Pin", &[]),
+            ("6", "Pin", &[]),
+            ("5", "Pin", &[]),
+            ("4", "Pin", &[]),
+            ("3", "ObstacleArea", &[]),
+            ("2", "ObstacleArea", &[]),
+            ("1", "BoardOutline", &[]),
+        ];
+        let expected_e1: [(&str, &str, &[&str]); 10] = [
+            (
+                "10",
+                "PolylineTrace",
+                &["(600000,320000)", "(600000,520000)"],
+            ),
+            (
+                "9",
+                "PolylineTrace",
+                &["(600000,120000)", "(600000,320000)"],
+            ),
+            ("8", "Pin", &[]),
+            ("7", "Pin", &[]),
+            ("6", "Pin", &[]),
+            ("5", "Pin", &[]),
+            ("4", "ObstacleArea", &[]),
+            ("3", "ObstacleArea", &[]),
+            ("2", "ObstacleArea", &[]),
+            ("1", "BoardOutline", &[]),
+        ];
+
+        let corners_of = |data: &epic_board::items::ItemData| -> Vec<String> {
+            match data {
+                epic_board::items::ItemData::Trace { lines, .. } => lines
+                    .corners()
+                    .into_iter()
+                    .map(|corner| match corner {
+                        epic_geometry::point::Point::Int(point) => {
+                            format!("({},{})", point.x, point.y)
+                        }
+                        epic_geometry::point::Point::Rational(_) => {
+                            panic!("parse corners are exact ints")
+                        }
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            }
+        };
+        let assert_rows =
+            |board: &epic_board::board::Board, expected: &[(&str, &str, &[&str])], what: &str| {
+                assert_eq!(
+                    board.item_count(),
+                    expected.len(),
+                    "{what}: post-parse item count"
+                );
+                let actual: Vec<(String, &str, Vec<String>)> = board
+                    .iter_descending()
+                    .map(|entry| {
+                        (
+                            entry.id.get().to_string(),
+                            entry.data.java_simple_name(),
+                            corners_of(&entry.data),
+                        )
+                    })
+                    .collect();
+                for (row, ((id, kind, corners), (want_id, want_kind, want_corners))) in
+                    actual.into_iter().zip(expected.iter().copied()).enumerate()
+                {
+                    assert_eq!(id, want_id, "{what}: row {row} id");
+                    assert_eq!(kind, want_kind, "{what}: row {row} kind");
+                    assert_eq!(corners, want_corners.to_vec(), "{what}: row {row} corners");
+                }
+            };
+
+        // t7_ripup — the normalize-active arm (buglog 172's witness).
+        let (manager, board) =
+            parse_world_board(&repo_root.join("rust/harness/fixtures/maze-spike/t7_ripup.dsn"))
+                .expect("t7_ripup parses");
+        let _ = &manager;
+        assert_rows(&board, &expected_t7, "t7_ripup");
+        assert_eq!(
+            board.max_generated_id(),
+            20,
+            "t7_ripup GEN_MAX: the combine deletes id 10 but never unburns it"
+        );
+
+        // e1_ripup — the normalize-inert contrast arm.
+        let (manager, board) =
+            parse_world_board(&repo_root.join("rust/harness/fixtures/event-stream/e1_ripup.dsn"))
+                .expect("e1_ripup parses");
+        let _ = &manager;
+        assert_rows(&board, &expected_e1, "e1_ripup");
+        assert_eq!(board.max_generated_id(), 10, "e1_ripup GEN_MAX");
+    }
+
     /// The executable triage record: the Rust stream aligns with the
     /// golden through each fixture's known prefix, diverges at the
-    /// EXACT triaged ordinal with the EXACT first differing field, and
-    /// the two t7 witnesses prove the divergence classes:
-    /// * `G3 == R4` byte-identical — the maze cost arithmetic is exact
-    ///   across engines for the same door.
-    /// * `G5 == R3` after `item=10 → item=13` — the same door carries a
-    ///   DIFFERENT parse-time item id (Class A: id assignment drift).
+    /// EXACT triaged ordinal with the EXACT first differing field.
+    ///
+    /// M4-T1 (buglog 172 CLOSED) re-triage: the former Class A
+    /// id-labeling divergence at t7 assign ordinal 3 (Rust door
+    /// `item=10` vs Java `item=13` — a phantom id the Java parse never
+    /// had, because `Wiring.java:347` merges collinear wires in-read)
+    /// is HEALED by the in-read normalize in [`parse_world_board`], and
+    /// the t7 streams now align 22 rows deep. The t7 witness below pins
+    /// the healed ordinal byte-identical; the triage tuple carries
+    /// t7's NEXT divergence (1-based ordinal 23) — a target-door CHOICE
+    /// divergence (Java expands door `item=7` at 47000.0, Rust door
+    /// `item=6`), re-triaged in logs/M4-T1/report-t1.md (Class B
+    /// family, Task 2 scope).
     ///
     /// Any engine change that moves these ordinals must update the
-    /// triage in logs/M3-T16/report.md, not silently shift this pin.
+    /// triage in the owning task's report (T16: logs/M3-T16/report.md;
+    /// M4-T1: logs/M4-T1/report-t1.md), not silently shift this pin.
     #[test]
     fn rust_stream_aligns_through_triaged_divergences() {
         let golden_path =
@@ -1804,17 +2028,20 @@ mod pins {
                         ],
                         "expansionValue",
                     ),
-                    // Id-drift + enumeration divergence (Class A): Rust
-                    // seeds door item=10 (== Java's item=13 geometry)
-                    // first.
+                    // Post-M4-T1 re-triage: aligns through 1-based 22;
+                    // diverges at 1-based 23 — Java expands target door
+                    // item=7 (bounds [(521250,389250)..(538750,406750)])
+                    // at expansionValue 47000.0, Rust door item=6. A
+                    // door-CHOICE divergence (Class B family), not an
+                    // id-labeling one — see logs/M4-T1/report-t1.md.
                     "t7_ripup" => (
                         0,
-                        2,
-                        2,
-                        vec!["expansionValue=139200.00000000003"],
-                        vec!["expansionValue=139805.7223435436"],
-                        vec!["door=TargetItemExpansionDoor/item=11/"],
-                        vec!["door=TargetItemExpansionDoor/item=10/"],
+                        22,
+                        22,
+                        vec!["expansionValue=47000.0"],
+                        vec!["expansionValue=314043.37280063727"],
+                        vec!["door=TargetItemExpansionDoor/item=7/"],
+                        vec!["door=TargetItemExpansionDoor/item=6/"],
                         "expansionValue",
                     ),
                     // Wall-door boundary divergence (Class B): the same
@@ -1868,19 +2095,14 @@ mod pins {
                 assert!(r.contains(needle), "rust row lacks {needle}: {r}");
             }
 
-            // The t7 witnesses (see the doc comment).
+            // The t7 witness (see the doc comment): the FORMER Class A
+            // divergence ordinal is byte-identical post M4-T1 — both
+            // sides label `item=11` with identical cost arithmetic,
+            // where the pre-fix Rust stream carried phantom `item=10`.
             if fixture == "t7_ripup" {
                 assert_eq!(
-                    golden_grouped[0][2], rust_grouped[0][3],
-                    "G3 == R4 byte-identical: same door, same label, EXACT cost arithmetic"
-                );
-                assert_eq!(
-                    rust_grouped[0][2].replace(
-                        "door=TargetItemExpansionDoor/item=10/",
-                        "door=TargetItemExpansionDoor/item=13/",
-                    ),
-                    golden_grouped[0][4],
-                    "G5 == R3 modulo the id label: Class A parse-time id drift"
+                    golden_grouped[0][2], rust_grouped[0][2],
+                    "former Class A ordinal (1-based 3) byte-identical post M4-T1"
                 );
             }
 
