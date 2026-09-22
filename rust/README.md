@@ -166,9 +166,13 @@ cargo run -q -p epic-harness -- router compare --report-only
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
 # manifest (post-M4-T4 digests 8bd773fca… / 16714d5e…; the M3-exit
 # values were 96ba7300… / 16714d5e… — the SES rotated with the live
-# 45° tightener, the manifest counts did not). REBUILD FIRST:
-# `-p epic-harness` does not rebuild the spawned target/release/epic-cli
-# bin (library-only dep) — a stale bin routes with old engine code.
+# 45° tightener, the manifest counts did not). STALENESS has TWO
+# witnessed axes: `-p epic-harness` does not rebuild the spawned
+# epic-cli bin (library-only dep), and a debug-profile run once
+# adopted its stale target/debug sibling over the fresh release bin.
+# The router gates now bail STRUCTURALLY when the resolved bin is
+# older than the newest crate source (naming the bin and both rebuild
+# commands) and resolution prefers release — keep the rebuild habit:
 cargo build -q -p epic-cli --release
 cargo run -q -p epic-harness -- router determinism
 # DRC compare: parse-time incompletes + clearance violations on 17

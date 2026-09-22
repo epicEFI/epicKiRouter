@@ -75,19 +75,29 @@
 //! the non-determinism family by construction; deterministic budgets
 //! default ON). Any divergence is a real determinism bug — buglog it.
 //!
-//! REBUILD CAVEAT (witnessed M4-T4): the gate spawns the BUILT
-//! `target/release/epic-cli` (the [`resolve_epic_cli`] sibling rule),
-//! and `cargo run/build -p epic-harness` does NOT rebuild that bin —
-//! epic-cli is linked only as a LIBRARY dependency here, so a stale
-//! `epic-cli` executable silently routes with OLD engine code and the
-//! gate stays green on stale bytes. Run `cargo build -p epic-cli`
-//! (release) before judging any digest — the same staleness warning
-//! the e2e smokes carry, which a real digest rotation masked for a
-//! full A/B round on 2026-09-22.
+//! REBUILD CAVEAT (witnessed M4-T4, closed STRUCTURALLY after the
+//! quality review): the gates spawn the BUILT `epic-cli` binary (the
+//! [`resolve_epic_cli`] resolution), and `cargo run/build -p
+//! epic-harness` does NOT rebuild that bin — epic-cli is linked only
+//! as a LIBRARY dependency here, so a stale `epic-cli` executable
+//! silently routes with OLD engine code and the gate stays green on
+//! stale bytes. TWO staleness axes were witnessed live on 2026-09-22:
+//! the LIBRARY-DEP axis (a T3-era release bin masked a full A/B round)
+//! and the PROFILE-SIBLING axis (a fresh release build PLUS the stale
+//! pre-T4 `target/debug/epic-cli`, adopted as the debug harness's
+//! sibling, reproduced the DORMANT digest with exit 0 —
+//! quality-review MAJOR-1). Both are closed structurally now: the
+//! gates resolve through [`resolve_fresh_epic_cli`], which BAILS when
+//! the resolved bin is older than the newest workspace-crate source,
+//! naming the bin and the rebuild command for BOTH profiles; and
+//! [`resolve_epic_cli`] prefers the release profile and never adopts a
+//! debug sibling. The e2e smokes spawn built artifacts outside these
+//! gates and keep the manual rule: `cargo build -p epic-cli` (and
+//! `… --release`) before judging any digest.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
@@ -295,8 +305,19 @@ pub fn load_java_router_only_record(path: &Path) -> std::result::Result<Baseline
 // ---------------------------------------------------------------------------
 
 /// Locates the `epic-cli` binary: `EPIC_CLI` env, the harness binary's
-/// sibling (cargo puts both in `target/<profile>/`), or the repo's
-/// `target/{debug,release}`. Never spawns anything.
+/// RELEASE-profile sibling (cargo puts bin targets of one profile in
+/// the same `target/<profile>/` dir), or the repo's
+/// `target/{release,debug}`. Never spawns anything.
+///
+/// Two buglog-184 hardenings (quality-review MAJOR-1, witnessed live
+/// 2026-09-22): a DEBUG sibling is deliberately NOT adopted — `cargo
+/// run -p epic-harness` never rebuilds it, and the debug harness's
+/// stale pre-T4 sibling reproduced the dormant digest under a green
+/// gate — and the repo fallback prefers RELEASE, the documented
+/// official profile for every spawn-backed gate (debug stays the CI
+/// face, where the debug bin is built fresh one step before the gate).
+/// Spawn-backed gates resolve through [`resolve_fresh_epic_cli`],
+/// which adds the structural staleness guard.
 pub fn resolve_epic_cli(repo_root: &Path) -> Result<PathBuf> {
     if let Ok(path) = std::env::var("EPIC_CLI") {
         let path = PathBuf::from(path);
@@ -307,13 +328,14 @@ pub fn resolve_epic_cli(repo_root: &Path) -> Result<PathBuf> {
     }
     if let Ok(exe) = std::env::current_exe()
         && let Some(parent) = exe.parent()
+        && parent.file_name().is_some_and(|name| name == "release")
     {
         let sibling = parent.join("epic-cli");
         if sibling.is_file() {
             return Ok(sibling);
         }
     }
-    for profile in ["debug", "release"] {
+    for profile in ["release", "debug"] {
         let candidate = repo_root.join("rust/target").join(profile).join("epic-cli");
         if candidate.is_file() {
             return Ok(candidate);
@@ -322,6 +344,107 @@ pub fn resolve_epic_cli(repo_root: &Path) -> Result<PathBuf> {
     bail!(
         "epic-cli binary not found — build it once with `cargo build -p epic-cli` (or set EPIC_CLI)"
     )
+}
+
+/// Newest `(mtime, path)` over the workspace-crate sources the spawned
+/// `epic-cli` BIN is built from — `rust/crates/*/src/**/*.rs`, each
+/// crate's `Cargo.toml`, and `rust/Cargo.lock` (consumed by
+/// [`assert_epic_cli_fresh`]). `None` when `rust/crates` is absent (a
+/// non-workspace layout skips the guard rather than guessing); stray
+/// unreadable entries are skipped — the guard's job is the ordinary
+/// staleness axis, not to brick exotic checkouts.
+fn newest_workspace_source(repo_root: &Path) -> Option<(SystemTime, PathBuf)> {
+    let crates_dir = repo_root.join("rust/crates");
+    if !crates_dir.is_dir() {
+        return None;
+    }
+    let mut newest: Option<(SystemTime, PathBuf)> = None;
+    let mut consider = |path: &Path| {
+        let mtime = std::fs::metadata(path)
+            .and_then(|meta| meta.modified())
+            .ok();
+        if let Some(mtime) = mtime
+            && newest.as_ref().is_none_or(|(best, _)| mtime > *best)
+        {
+            newest = Some((mtime, path.to_path_buf()));
+        }
+    };
+    // Workspace-level lock: a dependency bump alone can change the
+    // built bin.
+    consider(&repo_root.join("rust/Cargo.lock"));
+    for crate_entry in std::fs::read_dir(&crates_dir).ok()?.flatten() {
+        let crate_dir = crate_entry.path();
+        if !crate_dir.is_dir() {
+            continue;
+        }
+        consider(&crate_dir.join("Cargo.toml"));
+        let mut stack = vec![crate_dir.join("src")];
+        while let Some(dir) = stack.pop() {
+            let entries = match std::fs::read_dir(&dir) {
+                Ok(entries) => entries,
+                Err(_) => continue,
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    consider(&path);
+                }
+            }
+        }
+    }
+    newest
+}
+
+/// Buglog-184's structural guard (quality-review MAJOR-1): the
+/// spawn-backed gates BAIL when the resolved bin is OLDER than the
+/// newest workspace-crate source — it would route with OLD engine code
+/// and the gate could stay GREEN on stale bytes, which a prose caveat
+/// alone failed to prevent on the profile-sibling axis. Bail-over-
+/// auto-build BY DESIGN: an automatic `cargo build` nested under
+/// `cargo run` contends with cargo's own file lock, so the message
+/// names both rebuild profiles instead. False positives are safe:
+/// `git checkout` refreshes source mtimes to now, so a bail's worst
+/// case is a no-op rebuild.
+pub fn assert_epic_cli_fresh(repo_root: &Path, cli_bin: &Path) -> Result<()> {
+    let bin_mtime = std::fs::metadata(cli_bin)
+        .and_then(|meta| meta.modified())
+        .map_err(|e| anyhow::anyhow!("stating resolved epic-cli bin {}: {e}", cli_bin.display()))?;
+    let Some((newest_mtime, newest_path)) = newest_workspace_source(repo_root) else {
+        return Ok(()); // not a workspace checkout — nothing to compare against
+    };
+    if bin_mtime >= newest_mtime {
+        return Ok(());
+    }
+    let epoch_secs = |t: SystemTime| {
+        t.duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs())
+    };
+    bail!(
+        "STALE epic-cli bin: {}\n  \
+         bin mtime {}s (epoch) is OLDER than the newest crate source {} at {}s (epoch).\n  \
+         The gate would spawn OLD engine code and can stay GREEN on stale bytes (buglog-184; \
+         the profile-sibling face was witnessed live 2026-09-22 — a fresh release build plus \
+         a stale debug sibling reproduced the dormant digest with exit 0).\n  \
+         Rebuild BOTH profiles before judging any digest:\n    \
+         cargo build -p epic-cli\n    \
+         cargo build -p epic-cli --release\n  \
+         (from rust/; or point EPIC_CLI at a freshly built bin)",
+        cli_bin.display(),
+        epoch_secs(bin_mtime),
+        newest_path.display(),
+        epoch_secs(newest_mtime),
+    )
+}
+
+/// The spawn-backed gates' ONE bin entry ([`determinism_cmd`] and
+/// [`compare_cmd`]): [`resolve_epic_cli`] plus the structural
+/// freshness guard [`assert_epic_cli_fresh`].
+pub fn resolve_fresh_epic_cli(repo_root: &Path) -> Result<PathBuf> {
+    let cli_bin = resolve_epic_cli(repo_root)?;
+    assert_epic_cli_fresh(repo_root, &cli_bin)?;
+    Ok(cli_bin)
 }
 
 /// One epic-cli subprocess run's on-disk outcome.
@@ -1167,7 +1290,7 @@ fn determinism_cmd(
     work_root: Option<PathBuf>,
 ) -> Result<()> {
     let started = Instant::now();
-    let cli_bin = resolve_epic_cli(repo_root)?;
+    let cli_bin = resolve_fresh_epic_cli(repo_root)?;
     let fixtures = tier_a_fixtures(repo_root)?;
     let wanted = fixture.unwrap_or(DEFAULT_DETERMINISM_FIXTURE);
     let entry = fixtures
@@ -1264,7 +1387,7 @@ fn compare_cmd(
     work_root: Option<PathBuf>,
 ) -> Result<()> {
     let started = Instant::now();
-    let cli_bin = resolve_epic_cli(repo_root)?;
+    let cli_bin = resolve_fresh_epic_cli(repo_root)?;
     let fixtures = tier_a_fixtures(repo_root)?;
     let work = work_root
         .map(|p| {
@@ -2611,6 +2734,125 @@ mod pins {
                 .is_some_and(|row| row.contains("item 9 <-> item 109")),
             "the last rendered row must be pair 9 (the truncation boundary): {text}"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // The bin-freshness guard (buglog-184's structural close,
+    // quality-review MAJOR-1). These pins build their own tiny
+    // workspace-shaped world in a temp dir — they never touch the real
+    // repo tree. Creation order sets mtimes (ns resolution), so the
+    // stale/fresh shapes need no mtime-mutating dependency: a bin
+    // written BEFORE the sources is the stale world; the bin written
+    // AFTER them is the fresh one.
+    // ------------------------------------------------------------------
+
+    /// A temp `rust/` workspace-shaped root with `crates/k/src` in place.
+    fn fresh_guard_world(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let root = std::env::temp_dir().join(format!(
+            "epic_fresh_guard_{tag}_{}_{}",
+            std::process::id(),
+            nanos
+        ));
+        let src = root.join("rust/crates/k/src");
+        std::fs::create_dir_all(&src).expect("temp workspace src");
+        root
+    }
+
+    /// THE kill face (the guard must be mutant-observable, not another
+    /// prose caveat): a bin OLDER than the newest crate source BAILS,
+    /// naming the resolved path and the rebuild command for BOTH
+    /// profiles.
+    #[test]
+    fn freshness_guard_bails_on_stale_bin_naming_both_rebuilds() {
+        let root = fresh_guard_world("stale");
+        let bin = root.join("rust/target/release/epic-cli");
+        std::fs::create_dir_all(bin.parent().expect("bin dir")).expect("bin dir");
+        // Bin FIRST (older), sources AFTER (newer) — the stale shape.
+        // (Creation order sets mtimes: the bin must PREDATE the newest
+        // source; writing it last would make it the fresh side.) The
+        // sleep is load-bearing: file timestamps come from the kernel's
+        // COARSE clock (one tick per jiffy), so back-to-back writes tie
+        // at the same mtime and the guard's `>=` would read the world
+        // as fresh.
+        std::fs::write(&bin, "stale bin bytes").expect("bin");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(root.join("rust/crates/k/src/lib.rs"), "fn m() {}\n").expect("src");
+        std::fs::write(root.join("rust/crates/k/Cargo.toml"), "[package]\n").expect("toml");
+        let err = assert_epic_cli_fresh(&root, &bin).expect_err("stale bin must bail");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("STALE epic-cli bin"),
+            "headline missing: {msg}"
+        );
+        assert!(
+            msg.contains(bin.to_string_lossy().as_ref()),
+            "resolved path missing: {msg}"
+        );
+        assert!(
+            msg.contains("cargo build -p epic-cli\n"),
+            "debug cmd missing: {msg}"
+        );
+        assert!(
+            msg.contains("cargo build -p epic-cli --release"),
+            "release cmd missing: {msg}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The fresh face: bin newest → the guard is a no-op (it must never
+    /// block the ordinary up-to-date run).
+    #[test]
+    fn freshness_guard_passes_when_bin_is_newest() {
+        let root = fresh_guard_world("fresh");
+        let bin = root.join("rust/target/debug/epic-cli");
+        std::fs::create_dir_all(bin.parent().expect("bin dir")).expect("bin dir");
+        // Lock and sources first, bin LAST — the fresh shape.
+        std::fs::write(root.join("rust/Cargo.lock"), "# lock\n").expect("lock");
+        std::fs::write(root.join("rust/crates/k/src/lib.rs"), "fn m() {}\n").expect("src");
+        std::fs::write(&bin, "fresh bin bytes").expect("bin");
+        assert_epic_cli_fresh(&root, &bin).expect("fresh bin must pass");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Resolution hardening (MAJOR-1 complementary): the repo fallback
+    /// prefers RELEASE, with debug retained as the CI face. The
+    /// never-adopt-a-debug-sibling rule is not directly assertable from
+    /// a test process (`current_exe` is fixed, and lives under
+    /// `target/debug/deps/` anyway) — it is proven live by the
+    /// before/after determinism run in the MAJOR-1 fix round: the stale
+    /// debug sibling present AND a fresh release bin resolving to the
+    /// LIVE digest. Skipped when the shell exports EPIC_CLI — the
+    /// override legitimately wins over everything asserted here, and
+    /// tests must not mutate env.
+    #[test]
+    fn resolution_prefers_release_and_keeps_debug_ci_face() {
+        if std::env::var("EPIC_CLI").is_ok() {
+            return;
+        }
+        let root = fresh_guard_world("resolve");
+        let release = root.join("rust/target/release/epic-cli");
+        let debug = root.join("rust/target/debug/epic-cli");
+        std::fs::create_dir_all(release.parent().expect("dir")).expect("dir");
+        std::fs::create_dir_all(debug.parent().expect("dir")).expect("dir");
+        std::fs::write(&release, "release").expect("release bin");
+        std::fs::write(&debug, "debug").expect("debug bin");
+        // Both present → RELEASE wins (debug-first before MAJOR-1).
+        assert_eq!(
+            resolve_epic_cli(&root).expect("resolve"),
+            release,
+            "the repo fallback must prefer the release profile"
+        );
+        // Debug-only → debug still resolves (the CI face).
+        std::fs::remove_file(&release).expect("remove release bin");
+        assert_eq!(
+            resolve_epic_cli(&root).expect("resolve"),
+            debug,
+            "debug remains the CI fallback face"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The BUILT `epic-harness` binary, located the way the e2e smokes
