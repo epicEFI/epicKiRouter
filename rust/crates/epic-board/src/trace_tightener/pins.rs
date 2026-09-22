@@ -217,6 +217,39 @@ fn t3_region_enlargement_jar_in_out() {
     assert_corners(&board, trace_by_net(&board, 4, 6), &before::CUP);
 }
 
+/// The offset-boundary pin (spec-review MINOR-2 / reviewer T3-S4): the
+/// measured reach boundary is asserted EXACTLY, not just bracketed.
+/// Closed form `x + offset >= 999000` (the bottom arm's west segment-box
+/// edge) with offset `1.5 * (maxClearanceL0 2500 + 2 * maxTraceHalfWidth
+/// 1000) = 6750` gives x* = 992250 — the regionscan's bracket
+/// (992000 miss / 992250 hit) plus the arithmetic. One DBU OUTSIDE
+/// (992249) must NOT move; the boundary point itself (992250) and one
+/// DBU inside (992251) must collapse to the same west bar. A ±1-DBU
+/// drift of the offset arithmetic flips an arm: offset 6751 reaches
+/// 992249 (the out-arm dies), offset 6749 stops short of 992250 (the
+/// boundary arm dies) — self-verified both ways as mutant T3-M5.
+#[test]
+fn t3_region_offset_boundary_exact_pin() {
+    // 992249 + 6750 = 998999 < 999000: the cup stays byte-exact.
+    let (_manager, board) = run_world(&[(992249, 180000)], None, None, 0, false);
+    assert_corners(&board, trace_by_net(&board, 4, 6), &before::CUP);
+    // 992250 + 6750 = 999000: the inclusive boundary hit — the
+    // regionscan's first-move row collapses to the west bar.
+    let (_manager, board) = run_world(&[(992250, 180000)], None, None, 0, false);
+    assert_corners(
+        &board,
+        trace_by_net(&board, 4, 6),
+        &[(1000000, 200000), (1000000, 180000)],
+    );
+    // 992251: one DBU inside — same west bar.
+    let (_manager, board) = run_world(&[(992251, 180000)], None, None, 0, false);
+    assert_corners(
+        &board,
+        trace_by_net(&board, 4, 6),
+        &[(1000000, 200000), (1000000, 180000)],
+    );
+}
+
 /// The `block` world (capture world 5): two nested C-cups, blocker A
 /// (id 7 < blocked B's id 8 — the wiring order witness) sitting with
 /// its middle vertical exactly on B's collapse target. Descending-id
