@@ -91,8 +91,11 @@ pub fn find_step_run_line<'a>(blocks: &'a [String], needle: &str) -> Option<&'a 
 /// and not another step's). Zero such lines or a non-integer value →
 /// `None`; more than one → `None` (ambiguous). A trailing INLINE
 /// comment is tolerated (`timeout-minutes: 30 # note` — cosmetics, not
-/// a contract change), while a comment in the VALUE position
-/// (`timeout-minutes: # 30`) leaves the value empty and still trips.
+/// a contract change), but per the YAML plain-scalar rule a `#` starts
+/// a comment only after whitespace or at the value's start: `3#0` is
+/// the non-integer scalar "3#0" and trips; a comment in the VALUE
+/// position (`timeout-minutes: # 30`) leaves the value empty and also
+/// trips.
 #[must_use]
 pub fn step_timeout_minutes(block: &str) -> Option<u64> {
     let mut found: Option<u64> = None;
@@ -101,10 +104,14 @@ pub fn step_timeout_minutes(block: &str) -> Option<u64> {
         let Some(rest) = stripped.strip_prefix("timeout-minutes:") else {
             continue;
         };
-        // Strip a trailing inline comment BEFORE the digit test, then
-        // trim: `30  # hang tripwire` reads 30; `# 30` (a comment where
-        // the value belongs) reads empty and trips below.
-        let value = rest.split('#').next().unwrap_or("").trim();
+        // Strip a trailing inline comment BEFORE the digit test — but
+        // only a WHITESPACE-preceded `#` is a comment (YAML rule):
+        // `30  # hang tripwire` reads 30, while `3#0` keeps its `#` and
+        // trips the digit test below (never guess a partial value).
+        let value = match rest.split_once(" #") {
+            Some((head, _comment)) => head.trim(),
+            None => rest.trim(),
+        };
         if found.is_some() || value.is_empty() || !value.chars().all(|c| c.is_ascii_digit()) {
             return None; // duplicate or non-integer: trip, never guess
         }
@@ -203,6 +210,11 @@ jobs:
         // it must still trip (the comment-before-value face).
         let value_comment = "      - run: x\n        timeout-minutes: # 30\n";
         assert_eq!(step_timeout_minutes(value_comment), None);
+        // And a `#` NOT preceded by whitespace is part of the plain
+        // scalar (YAML rule): `3#0` is no integer — trip, never guess
+        // (re-review Q8's residual; the old strip guessed Some(3)).
+        let glued = "      - run: x\n        timeout-minutes: 3#0\n";
+        assert_eq!(step_timeout_minutes(glued), None);
     }
 
     /// THE tripwire (real repo file): the bare-suite test step keeps
