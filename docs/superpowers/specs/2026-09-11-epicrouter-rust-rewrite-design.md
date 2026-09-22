@@ -143,7 +143,7 @@ completion reds — each root-caused non-parity:
 
 | Red | Root cause | M4 lever | Buglog |
 | --- | --- | --- | --- |
-| bm06 completion 10 vs Java 9 | TUNING: attempt-42 fork (Java rips, Rust finds a legal rip-free path), then victim-choice swaps on bistable nets | victim-choice tie-break alignment, sequenced after #61's door-slicing class | 181 |
+| bm06 completion 10 vs Java 9 | TUNING: attempt-42 fork (Java rips, Rust finds a legal rip-free path), then victim-choice swaps on bistable nets | victim-choice tie-break alignment, sequenced after #61's door-slicing class (Class B's slicing may be the causal ancestor of the victim-choice drift — closing it first is cheaper than tuning on unaligned order) | 181 |
 | bm11 completion 15 vs 14 at truth | attempt-order/victim-choice drift; plateau score-stable, same 18 passes as Java — the wall is not the cause | same tuning family as bm06 | 175 |
 | bm01 completion 5 best / 6 terminal vs 2 | WALL-LIMITED: every pass exhausts the tick ladder; the best measured state is 3 connections short of Java's 2 with the score still climbing at the bound — reaching 2 is extrapolation, not measurement | per-pass search cost (M4 detail-stage work; M5 arena/parallelism as backstop) | 175 |
 
@@ -158,9 +158,10 @@ instrument (§5), not a gate. The CI router gate stays HELD in
 `--report-only` (a tripwire-pinned deviation from §5's CI-enforced
 letter): the flip is one same-commit act once the battery reads 11/11
 under a wall-resolved profile — drop `--report-only`, update both
-`ci_tripwire.rs` pins — and that moment is M4's zero-regression
-moment. Faces and ledger: `rust/crates/epic-router/SEAM.md`
-(MILESTONE-CRITERION MAP).
+`ci_tripwire.rs` pins, and refresh the prose describing the posture
+(the rust/README status block and gates comment, and this paragraph);
+that moment is M4's zero-regression moment. Faces and ledger:
+`rust/crates/epic-router/SEAM.md` (MILESTONE-CRITERION MAP).
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 

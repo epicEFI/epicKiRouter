@@ -158,14 +158,16 @@ cd rust
 cargo run -q -p epic-harness --release -- router compare
 # CI posture: --report-only prints every verdict and exits 0. The flip
 # to a hard gate is ONE same-commit act once the battery reads 11/11
-# under a wall-resolved profile: drop --report-only AND update both
-# ci_tripwire.rs pins (rust-check.yml comment records the condition).
+# under a wall-resolved profile: drop --report-only, update both
+# ci_tripwire.rs pins, and refresh the posture prose (this file's
+# status block and this comment, plus the design doc §6 note's CI
+# paragraph); the rust-check.yml comment records the condition.
 cargo run -q -p epic-harness -- router compare --report-only
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
 # manifest (digests 96ba7300… / 16714d5e… at the M3 exit).
 cargo run -q -p epic-harness -- router determinism
 # DRC compare: parse-time incompletes + clearance violations on 17
-# fixtures (tier A + PCBench pre-routed).
+# fixtures (11 Tier A + 3 PCBench pre-routed + 3 crafted pin boards).
 cargo run -q -p epic-harness -- drc compare
 # Event-stream compare vs the committed Java probe golden: HONEST-RED
 # by design — exit 1 localizes the first divergence (triaged as #61:
