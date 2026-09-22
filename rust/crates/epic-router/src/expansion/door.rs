@@ -267,6 +267,11 @@ mod tests {
             .collect()
     }
 
+    /// The rot-recovery instruction the T2-P1/P2 literal asserts carry
+    /// (the T1 QN-3 convention, route_events.rs `ROT`): a failed face
+    /// must say what to do, not just what broke.
+    const ROT: &str = "literal mismatch — re-derive, do not edit: world shapes via the committed rust/harness/oracle/RoomSnapProbe.java (e1_ripup at the first net-2 assign; room-label witness too), literals via the JDK-25 jar's FloatLine.shrinkSegment + divideSegmentIntoSections on the pinned inputs, verdicts vs rust/harness/corpus/events-golden.jsonl ordinals 58-64 (full wall) / 65+ (trapezoid)";
+
     /// M4-T2 PIN (T2-P1) — the e1_ripup net-2 full-wall door, the
     /// events-golden divergence face at 1-based assign ordinal 58.
     ///
@@ -298,7 +303,7 @@ mod tests {
         let door = ExpansionDoor::new(1, 20480, 1);
         let (count, sections) =
             door.get_section_segments(&door_shape, false, &room1, &room1, 11250.0);
-        assert_eq!(count, 7, "golden ords 58-64: sections=7");
+        assert_eq!(count, 7, "golden ords 58-64: sections=7. {ROT}");
         assert_eq!(
             section_coords(&sections),
             vec![
@@ -310,7 +315,7 @@ mod tests {
                 (759642.0, 238750.0, 866070.0, 238750.0),
                 (866070.0, 238750.0, 972498.0, 238750.0),
             ],
-            "Java shrinkSegment + divideSegmentIntoSections on the full wall"
+            "Java shrinkSegment + divideSegmentIntoSections on the full wall. {ROT}"
         );
     }
 
@@ -347,7 +352,7 @@ mod tests {
         let door = ExpansionDoor::new(1, 3, 2);
         let (count, sections) =
             door.get_section_segments(&door_shape, true, &room1, &room3, 11250.0);
-        assert_eq!(count, 4, "golden ordinal 65+: sections=4");
+        assert_eq!(count, 4, "golden ordinal 65+: sections=4. {ROT}");
         assert_eq!(
             section_coords(&sections),
             vec![
@@ -366,7 +371,7 @@ mod tests {
                     229210.96961282892
                 ),
             ],
-            "Java shrink/divide on the restraint line (539482,91250)->(216250,233750)"
+            "Java shrink/divide on the restraint line (539482,91250)->(216250,233750). {ROT}"
         );
     }
 
