@@ -1745,16 +1745,40 @@ mod pins {
         );
     }
 
+    /// The IdOrderProbe output format the pin's row literals were
+    /// captured under (the probe prints it as its first stdout line;
+    /// the pin cross-checks the format the probe source DECLARES
+    /// against this, so a capture-format drift dies before the row
+    /// literals are even compared).
+    const CAPTURED_PROBE_FORMAT: &str =
+        "id-order-probe/2 (insert-order rows; DEL rows; descending-id POST walk; GEN_MAX)";
+
+    /// The rot-recovery instruction every literal assert below carries:
+    /// a failed face must say what to do, not just what broke.
+    const ROT: &str = "literal mismatch — re-run rust/harness/oracle/IdOrderProbe.java on the fixture and re-capture";
+
     /// M4-T1 (buglog 172): the post-parse board pin. Every expected row
     /// is a LITERAL capture of the JAVA jar's own post-parse board walk
     /// (`rust/harness/oracle/IdOrderProbe.java`, harness-side oracle;
-    /// run from the repo root with the JDK-25 JVM):
+    /// the house javac + FQCN invocation, from the repo root with the
+    /// JDK-25 JVM — do NOT change the oracle build wiring):
     ///
     /// ```text
-    /// ~/.jdks/jdk-25.0.4.1+1/bin/java -cp \
-    ///   build/libs/freerouting-current-executable.jar \
-    ///   rust/harness/oracle/IdOrderProbe.java <fixture>.dsn
+    /// mkdir -p /tmp/epic-idorder-classes && \
+    /// ~/.jdks/jdk-25.0.4.1+1/bin/javac \
+    ///     -cp build/libs/freerouting-current-executable.jar \
+    ///     -d /tmp/epic-idorder-classes rust/harness/oracle/IdOrderProbe.java && \
+    /// ~/.jdks/jdk-25.0.4.1+1/bin/java \
+    ///     -cp build/libs/freerouting-current-executable.jar:/tmp/epic-idorder-classes \
+    ///     app.freerouting.board.actions.IdOrderProbe <fixture>.dsn
     /// ```
+    ///
+    /// The probe's FIRST stdout line is its `FORMAT` header; the pin
+    /// asserts the format the probe DECLARES (read java-free from the
+    /// probe source) against [`CAPTURED_PROBE_FORMAT`] — the format the
+    /// row literals below were captured under. A probe output change
+    /// without re-capture, or a re-capture without a pin bump, dies
+    /// here loudly.
     ///
     /// Java's read path ends the `(wiring ...)` scope with
     /// `board.normalizeAllTraces()` (`Wiring.java:347`): collinear
@@ -1766,13 +1790,25 @@ mod pins {
     /// starts from carries 19 items with NO id 10 — the parse-time
     /// board the events-golden doors label. Two arms:
     /// * t7 (normalize-ACTIVE): the exact 19-row descending sequence,
-    ///   the id-13 merged corners, the id-9 contrast corners (a wire
-    ///   that must NOT merge), GEN_MAX 20 (the delete does not unburn
-    ///   id 10). An un-normalized board coincides on every other row,
-    ///   so the 10/13 faces are the discriminators;
+    ///   the id-13 merged corners, the id-9 contrast corners, GEN_MAX
+    ///   20 (the delete does not unburn id 10). An un-normalized board
+    ///   coincides on every other row, so the 10/13 faces are the
+    ///   discriminators;
     /// * e1 (normalize-INERT): the exact 10-row sequence, GEN_MAX 10 —
     ///   the same code path where nothing merges (guards against
     ///   over-merging).
+    ///
+    /// Non-merge faces the literals carry BEYOND the t7 id-9 stub
+    /// (which only proves combine's connection requirement — a stub
+    /// with no contact at its free end never merges):
+    /// * t7 ids 15/16 are a collinear connected same-net pair held
+    ///   apart BY VIA 18 on their shared junction (595000,398000) —
+    ///   combine's exactly-one-contact gate, the strongest anti-merge
+    ///   face in the capture;
+    /// * e1 ids 9/10 are the collinear connected pair that does NOT
+    ///   merge because wire id 10 is `(type protect)` (USER_FIXED —
+    ///   deletion-forbidden), so the inert arm pins combine's
+    ///   fixed-state gate, not merely an absent merge.
     ///
     /// Pin discipline: pinned against the JAVA capture, not a Rust-side
     /// restatement (mode 11); driven through the same
@@ -1784,6 +1820,34 @@ mod pins {
             .join("../..")
             .canonicalize()
             .expect("repo root");
+
+        // The probe's declared output format vs the format the row
+        // literals were captured under (java-free cross-check: read the
+        // committed probe SOURCE, not its compiled output). The extractor
+        // accepts only a real declaration line — `static final String
+        // FORMAT = "..."` — so a comment MENTIONING the constant (the
+        // header documents the extraction contract) cannot masquerade as
+        // the declaration.
+        let probe_src =
+            std::fs::read_to_string(repo_root.join("rust/harness/oracle/IdOrderProbe.java"))
+                .expect("IdOrderProbe.java — the pin's witness generator — is committed");
+        let declared_format = probe_src
+            .lines()
+            .find_map(|line| {
+                let decl = line
+                    .trim_start()
+                    .strip_prefix("static final String FORMAT = ")?;
+                let value = decl.strip_prefix('"')?;
+                value.split('"').next()
+            })
+            .expect("IdOrderProbe declares a single-line FORMAT constant");
+        assert_eq!(
+            CAPTURED_PROBE_FORMAT, declared_format,
+            "IdOrderProbe output format drifted from the pin's captures — \
+             re-run rust/harness/oracle/IdOrderProbe.java on t7_ripup + \
+             e1_ripup and re-capture (bump CAPTURED_PROBE_FORMAT and the \
+             row literals together)"
+        );
 
         // (id, Java simple name, trace corners when the item is a
         // PolylineTrace — engine units, the DSN um-10 resolution ×10).
@@ -1884,7 +1948,7 @@ mod pins {
                 assert_eq!(
                     board.item_count(),
                     expected.len(),
-                    "{what}: post-parse item count"
+                    "{what}: post-parse item count — {ROT}"
                 );
                 let actual: Vec<(String, &str, Vec<String>)> = board
                     .iter_descending()
@@ -1899,31 +1963,33 @@ mod pins {
                 for (row, ((id, kind, corners), (want_id, want_kind, want_corners))) in
                     actual.into_iter().zip(expected.iter().copied()).enumerate()
                 {
-                    assert_eq!(id, want_id, "{what}: row {row} id");
-                    assert_eq!(kind, want_kind, "{what}: row {row} kind");
-                    assert_eq!(corners, want_corners.to_vec(), "{what}: row {row} corners");
+                    assert_eq!(id, want_id, "{what}: row {row} id — {ROT}");
+                    assert_eq!(kind, want_kind, "{what}: row {row} kind — {ROT}");
+                    assert_eq!(
+                        corners,
+                        want_corners.to_vec(),
+                        "{what}: row {row} corners — {ROT}"
+                    );
                 }
             };
 
         // t7_ripup — the normalize-active arm (buglog 172's witness).
-        let (manager, board) =
+        let (_manager, board) =
             parse_world_board(&repo_root.join("rust/harness/fixtures/maze-spike/t7_ripup.dsn"))
                 .expect("t7_ripup parses");
-        let _ = &manager;
         assert_rows(&board, &expected_t7, "t7_ripup");
         assert_eq!(
             board.max_generated_id(),
             20,
-            "t7_ripup GEN_MAX: the combine deletes id 10 but never unburns it"
+            "t7_ripup GEN_MAX: the combine deletes id 10 but never unburns it — {ROT}"
         );
 
         // e1_ripup — the normalize-inert contrast arm.
-        let (manager, board) =
+        let (_manager, board) =
             parse_world_board(&repo_root.join("rust/harness/fixtures/event-stream/e1_ripup.dsn"))
                 .expect("e1_ripup parses");
-        let _ = &manager;
         assert_rows(&board, &expected_e1, "e1_ripup");
-        assert_eq!(board.max_generated_id(), 10, "e1_ripup GEN_MAX");
+        assert_eq!(board.max_generated_id(), 10, "e1_ripup GEN_MAX — {ROT}");
     }
 
     /// The executable triage record: the Rust stream aligns with the

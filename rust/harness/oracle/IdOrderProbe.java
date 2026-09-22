@@ -7,10 +7,25 @@
 // active flag) fires on every real insert — items dropped by the insert
 // guards never appear here, matching the Rust insert-site semantics.
 //
-// Run (repo root):
-//   ~/.jdks/jdk-25.0.4.1+1/bin/java -cp build/libs/freerouting-current-executable.jar \
-//       rust/harness/oracle/IdOrderProbe.java <file.dsn>
-import app.freerouting.board.actions.ItemIdGenerator;
+// Output contract: the FIRST stdout line is the FORMAT header below. The
+// Rust pin `parse_world_board_matches_the_jar_post_parse_id_sequence`
+// (harness/src/route_events.rs) cross-checks the declared constant against
+// the format its row literals were captured under — change the output
+// shape ONLY together with a pin re-capture (bump the constant AND the
+// literals; the pin dies loudly on any drift, so keep the declaration on
+// one line: the pin extracts the single-line `FORMAT = "` declaration).
+//
+// Run (the house javac + FQCN pattern, JDK 25, from the repo root; do NOT
+// change the oracle build wiring in harness/src/oracle.rs):
+//   mkdir -p /tmp/epic-idorder-classes && \
+//   ~/.jdks/jdk-25.0.4.1+1/bin/javac \
+//       -cp build/libs/freerouting-current-executable.jar \
+//       -d /tmp/epic-idorder-classes rust/harness/oracle/IdOrderProbe.java && \
+//   ~/.jdks/jdk-25.0.4.1+1/bin/java \
+//       -cp build/libs/freerouting-current-executable.jar:/tmp/epic-idorder-classes \
+//       app.freerouting.board.actions.IdOrderProbe <file.dsn>
+package app.freerouting.board.actions;
+
 import app.freerouting.board.model.items.Item;
 import app.freerouting.board.model.structure.Component;
 import app.freerouting.board.state.BoardObservers;
@@ -24,7 +39,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class IdOrderProbe {
+  static final String FORMAT = "id-order-probe/2 (insert-order rows; DEL rows; descending-id POST walk; GEN_MAX)";
+
   public static void main(String[] args) throws Exception {
+    System.out.println("FORMAT " + FORMAT);
     List<String> rows = new ArrayList<>();
     BoardObservers observers =
         new BoardObservers() {

@@ -173,6 +173,16 @@ fn scan_pcb_header(scanner: &mut Scanner) -> Result<Option<String>, (String, Str
 
 /// Java `DsnReader.readBoard` (`:58-161`) — the full walk; bytes in,
 /// sink out.
+///
+/// The sink receives the PARSE surface only: Java's read path fires
+/// `board.normalizeAllTraces()` at the wiring-scope tail
+/// (`Wiring.java:347`) AFTER the scope walk — this port deliberately
+/// does NOT (the D11 deferral; see `scope/wiring.rs` module docs).
+/// Every consumer that routes or digests from a parsed board MUST run
+/// `epic_board::normalize_all::normalize_all_traces` after building
+/// its `SearchTreeManager`; the seven current sites are named in
+/// `Board::from_ses_board`'s consumer-obligation paragraph. The
+/// events world skipping it was buglog 172 (M4-T1's cautionary case).
 pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
     let mut scanner = Scanner::new(input);
     // The 3-token header hand-scan (`DsnReader.java:83-109`): `(`, the

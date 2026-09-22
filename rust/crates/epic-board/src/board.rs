@@ -1446,6 +1446,25 @@ impl Board {
     ///   DOCUMENTED M1b divergence (`scope/wiring.rs` module docs: Java
     ///   keeps exact rationals; the port rounds at parse), unchanged
     ///   here.
+    ///
+    /// # Consumer obligation (M4-T1, buglog 172)
+    ///
+    /// A board from this conversion is the PARSE surface, not the
+    /// routing-ready one: Java's `DsnReader` fires
+    /// `board.normalizeAllTraces()` at the wiring-scope tail
+    /// (`Wiring.java:347`), so every consumer that routes or digests
+    /// from a parsed board MUST run
+    /// [`crate::normalize_all::normalize_all_traces`] after building
+    /// its `SearchTreeManager`. The seven current consumers:
+    /// `epic-cli/src/route.rs` (the routing path and, through it, the
+    /// determinism-digest path), `epic-router/src/drill/pins.rs`, and
+    /// the harness worlds `dsn_corpus.rs`, `undo_corpus.rs`,
+    /// `ses_compare.rs`, `router_compare.rs`, `route_events.rs`
+    /// (`parse_world_board`). Cautionary case: the events world skipped
+    /// it until M4-T1 and diverged from Java at its first expansion
+    /// door — Java's post-parse board had merged t7's collinear wires
+    /// (19 items, no id 10) while Rust carried their phantom id 10 into
+    /// the golden door labels (buglog 172).
     #[must_use]
     pub fn from_ses_board(ses: &SesBoard) -> Self {
         let mut board = Board::new();
