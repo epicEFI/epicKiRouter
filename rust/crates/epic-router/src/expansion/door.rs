@@ -242,6 +242,7 @@ mod tests {
 
     /// An exact rectangle (or octagon) built from raw border
     /// coordinates, normalized like the engine's shapes.
+    #[allow(clippy::too_many_arguments)] // the raw border octagon IS 8 coordinates
     fn oct(
         left_x: i32,
         bottom_y: i32,
@@ -314,14 +315,16 @@ mod tests {
     }
 
     /// M4-T2 PIN (T2-P2) — the e1_ripup net-2 free-space overlap door
-    /// (complete room 1 x complete room 4), the second witnessed wall.
+    /// (complete room 1 x complete room 3), the second witnessed wall.
     ///
     /// Java verdicts: the golden rows from ordinal 65 expand
     /// `ExpansionDoor/bounds=[(216250,91250)..(539482,233750)]/dim=2
     /// /sections=4`. The room shapes are the walk-measured octagons
     /// whose COMPLETE_ROOM rows sit inside the matched stream prefix
-    /// (room 4 carries the cut lower-right/upper-right corners of the
-    /// restart-restrained completeShape): the door shape is their
+    /// (complete room 3 carries the cut lower-right/upper-right corners
+    /// of the restart-restrained completeShape — its lrx=448232, where
+    /// rx-ly would be 538132; the snapshot probe is the label witness):
+    /// the door shape is their
     /// intersection — a trapezoid whose restraint line runs
     /// (539482,91250) -> (216250,233750) (the only corners on BOTH
     /// room borders), length sqrt(124785175824) < 4*max section
@@ -340,10 +343,10 @@ mod tests {
         let room1 = oct(
             216250, 91250, 983750, 238750, -22500, 892500, 307500, 1222500,
         );
-        let room4 = oct(1350, 1350, 539482, 233750, -232400, 448232, 2700, 630732);
-        let door = ExpansionDoor::new(1, 4, 2);
+        let room3 = oct(1350, 1350, 539482, 233750, -232400, 448232, 2700, 630732);
+        let door = ExpansionDoor::new(1, 3, 2);
         let (count, sections) =
-            door.get_section_segments(&door_shape, true, &room1, &room4, 11250.0);
+            door.get_section_segments(&door_shape, true, &room1, &room3, 11250.0);
         assert_eq!(count, 4, "golden ordinal 65+: sections=4");
         assert_eq!(
             section_coords(&sections),
