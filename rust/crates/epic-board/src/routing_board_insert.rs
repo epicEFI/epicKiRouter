@@ -48,24 +48,33 @@
 //! targetPoint` tie-break), which Rust value equality reproduces only
 //! in the absence of value-coincident distinct points.
 //!
-//! ## The pull-tight seam (M4 fill)
+//! ## The pull-tight seam (M4-T3 fill)
 //!
 //! Java runs the `TraceTightener` both from `insertForcedTracePolyline`
 //! (the per-segment `pullTight` at `:860-862`) and from
-//! `RoutingBoardOperations.optChangedArea` (`:52-79`). The tightener
-//! internals are M4 scope; T10c ports the SKELETON behind a trait,
-//! [`PullTightSeam`], with the documented no-op [`NoPullTight`]
-//! implementation. Named divergences while the seam is a no-op:
+//! `RoutingBoardOperations.optChangedArea` (`:52-79`). T10c ported the
+//! SKELETON behind [`PullTightSeam`]; M4-T3 fills the seam with the
+//! [`crate::trace_tightener::TraceTightenerSeam`] production
+//! implementation — ACTIVE on `NINETY_DEGREE` boards only, because
+//! Java's `getInstance` dispatches the 45°/any-angle variants that are
+//! T4 scope (`crate::trace_tightener` module docs carry the full
+//! divergence list; [`crate::trace_tightener::active_for`] is the
+//! dispatch face). [`NoPullTight`] stays for the test/oracle paths.
+//! On non-90° boards the production seam keeps the T10c no-op
+//! behavior, so the T10c-era divergences survive THERE:
 //!
-//! 1. **Post-route corner coordinates** — Java's pull-tight moves
-//!    corners inside the tidy region, so routed geometry after this
-//!    seam can differ from Java's until M4 fills it.
-//! 2. **Trace-id deltas from tightener splits** — the tightener's own
-//!    splitting changes the id inventory; capture rows taken after
-//!    `pullTight` (`after_pull_tight`) have no comparable Rust values.
-//! 3. **Missing `after_pull_tight` counterparts** — the probe prints
-//!    those rows from the Java run; the Rust pins consciously skip
-//!    them (the `before_pull_tight` rows remain comparable).
+//! 1. **Post-route corner coordinates** — on 45°/any-angle boards
+//!    Java's pull-tight moves corners inside the tidy region, so
+//!    routed geometry after this seam can differ from Java's until T4.
+//! 2. **Trace-id deltas from tightener splits** — on 45°/any-angle
+//!    boards the tightener's own splitting changes the id inventory;
+//!    capture rows taken after `pullTight` (`after_pull_tight`) have
+//!    no comparable Rust values.
+//! 3. **Missing `after_pull_tight` counterparts** — on 45°/any-angle
+//!    boards the probe prints those rows from the Java run; the Rust
+//!    pins consciously skip them (the `before_pull_tight` rows remain
+//!    comparable). On 90° boards the seam is live and the rows are
+//!    comparable.
 //!
 //! `splitTracesAtKeepPoint` (`TraceTightener.java:474-491`) is NOT
 //! tightener-internal (a pick + split driver over the board surface)
@@ -146,34 +155,42 @@ pub fn mark_all_changed_area(board: &mut Board) {
 // The pull-tight seam (M4 fill; RoutingBoardOperations.optChangedArea :52-79)
 // ---------------------------------------------------------------------------
 
-/// The pull-tight SEAM trait — the T10c boundary in front of the M4
-/// `TraceTightener` port. The no-op implementation
-/// [`NoPullTight`] documents exactly what stays un-ported.
+/// The pull-tight SEAM trait — the T10c boundary in front of the
+/// `TraceTightener` port, filled at M4-T3 by
+/// [`crate::trace_tightener::TraceTightenerSeam`]; the no-op
+/// [`NoPullTight`] stays for tests and oracle-comparison paths.
 pub trait PullTightSeam {
     /// Java `TraceTightener.optChangedArea(traceCosts)`
     /// (`TraceTightener.java:113+` via
     /// `RoutingBoardOperations.optChangedArea` `:65-74`): optimize the
-    /// routed surface inside the marked area. T10c's skeleton stops at
-    /// the Java null-session guard (kept in
-    /// [`opt_changed_area`]) and the `clipShape != EMPTY` gate.
+    /// routed surface inside the marked area. The marking session is
+    /// read LIVE off `board.changed_area` (M4-T3 signature change: the
+    /// T10c skeleton passed a CLONE, but the fixpoint must see the
+    /// joins its own geometry mutations make — a stale snapshot would
+    /// end the sweep after one round).
     ///
-    /// PLANNED BREAK: M4 widens this signature with the tightener's
-    /// `traceCosts` / `stoppableThread` / `timeLimit` — Java's
-    /// `optChangedArea` receives all three
-    /// (`RoutingBoardOperations.java:52-60`) and feeds them into
-    /// `TraceTightener.getInstance`; T10c never reads them, so they
-    /// are absent here.
+    /// The widened tail is the M4-T3 planned break: `trace_costs`
+    /// (Java feeds the via arm; the port's via hook is T5),
+    /// `stoppable` (Java `stoppableThread`), `time_limit_millis`
+    /// (Java `timeLimit` — wall clock in Java, a deterministic tick
+    /// budget behind `deterministic_budgets`, the `RouteBudget`
+    /// pattern), and `deterministic_budgets` (the profile switch).
+    /// `clip_shape` is `Option` because Java's `clipShape == null`
+    /// means UNBOUNDED (the gate still runs) — `None` here.
     #[allow(clippy::too_many_arguments)] // the Java read set, kept flat
     fn opt_changed_area(
         &mut self,
         manager: &mut SearchTreeManager,
         board: &mut Board,
-        marker: &crate::changed_area::ChangedArea,
         only_net_no_arr: &[i32],
-        clip_shape: &IntOctagon,
+        clip_shape: Option<&IntOctagon>,
         accuracy: i32,
         keep_point: Option<&Point>,
         keep_point_layer: i32,
+        trace_costs: Option<&[crate::trace_tightener::TraceCostFactor]>,
+        stoppable: Option<&std::sync::Arc<std::sync::atomic::AtomicBool>>,
+        time_limit_millis: i32,
+        deterministic_budgets: bool,
     );
 
     /// Java `PolylineTrace.pullTight(TraceTightener)` at
@@ -189,9 +206,9 @@ pub trait PullTightSeam {
     );
 }
 
-/// The T10c no-op seam. Every method documents its Java counterpart
-/// and the divergence its absence costs (module docs, "The pull-tight
-/// seam").
+/// The T10c no-op seam, kept for TEST and oracle-comparison paths
+/// (the production call sites route through
+/// [`crate::trace_tightener::TraceTightenerSeam`] since M4-T3).
 pub struct NoPullTight;
 
 impl PullTightSeam for NoPullTight {
@@ -199,14 +216,20 @@ impl PullTightSeam for NoPullTight {
         &mut self,
         _manager: &mut SearchTreeManager,
         _board: &mut Board,
-        _marker: &crate::changed_area::ChangedArea,
         _only_net_no_arr: &[i32],
-        _clip_shape: &IntOctagon,
+        _clip_shape: Option<&IntOctagon>,
         _accuracy: i32,
         _keep_point: Option<&Point>,
         _keep_point_layer: i32,
+        _trace_costs: Option<&[crate::trace_tightener::TraceCostFactor]>,
+        _stoppable: Option<&std::sync::Arc<std::sync::atomic::AtomicBool>>,
+        _time_limit_millis: i32,
+        _deterministic_budgets: bool,
     ) {
-        // T10c: TraceTightener.optChangedArea is M4 scope — no-op.
+        // The no-op face: on 90° boards this forgoes Java's
+        // TraceTightener sweep (post-route coordinate + id-inventory
+        // divergence, module docs); on 45°/any boards it MATCHES the
+        // production seam (T4 scope there).
     }
 
     fn pull_tight_trace(
@@ -271,50 +294,66 @@ impl PullTightAlgo {
 
 /// Java `RoutingBoardOperations.optChangedArea` (`:52-79`) — the
 /// session-consumption skeleton. The `TraceTightener` arm runs through
-/// the [`PullTightSeam`] (M4 fills it); the rest is verbatim:
+/// the [`PullTightSeam`] (M4-T3 fills it); the rest is verbatim:
 ///
-/// * the null-session early-out (`:56-58`),
+/// * the null-session early-out (`:56-58`) — the session is KEPT,
 /// * the `clipShape != IntOctagon.EMPTY` gate around the tightener
-///   call (`:59-74`),
+///   call (`:59-74`) — Java's `clipShape == null` SATISFIES the gate
+///   (`null != EMPTY`), so `None` here means unbounded optimizing and
+///   the call RUNS,
 /// * the graphics update box join (`:77`) — NOT ported: Java joins
 ///   `surroundingBox()` into the board's GUI `updateBox`
 ///   (`BasicBoard.joinGraphicsUpdateBox`), an observer surface the
 ///   headless port does not carry (the box is computed and dropped
 ///   here),
 /// * the session teardown `board.changedArea = null` (`:78`).
+///
+/// M4-T3: the T10c marker CLONE is gone — the seam reads the session
+/// LIVE off `board.changed_area`, because the fixpoint's own joins
+/// must feed its next sweep (a snapshot would terminate after one
+/// round).
 #[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
 pub fn opt_changed_area<S: PullTightSeam>(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     seam: &mut S,
     only_net_no_arr: &[i32],
-    clip_shape: &IntOctagon,
+    clip_shape: Option<&IntOctagon>,
     accuracy: i32,
     keep_point: Option<&Point>,
     keep_point_layer: i32,
+    trace_costs: Option<&[crate::trace_tightener::TraceCostFactor]>,
+    stoppable: Option<&std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    time_limit_millis: i32,
+    deterministic_budgets: bool,
 ) {
     // Java guards on the null session and keeps it on the early-out.
-    let Some(marker) = board.changed_area.clone() else {
+    if board.changed_area.is_none() {
         return;
-    };
-    if *clip_shape != IntOctagon::EMPTY {
-        // The marker is handed over as an owned clone: the M4 seam
-        // needs `&mut board`, which cannot alias the session borrow.
+    }
+    // Java `:59`: `if (clipShape != IntOctagon.EMPTY)` — a null
+    // clipShape runs the sweep (unbounded).
+    if clip_shape.is_none_or(|oct| *oct != IntOctagon::EMPTY) {
         seam.opt_changed_area(
             manager,
             board,
-            &marker,
             only_net_no_arr,
             clip_shape,
             accuracy,
             keep_point,
             keep_point_layer,
+            trace_costs,
+            stoppable,
+            time_limit_millis,
+            deterministic_budgets,
         );
     }
     // Java `:77`: joinGraphicsUpdateBox(changedArea.surroundingBox())
     // — the GUI update box does not exist on the headless port; the
     // box value is intentionally dropped (D-divergence, module docs).
-    let _ = marker.surrounding_box();
+    if let Some(marker) = board.changed_area.as_ref() {
+        let _ = marker.surrounding_box();
+    }
     board.changed_area = None;
 }
 
@@ -1174,8 +1213,11 @@ pub(crate) fn item_is_fanout_via(
 /// `clearance_class` stand in for the tmp object): the pins of the own
 /// net touching either end corner's enlarged surrounding octagon
 /// ("acid traps"). Java's `TreeSet<Pin>` → the port's `BTreeSet`
-/// (ascending id; the consumer only tests membership).
-fn touching_pins_at_end_corners(
+/// (ascending id; the consumer only tests membership). `pub(crate)`
+/// since M4-T3: the tightener's smoothen arm re-derives the pin set
+/// for the ADJUSTED polyline (`TraceTightener90`'s end-corner faces
+/// and `PolylineTrace.pullTight`'s contact read).
+pub(crate) fn touching_pins_at_end_corners(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     lines: &Polyline,
@@ -1942,10 +1984,14 @@ mod tests {
             &mut board,
             &mut NoPullTight,
             &[],
-            &IntOctagon::EMPTY,
+            Some(&IntOctagon::EMPTY),
             100,
             None,
             0,
+            None,
+            None,
+            0,
+            false,
         );
         assert!(board.changed_area.is_none(), "early-out keeps no session");
 
@@ -1958,10 +2004,14 @@ mod tests {
             &mut board,
             &mut NoPullTight,
             &[],
-            &IntOctagon::EMPTY,
+            Some(&IntOctagon::EMPTY),
             100,
             None,
             0,
+            None,
+            None,
+            0,
+            false,
         );
         assert!(board.changed_area.is_none(), "EMPTY-clip face tears down");
 
@@ -1975,10 +2025,14 @@ mod tests {
             &mut board,
             &mut NoPullTight,
             &[],
-            &clip,
+            Some(&clip),
             100,
             None,
             0,
+            None,
+            None,
+            0,
+            false,
         );
         assert!(board.changed_area.is_none(), "ungated face tears down");
     }

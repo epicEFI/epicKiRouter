@@ -49,11 +49,11 @@ use epic_board::board::Board;
 use epic_board::contacts::item_connected_set;
 use epic_board::id::ItemId;
 use epic_board::items::ItemData;
-use epic_board::routing_board_insert::{NoPullTight, opt_changed_area, remove_trace_tails};
+use epic_board::routing_board_insert::{opt_changed_area, remove_trace_tails};
 use epic_board::trace_ops::{StopConnectionOption, is_routable};
+use epic_board::trace_tightener::{TraceCostFactor, TraceTightenerSeam};
 use epic_board::tree_manager::SearchTreeManager;
 use epic_drc::incompletes::all_incompletes;
-use epic_geometry::int_octagon::IntOctagon;
 
 use crate::control::{AutorouteControl, ExpansionCostFactor, RouterSettingsIr};
 use crate::engine::item_to_string;
@@ -352,6 +352,10 @@ impl<'a> BatchDriver<'a> {
             self.board,
             stop_connection_option,
             self.settings.pull_tight_accuracy,
+            &self.settings.trace_costs,
+            self.stop.flag(),
+            TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+            self.settings.deterministic_budgets,
         );
     }
 
@@ -765,28 +769,51 @@ pub fn calculate_incomplete_count(manager: &mut SearchTreeManager, board: &mut B
     i32::try_from(total).unwrap_or(i32::MAX)
 }
 
+/// Java `BatchAutorouter.TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP` (`:43`,
+/// 1000) — the pull-tight time limit the tail-removal sweep hands to
+/// `optChangedArea`. Wall clock in Java; behind `deterministic_budgets`
+/// the port spends the same value as consultation ticks (the
+/// `RouteBudget` pattern). `AutorouteConnectionRouter` declares its
+/// own twin (`:22`) — `connection_router.rs` carries that duplicate.
+pub(crate) const TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP: i32 = 1000;
+
 /// Java `BatchAutorouter.removeTails(stopConnectionOption)`
 /// (`:487-503`): marking session → the all-net tail sweep → the
-/// (today no-op) pull-tight consumption. Free so the pass runner
+/// pull-tight consumption (Java `:492-498`: `optChangedArea(new
+/// int[0], null, tracePullTightAccuracy, traceCosts, thread,
+/// TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP)`). Free so the pass runner
 /// shares it with the driver.
+#[allow(clippy::too_many_arguments)] // the Java read set, kept flat
 pub fn remove_tails(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     stop_connection_option: StopConnectionOption,
     pull_tight_accuracy: i32,
+    trace_costs: &[ExpansionCostFactor],
+    stoppable: Option<&Arc<AtomicBool>>,
+    time_limit_millis: i32,
+    deterministic_budgets: bool,
 ) {
     board.start_marking_changed_area();
     // Java passes -1 (all nets).
     remove_trace_tails(manager, board, -1, stop_connection_option);
+    // Java feeds `this.traceCosts` into the via arm of the tightener;
+    // the port converts to the epic-board mirror (T5 activates the
+    // via arm itself).
+    let tightener_trace_costs: Vec<TraceCostFactor> = trace_costs.iter().map(Into::into).collect();
     opt_changed_area(
         manager,
         board,
-        &mut NoPullTight,
+        &mut TraceTightenerSeam,
         &[],
-        &IntOctagon::EMPTY,
+        None,
         pull_tight_accuracy,
         None,
         0,
+        Some(&tightener_trace_costs),
+        stoppable,
+        time_limit_millis,
+        deterministic_budgets,
     );
 }
 

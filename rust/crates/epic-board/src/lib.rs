@@ -55,6 +55,7 @@ pub mod shape_trace_entries;
 pub mod time_limit;
 pub mod trace_ops;
 pub mod trace_shover;
+pub mod trace_tightener;
 pub mod tree_manager;
 pub mod tree_shapes;
 pub mod undo;

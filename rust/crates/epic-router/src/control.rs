@@ -71,6 +71,19 @@ pub struct ExpansionCostFactor {
     pub vertical: f64,
 }
 
+/// The mirror conversion into the epic-board [`TraceCostFactor`] the
+/// pull-tight seam consumes (Java `AutorouteControl.ExpansionCostFactor`
+/// IS the type `optChangedArea` takes; the port's board crate carries
+/// its own copy to stay router-crate-free).
+impl From<&ExpansionCostFactor> for epic_board::trace_tightener::TraceCostFactor {
+    fn from(f: &ExpansionCostFactor) -> Self {
+        epic_board::trace_tightener::TraceCostFactor {
+            horizontal: f.horizontal,
+            vertical: f.vertical,
+        }
+    }
+}
+
 /// Java `AutorouteControl.ViaCost` (`:289-297`): the additional costs
 /// to `min_normal_via_cost` for inserting a via between two layers.
 /// Java zeroes `toLayer` at construction; the ENGINE (T4+) fills the

@@ -1,0 +1,63 @@
+(PCB tightener90.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary (rect pcb 0 0 120000 60000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 250))
+  )
+  (placement
+    (component "CA"
+      (place "PA_COMP" 20000 12000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADT" "PA" 0 0)
+    )
+    (padstack "PADT"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+  )
+  (network
+    (net "N1")
+    (net "N3"
+      (pins "PA_COMP"-"PA")
+    )
+    (net "N4")
+    (net "N5")
+    (net "N6")
+    (net "N7")
+    (class kicad_default "N1" "N3" "N4" "N5" "N6" "N7"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+  (wiring
+    (wire (path F.Cu 200  20000 40000 36000 40000 36000 34000 24000 34000 24000 28000 16000 28000) (net N1))
+    (wire (path F.Cu 200  20000 12000 36000 12000) (net N3))
+    (wire (path F.Cu 200  28000 11400 28000 12600) (net N4))
+    (wire (path F.Cu 200  100000 20000 106000 20000 106000 18000 100000 18000) (net N5))
+    (wire (path F.Cu 200  45000 39000 48000 39000 48000 41000 45000 41000) (net N7))
+    (wire (path F.Cu 200  48000 36000 54000 36000 54000 42000 48000 42000) (net N6))
+  )
+)

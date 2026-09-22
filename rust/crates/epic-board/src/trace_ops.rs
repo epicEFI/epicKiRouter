@@ -863,7 +863,12 @@ fn trace_facts(board: &Board, id: ItemId) -> Option<TraceFacts> {
 /// The adapter's explicit `clearSearchTreeEntries` is subsumed by
 /// [`SearchTreeManager::remove`] (it drops the entry map AND the
 /// shape cache). The D18 branch point — see the module docs.
-fn replace_geometry(
+/// `pub(crate)` since M4-T3: [`change_trace_geometry`] (the
+/// `PolylineTrace.change` port) reaches the same end state through
+/// this collapse — `ShapeSearchTree.changeEntries` is a leaf-reuse
+/// performance face whose end state is remove+reinsert (the
+/// `reuse_entries_after_cutout` precedent).
+pub(crate) fn replace_geometry(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     trace_id: ItemId,
@@ -873,6 +878,89 @@ fn replace_geometry(
     board.set_trace_polyline(trace_id, polyline);
     board.clear_derived_data(trace_id);
     manager.insert(board, trace_id);
+}
+
+/// Java `PolylineTrace.change(Polyline)` (`PolylineTrace.java:937-1002`)
+/// — the pull-tight geometry-replacement tail. Structure:
+///
+/// * `:940-944` off-board defensive arm (unreachable from the ported
+///   surface — every caller gates on-board): `setPolyline` only, via
+///   [`Board::set_trace_polyline`]. The fold of Java's `saveForUndo`
+///   into that setter is behavior-identical (idempotent per level).
+/// * `:946` `additionalUpdateAfterChange` — EMPTY in `BasicBoard`
+///   (`:1228`), a GUI-subclass hook; nothing to port.
+/// * `:948` `itemList.saveForUndo` — folded into the collapse below.
+/// * `:950-975` the two diff scans with the early-outs ("both
+///   polylines are equal, no change necessary"). Java compares
+///   REFERENCES (`newPolyline.lines[i] != lines.lines[i]`); the port
+///   compares values with `Line::fast_equals` (the documented proxy:
+///   Java's reference-diff on value-equal lines drives a value-neutral
+///   tree replace, so skipping it leaves the same end state).
+/// * `:977-985` `keepAtStartCount`/`keepAtEndCount` feed
+///   `changeEntries` ONLY — dead in the remove+reinsert collapse
+///   ([`replace_geometry`]); the scans stay for their early-outs.
+/// * `:990-1000` the live clip read
+///   (`changedArea?.getArea(getLayer())`) and `normalize(clipShape)`
+///   under try/catch → `FRLogger.error`. The port's
+///   [`normalize`] returns a bool and cannot throw, so the catch is
+///   unrepresentable; the change stands either way (the result is
+///   consumed exactly as Java's swallowed exception is).
+pub(crate) fn change_trace_geometry(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    trace_id: ItemId,
+    new_polyline: Polyline,
+) {
+    // Java `:940-944`: the defensive arm — plain field write.
+    if !board.is_on_the_board(trace_id) {
+        board.set_trace_polyline(trace_id, new_polyline);
+        return;
+    }
+    let old_lines = board.trace_polyline(trace_id).cloned().unwrap_or_else(|| {
+        // Java `lines` would be null on a foreign id — unreachable
+        // (the receiver guards); the empty polyline keeps the scans
+        // total.
+        Polyline::new(Vec::new())
+    });
+    let new_len = new_polyline.lines.len() as i32;
+    let old_len = old_lines.lines.len() as i32;
+    // Java `:950-961`: the first-diff scan over the shared prefix.
+    let mut index_of_first_different_line = new_len.min(old_len);
+    for i in 0..index_of_first_different_line {
+        if !new_polyline.lines[i as usize].fast_equals(&old_lines.lines[i as usize]) {
+            index_of_first_different_line = i;
+            break;
+        }
+    }
+    if index_of_first_different_line == new_len.min(old_len) {
+        // both polylines are equal, no change necessary
+        return;
+    }
+    // Java `:963-975`: the last-diff scan from the ENDS of both
+    // arrays (i <= lastIndex keeps both indexes in range even for
+    // different lengths).
+    let mut index_of_last_different_line = -1;
+    for i in 1..=new_len.min(old_len) {
+        if !new_polyline.lines[(new_len - i) as usize]
+            .fast_equals(&old_lines.lines[(old_len - i) as usize])
+        {
+            index_of_last_different_line = new_len - i;
+            break;
+        }
+    }
+    if index_of_last_different_line < 0 {
+        return;
+    }
+    // Java `:977-985`: `keepAtStartCount = max(firstDiff - 2, 0)`,
+    // `keepAtEndCount = max(newLen - lastDiff - 3, 0)` — changeEntries
+    // inputs only, dead in the collapse (module docs of this fn).
+    replace_geometry(manager, board, trace_id, new_polyline);
+    // Java `:991-1000`: the clip is read LIVE (the sweep's joins so
+    // far on this layer), then the normalization runs and may remove
+    // or split the trace — exactly as in Java.
+    let layer = board.trace_layer(trace_id).unwrap_or(0);
+    let clip = board.changed_area.as_ref().map(|area| area.get_area(layer));
+    let _ = normalize(manager, board, trace_id, clip.as_ref());
 }
 
 /// Java `PolylineTrace.combineAtStart(ignoreAreas)` (`:201-332`) —

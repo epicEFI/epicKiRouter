@@ -43,8 +43,8 @@ use epic_geometry::point::Point;
 
 use crate::engine::{AutorouteAttemptResult, AutorouteAttemptState, RippedItemSeed};
 use crate::pipeline::batch::{
-    BatchSettings, PROGRESS_STATISTICS_ITEM_INTERVAL, StopFace, calculate_incomplete_count,
-    get_autoroute_items, remove_tails,
+    BatchSettings, PROGRESS_STATISTICS_ITEM_INTERVAL, StopFace, TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+    calculate_incomplete_count, get_autoroute_items, remove_tails,
 };
 use crate::pipeline::connection_router::route as route_connection;
 use crate::pipeline::event_sink::DriverSink;
@@ -472,6 +472,10 @@ pub fn run_single_thread(
         board,
         stop_connection_option,
         settings.pull_tight_accuracy,
+        &settings.trace_costs,
+        stop.flag(),
+        TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+        settings.deterministic_budgets,
     );
     let incompletes_after = calculate_incomplete_count(manager, board);
     sink.trace(&format!(

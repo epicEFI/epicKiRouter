@@ -17,21 +17,23 @@
 //!   fails the run loudly instead of folding into an empty-details
 //!   FAILED row (the IllegalArgumentException → `Result` face of the
 //!   batch loop, applied consistently down the stack).
-//! * **`opt_changed_area` clip sentinel.** Java passes
-//!   `clipShape = null` and the operations gate
-//!   (`clipShape != IntOctagon.EMPTY`) therefore RUNS the tightener
-//!   unclipped; the port's `NoPullTight` seam makes that tightener a
-//!   no-op, so passing the [`IntOctagon::EMPTY`] sentinel (skip the
-//!   tightener, still tear down the marking session) is observably
-//!   identical today. M4's pull-tight seam widening revisits.
+//! * **`opt_changed_area` clip.** Java passes `clipShape = null` and
+//!   the operations gate (`clipShape != IntOctagon.EMPTY`) therefore
+//!   RUNS the tightener unclipped; the port passes `None` (unbounded)
+//!   into the live [`epic_board::trace_tightener::TraceTightenerSeam`]
+//!   (M4-T3) — same gate semantics, the tightener now actually runs
+//!   on 90° boards.
 //! * **Multi-arg trace rows are folded** into
 //!   `sink.trace("<operation> <message>")` — the Java
 //!   `FRLogger.trace(method, operation, message, impactedItems,
 //!   impactedPoints)` method tag and impact payloads are log-only
 //!   (bug-118 no-digest convention).
-//! * **The `TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP` wall-clock guard**
-//!   (Java passes 1000 ms into `optChangedArea`) is banked with the
-//!   wall-clock family: the port's pull-tight seam is a no-op today.
+//! * **The `TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP` guard** (Java `:22`,
+//!   1000 ms into `optChangedArea`) feeds the tightener through the
+//!   wall→tick budget face since M4-T3: behind
+//!   `deterministic_budgets` the same limit is spent as consultation
+//!   ticks (the `RouteBudget` pattern; see the
+//!   [`epic_board::trace_tightener`] module docs).
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -42,13 +44,13 @@ use epic_board::board::Board;
 use epic_board::contacts::{item_connected_set, item_unconnected_set};
 use epic_board::id::ItemId;
 use epic_board::items::ItemData;
-use epic_board::routing_board_insert::{NoPullTight, opt_changed_area};
+use epic_board::routing_board_insert::opt_changed_area;
 use epic_board::time_limit::TimeLimit;
 use epic_board::trace_ops::remove_item_through_repository;
+use epic_board::trace_tightener::{TraceCostFactor, TraceTightenerSeam};
 use epic_board::tree_manager::SearchTreeManager;
 use epic_drc::clearance::item_clearance_violations;
 use epic_dsn::state::Unit;
-use epic_geometry::int_octagon::IntOctagon;
 
 use crate::control::AutorouteControl;
 use crate::engine::{
@@ -63,6 +65,14 @@ use crate::pipeline::event_sink::DriverSink;
 /// into the driver's sink trace channel (Java logs both through the
 /// one global `FRLogger`).
 struct SinkBridge<'a>(&'a mut dyn DriverSink);
+
+/// Java `AutorouteConnectionRouter.TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP`
+/// (`:22`): the pull-tight time limit handed to `optChangedArea`.
+/// Wall clock in Java; behind `deterministic_budgets` the port spends
+/// the same value as `is_stop_requested` consultation ticks (the
+/// `RouteBudget` pattern). `BatchAutorouter` declares its own twin
+/// (`:43`, same value) — `batch.rs` carries that duplicate.
+const TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP: i32 = 1000;
 
 impl InserterEventSink for SinkBridge<'_> {
     fn trace(&mut self, message: &str) {
@@ -196,7 +206,7 @@ pub fn route(
         &mut ctrl,
         ripped_item_list,
         ripup_costs,
-        &mut NoPullTight,
+        &mut TraceTightenerSeam,
         &mut SinkBridge(sink),
     );
     // The necked retry hands the SAME budget to its engine (Java
@@ -207,20 +217,32 @@ pub fn route(
 
     if autoroute_result.state == AutorouteAttemptState::Routed {
         // Java `:99-125` — the id-watermark rows around the
-        // (today no-op) pull-tight consumption.
+        // pull-tight consumption (live since M4-T3: the tightener may
+        // move corners, split traces and — T5 — relocate vias, so the
+        // id delta is no longer structurally 0).
         let max_item_id_before_opt = board.max_generated_id();
         sink.trace(&format!(
             "compare_trace_opt_changed_area_before net={route_net_no}, maxItemId={max_item_id_before_opt}"
         ));
+        // Java `:107-113`: `optChangedArea(new int[0], null,
+        // tracePullTightAccuracy, autorouteControl.traceCosts,
+        // router.thread, TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP)` — the
+        // clip is null (unbounded), the nets empty (all).
+        let tightener_trace_costs: Vec<TraceCostFactor> =
+            ctrl.trace_costs.iter().map(Into::into).collect();
         opt_changed_area(
             manager,
             board,
-            &mut NoPullTight,
+            &mut TraceTightenerSeam,
             &[],
-            &IntOctagon::EMPTY,
+            None,
             settings.pull_tight_accuracy,
             None,
             0,
+            Some(&tightener_trace_costs),
+            stoppable_flag,
+            TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+            settings.deterministic_budgets,
         );
         let max_item_id_after_opt = board.max_generated_id();
         sink.trace(&format!(
@@ -357,7 +379,10 @@ fn retry_connection_necked(
         route_net_no,
         neck_ctrl.trace_clearance_class_index,
         settings.retain_autoroute_database,
-        stoppable_flag,
+        // Java hands the SAME `router.thread` reference to the engine
+        // and the pull-tight call; the Arc clone is that shared
+        // reference.
+        stoppable_flag.clone(),
         budget,
     );
     let neck_result = neck_engine.autoroute_connection(
@@ -366,7 +391,7 @@ fn retry_connection_necked(
         &mut neck_ctrl,
         ripped_item_list,
         ripup_costs,
-        &mut NoPullTight,
+        &mut TraceTightenerSeam,
         &mut SinkBridge(sink),
     );
     drop(neck_engine);
@@ -375,17 +400,24 @@ fn retry_connection_necked(
         return None;
     }
 
-    // Java `:228-238` — the same no-op-today pull-tight consumption
-    // as the primary arm (clip sentinel banked).
+    // Java `:229-235` — the same pull-tight consumption as the
+    // primary arm (`neckControl.traceCosts`, clip null, the same
+    // 1000 ms limit).
+    let tightener_trace_costs: Vec<TraceCostFactor> =
+        neck_ctrl.trace_costs.iter().map(Into::into).collect();
     opt_changed_area(
         manager,
         board,
-        &mut NoPullTight,
+        &mut TraceTightenerSeam,
         &[],
-        &IntOctagon::EMPTY,
+        None,
         settings.pull_tight_accuracy,
         None,
         0,
+        Some(&tightener_trace_costs),
+        stoppable_flag.as_ref(),
+        TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+        settings.deterministic_budgets,
     );
     let net_name = board
         .rules()
