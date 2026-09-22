@@ -72,7 +72,7 @@ flowchart TD
 | `integrations/` | Packaging and integration assets for external PCB tool workflows. |
 | `scripts/` | Automation, benchmarking, and comparison scripts. |
 | `src_v19/` | The v1.9 historical reference tree, used for optional algorithm archaeology; it is not the routine parity baseline. |
-| `rust/` | EpicRouter Rust rewrite workspace: parity crates (geometry, DSN/SES I/O, board model, spatial index) plus the differential harness against the Java oracle; see [rust/README.md](../rust/README.md). |
+| `rust/` | EpicRouter Rust rewrite workspace: parity crates (geometry, DSN/SES I/O, board model, spatial index, detail-routing router, DRC, headless CLI) plus the differential harness against the Java oracle; see [rust/README.md](../rust/README.md). |
 
 ## Navigation Guide
 
@@ -298,7 +298,7 @@ The `rust/` tree is the ground-up Rust rewrite of the routing engine
 ([design](superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md));
 the Java packages above stay the frozen parity oracle until the rewrite's
 final milestone. Crates enter this map as their milestones complete
-(M0–M2 done; commands and parity gates: [rust/README.md](../rust/README.md)).
+(M0–M3 done; commands and parity gates: [rust/README.md](../rust/README.md)).
 
 - `rust/crates/epic-board` — arena board model: ItemId/undoable-object
   storage, item geometry, trace combine/split/normalize, and the
@@ -306,6 +306,15 @@ final milestone. Crates enter this map as their milestones complete
 - `rust/crates/epic-index` — incremental spatial index (ShapeTree,
   MinAreaTree, tree-shape precalc) — the Rust counterpart of
   `board.searchtree` (33/33 query-set parity).
+- `rust/crates/epic-router` — detail-routing core: expansion
+  rooms/doors, maze search, ripup/shove, found-connection locator,
+  forced insertion, batch driver — the Rust counterpart of
+  `autoroute.*`; port ledger in
+  [SEAM.md](../rust/crates/epic-router/SEAM.md).
+- `rust/crates/epic-drc` — incompletes + clearance counting — the Rust
+  counterpart of `drc`.
+- `rust/crates/epic-cli` — headless `route` command (`epicrouter -de
+  board.dsn -do out.ses`) — the counterpart of the Java CLI surface.
 
 ## How The Code Fits Together
 

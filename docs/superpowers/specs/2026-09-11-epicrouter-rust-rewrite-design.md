@@ -127,6 +127,41 @@ pinned as data); (b) the undo digest's >400-pair cliff (the golden's
 tree-pair list goes null above 400 pairs; the sha still carries the
 content) is mirrored as-is — a diagnosability trade-off accepted at T14.
 
+M3 exit note (T17, adjudicated 2026-09-22 at tree `a4c072430`):
+**M3_EXIT_WITH_DEVIATIONS**, adjudicated on this row's own faces.
+Criterion 1 (single-net quality ≥ Java) met with deviation: the
+maze/ripup/shove/locator/forced-insertion decisions are
+jar-capture-pinned and the T16 event-stream corpus shows Rust ≥ Java on
+every measured outcome row (on t7 the Rust engine routes a net the Java
+golden reports unconnected), but the stream's divergence classes
+(parse-time item ids, expansion-door slicing, insert-path id churn;
+buglog 172–174) are open as #61 — scheduled early M4 — so the criterion
+is not met clean. Criterion 2 (Tier A per-fixture completion ≥ Java,
+violations ≤ Java) not met: battery 8/11, with violations ≤ Java and
+zero router-introduced violations on all 11 fixtures, and three
+completion reds — each root-caused non-parity:
+
+| Red | Root cause | M4 lever | Buglog |
+| --- | --- | --- | --- |
+| bm06 completion 10 vs Java 9 | TUNING: attempt-42 fork (Java rips, Rust finds a legal rip-free path), then victim-choice swaps on bistable nets | victim-choice tie-break alignment, sequenced after #61's door-slicing class | 181 |
+| bm11 completion 15 vs 14 at truth | attempt-order/victim-choice drift; plateau score-stable, same 18 passes as Java — the wall is not the cause | same tuning family as bm06 | 175 |
+| bm01 completion 5 best / 6 terminal vs 2 | WALL-LIMITED: every pass exhausts the tick ladder; the best measured state is 3 connections short of Java's 2 with the score still climbing at the bound — reaching 2 is extrapolation, not measurement | per-pass search cost (M4 detail-stage work; M5 arena/parallelism as backstop) | 175 |
+
+The standing §5 zero-regression guarantee held: all six M2 compares
+green (geometry 5000/5000; dsn 1,332; ses 20; index 33; undo 33;
+ses-snap 5), 1,305-test census, determinism digests stable. Two
+plan-level supersets tracked by the M3 plan are NOT §6 criteria (SEAM
+criterion map) and are recorded here only to keep the vocabularies
+apart: the score gate (R ≥ J − 2%), which bm01 fails, and
+events-corpus equality — the corpus is honest-red by charter, a triage
+instrument (§5), not a gate. The CI router gate stays HELD in
+`--report-only` (a tripwire-pinned deviation from §5's CI-enforced
+letter): the flip is one same-commit act once the battery reads 11/11
+under a wall-resolved profile — drop `--report-only`, update both
+`ci_tripwire.rs` pins — and that moment is M4's zero-regression
+moment. Faces and ledger: `rust/crates/epic-router/SEAM.md`
+(MILESTONE-CRITERION MAP).
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI

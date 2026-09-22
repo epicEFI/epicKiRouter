@@ -4,10 +4,21 @@ Rust rewrite of the Freerouting autorouter (design:
 `docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`).
 The Java tree under `src/` stays untouched as the parity oracle.
 
-Status: M0–M2 complete — scaffold + golden baselines, geometry kernel,
-DSN/SES I/O, arena board model, and incremental spatial index, all at
-parity with the Java oracle (927 workspace tests green). The routing
-stages themselves (M3+) are not started.
+Status: M0–M3 complete — scaffold + golden baselines, geometry kernel,
+DSN/SES I/O, arena board model, incremental spatial index, the
+detail-routing core (`epic-router`: expansion → maze → ripup/shove →
+locator → forced insertion → batch driver), `epic-drc` (incompletes +
+clearance counting), and `epic-cli` (headless route: `epicrouter -de
+board.dsn -do out.ses`); 1,305 workspace tests green. M3 exited
+EXIT_WITH_DEVIATIONS: no instrument in M3 shows a single-net route of
+lower quality than the Java oracle's, but the Tier A router battery
+stands 8 pass / 3 red (bm06 tuning, bm11 red-by-1-at-truth, bm01
+wall-limited — each root-caused as non-parity, with an M4 lever on
+record), and the event-stream compare is honest-red pending #61. All
+six M2 compares remain green; the CI router gate stays in
+`--report-only` until the battery reads 11/11 (flip conditions in the
+M3 exit note of the design doc's §6 and the rust-check.yml comment).
+Port ledger: `crates/epic-router/SEAM.md`.
 
 ## Layout
 
@@ -23,10 +34,17 @@ stages themselves (M3+) are not started.
 - `crates/epic-index` — incremental spatial index (M2 done: ShapeTree +
   MinAreaTree with tree-shape precalc and compensation — 33/33
   query-set parity vs the Java oracle)
-- `crates/epic-drc` — exact incremental DRC (M2/M6)
-- `crates/epic-router` — staged router pipeline (M3+)
-- `crates/epic-engine` — jobs, layered settings, seeds (M3)
-- `crates/epic-cli` — `epicrouter` CLI (M3)
+- `crates/epic-drc` — exact incremental DRC (M3 done: incompletes +
+  clearance violations vs the Java oracle, 17-fixture compare; the
+  incremental DRC engine remains M6)
+- `crates/epic-router` — detail-routing core (M3 done: expansion →
+  maze → ripup/shove → locator → forced insertion → batch driver;
+  `SEAM.md` in the crate is the port ledger; fanout/optimizer/global
+  stages are M4/M6+)
+- `crates/epic-engine` — 13-line scaffold (M4: jobs, layered settings,
+  seeds — M3's settings face lives in `epic-cli/src/settings.rs`)
+- `crates/epic-cli` — `epicrouter` CLI (M3 done: headless `route`,
+  manifest + SES + exit-code semantics)
 - `crates/epic-gui` — egui frontend (M9)
 - `harness` — parity + benchmark harness against the Java oracle
 
@@ -120,6 +138,40 @@ cargo run -q -p epic-harness -- dsn ses-snap-compare
 # Recapture the corpus + stats sidecar (needs jar + JDK 25; explain WHY)
 EPIC_ORACLE_JAVA=~/.jdks/jdk-25.0.4.1+1/bin/java \
   cargo run -q -p epic-harness -- dsn ses-snap-golden
+```
+
+### Router quality gates (M3)
+
+All java-free — the committed router-only Java records ARE the Java
+side; these commands never touch the JVM. They complement the standing
+compare gates above (geometry corpus 5000/5000; DSN 1,332 all-match;
+SES 20/20; index 33/33; undo 33/33; ses-snap 5/5).
+
+```bash
+cd rust
+# Tier A directional battery (the release profile is the official
+# run): per-fixture completion >= Java, violations <= Java, score >=
+# Java vs the committed router-only records. Currently 8 pass / 3 red
+# (bm06 tuning buglog 181; bm11 red-by-1-at-truth buglog 175; bm01
+# wall-limited buglog 175 — each root-caused non-parity, M4 levers on
+# record; see the M3 exit note in the design doc §6).
+cargo run -q -p epic-harness --release -- router compare
+# CI posture: --report-only prints every verdict and exits 0. The flip
+# to a hard gate is ONE same-commit act once the battery reads 11/11
+# under a wall-resolved profile: drop --report-only AND update both
+# ci_tripwire.rs pins (rust-check.yml comment records the condition).
+cargo run -q -p epic-harness -- router compare --report-only
+# Determinism self-gate: one DSN, two runs, byte-identical SES +
+# manifest (digests 96ba7300… / 16714d5e… at the M3 exit).
+cargo run -q -p epic-harness -- router determinism
+# DRC compare: parse-time incompletes + clearance violations on 17
+# fixtures (tier A + PCBench pre-routed).
+cargo run -q -p epic-harness -- drc compare
+# Event-stream compare vs the committed Java probe golden: HONEST-RED
+# by design — exit 1 localizes the first divergence (triaged as #61:
+# item-id assignment / door-slicing / insert-path-id classes, buglog
+# 172-174). Not in CI until #61 closes.
+cargo run -q -p epic-harness -- events compare
 ```
 
 ## Oracle prerequisites
