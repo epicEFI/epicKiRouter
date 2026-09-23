@@ -435,7 +435,8 @@ public class TraceTightenerProbe {
    * 10 = the production depth (a SINGLE production-depth call — the
    * seam's fixpoint loop may issue several, so this row witnesses the
    * single-call result, not the run4/run5 afterCenters final). Via
-   * id 16 (net N5) at (720000,450000). Deterministic JSONL; run twice,
+   * id 16 (net N6, net number 5) at (720000,450000). Deterministic
+   * JSONL; run twice,
    * cmp-identical (via45_costs_diag.txt / via45_costs_diag_b.txt).
    */
   private static void runViaDepthDiag(byte[] bytes) throws Exception {
