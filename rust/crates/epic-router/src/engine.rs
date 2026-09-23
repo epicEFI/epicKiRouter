@@ -2246,10 +2246,12 @@ impl DrillEngine for AutorouteEngine<'_> {
         // the DEFAULT search tree (it recurses through substitute trace
         // pieces and obstacle vias but never mutates the board, so the
         // maze probe stays within its read-only contract). The port is
-        // `epic_board::trace_shover::check_max_length`, pinned by the
-        // TraceShoverProbe replay; the T10 0.0 stub short-circuited
-        // every maze shove to "impossible" (all door lists empty, ripup
-        // only) — the t7 events divergence (M4-T6).
+        // `epic_board::trace_shover::check_max_length` — ported
+        // arm-for-arm from `TraceShover.check`; observed end-to-end by
+        // the events compare and the router battery (no probe-replay
+        // pin exists). The T10 0.0 stub short-circuited every maze
+        // shove to "impossible" (all door lists empty, ripup only) —
+        // the t7 events divergence (M4-T6).
         epic_board::trace_shover::check_max_length(
             &mut *self.manager,
             self.board,
