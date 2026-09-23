@@ -43,8 +43,10 @@
 use std::collections::BTreeSet;
 
 use epic_geometry::float_line::FloatLine;
+use epic_geometry::float_point::FloatPoint;
 use epic_geometry::tile_shape::TileShape;
 
+use crate::control::FanoutSettingsIr;
 use crate::drill::Adjustment;
 use crate::expansion::{ExpansionDoor, TargetItemExpansionDoor};
 
@@ -369,11 +371,15 @@ impl PartialOrd for FrontOrder {
 /// whose `add` override is fanout-aware and inert while
 /// `ctrl.isFanout` is false (`:88`: the whole filter body is behind
 /// `if (ctrl.isFanout && ...)`). The Rust front is a plain
-/// [`BTreeSet`] over [`FrontOrder`]; the fanout filters land with the
-/// fanout stage (they never run in a detail-route search).
+/// [`BTreeSet`] over [`FrontOrder`] plus the optional
+/// [`FanoutFrontGate`] — the port of that add override, installed by
+/// the production composition (`RoutingBoardEngine::autoroute_connection`)
+/// exactly when Java would close over a live gate, and `None`
+/// (inert) in every detail-route search.
 #[derive(Default)]
 pub struct Front {
     set: BTreeSet<FrontOrder>,
+    fanout_gate: Option<FanoutFrontGate>,
 }
 
 impl Front {
@@ -381,6 +387,44 @@ impl Front {
     /// element is already present (the TreeSet dedup: the second add
     /// is a no-op).
     pub fn add(&mut self, element: MazeListElement) -> bool {
+        self.set.insert(FrontOrder(element))
+    }
+
+    /// Installs the fanout frontier gate (Java's `TreeSet.add`
+    /// override, `MazeSearchEngine.java:88-127`). Once installed, every
+    /// `gated_add` filters; `add` stays the raw `super.add` for
+    /// probe/pin worlds that construct a gateless front by hand.
+    pub fn set_fanout_gate(&mut self, gate: FanoutFrontGate) {
+        self.fanout_gate = Some(gate);
+    }
+
+    /// Java `mazeExpansionList.add` WITH the fanout filter — the
+    /// engine's single entry point for front insertions. When no gate
+    /// is installed this is exactly [`Self::add`].
+    ///
+    /// The two arguments are the per-element facts Java reads LIVE
+    /// from the element's room/drill objects at add time:
+    ///
+    /// * `next_room_layer` — `element.nextRoom.getLayer()`, resolved
+    ///   by the caller through the room registry; callers MUST pass
+    ///   the layer whenever `element.next_room_key` is `Some` (Java's
+    ///   room object always carries its layer). `None` = Java
+    ///   `nextRoom == null` (target-door and drill elements).
+    /// * `drill_location` — the `ExpansionDrill.location` when the
+    ///   door IS a drill (page-grid or standalone; Java
+    ///   `door instanceof ExpansionDrill`). `None` for every other
+    ///   door kind.
+    pub fn gated_add(
+        &mut self,
+        element: MazeListElement,
+        next_room_layer: Option<i32>,
+        drill_location: Option<&FloatPoint>,
+    ) -> bool {
+        if let Some(gate) = &self.fanout_gate
+            && gate.rejects(&element, next_room_layer, drill_location)
+        {
+            return false;
+        }
         self.set.insert(FrontOrder(element))
     }
 
@@ -410,5 +454,323 @@ impl Front {
     /// Sorted iteration (spike capture: the front dump between pops).
     pub fn iter(&self) -> impl Iterator<Item = &MazeListElement> {
         self.set.iter().map(|order| &order.0)
+    }
+}
+
+/// The fanout frontier gate — Java `MazeSearchEngine`'s `TreeSet.add`
+/// override body (`MazeSearchEngine.java:88-127`), hoisted into a pure
+/// data + one method. Java closes over `ctrl` and the board on every
+/// add; the port snapshots the four constants the body reads (they are
+/// invariant during one search: the pin anchor and layer are
+/// `AutorouteControl` fields the fanout caller sets once, the escape
+/// lengths resolve through the same `?:` ternaries, and
+/// `communication.getResolution(UM)` never mutates mid-search) and
+/// resolves the two per-element facts live at [`Front::gated_add`]
+/// time, like Java reads them off the room/drill objects.
+///
+/// Gating is EXACTLY Java's: the whole body sits behind
+/// `ctrl.isFanout && ctrl.fanoutStartPinCenter != null` — the port
+/// installs the gate only when both hold, so no detail-route search
+/// ever sees a filter (the T7 regression tripwire).
+pub struct FanoutFrontGate {
+    /// Java `ctrl.fanoutStartPinCenter.toFloat()`.
+    pin_center: FloatPoint,
+    /// Java `ctrl.fanoutStartPinLayer`.
+    pin_layer: i32,
+    /// Java `maxLen`: `maxEscapeLengthMm * 1000.0` when set, else the
+    /// raw 3000.0-coordinate fallback (`:108-111`).
+    max_escape_length: f64,
+    /// Java `minLen`: `minEscapeLengthMm * 1000.0` when set, else the
+    /// raw 500.0-coordinate fallback (`:117-120`).
+    min_escape_length: f64,
+    /// Java `board.communication.getResolution(Unit.UM)`.
+    resolution: f64,
+}
+
+impl FanoutFrontGate {
+    /// Java gate constant capture — the `?:` ternaries of
+    /// `MazeSearchEngine.java:105-121` resolve here once. `settings`
+    /// is `ctrl.settings.fanout` (the group-null arm is banked: the
+    /// resolver always materializes the group, see
+    /// [`crate::control::RouterSettingsIr::fanout`]).
+    pub fn new(
+        settings: &FanoutSettingsIr,
+        pin_center: &epic_geometry::point::Point,
+        pin_layer: i32,
+        resolution: f64,
+    ) -> Self {
+        FanoutFrontGate {
+            pin_center: pin_center.to_float(),
+            pin_layer,
+            max_escape_length: settings
+                .max_escape_length_mm
+                .map_or(3000.0, |mm| mm * 1000.0),
+            min_escape_length: settings
+                .min_escape_length_mm
+                .map_or(500.0, |mm| mm * 1000.0),
+            resolution,
+        }
+    }
+
+    /// The override body (`:89-126`): reject when the element's entry
+    /// segment middle escapes beyond `maxEscapeLength` of the fanout
+    /// pin ON THE PIN'S LAYER, or when a drill sits closer than
+    /// `minEscapeLength`. Both arms are independent (Java's two `if`s
+    /// fall through; rejection is `return false` — the element never
+    /// enters the set).
+    fn rejects(
+        &self,
+        element: &MazeListElement,
+        next_room_layer: Option<i32>,
+        drill_location: Option<&FloatPoint>,
+    ) -> bool {
+        // Java `:101-103`: onStartLayer = nextRoom != null &&
+        // nextRoom.getLayer() == ctrl.fanoutStartPinLayer.
+        let on_start_layer =
+            element.next_room_key.is_some() && next_room_layer == Some(self.pin_layer);
+        if on_start_layer {
+            let entry_point = element.shape_entry.a.middle_point(&element.shape_entry.b);
+            let dist = entry_point.distance(&self.pin_center);
+            if dist > self.max_escape_length * self.resolution {
+                return true;
+            }
+        }
+        // Java `:113-124`: `element.door instanceof ExpansionDrill`
+        // (page-grid and standalone drills are one Java class).
+        if element.door.is_drill() {
+            // The caller resolves the location for every drill door
+            // (the callers' `drill_location` is `Some` exactly when
+            // `door.is_drill()`); the `None` arm is a contract breach,
+            // treated as no-rejection to keep the gate total.
+            if let Some(location) = drill_location {
+                let drill_dist = location.distance(&self.pin_center);
+                if drill_dist < self.min_escape_length * self.resolution {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+// ---------------------------------------------------------------------------
+// pins
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use epic_geometry::point::Point;
+    use std::cell::Cell;
+
+    /// A unique sort value per probe element — without one the front
+    /// comparator would treat the probes as EQUAL and `gated_add`
+    /// would report the SET DEDUP, not the gate verdict.
+    fn next_seq() -> f64 {
+        thread_local! {
+            static SEQ: Cell<u64> = const { Cell::new(0) };
+        }
+        SEQ.with(|seq| {
+            seq.set(seq.get() + 1);
+            seq.get() as f64
+        })
+    }
+
+    /// A gate over the pin anchor (0, 0) / layer 0 with the escape
+    /// lengths set EXACTLY at the mm values (Java
+    /// `maxEscapeLengthMm * 1000.0`); `None` arms exercise the raw
+    /// 3000.0 / 500.0 fallbacks.
+    fn gate(max: Option<f64>, min: Option<f64>, resolution: f64) -> FanoutFrontGate {
+        let settings = FanoutSettingsIr {
+            max_escape_length_mm: max,
+            min_escape_length_mm: min,
+            ..FanoutSettingsIr::default()
+        };
+        FanoutFrontGate::new(&settings, &Point::ZERO, 0, resolution)
+    }
+
+    /// A room-door element whose entry-segment MIDDLE sits at
+    /// (`middle_x`, 0) — the max arm's measured point.
+    fn door_elem(middle_x: f64) -> MazeListElement {
+        MazeListElement {
+            door: ExpandableObject::RoomDoor(ExpansionDoor::new(1, 2, 0)),
+            section_no_of_door: 0,
+            backtrack_door: None,
+            section_no_of_backtrack_door: 0,
+            expansion_value: next_seq(),
+            sorting_value: next_seq(),
+            next_room_key: Some(9),
+            shape_entry: FloatLine::new(
+                FloatPoint::new(middle_x, 0.0),
+                FloatPoint::new(middle_x, 0.0),
+            ),
+            room_ripped: false,
+            adjustment: Adjustment::None,
+            already_checked: false,
+            ripup_cost: 0,
+        }
+    }
+
+    /// A drill element (next_room_key None — the max arm is silent
+    /// for it) whose location sits at (`loc_x`, 0) — the min arm's
+    /// measured point. Returns the element AND the location (the
+    /// caller resolves it live, like the engine callers).
+    fn drill_elem(loc_x: f64) -> (MazeListElement, FloatPoint) {
+        let location = FloatPoint::new(loc_x, 0.0);
+        let element = MazeListElement {
+            door: ExpandableObject::Drill {
+                row: 0,
+                column: 0,
+                d: 0,
+                id: 1,
+            },
+            section_no_of_door: 0,
+            backtrack_door: None,
+            section_no_of_backtrack_door: 0,
+            expansion_value: next_seq(),
+            sorting_value: next_seq(),
+            next_room_key: None,
+            shape_entry: FloatLine::new(location, location),
+            room_ripped: false,
+            adjustment: Adjustment::None,
+            already_checked: false,
+            ripup_cost: 0,
+        };
+        (element, location)
+    }
+
+    /// Drives [`Front::gated_add`] — the production entry — and
+    /// reports whether the element entered the front.
+    fn admits(
+        front: &mut Front,
+        element: MazeListElement,
+        layer: Option<i32>,
+        drill: Option<&FloatPoint>,
+    ) -> bool {
+        front.gated_add(element, layer, drill)
+    }
+
+    /// The max arm at its EXACT boundary (cerebrum 16): Java rejects
+    /// on the STRICT `dist > maxLen * resolution` — the boundary
+    /// distance itself is KEPT, one unit beyond is REJECTED, one
+    /// unit inside is KEPT. maxLen = 4.5mm * 1000 = 4500.
+    #[test]
+    fn gate_max_arm_exact_boundary() {
+        let mut front = Front::default();
+        front.set_fanout_gate(gate(Some(4.5), Some(2.5), 1.0));
+        assert!(
+            admits(&mut front, door_elem(4500.0), Some(0), None),
+            "exact 4500 kept"
+        );
+        assert!(
+            !admits(&mut front, door_elem(4501.0), Some(0), None),
+            "4501 rejected"
+        );
+        assert!(
+            admits(&mut front, door_elem(4499.0), Some(0), None),
+            "4499 kept"
+        );
+        assert_eq!(front.len(), 2, "exactly the two kept rows entered");
+    }
+
+    /// The min arm at its EXACT boundary: Java rejects a drill on
+    /// the STRICT `drillDist < minLen * resolution` — the boundary
+    /// is KEPT, one unit closer REJECTED, one unit farther KEPT.
+    /// minLen = 2.5mm * 1000 = 2500. The far-drill row (8000) also
+    /// proves the MAX arm is silent for drills (next_room_key None).
+    #[test]
+    fn gate_min_arm_exact_boundary() {
+        let mut front = Front::default();
+        front.set_fanout_gate(gate(Some(4.5), Some(2.5), 1.0));
+        let (elem, loc) = drill_elem(2500.0);
+        assert!(
+            admits(&mut front, elem, None, Some(&loc)),
+            "exact 2500 kept"
+        );
+        let (elem, loc) = drill_elem(2499.0);
+        assert!(!admits(&mut front, elem, None, Some(&loc)), "2499 rejected");
+        let (elem, loc) = drill_elem(2501.0);
+        assert!(admits(&mut front, elem, None, Some(&loc)), "2501 kept");
+        let (elem, loc) = drill_elem(8000.0);
+        assert!(
+            admits(&mut front, elem, None, Some(&loc)),
+            "far drill kept — the max arm does not fire for next_room None"
+        );
+    }
+
+    /// The `None` settings arms: maxLen falls to the RAW 3000.0
+    /// coordinate fallback and minLen to 500.0 (Java `:108-121`
+    /// ternaries), scaled by the resolution like any other arm.
+    #[test]
+    fn gate_none_settings_fallbacks() {
+        let mut front = Front::default();
+        front.set_fanout_gate(gate(None, None, 1.0));
+        assert!(
+            admits(&mut front, door_elem(3000.0), Some(0), None),
+            "exact 3000 kept"
+        );
+        assert!(
+            !admits(&mut front, door_elem(3001.0), Some(0), None),
+            "3001 rejected"
+        );
+        let (elem, loc) = drill_elem(500.0);
+        assert!(admits(&mut front, elem, None, Some(&loc)), "exact 500 kept");
+        let (elem, loc) = drill_elem(499.0);
+        assert!(!admits(&mut front, elem, None, Some(&loc)), "499 rejected");
+    }
+
+    /// The resolution factor: with resolution 2.0 the thresholds are
+    /// maxLen * 2 = 9000 and the fallback minLen * 2 = 1000 — a
+    /// resolution-swallowing mutant (thresholds pre-divided) dies on
+    /// the 9000/999 rows.
+    #[test]
+    fn gate_resolution_scaling() {
+        let mut front = Front::default();
+        front.set_fanout_gate(gate(Some(4.5), None, 2.0));
+        assert!(
+            admits(&mut front, door_elem(9000.0), Some(0), None),
+            "exact 9000 kept"
+        );
+        assert!(
+            !admits(&mut front, door_elem(9001.0), Some(0), None),
+            "9001 rejected"
+        );
+        let (elem, loc) = drill_elem(1000.0);
+        assert!(
+            admits(&mut front, elem, None, Some(&loc)),
+            "exact 1000 kept"
+        );
+        let (elem, loc) = drill_elem(999.0);
+        assert!(!admits(&mut front, elem, None, Some(&loc)), "999 rejected");
+    }
+
+    /// The two max-arm GUARDS: the arm fires only when the next
+    /// room EXISTS and sits ON the pin's layer — a next room on
+    /// another layer (Java `nextRoom.getLayer() != fanoutStartPinLayer`)
+    /// or a null next room never rejects, however far the middle.
+    #[test]
+    fn gate_max_arm_layer_and_room_guards() {
+        let mut front = Front::default();
+        front.set_fanout_gate(gate(Some(4.5), Some(2.5), 1.0));
+        assert!(
+            admits(&mut front, door_elem(4501.0), Some(1), None),
+            "next room on layer 1 ≠ pin layer 0: kept"
+        );
+        assert!(
+            admits(&mut front, door_elem(4501.0), None, None),
+            "null next room: kept"
+        );
+    }
+
+    /// The tripwire face: a gateless front (every detail-route
+    /// search) accepts anything through `gated_add` — the filter is
+    /// installed ONLY for fanout searches.
+    #[test]
+    fn gateless_front_is_inert() {
+        let mut front = Front::default();
+        assert!(admits(&mut front, door_elem(999_999.0), Some(0), None));
+        let (elem, loc) = drill_elem(0.0);
+        assert!(admits(&mut front, elem, None, Some(&loc)));
+        assert_eq!(front.len(), 2);
     }
 }

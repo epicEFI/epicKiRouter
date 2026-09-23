@@ -47,6 +47,100 @@ pub struct RouterSettingsIr {
     /// `ctrl.ripupCosts <= startRipupCosts * 2`, so the protection
     /// window shrinks as the pass cost grows.
     pub start_ripup_costs: i32,
+    /// Java `RouterSettings.fanout` (`FanoutSettings`) — the fanout
+    /// stage group. Java holds the group nullable and the maze
+    /// frontier gate tests `ctrl.settings.fanout != null` before the
+    /// field reads (`MazeSearchEngine.java:104`); the resolver always
+    /// materializes the group over `DefaultSettings`, so the port's IR
+    /// carries it non-optional and the group-null arm is banked
+    /// (unreachable from the standard flow, where DefaultSettings
+    /// seeds the group). The per-field null faces (escape lengths,
+    /// timeout) stay `Option`.
+    pub fanout: FanoutSettingsIr,
+}
+
+/// Java `settings.FanoutSettings` — the fanout stage's settings group,
+/// RESOLVED (the CLI resolver owns the null-to-default faces; see the
+/// [`RouterSettingsIr`] doc). Every field mirrors the Java field of the
+/// same snake_case name; the Option fields are the ones Java keeps
+/// genuinely nullable AT THE CONSUMPTION SITE (the escape lengths, where
+/// `MazeSearchEngine`'s frontier gate falls back to raw coordinate
+/// values on null — `MazeSearchEngine.java:107-112/:116-121`), and
+/// `timeout_string` (null = no stage deadline).
+///
+/// The [`Default`] impl IS the `DefaultSettings.java:163-177` fanout
+/// face — one statement of the resolved defaults, shared by the test
+/// construction sites and the CLI resolver's base. Do NOT state these
+/// values anywhere else (the settings-merger trap; CLAUDE.md).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FanoutSettingsIr {
+    /// Java `enabled` — resolved (`isFanoutEnabled()`); DefaultSettings true.
+    pub enabled: bool,
+    /// Java `maxPasses` — resolved; DefaultSettings 20 (and the Java
+    /// consumption site carries the same inline default for null).
+    pub max_passes: i32,
+    /// Java `maxItems` — resolved; DefaultSettings `Integer.MAX_VALUE`.
+    /// The stage's cap gate ALSO requires `maxItems > 0`
+    /// (`BatchFanout.java:209-213`), so non-positive disables the cap.
+    pub max_items: i32,
+    /// Java `maxMillisecondsPerPin` — resolved; DefaultSettings 10000.
+    /// Wall clock in Java; behind `deterministic_budgets` the same
+    /// value (times `passNo + 1`) is spent as `RouteBudget` ticks.
+    pub max_milliseconds_per_pin: i64,
+    /// Java `ripupAllowed` — resolved; DefaultSettings true. False sends
+    /// `-1` ripup costs to the per-pin engine call (the "no ripup" signal).
+    pub ripup_allowed: bool,
+    /// Java `minEscapeLengthMm` — DefaultSettings 2.5; `None` keeps the
+    /// engine's 500.0-coordinate fallback arm live.
+    pub min_escape_length_mm: Option<f64>,
+    /// Java `maxEscapeLengthMm` — DefaultSettings 4.5; `None` keeps the
+    /// engine's 3000.0-coordinate fallback arm live.
+    pub max_escape_length_mm: Option<f64>,
+    /// Java `startViaDiameterMm` — DefaultSettings 0.250. Settings-surface
+    /// parity only: no engine consumer (banked).
+    pub start_via_diameter_mm: Option<f64>,
+    /// Java `endViaDiameterMm` — DefaultSettings 0.250. Settings-surface
+    /// parity only: no engine consumer (banked).
+    pub end_via_diameter_mm: Option<f64>,
+    /// Java `pinSortingOrder` — the RAW string, kept verbatim because
+    /// Java dispatches on it with four known values
+    /// (`inner_first`/`outer_first`/`distanceToClosestOnNet`/
+    /// `surroundingsDensity`) and treats ANY OTHER value as "compare
+    /// equal, fall through to the `pinIndex` tie-break"
+    /// (`BatchFanout.java:781-795`). DefaultSettings "outer_first".
+    pub pin_sorting_order: String,
+    /// Java `fallbackToBoardVias` — resolved; DefaultSettings true.
+    pub fallback_to_board_vias: bool,
+    /// Java `timeout` (`SerializedName("timeout")`) — the stage wall
+    /// deadline (`TextManager.parseTimespanString`); DefaultSettings
+    /// leaves it null. Port: only the wall-budget profile consults the
+    /// parsed deadline (the deterministic profile has no wall to time
+    /// out — the banked job-timeout seam).
+    pub timeout_string: Option<String>,
+}
+
+impl Default for FanoutSettingsIr {
+    /// `DefaultSettings.java:163-177` — the resolved fanout defaults,
+    /// verbatim (the single statement of these values; see the struct
+    /// doc). A derived `Default` would seed the zero faces here —
+    /// `max_passes: 0` is ZERO PASSES and `pin_sorting_order: ""` is
+    /// the pinIndex tie-break — so the impl is manual by design.
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_passes: 20,
+            max_items: i32::MAX,
+            max_milliseconds_per_pin: 10_000,
+            ripup_allowed: true,
+            min_escape_length_mm: Some(2.5),
+            max_escape_length_mm: Some(4.5),
+            start_via_diameter_mm: Some(0.250),
+            end_via_diameter_mm: Some(0.250),
+            pin_sorting_order: "outer_first".to_string(),
+            fallback_to_board_vias: true,
+            timeout_string: None,
+        }
+    }
 }
 
 /// Java `AngleRestriction` (`board.rules.BasicsOption`) — the trace
@@ -704,6 +798,7 @@ mod tests {
             layer_active,
             automatic_neckdown: true,
             start_ripup_costs: 1,
+            fanout: Default::default(),
         }
     }
 

@@ -119,6 +119,7 @@ fn maze_settings_ir(vias_allowed: bool) -> RouterSettingsIr {
         layer_active: vec![true, true],
         automatic_neckdown: false,
         start_ripup_costs: 1,
+        fanout: Default::default(),
     }
 }
 

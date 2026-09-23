@@ -11,4 +11,5 @@ pub mod board_history;
 pub mod board_statistics;
 pub mod connection_router;
 pub mod event_sink;
+pub mod fanout;
 pub mod pass_runner;

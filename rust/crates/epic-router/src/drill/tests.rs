@@ -785,6 +785,7 @@ fn test_ctrl(via_upper_bound: i32, via_infos: Vec<ViaMask>) -> AutorouteControl 
             layer_active: vec![true; layer_count],
             automatic_neckdown: false,
             start_ripup_costs: 1,
+            fanout: Default::default(),
         },
         trace_costs: vec![
             ExpansionCostFactor {

@@ -570,7 +570,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             &mut |emit| emitted.push(emit),
         );
         for emit in emitted {
-            self.front.add(MazeListElement::new(
+            let new_element = MazeListElement::new(
                 door.clone(),
                 emit.section_no_of_door,
                 Some(door.clone()),
@@ -582,7 +582,15 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 emit.room_ripped,
                 emit.adjustment,
                 emit.already_checked,
-            ));
+            );
+            // Java reads the two gate facts LIVE at the add
+            // (`MazeSearchEngine.java:89-126`): the entered room's
+            // layer and the drill location (the door here is always a
+            // drill, so both arms are reachable).
+            let next_room_layer = self.ctx.room_layer(emit.next_room_key);
+            let drill_location = self.live_drill(&door).location.to_float();
+            self.front
+                .gated_add(new_element, Some(next_room_layer), Some(&drill_location));
         }
     }
 
@@ -733,7 +741,17 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                         delayed.room_ripped = true;
                         delayed.already_checked = true;
                         delayed.ripup_cost = ripup_costs;
-                        self.front.add(delayed);
+                        // Both fanout arms are reachable for a delayed
+                        // re-add (the cloned door may be a drill, the
+                        // next room is inherited).
+                        let next_room_layer =
+                            delayed.next_room_key.map(|key| self.ctx.room_layer(key));
+                        let drill_location = delayed
+                            .door
+                            .is_drill()
+                            .then(|| self.live_drill(&delayed.door).location.to_float());
+                        self.front
+                            .gated_add(delayed, next_room_layer, drill_location.as_ref());
                     }
                     if !shoved {
                         return something_expanded;
@@ -1271,7 +1289,14 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
              from_door_bounds={from_door_bounds_desc}, net={net}"
         );
         self.emit_raw_row(&row);
-        self.front.add(new_element);
+        // Java reads nextRoom.getLayer() live at the add; the door is
+        // a room or target door here — never a drill — so the gate's
+        // drill arm cannot fire (`expandToDoorSection` is only called
+        // for those two kinds).
+        let next_room_layer = new_element
+            .next_room_key
+            .map(|key| self.ctx.room_layer(key));
+        self.front.gated_add(new_element, next_room_layer, None);
         true
     }
 
@@ -1395,9 +1420,10 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 let connection_shape = connection_shape.intersection(&room_shape);
                 let current_center = connection_shape.centre_of_gravity();
                 let shape_entry = FloatLine::new(current_center, current_center);
+                let room_layer = self.ctx.room_layer(current_room);
                 let sorting_value = self
                     .destination_distance
-                    .calculate(&current_center, self.ctx.room_layer(current_room));
+                    .calculate(&current_center, room_layer);
                 let new_list_element = MazeListElement::new(
                     ExpandableObject::TargetDoor(current_door),
                     0,
@@ -1411,7 +1437,12 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                     Adjustment::None,
                     false,
                 );
-                self.front.add(new_list_element);
+                // The init seed's next room IS the completed start room
+                // (layer resolved above); the door is a target door —
+                // never a drill — so only the start-layer arm of the
+                // fanout gate is reachable here.
+                self.front
+                    .gated_add(new_list_element, Some(room_layer), None);
                 start_ok = true;
             }
         }

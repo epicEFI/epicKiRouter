@@ -227,10 +227,16 @@ pub fn render_manifest(
 ) -> String {
     let mut phases = ManifestPhases::default();
     // The pass-count backfill: the LAST progress event's pass number,
-    // only when the pass runner actually counted a pass (> 0).
+    // only when the pass runner actually counted a pass (> 0). The
+    // filter is the autorouter phase's face — the fanout stage's
+    // counters (`phase="fanout"`) must not leak into it: Java's fanout
+    // phase never sets `passesCompleted` (AutorouteBatchLoop.java
+    // `:247-263` writes only the before/after snapshots, duration and
+    // cpu into `resultPhaseMetrics.fanout`).
     phases.autorouter.passes_completed = telemetry
         .last_counters
         .as_ref()
+        .filter(|counters| counters.phase == "autoroute")
         .map(|counters| counters.pass_count)
         .filter(|pass_count| *pass_count > 0)
         .map(i64::from);
@@ -646,11 +652,17 @@ mod tests {
     }
 
     /// The counters' pass-count backfill: the LAST counters' passCount
-    /// when > 0; absent when there were no events or the count is 0.
+    /// when > 0 AND the phase is the autorouter's (`"autoroute"` — the
+    /// production `RouterCounters.phase`); absent when there were no
+    /// events or the count is 0. The phase filter is the M4-T7
+    /// phase-attribution face: the fanout stage's counters (`"fanout"`,
+    /// emitted LAST when the stage ran) must not leak into
+    /// `phases.autorouter.passesCompleted` — Java's fanout phase never
+    /// sets `passesCompleted` (AutorouteBatchLoop.java:247-263).
     #[test]
     fn manifest_passes_completed_backfill() {
         let counters = RouterCounters {
-            phase: "AUTOROUTE".to_string(),
+            phase: "autoroute".to_string(),
             pass_count: 7,
             queued_to_be_routed_count: 0,
             skipped_count: 0,
@@ -696,6 +708,48 @@ mod tests {
             value
                 .pointer("/phases/autorouter/passes_completed")
                 .is_none()
+        );
+    }
+
+    /// The M4-T7 phase-attribution pin: a fanout-stage counters event
+    /// (the LAST event when the stage ran — `phase="fanout"`, 1-based
+    /// pass, fanout via tally) must NOT backfill
+    /// `phases.autorouter.passes_completed`, and the fanout phase slot
+    /// itself stays the empty `{}` projection (Java's fanout phase
+    /// metrics carry only before/after snapshots + duration + cpu,
+    /// AutorouteBatchLoop.java:247-263 — all in the manifest's
+    /// non-determinism omission family). The dropped-filter mutant (or
+    /// a `phase.contains("route")` laxity) fails the first assert.
+    #[test]
+    fn manifest_fanout_counters_do_not_backfill_autorouter_passes() {
+        let fanout_counters = RouterCounters {
+            phase: "fanout".to_string(),
+            pass_count: 1,
+            queued_to_be_routed_count: 4,
+            skipped_count: 0,
+            ripped_count: 0,
+            failed_to_be_routed_count: 4,
+            routed_count: 0,
+            incomplete_count: 2,
+            fanout_extra_vias_count: 0,
+        };
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            last_counters: Some(fanout_counters),
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert!(
+            value
+                .pointer("/phases/autorouter/passes_completed")
+                .is_none(),
+            "fanout counters must not backfill the autorouter pass count: {json}"
+        );
+        assert_eq!(
+            value["phases"]["fanout"],
+            serde_json::json!({}),
+            "the fanout phase slot is the empty projection"
         );
     }
 

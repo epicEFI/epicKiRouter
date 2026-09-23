@@ -498,15 +498,14 @@ impl Board {
         }
     }
 
-    /// Java `BasicBoard.getSmdPins().size()` (`:661-664` via
-    /// `BoardItemRepository.getSmdPins` `:94-102`): the ON-BOARD pins
+    /// Java `BasicBoard.getSmdPins()` (`:661-664` via
+    /// `BoardItemRepository.getSmdPins` `:84-112`): the ON-BOARD pins
     /// whose (mirrored) layer span is single-layer —
-    /// `firstLayer() == lastLayer()`. The batch driver's fanout
-    /// pre-pass rows read the count (`AutorouteBatchLoop.java:86-90`
-    /// debug row, `:100-103` skip row); netless pins count here
-    /// exactly as in Java (the net-connected filter is BatchFanout's
-    /// own, one block deeper).
-    pub fn smd_pin_count(&self) -> usize {
+    /// `firstLayer() == lastLayer()` — in `itemList` order (= ascending
+    /// id; the engine.rs insertion-order convention), netless pins
+    /// included exactly as in Java (the net-connected filter is
+    /// BatchFanout's own, one block deeper).
+    pub fn smd_pin_ids(&self) -> Vec<ItemId> {
         self.iter_ascending()
             .filter(|entry| entry.on_the_board)
             .filter(|entry| {
@@ -525,7 +524,20 @@ impl Board {
                 crate::components::pin_first_layer(component, padstack)
                     == crate::components::pin_last_layer(component, padstack)
             })
-            .count()
+            .map(|entry| entry.id)
+            .collect()
+    }
+
+    /// Java `BasicBoard.getSmdPins().size()` (`:661-664` via
+    /// `BoardItemRepository.getSmdPins` `:94-102`): the ON-BOARD pins
+    /// whose (mirrored) layer span is single-layer —
+    /// `firstLayer() == lastLayer()`. The batch driver's fanout
+    /// pre-pass rows read the count (`AutorouteBatchLoop.java:86-90`
+    /// debug row, `:100-103` skip row); netless pins count here
+    /// exactly as in Java (the net-connected filter is BatchFanout's
+    /// own, one block deeper).
+    pub fn smd_pin_count(&self) -> usize {
+        self.smd_pin_ids().len()
     }
 
     /// The T12 board-hash walk over `itemList`'s reachable node graph

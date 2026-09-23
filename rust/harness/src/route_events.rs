@@ -532,7 +532,7 @@ struct RustWorld {
 fn batch_settings_from_witness(
     witness: &SettingsWitness,
 ) -> Result<epic_router::pipeline::batch::BatchSettings> {
-    use epic_router::control::{ExpansionCostFactor, RouterSettingsIr};
+    use epic_router::control::{ExpansionCostFactor, FanoutSettingsIr, RouterSettingsIr};
     use epic_router::pipeline::batch::BatchSettings;
     use epic_router::pipeline::board_statistics::{
         RouterSettingsScoring, default_routing_cost_settings,
@@ -568,6 +568,13 @@ fn batch_settings_from_witness(
         layer_active,
         automatic_neckdown: witness.automatic_neckdown,
         start_ripup_costs: witness.start_ripup_costs,
+        // The probe worlds are fanout-off (witness `fanout_enabled`
+        // false); the group's other keys were DefaultSettings on the
+        // Java probe side and are unread while disabled.
+        fanout: FanoutSettingsIr {
+            enabled: witness.fanout_enabled,
+            ..Default::default()
+        },
     };
     // The score box from the witness penalties (Java `Double.toString`
     // text); the engine-facing fields ride the defaults (the witness

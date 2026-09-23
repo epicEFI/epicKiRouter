@@ -5,9 +5,8 @@
 //! the pass loop ([`BatchDriver::run`]) with the board-history
 //! restore gate, the pass-local + global stagnation trackers, and the
 //! task-state events. The fanout pre-pass stage (Java `:86-246`) is
-//! the M4 seam — the gate is kept, the stage body is a documented
-//! no-op, and the stage's two pre-pass log rows are live (see the
-//! bank below).
+//! LIVE (M4-T7): the stage body is [`crate::pipeline::fanout`], wired
+//! behind the same gates (see the bank below).
 //!
 //! ## Banks (SEAM carries the dossier)
 //!
@@ -17,11 +16,18 @@
 //!   change per-pass"); only the `clear()` calls survive. The port
 //!   keeps the doc, drops the field (a live unused field would trip
 //!   `dead_code`).
-//! * **The fanout pre-pass stage is the M4 seam.** The stage body
-//!   (SMD pin collection, `BatchFanout`, the recovery bookkeeping)
-//!   lands in M4 — its OBSERVABILITY faces are live here (the
-//!   `:86-90` check row and the `:100-103` empty-SMD skip row).
-//!   The `fanout_timed_out` job flag rides with the stage.
+//! * **The fanout stage's runtime-metrics faces are banked** — Java
+//!   tracks per-stage CPU seconds, allocated MB and peak heap MB
+//!   (`AutorouteBatchLoop.java:105-107/:132-134/:185-211`) and renders
+//!   them into the summary row; the port has no runtime-metrics face,
+//!   so the summary row banks them to `0.00 total CPU seconds,
+//!   0.00 GB total allocated, and 0.0 MB peak heap usage` (the
+//!   duration faces stay real). Java's fanout manifest phase writes
+//!   only before/after snapshots + duration + cpu
+//!   (`:247-263`, never `passesCompleted`); the port manifest's
+//!   non-determinism projection serializes that as the empty `{}`
+//!   slot, so the renderer needs no fanout face — only the
+//!   autorouter backfill's phase filter.
 //! * **`IllegalArgumentException` → `Result`.** Java's run abort
 //!   (`:59-61`) throws after emitting the CANCELLED event; the port
 //!   returns [`BatchLoopError::NoActiveSignalLayers`] with the same
@@ -61,7 +67,10 @@ use crate::pipeline::board_hash::board_hash;
 use crate::pipeline::board_history::{BoardHistory, restore_from_snapshot};
 use crate::pipeline::board_statistics::{BoardStatistics, RouterSettingsScoring};
 use crate::pipeline::event_sink::DriverSink;
-use crate::pipeline::pass_runner::run_single_thread;
+use crate::pipeline::fanout::{
+    FanoutPassStatus, FanoutProgressListener, fanout_board, smd_pin_connection_counts,
+};
+use crate::pipeline::pass_runner::{RouterCounters, run_single_thread};
 
 // ---------------------------------------------------------------------------
 // the Java constants (BatchAutorouter.java:55-80 / AutorouteBatchLoop)
@@ -83,6 +92,59 @@ pub const FANOUT_RECOVERY_STAGNATION_PASSES: i32 = 3;
 pub const PROGRESS_STATISTICS_ITEM_INTERVAL: i32 = 10;
 /// Java `STAGNATION_SCORE_THRESHOLD` (`:69`).
 pub const STAGNATION_SCORE_THRESHOLD: f32 = 0.5;
+
+// ---------------------------------------------------------------------------
+// the fanout stage listener (Java AutorouteBatchLoop.java:141-183)
+// ---------------------------------------------------------------------------
+
+/// Java's inline `BatchFanout.fanoutBoard` progress listener: every
+/// status fires a `board_updated` event with `phase="fanout"` counters,
+/// and a completed pass logs the pass summary row. Java's closure reads
+/// `router.board.getHash()` INSIDE the `passCompleted` branch (`:162`)
+/// — the after-pass hash; the port's status carries that hash
+/// precomputed at the same publish point.
+struct BatchFanoutListener;
+
+impl FanoutProgressListener for BatchFanoutListener {
+    fn on_progress(&mut self, status: &FanoutPassStatus, sink: &mut dyn DriverSink) {
+        let counters = RouterCounters {
+            phase: "fanout".to_string(),
+            pass_count: status.pass_no,
+            queued_to_be_routed_count: status.pins_to_go,
+            routed_count: status.routed_count,
+            skipped_count: 0,
+            ripped_count: 0,
+            failed_to_be_routed_count: status.not_routed_count + status.insert_error_count,
+            incomplete_count: status.incomplete_count,
+            fanout_extra_vias_count: status.extra_vias_this_pass,
+        };
+        sink.board_updated(&counters);
+
+        if status.pass_completed {
+            // Java `String.format(Locale.US, ...)` — the plural arms
+            // and the RAW ripup costs ride verbatim (`:162-183`).
+            let plural = |count: i32| if count == 1 { "" } else { "s" };
+            sink.info(&format!(
+                "Fanout pass #{} on board '{}' completed in {:.2} seconds with {} SMD pin{} \
+                 fanouted, {} not routed, {} insert error{}, +{} extra via{} ({} SMD pin{} \
+                 still to check in pass, ripup costs={}).",
+                status.pass_no,
+                status.board_hash,
+                (status.pass_duration_millis as f64) / 1000.0,
+                status.routed_count,
+                plural(status.routed_count),
+                status.not_routed_count,
+                status.insert_error_count,
+                plural(status.insert_error_count),
+                status.extra_vias_this_pass,
+                plural(status.extra_vias_this_pass),
+                status.pins_to_go,
+                plural(status.pins_to_go),
+                status.ripup_costs,
+            ));
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // the stop face
@@ -311,6 +373,10 @@ pub struct BatchDriver<'a> {
     /// Java `router.fanoutRecoveryApplied` — the one-time recovery
     /// fired.
     pub fanout_recovery_applied: bool,
+    /// Java `router.fanoutTimedOut` (`BatchAutorouter.java:80`, read
+    /// via `isFanoutTimedOut` `:331-333`) — the fanout stage deadline
+    /// fired.
+    pub fanout_timed_out: bool,
 }
 
 impl<'a> BatchDriver<'a> {
@@ -333,6 +399,7 @@ impl<'a> BatchDriver<'a> {
             progress_items_since_statistics: 0,
             stop_reason: None,
             fanout_recovery_applied: false,
+            fanout_timed_out: false,
         }
     }
 
@@ -385,19 +452,67 @@ impl<'a> BatchDriver<'a> {
 
         let mut history = BoardHistory::new(self.settings.scoring.clone());
 
-        // The fanout pre-pass stage (Java `:86-246`) is the M4 seam:
-        // the STAGE body (BatchFanout + recovery bookkeeping) lands in
-        // M4. Its observability faces are live here: Java `:86-90`
-        // fires the check row unconditionally (before any
-        // router-enabled gate), and `:100-103` fires the skip row when
-        // fanout is enabled and the board has no SMD pins.
-        let smd_pins = self.board.smd_pin_count();
+        // The fanout stage (Java `:86-246`, M4-T7): the `:86-90` check
+        // row is unconditional, the stage bodies sit behind the
+        // fanout-enabled gate.
+        let smd_pins = i32::try_from(self.board.smd_pin_count()).unwrap_or(i32::MAX);
         sink.debug(&format!(
             "Checking fanout pre-pass. settings.fanout.enabled={}, smdPins={}",
             self.settings.fanout_enabled, smd_pins
         ));
-        if self.settings.fanout_enabled && smd_pins == 0 {
-            sink.info("Fanout stage is enabled but skipped because the board has no SMD pins.");
+        if self.settings.fanout_enabled {
+            if smd_pins == 0 {
+                sink.info("Fanout stage is enabled but skipped because the board has no SMD pins.");
+            } else {
+                // Java `:113-131` — the stage-start walk and info row.
+                let (net_connected_smd_pins, already_connected_at_start) =
+                    smd_pin_connection_counts(self.manager, self.board);
+                let pins_to_fanout = net_connected_smd_pins - already_connected_at_start;
+                let hash = board_hash(self.board);
+                sink.info(&format!(
+                    "Fanout stage started on board '{hash}' with {pins_to_fanout} of {smd_pins} \
+                     SMD pins needing fanout ({already_connected_at_start} already connected, \
+                     {} netless).",
+                    smd_pins - net_connected_smd_pins,
+                ));
+
+                // Java `:132-183` — the stage run with the progress
+                // listener, then `:184` the timed-out flag.
+                let summary = fanout_board(
+                    self.manager,
+                    self.board,
+                    &self.settings,
+                    self.stop.flag(),
+                    Some(&mut BatchFanoutListener),
+                    sink,
+                );
+                self.fanout_timed_out = summary.is_timed_out;
+
+                // Java `:186-211` — the summary row. The CPU/GB/heap
+                // faces are banked to 0.00/0.00/0.0 (no runtime-metrics
+                // face; see the module bank); the thread-stop arm reads
+                // the driver's stop face (`router.thread
+                // .isStopAutoRouterRequested()`).
+                let completion_status = if summary.is_timed_out {
+                    "completed with timeout:"
+                } else if self.stop.is_requested() {
+                    "interrupted:"
+                } else {
+                    "completed:"
+                };
+                sink.info(&format!(
+                    "Fanout stage {completion_status} started with {} total SMD pins, completed \
+                     in {:.2} seconds, escaped pins: {}, using 0.00 total CPU seconds, 0.00 GB \
+                     total allocated, and 0.0 MB peak heap usage.",
+                    summary.escape_statistics.total_smd_pins,
+                    (summary.total_duration_millis as f64) / 1000.0,
+                    summary.escape_statistics.to_display(),
+                ));
+            }
+            // Java `:247-263` — the fanout phase metrics
+            // (before/after snapshots, duration, cpu). The port's
+            // manifest projection carries no fanout phase faces (see
+            // the module bank); nothing to record here.
         }
 
         // Java `:249-252`.
@@ -1055,6 +1170,7 @@ mod tests {
             layer_active: vec![true, true],
             automatic_neckdown: false,
             start_ripup_costs: 1,
+            fanout: Default::default(),
         }
     }
 
@@ -1266,11 +1382,19 @@ mod tests {
             self.inner.task_state(state, pass, hash);
         }
         fn board_updated(&mut self, counters: &RouterCounters) {
-            // The pass-1 FINAL fill (4 failed attempts on the starved
-            // world) — by this row every attempt has run, so the
+            // The AUTOROUTE pass-1 FINAL fill (4 failed attempts on the
+            // starved world) — by this row every attempt has run, so the
             // maxItems face never fired (total 4 < 5 at every attempt
-            // head) and the flip is purely external.
-            if !self.fired && counters.pass_count == 1 && counters.failed_to_be_routed_count == 4 {
+            // head) and the flip is purely external. The phase
+            // discriminator is M4-T7-load-bearing: the now-live fanout
+            // stage's pass-1 fill carries the SAME (pass=1, failed=4)
+            // pair on this world, and hooking it would stop the run
+            // before the batch loop's first pass.
+            if !self.fired
+                && counters.phase == "autoroute"
+                && counters.pass_count == 1
+                && counters.failed_to_be_routed_count == 4
+            {
                 self.fired = true;
                 self.flag.store(true, Ordering::Relaxed);
             }
@@ -1335,6 +1459,12 @@ mod tests {
         let (mut manager, mut board) = parse_fixture();
         let mut settings = BatchSettings::new(settings_ir(), RouterSettingsScoring::default());
         settings.max_passes = Some(10);
+        // The fanout stage is LIVE as of M4-T7: this pin studies the
+        // AUTOROUTE stage's skip tally (an exact 2-row board_updated
+        // census), and the fanout listener's own counter rows (plus any
+        // routed escapes) would perturb it. Fanout-on completion
+        // dynamics are pinned by the T7 battery.
+        settings.fanout_enabled = false;
         let mut sink = CaptureDriverSink::default();
         let mut driver = BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
         let outcome = driver.run(&mut sink).expect("run completes");

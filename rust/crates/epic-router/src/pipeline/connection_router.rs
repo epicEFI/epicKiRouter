@@ -64,7 +64,7 @@ use crate::pipeline::event_sink::DriverSink;
 /// The [`InserterEventSink`] bridge: the engine's insertion rows flow
 /// into the driver's sink trace channel (Java logs both through the
 /// one global `FRLogger`).
-struct SinkBridge<'a>(&'a mut dyn DriverSink);
+pub(crate) struct SinkBridge<'a>(pub(crate) &'a mut dyn DriverSink);
 
 /// Java `AutorouteConnectionRouter.TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP`
 /// (`:22`): the pull-tight time limit handed to `optChangedArea`.
@@ -72,7 +72,7 @@ struct SinkBridge<'a>(&'a mut dyn DriverSink);
 /// the same value as `is_stop_requested` consultation ticks (the
 /// `RouteBudget` pattern). `BatchAutorouter` declares its own twin
 /// (`:43`, same value) — `batch.rs` carries that duplicate.
-const TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP: i32 = 1000;
+pub(crate) const TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP: i32 = 1000;
 
 impl InserterEventSink for SinkBridge<'_> {
     fn trace(&mut self, message: &str) {
@@ -563,6 +563,7 @@ mod tests {
                 layer_active: vec![true, true],
                 automatic_neckdown: false,
                 start_ripup_costs: 1,
+                fanout: Default::default(),
             },
             RouterSettingsScoring::default(),
         )

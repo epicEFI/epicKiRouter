@@ -17,13 +17,30 @@ use crate::maze::list_element::{ExpandableObject, Front, MazeListElement};
 /// engine owns the front; this trait keeps the expansion module free
 /// of the search-engine struct (avoids the borrow knot).
 pub trait FrontSink {
-    /// Java `search.mazeExpansionList.add`.
-    fn add(&mut self, element: MazeListElement) -> bool;
+    /// Java `search.mazeExpansionList.add` — the TreeSet add override
+    /// INCLUDING the fanout frontier filter (`MazeSearchEngine
+    /// .java:88-127`). The two optionals are the per-element facts
+    /// Java reads live off the room/drill objects at add time:
+    /// `next_room_layer` is `element.nextRoom.getLayer()` (`None` =
+    /// Java `nextRoom == null`), `drill_location` the
+    /// `ExpansionDrill.location` when the door is a drill. See
+    /// [`Front::gated_add`].
+    fn add(
+        &mut self,
+        element: MazeListElement,
+        next_room_layer: Option<i32>,
+        drill_location: Option<&epic_geometry::float_point::FloatPoint>,
+    ) -> bool;
 }
 
 impl FrontSink for Front {
-    fn add(&mut self, element: MazeListElement) -> bool {
-        Front::add(self, element)
+    fn add(
+        &mut self,
+        element: MazeListElement,
+        next_room_layer: Option<i32>,
+        drill_location: Option<&epic_geometry::float_point::FloatPoint>,
+    ) -> bool {
+        Front::gated_add(self, element, next_room_layer, drill_location)
     }
 }
 
@@ -128,7 +145,10 @@ impl MazeExpansionEngine {
             crate::drill::Adjustment::None,
             false,
         );
-        front.add(new_element);
+        // The element's next room is Java-null (a drill element) and
+        // the door IS a drill — the start-layer arm cannot fire, the
+        // drill arm reads this drill's location (`:113-124`).
+        front.add(new_element, None, Some(&drill.location.to_float()));
     }
 
     /// Java `expandToDrillPage` (`:115-143`).
@@ -183,7 +203,11 @@ impl MazeExpansionEngine {
             crate::drill::Adjustment::None,
             false,
         );
-        front.add(new_element);
+        // The element's next room is the from element's room (the page
+        // inherits it, layer already resolved above) and the door is a
+        // DrillPage — NOT an `ExpansionDrill`, so the drill arm cannot
+        // fire; only the start-layer arm is live here.
+        front.add(new_element, Some(layer), None);
     }
 
     /// Java `expandToDrillsOfPage` (`:145-235`) — the occupancy checks

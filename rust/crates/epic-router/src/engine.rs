@@ -1026,6 +1026,31 @@ impl<'a> AutorouteEngine<'a> {
         let autoroute_result = {
             let mut destination_distance = ProdDistance::from_ctrl(ctrl);
             let mut checker = BoardLayerChecker;
+            // Java installs the fanout frontier filter on the expansion
+            // TreeSet at MAZE-ENGINE CONSTRUCTION
+            // (`MazeSearchEngine.java:88-127`), gated on
+            // `ctrl.isFanout && ctrl.fanoutStartPinCenter != null` —
+            // the port snapshots the search-invariant gate constants
+            // here (pin anchor/layer, the escape-length ternaries, the
+            // board resolution) and hands them to the front below. A
+            // detail-route search installs nothing (the gate is inert).
+            let fanout_gate = match (ctrl.is_fanout, ctrl.fanout_start_pin_center.as_ref()) {
+                (true, Some(pin_center)) => {
+                    let comm = self.board.communication();
+                    let resolution = epic_dsn::state::Unit::scale(
+                        f64::from(comm.resolution),
+                        epic_dsn::state::Unit::Um,
+                        comm.unit,
+                    );
+                    Some(crate::maze::list_element::FanoutFrontGate::new(
+                        &ctrl.settings.fanout,
+                        pin_center,
+                        ctrl.fanout_start_pin_layer,
+                        resolution,
+                    ))
+                }
+                _ => None,
+            };
             let mut maze = MazeSearchEngine::new(
                 self,
                 ctrl,
@@ -1033,6 +1058,9 @@ impl<'a> AutorouteEngine<'a> {
                 &mut checker,
                 &mut pages,
             );
+            if let Some(gate) = fanout_gate {
+                maze.front.set_fanout_gate(gate);
+            }
             // T16: attach the one-arg trace backend (Java
             // `FRLogger.trace(String)`). The maze engine's RAW_SECTION
             // rows ride the connection's own event sink — the capture
@@ -2446,6 +2474,7 @@ mod tests {
             layer_active: vec![true; layer_count],
             automatic_neckdown: false,
             start_ripup_costs: 1,
+            fanout: Default::default(),
         }
     }
 

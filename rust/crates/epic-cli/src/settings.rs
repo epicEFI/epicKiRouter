@@ -34,7 +34,7 @@
 //!    geometry pass writes `scoring.defaultBendCost` through raw).
 
 use epic_dsn::scope::autoroute_settings::AutorouteSettingsIr;
-use epic_router::control::{ExpansionCostFactor, RouterSettingsIr};
+use epic_router::control::{ExpansionCostFactor, FanoutSettingsIr, RouterSettingsIr};
 use epic_router::pipeline::board_statistics::{
     RouterScoreSettings, RouterScoringVersion, RouterSettingsScoring, RoutingCostSettings,
     default_routing_cost_settings,
@@ -85,6 +85,35 @@ pub struct CliLayer {
     pub strict_drc: Option<bool>,
     /// `router.fanout.enabled`.
     pub fanout_enabled: Option<bool>,
+    /// `router.fanout.max_passes`.
+    pub fanout_max_passes: Option<i32>,
+    /// `router.fanout.max_items`.
+    pub fanout_max_items: Option<i32>,
+    /// `router.fanout.max_milliseconds_per_pin` (Java `Long`).
+    pub fanout_max_milliseconds_per_pin: Option<i64>,
+    /// `router.fanout.ripup_allowed`.
+    pub fanout_ripup_allowed: Option<bool>,
+    /// `router.fanout.min_escape_length_mm` (Java `Double`).
+    pub fanout_min_escape_length_mm: Option<f64>,
+    /// `router.fanout.max_escape_length_mm` (Java `Double`).
+    pub fanout_max_escape_length_mm: Option<f64>,
+    /// `router.fanout.start_via_diameter_mm` — settings-surface parity
+    /// only (no engine consumer; the `FanoutSettingsIr` bank).
+    pub fanout_start_via_diameter_mm: Option<f64>,
+    /// `router.fanout.end_via_diameter_mm` — same bank.
+    pub fanout_end_via_diameter_mm: Option<f64>,
+    /// `router.fanout.pin_sorting_order` — stored VERBATIM (Java
+    /// dispatches on the raw string; any unknown value falls through to
+    /// the `pinIndex` tie-break, `BatchFanout.java:781-795`).
+    pub fanout_pin_sorting_order: Option<String>,
+    /// `router.fanout.fallback_to_board_vias`.
+    pub fanout_fallback_to_board_vias: Option<bool>,
+    /// `router.fanout.timeout` — the stage wall deadline
+    /// (`TextManager.parseTimespanString` shape). The
+    /// `fanout.timeout_string` spelling is also accepted: Java's
+    /// reflection walk matches the SerializedName AND the field name
+    /// (`ReflectionUtil.getFieldByNameOrSerializedName`).
+    pub fanout_timeout_string: Option<String>,
     /// The `-oit` deprecation warns, the deprecated-path warns and the
     /// WARN-and-continue rows, in emission order (Java logs them through
     /// FRLogger.warn).
@@ -443,6 +472,53 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.fanout_enabled = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        // The M4-T7 fanout group (Java `FanoutSettings` SerializedName
+        // faces; value conversions mirror `ReflectionUtil.convertValue`:
+        // Integer/Long/Double `parse*` on the exact type, booleans via
+        // the on/off face). `pin_sorting_order` and `timeout` are
+        // strings — applied verbatim, never validated here.
+        "fanout.max_passes" => match value.parse::<i32>() {
+            Ok(v) => layer.fanout_max_passes = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.max_items" => match value.parse::<i32>() {
+            Ok(v) => layer.fanout_max_items = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.max_milliseconds_per_pin" => match value.parse::<i64>() {
+            Ok(v) => layer.fanout_max_milliseconds_per_pin = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.ripup_allowed" => match parse_on_off(value) {
+            Some(v) => layer.fanout_ripup_allowed = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "fanout.min_escape_length_mm" => match value.parse::<f64>() {
+            Ok(v) => layer.fanout_min_escape_length_mm = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.max_escape_length_mm" => match value.parse::<f64>() {
+            Ok(v) => layer.fanout_max_escape_length_mm = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.start_via_diameter_mm" => match value.parse::<f64>() {
+            Ok(v) => layer.fanout_start_via_diameter_mm = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.end_via_diameter_mm" => match value.parse::<f64>() {
+            Ok(v) => layer.fanout_end_via_diameter_mm = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "fanout.pin_sorting_order" => {
+            layer.fanout_pin_sorting_order = Some(value.to_string());
+        }
+        "fanout.fallback_to_board_vias" => match parse_on_off(value) {
+            Some(v) => layer.fanout_fallback_to_board_vias = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "fanout.timeout" | "fanout.timeout_string" => {
+            layer.fanout_timeout_string = Some(value.to_string());
+        }
         _ => {
             // Any other router.*/optimizer.* path: Java tries the
             // reflection walk and fails; the subset WARNs and continues.
@@ -644,6 +720,29 @@ pub struct MergedSettings {
     pub strict_drc: Option<bool>,
     /// `fanout.enabled`.
     pub fanout_enabled: Option<bool>,
+    /// `fanout.maxPasses` (`fanout.max_passes` on the wire).
+    pub fanout_max_passes: Option<i32>,
+    /// `fanout.maxItems`.
+    pub fanout_max_items: Option<i32>,
+    /// `fanout.maxMillisecondsPerPin`.
+    pub fanout_max_milliseconds_per_pin: Option<i64>,
+    /// `fanout.ripupAllowed`.
+    pub fanout_ripup_allowed: Option<bool>,
+    /// `fanout.minEscapeLengthMm`.
+    pub fanout_min_escape_length_mm: Option<f64>,
+    /// `fanout.maxEscapeLengthMm`.
+    pub fanout_max_escape_length_mm: Option<f64>,
+    /// `fanout.startViaDiameterMm` — settings-surface parity only.
+    pub fanout_start_via_diameter_mm: Option<f64>,
+    /// `fanout.endViaDiameterMm` — settings-surface parity only.
+    pub fanout_end_via_diameter_mm: Option<f64>,
+    /// `fanout.pinSortingOrder` — verbatim (Java dispatches the raw
+    /// string; unknown values fall to the `pinIndex` tie-break).
+    pub fanout_pin_sorting_order: Option<String>,
+    /// `fanout.fallbackToBoardVias`.
+    pub fanout_fallback_to_board_vias: Option<bool>,
+    /// `fanout.timeout` — the stage wall deadline string.
+    pub fanout_timeout_string: Option<String>,
     /// `optimizer.enabled` — merged but unused in T13 (no optimizer stage).
     pub optimizer_enabled: Option<bool>,
     /// `optimizer.improvementThreshold` — merged but unused in T13.
@@ -665,7 +764,10 @@ pub struct MergedSettings {
 impl Default for MergedSettings {
     /// `DefaultSettings.getSettings()` — the priority-0 base (the layer
     /// arrays are intentionally EMPTY; their SIZE comes from the
-    /// board/DSN at the geometry pass).
+    /// board/DSN at the geometry pass). The fanout group seeds are
+    /// `DefaultSettings.java:163-177` verbatim (also stated once more
+    /// in `FanoutSettingsIr::default` — the resolver consumes THESE,
+    /// the IR Default is the test-side armor).
     fn default() -> Self {
         Self {
             autorouter_enabled: Some(true),
@@ -677,6 +779,17 @@ impl Default for MergedSettings {
             trace_pull_tight_accuracy: Some(500),
             strict_drc: Some(false),
             fanout_enabled: Some(true),
+            fanout_max_passes: Some(20),
+            fanout_max_items: Some(i32::MAX),
+            fanout_max_milliseconds_per_pin: Some(10_000),
+            fanout_ripup_allowed: Some(true),
+            fanout_min_escape_length_mm: Some(2.5),
+            fanout_max_escape_length_mm: Some(4.5),
+            fanout_start_via_diameter_mm: Some(0.250),
+            fanout_end_via_diameter_mm: Some(0.250),
+            fanout_pin_sorting_order: Some("outer_first".to_string()),
+            fanout_fallback_to_board_vias: Some(true),
+            fanout_timeout_string: None,
             optimizer_enabled: Some(true),
             improvement_threshold: Some(2.5),
             scoring: default_routing_cost_settings(),
@@ -768,6 +881,39 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.fanout_enabled {
         merged.fanout_enabled = Some(v);
+    }
+    if let Some(v) = cli.fanout_max_passes {
+        merged.fanout_max_passes = Some(v);
+    }
+    if let Some(v) = cli.fanout_max_items {
+        merged.fanout_max_items = Some(v);
+    }
+    if let Some(v) = cli.fanout_max_milliseconds_per_pin {
+        merged.fanout_max_milliseconds_per_pin = Some(v);
+    }
+    if let Some(v) = cli.fanout_ripup_allowed {
+        merged.fanout_ripup_allowed = Some(v);
+    }
+    if let Some(v) = cli.fanout_min_escape_length_mm {
+        merged.fanout_min_escape_length_mm = Some(v);
+    }
+    if let Some(v) = cli.fanout_max_escape_length_mm {
+        merged.fanout_max_escape_length_mm = Some(v);
+    }
+    if let Some(v) = cli.fanout_start_via_diameter_mm {
+        merged.fanout_start_via_diameter_mm = Some(v);
+    }
+    if let Some(v) = cli.fanout_end_via_diameter_mm {
+        merged.fanout_end_via_diameter_mm = Some(v);
+    }
+    if let Some(v) = cli.fanout_pin_sorting_order.clone() {
+        merged.fanout_pin_sorting_order = Some(v);
+    }
+    if let Some(v) = cli.fanout_fallback_to_board_vias {
+        merged.fanout_fallback_to_board_vias = Some(v);
+    }
+    if let Some(v) = cli.fanout_timeout_string.clone() {
+        merged.fanout_timeout_string = Some(v);
     }
     if let Some(v) = cli.via_costs {
         merged.scoring.via_costs = Some(v);
@@ -1048,6 +1194,32 @@ impl ResolvedRouteSettings {
                     .collect(),
                 automatic_neckdown: merged.automatic_neckdown.unwrap_or(false),
                 start_ripup_costs: merged.scoring.start_ripup_costs.unwrap_or(1),
+                // The fanout group resolves over the merged model; the
+                // `unwrap_or` fallbacks are the DefaultSettings seeds
+                // (`FanoutSettingsIr::default` states them again as the
+                // test-side armor). The Java validate() step touches NO
+                // fanout field (`RouterSettings.java:938-977`), so the
+                // merged values flow through unvalidated, exactly like
+                // Java's.
+                fanout: FanoutSettingsIr {
+                    enabled: merged.fanout_enabled.unwrap_or(true),
+                    max_passes: merged.fanout_max_passes.unwrap_or(20),
+                    max_items: merged.fanout_max_items.unwrap_or(i32::MAX),
+                    max_milliseconds_per_pin: merged
+                        .fanout_max_milliseconds_per_pin
+                        .unwrap_or(10_000),
+                    ripup_allowed: merged.fanout_ripup_allowed.unwrap_or(true),
+                    min_escape_length_mm: merged.fanout_min_escape_length_mm,
+                    max_escape_length_mm: merged.fanout_max_escape_length_mm,
+                    start_via_diameter_mm: merged.fanout_start_via_diameter_mm,
+                    end_via_diameter_mm: merged.fanout_end_via_diameter_mm,
+                    pin_sorting_order: merged
+                        .fanout_pin_sorting_order
+                        .clone()
+                        .unwrap_or_else(|| "outer_first".to_string()),
+                    fallback_to_board_vias: merged.fanout_fallback_to_board_vias.unwrap_or(true),
+                    timeout_string: merged.fanout_timeout_string.clone(),
+                },
             },
             scoring: RouterSettingsScoring {
                 scoring: Some(merged.scoring.clone()),
@@ -2007,6 +2179,17 @@ mod tests {
             trace_pull_tight_accuracy: Some(123),
             strict_drc: Some(true),
             fanout_enabled: Some(false),
+            fanout_max_passes: Some(2),
+            fanout_max_items: Some(77),
+            fanout_max_milliseconds_per_pin: Some(1500),
+            fanout_ripup_allowed: Some(false),
+            fanout_min_escape_length_mm: Some(1.5),
+            fanout_max_escape_length_mm: Some(6.5),
+            fanout_start_via_diameter_mm: Some(0.3),
+            fanout_end_via_diameter_mm: Some(0.4),
+            fanout_pin_sorting_order: Some("inner_first".to_string()),
+            fanout_fallback_to_board_vias: Some(false),
+            fanout_timeout_string: Some("90s".to_string()),
             warnings: Vec::new(),
         };
         let merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
@@ -2041,6 +2224,53 @@ mod tests {
         );
         assert_eq!(merged.strict_drc, Some(true), "cli.strict_drc");
         assert_eq!(merged.fanout_enabled, Some(false), "cli.fanout_enabled");
+        assert_eq!(merged.fanout_max_passes, Some(2), "cli.fanout_max_passes");
+        assert_eq!(merged.fanout_max_items, Some(77), "cli.fanout_max_items");
+        assert_eq!(
+            merged.fanout_max_milliseconds_per_pin,
+            Some(1500),
+            "cli.fanout_max_milliseconds_per_pin"
+        );
+        assert_eq!(
+            merged.fanout_ripup_allowed,
+            Some(false),
+            "cli.fanout_ripup_allowed"
+        );
+        assert_eq!(
+            merged.fanout_min_escape_length_mm,
+            Some(1.5),
+            "cli.fanout_min_escape_length_mm"
+        );
+        assert_eq!(
+            merged.fanout_max_escape_length_mm,
+            Some(6.5),
+            "cli.fanout_max_escape_length_mm"
+        );
+        assert_eq!(
+            merged.fanout_start_via_diameter_mm,
+            Some(0.3),
+            "cli.fanout_start_via_diameter_mm"
+        );
+        assert_eq!(
+            merged.fanout_end_via_diameter_mm,
+            Some(0.4),
+            "cli.fanout_end_via_diameter_mm"
+        );
+        assert_eq!(
+            merged.fanout_pin_sorting_order,
+            Some("inner_first".to_string()),
+            "cli.fanout_pin_sorting_order"
+        );
+        assert_eq!(
+            merged.fanout_fallback_to_board_vias,
+            Some(false),
+            "cli.fanout_fallback_to_board_vias"
+        );
+        assert_eq!(
+            merged.fanout_timeout_string,
+            Some("90s".to_string()),
+            "cli.fanout_timeout_string"
+        );
         assert_eq!(merged.scoring.via_costs, Some(11), "cli.via_costs");
         assert_eq!(
             merged.scoring.plane_via_costs,
@@ -2078,5 +2308,129 @@ mod tests {
         ]))
         .expect("parses");
         assert_eq!(parsed.result_json.as_deref(), Some("m.json"));
+    }
+
+    /// The M4-T7 fanout group's UPTAKE face: every CLI flag rides
+    /// parse -> merge -> resolve into `RouterSettingsIr.fanout` (the
+    /// uptake surface is the RESOLVED IR, never the WARN line — buglog
+    /// 168). Worlds: (1) every flag set (including the
+    /// `fanout.timeout_string` spelling Java's reflection walk also
+    /// accepts); (2) silence reproduces the `DefaultSettings.java:
+    /// 163-177` seeds; (3) a malformed value WARNs and leaves the
+    /// default in place; (4) an unknown fanout path WARNs as
+    /// unsupported.
+    #[test]
+    fn fanout_group_uptake_parse_merge_resolve() {
+        // World 1: every flag set.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.fanout.enabled=off",
+            "--router.fanout.max_passes=3",
+            "--router.fanout.max_items=55",
+            "--router.fanout.max_milliseconds_per_pin=2500",
+            "--router.fanout.ripup_allowed=off",
+            "--router.fanout.min_escape_length_mm=1.25",
+            "--router.fanout.max_escape_length_mm=7.75",
+            "--router.fanout.start_via_diameter_mm=0.35",
+            "--router.fanout.end_via_diameter_mm=0.45",
+            "--router.fanout.pin_sorting_order=distanceToClosestOnNet",
+            "--router.fanout.fallback_to_board_vias=off",
+            "--router.fanout.timeout=2:30",
+        ]))
+        .expect("parses");
+        assert!(
+            parsed.layer.warnings.is_empty(),
+            "no warns on the well-formed group: {:?}",
+            parsed.layer.warnings
+        );
+        let mut merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &parsed.layer,
+        );
+        assert!(crate::settings::validate(&mut merged).is_empty());
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        let fanout = &resolved.router_settings.fanout;
+        assert!(!fanout.enabled);
+        assert_eq!(fanout.max_passes, 3);
+        assert_eq!(fanout.max_items, 55);
+        assert_eq!(fanout.max_milliseconds_per_pin, 2500);
+        assert!(!fanout.ripup_allowed);
+        assert_eq!(fanout.min_escape_length_mm, Some(1.25));
+        assert_eq!(fanout.max_escape_length_mm, Some(7.75));
+        assert_eq!(fanout.start_via_diameter_mm, Some(0.35));
+        assert_eq!(fanout.end_via_diameter_mm, Some(0.45));
+        assert_eq!(fanout.pin_sorting_order, "distanceToClosestOnNet");
+        assert!(!fanout.fallback_to_board_vias);
+        assert_eq!(fanout.timeout_string, Some("2:30".to_string()));
+
+        // The field-name spelling `fanout.timeout_string` is ALSO a Java
+        // key (`ReflectionUtil.getFieldByNameOrSerializedName` matches
+        // the SerializedName AND the field name); both spellings land in
+        // the same slot.
+        let parsed_alias = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.fanout.timeout_string=5m",
+        ]))
+        .expect("alias parses");
+        assert!(parsed_alias.layer.fanout_timeout_string == Some("5m".to_string()));
+
+        // World 2: silence = the DefaultSettings seeds.
+        let mut merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &CliLayer::default(),
+        );
+        assert!(crate::settings::validate(&mut merged).is_empty());
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(
+            resolved.router_settings.fanout,
+            FanoutSettingsIr::default(),
+            "the resolved silence face IS the DefaultSettings fanout group"
+        );
+
+        // World 3: a malformed value WARNs and the default survives
+        // (Java: NumberFormatException -> the warn row, field untouched).
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.fanout.max_passes=many",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.layer.warnings.len(), 1, "the bad-value warn");
+        // No `validate` in this world — the failed apply is observed at
+        // resolve time directly (the default already survived).
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &parsed.layer,
+        );
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(
+            resolved.router_settings.fanout.max_passes, 20,
+            "the DefaultSettings seed survives the failed apply"
+        );
+
+        // World 4: an unknown fanout path WARNs as unsupported (Java:
+        // NoSuchFieldException -> the warn row).
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.fanout.no_such_field=1",
+        ]))
+        .expect("parses");
+        assert!(
+            parsed.layer.warnings.len() == 1 && parsed.layer.warnings[0].contains("no_such_field")
+        );
     }
 }

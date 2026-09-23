@@ -1242,6 +1242,7 @@ mod tests {
             layer_active: vec![true; layer_count],
             automatic_neckdown: false,
             start_ripup_costs: 1,
+            fanout: Default::default(),
         }
     }
 
