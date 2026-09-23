@@ -848,3 +848,41 @@ removal could pick the wrong twin (the observed phantom completion).
 Tags never enter any output row, ordering, or hash-key ordering — they
 feed only equality/membership tests and the maze state-slot key fold,
 so run-to-run determinism is unaffected.
+
+## T7 fanout stage + the bm06 pass-2 adjudication (appended by M4-T7 fix round, spec review round 1)
+
+The fanout stage's full dossier (banks, ordering model, front-gate
+mechanics, deadline/throttler seams) lives in the module doc
+(`pipeline/fanout.rs`) and `logs/M4-T7/report-t7.md`; this section
+carries what T12's close-out will look for.
+
+**The bm06 pass-2+ retry attribution is EARNED-deep — recorded, not
+chased (exit condition = the M4 lever).** Fanout full-flow vs jar
+(`logs/M4-T7/evidence/jar_evidence_bm06_t7.log`, re-derived post-fix in
+`jar_evidence_bm06_t7fix.log`): stage-start 115 of 126 / 9 already
+connected / 2 netless EXACT; pass #1 101/5/0/+28 (ripup 100) EXACT;
+stage-completed 124 total, escaped 113/124 (91.1%) EXACT; final
+notRouted=2 both sides; pass-2 entry candidates EQUAL (9 = 115−101−5 =
+6+3 jar = 7+2 rust) — both sides re-walk the SAME ctor-sorted static
+rows with no re-enumeration, and the ripup/budget ramps appear verbatim
+(200/300). The split (rust 7/2/+3 @200 then 0/2/+0 @300 in 3 passes vs
+jar 6/3/+1, 2/3/+1, 1/2/+0, 0/2/+0 in 5; cumulative retry-pass vias +31
+vs +30) is therefore decided by maze tie-breaks over boards that
+already differ GEOMETRICALLY at pass-2 entry — pass-1 counter-exactness
+is not geometry-exactness (the cross-language board hashes are
+incomparable) — i.e. the bug-181 victim-choice family observed one
+stage earlier. NOT a T7 pass-loop gap. Full-flow end faces: rust 5/98
+incompletes, 8 violations (0 router-introduced), 930.81 vs jar 2/98, 8,
+971.63. bm06 full-flow was never at Rust parity pre-T7 (no fanout stage
+existed), so this is a new-stage delta, not a regression.
+
+**Spec-review round-1 fix faces (this round):**
+
+| Item | Disposition |
+|---|---|
+| REQ-2 — empty-unconnected arm state | `fanout_pin` now answers `NoUnconnectedNets` carrying Java's reused "already connected" MESSAGE literal (`RoutingBoard.java:999-1001`) — the consumer renders `pin_no_unconnected_nets` and bumps NO counter, exactly Java's `BatchFanout` switch. INFO-level faces are UNCHANGED on both evidence boards (fresh rust rows byte-identical to pre-fix, per-stage board hashes included — no board-state change; both arms return before any engine call). The correction is trace-row-level only: the pre-fix rust pass_end trace rows inflated `alreadyConnected=` relative to Java; post-fix they align. Pinned by `fanout_board_starved_one_pass_rows` (1 already-connected + 3 no-unconnected-nets, was 4 + 0); the re-flip mutant dies on exactly that pin. Evidence: `jar_evidence_bm08_t7fix.log` (all-EXACT, unchanged), `jar_evidence_bm06_t7fix.log` (pass-1/stage/end EXACT, pass-2+ divergence UNMOVED). |
+| REQ-1 — strict-DRC revert call site pinned | `fanout_pass`'s `enforce_strict_drc` revert (Java `BatchFanout.java:287-304`) is now driven through the PRODUCTION stage loop by `fanout_board_reverts_violating_escape`: a pincer world yielding all three outcome arms in one pass — CMP1-P1 maze-fail (pad-crossed start room, no revert row), CMP1-P2 clean escape SURVIVES (the crossing cell; a lone first-drill via), CMP3-P1 routed-then-reverted (`fanout_via_reverted` row with the 3-new-item count, FAILED answer, notRouted attribution, watermark rip with on-board counts unrotated). Revert-block deletion mutant: KILLED. |
+| MINOR-1 — production oscillation constant | `STAGNATION_PASS_LIMIT` (Java `BatchFanout.java:105`) is now cited and wired into `stagnation_limit_production_constant_is_java_face`; reviewer mutant T7-S1 (3→2) dies (previously survived — the boundary pin fed its own literal). |
+
+Dossier references: buglog-181 (`fix` field, T7 FANOUT CHECKPOINT),
+`logs/M4-T7/report-t7.md` §5.1, evidence logs above.

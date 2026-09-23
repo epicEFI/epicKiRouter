@@ -3,7 +3,7 @@
 //! per-pin escape attempt (Java `RoutingBoard.fanout`,
 //! `RoutingBoard.java:978-1110`, ported as [`fanout_pin`]).
 //!
-//! ## Banks (SEAM carries the dossier)
+//! ## Banks (SEAM carries the dossier — the "T7 fanout stage" section)
 //!
 //! * **Multi-arg trace rows are folded** into
 //!   `sink.trace("<operation> <message>")` — the Java
@@ -747,6 +747,10 @@ fn oscillation_step(
     }
 }
 
+/// Java `BatchFanout.stagnationPassLimit` (`:105`) — the oscillation
+/// breaker arms at the THIRD consecutive identical-state pass.
+const STAGNATION_PASS_LIMIT: i32 = 3;
+
 /// Java `BatchFanout.fanoutBoard` (`:81-163`) — the pass loop with the
 /// deadline, max-items, routed-count, oscillation and board-hash
 /// breakers.
@@ -771,7 +775,7 @@ pub fn fanout_board(
         state.deadline_ms = Some(fanout_start_millis + timeout_seconds * 1000);
     }
     let max_passes = fanout.max_passes;
-    let stagnation_pass_limit = 3_i32;
+    let stagnation_pass_limit = STAGNATION_PASS_LIMIT;
     let mut completed_passes = 0_i32;
     let mut previous_board_state = i64::MIN;
     let mut identical_passes = 0_i32;
@@ -1254,8 +1258,17 @@ pub fn fanout_pin(
 
     let unconnected_set = item_unconnected_set(manager, board, pin_id, pin_net_no);
     if unconnected_set.is_empty() {
-        // Java reuses the "already connected" literal here.
-        return already_connected(board);
+        // Java reuses the "already connected" MESSAGE literal here but
+        // answers the NO_UNCONNECTED_NETS state (RoutingBoard.java:999-1001)
+        // — the consumer renders pin_no_unconnected_nets and bumps NO
+        // counter, not the already-connected one.
+        return AutorouteAttemptResult::with_details(
+            AutorouteAttemptState::NoUnconnectedNets,
+            format!(
+                "The pin '{}' is already connected.",
+                item_to_string(board, u64::from(pin_id.get()))
+            ),
+        );
     }
 
     let pin_center = board
@@ -1792,10 +1805,13 @@ mod tests {
     /// pass rows carry the exact counters. Note the ctor/pass split
     /// on the already-connected face: the ctor counts 3 (the
     /// single-pin nets — BIG-P1 still has an unconnected NET1
-    /// partner), but fanout_pin answers AlreadyConnected for FOUR
-    /// pins — BIG-P1's connected set contains the through-hole pin,
-    /// which trips the same-layer contact guard before any engine
-    /// call.
+    /// partner), and only BIG-P1 answers AlreadyConnected in the pass
+    /// (its connected set contains the through-hole pin, tripping the
+    /// same-layer contact guard). The three single-pin nets answer
+    /// the empty-unconnected arm — Java's NO_UNCONNECTED_NETS state
+    /// carrying the reused "already connected" MESSAGE literal
+    /// (`RoutingBoard.java:999-1001`) — so they render
+    /// `pin_no_unconnected_nets` rows and bump NO counter.
     #[test]
     fn fanout_board_starved_one_pass_rows() {
         let (mut manager, mut board) = parse(FANOUT_DSN);
@@ -1827,13 +1843,18 @@ mod tests {
         );
         assert_eq!(
             trace.matches("pin_already_connected pin=").count(),
-            4,
-            "BIG-P1 (TH contact) + the three single-pin nets: {trace}"
+            1,
+            "only BIG-P1 (the TH contact guard): {trace}"
+        );
+        assert_eq!(
+            trace.matches("pin_no_unconnected_nets pin=").count(),
+            3,
+            "the single-pin nets, at Java's NO_UNCONNECTED_NETS state: {trace}"
         );
         assert_eq!(trace.matches("pin_failed pin=").count(), 3, "{trace}");
         assert!(
             trace.contains(
-                "routed=0, notRouted=3, insertErrors=0, alreadyConnected=4, \
+                "routed=0, notRouted=3, insertErrors=0, alreadyConnected=1, \
                             escaped=1/7 (14.3%)"
             ),
             "pass_end row: {trace}"
@@ -1886,6 +1907,29 @@ mod tests {
         let (run, _, stop) = oscillation_step(3, 6, previous, run, 3);
         assert_eq!(run, 2);
         assert!(!stop, "two repeats after the reset still continue");
+    }
+
+    /// The PRODUCTION stagnation wiring (cerebrum 16): the boundary
+    /// pin above feeds the pure fn its own literal 3s, so a flip of
+    /// the call-site constant survived it (reviewer mutant T7-S1).
+    /// The constant is the Java face (`BatchFanout.java:105`
+    /// `stagnationPassLimit = 3`), `fanout_board` feeds exactly this
+    /// constant to the detector, and the third consecutive REPEAT
+    /// stops exactly AT it.
+    #[test]
+    fn stagnation_limit_production_constant_is_java_face() {
+        assert_eq!(STAGNATION_PASS_LIMIT, 3, "Java BatchFanout.java:105");
+        // The seed sight stores the state without arming the run.
+        let (_, previous, _) = oscillation_step(2, 5, i64::MIN, 0, STAGNATION_PASS_LIMIT);
+        let (run, previous, stop) = oscillation_step(2, 5, previous, 0, STAGNATION_PASS_LIMIT);
+        assert_eq!(run, 1);
+        assert!(!stop, "the first REPEAT continues");
+        let (run, previous, stop) = oscillation_step(2, 5, previous, run, STAGNATION_PASS_LIMIT);
+        assert_eq!(run, 2);
+        assert!(!stop, "the second REPEAT continues");
+        let (run, _, stop) = oscillation_step(2, 5, previous, run, STAGNATION_PASS_LIMIT);
+        assert!(stop, "the third REPEAT stops");
+        assert_eq!(run, STAGNATION_PASS_LIMIT, "the stop lands ON the limit");
     }
 
     /// JDK-verified faces (see [`parse_timespan_string`]): the
@@ -2139,5 +2183,181 @@ mod tests {
             vias_before + 1,
             "guard inserted nothing"
         );
+    }
+
+    /// The fanout strict-DRC revert THROUGH the production stage loop
+    /// (spec review REQ-1: the T12 pin drives `enforce_strict_drc`
+    /// directly and never reaches the `fanout_pass` call site, Java
+    /// `BatchFanout.java:287-304`). The BLOCKNET pincer pair shapes
+    /// the world: the south wire crosses CMP1-P1's pad (its start
+    /// room dies → the engine answers the no-connection fail, NO
+    /// revert row), and the north wire only EDGE-touches the south
+    /// one's end (boundary contact is not connectivity), so CMP3-P1
+    /// keeps an unconnected target and escapes — but its escape's 3
+    /// new items carry clearance violations against CMP1-P1's pad, so
+    /// the post-route check rips them: the `fanout_via_reverted` row
+    /// fires, the pin answers FAILED (not Routed) and the pass
+    /// counters attribute it to notRouted, and the id watermark grew
+    /// while the on-board counts did not (the rip). The crossing
+    /// cell: CMP1-P2's clean escape in the SAME pass survives
+    /// (first-drill semantics insert a lone drill for it — the via
+    /// count grows by exactly that one). The escape scan counts only
+    /// CMP1-P2: the pads' own touching wire (the south pincer) is
+    /// itself violating, so it never counts as an escape contact.
+    #[test]
+    fn fanout_board_reverts_violating_escape() {
+        const DRC_DSN: &str = r#"(pcb epic-router-fanout-drc.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 120000 60000))
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 20000 40000 front 0)
+    )
+    (component CMP3
+      (place CMP3 20000 20000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_SMD
+      (shape (circle F.Cu 600 0 0))
+    )
+    (padstack PAD_VIA
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+    )
+    (image CMP1
+      (pin PAD_SMD P1 0 0)
+      (pin PAD_SMD P2 20000 0)
+    )
+    (image CMP3
+      (pin PAD_SMD P1 0 0)
+    )
+  )
+  (network
+    (via V1 PAD_VIA default)
+    (via_rule R1 V1)
+    (net SMDNET (pins CMP1-P1 CMP1-P2))
+    (net BLOCKNET (pins CMP3-P1))
+  )
+  (wiring
+    (wire (path F.Cu 200  20000 41000  20000 40050) (net BLOCKNET))
+    (wire (path F.Cu 200  20000 39950  20000 20000) (net BLOCKNET))
+  )
+)
+"#;
+        let count_kind = |board: &Board, want: &str| {
+            board
+                .iter_ascending()
+                .filter(|entry| {
+                    entry.on_the_board && format!("{:?}", entry.board_item_type()) == want
+                })
+                .count()
+        };
+        let (mut manager, mut board) = parse(DRC_DSN);
+        let mut settings = fanout_settings("outer_first");
+        // One pass keeps the revert rows single-count (CMP3-P1 would
+        // re-attempt — and re-revert — in a second pass).
+        settings.router_settings.fanout.max_passes = 1;
+        let smd_net = net_no(&board, "SMDNET");
+        let block_net = net_no(&board, "BLOCKNET");
+        let traces_before = count_kind(&board, "Trace");
+        let vias_before = count_kind(&board, "Via");
+        let id_watermark = board.max_generated_id();
+        let mut sink = CaptureDriverSink::default();
+        let summary = fanout_board(&mut manager, &mut board, &settings, None, None, &mut sink);
+        assert_eq!(summary.completed_pass_count, 1);
+        assert!(!summary.is_timed_out);
+        assert_eq!(summary.escape_statistics.total_smd_pins, 3);
+        assert_eq!(
+            summary.escape_statistics.escaped_count, 1,
+            "only P2's clean drill counts; P1's and CMP3-P1's touching \
+             wires are themselves violating"
+        );
+        assert_eq!(summary.escape_statistics.to_display(), "1/3 (33.3%)");
+
+        let trace = sink.joined("trace");
+        assert!(
+            trace.contains(
+                "pass_start pass=1, totalPins=3, alreadyConnected=0, \
+                 pinsToFanout=3, ripupCosts=1, baseMillisPerPin=10000"
+            ),
+            "pass_start row: {trace}"
+        );
+        // THE REVERT: CMP3-P1's escape routed, then its 3 new items
+        // carried clearance violations and the post-route check ripped
+        // them (Java `BatchFanout.java:287-304`).
+        assert_eq!(
+            trace.matches("fanout_via_reverted pin=").count(),
+            1,
+            "exactly the violating escape: {trace}"
+        );
+        assert!(
+            trace.contains(&format!(
+                "fanout_via_reverted pin=CMP3-P1, net={block_net}, \
+                 reason=strict_drc: connection ripped because 3 new item(s) \
+                 included clearance violations"
+            )),
+            "revert row: {trace}"
+        );
+        // The pin answers FAILED and the pass counters attribute it to
+        // notRouted — NOT to routed.
+        assert_eq!(trace.matches("pin_failed pin=").count(), 2, "{trace}");
+        assert!(
+            trace.contains(&format!(
+                "pin_failed pin=CMP3-P1, net={block_net}, targetCount=1, \
+                 detail=strict_drc: connection ripped because 3 new item(s) \
+                 included clearance violations"
+            )),
+            "the reverted pin's FAILED row: {trace}"
+        );
+        assert!(
+            trace.contains("pin_failed pin=CMP1-P1")
+                && trace.contains("because no connection was found between their nets."),
+            "the pad-crossed pin's maze-fail row (no revert): {trace}"
+        );
+        // The crossing cell: the clean escape ROUTES and SURVIVES in
+        // the same pass.
+        assert_eq!(trace.matches("pin_routed pin=").count(), 1, "{trace}");
+        assert!(
+            trace.contains(&format!("pin_routed pin=CMP1-P2, net={smd_net}")),
+            "the clean escape routes: {trace}"
+        );
+        assert!(
+            trace.contains(
+                "routed=1, notRouted=2, insertErrors=0, alreadyConnected=0, \
+                            escaped=1/3 (33.3%)"
+            ),
+            "pass_end row: {trace}"
+        );
+        // The watermark rip: escape items were generated (the id
+        // watermark grew) but CMP3-P1's three are gone — the board
+        // keeps only P2's lone first-drill via over the two pre-placed
+        // pincer wires.
+        assert!(
+            board.max_generated_id() > id_watermark,
+            "escape items were generated"
+        );
+        assert_eq!(
+            count_kind(&board, "Trace"),
+            traces_before,
+            "the ripped escape's traces are gone"
+        );
+        assert_eq!(
+            count_kind(&board, "Via"),
+            vias_before + 1,
+            "only P2's drill survives"
+        );
+        assert!(!sink.any_contains("Fanout stopped"), "{trace:?}");
+        assert!(!sink.any_contains("Max items limit"), "{trace:?}");
     }
 }
