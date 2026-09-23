@@ -1120,8 +1120,11 @@ fn t4_skip_length0_min_corner_dist_boundary() {
 // `logs/M4-T5/evidence/via45_viaworlds_run4.jsonl` + run4b — double-run
 // byte-identical, and the first 35 lines byte-identical to the run3
 // matrix). Every literal below is read off the capture rows; the
-// one-call intermediate of t5_depth_gate is read off the instrumented
-// jar trace (logs/M4-T5/evidence/via45_costs_diag.txt).
+// one-call intermediate of t5_depth_gate is jar-witnessed by the
+// probe's `viadepth` mode (logs/M4-T5/evidence/via45_costs_diag.txt,
+// double-run byte-identical: depth 0 refuses; depth 1 lands the N6
+// via on (790000,450000); a single depth-10 call lands on
+// (660000,390000) — the same final as the run4/run5 seam rows).
 //
 // Nets in network order: N1=1 N2=2 N3=3 N4=4 N6=5 N8=6 N9=7 N5=8.
 // Via ids 5,9,11,13,16,19,23 (the capture's inventory rows); the N5
@@ -1299,6 +1302,12 @@ fn t5_collinear_world_moves_to_the_nearer_bend() {
 
 /// Gate3 world (uniform costs): a via with THREE trace contacts is
 /// untouched — the <=2 gate. (Capture `gate3` after row.)
+///
+/// PIN LIMIT (T5-S1b, bankable survivor): this pins the OUTCOME
+/// "N2 stays", not the predicate — in this world the downstream scan
+/// keeps N2 put even un-gated. Witnessing the gate itself needs a
+/// 3-contact via whose first two descending-id contacts are clean
+/// movable traces (spec-review ledger, `spec-review-t5-1.md`).
 #[test]
 fn t5_gate3_three_contacts_stay() {
     let (_manager, board) = run_via_world(&[(200000, 450000)], Some(&costs_uniform()));
@@ -1346,11 +1355,11 @@ fn t5_projection_world_dances_to_the_prev_line() {
 }
 
 /// Costs world (F.Cu (1,3) / B.Cu (3,1)): the weighted-distance arm 1
-/// fires (jar-traced: wd1=210000 > wd2=70000, full move east to
-/// (790000,450000), then the recursion's fanout face walks the via back
-/// and onward); the fixpoint final is the F corner (660000,390000).
-/// (Capture `costs` after row; the arm sequence from the instrumented
-/// jar in evidence/via45_costs_diag.txt.)
+/// fires — the depth-1 one-call relocation lands the via east on
+/// (790000,450000) — and the recursion's fanout face then walks it
+/// back; the fixpoint final is the F corner (660000,390000). (Capture
+/// `costs` after row; the one-call and production-depth endpoints are
+/// jar-witnessed per-depth in evidence/via45_costs_diag.txt.)
 #[test]
 fn t5_costs_world_relocates_to_the_f_corner() {
     let (_manager, board) = run_via_world(&[(720000, 450000)], Some(&costs_f13_b31()));
@@ -1430,8 +1439,8 @@ fn t5_costs_null_consumption_gate_keeps_the_arm_dead() {
 /// seam is exercised by every other pin): driven DIRECTLY on the
 /// production `opt_via_location` — depth 0 answers false and leaves the
 /// board untouched; depth 1 performs exactly the one-call arm-1
-/// relocation (jar-traced intermediate (790000,450000)) without the
-/// fanout walk.
+/// relocation (jar-witnessed intermediate (790000,450000),
+/// evidence/via45_costs_diag.txt depth-1 row) without the fanout walk.
 #[test]
 fn t5_depth_gate_boundary() {
     let costs = costs_f13_b31();

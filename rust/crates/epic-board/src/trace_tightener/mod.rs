@@ -384,6 +384,32 @@ impl TraceTightener {
     /// separate object; the fixpoint state must survive the via arm).
     /// The accuracy carries Java's `getInstance` clamp
     /// `Math.max(minTranslateDist, 100)` (`TraceTightener.java:112`).
+    ///
+    /// RETAINED fields and why each is safe today (the enumeration the
+    /// spec-review stop-flag divergence was found by — keep it current):
+    /// - `keep_point`/`keep_point_layer`: Java's fresh tightener has
+    ///   `keepPoint = null`, `keepPointLayer = -1`; the port RETAINS the
+    ///   fixpoint's values across the closure. Same-value-by-construction
+    ///   today — every production `opt_changed_area` caller passes
+    ///   `None, 0` — and observable the moment a caller passes a real
+    ///   keep point AND a via-arm fresh pull-tight reaches a
+    ///   smoothen-split (`split_traces_at_keep_point` reads them below):
+    ///   the fresh face would split at the fixpoint's keep point where
+    ///   Java's fresh object would not — the spec-review stop-flag
+    ///   divergence's class, one field over. Flip condition: the FIRST
+    ///   caller passing a keep point — swap the pair here in the same
+    ///   commit.
+    /// - `contact_pins` and the `current_*` trace state: safe —
+    ///   re-derived/re-set before every read by each `pull_tight`
+    ///   dispatch (spec-round adjudication).
+    /// - `variant`: safe — the same angle restriction on both faces.
+    ///
+    /// Observability note (quality review T5-Q2): the stop-flag swap is
+    /// Java-exact but UNOBSERVABLE until a stoppable-carrying caller
+    /// exists — every current test seam passes `stoppable = None`, so
+    /// the flag is `None` under either shape. Green here is not
+    /// coverage; the kill needs a stopper firing while a via-arm fresh
+    /// pull-tight is mid-body.
     pub(crate) fn with_fresh_algo_face<T>(
         &mut self,
         own_nets: &[i32],

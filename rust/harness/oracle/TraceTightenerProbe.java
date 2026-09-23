@@ -73,6 +73,7 @@ import app.freerouting.autoroute.maze.AutorouteControl.ExpansionCostFactor;
 import app.freerouting.board.actions.ItemIdGenerator;
 import app.freerouting.board.model.items.Item;
 import app.freerouting.board.model.items.Via;
+import app.freerouting.board.optimize.ViaOptimizer;
 import app.freerouting.board.trace.PolylineTrace;
 import app.freerouting.geometry.planar.FloatPoint;
 import app.freerouting.io.BoardReadResult;
@@ -415,6 +416,69 @@ public class TraceTightenerProbe {
     }
   }
 
+  /**
+   * The VIA-DEPTH-DIAG mode (`args[1] == "viadepth"`, M4-T5 quality-review
+   * fix round, MINOR-1): the jar-side witness behind the t5_depth_gate
+   * pin's one-call intermediate. Drives the PUBLIC production entry
+   * ViaOptimizer.optViaLocation(board, via, costs, 100, depth) DIRECTLY on
+   * fresh parses of via_optimizer45.dsn — the same call the changed-area
+   * loop makes for vias (TraceTightener.optChangedArea passes
+   * this.minTranslateDist and the hardcoded max depth 10; accuracy 100 at
+   * the seam yields minTranslateDist 100 via the >= 100 clamp) — but with
+   * the depth under test as the ONLY variable, so each row is a
+   * single-call result at a controlled depth. Two cost tables: the
+   * uniform (1,1) reject cell ("costs_uniform" — same geometry, the via
+   * must stay put) and the non-uniform F.Cu (1,3) / B.Cu (3,1)
+   * discriminator ("costs" — the t5_depth_gate world). Depths per table:
+   * 0 = the gate must refuse (no move); 1 = exactly the ONE-CALL arm
+   * (the depth-1 intermediate the pins cite, here witnessed on-disk);
+   * 10 = the production depth (a SINGLE production-depth call — the
+   * seam's fixpoint loop may issue several, so this row witnesses the
+   * single-call result, not the run4/run5 afterCenters final). Via
+   * id 16 (net N5) at (720000,450000). Deterministic JSONL; run twice,
+   * cmp-identical (via45_costs_diag.txt / via45_costs_diag_b.txt).
+   */
+  private static void runViaDepthDiag(byte[] bytes) throws Exception {
+    ExpansionCostFactor[][] tables = {
+      {new ExpansionCostFactor(1, 1), new ExpansionCostFactor(1, 1)},
+      {new ExpansionCostFactor(1, 3), new ExpansionCostFactor(3, 1)},
+    };
+    String[] tableNames = {"costs_uniform", "costs"};
+    int[] depths = {0, 1, 10};
+    for (int t = 0; t < tables.length; t++) {
+      for (int depth : depths) {
+        RoutingBoard board = parse(bytes, "via_optimizer45.dsn");
+        Via via = viaById(board, 16);
+        String before = centerString(via);
+        boolean changed = ViaOptimizer.optViaLocation(board, via, tables[t], 100, depth);
+        JsonObject r = obj("via_depth");
+        r.addProperty("world", tableNames[t]);
+        r.addProperty("depth", depth);
+        r.addProperty("before", before);
+        r.addProperty("changed", changed);
+        r.addProperty("after", centerString(via));
+        row(r);
+      }
+    }
+    row(obj("via_depth_done"));
+  }
+
+  /** The via with the given id (the T5 fixture's ids are stable). */
+  private static Via viaById(RoutingBoard board, int id) {
+    for (Item item : board.getItems()) {
+      if (item instanceof Via via && item.getId() == id) {
+        return via;
+      }
+    }
+    throw new IllegalStateException("no via with id " + id);
+  }
+
+  /** Via center in the inventory-row convention "x:y" (Double.toString). */
+  private static String centerString(Via via) {
+    FloatPoint c = via.getCenter().toFloat();
+    return Double.toString(c.x) + ":" + Double.toString(c.y);
+  }
+
   /** All via centers as id-sorted [[x, y], ...] (determinism). */
   private static JsonArray viaCenters(RoutingBoard board) {
     List<Via> vias = new ArrayList<>();
@@ -448,6 +512,10 @@ public class TraceTightenerProbe {
     }
     if (args.length > 1 && args[1].equals("viaworlds")) {
       runViaWorlds(bytes, args[0]);
+      return;
+    }
+    if (args.length > 1 && args[1].equals("viadepth")) {
+      runViaDepthDiag(bytes);
       return;
     }
 

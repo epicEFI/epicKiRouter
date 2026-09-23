@@ -2036,6 +2036,12 @@ mod pins {
     /// triage in the owning task's report (T16: logs/M3-T16/report.md;
     /// M4-T1: logs/M4-T1/report-t1.md; M4-T4:
     /// logs/M4-T4/report-t4.md), not silently shift this pin.
+    ///
+    /// PROXY SCOPING (quality review MINOR-5): the CLI `events compare`
+    /// bails at t7's triaged ordinal (1-based 74) and can never reach
+    /// t9 — so THIS in-process pin is the only surface asserting t9's
+    /// rows in the gate surface. When T6 closes the t7 residual, the
+    /// CLI compare inherits t9 coverage from this triage.
     #[test]
     fn rust_stream_aligns_through_triaged_divergences() {
         let golden_path =
