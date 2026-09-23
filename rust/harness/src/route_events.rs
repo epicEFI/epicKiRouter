@@ -2020,6 +2020,18 @@ mod pins {
     /// the tightened geometry. Evidence:
     /// `logs/M4-T4/evidence/events_compare_post_t4_full.log`.
     ///
+    /// M4-T5 re-triage (the ViaOptimizer arm LIVE): t9's former Class B
+    /// expansionValue-choice divergence at 0-based assign 1349 is
+    /// HEALED — the via relocations make the maze geometry Java-exact
+    /// and the ENTIRE t9 assign+skip stream (2671 assign + 1 skip
+    /// rows) is byte-identical to the golden. The residual t9 face is
+    /// the trailing route row's item accounting: golden
+    /// `netItems=2->9`/`maxItemId=130` vs Rust `2->7`/`126` — the
+    /// T4-DEFERRED pin-connection tail (swap/correctConnectionToPin,
+    /// live inside Java's fresh `pullTight(true, accuracy, null)` that
+    /// the via arm's pull-tight drives; split-verified by the
+    /// tightener45_tail counter-witness pin). t7 is unchanged at 0-based 73.
+    ///
     /// Any engine change that moves these ordinals must update the
     /// triage in the owning task's report (T16: logs/M3-T16/report.md;
     /// M4-T1: logs/M4-T1/report-t1.md; M4-T4:
@@ -2129,22 +2141,37 @@ mod pins {
                     vec!["door=ExpansionDoor/bounds=[(518750,1350)..(518750,393340)]"],
                     "expansionValue",
                 )),
-                // Wall-door boundary divergence (Class B): the same
-                // ExpansionDrill origin, different wall door picked —
-                // golden slices the wall at x=475440, Rust at x=315497
-                // (both 16 sections). The ordinal survived M4-T4
-                // (1-based 1350) but the Rust-side value moved with the
-                // tightened geometry.
-                "t9_locator45" => Some((
-                    0,
-                    1349,
-                    1349,
-                    vec!["expansionValue=379686.89149088226"],
-                    vec!["expansionValue=321502.98082895903"],
-                    vec!["door=ExpansionDoor/bounds=[(475440,1350)..(475440,428938)]"],
-                    vec!["door=ExpansionDoor/bounds=[(315497,1350)..(315497,428938)]"],
-                    "expansionValue",
-                )),
+                // M4-T5 re-triage (the ViaOptimizer arm LIVE): the
+                // former Class B wall-door divergence at 0-based assign
+                // 1349 (golden wall at x=475440, Rust at x=315497) is
+                // HEALED — the whole assign+skip stream is
+                // byte-identical to the golden now. The residual face
+                // is the trailing route row's item accounting
+                // (netItems/maxItemId): the T4-DEFERRED pin-connection
+                // tail fires inside the via arm's fresh pull-tights in
+                // Java (2 trace splits: 2->9 items, maxItemId 130) and
+                // not in Rust (2->7, 126) — T6 owns the tail port.
+                "t9_locator45" => {
+                    assert_eq!(
+                        golden_grouped[0], rust_grouped[0],
+                        "t9 assign stream byte-identical post M4-T5 (the via arm healed \
+                         the former 0-based-1349 Class B expansionValue divergence)"
+                    );
+                    assert_eq!(
+                        golden_grouped[1], rust_grouped[1],
+                        "t9 skip stream byte-identical post M4-T5"
+                    );
+                    Some((
+                        3,
+                        0,
+                        0,
+                        vec!["netItems=2->9"],
+                        vec!["netItems=2->7"],
+                        vec!["maxItemId=130"],
+                        vec!["maxItemId=126"],
+                        "netItems",
+                    ))
+                }
                 other => panic!("unmapped fixture {other}"),
             };
 
@@ -2220,7 +2247,10 @@ mod pins {
     /// churn MOVED (rows 0-2 byte-equal now, row 3 still drifts in
     /// pure id-family fields: netItems 2->11 vs 2->12, maxItemId 93
     /// vs 107) and its extra-attempt count drift is closed; t9 still
-    /// churns from row 0 (`maxItemId` 130-vs-122 face). Pinned, via
+    /// churns from row 0 (`maxItemId` 130-vs-126 face post M4-T5 —
+    /// the via arm burned 4 of Java's id churn; the residual is the
+    /// T4-deferred pin-connection tail, see the alignment-pin doc).
+    /// Pinned, via
     /// the real [`field_name_of_segment`] the diff localizer uses:
     /// (a) the field SKELETON (names + order) of every ALIGNED route
     ///     row is identical on both sides;

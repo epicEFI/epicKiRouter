@@ -69,8 +69,10 @@
 // no wall-clock, no hash iteration reaches a row.
 package app.freerouting.board.facade;
 
+import app.freerouting.autoroute.maze.AutorouteControl.ExpansionCostFactor;
 import app.freerouting.board.actions.ItemIdGenerator;
 import app.freerouting.board.model.items.Item;
+import app.freerouting.board.model.items.Via;
 import app.freerouting.board.trace.PolylineTrace;
 import app.freerouting.geometry.planar.FloatPoint;
 import app.freerouting.io.BoardReadResult;
@@ -132,6 +134,15 @@ public class TraceTightenerProbe {
           corners.add(pt);
         }
         it.add("corners", corners);
+      }
+      // T5 extension: vias carry their center + shove-fixed state so
+      // relocation witnesses are readable straight off the rows
+      // (Point is abstract; toFloat + Double.toString is the
+      // corner-dump convention).
+      if (item instanceof Via via) {
+        FloatPoint c = via.getCenter().toFloat();
+        it.addProperty("center", Double.toString(c.x) + ":" + Double.toString(c.y));
+        it.addProperty("shoveFixed", via.isShoveFixed());
       }
       items.add(it);
     }
@@ -327,6 +338,103 @@ public class TraceTightenerProbe {
     }
   }
 
+  /**
+   * The VIA-WORLDS mode (`args[1] == "viaworlds"`, M4-T5): the crafted
+   * via worlds on via_optimizer45.dsn, each a fresh parse with ONE join
+   * at the world's via center (layer 0) and the production-shape opt
+   * call WITH non-null per-layer traceCosts — the feed that arms the
+   * ViaOptimizer hook (null costs keeps the via arm dead, which is why
+   * the T3/T4 captures never saw via moves). Two cost tables: 0 =
+   * uniform (1,1) on both layers; 1 = F.Cu (1,3) / B.Cu (3,1), the
+   * layer-cost discriminator (the same N6 geometry moves under 1 and
+   * must stay put under 0 — the 2x2 reject-arm cell).
+   *
+   * <p>Worlds: collinear (N1 overlap walk), gate3 (N2, 3 contacts ->
+   * untouched), fanout (N3 walk along its own trace), projection (N4:
+   * the direct move is mover-blocked by the N9 B.Cu wire, the
+   * projection face drops the via onto the prev line), costs /
+   * costs_uniform (N6, the weighted-distance pair), acute (N8, the
+   * acute-angle arm under uniform costs), shove_fixed (N5: the same
+   * 2-trace westward geometry as N1 WITH (type shoveFixed) — the join
+   * is AT its center so the opt pass actually processes it; the
+   * isShoveFixed gate must hold it while the unfixed N1 twin moves),
+   * costs_null (N1 again with traceCosts == null — the consumption
+   * gate: the whole via arm is dead without costs, so N1 must stay).
+   */
+  private static void runViaWorlds(byte[] bytes, String dsnPath) throws Exception {
+    String fileName = Paths.get(dsnPath).getFileName().toString();
+    ExpansionCostFactor[][] costTables = {
+      {new ExpansionCostFactor(1, 1), new ExpansionCostFactor(1, 1)},
+      {new ExpansionCostFactor(1, 3), new ExpansionCostFactor(3, 1)},
+    };
+    int[][][] worlds = {
+      // name-id, costs-id (-1 = null costs), join plan (each join sits
+      // ON the world's via center so the changed area reaches it)
+      {{1}, {0}, {600000, 380000}}, // collinear (N1)
+      {{2}, {0}, {200000, 450000}}, // gate3 (N2)
+      {{3}, {0}, {900000, 150000}}, // fanout (N3)
+      {{4}, {0}, {520000, 330000}}, // projection (N4)
+      {{6}, {1}, {720000, 450000}}, // costs (N6)
+      {{7}, {0}, {720000, 450000}}, // costs_uniform (N6, reject cell)
+      {{8}, {0}, {200000, 150000}}, // acute (N8)
+      {{5}, {0}, {450000, 600000}}, // shove_fixed (N5, gate world)
+      {{1}, {-1}, {600000, 380000}}, // costs_null (N1, consumption gate)
+    };
+    String[] names = {
+      "collinear", "gate3", "fanout", "projection", "costs", "costs_uniform", "acute",
+      "shove_fixed", "costs_null",
+    };
+    for (int w = 0; w < worlds.length; w++) {
+      RoutingBoard board = parse(bytes, fileName);
+      int costsId = worlds[w][1][0];
+      int[][] joinPlan = worlds[w].length > 2 ? new int[][] {worlds[w][2]} : new int[0][];
+
+      JsonObject worldRow = obj("via_world");
+      worldRow.addProperty("name", names[w]);
+      worldRow.addProperty("costs", costsId);
+      worldRow.add("beforeCenters", viaCenters(board));
+      row(worldRow);
+
+      board.startMarkingChangedArea();
+      for (int[] p : joinPlan) {
+        board.joinChangedArea(new FloatPoint(p[0], p[1]), 0);
+      }
+      dumpInventory("before", board);
+      // costs-id -1 = null traceCosts — the via arm is dead (the T3/T4
+      // consumption-gate face).
+      ExpansionCostFactor[] costs = costsId < 0 ? null : costTables[costsId];
+      board.optChangedArea(new int[0], null, 100, costs, null, 0);
+      row(obj("opt_done"));
+      dumpInventory("after", board);
+
+      JsonObject doneRow = obj("via_world_done");
+      doneRow.addProperty("name", names[w]);
+      doneRow.addProperty("costs", costsId);
+      doneRow.add("afterCenters", viaCenters(board));
+      row(doneRow);
+    }
+  }
+
+  /** All via centers as id-sorted [[x, y], ...] (determinism). */
+  private static JsonArray viaCenters(RoutingBoard board) {
+    List<Via> vias = new ArrayList<>();
+    for (Item item : board.getItems()) {
+      if (item instanceof Via via) {
+        vias.add(via);
+      }
+    }
+    vias.sort(Comparator.comparingInt(Item::getId));
+    JsonArray arr = new JsonArray();
+    for (Via via : vias) {
+      FloatPoint c = via.getCenter().toFloat();
+      JsonArray pt = new JsonArray();
+      pt.add(Double.toString(c.x));
+      pt.add(Double.toString(c.y));
+      arr.add(pt);
+    }
+    return arr;
+  }
+
   public static void main(String[] args) throws Exception {
     byte[] bytes = Files.readAllBytes(Paths.get(args[0]));
     String fileName = args.length > 1 ? args[1] : "tightener90.dsn";
@@ -336,6 +444,10 @@ public class TraceTightenerProbe {
     }
     if (args.length > 1 && args[1].equals("cornerworlds")) {
       runCornerWorlds(bytes, args[0]);
+      return;
+    }
+    if (args.length > 1 && args[1].equals("viaworlds")) {
+      runViaWorlds(bytes, args[0]);
       return;
     }
 

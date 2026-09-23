@@ -55,12 +55,13 @@
 //!   the port's `normalize` returns a bool and cannot throw, so the
 //!   catch is unrepresentable (the result is consumed the same way:
 //!   the change stands either way).
-//! * **ViaOptimizer hook** — Java relocates vias inside the changed
-//!   region when `traceCosts != null` (`ViaOptimizer.optViaLocation`,
-//!   `:160-165`); T5 scope. The seam answers false (no via moves), so
-//!   geometry equality on via-bearing boards is impossible until T5 —
-//!   the determinism-digest and events-compare expectations account
-//!   for this.
+//! * **ViaOptimizer hook (T5)** — Java relocates vias inside the
+//!   changed region when `traceCosts != null`
+//!   (`ViaOptimizer.optViaLocation`, `:160-165`); the port lives in
+//!   [`via_optimizer`] behind [`opt_via_location_seam`] (recursion
+//!   budget 10, the production call site literal). The plane face of
+//!   `optPlaneOrFanoutVia` is the M6 stub (no pours on tier fixtures);
+//!   the fanout and 2-trace cost faces are real.
 //! * **45° variant (T4)** — `TraceTightener45` (674 l) is ported in
 //!   [`tightener45`]: the diagonal `pullTight` fixpoint
 //!   (reduce-corner → smoothen → reposition), the clip-gated
@@ -122,6 +123,7 @@ use crate::tree_shapes::clearance_compensation_value;
 
 pub(crate) mod tightener45;
 pub(crate) mod tightener90;
+pub(crate) mod via_optimizer;
 pub(crate) use tightener45::{
     pull_tight_45, smoothen_end_corner_at_trace_45, smoothen_start_corner_at_trace_45,
 };
@@ -345,13 +347,17 @@ impl TraceTightener {
                         Some(ItemKindTag::Via) if trace_costs.is_some() => {
                             // Java `:160-165`:
                             // `ViaOptimizer.optViaLocation(board, via,
-                            // traceCosts, minTranslateDist, 10)` — T5
-                            // seam, false until it lands.
+                            // traceCosts, minTranslateDist, 10)` —
+                            // landed (T5); the seam delegates with the
+                            // production depth budget 10.
+                            let accuracy = self.min_translate_dist;
                             if opt_via_location_seam(
+                                self,
+                                manager,
                                 board,
                                 item_id,
                                 trace_costs,
-                                self.min_translate_dist,
+                                accuracy,
                             ) {
                                 something_changed = true;
                             }
@@ -361,6 +367,37 @@ impl TraceTightener {
                 }
             }
         }
+    }
+
+    /// Java `PolylineTrace.pullTight(boolean, int, Stoppable)`
+    /// (`PolylineTrace.java:869-886`), the face the ViaOptimizer arm
+    /// drives: it builds a FRESH tightener (`getInstance` with the
+    /// picked trace's OWN nets as the only-net list, a NULL clip, the
+    /// call's `pullTightAccuracy` as the accuracy, and `timeLimit = -1`
+    /// — no budget) and runs the SAME 1-arg `pullTight` body on it,
+    /// leaving the fixpoint's algo object untouched. The port swaps the
+    /// FOUR state fields for the duration of `body` and restores them
+    /// after (Java's fresh algo is a separate object; the fixpoint
+    /// state must survive the via arm). The accuracy carries Java's
+    /// `getInstance` clamp `Math.max(minTranslateDist, 100)`
+    /// (`TraceTightener.java:109`).
+    pub(crate) fn with_fresh_algo_face<T>(
+        &mut self,
+        own_nets: &[i32],
+        accuracy: i32,
+        body: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let saved_only_net = std::mem::replace(&mut self.only_net_no_arr, own_nets.to_vec());
+        let saved_clip = self.current_clip_shape.take();
+        let saved_budget = std::mem::replace(&mut self.budget, PullTightBudget::None);
+        let saved_min_translate_dist =
+            std::mem::replace(&mut self.min_translate_dist, accuracy.max(100));
+        let result = body(self);
+        self.only_net_no_arr = saved_only_net;
+        self.current_clip_shape = saved_clip;
+        self.budget = saved_budget;
+        self.min_translate_dist = saved_min_translate_dist;
+        result
     }
 
     /// Java `TraceTightener.pullTight` (6-arg, `:175-190`): set the
@@ -1070,17 +1107,28 @@ pub(crate) fn polyline_trace_pull_tight(
 
 /// The fixpoint's per-via relocation seam (Java `ViaOptimizer.
 /// optViaLocation(board, via, traceCosts, minTranslateDist, 10)`,
-/// `TraceTightener.java:160-165`) — T5 scope; answers false (no via
-/// ever moves), which is exactly the T10c-era no-op face. With vias
-/// present in the changed region Java may relocate them, so geometry
-/// equality on via-bearing boards is impossible until T5.
+/// `TraceTightener.java:160-165`) — LANDED in [`via_optimizer`] (T5);
+/// this wrapper carries the production recursion budget
+/// [`via_optimizer::VIA_RELOCATION_RECURSION_DEPTH`] (Java's literal
+/// `10` at the `TraceTightener.java:165` call site) so the fixpoint
+/// arm keeps a single call shape.
 fn opt_via_location_seam(
-    _board: &mut Board,
-    _via_id: ItemId,
-    _trace_costs: Option<&[TraceCostFactor]>,
-    _min_translate_dist: i32,
+    state: &mut TraceTightener,
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    via_id: ItemId,
+    trace_costs: Option<&[TraceCostFactor]>,
+    min_translate_dist: i32,
 ) -> bool {
-    false
+    via_optimizer::opt_via_location(
+        state,
+        manager,
+        board,
+        via_id,
+        trace_costs,
+        min_translate_dist,
+        via_optimizer::VIA_RELOCATION_RECURSION_DEPTH,
+    )
 }
 
 /// The changed-area join of `Line::intersection_approx` (Java

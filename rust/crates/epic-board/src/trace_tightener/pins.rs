@@ -1113,3 +1113,372 @@ fn t4_skip_length0_min_corner_dist_boundary() {
         "d² = 1.0 >= 0.9: the middle corner stays"
     );
 }
+
+// ---------------------------------------------------------------------------
+// M4-T5 via-relocation pins (jar oracle: `TraceTightenerProbe.java
+// viaworlds` on via_optimizer45.dsn; capture
+// `logs/M4-T5/evidence/via45_viaworlds_run4.jsonl` + run4b — double-run
+// byte-identical, and the first 35 lines byte-identical to the run3
+// matrix). Every literal below is read off the capture rows; the
+// one-call intermediate of t5_depth_gate is read off the instrumented
+// jar trace (logs/M4-T5/evidence/via45_costs_diag.txt).
+//
+// Nets in network order: N1=1 N2=2 N3=3 N4=4 N6=5 N8=6 N9=7 N5=8.
+// Via ids 5,9,11,13,16,19,23 (the capture's inventory rows); the N5
+// via (id 23, net 8) carries (type shoveFixed).
+// ---------------------------------------------------------------------------
+
+/// The costs tables of the probe's `runViaWorlds`: 0 = uniform (1,1),
+/// 1 = F.Cu (1,3) / B.Cu (3,1) (layer index = cost index).
+fn costs_uniform() -> [super::TraceCostFactor; 2] {
+    [
+        super::TraceCostFactor {
+            horizontal: 1.0,
+            vertical: 1.0,
+        },
+        super::TraceCostFactor {
+            horizontal: 1.0,
+            vertical: 1.0,
+        },
+    ]
+}
+
+fn costs_f13_b31() -> [super::TraceCostFactor; 2] {
+    [
+        super::TraceCostFactor {
+            horizontal: 1.0,
+            vertical: 3.0,
+        },
+        super::TraceCostFactor {
+            horizontal: 3.0,
+            vertical: 1.0,
+        },
+    ]
+}
+
+/// The via carrying `net` (the fixture has exactly one per net).
+#[track_caller]
+fn via_by_net(board: &crate::board::Board, net: i32) -> ItemId {
+    board
+        .iter_descending()
+        .find(|entry| entry.nets == vec![net] && matches!(entry.data, ItemData::Via { .. }))
+        .map(|entry| entry.id)
+        .expect("fixture via on net")
+}
+
+/// The center of a live via as integral DBU (all fixture geometry is
+/// integral; the capture rows are Double.toString of integral values).
+#[track_caller]
+fn via_center(board: &crate::board::Board, id: ItemId) -> (i32, i32) {
+    match board.drill_center(id).expect("live via center") {
+        Point::Int(p) => (p.x, p.y),
+        Point::Rational(_) => panic!("integral DBU domain"),
+    }
+}
+
+/// All 7 via centers in ASCENDING id order (the probe's `viaCenters`).
+#[track_caller]
+fn assert_via_centers(board: &crate::board::Board, expected_ascending_id: [(i32, i32); 7]) {
+    let mut ids: Vec<ItemId> = board
+        .iter_descending()
+        .filter(|entry| matches!(entry.data, ItemData::Via { .. }))
+        .map(|entry| entry.id)
+        .collect();
+    ids.reverse();
+    assert_eq!(ids.len(), 7, "7 fixture vias");
+    for (id, expected) in ids.iter().zip(expected_ascending_id.iter()) {
+        assert_eq!(via_center(board, *id), *expected, "via {id:?} center");
+    }
+}
+
+/// The capture's before centers (ids 5,9,11,13,16,19,23 ascending).
+const BEFORE_CENTERS: [(i32, i32); 7] = [
+    (600000, 380000), // N1 collinear
+    (200000, 450000), // N2 gate3
+    (900000, 150000), // N3 fanout
+    (520000, 330000), // N4 projection
+    (720000, 450000), // N6 costs
+    (200000, 150000), // N8 acute
+    (450000, 600000), // N5 shove-fixed
+];
+
+/// One probe via world: fresh parse of via_optimizer45.dsn, changed-area
+/// session + the join plan on layer 0, then the free `opt_changed_area`
+/// behind the PRODUCTION seam with the probe's arguments
+/// (`only_nets = []`, clip `None`, accuracy 100, no keep point, the
+/// world's `trace_costs`, no stopper, no budget).
+#[track_caller]
+fn run_via_world(
+    joins: &[(i32, i32)],
+    trace_costs: Option<&[super::TraceCostFactor]>,
+) -> (SearchTreeManager, crate::board::Board) {
+    let (mut manager, mut board) =
+        parse_fixture_rel("../../../rust/harness/fixtures/trace-tightener/via_optimizer45.dsn");
+    start_marking_changed_area(&mut board);
+    for (x, y) in joins {
+        join_changed_area(
+            &mut board,
+            &FloatPoint::new(f64::from(*x), f64::from(*y)),
+            0,
+        );
+    }
+    opt_changed_area(
+        &mut manager,
+        &mut board,
+        &mut TraceTightenerSeam,
+        &[],
+        None,
+        100,
+        None,
+        0,
+        trace_costs,
+        None,
+        0,
+        false,
+    );
+    (manager, board)
+}
+
+/// The capture's before rows: parse id parity (5,9,11,13,16,19,23),
+/// center parity, and exactly ONE shove-fixed via (N5, the P8 gate
+/// premise).
+#[test]
+fn t5_via_fixture_parse_parity() {
+    let (_manager, board) = run_via_world(&[], Some(&costs_uniform()));
+    let ids: Vec<ItemId> = board
+        .iter_descending()
+        .filter(|entry| matches!(entry.data, ItemData::Via { .. }))
+        .map(|entry| entry.id)
+        .collect();
+    let mut ids = ids;
+    ids.reverse();
+    let ids: Vec<i32> = ids.iter().map(|id| id.get() as i32).collect();
+    assert_eq!(ids, vec![5, 9, 11, 13, 16, 19, 23], "via id parity");
+    assert_via_centers(&board, BEFORE_CENTERS);
+    for (net, expected_fixed) in [(1, false), (8, true)] {
+        let id = via_by_net(&board, net);
+        assert_eq!(
+            crate::trace_ops::is_shove_fixed(&board, id),
+            expected_fixed,
+            "shoveFixed premise for net {net}"
+        );
+    }
+}
+
+/// Collinear world (uniform costs): the 11-arg COLLINEAR arm walks N1
+/// west along the y=380000 line to (400000,380000); everything else
+/// stays. (Capture `collinear` after row.)
+///
+/// BANKED HEALER (T5-M1, `mut_T5-M1_collinear_arm_dropped.log`):
+/// disabling the COLLINEAR arm leaves this pin GREEN — on collinear
+/// geometry the acute arm's else branch (uniform-cost tie → toPoint2
+/// first) issues the IDENTICAL `repositionVia(secondCorner, FIRST
+/// params)` call, so the one-call result and the fixpoint final
+/// coincide by construction (same class as T3-M2/T3-Q4/T4-M1).
+/// Witnessing the break needs a world where the arms' first moves
+/// diverge (collinear pair + non-uniform layer costs where the acute
+/// wd comparison fires toPoint1 first) — a new fixture + capture; the
+/// arm order itself is jar-trace-pinned (the jar's collinear world
+/// opens with the COLLINEAR arm).
+#[test]
+fn t5_collinear_world_moves_to_the_nearer_bend() {
+    let (_manager, board) = run_via_world(&[(600000, 380000)], Some(&costs_uniform()));
+    assert_via_centers(
+        &board,
+        [
+            (400000, 380000),
+            (200000, 450000),
+            (900000, 150000),
+            (520000, 330000),
+            (720000, 450000),
+            (200000, 150000),
+            (450000, 600000),
+        ],
+    );
+}
+
+/// Gate3 world (uniform costs): a via with THREE trace contacts is
+/// untouched — the <=2 gate. (Capture `gate3` after row.)
+#[test]
+fn t5_gate3_three_contacts_stay() {
+    let (_manager, board) = run_via_world(&[(200000, 450000)], Some(&costs_uniform()));
+    assert_via_centers(&board, BEFORE_CENTERS);
+}
+
+/// Fanout world (uniform costs): the single-contact face walks N3 along
+/// its own trace to the far end (960000,150000). (Capture `fanout`.)
+#[test]
+fn t5_fanout_world_walks_along_its_trace() {
+    let (_manager, board) = run_via_world(&[(900000, 150000)], Some(&costs_uniform()));
+    assert_via_centers(
+        &board,
+        [
+            (600000, 380000),
+            (200000, 450000),
+            (960000, 150000),
+            (520000, 330000),
+            (720000, 450000),
+            (200000, 150000),
+            (450000, 600000),
+        ],
+    );
+}
+
+/// Projection world (uniform costs): the direct SW move of N4 is
+/// mover-blocked by the N9 B.Cu wire, the 6-arg bisection exhausts, and
+/// the projection face drops the via onto the prev line; the fixpoint
+/// dance lands at (400000,290000). (Capture `projection`.)
+#[test]
+fn t5_projection_world_dances_to_the_prev_line() {
+    let (_manager, board) = run_via_world(&[(520000, 330000)], Some(&costs_uniform()));
+    assert_via_centers(
+        &board,
+        [
+            (600000, 380000),
+            (200000, 450000),
+            (900000, 150000),
+            (400000, 290000),
+            (720000, 450000),
+            (200000, 150000),
+            (450000, 600000),
+        ],
+    );
+}
+
+/// Costs world (F.Cu (1,3) / B.Cu (3,1)): the weighted-distance arm 1
+/// fires (jar-traced: wd1=210000 > wd2=70000, full move east to
+/// (790000,450000), then the recursion's fanout face walks the via back
+/// and onward); the fixpoint final is the F corner (660000,390000).
+/// (Capture `costs` after row; the arm sequence from the instrumented
+/// jar in evidence/via45_costs_diag.txt.)
+#[test]
+fn t5_costs_world_relocates_to_the_f_corner() {
+    let (_manager, board) = run_via_world(&[(720000, 450000)], Some(&costs_f13_b31()));
+    assert_via_centers(
+        &board,
+        [
+            (600000, 380000),
+            (200000, 450000),
+            (900000, 150000),
+            (520000, 330000),
+            (660000, 390000),
+            (200000, 150000),
+            (450000, 600000),
+        ],
+    );
+}
+
+/// The reject cell of the 2x2 (costs x movement): the SAME N6 geometry
+/// under uniform (1,1) costs ties every weighted-distance comparison
+/// and the via STAYS. (Capture `costs_uniform` after row.)
+#[test]
+fn t5_costs_uniform_reject_cell_stays() {
+    let (_manager, board) = run_via_world(&[(720000, 450000)], Some(&costs_uniform()));
+    assert_via_centers(&board, BEFORE_CENTERS);
+}
+
+/// Acute world (uniform costs): scalarProduct > 0, non-collinear — the
+/// acute-angle arm fires and the dance lands N8 at (140000,90000).
+/// (Capture `acute` after row.)
+#[test]
+fn t5_acute_world_moves_through_the_acute_arm() {
+    let (_manager, board) = run_via_world(&[(200000, 150000)], Some(&costs_uniform()));
+    assert_via_centers(
+        &board,
+        [
+            (600000, 380000),
+            (200000, 450000),
+            (900000, 150000),
+            (520000, 330000),
+            (720000, 450000),
+            (140000, 90000),
+            (450000, 600000),
+        ],
+    );
+}
+
+/// The shove-fixed gate's crossing cell: N5 carries the same movable
+/// 2-trace westward geometry as N1 AND the join is AT its center (the
+/// opt pass processes it) — but `(type shoveFixed)` must hold it while
+/// the unfixed N1 twin moves. (Capture `shove_fixed` after row.)
+///
+/// DEFENSE IN DEPTH (T5-M4/M4b, `mut_T5-M4*.log`): Java guards the
+/// behavior TWICE — `optViaLocation`'s head gate AND the same
+/// `isShoveFixed` head check in `DrillItemMover.check`/`insert` — and
+/// the port mirrors both. Dropping the optimizer gate alone (T5-M4)
+/// survives: the mover's guard refuses every move. Dropping BOTH
+/// (T5-M4b, two-site mutant) kills this pin — the via walks west. The
+/// behavior is pinned end-to-end; the single-site survivor is a
+/// redundant-guard artifact, not a pin vacuity.
+#[test]
+fn t5_shove_fixed_gate_holds_a_joined_movable_via() {
+    let (_manager, board) = run_via_world(&[(450000, 600000)], Some(&costs_uniform()));
+    assert_via_centers(&board, BEFORE_CENTERS);
+}
+
+/// The consumption gate's crossing cell: N1's movable geometry joined
+/// at its center with `traceCosts == null` — the whole via arm is dead
+/// and N1 STAYS (while P1, costs present, moves it). (Capture
+/// `costs_null` after row.)
+#[test]
+fn t5_costs_null_consumption_gate_keeps_the_arm_dead() {
+    let (_manager, board) = run_via_world(&[(600000, 380000)], None);
+    assert_via_centers(&board, BEFORE_CENTERS);
+}
+
+/// The recursion-depth gate boundary (production budget 10 through the
+/// seam is exercised by every other pin): driven DIRECTLY on the
+/// production `opt_via_location` — depth 0 answers false and leaves the
+/// board untouched; depth 1 performs exactly the one-call arm-1
+/// relocation (jar-traced intermediate (790000,450000)) without the
+/// fanout walk.
+#[test]
+fn t5_depth_gate_boundary() {
+    let costs = costs_f13_b31();
+    // Depth 0: the gate arm.
+    {
+        let (mut manager, mut board) =
+            parse_fixture_rel("../../../rust/harness/fixtures/trace-tightener/via_optimizer45.dsn");
+        let mut state =
+            TraceTightener::get_instance(&manager, &board, &[], None, 100, None, 0, false, None, 0);
+        let via = via_by_net(&board, 5);
+        let moved = super::via_optimizer::opt_via_location(
+            &mut state,
+            &mut manager,
+            &mut board,
+            via,
+            Some(&costs),
+            100,
+            0,
+        );
+        assert!(!moved, "depth 0: the gate refuses");
+        assert_eq!(
+            via_center(&board, via),
+            (720000, 450000),
+            "depth 0: no move"
+        );
+    }
+    // Depth 1: exactly one relocation, no recursion walk.
+    {
+        let (mut manager, mut board) =
+            parse_fixture_rel("../../../rust/harness/fixtures/trace-tightener/via_optimizer45.dsn");
+        let mut state =
+            TraceTightener::get_instance(&manager, &board, &[], None, 100, None, 0, false, None, 0);
+        let via = via_by_net(&board, 5);
+        let moved = super::via_optimizer::opt_via_location(
+            &mut state,
+            &mut manager,
+            &mut board,
+            via,
+            Some(&costs),
+            100,
+            1,
+        );
+        assert!(moved, "depth 1: the cost arm relocates");
+        assert_eq!(
+            via_center(&board, via),
+            (790000, 450000),
+            "depth 1: the jar's one-call arm-1 intermediate"
+        );
+    }
+}
