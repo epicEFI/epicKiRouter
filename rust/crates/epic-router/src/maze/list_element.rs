@@ -160,9 +160,37 @@ impl ExpandableObject {
         const STANDALONE_DRILL: u64 = 5 << 62;
         match self {
             ExpandableObject::RoomDoor(door) => {
-                ROOM_DOOR | (door.id() as u32 as u64) | ((door.dimension.clamp(0, 3) as u64) << 32)
+                // Java's maze-search state is PER DOOR OBJECT
+                // (`sectionArr` lives on the door); the instance tag
+                // (door.rs module doc) is that identity — fold it so
+                // equal-VALUED doors of id-colliding incomplete-room
+                // twins keep separate state slots (the t7 phantom
+                // class). Bits 32-33 carry the dimension, bits 34-61
+                // the tag; a search's own doors are far below 2^28.
+                ROOM_DOOR
+                    | (door.id() as u32 as u64)
+                    | ((door.dimension.clamp(0, 3) as u64) << 32)
+                    | ((door.tag & 0x0FFF_FFFF) << 34)
             }
-            ExpandableObject::TargetDoor(door) => TARGET_DOOR | door.id() as u32 as u64,
+            // Java's maze-search state is PER OBJECT — each
+            // `TargetItemExpansionDoor` owns its own `mazeSearchInfo`
+            // field (`TargetItemExpansionDoor.java:19/:54`) — so two
+            // tree-entry doors of one item (SAME `getId()`, distinct
+            // objects) must NOT share a state slot. `getId()`
+            // (`:70-74`) ignores `treeEntryNo` (it is also Java
+            // `MazeListElement.compareTo`'s tie-break), so the STATE
+            // key folds the tree entry into the free bits 32-61.
+            // (T6 root cause of the t7 divergence: the missing fold
+            // aliased item-14 entries 0/1 in one search — the 14/1
+            // seed's post-expansion occupation poisoned the 14/0
+            // seed's slot, the pop loop discarded the seed as
+            // occupied, and the ten-row expansion of Java's golden
+            // rows 74-83 never ran.)
+            ExpandableObject::TargetDoor(door) => {
+                TARGET_DOOR
+                    | (door.id() as u32 as u64)
+                    | ((u64::from(door.tree_entry_no) & 0x3FFF_FFFF) << 32)
+            }
             ExpandableObject::DrillPage { row, column, .. } => {
                 PAGE | (*row as u32 as u64) | ((*column as u32 as u64) << 32)
             }

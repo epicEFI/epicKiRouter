@@ -39,10 +39,6 @@
 //!
 //! ## Not ported yet
 //!
-//! The remaining trace-entry surgery members (`mergeEntriesInFront`,
-//! `mergeEntriesAtEnd`, `changeEntries`, `:237-282`) still await their
-//! consumers; `reuseEntriesAfterCutout` (`:283-290`) landed with the
-//! M3 shove substrate.
 //! `validateEntries` (`:69-78`) and the overlap query family
 //! (`ShapeSearchTree.java:390-570`, `BasicBoard.checkShape`) are
 //! Task 8 — see the query section of the impl.
@@ -52,6 +48,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use epic_geometry::int_box::IntBox;
 use epic_geometry::point::Point;
+use epic_geometry::polyline::Polyline;
 use epic_geometry::regular_tile_shape::RegularTileShape;
 use epic_geometry::tile_shape::TileShape;
 use epic_index::{LeafEntry, NodeIdx, SearchTree, SearchTreeVariant, TreeEntry};
@@ -463,38 +460,418 @@ impl SearchTreeManager {
         }
     }
 
+    /// Java `PolylineTraceSearchTreeAdapter.hasDefaultEntries`
+    /// (`:22-26`): both traces carry an entry array in the DEFAULT
+    /// tree — the combine fast-path gate (PolylineTrace.java:307/:431).
+    #[must_use]
+    pub fn has_default_entries(&self, first: ItemId, second: ItemId) -> bool {
+        let object_id = self.default_tree().object_id();
+        self.tree_entries(first, object_id).is_some()
+            && self.tree_entries(second, object_id).is_some()
+    }
+
+    /// The to-trace's compensated half width for ONE tree (Java
+    /// `toTrace.getHalfWidth() + this.clearanceCompensationValue(
+    /// toTrace.clearanceClassIndex(), toTrace.getLayer())` —
+    /// ShapeSearchTree.java:194-196/:269-271) — the same arithmetic as
+    /// [`crate::tree_shapes::trace_compensated_half_width`] but from
+    /// the copied `compensated_clearance_class`, so the per-tree loop
+    /// can compute it without holding a tree borrow.
+    fn tree_half_width(&self, board: &Board, trace_id: ItemId, compensated_class: i32) -> i32 {
+        let half_width = board.trace_half_width(trace_id).unwrap_or(0);
+        let class = board.item_clearance_class(trace_id).unwrap_or(0);
+        let layer = board.trace_layer(trace_id).unwrap_or(0);
+        half_width
+            + crate::tree_shapes::clearance_compensation_value(
+                board.rules(),
+                class,
+                compensated_class,
+                layer,
+            )
+    }
+
+    /// Java `SearchTreeManager.mergeEntriesInFront`
+    /// (`SearchTreeManager.java:237-246`) broadcasting over every live
+    /// tree to `ShapeSearchTree.mergeEntriesInFront`
+    /// (`ShapeSearchTree.java:170-239`): the combine-at-start fast
+    /// path. Per tree the op sequence is REMOVED-then-INSERTED —
+    ///
+    /// 1. `removeLeaf(fromEntries[removeNo])` (`:189`; first entry
+    ///    when the join REVERSES the from-trace, else its last),
+    /// 2. `removeLeaf(toEntries[0])` (`:190`),
+    /// 3. one `insert(toTrace, i)` per LINK shape (`:233-236`),
+    ///
+    /// while every SURVIVING entry is TRANSFERRED in place — its leaf
+    /// keeps the exact tree position, only `(object, shapeIndex)`
+    /// are re-written (`:214-215` for the from-trace half, `:221`
+    /// for the to-trace half). The per-tree shape cache of the
+    /// SURVIVING to-trace is rebuilt from both caches plus the link
+    /// shapes and installed BEFORE the inserts (`:224-230`), because
+    /// the inserts read it.
+    ///
+    /// The from-trace's entry arrays are left STALE here (their live
+    /// slots were re-labeled away) — Java's caller clears them right
+    /// after ([`Self::clear_search_tree_entries`],
+    /// PolylineTrace.java:321).
+    pub fn merge_entries_in_front(
+        &mut self,
+        board: &mut Board,
+        from_trace: ItemId,
+        to_trace: ItemId,
+        joined: &Polyline,
+        from_entry_no: i32,
+        to_entry_no: i32,
+    ) {
+        // Java :176: `fromTrace.firstCorner().equals(toTrace.firstCorner())`.
+        let change_order = {
+            let from_lines = board
+                .trace_polyline(from_trace)
+                .cloned()
+                .unwrap_or_else(|| Polyline::new(Vec::new()));
+            let to_lines = board
+                .trace_polyline(to_trace)
+                .cloned()
+                .unwrap_or_else(|| Polyline::new(Vec::new()));
+            crate::items::trace::first_corner(&from_lines)
+                .zip(crate::items::trace::first_corner(&to_lines))
+                .is_some_and(|(a, b)| a == b)
+        };
+        for tree_index in 0..self.trees.len() {
+            let (object_id, compensated_class) = {
+                let tree = &self.trees[tree_index];
+                (tree.object_id(), tree.compensated_clearance_class)
+            };
+            let Some(from_entries) = self
+                .entries
+                .get(&from_trace)
+                .and_then(|by_tree| by_tree.get(&object_id))
+                .cloned()
+            else {
+                continue;
+            };
+            let Some(to_entries) = self
+                .entries
+                .get(&to_trace)
+                .and_then(|by_tree| by_tree.get(&object_id))
+                .cloned()
+            else {
+                continue;
+            };
+            let to_key = u64::from(to_trace.get());
+            let from_shape_count_minus_1 = from_entries.len() - 1;
+            let remove_no = if change_order {
+                0
+            } else {
+                from_shape_count_minus_1
+            };
+            // :189, :190 — the two replaced entries.
+            self.trees[tree_index].remove(&[from_entries[remove_no], to_entries[0]]);
+            let link_shapes = joined.offset_shapes(
+                self.tree_half_width(board, to_trace, compensated_class),
+                from_entry_no,
+                to_entry_no,
+            );
+            let new_shape_count = from_entries.len() + link_shapes.len() + to_entries.len() - 2;
+            let old_to_count = to_entries.len();
+            let mut new_leaf_arr: Vec<Option<NodeIdx>> = vec![None; new_shape_count];
+            let mut new_precalc: Vec<Option<TileShape>> = vec![None; new_shape_count];
+            // :205-216 — the surviving FROM entries transfer to the
+            // head of the new list (reversed when the join reversed).
+            for i in 0..from_shape_count_minus_1 {
+                let from_no = if change_order {
+                    from_shape_count_minus_1 - i
+                } else {
+                    i
+                };
+                new_precalc[i] = board
+                    .tree_shape_precalc_peek(from_trace, object_id)
+                    .and_then(|shapes| shapes.get(from_no))
+                    .and_then(|slot| slot.as_ref().cloned());
+                new_leaf_arr[i] = from_entries[from_no];
+                if let Some(leaf) = new_leaf_arr[i] {
+                    self.trees[tree_index].relabel_leaf(leaf, to_key, i as u32);
+                }
+            }
+            // :217-222 — the surviving TO entries (all but index 0,
+            // which was removed) keep their shapes and move to the
+            // tail. Index arithmetic is the Java shape: `i` offsets
+            // both the peek window and the destination index.
+            #[allow(clippy::needless_range_loop)]
+            for i in 1..old_to_count {
+                let current_ind = from_shape_count_minus_1 + link_shapes.len() + i - 1;
+                new_precalc[current_ind] = board
+                    .tree_shape_precalc_peek(to_trace, object_id)
+                    .and_then(|shapes| shapes.get(i))
+                    .and_then(|slot| slot.as_ref().cloned());
+                new_leaf_arr[current_ind] = to_entries[i];
+                if let Some(leaf) = new_leaf_arr[current_ind] {
+                    self.trees[tree_index].relabel_leaf(leaf, to_key, current_ind as u32);
+                }
+            }
+            // :226-230 — the link shapes enter the cache BEFORE the
+            // inserts (the inserts read the cache).
+            for (k, shape) in link_shapes.iter().enumerate() {
+                new_precalc[from_shape_count_minus_1 + k] = Some(shape.clone());
+            }
+            board.set_tree_shape_precalc(to_trace, object_id, new_precalc);
+            // :233-236 — the new link entries.
+            for (k, shape) in link_shapes.iter().enumerate() {
+                new_leaf_arr[from_shape_count_minus_1 + k] = self.trees[tree_index].insert_one(
+                    to_key,
+                    (from_shape_count_minus_1 + k) as u32,
+                    Some(shape),
+                );
+            }
+            self.entries
+                .entry(to_trace)
+                .or_default()
+                .insert(object_id, new_leaf_arr);
+        }
+    }
+
+    /// Java `SearchTreeManager.mergeEntriesAtEnd` (`:252-261`)
+    /// broadcasting to `ShapeSearchTree.mergeEntriesAtEnd`
+    /// (`ShapeSearchTree.java:245-312`): the combine-at-end fast
+    /// path. Per tree: `removeLeaf(toEntries[last])` (`:258`), then
+    /// `removeLeaf(fromEntries[removeNo])` (`:265`; the from-trace's
+    /// LAST entry when the join reversed it, else its first), then
+    /// one insert per link shape (`:307-310`); the surviving to-head
+    /// keeps its slots untouched (`:279-282`) while the surviving
+    /// from-entries transfer with re-written owners (`:284-296`).
+    pub fn merge_entries_at_end(
+        &mut self,
+        board: &mut Board,
+        from_trace: ItemId,
+        to_trace: ItemId,
+        joined: &Polyline,
+        from_entry_no: i32,
+        to_entry_no: i32,
+    ) {
+        // Java :251: `fromTrace.lastCorner().equals(toTrace.lastCorner())`.
+        let change_order = {
+            let from_lines = board
+                .trace_polyline(from_trace)
+                .cloned()
+                .unwrap_or_else(|| Polyline::new(Vec::new()));
+            let to_lines = board
+                .trace_polyline(to_trace)
+                .cloned()
+                .unwrap_or_else(|| Polyline::new(Vec::new()));
+            crate::items::trace::last_corner(&from_lines)
+                .zip(crate::items::trace::last_corner(&to_lines))
+                .is_some_and(|(a, b)| a == b)
+        };
+        for tree_index in 0..self.trees.len() {
+            let (object_id, compensated_class) = {
+                let tree = &self.trees[tree_index];
+                (tree.object_id(), tree.compensated_clearance_class)
+            };
+            let Some(from_entries) = self
+                .entries
+                .get(&from_trace)
+                .and_then(|by_tree| by_tree.get(&object_id))
+                .cloned()
+            else {
+                continue;
+            };
+            let Some(to_entries) = self
+                .entries
+                .get(&to_trace)
+                .and_then(|by_tree| by_tree.get(&object_id))
+                .cloned()
+            else {
+                continue;
+            };
+            let to_key = u64::from(to_trace.get());
+            let from_count = from_entries.len();
+            let to_shape_count_minus_1 = to_entries.len() - 1;
+            // :258, :265 — order matters: the TO entry first.
+            let remove_no = if change_order { from_count - 1 } else { 0 };
+            self.trees[tree_index].remove(&[to_entries[to_shape_count_minus_1]]);
+            self.trees[tree_index].remove(&[from_entries[remove_no]]);
+            let link_shapes = joined.offset_shapes(
+                self.tree_half_width(board, to_trace, compensated_class),
+                from_entry_no,
+                to_entry_no,
+            );
+            let new_shape_count = from_count + link_shapes.len() + to_entries.len() - 2;
+            let mut new_leaf_arr: Vec<Option<NodeIdx>> = vec![None; new_shape_count];
+            let mut new_precalc: Vec<Option<TileShape>> = vec![None; new_shape_count];
+            // :279-282 — the surviving TO head: same slots, same
+            // owners (no re-labeling in Java either).
+            for i in 0..to_shape_count_minus_1 {
+                new_precalc[i] = board
+                    .tree_shape_precalc_peek(to_trace, object_id)
+                    .and_then(|shapes| shapes.get(i))
+                    .and_then(|slot| slot.as_ref().cloned());
+                new_leaf_arr[i] = to_entries[i];
+            }
+            // :284-296 — the surviving FROM entries transfer to the
+            // tail (reversed when the join reversed the from-trace).
+            for i in 1..from_count {
+                let current_ind = to_shape_count_minus_1 + link_shapes.len() + i - 1;
+                let from_no = if change_order { from_count - i - 1 } else { i };
+                new_precalc[current_ind] = board
+                    .tree_shape_precalc_peek(from_trace, object_id)
+                    .and_then(|shapes| shapes.get(from_no))
+                    .and_then(|slot| slot.as_ref().cloned());
+                new_leaf_arr[current_ind] = from_entries[from_no];
+                if let Some(leaf) = new_leaf_arr[current_ind] {
+                    self.trees[tree_index].relabel_leaf(leaf, to_key, current_ind as u32);
+                }
+            }
+            // :300-304 — link shapes into the cache before the inserts.
+            for (k, shape) in link_shapes.iter().enumerate() {
+                new_precalc[to_shape_count_minus_1 + k] = Some(shape.clone());
+            }
+            board.set_tree_shape_precalc(to_trace, object_id, new_precalc);
+            // :307-310 — the new link entries.
+            for (k, shape) in link_shapes.iter().enumerate() {
+                new_leaf_arr[to_shape_count_minus_1 + k] = self.trees[tree_index].insert_one(
+                    to_key,
+                    (to_shape_count_minus_1 + k) as u32,
+                    Some(shape),
+                );
+            }
+            self.entries
+                .entry(to_trace)
+                .or_default()
+                .insert(object_id, new_leaf_arr);
+        }
+    }
+
+    /// Java `SearchTreeManager.changeEntries` (`:267-272`) broadcasting
+    /// to `ShapeSearchTree.changeEntries` (`ShapeSearchTree.java:120-164`):
+    /// the `PolylineTrace.change` fast path. Per tree: the KEPT head
+    /// ([0, keepAtStart)) and the KEPT tail (the last keepAtEnd
+    /// entries, re-indexed to the new list's tail) keep their leaves in
+    /// place; the replaced middle is REMOVED (`:142-144`) before the
+    /// new middle is INSERTED (`:160-162`), with the fresh shapes
+    /// installed into the cache first (`:154-158`).
+    pub fn change_entries(
+        &mut self,
+        board: &mut Board,
+        obj: ItemId,
+        new_polyline: &Polyline,
+        keep_at_start_count: i32,
+        keep_at_end_count: i32,
+    ) {
+        let keep_at_start = keep_at_start_count.max(0) as usize;
+        let keep_at_end = keep_at_end_count.max(0) as usize;
+        let new_len = i32::try_from(new_polyline.lines.len()).unwrap_or(i32::MAX);
+        for tree_index in 0..self.trees.len() {
+            let (object_id, compensated_class) = {
+                let tree = &self.trees[tree_index];
+                (tree.object_id(), tree.compensated_clearance_class)
+            };
+            let Some(old_entries) = self
+                .entries
+                .get(&obj)
+                .and_then(|by_tree| by_tree.get(&object_id))
+                .cloned()
+            else {
+                continue;
+            };
+            let key = u64::from(obj.get());
+            // :127-132 — the replacement shapes over the new
+            // polyline's middle windows.
+            let changed_shapes = new_polyline.offset_shapes(
+                self.tree_half_width(board, obj, compensated_class),
+                keep_at_start_count,
+                new_len - 1 - keep_at_end_count,
+            );
+            let old_shape_count = old_entries.len();
+            let new_shape_count = changed_shapes.len() + keep_at_start + keep_at_end;
+            let mut new_leaf_arr: Vec<Option<NodeIdx>> = vec![None; new_shape_count];
+            let mut new_precalc: Vec<Option<TileShape>> = vec![None; new_shape_count];
+            // :138-141 — the kept head.
+            for (i, slot) in old_entries.iter().enumerate().take(keep_at_start) {
+                new_leaf_arr[i] = *slot;
+                new_precalc[i] = board
+                    .tree_shape_precalc_peek(obj, object_id)
+                    .and_then(|shapes| shapes.get(i))
+                    .and_then(|shape| shape.as_ref().cloned());
+            }
+            // :142-144 — remove the replaced middle (BEFORE any
+            // insert, in ascending index order).
+            for slot in old_entries.iter().skip(keep_at_start).take(
+                old_shape_count
+                    .saturating_sub(keep_at_end)
+                    .saturating_sub(keep_at_start),
+            ) {
+                self.trees[tree_index].remove(&[*slot]);
+            }
+            // :145-152 — the kept tail re-indexed to the new list's
+            // tail (shape cache entries move with them).
+            for i in 0..keep_at_end {
+                let new_index = new_shape_count - keep_at_end + i;
+                let old_index = old_shape_count - keep_at_end + i;
+                new_leaf_arr[new_index] = old_entries[old_index];
+                if let Some(leaf) = new_leaf_arr[new_index] {
+                    self.trees[tree_index].relabel_leaf(leaf, key, new_index as u32);
+                }
+                new_precalc[new_index] = board
+                    .tree_shape_precalc_peek(obj, object_id)
+                    .and_then(|shapes| shapes.get(old_index))
+                    .and_then(|shape| shape.as_ref().cloned());
+            }
+            // :154-158 — the fresh middle shapes enter the cache
+            // before the inserts read it.
+            for (k, shape) in changed_shapes.iter().enumerate() {
+                new_precalc[keep_at_start + k] = Some(shape.clone());
+            }
+            board.set_tree_shape_precalc(obj, object_id, new_precalc);
+            // :160-162 — the new middle entries.
+            for i in keep_at_start..(new_shape_count - keep_at_end) {
+                new_leaf_arr[i] = self.trees[tree_index].insert_one(
+                    key,
+                    i as u32,
+                    Some(&changed_shapes[i - keep_at_start]),
+                );
+            }
+            // :163 — the new entry list replaces the old.
+            self.entries
+                .entry(obj)
+                .or_default()
+                .insert(object_id, new_leaf_arr);
+        }
+    }
+
+    /// Java `Item.clearSearchTreeEntries()` (`Item.java:1078-1080`)
+    /// reached through the adapter (PolylineTrace.java:321/:445): the
+    /// combine fast paths leave the joined-from trace's arrays stale
+    /// (their live slots were re-labeled away), so the caller drops
+    /// the WHOLE `searchTreesInfo` — every tree's entry list plus the
+    /// shape caches. Unlike [`Self::remove`] the on-the-board flag is
+    /// NOT touched (the item is removed separately right after).
+    pub fn clear_search_tree_entries(&mut self, board: &mut Board, id: ItemId) {
+        self.entries.remove(&id);
+        board.clear_search_tree_shapes(id);
+    }
+
     /// Java `SearchTreeManager.reuseEntriesAfterCutout`
     /// (`SearchTreeManager.java:278-284`) broadcasting over every live
     /// tree to `ShapeSearchTree.reuseEntriesAfterCutout`
-    /// (`ShapeSearchTree.java:312-346`): the tree entries of
+    /// (`ShapeSearchTree.java:318-350`): the tree entries of
     /// `from_trace` are split onto `start_piece` / `end_piece` after a
     /// middle piece was cut out (`ShapeTraceEntries.fastCutoutTrace`).
     ///
-    /// ## Fidelity decision (documented deviation in mechanism, not in
-    /// observable behavior)
+    /// Per tree the op sequence is: the untouched head slots of
+    /// `from_trace` ([0, start_len-1)) are RE-LABELED to the start
+    /// piece IN PLACE (`:323-328` — no structural op), then exactly
+    /// TWO leaves are inserted — the start piece's LAST and the end
+    /// piece's FIRST (`:329-330`/:337), the cutline straddlers — and
+    /// the untouched tail slots (the end piece's [1, end_len)) are
+    /// re-labeled to the end piece (`:339-345`). The MIDDLE
+    /// (cutline) leaves stay owned by `from_trace` in the tree; the
+    /// caller's `removeItem(fromTrace)` drops exactly those through
+    /// the nulled-out arrays (`ShapeTree.remove` skips null slots).
     ///
-    /// Java TRANSFERS leaves: it re-labels `leaf.object` and
-    /// `leaf.shapeIndexInObject` on the start/end leaf slots (freshly
-    /// inserting only the LAST start-piece leaf and the FIRST end-piece
-    /// leaf, which straddle the cutlines), nulls the transferred slots
-    /// in `fromTrace`'s array, and leaves the middle (cutline) leaves in
-    /// place for the later `removeItem(fromTrace)` to drop. The port
-    /// instead drops `from_trace`'s entries per tree and re-inserts both
-    /// pieces through the ordinary [`Self::insert_into_tree`]. This is
-    /// sound because the two leaf sets are VALUE-identical:
-    ///
-    /// * a polyline trace's tree shape `i` involves only lines `i` and
-    ///   `i+1` (the per-line cutout in [`crate::tree_shapes`]), and the
-    ///   transferred indices never straddle a cutline (Java inserts
-    ///   fresh leaves exactly there), so each transferred leaf's shape
-    ///   equals the fresh computation from the unchanged piece polyline;
-    /// * query results come back in the sorted candidate order
-    ///   (descending object key — [`Self::item_of_key`]), not in BVH
-    ///   skeleton order, so leaf IDENTITY and tree shape are
-    ///   unobservable outside this module.
-    ///
-    /// The index corpus compare (33/33 byte-identical) and the undo
-    /// replay gate this seam end to end.
+    /// The pieces are repository-inserted but never tree-inserted
+    /// (fastCutoutTrace calls `itemList.insert` +
+    /// `setOnTheBoard(true)` only), so their per-tree shape caches
+    /// fill lazily at the first `getTreeShape` — the port's
+    /// [`Board::tree_shape_precalc`] fill.
     pub fn reuse_entries_after_cutout(
         &mut self,
         board: &mut Board,
@@ -503,31 +880,98 @@ impl SearchTreeManager {
         end_piece: ItemId,
     ) {
         for tree_index in 0..self.trees.len() {
-            let object_id = self.trees[tree_index].object_id();
-            // Java's transfer + slot-nulling, collapsed: drop ALL of
-            // from_trace's leaves in this tree now (the middle cutline
-            // leaves Java leaves behind are dropped moments later by
-            // the manager's remove of from_trace — same end state).
-            let stale = self
-                .entries
-                .get_mut(&from_trace)
-                .and_then(|by_tree| by_tree.remove(&object_id));
-            if let Some(entries) = stale {
-                self.trees[tree_index].remove(&entries);
-            }
-            if self
+            let (object_id, compensated_class, variant) = {
+                let tree = &self.trees[tree_index];
+                (
+                    tree.object_id(),
+                    tree.compensated_clearance_class,
+                    tree.variant,
+                )
+            };
+            // Java :321: `fromTrace.getSearchTreeEntries(this)` — the
+            // piece piece counts come from the PIECE polylines
+            // (`:320`/:334), not the from-trace.
+            let Some(from_entries) = self
                 .entries
                 .get(&from_trace)
-                .is_some_and(BTreeMap::is_empty)
-            {
-                self.entries.remove(&from_trace);
+                .and_then(|by_tree| by_tree.get(&object_id))
+                .cloned()
+            else {
+                continue;
+            };
+            let start_len = board
+                .trace_polyline(start_piece)
+                .map(|lines| lines.lines.len().saturating_sub(2))
+                .unwrap_or(0);
+            let end_len = board
+                .trace_polyline(end_piece)
+                .map(|lines| lines.lines.len().saturating_sub(2))
+                .unwrap_or(0);
+            let start_key = u64::from(start_piece.get());
+            let end_key = u64::from(end_piece.get());
+            let mut start_leaf_arr: Vec<Option<NodeIdx>> = vec![None; start_len];
+            let mut end_leaf_arr: Vec<Option<NodeIdx>> = vec![None; end_len];
+            // :323-328 — the start piece's head, re-labeled in place;
+            // the transferred slots NULL in from_trace's array.
+            for i in 0..start_len.saturating_sub(1) {
+                start_leaf_arr[i] = from_entries.get(i).copied().flatten();
+                if let Some(leaf) = start_leaf_arr[i] {
+                    self.trees[tree_index].relabel_leaf(leaf, start_key, i as u32);
+                }
+                if let Some(by_tree) = self.entries.get_mut(&from_trace)
+                    && let Some(slots) = by_tree.get_mut(&object_id)
+                {
+                    slots[i] = None;
+                }
             }
-            // The fresh slots: Java's `insert(startPiece,
-            // startPieceLeafArr.length - 1)` and `insert(endPiece, 0)`
-            // — here the whole pieces, since the transferred halves are
-            // re-derived rather than relabeled.
-            self.insert_into_tree(board, start_piece, tree_index);
-            self.insert_into_tree(board, end_piece, tree_index);
+            // :329-330 — the start piece's LAST entry: one fresh
+            // leaf. The insert lazily fills the piece's shape cache
+            // (Java `getTreeShape` → `calculateTreeShapes`).
+            if start_len > 0 {
+                let shapes =
+                    board.tree_shape_precalc(start_piece, object_id, variant, compensated_class);
+                if let Some(Some(shape)) = shapes.get(start_len - 1) {
+                    start_leaf_arr[start_len - 1] = self.trees[tree_index].insert_one(
+                        start_key,
+                        (start_len - 1) as u32,
+                        Some(shape),
+                    );
+                }
+            }
+            // :334-337 — the end piece's FIRST entry: one fresh leaf.
+            if end_len > 0 {
+                let shapes =
+                    board.tree_shape_precalc(end_piece, object_id, variant, compensated_class);
+                if let Some(Some(shape)) = shapes.first() {
+                    end_leaf_arr[0] = self.trees[tree_index].insert_one(end_key, 0, Some(shape));
+                }
+            }
+            // :339-345 — the end piece's tail, re-labeled in place.
+            // Index arithmetic is the Java shape (the transferred-slot
+            // window walks from the array's tail); not iterator-shaped.
+            #[allow(clippy::needless_range_loop)]
+            for i in 1..end_len {
+                let from_index = from_entries.len().saturating_sub(end_len).saturating_add(i);
+                end_leaf_arr[i] = from_entries.get(from_index).copied().flatten();
+                if let Some(leaf) = end_leaf_arr[i] {
+                    self.trees[tree_index].relabel_leaf(leaf, end_key, i as u32);
+                }
+                if let Some(by_tree) = self.entries.get_mut(&from_trace)
+                    && let Some(slots) = by_tree.get_mut(&object_id)
+                    && from_index < slots.len()
+                {
+                    slots[from_index] = None;
+                }
+            }
+            // :347-349 — the pieces' entry lists.
+            self.entries
+                .entry(start_piece)
+                .or_default()
+                .insert(object_id, start_leaf_arr);
+            self.entries
+                .entry(end_piece)
+                .or_default()
+                .insert(object_id, end_leaf_arr);
         }
     }
 

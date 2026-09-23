@@ -1293,6 +1293,30 @@ impl Board {
             .map(|shapes| shapes.as_slice())
     }
 
+    /// Java `Item.setPrecalculatedTreeShapes(shapes, tree)`
+    /// (`Item.java:1066-1075`): REPLACES the cached tree shapes of
+    /// `(id, tree)` — the merge/change fast paths build the new shape
+    /// array (kept entries' old shapes + the fresh link/middle shapes)
+    /// and install it BEFORE inserting the new leaves, because the
+    /// insert reads the cache (`ShapeSearchTree.java:154-158`,
+    /// :224-230, :298-304). Java guards `searchTreesInfo == null`
+    /// with a warn + return; the port's insert-or-default reproduces
+    /// the store (the merge callers always run on cached, on-board
+    /// traces, so the null arm is unreachable there — Java only warns
+    /// on a foreign tree, which the object-id keying makes a plain
+    /// new slot).
+    pub fn set_tree_shape_precalc(
+        &mut self,
+        id: ItemId,
+        tree_object_id: u64,
+        shapes: Vec<Option<TileShape>>,
+    ) {
+        self.shape_precalc
+            .entry(id)
+            .or_default()
+            .insert(tree_object_id, shapes);
+    }
+
     /// The fresh-computation half of [`Board::drill_first_layer`].
     fn compute_drill_first_layer(&self, id: ItemId) -> Option<i32> {
         let entry = self.get(id)?;

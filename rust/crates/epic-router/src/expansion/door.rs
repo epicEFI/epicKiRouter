@@ -11,6 +11,26 @@
 //! current room shapes as arguments so callers read them live exactly
 //! like the Java field dereferences.
 //!
+//! REFERENCE IDENTITY (the T6 t7 root cause): Java's doors are
+//! OBJECTS — `List.remove(door)` / `equals` fall back to reference
+//! identity (`ExpansionDoor` overrides neither), so two DISTINCT doors
+//! with equal values stay distinct everywhere. The value-only port
+//! breaks exactly when the room-id space collides: an incomplete
+//! room's `getId()` is `31 * shape.getId() + layer` on content-derived
+//! shape ids, so two live same-shape same-layer rooms share an id and
+//! the doors to them share the whole `(first, second, dimension)`
+//! value — a value-based door removal or endpoint resolution can then
+//! pick the wrong twin (the observed phantom completion). The
+//! [`ExpansionDoor::tag`] restores the identity: every CONSTRUCTION
+//! draws the next instance number from a process-wide counter; clones
+//! carry it (the copies Java has of one door object are one reference
+//! spread across lists), distinct constructions never do, and
+//! `PartialEq` includes it — so equality is Java's identity semantics.
+//! Tags never enter any output row, ordering, or hash key ordering:
+//! they feed only equality/membership tests and the maze state-slot
+//! key fold (`ExpandableObject::key`), so run-to-run determinism of
+//! all printed values is unaffected.
+//!
 //! Java `sectionArr` (the per-section `MazeSearchElement[]`) is maze
 //! state owned by T6; this port does NOT store it (or its length) on
 //! the door — [`ExpansionDoor::get_section_segments`] returns the
@@ -24,6 +44,8 @@
 //! walk stays in the integer `Point` domain until the final
 //! `toFloat()` conversions (`ExpansionDoor.java:171`).
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use epic_geometry::float_line::FloatLine;
 use epic_geometry::tile_shape::TileShape;
 
@@ -31,6 +53,11 @@ use epic_geometry::tile_shape::TileShape;
 /// (`AutorouteEngine.java:41`) — the slack added to the caller's
 /// half-width before shrinking a door section line.
 pub const TRACE_WIDTH_TOLERANCE: f64 = 2.0;
+
+/// The instance-tag source (see the module doc): Java's door object
+/// identity, one draw per construction. Single-threaded parity runs
+/// make the draw order deterministic; the values are never printed.
+static DOOR_TAG_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// An expansion door: a common edge between two expansion rooms
 /// (Java `ExpansionDoor`). The dimension may be 1 or 2; 2-dimensional
@@ -44,6 +71,10 @@ pub struct ExpansionDoor {
     pub second_room_id: i32,
     /// Java `dimension`.
     pub dimension: i32,
+    /// The instance tag — Java's reference identity (module doc).
+    /// Included in `PartialEq`: clones of one construction are the
+    /// copies of one Java object; distinct constructions differ.
+    pub(crate) tag: u64,
     // Java also holds `sectionArr` (the per-section maze state) ON the
     // door; this port keeps that state in the maze engine's
     // `door_sections` map (keyed by the door key) — a `section_count`
@@ -60,6 +91,7 @@ impl ExpansionDoor {
             first_room_id,
             second_room_id,
             dimension,
+            tag: DOOR_TAG_COUNTER.fetch_add(1, Ordering::Relaxed),
         }
     }
 
@@ -78,6 +110,7 @@ impl ExpansionDoor {
             first_room_id,
             second_room_id,
             dimension,
+            tag: DOOR_TAG_COUNTER.fetch_add(1, Ordering::Relaxed),
         }
     }
 

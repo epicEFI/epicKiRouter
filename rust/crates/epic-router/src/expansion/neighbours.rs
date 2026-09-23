@@ -291,6 +291,22 @@ pub trait NeighbourEngine {
     /// The registry key of the room with `getId() == id` (Java
     /// compares references; the engine resolves its id space).
     fn room_key_of_id(&self, id: i32) -> Option<u64>;
+    /// The door-driven EXACT endpoint resolution — Java
+    /// `door.otherRoom(room)` returns the room OBJECT connected by
+    /// this door. The bare id scan of [`Self::room_key_of_id`] is
+    /// unfaithful for that when two live incomplete rooms share
+    /// `getId()`: the formula `31 * shape.getId() + layer`
+    /// (`IncompleteFreeSpaceExpansionRoom.java:38-41`) runs on
+    /// content-derived shape ids, so equal-shape same-layer rooms
+    /// collide (the room.rs collision note). The endpoint is exactly
+    /// the live room whose door list holds THE door — door equality
+    /// carries the instance tag (Java's reference identity, door.rs
+    /// module doc), and doors attach to BOTH endpoints as clones of
+    /// one construction. No graveyard fallback: Java only reaches a
+    /// removed room through a door that `removeAllDoors` has already
+    /// stripped from the walking room, so a miss mirrors an
+    /// unreachable reference.
+    fn room_key_of_door(&self, id: i32, door: &ExpansionDoor) -> Option<u64>;
 
     // ---- room registry writes ----
     /// Java `setShape` + `setContainedShape` on the incomplete
@@ -922,8 +938,8 @@ impl BaseRoomNeighbours {
         }
         // Touching neighbour missing at the edge side with index
         // removeEdgeNo. Remove the edge line and restart the
-        // algorithm. (Java :448-457 — the ROOM_EDGE_REMOVE traces are
-        // diagnostic and omitted.)
+        // algorithm. (Java :448-457 has diagnostic FRLogger traces
+        // here, omitted — log-only, D12.)
         let enlarged_shape = TileShape::Simplex(Box::new(
             room_simplex.remove_border_line(remove_edge_no as usize),
         ));

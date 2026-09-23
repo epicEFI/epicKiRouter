@@ -418,6 +418,10 @@ impl NeighbourEngine for SynthWorld {
         None
     }
 
+    fn room_key_of_door(&self, _id: i32, _door: &ExpansionDoor) -> Option<u64> {
+        None
+    }
+
     fn set_incomplete_shape(
         &mut self,
         _room_key: u64,

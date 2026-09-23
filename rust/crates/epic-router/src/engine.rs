@@ -773,7 +773,7 @@ impl<'a> AutorouteEngine<'a> {
             let Some(other_id) = door.other_room_id(room_id) else {
                 continue;
             };
-            let Some(other_key) = self.room_key_of_id(other_id) else {
+            let Some(other_key) = self.room_key_of_door(other_id, &door) else {
                 continue;
             };
             let Some(other_index) = self.keys.iter().position(|&k| k == other_key) else {
@@ -842,7 +842,7 @@ impl<'a> AutorouteEngine<'a> {
             let Some(other_id) = door.other_room_id(room_id) else {
                 continue;
             };
-            let Some(other_key) = self.room_key_of_id(other_id) else {
+            let Some(other_key) = self.room_key_of_door(other_id, &door) else {
                 continue;
             };
             if let Some(index) = self.keys.iter().position(|&k| k == other_key) {
@@ -937,6 +937,27 @@ impl<'a> AutorouteEngine<'a> {
                     .find(|(_, room)| room.id() == id)
                     .map(|(key, _)| *key)
             })
+    }
+
+    /// The door-driven exact endpoint resolution: the live room of
+    /// `id` connected by `door` — holds THE door (the endpoint's copy
+    /// shares the instance tag, Java's reference identity). Java
+    /// resolves the other endpoint by OBJECT REFERENCE
+    /// (`door.otherRoom(room)`); the bare id scan of
+    /// [`Self::room_key_of_id`] is unfaithful for that when two live
+    /// incomplete rooms share `getId()`: the formula
+    /// `31 * shape.getId() + layer` (`IncompleteFreeSpaceExpansionRoom
+    /// .java:38-41`) runs on content-derived shape ids, so
+    /// equal-shape same-layer rooms collide (the room.rs collision
+    /// note). No graveyard fallback: Java only reaches a removed room
+    /// through a door that `removeAllDoors` has already stripped from
+    /// the walking room, so a miss mirrors an unreachable reference.
+    fn room_key_of_door(&self, id: i32, door: &ExpansionDoor) -> Option<u64> {
+        self.rooms
+            .iter()
+            .zip(&self.keys)
+            .find(|(room, _)| room.id() == id && room.doors().iter().any(|d| d == door))
+            .map(|(_, key)| *key)
     }
 
     fn item_nets(&self, key: u64) -> &[i32] {
@@ -1485,6 +1506,10 @@ impl NeighbourEngine for AutorouteEngine<'_> {
 
     fn room_key_of_id(&self, id: i32) -> Option<u64> {
         AutorouteEngine::room_key_of_id(self, id)
+    }
+
+    fn room_key_of_door(&self, id: i32, door: &ExpansionDoor) -> Option<u64> {
+        AutorouteEngine::room_key_of_door(self, id, door)
     }
 
     fn set_incomplete_shape(
@@ -2204,10 +2229,41 @@ impl DrillEngine for AutorouteEngine<'_> {
         }
     }
 
-    // `shove_trace_check` — the trait DEFAULT (0.0, the MazeTraceShover
-    // bank) is kept: the maze probe short-circuits to an empty shove
-    // list, matching a board with nothing shovable. The MazeTraceShover
-    // port is a banked SEAM debt.
+    fn shove_trace_check(
+        &mut self,
+        line_segment: &LineSegment,
+        shove_to_the_left: bool,
+        layer: i32,
+        net_numbers: &[i32],
+        half_width: i32,
+        clearance_class: i32,
+        max_shove_trace_recursion_depth: i32,
+        max_shove_via_recursion_depth: i32,
+    ) -> f64 {
+        // Java `MazeTraceShover.checkShoveTraceLine` (:202-212) calls
+        // the STATIC `TraceShover.check` (board/optimize/TraceShover.java
+        // :57-225) — the read-only shove-feasibility probe running on
+        // the DEFAULT search tree (it recurses through substitute trace
+        // pieces and obstacle vias but never mutates the board, so the
+        // maze probe stays within its read-only contract). The port is
+        // `epic_board::trace_shover::check_max_length`, pinned by the
+        // TraceShoverProbe replay; the T10 0.0 stub short-circuited
+        // every maze shove to "impossible" (all door lists empty, ripup
+        // only) — the t7 events divergence (M4-T6).
+        epic_board::trace_shover::check_max_length(
+            &mut *self.manager,
+            self.board,
+            line_segment,
+            shove_to_the_left,
+            layer,
+            net_numbers,
+            half_width,
+            clearance_class,
+            max_shove_trace_recursion_depth,
+            max_shove_via_recursion_depth,
+        )
+    }
+
     // `complete_expansion_room` — the trait DEFAULT composing the
     // completion primitives (`crate::maze::completion`).
 }

@@ -92,7 +92,7 @@ impl<E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngin
                 let next_room_id = self.ctx.room_id(next_room_key);
                 room_door
                     .other_room_id(next_room_id)
-                    .and_then(|id| self.ctx.room_key_of_id(id))
+                    .and_then(|id| self.ctx.room_key_of_door(id, room_door))
                     .filter(|key| self.ctx.room_is_obstacle(*key))
                     .and_then(|key| self.ctx.room_obstacle_item_key(key))
             }
@@ -220,7 +220,7 @@ impl<E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngin
         let next_room_id = self.ctx.room_id(next_room_key);
         let Some(from_room_key) = current_door
             .other_room_id(next_room_id)
-            .and_then(|id| self.ctx.room_key_of_id(id))
+            .and_then(|id| self.ctx.room_key_of_door(id, current_door))
         else {
             // Java `fromRoom == null` fails the instanceof arm.
             return false;

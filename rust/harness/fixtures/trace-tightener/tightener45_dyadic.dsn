@@ -1,0 +1,54 @@
+(PCB tightener45_dyadic.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary (rect pcb 0 0 100000 40000))
+    (snap_angle fortyfive_degree)
+    (rule (width 200) (clearance 250))
+  )
+  (placement
+    (component "CT"
+      (place "CT_COMP" 5000 5000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CT"
+      (pin "PADR" "PT" 0 0)
+    )
+    (padstack "PADR"
+      (shape (rect F.Cu -500 -500 500 500))
+      (attach off)
+    )
+  )
+  (network
+    (net "N1")
+    (net "N2")
+    (net "N9" (pins "CT_COMP"-"PT"))
+    (class kicad_default "N1" "N2" "N9"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+  (wiring
+    (wire (path F.Cu 200  0 25000 10000 25000 30000 5000 50000 5000 75000 30000 75000 35000) (net N1))
+    (wire (path F.Cu 200  30000 25000 35000 25000) (net N2))
+  )
+)

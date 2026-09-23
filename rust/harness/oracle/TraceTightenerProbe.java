@@ -126,6 +126,10 @@ public class TraceTightenerProbe {
       it.addProperty("kind", item.getClass().getSimpleName());
       it.addProperty("nets", java.util.Arrays.toString(item.netNumbers));
       if (item instanceof PolylineTrace trace) {
+        // T6 extension: the trace fixed state — the swap arm's
+        // fixed-state transfer (contactTrace.setFixedState before the
+        // combine) is only visible with it on the rows.
+        it.addProperty("fixed", trace.getFixedState().toString());
         JsonArray corners = new JsonArray();
         for (int i = 0; i < trace.polyline().lines.length - 1; i++) {
           FloatPoint c = trace.polyline().cornerApprox(i);
@@ -340,6 +344,64 @@ public class TraceTightenerProbe {
   }
 
   /**
+   * The TAIL-WORLDS mode (`args[1] == "tailworlds"`, M4-T6): the
+   * pin-connection tail witness (swapConnectionToPin /
+   * correctConnectionToPin inside `PolylineTrace.pullTight`, gated
+   * `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`).
+   * One world PER PolylineTrace of the fixture (fresh parse each,
+   * ascending id, the cornerworlds join shape: the focal trace's own
+   * corners joined on layer 0, then the production-shape opt call).
+   * Emits a `tail_world` row per world (focal id + corner chains
+   * before/after, null when the focal id vanished — the swap arm
+   * combines and deletes traces) on top of the full inventory dumps
+   * (which since the T6 extension carry the trace fixed states, so
+   * the swap arm's setFixedState + combine shows as two traces
+   * becoming one unfixed one). Mode "tailgate0" (the boolean):
+   * `board.rules.setPinEdgeToTurnDist(0)` BEFORE the opt call — the
+   * `pinEdgeToTurnDist > 0` gate's negative arm; the tail must never
+   * fire and the inventory must stay put (the default-distance run of
+   * the same fixture is the positive control).
+   */
+  private static void runTailWorlds(byte[] bytes, String dsnPath, boolean gate0) throws Exception {
+    String fileName = Paths.get(dsnPath).getFileName().toString();
+    RoutingBoard once = parse(bytes, fileName);
+    List<Integer> ids = new ArrayList<>();
+    for (Item item : once.getItems()) {
+      if (item instanceof PolylineTrace) {
+        ids.add(item.getId());
+      }
+    }
+    ids.sort(Comparator.comparingInt(Integer::intValue));
+    for (int id : ids) {
+      RoutingBoard board = parse(bytes, fileName);
+      if (gate0) {
+        board.rules.setPinEdgeToTurnDist(0);
+      }
+      String before = traceCornersOrNull(board, id);
+      board.startMarkingChangedArea();
+      for (Item item : board.getItems()) {
+        if (item instanceof PolylineTrace trace && item.getId() == id) {
+          for (int i = 0; i < trace.polyline().lines.length - 1; i++) {
+            FloatPoint c = trace.polyline().cornerApprox(i);
+            board.joinChangedArea(c, 0);
+          }
+        }
+      }
+      dumpInventory("before", board);
+      board.optChangedArea(new int[0], null, 100, null, null, 0);
+      String after = traceCornersOrNull(board, id);
+      dumpInventory("after", board);
+      JsonObject r = obj("tail_world");
+      r.addProperty("fixture", fileName);
+      r.addProperty("gate0", gate0);
+      r.addProperty("trace", id);
+      r.addProperty("before", before);
+      r.addProperty("after", after);
+      row(r);
+    }
+  }
+
+  /**
    * The VIA-WORLDS mode (`args[1] == "viaworlds"`, M4-T5): the crafted
    * via worlds on via_optimizer45.dsn, each a fresh parse with ONE join
    * at the world's via center (layer 0) and the production-shape opt
@@ -380,10 +442,15 @@ public class TraceTightenerProbe {
       {{8}, {0}, {200000, 150000}}, // acute (N8)
       {{5}, {0}, {450000, 600000}}, // shove_fixed (N5, gate world)
       {{1}, {-1}, {600000, 380000}}, // costs_null (N1, consumption gate)
+      // T6 ledger world (b): the SAME N1 collinear geometry under the
+      // NON-UNIFORM cost table — where the collinear arm's first move
+      // and the acute arm's wd comparison may diverge (the T5-M1
+      // banked-healer settlement world).
+      {{1}, {1}, {600000, 380000}}, // collinear_costs (N1, costs 1)
     };
     String[] names = {
       "collinear", "gate3", "fanout", "projection", "costs", "costs_uniform", "acute",
-      "shove_fixed", "costs_null",
+      "shove_fixed", "costs_null", "collinear_costs",
     };
     for (int w = 0; w < worlds.length; w++) {
       RoutingBoard board = parse(bytes, fileName);
@@ -517,6 +584,14 @@ public class TraceTightenerProbe {
     }
     if (args.length > 1 && args[1].equals("viadepth")) {
       runViaDepthDiag(bytes);
+      return;
+    }
+    if (args.length > 1 && args[1].equals("tailworlds")) {
+      runTailWorlds(bytes, args[0], false);
+      return;
+    }
+    if (args.length > 1 && args[1].equals("tailgate0")) {
+      runTailWorlds(bytes, args[0], true);
       return;
     }
 

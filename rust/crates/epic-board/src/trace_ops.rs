@@ -54,26 +54,33 @@
 //! `new Polyline(newLines)` (D2: a 4-line input collapses to 3 lines
 //! / 2 corners — capture `joinedLen=3 joinedCorners=2`).
 //!
-//! # D18: replaceGeometry always (documented gap)
+//! # D18 CLOSED: the merge fast paths (M4-T6)
 //!
 //! Java branches on `hasDefaultEntries()`: with default tree entries
-//! it calls `mergeEntriesInFront/Behind` (an in-place entry-list
+//! it calls `mergeEntriesInFront/AtEnd` (an in-place entry-list
 //! splice, capture `branch=MERGE_ENTRIES`), otherwise
-//! `replaceGeometry`. The port ALWAYS takes the
-//! [`replace_geometry`] path (`remove` → `set_polyline` →
-//! `clear_derived_data` → `insert`,
-//! `PolylineTraceSearchTreeAdapter.java:34-40`; the adapter's
-//! explicit `clearSearchTreeEntries` is subsumed by
-//! [`SearchTreeManager::remove`], which drops the same state).
-//! Consequence, verified against the capture: the LEAF sets and leaf
-//! counts match everywhere (C1 17, C2 18, C3 16, R6 16, D2 17), but
-//! the I-node topology after a merge case can differ from Java's
-//! `MERGE_ENTRIES` history — that is a DOCUMENTED D18 divergence, so
-//! the merge-case pins compare leaf counts + survivor leaf rows
-//! (geometry-derived, structure-independent), while D2 — where Java
-//! itself took `branch=REPLACE_GEOMETRY` (capture
-//! `D2_PRED branch=REPLACE_GEOMETRY newCount=4 joinedLen=3`) — is
-//! pinned BYTE-IDENTICAL on the full 33-row tree dump.
+//! `replaceGeometry`. The port ORIGINALLY always took the
+//! [`replace_geometry`] collapse and documented the I-node topology
+//! difference as benign (leaf sets and counts matched everywhere in
+//! the T11/T12 captures). M4-T6 disproved the benign reading: the
+//! search-tree skeleton is HISTORY-DEPENDENT (the T5 bounds
+//! tightness invariant makes the STRUCTURE the observable), and the
+//! different REM/INS interleave inside the autorouter's insert-tail
+//! churn steered a later insert descent differently — the t7_ripup
+//! events divergence's second root cause (first divergence:
+//! completion interval s20→s21, java 40 vs rust 48 tree ops).
+//! [`SearchTreeManager::merge_entries_in_front`],
+//! [`SearchTreeManager::merge_entries_at_end`],
+//! [`SearchTreeManager::change_entries`], and the faithful
+//! [`SearchTreeManager::reuse_entries_after_cutout`] now reproduce
+//! Java's per-tree op sequence exactly (surviving leaves keep their
+//! tree position and are only re-labeled; the two/three replaced
+//! entries are removed; the link entries inserted in index order).
+//! The branch conditions are Java's (`joinedPolyline.lines.length
+//! != newLineCount || !hasDefaultEntries`), so cases where JAVA
+//! itself took `branch=REPLACE_GEOMETRY` (capture `D2_PRED
+//! branch=REPLACE_GEOMETRY newCount=4 joinedLen=3`) still collapse
+//! here and stay pinned byte-identical on the full tree dump.
 //!
 //! # The shrink rule and the loop's on-board recheck
 //!
@@ -862,12 +869,12 @@ fn trace_facts(board: &Board, id: ItemId) -> Option<TraceFacts> {
 /// (`:34-40`): remove → setPolyline → clearDerivedData → insert.
 /// The adapter's explicit `clearSearchTreeEntries` is subsumed by
 /// [`SearchTreeManager::remove`] (it drops the entry map AND the
-/// shape cache). The D18 branch point — see the module docs.
-/// `pub(crate)` since M4-T3: [`change_trace_geometry`] (the
-/// `PolylineTrace.change` port) reaches the same end state through
-/// this collapse — `ShapeSearchTree.changeEntries` is a leaf-reuse
-/// performance face whose end state is remove+reinsert (the
-/// `reuse_entries_after_cutout` precedent).
+/// shape cache). The SLOW arm of the D18 branch (module docs): Java
+/// reaches this when the ctor collapsed the join (`lines.length !=
+/// newLineCount`) or a trace lacks default-tree entries; the fast
+/// arms [`SearchTreeManager::merge_entries_in_front`],
+/// [`SearchTreeManager::merge_entries_at_end`] and
+/// [`SearchTreeManager::change_entries`] cover the rest.
 pub(crate) fn replace_geometry(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -897,8 +904,10 @@ pub(crate) fn replace_geometry(
 ///   Java's reference-diff on value-equal lines drives a value-neutral
 ///   tree replace, so skipping it leaves the same end state).
 /// * `:977-985` `keepAtStartCount`/`keepAtEndCount` feed
-///   `changeEntries` ONLY — dead in the remove+reinsert collapse
-///   ([`replace_geometry`]); the scans stay for their early-outs.
+///   `changeEntries` — ported as
+///   [`SearchTreeManager::change_entries`] (the kept head/tail
+///   leaves never leave the tree); the scans remain for their
+///   early-outs.
 /// * `:990-1000` the live clip read
 ///   (`changedArea?.getArea(getLayer())`) and `normalize(clipShape)`
 ///   under try/catch → `FRLogger.error`. The port's
@@ -952,9 +961,21 @@ pub(crate) fn change_trace_geometry(
         return;
     }
     // Java `:977-985`: `keepAtStartCount = max(firstDiff - 2, 0)`,
-    // `keepAtEndCount = max(newLen - lastDiff - 3, 0)` — changeEntries
-    // inputs only, dead in the collapse (module docs of this fn).
-    replace_geometry(manager, board, trace_id, new_polyline);
+    // `keepAtEndCount = max(newLen - lastDiff - 3, 0)` feed
+    // `changeEntries` — the kept-head/kept-tail leaf-reuse fast path
+    // (the replaced middle leaves are removed, the fresh middle
+    // inserted; the kept leaves never leave the tree). The polyline
+    // swap happens AFTER the entry surgery, exactly as in Java.
+    let keep_at_start_count = (index_of_first_different_line - 2).max(0);
+    let keep_at_end_count = (new_len - index_of_last_different_line - 3).max(0);
+    manager.change_entries(
+        board,
+        trace_id,
+        &new_polyline,
+        keep_at_start_count,
+        keep_at_end_count,
+    );
+    board.set_trace_polyline(trace_id, new_polyline);
     // Java `:991-1000`: the clip is read LIVE (the sweep's joins so
     // far on this layer), then the normalization runs and may remove
     // or split the trace — exactly as in Java.
@@ -1047,7 +1068,28 @@ fn combine_at_start(
     debug_assert_eq!(new_lines.len(), new_count);
     let joined = Polyline::new(new_lines);
     let joined_line_count = joined.lines.len();
-    replace_geometry(manager, board, trace_id, joined);
+    // The D18 branch (:304-323): the fast `mergeEntriesInFront` arm
+    // runs when the ctor did NOT collapse lines AND both traces carry
+    // default-tree entries; the collapse or a missing entry array
+    // falls back to the full remove/reinsert. The fast arm re-labels
+    // the surviving leaves IN PLACE (survivor tree positions are
+    // part of the observable tree skeleton), clears the joined-from
+    // trace's arrays, and only then swaps the polyline in.
+    if joined_line_count != new_count || !manager.has_default_entries(trace_id, other_id) {
+        replace_geometry(manager, board, trace_id, joined);
+    } else {
+        let to_no = other_lines.len() - usize::from(skip_line);
+        manager.merge_entries_in_front(
+            board,
+            other_id,
+            trace_id,
+            &joined,
+            (other_lines.len() - 3) as i32,
+            to_no as i32,
+        );
+        manager.clear_search_tree_entries(board, other_id);
+        board.set_trace_polyline(trace_id, joined);
+    }
     // The shrink rule (:324-327) — a degenerated (empty) joined
     // polyline removes the receiver ITSELF (through the repository, so
     // a deletion-forbidden receiver would survive).
@@ -1141,7 +1183,25 @@ fn combine_at_end(
     debug_assert_eq!(new_lines.len(), new_count);
     let joined = Polyline::new(new_lines);
     let joined_line_count = joined.lines.len();
-    replace_geometry(manager, board, trace_id, joined);
+    // The D18 branch (:428-447): the mirrored fast `mergeEntriesAtEnd`
+    // arm — gate identical to the start half's. The receiver is the
+    // merge's TO trace; the link window runs over the RECEIVER's line
+    // indices (`thisLines.length - 3` .. `toNo`).
+    if joined_line_count != new_count || !manager.has_default_entries(trace_id, other_id) {
+        replace_geometry(manager, board, trace_id, joined);
+    } else {
+        let to_no = a_array.len() - usize::from(skip_line);
+        manager.merge_entries_at_end(
+            board,
+            other_id,
+            trace_id,
+            &joined,
+            (a_array.len() - 3) as i32,
+            to_no as i32,
+        );
+        manager.clear_search_tree_entries(board, other_id);
+        board.set_trace_polyline(trace_id, joined);
+    }
     if joined_line_count < 3 {
         remove_item_through_repository(manager, board, trace_id);
     }

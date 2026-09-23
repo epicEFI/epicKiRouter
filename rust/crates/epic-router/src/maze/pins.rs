@@ -1669,11 +1669,18 @@ fn main_phase_protocol_pins() {
     // The direct occupancy state pin: the door-33 section-0 element
     // (head k=1) popped at k=1 — its section is marked. The popMeta
     // front-size rows are the behavioral mirror of this state.
-    let door33 = ExpandableObject::RoomDoor(ExpansionDoor {
-        first_room_id: 1,
-        second_room_id: 2,
-        dimension: 1,
-    });
+    // Resolved from the LIVE registry: the door instance tag is Java's
+    // object identity, so a literal `(1, 2, 1)` reconstruction would
+    // read a different state slot. The start room's list gained door
+    // 33 (`31*1+2`) when `completeNeighbourRooms` expanded the room.
+    let door33 = ExpandableObject::RoomDoor(
+        engine
+            .ctx
+            .room_doors(start_room)
+            .into_iter()
+            .find(|d| d.id() == 33)
+            .expect("door 33 on the start room after the drain"),
+    );
     assert!(
         engine.maze_element(&door33, 0).is_occupied,
         "door 33 section 0 occupied after the drain"

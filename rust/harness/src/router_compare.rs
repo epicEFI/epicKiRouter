@@ -2560,8 +2560,15 @@ mod pins {
     /// / 0 unrouted / 16 violations). M4-T4 geometry rotation: with
     /// the 45° tightener live the detail pass straightens its own
     /// output — 15 traces / 0 vias / 66 bends became 14 traces / 0
-    /// vias / 19 bends (score and violations UNCHANGED: the Java
-    /// record 991.32 / 0 / 16 still matches). Mutants: a
+    /// vias / 19 bends. M4-T6 rotation: with the engine's
+    /// `DrillEngine::shove_trace_check` wired to the production
+    /// `epic_board::trace_shover::check_max_length` (bug-187 — the
+    /// 0.0 stub had short-circuited every maze shove to ripup-only),
+    /// the detail pass's shove decisions changed again: 14/0/19 became
+    /// 25/0/22, re-measured deterministic across runs. Score and
+    /// violations UNCHANGED through both rotations: the Java record
+    /// 991.32 / 0 / 16 still matches (the counts are the buglog-176
+    /// DETERMINISM FINGERPRINT, not a jar anchor). Mutants: a
     /// machinery that fabricates or swallows the worker result dies
     /// here; a wall that fires early turns this `Ok` into the deadline
     /// `Err` and dies here; a regression of the buglog-176 fix (the CA
@@ -2589,9 +2596,10 @@ mod pins {
         );
         assert_eq!(
             (detail.trace_count, detail.via_count, detail.bend_count),
-            (14, 0, 19),
-            "buglog-176 geometry counts post M4-T4: 14 traces / 0 vias / \
-             19 bends (the live tightener's straightening; was 15/0/66)"
+            (25, 0, 22),
+            "buglog-176 geometry counts post M4-T6: 25 traces / 0 vias / \
+             22 bends (the wired production shover; was 14/0/19 under the \
+             T4 tightener alone, 15/0/66 pre-T4)"
         );
     }
 

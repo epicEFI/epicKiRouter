@@ -80,10 +80,14 @@
 //!   the port reproduces exactly that.
 
 use epic_dsn::sink::{ComponentIr, FixedStateIr, ImageIr, ImagePinIr, PadstackIr};
+use epic_geometry::direction::Direction;
 use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_point::IntPoint;
 use epic_geometry::int_vector::IntVector;
+use epic_geometry::line::Line;
 use epic_geometry::point::Point;
+use epic_geometry::polyline::Polyline;
+use epic_geometry::tile_shape::TileShape;
 use epic_geometry::vector::Vector;
 
 use crate::board::board_shape_from_ir;
@@ -981,6 +985,241 @@ pub fn pin_center(
         }
     }
     Some(pin_center_point)
+}
+
+// ---------------------------------------------------------------------------
+// Pin trace-exit restrictions (M4-T6, the pull-tight pin-connection tail)
+// ---------------------------------------------------------------------------
+
+/// Java `Pin.TraceExitRestriction` (`Pin.java:694-705`) — one allowed
+/// trace exit direction from a pin pad, plus the minimal trace line
+/// length from the pin center into that direction.
+#[derive(Clone, Debug)]
+pub struct PinTraceExitRestriction {
+    /// Java `direction`.
+    pub direction: Direction,
+    /// Java `minLength` — the pin-center-to-pad-border distance along
+    /// `direction` (computed on the TRANSFORMED pin shape, `Pin.java:317-327`).
+    pub min_length: f64,
+}
+
+/// Java `Padstack.getTraceExitDirections(layer, factor)`
+/// (`Padstack.java:167-196`) — the RAW (untransformed) padstack
+/// shape's allowed exit directions. Empty for out-of-range layers,
+/// null shape slots, and non-IntBox/IntOctagon shapes (a simplex pad
+/// yields none); the long sides only join when the pad is at least
+/// `factor` times longer than it is wide. The callers rotate the
+/// result into the component frame (`Pin.java:306-315`).
+fn padstack_trace_exit_directions(
+    padstack: &BoardPadstack,
+    layer: i32,
+    factor: f64,
+) -> Vec<Direction> {
+    if layer < 0 || layer >= padstack.board_layer_count() as i32 {
+        return Vec::new();
+    }
+    let Some(BoardShape::Tile(tile)) = padstack.get_shape(layer as usize) else {
+        return Vec::new();
+    };
+    // Java: `currentShape instanceof IntBox || currentShape instanceof
+    // IntOctagon` — the Simplex arm is excluded.
+    let TileShape::RegularTileShape(_) = tile else {
+        return Vec::new();
+    };
+    let bounds = tile.bounding_box();
+    let width = f64::from(bounds.ur.x - bounds.ll.x);
+    let height = f64::from(bounds.ur.y - bounds.ll.y);
+    let all_dirs = width.max(height) < factor * width.min(height);
+    let mut result = Vec::new();
+    if all_dirs || width >= height {
+        result.push(Direction::RIGHT);
+        result.push(Direction::LEFT);
+    }
+    if all_dirs || width <= height {
+        result.push(Direction::UP);
+        result.push(Direction::DOWN);
+    }
+    result
+}
+
+/// Java `Pin.getTraceExitRestrictions(layer)` (`Pin.java:265-331`) —
+/// the allowed trace exit directions of the pin's pad on `layer` with
+/// their minimal trace line lengths. The DIRECTIONS derive from the
+/// raw padstack shape (`padstack_trace_exit_directions`) rotated into
+/// the component frame; the LENGTHS read the transformed pin shape
+/// (`Pin.getShape`) along the ray from the pin center. The pin-count
+/// factor is Java's literal: 1.5, doubled for packages with <= 3 pins
+/// (`:268-277`).
+#[allow(clippy::cast_possible_truncation)] // the `(int) rotation / 45` cast is Java's
+pub fn pin_trace_exit_restrictions(
+    components: &Components,
+    library: &BoardLibrary,
+    component_id: u32,
+    pin_index: i32,
+    layer: i32,
+) -> Vec<PinTraceExitRestriction> {
+    let Some((component, package_pin)) =
+        resolve_package_pin(components, library, component_id, pin_index)
+    else {
+        // Java: `component == null` returns the empty set AFTER the
+        // padstack-directions check (`:285-287`); both orders answer
+        // empty, the unresolvable-chain face is the same.
+        return Vec::new();
+    };
+    let padstack = match library.padstack(package_pin.padstack_no) {
+        Some(padstack) => padstack,
+        None => return Vec::new(),
+    };
+    let first_layer = pin_first_layer(component, padstack);
+    let mut pad_xy_factor = 1.5;
+    // Java `:273-277`: the package pin-count doubling.
+    if let Some(package) = library.package(component.package_no())
+        && package.pins.len() <= 3
+    {
+        pad_xy_factor *= 2.0;
+    }
+    let padstack_layer = padstack_layer(component, padstack, layer - first_layer);
+    let directions = padstack_trace_exit_directions(padstack, padstack_layer, pad_xy_factor);
+    if directions.is_empty() {
+        return Vec::new();
+    }
+    // Java `:288-291`: `getShape(layer - firstLayer())` must be a
+    // TileShape — the FULL transformed shape (Simplex INCLUDED, unlike
+    // the raw-padstack gate above).
+    let Some(BoardShape::Tile(pad_tile)) = pin_shape(
+        components,
+        library,
+        component_id,
+        pin_index,
+        layer - first_layer,
+    ) else {
+        return Vec::new();
+    };
+    let Some(center) = pin_center(components, library, component_id, pin_index) else {
+        return Vec::new();
+    };
+    let center_approx = center.to_float();
+    // Java `:306-315`: the component+package rotation into the
+    // component frame — the 45-exact turn, else the approx angle.
+    let rotation = component.rotation_in_degree + package_pin.rotation;
+    let mut result = Vec::new();
+    for base in directions {
+        let direction = if rotation % 45.0 == 0.0 {
+            base.turn_45_degree((rotation as i32) / 45)
+        } else {
+            Direction::get_instance_approx(java_to_radians(rotation) + base.angle_approx())
+        };
+        // Java `:317-322`: the min length from the pin center into
+        // `direction` on the TRANSFORMED pad shape. A missing border
+        // line warns and SKIPS the direction (Java's FRLogger.warn is
+        // log-only, D12).
+        let border_no = pad_tile.intersecting_border_line_no(&center, &direction);
+        if border_no < 0 {
+            continue;
+        }
+        let ray = Line::new_with_direction(center.clone(), direction.clone());
+        let border_point = ray.intersection_approx(&pad_tile.border_line(border_no));
+        result.push(PinTraceExitRestriction {
+            min_length: center_approx.distance(&border_point),
+            direction,
+        });
+    }
+    result
+}
+
+/// Java `Pin.calcNearestExitRestrictionDirection`
+/// (`Pin.java:569-632`) — the nearest legal pin exit direction for
+/// changing `trace_polyline` (assumed to start at the pin center),
+/// or `None` when no restriction matches. `pin_edge_to_turn_dist` is
+/// the caller-cached `rules.getPinEdgeToTurnDist()` (the `< 0` gate
+/// answers `None`, `:580-583`).
+#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+#[must_use]
+pub fn pin_calc_nearest_exit_restriction_direction(
+    components: &Components,
+    library: &BoardLibrary,
+    component_id: u32,
+    pin_index: i32,
+    trace_polyline: &Polyline,
+    trace_half_width: i32,
+    layer: i32,
+    pin_edge_to_turn_dist: f64,
+) -> Option<Direction> {
+    let restrictions =
+        pin_trace_exit_restrictions(components, library, component_id, pin_index, layer);
+    if restrictions.is_empty() {
+        return None;
+    }
+    let (component, package_pin) =
+        resolve_package_pin(components, library, component_id, pin_index)?;
+    let padstack = library.padstack(package_pin.padstack_no)?;
+    let first_layer = pin_first_layer(component, padstack);
+    let Some(BoardShape::Tile(pin_tile)) = pin_shape(
+        components,
+        library,
+        component_id,
+        pin_index,
+        layer - first_layer,
+    ) else {
+        return None;
+    };
+    if pin_edge_to_turn_dist < 0.0 {
+        return None;
+    }
+    let offset_shape = pin_tile.offset(pin_edge_to_turn_dist + f64::from(trace_half_width));
+    let entries = offset_shape.entrance_points(trace_polyline);
+    let &latest_entry = entries.last()?;
+    let trace_entry_location_approx = trace_polyline.lines[latest_entry.0 as usize]
+        .intersection_approx(&offset_shape.border_line(latest_entry.1));
+    // The nearest-exit loop (`:595-630`): strictly nearer wins; inside
+    // the tolerance-1 band the trace-corner comparison decides.
+    let mut min_exit_corner_distance = f64::MAX;
+    let mut nearest_exit_corner: Option<FloatPoint> = None;
+    let mut pin_exit_direction: Option<Direction> = None;
+    const TOLERANCE: f64 = 1.0;
+    let center = pin_center(components, library, component_id, pin_index)?;
+    for restriction in &restrictions {
+        // Java reads the border line unconditionally (`:601-606`);
+        // a missing border line on the offset shape is Java-unreachable
+        // (the un-offset derivation found one). The port answers None
+        // for the frame instead of indexing out of bounds.
+        let border_no = offset_shape.intersecting_border_line_no(&center, &restriction.direction);
+        if border_no < 0 {
+            return None;
+        }
+        let ray = Line::new_with_direction(center.clone(), restriction.direction.clone());
+        let exit_corner = ray.intersection_approx(&offset_shape.border_line(border_no));
+        let exit_corner_distance = exit_corner.distance_square(&trace_entry_location_approx);
+        let mut new_nearest_corner_found = false;
+        if exit_corner_distance + TOLERANCE < min_exit_corner_distance {
+            new_nearest_corner_found = true;
+        } else if exit_corner_distance < min_exit_corner_distance + TOLERANCE {
+            // the distances are near equal, compare to the previous
+            // corners of tracePolyline (`:611-624`)
+            if let Some(old_corner) = nearest_exit_corner {
+                for i in 1..trace_polyline.corner_count() as i32 {
+                    let current_trace_corner = trace_polyline.corner_approx(i);
+                    let current_trace_corner_distance =
+                        current_trace_corner.distance_square(&exit_corner);
+                    let old_trace_corner_distance =
+                        current_trace_corner.distance_square(&old_corner);
+                    if current_trace_corner_distance + TOLERANCE < old_trace_corner_distance {
+                        new_nearest_corner_found = true;
+                        break;
+                    } else if current_trace_corner_distance > old_trace_corner_distance + TOLERANCE
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        if new_nearest_corner_found {
+            min_exit_corner_distance = exit_corner_distance;
+            pin_exit_direction = Some(restriction.direction.clone());
+            nearest_exit_corner = Some(exit_corner);
+        }
+    }
+    pin_exit_direction
 }
 
 // ---------------------------------------------------------------------------

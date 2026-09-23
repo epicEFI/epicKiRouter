@@ -506,7 +506,39 @@ fn t3_stoppable_flag_face() {
 /// T4 mutant round added the same-class healers T4-M1 (reposition
 /// nearer-corner tie flip, fires 11x on the 45° pins) and T4-M2
 /// (smoothen tie flip, fires once). These literals pin the
-/// arm-execution path downstream so a heal-break surfaces here.
+/// middle-corner skip path. LEDGER DISPOSITION (T6 re-triage — all
+/// four banked healers now PERMANENTLY CLOSED, evidence under
+/// logs/M4-T6/evidence/): (1) T3-M2 healed again on the 33/35-pin
+/// suites (`mut_T3-M2_second_last_corner_t6tailpins_33green.log`) and
+/// is closed structurally — the bogus 3-line tail's extra corner is
+/// re-skippable by the same clear direct connection within the same
+/// sweep unless another trace moves in between (a cross-trace
+/// interleaving no single-fixture world sustains). (2) T4-M1 healed
+/// (`mut_T4-M1_tie_flip_t6tailpins_33green.log`); closed structurally
+/// — at an exact tie the two candidates are equidistant same-side, so
+/// their chord is parallel to the line and the snap line through
+/// either corner is the IDENTICAL line; the residual Int/Rational
+/// mixed-tie surface is unconstructible within float error.
+/// (3) T4-M2 healed (`mut_T4-M2_smoothen_tie_t6tailpins_33green.log`);
+/// closed structurally — at a tie both candidates lie on the shared
+/// outer side of the bisector with equal magnitude, so the flip is a
+/// semantic no-op (the NEAR-tie magnitude choice stays pinned by the
+/// S1b/S1c worlds). (4) T3-Q4 healed on every world including the two
+/// T6 ledger worlds below
+/// (`mut_T3-Q4_first_time_break_t6ledger_35green.log`); closed
+/// structurally — for any f64-exact nearest corner the mutant's
+/// post-acceptance search provably re-lands on the identical
+/// through-corner line (the overshoot guard crawls back in exact
+/// 0.5-steps), mid-search dyadic acceptances are transient (any change
+/// re-triggers the fixpoint, whose terminals are integer-lattice —
+/// the [`t6_dyadic45_integer_terminal_jar_literal`] world), and the
+/// skip arms preempt the translate loop in worlds that do not block
+/// every skip corridor individually
+/// ([`t6_bisect45_skip_preempt_jar_literal`]); the only residual is a
+/// float-epsilon straddle of the side-check at a diagonal-direction
+/// corner — the same uncraftable JVM-arithmetic-luck class the T4-M1
+/// close excludes. The literals below still pin the arm-execution
+/// path downstream so a heal-break surfaces here.
 #[test]
 fn t3_last_corner_skip_corner_worlds_jar() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -996,17 +1028,21 @@ fn t4_smooth_corner_worlds_jar() {
     }
 }
 
-/// The pin-connection tail face, DEFERRED in the port: the jar's tail
+/// The pin-connection tail face, LANDED in T6 (was the T4 deferral —
+/// this pin began life as `t4_tail_deferral_counter_witness`, asserting
+/// the RUST world stayed byte-exact while the jar split it; the deferral
+/// contract died the day the tail landed). The jar's tail
 /// (swap/correctConnectionToPin inside `PolylineTrace.pullTight`)
 /// splits the diagonal into an L-stub plus a pad-side stub —
 /// jar after (run3 capture): `1|150000:150000;58517:58517;58517:50000`
-/// and `1|50000:50000;58517:50000`. The Rust seam has no tail yet, so
-/// the pin asserts the RUST world stays byte-exact (the deferral
-/// contract); the jar literal is the counter-witness that isolates
-/// any FUTURE tail work to this face, and the unsplit-diagonal literal
-/// dies the day the tail lands unreviewed.
+/// and `1|50000:50000;58517:50000`. The port now reproduces the jar
+/// literal byte-exactly (correct arm: the diagonal's SW end direction
+/// matches no cardinal exit restriction of the square pad, so
+/// `correctConnectionToPin(false)` rebuilds the end along the LEFT
+/// exit and inserts the shove-fixed stub; the swap arms are inert —
+/// the single end contact is the PIN, not a shove-fixed trace).
 #[test]
-fn t4_tail_deferral_counter_witness() {
+fn t6_tail_correct_arm_jar_literal() {
     let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail.dsn";
     let (_manager, board) = parse_fixture_rel(rel);
     let before = trace_fingerprint(&board);
@@ -1014,8 +1050,242 @@ fn t4_tail_deferral_counter_witness() {
     let (_manager, board) = run_45_corner_world(rel, 3);
     assert_eq!(
         trace_fingerprint(&board),
-        before,
-        "Rust tail deferral: byte-exact (jar counter-witness splits this)"
+        vec![
+            "1|150000:150000;58517:58517;58517:50000",
+            "1|50000:50000;58517:50000",
+        ],
+        "tail landed: jar run3 counter-witness literal is now the Rust result"
+    );
+}
+
+/// OUTCOME parity pin for the swap-CANDIDATE geometry (jar
+/// `tailworlds` witness, `tail45_swap_worlds.jsonl`): a SHOVE-FIXED
+/// pad stub met by a free loop that wraps back into the offset pad.
+/// Mechanism note (instrumented debug build, since removed): the tail
+/// is NOT the producer here — the main 45-degree tightener slides the
+/// loop onto the stub's line (a legal same-net overlap), and the
+/// overlap consolidation then deletes the SHOVE-FIXED stub, leaving
+/// ONE unfixed pad stub. The same cascade runs in the jar (the
+/// pull-tight tail only runs when the tightener returns the input
+/// unchanged, so the preemption is Java-faithful). The pin anchors
+/// the jar OUTCOME byte-exactly; the swap arm's own FIRE face is
+/// pinned separately by [`t6_tail_swap_fire_jar_literal`], whose
+/// world denies the tightener any improving move first.
+#[test]
+fn t6_tail_swap_world_outcome_jar_literal() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail_swap.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|150000:50000;120000:80000;120000:180000;20000:180000;20000:50000;46500:50000",
+            "1|50000:50000;150000:50000",
+        ],
+        "swap world parse: shove-fixed pad stub + free loop"
+    );
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|50000:50000;46500:50000"],
+        "jar outcome: one pad stub (slide + overlap consolidation)"
+    );
+}
+
+/// The OUTCOME control twin (jar `tail45_swap_notshove_worlds.jsonl`):
+/// the same geometry with the stub trace USER_FIXED (`(type protect)`
+/// — the lexer's catch-all fixed arm) instead of SHOVE-FIXED. The
+/// overlap consolidation refuses to absorb a USER_FIXED trace, so the
+/// stub SURVIVES beside the collapsed loop (jar after: `{3 USER_FIXED
+/// unchanged, 6 UNFIXED 50000:50000;46500:50000}`). The fixed-state
+/// sensitivity of the consolidation is the face this twin pins; the
+/// swap arm's STRICT SHOVE_FIXED-equality gate is pinned by
+/// [`t6_tail_swap_fire_not_shove_control`].
+#[test]
+fn t6_tail_swap_world_notshove_outcome_control() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail_swap_notshove.dsn";
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|50000:50000;150000:50000", "1|50000:50000;46500:50000",],
+        "USER_FIXED stub survives the consolidation"
+    );
+}
+
+/// The swap arm's FIRE face (jar `tail45_swap_fire_worlds.jsonl`,
+/// BOTH focal joins reaching the identical final): S is a SHOVE-FIXED
+/// diagonal exiting the pad NE; F is a free W-then-S wrap whose end
+/// re-enters the offset pad box from the north. F's tightening is
+/// clearance-blocked by S into a local optimum, so the pull-tight
+/// TAIL runs — `swapConnectionToPin(at_start)` finds S as F's single
+/// start contact (exact SHOVE_FIXED equality), the sharp-angle
+/// projection (NE vs W) is NEGATIVE, and the combined polyline's last
+/// entry into the offset pad shape (the north border) picks the exit
+/// UP, different from S's own NE — all five Java `:1252-1313`
+/// conditions hold, so the swap fires: `setFixedState(S := UNFIXED)`
+/// plus `combine()`, and the fixpoint cascade collapses the merged path
+/// to the jar's final `50000:50000;50000:51000;45000:56000`. Only the
+/// swap deletes a SHOVE-FIXED trace (the correct arm only ever
+/// INSERTS shove-fixed stubs), so S's vanishing is the fire's
+/// signature. (Two earlier world designs for this face were killed by
+/// preempting faces, both jar-witnessed in evidence/: the loop world
+/// — tightener slide onto the stub's line,
+/// `tail45_swap_worlds.jsonl` — and the anti-parallel retrace world —
+/// the parse itself consolidates the SHOVE-FIXED overlap away,
+/// `tail45_swap_diag_worlds.jsonl`, pinned by
+/// [`t6_tail_swap_diag_parse_consolidation_jar_literal`].)
+#[test]
+fn t6_tail_swap_fire_jar_literal() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail_swap_fire.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|50000:50000;94000:94000",
+            "1|94000:94000;45000:94000;45000:56000",
+        ],
+        "swap-fire parse: shove-fixed NE diagonal + free W-S wrap"
+    );
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|50000:50000;50000:51000;45000:56000"],
+        "swap fired: the shove-fixed diagonal is gone (combined away)"
+    );
+}
+
+/// The swap gate's STRICT fixed-state equality control
+/// (`currentContact.getFixedState() == FixedState.SHOVE_FIXED`,
+/// `:1265`; jar `tail45_swap_fire_notshove_worlds.jsonl`): the same
+/// fire world with S USER_FIXED must REFUSE the swap — S SURVIVES
+/// unchanged and F stops at its S-blocked tightener optimum
+/// (`94000:94000;83000:94000;45000:56000`). USER_FIXED passes the
+/// ordinal `isShoveFixed()` face (USER_FIXED >= SHOVE_FIXED), so a
+/// relaxation of the equality would combine here and drop S — the
+/// surviving S is the discriminator (mutant T6-M1 kills exactly
+/// here).
+#[test]
+fn t6_tail_swap_fire_not_shove_control() {
+    let rel =
+        "../../../rust/harness/fixtures/trace-tightener/tightener45_tail_swap_fire_notshove.dsn";
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|50000:50000;94000:94000",
+            "1|94000:94000;83000:94000;45000:56000",
+        ],
+        "swap refused for the USER_FIXED contact: S survives, F stops blocked"
+    );
+}
+
+/// The parse-consolidation face that the SHOVE-FIXED overlap worlds
+/// run into (jar `tail45_swap_diag_worlds.jsonl`): an anti-parallel
+/// free wire fully covering a SHOVE-FIXED wire is consolidated AT
+/// PARSE into ONE UNFIXED trace spanning the uncovered remainder —
+/// the SHOVE-FIXED state does not survive the consolidation (the
+/// `(type protect)` twin keeps BOTH traces, jar
+/// `tail45_swap_diag_notshove_worlds.jsonl`). The jar's single parse
+/// trace carries id 6 (the SECOND wire's insert id); the id-parity
+/// assert pins the Rust id assignment too. The subsequent corner
+/// world is the correct arm on the SW diagonal (the 41483 pad-exit
+/// rebuild + SHOVE-FIXED stub, the mirror of
+/// [`t6_tail_correct_arm_jar_literal`]'s 58517 literal).
+#[test]
+fn t6_tail_swap_diag_parse_consolidation_jar_literal() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail_swap_diag.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|50000:50000;38000:38000"],
+        "parse consolidation: the shove-fixed overlap is eaten to one unfixed trace"
+    );
+    let id = board
+        .iter_descending()
+        .find(|entry| matches!(entry.data, ItemData::Trace { .. }))
+        .map(|entry| entry.id.get() as i32)
+        .expect("single trace");
+    assert_eq!(id, 6, "the surviving trace carries the SECOND wire's id");
+    let (_manager, board) = run_45_corner_world(rel, 6);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|41483:50000;41483:41483;38000:38000",
+            "1|50000:50000;41483:50000",
+        ],
+        "correct arm on the SW diagonal: 41483 exit rebuild + shove-fixed stub"
+    );
+}
+
+/// The `pinEdgeToTurnDist > 0` gate arm (Java `:842`, the second
+/// conjunct of the tail gate; `BoardRules.setPinEdgeToTurnDist` doc:
+/// "If the value is <= 0, there are no exit restrictions"). The SAME
+/// tail world with the distance forced to 0 before the opt call must
+/// leave the trace UNCHANGED — the default-distance run of the same
+/// fixture is the positive control ([`t6_tail_correct_arm_jar_literal`]).
+/// Jar witness (`tail45_gate0_worlds.jsonl`, probe mode `tailgate0`
+/// calling `board.rules.setPinEdgeToTurnDist(0)`): after == before.
+#[test]
+fn t6_tail_gate_zero_edge_dist_negative() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_tail.dsn";
+    let (mut manager, mut board) = parse_fixture_rel(rel);
+    board.rules_mut().pin_edge_to_turn_dist = 0.0;
+    let joins: Vec<(i32, i32)> = {
+        let entry = board
+            .iter_descending()
+            .find(|entry| entry.id.get() as i32 == 3)
+            .expect("focal id present");
+        let lines = board.trace_polyline(entry.id).expect("focal polyline");
+        (0..lines.corner_count())
+            .map(|i| {
+                let c = lines.corner_approx(i as i32);
+                (c.x as i32, c.y as i32)
+            })
+            .collect()
+    };
+    start_marking_changed_area(&mut board);
+    for (x, y) in &joins {
+        join_changed_area(
+            &mut board,
+            &FloatPoint::new(f64::from(*x), f64::from(*y)),
+            0,
+        );
+    }
+    opt_changed_area(
+        &mut manager,
+        &mut board,
+        &mut TraceTightenerSeam,
+        &[],
+        None,
+        100,
+        None,
+        0,
+        None,
+        None,
+        0,
+        false,
+    );
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|150000:150000;50000:50000"],
+        "gate0: the tail never fires with pinEdgeToTurnDist == 0"
+    );
+}
+
+/// The `angleRestriction != NINETY_DEGREE` gate arm (Java `:842`,
+/// first conjunct): the SAME tail geometry on a ninety-degree board
+/// must stay UNCHANGED — the 90-degree tightener cannot improve the
+/// cornerless diagonal and the whole tail block is skipped. Jar
+/// witness (`tail90_worlds.jsonl` on `tightener90_tail.dsn`): after
+/// == before (the diagonal also survives the 90-degree parse
+/// untouched, so the world isolates the gate, not a parse face).
+#[test]
+fn t6_tail_gate_ninety_degree_negative() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener90_tail.dsn";
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|150000:150000;50000:50000"],
+        "gate90: the tail never fires on a ninety-degree board"
     );
 }
 
@@ -1435,6 +1705,36 @@ fn t5_costs_null_consumption_gate_keeps_the_arm_dead() {
     assert_via_centers(&board, BEFORE_CENTERS);
 }
 
+/// The T6 ledger world for the T5-M1 banked healer: the SAME N1
+/// collinear geometry joined at its center, but under the
+/// NON-UNIFORM F.Cu (1,3) / B.Cu (3,1) cost table (jar
+/// `viaworlds` world `collinear_costs`,
+/// `via45_viaworlds_t6_ledger.jsonl`): the collinear arm still walks
+/// N1 west to the nearer bend (400000,380000). This is the world
+/// where the collinear arm's absence could first diverge — with
+/// non-uniform costs the acute arm's wd comparison need not tie, so
+/// the T5-M1 heal (the acute arm issuing the identical
+/// `repositionVia(secondCorner, FIRST params)` call) is no longer
+/// forced by symmetry. (Mutant re-run verdict recorded in the task
+/// report; the uniform-cost twin is
+/// [`t5_collinear_world_moves_to_the_nearer_bend`].)
+#[test]
+fn t6_collinear_costs_ledger_world_jar_literal() {
+    let (_manager, board) = run_via_world(&[(600000, 380000)], Some(&costs_f13_b31()));
+    assert_via_centers(
+        &board,
+        [
+            (400000, 380000),
+            (200000, 450000),
+            (900000, 150000),
+            (520000, 330000),
+            (720000, 450000),
+            (200000, 150000),
+            (450000, 600000),
+        ],
+    );
+}
+
 /// The recursion-depth gate boundary (production budget 10 through the
 /// seam is exercised by every other pin): driven DIRECTLY on the
 /// production `opt_via_location` — depth 0 answers false and leaves the
@@ -1490,4 +1790,78 @@ fn t5_depth_gate_boundary() {
             "depth 1: the jar's one-call arm-1 intermediate"
         );
     }
+}
+
+// ======================================================================
+// T6 ledger-consolidation worlds (the banked-mutant re-triage). Both
+// pins are jar-literal finals of worlds crafted to isolate the
+// `repositionLine` translate loop; both document WHY the banked
+// healers (T3-M2/T3-Q4/T4-M1/T4-M2) heal in every constructed world,
+// the T3-Q4 permanent-close evidence (see the module-head ledger note
+// and logs/M4-T6/evidence/).
+// ======================================================================
+
+/// The blocked S-bend world (`tightener45_bisect.dsn`; jar witness
+/// `evidence/tightener45_bisect_cornerworlds.jsonl`, probe mode
+/// `cornerworlds`, focal trace 3): N1 carries a 6-corner S-bend whose
+/// every corner-direct connection is non-45 (so the skip/reduce arms
+/// are lattice-blocked EXCEPT the tail merge at corner 4, whose direct
+/// NE line `y = x - 600000` misses both foreign-net blockers B1/N2 and
+/// B2/N3) — the jar shows the fixpoint exits through exactly that
+/// tail merge (6 corners → 3), so `repositionLines` (the ≥5-line
+/// translate loop hosting the T3-Q4 `first_time` break and the T4-M1
+/// nearest-corner tie face) NEVER FIRES: the two translate-loop
+/// banked mutants are preempted by the skip arm in every world whose
+/// skip corridors are not individually blocked. This pin holds that
+/// preemption shape as a regression fact.
+#[test]
+fn t6_bisect45_skip_preempt_jar_literal() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_bisect.dsn";
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|600000:100000;700000:100000;900000:300000",
+            "2|630000:200000;670000:200000",
+            "3|830000:150000;870000:150000",
+            "4|100000:100000;200000:100000;300000:200000;300000:300000;400000:300000",
+        ],
+        "bisect world (focal N1): the fixpoint exits through the tail-corner \
+         merge; the reposition translate loop never fires; the non-focal \
+         traces stay untouched in this world"
+    );
+}
+
+/// The dyadic-probe world (`tightener45_dyadic.dsn`; jar witness
+/// `evidence/tightener45_dyadic_cornerworlds.jsonl`, focal trace 3):
+/// N1's S-bend has ALL corner-directs non-45 (no skip arm can fire)
+/// and the N2 blocker sits ON the `repositionLine` first-probe
+/// (snap-through-nearest-corner) corridor `y = 250000`, forcing the
+/// translate loop into its binary-search body — the only constructed
+/// route to a half-DBU (dyadic) accepted line, whose next-sweep
+/// corners would be `Point::Rational` and thus dodge the snap face
+/// (the T3-Q4 residual surface). The jar's terminal is ALL-INTEGER
+/// (`245459` band with 45-degree stubs — the engine's fixpoint
+/// re-integerizes through the interplay of its arms), empirically
+/// confirming the structural close: every terminal reachable from
+/// integer DSN geometry is a through-corner or boundary line in the
+/// integer lattice, so the break-vs-continue difference of the
+/// `first_time` acceptance is unobservable in ANY final (the residual
+/// would need a float-epsilon straddle of the side-check at a
+/// diagonal-direction corner — the same JVM-arithmetic-luck class the
+/// T4-M1 close already excludes as uncraftable). Pin: the jar's
+/// integer terminal, both traces.
+#[test]
+fn t6_dyadic45_integer_terminal_jar_literal() {
+    let rel = "../../../rust/harness/fixtures/trace-tightener/tightener45_dyadic.dsn";
+    let (_manager, board) = run_45_corner_world(rel, 3);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|0:250000;100000:250000;104541:245459;645459:245459;750000:350000",
+            "2|300000:250000;350000:250000",
+        ],
+        "dyadic world: the fixpoint terminal is integer-lattice; \
+         no Rational corner survives to the final"
+    );
 }

@@ -902,7 +902,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             if let ExpandableObject::RoomDoor(room_door) = &element.door {
                 let next_room_id = self.ctx.room_id(next_room_key);
                 if let Some(from_room_id) = room_door.other_room_id(next_room_id)
-                    && let Some(from_room_key) = self.ctx.room_key_of_id(from_room_id)
+                    && let Some(from_room_key) = self.ctx.room_key_of_door(from_room_id, room_door)
                     && self.ctx.room_is_obstacle(from_room_key)
                 {
                     // otherwise entering through the small door
@@ -1064,8 +1064,8 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         &self,
         door: &crate::expansion::ExpansionDoor,
     ) -> (Option<u64>, Option<u64>, TileShape, TileShape) {
-        let first_key = self.ctx.room_key_of_id(door.first_room_id);
-        let second_key = self.ctx.room_key_of_id(door.second_room_id);
+        let first_key = self.ctx.room_key_of_door(door.first_room_id, door);
+        let second_key = self.ctx.room_key_of_door(door.second_room_id, door);
         let first_shape = self.ctx.room_shape(first_key.unwrap_or_else(|| {
             panic!(
                 "a live room door's first room is registered (door id {}, first room id {})",
@@ -1086,8 +1086,8 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// Java `doorIsSmall` (`:763-788`).
     #[must_use]
     pub fn door_is_small(&self, door: &crate::expansion::ExpansionDoor, trace_width: f64) -> bool {
-        let first_key = self.ctx.room_key_of_id(door.first_room_id);
-        let second_key = self.ctx.room_key_of_id(door.second_room_id);
+        let first_key = self.ctx.room_key_of_door(door.first_room_id, door);
+        let second_key = self.ctx.room_key_of_door(door.second_room_id, door);
         if door.dimension == 1
             || (first_key.is_some_and(|k| self.ctx.room_is_complete_free_space(k))
                 && second_key.is_some_and(|k| self.ctx.room_is_complete_free_space(k)))
@@ -1167,7 +1167,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 let from_room_id = self.ctx.room_id(from_room_key);
                 room_door
                     .other_room_id(from_room_id)
-                    .and_then(|id| self.ctx.room_key_of_id(id))
+                    .and_then(|id| self.ctx.room_key_of_door(id, room_door))
                     .filter(|other_key| {
                         self.ctx.room_is_complete_free_space(*other_key)
                             || self.ctx.room_is_obstacle(*other_key)

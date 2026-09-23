@@ -910,6 +910,23 @@ fn compare(repo_root: &Path, manifest: &Path, golden: &Path) -> Result<()> {
         let world = run_rust_world(&dsn, witness)
             .with_context(|| format!("Rust run of fixture {fixture}"))?;
 
+        // Triage dump (M4-T6): with `EPIC_EVENTS_DUMP=<path>` set, the
+        // Rust-side rows of every fixture append to the file — full
+        // (untruncated) texts, kind-tagged. A compare diagnostic only;
+        // unset the variable and the compare is byte-identical to the
+        // plain run.
+        if let Ok(dump_path) = std::env::var("EPIC_EVENTS_DUMP") {
+            use std::io::Write as _;
+            let mut dump = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&dump_path)
+                .with_context(|| format!("opening events dump {dump_path}"))?;
+            for (level, msg) in &world.rows {
+                writeln!(dump, "{fixture}\t{level}\t{msg}").context("writing events dump")?;
+            }
+        }
+
         // The golden trace rows of this fixture.
         let golden_msgs: Vec<String> = rows
             .iter()
@@ -2034,14 +2051,28 @@ mod pins {
     ///
     /// Any engine change that moves these ordinals must update the
     /// triage in the owning task's report (T16: logs/M3-T16/report.md;
-    /// M4-T1: logs/M4-T1/report-t1.md; M4-T4:
-    /// logs/M4-T4/report-t4.md), not silently shift this pin.
+    /// M4-T1: logs/M4-T1/report-t1.md; M4-T4: logs/M4-T4/report-t4.md;
+    /// M4-T6: logs/M4-T6/report-t6.md), not silently shift this pin.
     ///
-    /// PROXY SCOPING (quality review MINOR-5): the CLI `events compare`
-    /// bails at t7's triaged ordinal (1-based 74) and can never reach
-    /// t9 — so THIS in-process pin is the only surface asserting t9's
-    /// rows in the gate surface. When T6 closes the t7 residual, the
-    /// CLI compare inherits t9 coverage from this triage.
+    /// M4-T6 CLOSE (the triage is EMPTY): the t7 residual (former
+    /// 0-based-73 target-door expansionValue choice, golden
+    /// 62570.28048522717 vs Rust 821846.2953107631) and the t9 route
+    /// row-0 id-accounting residual (golden netItems=2->9/maxItemId=130
+    /// vs Rust 2->7/126) were BOTH downstream of the engine's
+    /// `shove_trace_check` 0.0 stub (bug-187): Java's
+    /// `MazeTraceShover.checkShoveTraceLine` calls the real static
+    /// `TraceShover.check`, the stub answered "shove impossible" and
+    /// every maze shove short-circuited to ripup-only, changing the
+    /// rip/reinsert op sequence and everything downstream. With the
+    /// production shover wired (`DrillEngine::shove_trace_check` ->
+    /// `epic_board::trace_shover::check_max_length`), ALL THREE
+    /// streams are byte-identical to the golden end-to-end (the CLI
+    /// `events compare` exits 0: 3520 golden rows aligned — the
+    /// MINOR-5 proxy-scoping concern is moot, the CLI compare now
+    /// covers every fixture itself). This pin holds the closed state:
+    /// per-fixture whole-stream equality plus the FORMER divergence
+    /// ordinals as golden-anchored witnesses (byte-equal today,
+    /// carrying the golden's values).
     #[test]
     fn rust_stream_aligns_through_triaged_divergences() {
         let golden_path =
@@ -2102,25 +2133,14 @@ mod pins {
                 }
             }
 
-            // The triage per fixture. e1 (post M4-T4): NO divergence —
-            // the whole pinned stream is byte-identical to the golden.
-            // t7/t9 pin (kind slot, 0-based diverging index, aligned
-            // prefix length, first differing field + the segment-value
-            // and full-row geometry witnesses).
-            // (kind slot, 0-based diverging index, aligned prefix
-            // length, golden value needle, rust value needle, golden
-            // witness needle, rust witness needle, compared field name).
-            type EventTriage = (
-                usize,
-                usize,
-                usize,
-                Vec<&'static str>,
-                Vec<&'static str>,
-                Vec<&'static str>,
-                Vec<&'static str>,
-                &'static str,
-            );
-            let triage: Option<EventTriage> = match fixture {
+            // The CLOSED triage per fixture: whole-stream equality plus
+            // the former divergence ordinals as golden-anchored
+            // witnesses. (Former shape: a triage tuple of
+            // (slot, diverging index, prefix, golden/rust needles,
+            // field) asserted `assert_ne!` — every tuple is gone; the
+            // Rust-measured residual needles (821846.30, 2->7, 126)
+            // are PURGED with the divergence they measured.)
+            match fixture {
                 "e1_ripup" => {
                     assert_eq!(
                         golden_grouped, rust_grouped,
@@ -2128,35 +2148,44 @@ mod pins {
                          to the Java golden — the Class B door-partition divergence \
                          (former 1-based ordinal 58) is CLOSED by the live tightener"
                     );
-                    None
                 }
-                // Post-M4-T4 re-triage: aligns through 1-based 73;
-                // diverges at 1-based 74 — a target-door CHOICE
-                // divergence (Class B family, T6 scope): golden expands
+                // Former divergence (post M4-T4, closed M4-T6): 0-based
+                // assign 73 — a target-door CHOICE: golden expands
                 // target door item=6 (bounds
                 // [(583750,273750)..(616250,306250)]) at expansionValue
-                // 62570.28, Rust at 821846.30. The M4-T4 tightener
-                // pushed this from the former 1-based 23.
-                "t7_ripup" => Some((
-                    0,
-                    73,
-                    73,
-                    vec!["expansionValue=62570.28048522717"],
-                    vec!["expansionValue=821846.2953107631"],
-                    vec!["door=TargetItemExpansionDoor/item=6/"],
-                    vec!["door=ExpansionDoor/bounds=[(518750,1350)..(518750,393340)]"],
-                    "expansionValue",
-                )),
-                // M4-T5 re-triage (the ViaOptimizer arm LIVE): the
-                // former Class B wall-door divergence at 0-based assign
-                // 1349 (golden wall at x=475440, Rust at x=315497) is
-                // HEALED — the whole assign+skip stream is
-                // byte-identical to the golden now. The residual face
-                // is the trailing route row's item accounting
-                // (netItems/maxItemId): the T4-DEFERRED pin-connection
-                // tail fires inside the via arm's fresh pull-tights in
-                // Java (2 trace splits: 2->9 items, maxItemId 130) and
-                // not in Rust (2->7, 126) — T6 owns the tail port.
+                // 62570.28; the stub-era Rust expanded a wall door at
+                // 821846.30. The row is byte-identical today and still
+                // carries the golden's needle.
+                "t7_ripup" => {
+                    assert_eq!(
+                        golden_grouped, rust_grouped,
+                        "t7_ripup post M4-T6: the whole pinned stream is byte-identical \
+                         to the Java golden — the shove-probe stub (bug-187) is wired \
+                         to the production shover"
+                    );
+                    assert!(
+                        golden_grouped[0][73].contains("expansionValue=62570.28048522717")
+                            && golden_grouped[0][73]
+                                .contains("door=TargetItemExpansionDoor/item=6/"),
+                        "t7 former-divergence witness: golden assign #73 (0-based) \
+                         carries the item=6 target door at 62570.28"
+                    );
+                    // The former Class A ordinal (1-based 3) stays
+                    // byte-identical post M4-T1 — both sides label
+                    // `item=11` with identical cost arithmetic, where
+                    // the pre-fix Rust stream carried phantom `item=10`.
+                    assert_eq!(
+                        golden_grouped[0][2], rust_grouped[0][2],
+                        "former Class A ordinal (1-based 3) byte-identical post M4-T1"
+                    );
+                }
+                // Former divergence (post M4-T5, closed M4-T6): the
+                // assign+skip streams healed with the via arm; the
+                // trailing route row's item accounting drifted
+                // (netItems/maxItemId — the T4-deferred tail fired in
+                // Java's fresh pull-tights but the id tail was stub-fed).
+                // The tail landed (M4-T6) and the stub is wired: the
+                // route rows are byte-identical too.
                 "t9_locator45" => {
                     assert_eq!(
                         golden_grouped[0], rust_grouped[0],
@@ -2167,69 +2196,19 @@ mod pins {
                         golden_grouped[1], rust_grouped[1],
                         "t9 skip stream byte-identical post M4-T5"
                     );
-                    Some((
-                        3,
-                        0,
-                        0,
-                        vec!["netItems=2->9"],
-                        vec!["netItems=2->7"],
-                        vec!["maxItemId=130"],
-                        vec!["maxItemId=126"],
-                        "netItems",
-                    ))
+                    assert_eq!(
+                        golden_grouped[3], rust_grouped[3],
+                        "t9 route stream byte-identical post M4-T6 (the former row-0 \
+                         netItems/maxItemId churn is closed)"
+                    );
+                    assert!(
+                        golden_grouped[3][0].contains("netItems=2->9")
+                            && golden_grouped[3][0].contains("maxItemId=130"),
+                        "t9 former-divergence witness: golden route row 0 carries \
+                         netItems=2->9 / maxItemId=130"
+                    );
                 }
                 other => panic!("unmapped fixture {other}"),
-            };
-
-            if let Some((slot, index, prefix, g_seg_has, r_seg_has, g_row_has, r_row_has, field)) =
-                triage
-            {
-                // The aligned prefix is byte-identical row for row.
-                for i in 0..prefix {
-                    assert_eq!(
-                        golden_grouped[slot][i], rust_grouped[slot][i],
-                        "{fixture} assign prefix must align through ordinal {prefix} (0-based {i})"
-                    );
-                }
-                // The diverging row differs, in the triaged field, with the
-                // triaged values on both sides (segment-level witnesses on
-                // the differing segment, geometry witnesses on the full
-                // rows).
-                let g = &golden_grouped[slot][index];
-                let r = &rust_grouped[slot][index];
-                assert_ne!(g, r, "{fixture} must diverge at 0-based {index}");
-                let (name, g_seg, r_seg) =
-                    first_differing_field(g, r).expect("field-level diff exists");
-                assert_eq!(name, field, "{fixture} triaged first differing field");
-                for needle in &g_seg_has {
-                    assert!(
-                        g_seg.contains(needle),
-                        "golden segment {g_seg} lacks {needle}"
-                    );
-                }
-                for needle in &r_seg_has {
-                    assert!(
-                        r_seg.contains(needle),
-                        "rust segment {r_seg} lacks {needle}"
-                    );
-                }
-                for needle in &g_row_has {
-                    assert!(g.contains(needle), "golden row lacks {needle}: {g}");
-                }
-                for needle in &r_row_has {
-                    assert!(r.contains(needle), "rust row lacks {needle}: {r}");
-                }
-
-                // The t7 witness (see the doc comment): the FORMER Class A
-                // divergence ordinal is byte-identical post M4-T1 — both
-                // sides label `item=11` with identical cost arithmetic,
-                // where the pre-fix Rust stream carried phantom `item=10`.
-                if fixture == "t7_ripup" {
-                    assert_eq!(
-                        golden_grouped[0][2], rust_grouped[0][2],
-                        "former Class A ordinal (1-based 3) byte-identical post M4-T1"
-                    );
-                }
             }
 
             // The run/incompletes faces still agree everywhere.
@@ -2242,40 +2221,41 @@ mod pins {
         }
     }
 
-    /// The Class-C face (buglog 174), pinned at the level that is TRUE
-    /// today: the route-row GRAMMAR. The live id values ARE (were) the
-    /// divergence and rest on buglog-174 manual runs until Classes
-    /// A/B close — they are deliberately NOT pinned here (they move
-    /// with the fix). M4-T4 UPDATE (the live tightener converged the
+    /// The Class-C face (buglog 174): the route-row GRAMMAR and id
+    /// accounting. M4-T4 UPDATE (the live tightener converged the
     /// pass-1 geometry and the id accounting moved with it): e1's id
-    /// churn is CLOSED — every e1 route row is now byte-equal to the
-    /// golden (the former witness: row 2 `maxItemId` 62-vs-390); t7's
-    /// churn MOVED (rows 0-2 byte-equal now, row 3 still drifts in
-    /// pure id-family fields: netItems 2->11 vs 2->12, maxItemId 93
-    /// vs 107) and its extra-attempt count drift is closed; t9 still
-    /// churns from row 0 (`maxItemId` 130-vs-126 face post M4-T5 —
-    /// the via arm burned 4 of Java's id churn; the residual is the
-    /// T4-deferred pin-connection tail, see the alignment-pin doc).
-    /// Pinned, via
-    /// the real [`field_name_of_segment`] the diff localizer uses:
-    /// (a) the field SKELETON (names + order) of every ALIGNED route
-    ///     row is identical on both sides;
-    /// (b) stripping `netItems=`/`maxItemId=` leaves EVERY aligned
-    ///     row byte-equal on all three fixtures (id churn, nothing
-    ///     else — t7's former attempt-structure churn at rows 5+
-    ///     shifted the running `incompletes=`/`netIncomplete=`
-    ///     snapshots; that churn class closed with the extra attempt;
-    ///     the pin caught its author's first-draft "id-only
-    ///     everywhere" overclaim on exactly that row);
-    /// (c) the per-fixture count face: all three agree post M4-T4
-    ///     (t7's former 7-vs-8 drift — Rust's extra attempt — is
-    ///     gone).
+    /// churn CLOSED — every e1 route row byte-equal to the golden
+    /// (former witness: row 2 `maxItemId` 62-vs-390); t7's churn MOVED
+    /// to row 3 (netItems 2->11 vs 2->12, maxItemId 93 vs 107) and
+    /// its extra-attempt count drift closed; t9 churned from row 0
+    /// (`maxItemId` 130-vs-126 face post M4-T5). M4-T6 CLOSE: the id
+    /// churn on t7 row 3 and t9 row 0 was DOWNSTREAM of the engine's
+    /// `shove_trace_check` 0.0 stub (bug-187 — the stub rerouted every
+    /// maze shove to ripup-only, churning the rip/reinsert op sequence
+    /// and with it the id accounting); with the production shover
+    /// wired, the route rows are byte-equal on ALL THREE fixtures and
+    /// the former difference faces are pinned GOLDEN-ANCHORED (the
+    /// Rust-measured literals 2->7/126/93 are purged; the golden's
+    /// 2->12/107 and 2->9/130 are the witnesses). Pinned, via the
+    /// real [`field_name_of_segment`] the diff localizer uses:
+    /// (a) the field SKELETON (names + order) of every route row is
+    ///     identical on both sides;
+    /// (b) stripping `netItems=`/`maxItemId=` leaves every route row
+    ///     byte-equal on all three fixtures (id churn, nothing else —
+    ///     t7's former attempt-structure churn at rows 5+ shifted the
+    ///     running `incompletes=`/`netIncomplete=` snapshots; that
+    ///     churn class closed with the extra attempt; the pin caught
+    ///     its author's first-draft "id-only everywhere" overclaim on
+    ///     exactly that row);
+    /// (c) the per-fixture count face: all three agree (t7's former
+    ///     7-vs-8 drift — Rust's extra attempt — is gone).
     ///
     /// A rendering drift (renamed, reordered, or dropped field) breaks
-    /// (a); a non-id value drift breaks (b); a Class-C fix that greens
-    /// the values collapses the difference faces and moves the t7
-    /// count — update report + SEAM triage with it, never silently
-    /// (M4-T4 is that update).
+    /// (a); a value drift breaks (b) and the equality faces. The
+    /// difference faces this pin used to hold (assert_ne! on the live
+    /// id churn) collapsed with the M4-T6 fix — update report + SEAM
+    /// triage with it, never silently (M4-T4 and M4-T6 are those
+    /// updates).
     #[test]
     fn route_rows_share_the_field_skeleton_and_diverge_only_in_id_values() {
         let golden_path =
@@ -2399,26 +2379,48 @@ mod pins {
                 );
             }
 
-            // The id-value face, per fixture. e1 (post M4-T4): the churn
-            // is CLOSED — every route row is byte-equal to the golden
-            // (the tightener converged the pass-1 geometry and the id
-            // accounting with it; the former witness was row 2
-            // `maxItemId` 62-vs-390). t7: the churn MOVED — rows 0-2
-            // are byte-equal now, row 3 still diverges in pure
-            // id-family fields (netItems 2->11 vs 2->12, maxItemId 93
-            // vs 107). t9: row 0 still diverges.
-            if fixture == "e1_ripup" {
-                assert_eq!(
-                    golden_routes, rust_routes,
-                    "e1_ripup route rows: byte-equal post M4-T4 (the former \
-                     row-2 maxItemId 62-vs-390 id churn is closed)"
-                );
-            } else {
-                let probe_index = if fixture == "t7_ripup" { 3 } else { 0 };
-                assert_ne!(
-                    golden_routes[probe_index], rust_routes[probe_index],
-                    "{fixture} route row {probe_index}: the id churn must be live"
-                );
+            // The id-value face, per fixture — ALL byte-equal now.
+            // e1 closed post M4-T4 (the former witness was row 2
+            // `maxItemId` 62-vs-390); t7 row 3 and t9 row 0 closed post
+            // M4-T6 (the shove-probe stub, bug-187). Each former
+            // divergence face is kept as a golden-anchored witness:
+            // byte-equality plus the golden's id literals on the
+            // former churn row.
+            match fixture {
+                "e1_ripup" => {
+                    assert_eq!(
+                        golden_routes, rust_routes,
+                        "e1_ripup route rows: byte-equal post M4-T4 (the former \
+                         row-2 maxItemId 62-vs-390 id churn is closed)"
+                    );
+                }
+                "t7_ripup" => {
+                    assert_eq!(
+                        golden_routes, rust_routes,
+                        "t7_ripup route rows: byte-equal post M4-T6 (the former \
+                         row-3 id churn is closed with the shover wiring)"
+                    );
+                    assert!(
+                        golden_routes[3].contains("netItems=2->12")
+                            && golden_routes[3].contains("maxItemId=107"),
+                        "t7 former-churn witness: golden route row 3 carries \
+                         netItems=2->12 / maxItemId=107"
+                    );
+                }
+                "t9_locator45" => {
+                    assert_eq!(
+                        golden_routes, rust_routes,
+                        "t9_locator45 route rows: byte-equal post M4-T6 (the former \
+                         row-0 id churn is closed with the shover wiring)"
+                    );
+                    assert!(
+                        golden_routes[0].contains("netItems=2->9")
+                            && golden_routes[0].contains("maxItemId=130"),
+                        "t9 former-churn witness: golden route row 0 carries \
+                         netItems=2->9 / maxItemId=130"
+                    );
+                }
+                other => panic!("unmapped fixture {other}"),
             }
         }
     }

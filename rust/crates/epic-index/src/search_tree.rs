@@ -222,22 +222,48 @@ impl SearchTree {
         object_key: u64,
         shapes: &[Option<TileShape>],
     ) -> Vec<Option<NodeIdx>> {
-        if shapes.is_empty() {
-            return Vec::new();
-        }
-        let directions = self.variant.bounding_directions();
         let mut leaves = Vec::with_capacity(shapes.len());
         for (index, shape) in shapes.iter().enumerate() {
-            let bounds = shape
-                .as_ref()
-                .and_then(|shape| shape.bounding_shape(&directions));
-            leaves.push(bounds.map(|bounds| {
-                let leaf = self.tree.base.push_leaf(object_key, index as u32, bounds);
-                self.tree.insert_leaf(leaf);
-                leaf
-            }));
+            leaves.push(self.insert_one(object_key, index as u32, shape.as_ref()));
         }
         leaves
+    }
+
+    /// Java `ShapeSearchTree.insert(item, index)` — ONE shape at an
+    /// EXPLICIT entry index (the merge fast paths insert the link
+    /// entries at their positions in the NEW entry list,
+    /// ShapeSearchTree.java:235/:309/:161). The shape is hulled into
+    /// this tree's directions exactly like the list form; an
+    /// unbounded shape stores no leaf (Java's null Leaf) and returns
+    /// [`None`].
+    pub fn insert_one(
+        &mut self,
+        object_key: u64,
+        shape_index_in_object: u32,
+        shape: Option<&TileShape>,
+    ) -> Option<NodeIdx> {
+        let directions = self.variant.bounding_directions();
+        let bounds = shape.and_then(|shape| shape.bounding_shape(&directions))?;
+        let leaf = self
+            .tree
+            .base
+            .push_leaf(object_key, shape_index_in_object, bounds);
+        self.tree.insert_leaf(leaf);
+        Some(leaf)
+    }
+
+    /// Java's in-place owner re-attribution on SURVIVING leaves
+    /// (`leaf.object = toTrace; leaf.shapeIndexInObject = i` —
+    /// ShapeSearchTree.java:214-215, :221, :294-295, :150,
+    /// :325-327): no structural op, no bounds change — the leaf keeps
+    /// its exact tree position while the (owner, index) pair moves.
+    /// Queries report the NEW owner afterwards, and a later
+    /// [`SearchTree::remove`] of the new owner's entry list drops the
+    /// same slab slot Java would drop.
+    pub fn relabel_leaf(&mut self, node: NodeIdx, object_key: u64, shape_index_in_object: u32) {
+        self.tree
+            .base
+            .relabel_leaf(node, object_key, shape_index_in_object);
     }
 
     /// Removes every leaf of `entries` (Java `ShapeTree.remove`,

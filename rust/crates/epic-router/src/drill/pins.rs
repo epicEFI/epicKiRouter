@@ -596,7 +596,7 @@ impl Harness {
             let Some(other_id) = door.other_room_id(room_id) else {
                 continue;
             };
-            let Some(other_key) = self.room_key_of_id(other_id) else {
+            let Some(other_key) = self.room_key_of_door(other_id, &door) else {
                 continue;
             };
             if let Some(index) = self.keys.iter().position(|&k| k == other_key) {
@@ -1008,6 +1008,14 @@ impl NeighbourEngine for Harness {
                     .find(|(_, r)| r.id() == id)
                     .map(|(k, _)| *k)
             })
+    }
+
+    fn room_key_of_door(&self, id: i32, door: &ExpansionDoor) -> Option<u64> {
+        self.rooms
+            .iter()
+            .zip(&self.keys)
+            .find(|(r, _)| r.id() == id && r.doors().iter().any(|d| d == door))
+            .map(|(_, k)| *k)
     }
 
     fn set_incomplete_shape(

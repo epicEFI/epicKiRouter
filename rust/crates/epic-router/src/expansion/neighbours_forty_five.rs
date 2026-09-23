@@ -408,9 +408,9 @@ impl FortyfiveRoomNeighbours {
         }
         // Touching neighbour missing at the edge side with index
         // removeEdgeNo. Remove the edge line and restart the
-        // algorithm. (The ROOM_EDGE_REMOVE traces, `:343-371`, are
-        // diagnostic and omitted.) The contained shape is only the
-        // completeShape containment argument: the enlarged shape's
+        // algorithm. (Java :343-371 has diagnostic FRLogger traces
+        // here, omitted — log-only, D12.) The contained shape is only
+        // the completeShape containment argument: the enlarged shape's
         // border survival comes solely from the walk's edge flags and
         // the restraint at the tree shapes — Java has no
         // contained-touch survival check.
@@ -419,6 +419,7 @@ impl FortyfiveRoomNeighbours {
         };
         let enlarged_oct =
             remove_not_touching_border_lines(&room_oct, &self.edge_interior_touches_obstacle);
+        let layer = ctx.room_layer(self.from_room);
 
         // Java :373-394 — the biggest 2-dim door to a completed
         // free-space room becomes the ignore pair of completeShape.
@@ -432,7 +433,7 @@ impl FortyfiveRoomNeighbours {
             // complete_shape about the objects to ignore.
             if current_door.dimension == 2
                 && let Some(other_id) = current_door.other_room_id(completed_id)
-                && let Some(other_key) = ctx.room_key_of_id(other_id)
+                && let Some(other_key) = ctx.room_key_of_door(other_id, &current_door)
                 && ctx.room_is_complete_free_space(other_key)
             {
                 let current_door_shape = ExpansionDoor::shape_between(
@@ -448,7 +449,6 @@ impl FortyfiveRoomNeighbours {
             }
         }
         let enlarged_shape = oct_tile(&enlarged_oct);
-        let layer = ctx.room_layer(self.from_room);
         let new_rooms = ctx.complete_shape(
             Some(&enlarged_shape),
             Some(&contained),
@@ -472,8 +472,17 @@ impl FortyfiveRoomNeighbours {
     }
 
     /// Java `calculateEdgeIncompleteRoomsOfObstacleExpansionRoom`
-    /// (`:255-310`) — an incomplete room behind every non-degenerate
-    /// side from `from_side_index` to `to_side_index`.
+    /// (`:255-310`) — an incomplete room behind every side from
+    /// `from_side_index` to `to_side_index` whose corner test passes.
+    /// JAVA QUIRK (load-bearing, T7-proven): `currentCorner` is
+    /// assigned ONCE before the loop (`:264`) and never updated —
+    /// `:269` is its only read — so the degenerate-side test compares
+    /// `corner(from_side_index)` against `corner(k + 1)` on EVERY
+    /// iteration. At the final side of the full walk `(0, 7)` the
+    /// next corner wraps to `corner(0) == currentCorner` and the last
+    /// wedge is ALWAYS skipped: Java's every-side arm creates at most
+    /// 7 border rooms, never the `to_side_index` one. Do not
+    /// "refresh" the corner in the loop.
     fn calculate_edge_incomplete_rooms(
         &self,
         from_side_index: i32,
@@ -485,7 +494,9 @@ impl FortyfiveRoomNeighbours {
             return;
         }
         let board_bounding_oct = ctx.board_bounding_octagon();
-        let mut current_corner = self.room_shape.corner(from_side_index);
+        // Java `:264` — assigned once, never refreshed (see the quirk
+        // note above).
+        let current_corner = self.room_shape.corner(from_side_index);
         let mut current_side_index = from_side_index;
         loop {
             let next_side_no = (current_side_index + 1) % 8;
@@ -532,7 +543,6 @@ impl FortyfiveRoomNeighbours {
                 break;
             }
             current_side_index = next_side_no;
-            current_corner = self.room_shape.corner(current_side_index);
         }
     }
 

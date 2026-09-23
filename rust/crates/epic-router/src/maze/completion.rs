@@ -64,21 +64,25 @@ fn complete_candidates(
         }
         // The candidates the recalc walks; the first branch uses a
         // one-element path to share the registration helper.
-        let batch: Vec<epic_index::complete_shape::IncompleteRoom> = if !first_done {
-            first_done = true;
-            vec![cell]
-        } else {
-            // The shape of the first completed room may have changed
-            // and may intersect the other shapes now — re-complete
-            // (`:492-498`).
-            ctx.complete_shape(
-                Some(&cell.shape),
-                Some(&cell.contained_shape),
-                cell.layer,
-                ignore_object,
-                from_door_shape,
-            )
-        };
+        let (batch, _from_recalc): (Vec<epic_index::complete_shape::IncompleteRoom>, bool) =
+            if !first_done {
+                first_done = true;
+                (vec![cell], false)
+            } else {
+                // The shape of the first completed room may have changed
+                // and may intersect the other shapes now — re-complete
+                // (`:492-498`).
+                (
+                    ctx.complete_shape(
+                        Some(&cell.shape),
+                        Some(&cell.contained_shape),
+                        cell.layer,
+                        ignore_object,
+                        from_door_shape,
+                    ),
+                    true,
+                )
+            };
         for tmp in batch {
             let key = ctx.add_incomplete_expansion_room(
                 tmp.shape.clone(),
@@ -112,7 +116,7 @@ fn scan_from_door_shape(ctx: &impl DrillEngine, room_key: u64) -> (Option<u64>, 
         let Some(other_id) = door.other_room_id(room_id) else {
             continue;
         };
-        let Some(other_key) = ctx.room_key_of_id(other_id) else {
+        let Some(other_key) = ctx.room_key_of_door(other_id, &door) else {
             continue;
         };
         if ctx.room_is_complete_free_space(other_key) {
@@ -173,11 +177,12 @@ pub fn complete_null_shape_room(
 pub fn complete_neighbour_rooms(ctx: &mut impl DrillEngine, room_key: u64) {
     'restart: loop {
         let room_id = ctx.room_id(room_key);
-        for door in ctx.room_doors(room_key) {
+        let doors = ctx.room_doors(room_key);
+        for door in doors {
             let Some(other_id) = door.other_room_id(room_id) else {
                 continue;
             };
-            let Some(other_key) = ctx.room_key_of_id(other_id) else {
+            let Some(other_key) = ctx.room_key_of_door(other_id, &door) else {
                 continue;
             };
             if ctx.room_is_incomplete(other_key) {

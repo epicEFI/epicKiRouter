@@ -76,14 +76,16 @@
 //!   keeps the no-op gate on `NONE` and the `pull_tight_polyline`
 //!   identity fallback is unreachable through the seam. A future
 //!   any-angle fixture fails loudly at the dispatch pin.
-//! * **The `PolylineTrace.pullTight` pin-connection tail (deferred)** —
+//! * **The `PolylineTrace.pullTight` pin-connection tail (LANDED, T6)** —
 //!   Java `swapConnectionToPin`/`correctConnectionToPin`
 //!   (`PolylineTrace.java:842-855`, gated
 //!   `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`) is
 //!   LIVE on every 45° board (the parser defaults `pinEdgeToTurnDist`
-//!   to `minTraceHalfWidth`, `Structure.java:667-668`) but is NOT
-//!   ported in T4; the tail-deferral counter-witness pin isolates the
-//!   divergence to exactly this face. T6 re-triage owns the port.
+//!   to `minTraceHalfWidth`, `Structure.java:667-668`). Deferred in T4
+//!   (the tail-deferral counter-witness pin isolated the divergence to
+//!   exactly this face); the port lives in [`pin_tail`], and that pin
+//!   now asserts the jar's split geometry instead of the byte-exact
+//!   parse.
 //! * **`joinGraphicsUpdateBox`** — GUI update box, dropped (the
 //!   headless D-divergence documented in
 //!   [`crate::routing_board_insert`]).
@@ -121,6 +123,7 @@ use crate::trace_ops::{
 use crate::tree_manager::SearchTreeManager;
 use crate::tree_shapes::clearance_compensation_value;
 
+pub(crate) mod pin_tail;
 pub(crate) mod tightener45;
 pub(crate) mod tightener90;
 pub(crate) mod via_optimizer;
@@ -1123,17 +1126,14 @@ pub(crate) fn polyline_trace_pull_tight(
         change_trace_geometry(manager, board, trace_id, new_lines);
         return true;
     }
-    // Java `:842-855`: the swap/correct pin-connection tail —
+    // Java `:840-855`: the swap/correct pin-connection tail —
     // `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`.
-    // T4 BOUNDARY (SEAM, disclosed): this tail is LIVE on every 45°
-    // board (the DSN parser defaults pinEdgeToTurnDist to
-    // minTraceHalfWidth, `Structure.java:667-668`, and no tier fixture
-    // carries `smd_to_turn_gap`) but is DEFERRED — it drags in
-    // `swapConnectionToPin`/`correctConnectionToPin` (~300 l Java) and
-    // the exit-restriction plumbing. The tail-deferral counter-witness
-    // pin proves the divergence is exactly this face (main arms inert
-    // BY CONSTRUCTION on its world, Java capture shows the movement).
-    false
+    // LIVE as of M4-T6 (the T4 deferral is retired — see
+    // [`pin_tail`]): LIVE on every 45° board (the DSN parser defaults
+    // pinEdgeToTurnDist to minTraceHalfWidth,
+    // `Structure.java:667-668`, and no tier fixture carries
+    // `smd_to_turn_gap`); inert on 90° boards by the first gate half.
+    pin_tail::pin_connection_tail(state, manager, board, trace_id)
 }
 
 /// The fixpoint's per-via relocation seam (Java `ViaOptimizer.

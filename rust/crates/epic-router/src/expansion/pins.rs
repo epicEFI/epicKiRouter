@@ -1242,6 +1242,19 @@ impl Harness {
             .map(|(_, k)| *k)
     }
 
+    /// The door-driven exact endpoint resolution: the room of `id`
+    /// whose door list holds an equal door value — the reference-
+    /// faithful twin of [`Self::room_key_of_id`] (Java resolves door
+    /// endpoints by object reference; the content-formula ids collide).
+    fn room_key_of_door(&self, id: i32, door: &ExpansionDoor) -> Option<u64> {
+        self.rooms
+            .iter()
+            .zip(&self.keys)
+            .rev()
+            .find(|(r, _)| r.id() == id && r.doors().iter().any(|d| d == door))
+            .map(|(_, k)| *k)
+    }
+
     fn first_incomplete(&self) -> Option<u64> {
         self.rooms
             .iter()
@@ -1313,7 +1326,7 @@ impl Harness {
         let from = self.room(from_key);
         for door in from.doors() {
             if let Some(other_id) = door.other_room_id(from.id())
-                && let Some(other_key) = self.room_key_of_id(other_id)
+                && let Some(other_key) = self.room_key_of_door(other_id, door)
                 && self.room(other_key).is_complete_free_space()
             {
                 let shape =
@@ -1368,7 +1381,7 @@ impl Harness {
                 .other_room_id(room_id)
                 .unwrap_or_else(|| panic!("door does not touch room {room_id}"));
             let other_key = self
-                .room_key_of_id(other_id)
+                .room_key_of_door(other_id, door)
                 .unwrap_or_else(|| panic!("door endpoint {other_id} not registered"));
             let other_complete = self.room(other_key).is_complete_free_space();
             let first_shape = room.shape().clone();
@@ -1784,6 +1797,10 @@ impl NeighbourEngine for Harness {
 
     fn room_key_of_id(&self, id: i32) -> Option<u64> {
         self.room_key_of_id(id)
+    }
+
+    fn room_key_of_door(&self, id: i32, door: &ExpansionDoor) -> Option<u64> {
+        self.room_key_of_door(id, door)
     }
 
     fn set_incomplete_shape(

@@ -251,6 +251,35 @@ impl ShapeTree {
         self.nodes[idx.index()].parent = parent;
     }
 
+    /// Re-labels a leaf's owner IN PLACE (Java's direct field writes
+    /// `leaf.object = ...; leaf.shapeIndexInObject = ...` —
+    /// ShapeSearchTree.java:214-215/:221/:294-295/:150 and
+    /// :325-327): the stored bounds are untouched, so the BVH
+    /// skeleton, every inner bound and the leaf's position are all
+    /// unchanged — this is deliberately NOT a structural op, which is
+    /// exactly the M2 merge fast paths' point (surviving entries keep
+    /// their tree position; only their owner is re-attributed).
+    pub(crate) fn relabel_leaf(
+        &mut self,
+        idx: NodeIdx,
+        object_key: u64,
+        shape_index_in_object: u32,
+    ) {
+        match &mut self.nodes[idx.index()].kind {
+            NodeKind::Leaf {
+                object_key: stored_key,
+                shape_index_in_object: stored_index,
+                ..
+            } => {
+                *stored_key = object_key;
+                *stored_index = shape_index_in_object;
+            }
+            NodeKind::Inner { .. } => {
+                unreachable!("relabel_leaf on an inner node (Java writes Leaf fields only)");
+            }
+        }
+    }
+
     /// Mutable `(first, second)` child slots for the splice sites (Java
     /// writes `currentParent.firstChild/secondChild` and
     /// `grandParent.firstChild/secondChild` directly).
