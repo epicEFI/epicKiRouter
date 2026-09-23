@@ -215,9 +215,12 @@ impl ExpansionRoom {
     }
 
     /// Java `removeDoor` (`ExpansionRoom.removeDoor`) — the FIRST
-    /// equal door instance leaves the list (Java `List.remove` on
-    /// reference identity; doors between one room pair are unique in
-    /// every captured flow, so value equality picks the same door).
+    /// equal door instance leaves the list. Java `List.remove` is
+    /// reference identity and the port matches it directly:
+    /// `ExpansionDoor`'s `PartialEq` includes the instance tag
+    /// (`expansion/door.rs`, module doc "REFERENCE IDENTITY"), so no
+    /// doors-between-one-pair uniqueness assumption is load-bearing
+    /// here.
     pub fn remove_door(&mut self, door: &ExpansionDoor) {
         if let Some(index) = self.doors.iter().position(|d| d == door) {
             self.doors.remove(index);
@@ -235,11 +238,28 @@ impl ExpansionRoom {
     /// Java `doorExists(other)` (`FreeSpaceExpansionRoom.java:81-91`)
     /// — reference identity there, room-id comparison here. The
     /// incomplete-room id formula can COLLIDE (two rooms of equal shape
-    /// id and layer); Java's identity check would distinguish them. No
-    /// capture flow creates two same-id rooms inside one sorter run,
-    /// and the sorter only consults rooms that are already door
-    /// endpoints, so the id comparison is faithful for every pinned
-    /// flow. Revisit if T6's maze ever holds colliding ids.
+    /// id and layer); Java's identity check would distinguish them.
+    ///
+    /// REVISIT STATUS: FIRED. The earlier premise "no capture flow
+    /// creates two same-id rooms inside one sorter run" is DISPROVEN —
+    /// the T6 events capture holds id 98239 twice live (see
+    /// `NeighbourCtx::room_key_of_id` in `expansion/pins.rs`). What the
+    /// collision broke first was door-VALUE equality (wrong-twin
+    /// removal/membership/endpoint resolution — the t7 phantom class),
+    /// and THAT is resolved: the door instance tag restores Java's
+    /// object identity at every equality/membership site
+    /// (`expansion/door.rs`, module doc "REFERENCE IDENTITY"). What
+    /// remains here is the separate id-proxy face: a same-id twin can
+    /// only make this answer TRUE where Java's identity check answers
+    /// FALSE — every door incident to THIS room carries this room's own
+    /// id as an endpoint, so a query whose target shares that id trips
+    /// the proxy and `room_has_door_to` skips a door Java would create
+    /// (its two production callers: `insert_door_ok_pair` /
+    /// `create_overlap_door` in `expansion/neighbours.rs`). The T6
+    /// closes pin the shipped flows against that path (events compare
+    /// exit 0, 3520 rows byte-identical). A new caller must not trust
+    /// this proxy — use the door-holding form (`room_key_of_door`)
+    /// instead.
     #[must_use]
     pub fn door_exists(&self, other_id: i32) -> bool {
         self.doors

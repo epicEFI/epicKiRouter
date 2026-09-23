@@ -304,7 +304,11 @@ pub(crate) fn correct_connection_to_pin(
         // missing border line on the offset shape is Java-unreachable
         // (the un-offset derivation in `pin_trace_exit_restrictions`
         // found one for every direction it returns). The port skips
-        // the frame instead of indexing out of bounds.
+        // the frame instead of indexing out of bounds. (components.rs's
+        // nearest-exit face `return None`s its whole frame for the same
+        // Java-unreachable condition — different caller contracts, both
+        // safe; the asymmetry is deliberate, see quality-review-t6-1
+        // NIT-3.)
         if current_intersecting_border_line_no < 0 {
             continue;
         }

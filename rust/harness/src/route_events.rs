@@ -2114,6 +2114,35 @@ mod pins {
                 .expect("witness row")
         };
 
+        // MIN-1 (quality-review-t6-1): the GREEN face is still
+        // whole-stream equality; the FAILURE face is indexed — a
+        // length precheck, then the FIRST divergent row with its
+        // 0-based index and both row texts in the panic, mirroring
+        // the in-file `diff_kind_streams` idiom (the compare's own
+        // first-divergence report) instead of dumping both full
+        // streams (~3520 rows).
+        let assert_kind_equal = |fixture: &str,
+                                 slot: usize,
+                                 gold: &[String],
+                                 rust: &[String],
+                                 why: &str| {
+            let kind = EVENT_KINDS[slot];
+            assert_eq!(
+                gold.len(),
+                rust.len(),
+                "{fixture} {kind}: stream lengths differ (golden {}, rust {})",
+                gold.len(),
+                rust.len()
+            );
+            if let Some((idx, (g, r))) =
+                gold.iter().zip(rust).enumerate().find(|(_, (g, r))| g != r)
+            {
+                panic!(
+                    "{fixture} {kind} row {idx} (0-based) diverges:\n  golden: {g}\n  rust:   {r}\n{why}"
+                );
+            }
+        };
+
         for entry in &manifest {
             let fixture = entry
                 .path
@@ -2142,12 +2171,17 @@ mod pins {
             // are PURGED with the divergence they measured.)
             match fixture {
                 "e1_ripup" => {
-                    assert_eq!(
-                        golden_grouped, rust_grouped,
-                        "e1_ripup post M4-T4: the whole pinned stream is byte-identical \
-                         to the Java golden — the Class B door-partition divergence \
-                         (former 1-based ordinal 58) is CLOSED by the live tightener"
-                    );
+                    for slot in 0..4 {
+                        assert_kind_equal(
+                            fixture,
+                            slot,
+                            &golden_grouped[slot],
+                            &rust_grouped[slot],
+                            "e1_ripup post M4-T4: the whole pinned stream is byte-identical \
+                             to the Java golden — the Class B door-partition divergence \
+                             (former 1-based ordinal 58) is CLOSED by the live tightener",
+                        );
+                    }
                 }
                 // Former divergence (post M4-T4, closed M4-T6): 0-based
                 // assign 73 — a target-door CHOICE: golden expands
@@ -2157,12 +2191,17 @@ mod pins {
                 // 821846.30. The row is byte-identical today and still
                 // carries the golden's needle.
                 "t7_ripup" => {
-                    assert_eq!(
-                        golden_grouped, rust_grouped,
-                        "t7_ripup post M4-T6: the whole pinned stream is byte-identical \
-                         to the Java golden — the shove-probe stub (bug-187) is wired \
-                         to the production shover"
-                    );
+                    for slot in 0..4 {
+                        assert_kind_equal(
+                            fixture,
+                            slot,
+                            &golden_grouped[slot],
+                            &rust_grouped[slot],
+                            "t7_ripup post M4-T6: the whole pinned stream is byte-identical \
+                             to the Java golden — the shove-probe stub (bug-187) is wired \
+                             to the production shover",
+                        );
+                    }
                     assert!(
                         golden_grouped[0][73].contains("expansionValue=62570.28048522717")
                             && golden_grouped[0][73]
@@ -2187,19 +2226,28 @@ mod pins {
                 // The tail landed (M4-T6) and the stub is wired: the
                 // route rows are byte-identical too.
                 "t9_locator45" => {
-                    assert_eq!(
-                        golden_grouped[0], rust_grouped[0],
+                    assert_kind_equal(
+                        fixture,
+                        0,
+                        &golden_grouped[0],
+                        &rust_grouped[0],
                         "t9 assign stream byte-identical post M4-T5 (the via arm healed \
-                         the former 0-based-1349 Class B expansionValue divergence)"
+                         the former 0-based-1349 Class B expansionValue divergence)",
                     );
-                    assert_eq!(
-                        golden_grouped[1], rust_grouped[1],
-                        "t9 skip stream byte-identical post M4-T5"
+                    assert_kind_equal(
+                        fixture,
+                        1,
+                        &golden_grouped[1],
+                        &rust_grouped[1],
+                        "t9 skip stream byte-identical post M4-T5",
                     );
-                    assert_eq!(
-                        golden_grouped[3], rust_grouped[3],
+                    assert_kind_equal(
+                        fixture,
+                        3,
+                        &golden_grouped[3],
+                        &rust_grouped[3],
                         "t9 route stream byte-identical post M4-T6 (the former row-0 \
-                         netItems/maxItemId churn is closed)"
+                         netItems/maxItemId churn is closed)",
                     );
                     assert!(
                         golden_grouped[3][0].contains("netItems=2->9")

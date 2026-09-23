@@ -166,7 +166,10 @@ impl ExpandableObject {
                 // equal-VALUED doors of id-colliding incomplete-room
                 // twins keep separate state slots (the t7 phantom
                 // class). Bits 32-33 carry the dimension, bits 34-61
-                // the tag; a search's own doors are far below 2^28.
+                // the tag; the tag counter is PROCESS-GLOBAL and never
+                // resets, so the operative wrap margin is cumulative
+                // door constructions per process (~2.7e8 before the
+                // low-28 bits wrap), not a per-search population.
                 ROOM_DOOR
                     | (door.id() as u32 as u64)
                     | ((door.dimension.clamp(0, 3) as u64) << 32)

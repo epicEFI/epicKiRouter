@@ -1216,6 +1216,41 @@ fn t6_tail_swap_diag_parse_consolidation_jar_literal() {
     );
 }
 
+/// The `(type protect)` NOT-SHOVE control of the diag-parse-consolidation
+/// world (jar `tail45_swap_diag_notshove_worlds.jsonl`, re-derived fresh
+/// from the committed unshadowed jar in the M4-T6 quality round —
+/// byte-identical to the T6 capture): with the covering wire protected,
+/// NOTHING consolidates at parse — BOTH wires survive (trace 3
+/// USER_FIXED `50000:50000;94000:94000`, trace 6 UNFIXED
+/// `50000:50000;38000:38000`) — and the corner world keeps BOTH traces
+/// after the run: the 41483 exit rebuild + the SHOVE_FIXED stub on
+/// trace 6's slot (new id 8) beside the untouched USER_FIXED wire. This
+/// control makes [`t6_tail_swap_diag_parse_consolidation_jar_literal`] a
+/// 2x2 discriminator (world x protect-face): the consolidation face
+/// exists only when the covering wire is UNPROTECTED.
+#[test]
+fn t6_tail_swap_diag_notshove_outcome_jar_literal() {
+    let rel =
+        "../../../rust/harness/fixtures/trace-tightener/tightener45_tail_swap_diag_notshove.dsn";
+    let (_manager, board) = parse_fixture_rel(rel);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec!["1|50000:50000;38000:38000", "1|50000:50000;94000:94000",],
+        "protect twin parse face: nothing consolidates — both wires survive"
+    );
+    let (_manager, board) = run_45_corner_world(rel, 6);
+    assert_eq!(
+        trace_fingerprint(&board),
+        vec![
+            "1|41483:50000;41483:41483;38000:38000",
+            "1|50000:50000;41483:50000",
+            "1|50000:50000;94000:94000",
+        ],
+        "protect twin outcome: BOTH traces survive the corner world — the 41483 \
+         rebuild + SHOVE_FIXED stub beside the untouched USER_FIXED wire"
+    );
+}
+
 /// The `pinEdgeToTurnDist > 0` gate arm (Java `:842`, the second
 /// conjunct of the tail gate; `BoardRules.setPinEdgeToTurnDist` doc:
 /// "If the value is <= 0, there are no exit restrictions"). The SAME

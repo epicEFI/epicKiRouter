@@ -64,25 +64,21 @@ fn complete_candidates(
         }
         // The candidates the recalc walks; the first branch uses a
         // one-element path to share the registration helper.
-        let (batch, _from_recalc): (Vec<epic_index::complete_shape::IncompleteRoom>, bool) =
-            if !first_done {
-                first_done = true;
-                (vec![cell], false)
-            } else {
-                // The shape of the first completed room may have changed
-                // and may intersect the other shapes now — re-complete
-                // (`:492-498`).
-                (
-                    ctx.complete_shape(
-                        Some(&cell.shape),
-                        Some(&cell.contained_shape),
-                        cell.layer,
-                        ignore_object,
-                        from_door_shape,
-                    ),
-                    true,
-                )
-            };
+        let batch: Vec<epic_index::complete_shape::IncompleteRoom> = if !first_done {
+            first_done = true;
+            vec![cell]
+        } else {
+            // The shape of the first completed room may have changed
+            // and may intersect the other shapes now — re-complete
+            // (`:492-498`).
+            ctx.complete_shape(
+                Some(&cell.shape),
+                Some(&cell.contained_shape),
+                cell.layer,
+                ignore_object,
+                from_door_shape,
+            )
+        };
         for tmp in batch {
             let key = ctx.add_incomplete_expansion_room(
                 tmp.shape.clone(),
