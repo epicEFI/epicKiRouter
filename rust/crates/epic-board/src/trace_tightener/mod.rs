@@ -375,12 +375,15 @@ impl TraceTightener {
     /// picked trace's OWN nets as the only-net list, a NULL clip, the
     /// call's `pullTightAccuracy` as the accuracy, and `timeLimit = -1`
     /// — no budget) and runs the SAME 1-arg `pullTight` body on it,
-    /// leaving the fixpoint's algo object untouched. The port swaps the
-    /// FOUR state fields for the duration of `body` and restores them
-    /// after (Java's fresh algo is a separate object; the fixpoint
-    /// state must survive the via arm). The accuracy carries Java's
-    /// `getInstance` clamp `Math.max(minTranslateDist, 100)`
-    /// (`TraceTightener.java:109`).
+    /// leaving the fixpoint's algo object untouched. ViaOptimizer calls
+    /// it with `stoppableThread = null` (`ViaOptimizer.java:144/:148/:290`),
+    /// so the fresh face ALSO clears the stop flag: a via-arm
+    /// pull-tight never stops mid-tighten in Java (M4-T5 spec-review
+    /// MINOR-2). The port swaps the FIVE state fields for the duration
+    /// of `body` and restores them after (Java's fresh algo is a
+    /// separate object; the fixpoint state must survive the via arm).
+    /// The accuracy carries Java's `getInstance` clamp
+    /// `Math.max(minTranslateDist, 100)` (`TraceTightener.java:112`).
     pub(crate) fn with_fresh_algo_face<T>(
         &mut self,
         own_nets: &[i32],
@@ -392,11 +395,13 @@ impl TraceTightener {
         let saved_budget = std::mem::replace(&mut self.budget, PullTightBudget::None);
         let saved_min_translate_dist =
             std::mem::replace(&mut self.min_translate_dist, accuracy.max(100));
+        let saved_stoppable_flag = self.stoppable_flag.take();
         let result = body(self);
         self.only_net_no_arr = saved_only_net;
         self.current_clip_shape = saved_clip;
         self.budget = saved_budget;
         self.min_translate_dist = saved_min_translate_dist;
+        self.stoppable_flag = saved_stoppable_flag;
         result
     }
 
