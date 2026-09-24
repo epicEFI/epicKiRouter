@@ -124,9 +124,17 @@ pub const DEFAULT_DETERMINISM_FIXTURE: &str = "DAC2020_boards/DAC2020_bm08.dsn";
 /// the log claiming fanout-off). Spec-review OW-M2 survivor hardening.
 pub const COMPARABILITY_FLAG: &str = "--router.fanout.enabled=false";
 
+/// THE M4-T9 companion flag: the router-only Java captures ran the jar
+/// with `--optimizer.enabled=false` (`OracleProfile::RouterOnly::flags`),
+/// and the T9 stage is gated on the same box — the committed records'
+/// scores are the OPTIMIZER-OFF face, so the compare argv must disable
+/// the stage too (a bare default run now enables it). `false` never
+/// parses into a WARN since M4-T9 (the route subset carries the field).
+pub const OPTIMIZER_OFF_FLAG: &str = "--optimizer.enabled=false";
+
 /// THE one argv builder for every `router compare` subprocess run (the
 /// run faces cannot drift between sites — there is no second argv). The
-/// comparability flag rides EXACTLY once, as the argv suffix.
+/// comparability flags ride EXACTLY once, as the argv suffix.
 #[must_use]
 pub fn route_argv(
     cli_bin: &Path,
@@ -144,16 +152,19 @@ pub fn route_argv(
         "--result-json".to_string(),
         manifest_path.to_string_lossy().into_owned(),
         COMPARABILITY_FLAG.to_string(),
+        OPTIMIZER_OFF_FLAG.to_string(),
     ]
 }
 
 /// The banner's comparability phrase, DERIVED from an actual built argv —
-/// if the flag ever leaves [`route_argv`], the log stops claiming
+/// if a flag ever leaves [`route_argv`], the log stops claiming
 /// fanout-off instead of lying (the OW-M2 "hardcoded banner" face).
 #[must_use]
 pub fn comparability_banner_phrase(argv: &[String]) -> String {
-    if argv.iter().any(|arg| arg == COMPARABILITY_FLAG) {
-        format!("{COMPARABILITY_FLAG} vs committed router-only records")
+    if argv.iter().any(|arg| arg == COMPARABILITY_FLAG)
+        && argv.iter().any(|arg| arg == OPTIMIZER_OFF_FLAG)
+    {
+        format!("{COMPARABILITY_FLAG} {OPTIMIZER_OFF_FLAG} vs committed router-only records")
     } else {
         "COMPARABILITY FLAG MISSING FROM THE ARGV vs committed router-only records".into()
     }
@@ -2210,8 +2221,10 @@ mod pins {
     /// THE comparability argv pin (spec-review MINOR-1 / OW-M2 survivor):
     /// `route_argv` — the ONE builder `run_cli` spawns from — carries the
     /// fanout-off flag EXACTLY once, as the argv suffix, and the banner
-    /// phrase derived from that argv claims fanout-off. Mutation-verified:
-    /// dropping the flag from the builder makes BOTH asserts fail (and the
+    /// phrase derived from that argv claims fanout-off. M4-T9: the argv
+    /// ALSO carries `--optimizer.enabled=false` (the committed router-only
+    /// records are the both-stages-OFF face). Mutation-verified: dropping
+    /// a flag from the builder makes the asserts fail (and the
     /// banner face flips to "MISSING" instead of a hardcoded lie).
     #[test]
     fn run_cli_argv_carries_the_comparability_flag() {
@@ -2228,18 +2241,25 @@ mod pins {
             .collect();
         assert_eq!(
             flag_positions,
-            vec![argv.len() - 1],
-            "the comparability flag must ride EXACTLY once, as the argv suffix: {argv:?}"
+            vec![argv.len() - 2],
+            "the fanout flag rides once, second-to-last (the optimizer flag is the suffix): \
+             {argv:?}"
+        );
+        assert_eq!(
+            argv.last().map(String::as_str),
+            Some(OPTIMIZER_OFF_FLAG),
+            "the M4-T9 optimizer-off flag is the argv suffix: {argv:?}"
         );
         // The banner face is DERIVED: a correct argv yields the claim.
         let phrase = comparability_banner_phrase(&argv);
         assert!(
-            phrase.contains(COMPARABILITY_FLAG),
-            "the banner must claim fanout-off from the actual argv: {phrase}"
+            phrase.contains(COMPARABILITY_FLAG) && phrase.contains(OPTIMIZER_OFF_FLAG),
+            "the banner must claim both comparability flags from the actual argv: {phrase}"
         );
-        // Degraded face: an argv WITHOUT the flag (the OW-M2 mutant) must
-        // make the banner say MISSING — the log can never lie about the
-        // comparability face.
+        // Degraded face: an argv WITHOUT the fanout flag (the OW-M2
+        // mutant) must make the banner say MISSING — the log can never
+        // lie about the comparability face. The optimizer-flag drop is
+        // caught by the SAME conjunction (either missing -> MISSING).
         let mutant_argv: Vec<String> = argv
             .iter()
             .filter(|arg| *arg != COMPARABILITY_FLAG)

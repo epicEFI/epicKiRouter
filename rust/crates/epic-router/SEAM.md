@@ -922,3 +922,90 @@ must walk `iter_descending` — pinned by
 where ascending yields a 1-bend MST and descending the jar's 2-bend MST
 at equal 140-unit length; the T8-S1 ascending mutant dies there). The
 counting walks are order-independent counts and stay ascending.
+
+## T9 BatchOptimizer — rip-and-reroute optimizer stage (appended by M4-T9)
+
+The dossier lives in the module docs (`pipeline/optimizer.rs`); report in
+`logs/M4-T9/report-t9.md`, evidence in `logs/M4-T9/evidence/`. Baseline
+`90590891c`, census 1388 → **1409**/0/15. What T10+ must carry forward:
+
+**The one-winner mapping (threaded → sequential-deterministic).** Java
+races candidates on a `maxThreads` pool, then applies ONE board:
+`winningCandidate == null || res.result.improvedOver(winning)`
+(`BatchOptimizer.java:750`) — the compareTo-minimum outcome with the
+earliest-submitted candidate winning ties, then `this.board =
+winningCandidate.board` (`:788`). The port evaluates candidates in
+`ReadSortedRouteItems` order on per-candidate clones and applies the same
+rule; in a one-thread world that IS Java's own sequential semantics (the
+deterministic analog of the race, not a byte-port of it). Pinned by
+`t9_item_route_result_compare_and_item_id_tie` (rule + tie faces) and the
+E2E faces `t9_e2e_first_candidate_applied` (max_items=1 isolates the
+first candidate: adopted-board hash `f3fcdc3c…` in the completed row,
+then the pass gate rejects and the incumbent is restored) plus
+`t9_e2e_reject_restore_threshold_stop` (final hash == baseline
+`981c19c5…` after both passes adopt-then-restore).
+
+**The improved-ladder quirk (doc-of-record, do NOT "fix").**
+`ItemRouteResult` compares `traceLengthBefore` = the WHOLE BOARD's
+`totalWeightedLength` (`:633`) against `traceLengthAfter` = the plain
+`traces.totalLength` — on an all-unfixed board the weighted face
+dominates, so ANY candidate whose reroute keeps incompletes and via
+counts reads "improved" even at identical geometry. The discipline is
+the PASS-level gate (strict optimizer-score improvement) + the loop-level
+restore, not the candidate ladder. The quirk is why the e2e world's
+passes adopt-then-restore every pass (both pinned verbatim, incl.
+`951.88 -> 942.92 (REGRESSED, -0.9414%)` for the even-pass reroute).
+
+**ReadSortedRouteItems dedups duplicate keys.** `next()` returns the
+single minimum key strictly past the cursor and then EXCLUDES that key:
+two items at the same (x, y, layer) collapse to the first encountered in
+the DESCENDING-id walk (higher id), the other never enumerates — pinned
+by `t9_read_sorted_route_items_order` (which also pins the lower-layer
+trace stealing a via's key, the shove-fixed/user-fixed/via-touching skip
+arms, and strict key ascent). Mutant T9-M2 (order inversion) kills 6 pins.
+
+**The optimizer counters' phase is a port rendering.** Java's optimizer
+`RouterCounters` leaves `phase` null; the port sets `phase = "optimizer"`
+(Rust field is `String`, not nullable). The CLI manifest backfill filter
+(`phase == "autoroute"`) must keep excluding it — pinned by
+`t9_optimizer_counters_do_not_backfill_autorouter_passes`.
+
+**Stage gate coupling (M4-T9 hardening of the harness).**
+`RoutingPipeline.runOptimizationStage` gates on `getRunOptimizer()`
+(default TRUE from DefaultSettings.java:178) AND
+`!thread.isStopRequested()` — EVERY router-side stop skips the stage.
+The committed router-only Java records are the both-stages-OFF face, so
+`route_argv` now carries `--optimizer.enabled=false` next to the fanout
+flag (the banner phrase derives both; `run_cli_argv_carries_the_
+comparability_flag` pins the pair). The DISABLED face reproduces the
+pre-T9 flow byte-exactly: bm08 full flow with the flag returns T7's
+recorded ses `ec22a0f2…` + manifest `16714d5e…` exactly
+(`determinism_fullflow_t9.log`). T9's new recorded full-flow face
+(optimizer ON): ses `ea68d513…`, manifest `a2178650…` (run ×2
+byte-equal; bm08's stage ran and improved 823.37 → 823.50, +0.0153% <
+2.5% threshold → stop).
+
+**`normalizeAlgorithm` moved.** Java warns in `BatchOptimizer.create`;
+the port warns as the stage's first row (construction has no sink) —
+`freerouting-optimizer` is `BatchOptimizerStage::ALGORITHM_ID`.
+
+**Banked (unreachable headless, documented in optimizer.rs):** the
+thread pool (`maxThreads` parsed, unused), `resultMap` + the PRIORITIZED
+arm (transient GUI-only strategy; headless always SEQUENTIAL),
+`currentPosition`/`ProgressThrottler` GUI faces, per-stage CPU/alloc/heap
+metrics (rendered as the fanout `0.00/0.00/0.0` literals), the dead
+`if (stillUnroutedItems && … && updatedRoutingBoard == null) {}` empty
+block, the stage wall deadline (wall-profile-only — armed only behind
+`--deterministic-budgets=off`, pinned both faces).
+
+**World-limited pin gap (documented, not silent):** guard 4's
+through-hole-pin arm (`onlySmdPinsAndTraces=false` via a multi-layer pin
+in the connected set) is unobservable on t9_locator45 — all 100 pins are
+single-layer SMD on layer 0. Pinned arms: crossesLayers=false (routed
+world), netCount==0, twin-via-in-set, empty-set-false, and the
+all-user-fixed vacuous-TRUE quirk (`:231-233`).
+
+**T10 owes:** the manifest optimizer faces (`optimizer_score` iff-gate,
+`phases.optimizer` snapshots), `job.stage` IDLE transitions, fanout-only
+mode (`maxPasses=0` temporary override), stage-order pins. The stage
+itself, its settings family, and the CLI gate are T9-done.

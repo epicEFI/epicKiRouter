@@ -14,8 +14,10 @@
 //!    reader ignores them, and T13 chooses not to emit them.
 //!    `settings_snapshot`/`bounds` fall in the same bucket (Java emits
 //!    both — non-null whenever the job ran); `optimizer_score`'s
-//!    absence reflects the missing T13 optimizer stage (brief-permitted
-//!    and SEAM-documented), not null-elision.
+//!    absence is now the T9 state of the staged plan: the optimizer
+//!    STAGE is live (step 4b) but the manifest's optimizer faces
+//!    (`optimizer_score`, `phases.optimizer`) land with M4-T10, so the
+//!    renderer still emits none of them.
 //! 2. **The final-state mapping** follows the Java scheduler, not the
 //!    driver's internal stops: `Ok(true)` -> COMPLETED; `Ok(false)` is
 //!    CANCELLED only for an EXTERNAL stop (`StopReason::UserStop`) —
@@ -40,6 +42,7 @@ use epic_geometry::rounding::java_round;
 use epic_router::pipeline::batch::{BatchDriver, BatchSettings, StopFace, StopReason};
 use epic_router::pipeline::board_statistics::BoardStatistics;
 use epic_router::pipeline::event_sink::DriverSink;
+use epic_router::pipeline::optimizer::BatchOptimizerStage;
 use epic_router::pipeline::pass_runner::RouterCounters;
 use serde::Serialize;
 use sha2::Digest;
@@ -99,7 +102,9 @@ pub struct ManifestPhases {
     pub fanout: ManifestPhaseDetail,
     /// The batch autorouter.
     pub autorouter: ManifestPhaseDetail,
-    /// The optimizer — empty in T13 (no optimizer stage).
+    /// The optimizer — the slot exists (Java always emits the object)
+    /// but stays the empty `{}` projection until M4-T10 fills the
+    /// phase faces; the STAGE itself is live since M4-T9 (step 4b).
     pub optimizer: ManifestPhaseDetail,
 }
 
@@ -160,8 +165,9 @@ pub struct RouteManifest<'a> {
     /// DefaultSettings' scoring box).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub normalized_score: Option<f64>,
-    /// The optimizer score — ALWAYS absent in T13: no optimizer stage,
-    /// so there are no optimizer snapshots to score (the iff-gate).
+    /// The optimizer score — always absent until M4-T10 wires the
+    /// phase-snapshot iff-gate (the stage is live since M4-T9, but the
+    /// manifest face is T10's).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimizer_score: Option<f64>,
     pub final_state: &'a str,
@@ -257,8 +263,7 @@ pub fn render_manifest(
             }),
         },
         normalized_score: telemetry.normalized_score,
-        // No optimizer stage in T13 -> no optimizer snapshots -> always
-        // absent (the iff-gate).
+        // M4-T10 owns the optimizer phase faces; T9 renders none.
         optimizer_score: None,
         final_state: &telemetry.final_state,
         exit_code: exit_code_for(&telemetry.final_state, telemetry.output_written),
@@ -525,7 +530,33 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
     let run_result = driver.run(&mut sink);
     let stop_reason = driver.stop_reason;
+    // Java `RoutingPipeline.runOptimizationStage` (`:126-140`) gates the
+    // stage on `!job.thread.isStopRequested()` — EVERY router-side stop
+    // (max-passes, stagnation, restore exhaustion, the external stop)
+    // raises the shared flag, so the optimizer runs only when the router
+    // finished of its own accord. Read BEFORE the driver drops its face.
+    let optimizer_allowed = !driver.stop.is_requested();
     drop(driver);
+
+    // 4b. The optimizer stage (M4-T9, Java `RoutingPipeline.runOptimizationStage`):
+    // gated on `getRunOptimizer()` (the `optimizer.enabled` box, default
+    // TRUE) AND the not-stopped gate above. The disabled face must
+    // reproduce the pre-T9 flow byte-exactly.
+    if resolved.run_optimizer && optimizer_allowed {
+        let optimizer_batch = build_batch_settings(&resolved);
+        let mut stop = StopFace::default();
+        let mut optimizer = BatchOptimizerStage::new(
+            &mut manager,
+            &mut board,
+            optimizer_batch,
+            resolved.optimizer.clone(),
+            &mut stop,
+        );
+        // T10 owns the manifest faces (phases.optimizer, optimizer_score);
+        // T9 changes only the BOARD the session/statistics are written
+        // from (log rows ride the stderr echo).
+        let _ = optimizer.run_batch_loop(&mut sink);
+    }
 
     let final_state: String = match &run_result {
         Err(_) => "TERMINATED".to_string(),
@@ -751,6 +782,90 @@ mod tests {
             serde_json::json!({}),
             "the fanout phase slot is the empty projection"
         );
+    }
+
+    /// The M4-T9 phase-attribution face: optimizer-stage counters
+    /// (`phase="optimizer"`) must not backfill
+    /// `phases.autorouter.passes_completed` either — the backfill
+    /// filter is the autorouter's phase, full stop.
+    #[test]
+    fn t9_optimizer_counters_do_not_backfill_autorouter_passes() {
+        let optimizer_counters = RouterCounters {
+            phase: "optimizer".to_string(),
+            pass_count: 4,
+            ..RouterCounters::default()
+        };
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            last_counters: Some(optimizer_counters),
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert!(
+            value
+                .pointer("/phases/autorouter/passes_completed")
+                .is_none(),
+            "optimizer counters must not backfill the autorouter pass count: {json}"
+        );
+    }
+
+    /// The M4-T9 stage wiring (Java `RoutingPipeline.runOptimizationStage`):
+    /// the disabled face (`--optimizer.enabled=false`) must reproduce
+    /// the pre-T9 flow byte-exactly — here pinned as self-consistency
+    /// of two identical disabled runs — and the enabled default (the
+    /// DefaultSettings seed) completes with the stage actually entered
+    /// (the guards pass on this routed world).
+    #[test]
+    fn t9_route_wiring_disabled_face_and_enabled_default() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
+        );
+        let out_dir = std::env::temp_dir().join(format!("epic-t9-wiring-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+
+        let run = |tag: &str, extra: &[&str]| {
+            let ses_path = out_dir.join(format!("out-{tag}.ses"));
+            let manifest_path = out_dir.join(format!("out-{tag}.json"));
+            let mut argv = vec![
+                "-de".to_string(),
+                fixture_path.to_string(),
+                "-do".to_string(),
+                ses_path.to_string_lossy().into_owned(),
+                "--result-json".to_string(),
+                manifest_path.to_string_lossy().into_owned(),
+            ];
+            argv.extend(extra.iter().map(|s| s.to_string()));
+            let args = parse_route_args(&argv).expect("args parse");
+            let exit = run_route(&args).expect("route run");
+            (exit, ses_path, manifest_path)
+        };
+
+        // The disabled face: two runs, byte-identical ses + manifest.
+        let (exit_a, ses_a, man_a) = run("off1", &["--optimizer.enabled=false"]);
+        let (exit_b, ses_b, man_b) = run("off2", &["--optimizer.enabled=false"]);
+        assert_eq!(exit_a, 0);
+        assert_eq!(exit_b, 0);
+        let ses_a_bytes = std::fs::read(&ses_a).expect("ses a");
+        let ses_b_bytes = std::fs::read(&ses_b).expect("ses b");
+        assert_eq!(ses_a_bytes, ses_b_bytes, "disabled face is deterministic");
+        assert_eq!(
+            std::fs::read(&man_a).expect("man a"),
+            std::fs::read(&man_b).expect("man b"),
+        );
+        assert!(!ses_a_bytes.is_empty());
+
+        // The enabled default: the stage gate opens (run_optimizer=true,
+        // the router completed without a stop) and the run completes.
+        let (exit_on, _ses_on, man_on) = run("on", &[]);
+        assert_eq!(exit_on, 0, "the enabled flow completes");
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&man_on).expect("manifest"))
+                .expect("json");
+        assert_eq!(value["final_state"], "COMPLETED");
+
+        let _ = std::fs::remove_dir_all(&out_dir);
     }
 
     fn fixture<'a>(filename: &'a str, sha: &'a str) -> ManifestFixture<'a> {

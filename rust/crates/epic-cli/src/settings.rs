@@ -39,6 +39,7 @@ use epic_router::pipeline::board_statistics::{
     OptimizerScoreSettings, OptimizerScoringVersion, RouterScoreSettings, RouterScoringVersion,
     RouterSettingsScoring, RoutingCostSettings, default_routing_cost_settings,
 };
+use epic_router::pipeline::optimizer::OptimizerSettingsIr;
 
 // ---------------------------------------------------------------------------
 // the CLI parse face (CliSettings.java port)
@@ -120,6 +121,40 @@ pub struct CliLayer {
     /// reflection walk matches the SerializedName AND the field name
     /// (`ReflectionUtil.getFieldByNameOrSerializedName`).
     pub fanout_timeout_string: Option<String>,
+    /// `optimizer.enabled` — the stage gate (`getRunOptimizer()`, with
+    /// the router-only comparability profile passing `=false`).
+    pub optimizer_enabled: Option<bool>,
+    /// `optimizer.algorithm` — stored verbatim; the stage normalizes
+    /// any non-`freerouting-optimizer` value with a warn.
+    pub optimizer_algorithm: Option<String>,
+    /// `optimizer.max_passes` (`optimizer.maxPasses` also accepted).
+    pub optimizer_max_passes: Option<i32>,
+    /// `optimizer.max_items` (`optimizer.maxItems`).
+    pub optimizer_max_items: Option<i32>,
+    /// `optimizer.max_threads` (`optimizer.maxThreads`) — parsed
+    /// (surface parity) but unused: the port is sequential.
+    pub optimizer_max_threads: Option<i32>,
+    /// `optimizer.enable_preflight_guards`
+    /// (`optimizer.enablePreflightGuards`).
+    pub optimizer_enable_preflight_guards: Option<bool>,
+    /// `optimizer.max_consecutive_failures`
+    /// (`optimizer.maxConsecutiveFailures`).
+    pub optimizer_max_consecutive_failures: Option<i32>,
+    /// `optimizer.max_consecutive_failures_pass1`
+    /// (`optimizer.maxConsecutiveFailuresPass1`).
+    pub optimizer_max_consecutive_failures_pass1: Option<i32>,
+    /// `optimizer.additional_ripup_cost_factor_at_start`
+    /// (`optimizer.additionalRipupCostFactorAtStart`).
+    pub optimizer_additional_ripup_cost_factor_at_start: Option<i32>,
+    /// `optimizer.trace_ripup_cost_factor`
+    /// (`optimizer.traceRipupCostFactor`).
+    pub optimizer_trace_ripup_cost_factor: Option<f32>,
+    /// `optimizer.max_autoroute_passes`
+    /// (`optimizer.maxAutoroutePasses`).
+    pub optimizer_max_autoroute_passes: Option<i32>,
+    /// `optimizer.timeout` (`optimizer.timeout_string` /
+    /// `optimizer.timeoutString`) — the stage wall deadline string.
+    pub optimizer_timeout_string: Option<String>,
     /// The `-oit` deprecation warns, the deprecated-path warns and the
     /// WARN-and-continue rows, in emission order (Java logs them through
     /// FRLogger.warn).
@@ -415,6 +450,7 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
     // through raw; a parse failure warns and continues (value unset).
     if "router.optimizer.improvement_threshold" == property
         || field_path.ends_with("improvement_threshold")
+        || field_path.ends_with("optimizationImprovementThreshold")
     {
         match value.trim().parse::<f32>() {
             Ok(parsed) if parsed > 0.0 && parsed < 1.0 => {
@@ -524,6 +560,68 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
         },
         "fanout.timeout" | "fanout.timeout_string" => {
             layer.fanout_timeout_string = Some(value.to_string());
+        }
+        // The M4-T9 optimizer group (Java `OptimizerSettings`
+        // SerializedName + field-name spellings, mirroring the fanout
+        // face; `improvement_threshold` never reaches this match — the
+        // quirk block above consumes every spelling that ends with it
+        // and writes `layer.improvement_threshold`).
+        "optimizer.enabled" => match parse_on_off(value) {
+            Some(v) => layer.optimizer_enabled = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "optimizer.algorithm" => {
+            layer.optimizer_algorithm = Some(value.to_string());
+        }
+        "optimizer.max_passes" | "optimizer.maxPasses" => match value.parse::<i32>() {
+            Ok(v) => layer.optimizer_max_passes = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "optimizer.max_items" | "optimizer.maxItems" => match value.parse::<i32>() {
+            Ok(v) => layer.optimizer_max_items = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "optimizer.max_threads" | "optimizer.maxThreads" => match value.parse::<i32>() {
+            Ok(v) => layer.optimizer_max_threads = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "optimizer.enable_preflight_guards" | "optimizer.enablePreflightGuards" => {
+            match parse_on_off(value) {
+                Some(v) => layer.optimizer_enable_preflight_guards = Some(v),
+                None => warn_bad_value(layer, property, value),
+            }
+        }
+        "optimizer.max_consecutive_failures" | "optimizer.maxConsecutiveFailures" => {
+            match value.parse::<i32>() {
+                Ok(v) => layer.optimizer_max_consecutive_failures = Some(v),
+                Err(_) => warn_bad_value(layer, property, value),
+            }
+        }
+        "optimizer.max_consecutive_failures_pass1" | "optimizer.maxConsecutiveFailuresPass1" => {
+            match value.parse::<i32>() {
+                Ok(v) => layer.optimizer_max_consecutive_failures_pass1 = Some(v),
+                Err(_) => warn_bad_value(layer, property, value),
+            }
+        }
+        "optimizer.additional_ripup_cost_factor_at_start"
+        | "optimizer.additionalRipupCostFactorAtStart" => match value.parse::<i32>() {
+            Ok(v) => layer.optimizer_additional_ripup_cost_factor_at_start = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "optimizer.trace_ripup_cost_factor" | "optimizer.traceRipupCostFactor" => {
+            match value.parse::<f32>() {
+                Ok(v) => layer.optimizer_trace_ripup_cost_factor = Some(v),
+                Err(_) => warn_bad_value(layer, property, value),
+            }
+        }
+        "optimizer.max_autoroute_passes" | "optimizer.maxAutoroutePasses" => {
+            match value.parse::<i32>() {
+                Ok(v) => layer.optimizer_max_autoroute_passes = Some(v),
+                Err(_) => warn_bad_value(layer, property, value),
+            }
+        }
+        "optimizer.timeout" | "optimizer.timeout_string" | "optimizer.timeoutString" => {
+            layer.optimizer_timeout_string = Some(value.to_string());
         }
         _ => {
             // Any other router.*/optimizer.* path: Java tries the
@@ -749,10 +847,33 @@ pub struct MergedSettings {
     pub fanout_fallback_to_board_vias: Option<bool>,
     /// `fanout.timeout` — the stage wall deadline string.
     pub fanout_timeout_string: Option<String>,
-    /// `optimizer.enabled` — merged but unused in T13 (no optimizer stage).
+    /// `optimizer.enabled` — the stage gate (`getRunOptimizer()`).
     pub optimizer_enabled: Option<bool>,
-    /// `optimizer.improvementThreshold` — merged but unused in T13.
+    /// `optimizer.algorithm`.
+    pub optimizer_algorithm: Option<String>,
+    /// `optimizer.maxPasses` (None = unlimited).
+    pub optimizer_max_passes: Option<i32>,
+    /// `optimizer.maxItems`.
+    pub optimizer_max_items: Option<i32>,
+    /// `optimizer.maxThreads` — parsed but unused (sequential port).
+    pub optimizer_max_threads: Option<i32>,
+    /// `optimizer.improvementThreshold` — the pass-stop percentage.
     pub improvement_threshold: Option<f32>,
+    /// `optimizer.enablePreflightGuards` — only `Some(false)` bypasses
+    /// the guards (Java `Boolean.FALSE.equals`).
+    pub optimizer_enable_preflight_guards: Option<bool>,
+    /// `optimizer.maxConsecutiveFailures` (None → the 50 fallback).
+    pub optimizer_max_consecutive_failures: Option<i32>,
+    /// `optimizer.maxConsecutiveFailuresPass1` (None → the 12 fallback).
+    pub optimizer_max_consecutive_failures_pass1: Option<i32>,
+    /// `optimizer.additionalRipupCostFactorAtStart`.
+    pub optimizer_additional_ripup_cost_factor_at_start: Option<i32>,
+    /// `optimizer.traceRipupCostFactor`.
+    pub optimizer_trace_ripup_cost_factor: Option<f32>,
+    /// `optimizer.maxAutoroutePasses`.
+    pub optimizer_max_autoroute_passes: Option<i32>,
+    /// `optimizer.timeout`.
+    pub optimizer_timeout_string: Option<String>,
     /// The `scoring` box (deep-merged; defaults from DefaultSettings).
     pub scoring: RoutingCostSettings,
     /// The `routerScoring` box.
@@ -802,7 +923,25 @@ impl Default for MergedSettings {
             fanout_fallback_to_board_vias: Some(true),
             fanout_timeout_string: None,
             optimizer_enabled: Some(true),
+            optimizer_algorithm: Some("freerouting-optimizer".to_string()),
+            // `DefaultSettings.java:180-191` verbatim (the optimizer
+            // family's defaults; maxThreads = max(1, cores - 1) is
+            // computed at seed time like Java's).
+            optimizer_max_passes: Some(100),
+            optimizer_max_items: Some(i32::MAX),
+            optimizer_max_threads: Some({
+                let cores = std::thread::available_parallelism()
+                    .map_or(1usize, std::num::NonZeroUsize::get);
+                i32::try_from(cores.saturating_sub(1).max(1)).unwrap_or(i32::MAX)
+            }),
             improvement_threshold: Some(2.5),
+            optimizer_enable_preflight_guards: Some(true),
+            optimizer_max_consecutive_failures: Some(50),
+            optimizer_max_consecutive_failures_pass1: Some(12),
+            optimizer_additional_ripup_cost_factor_at_start: Some(10),
+            optimizer_trace_ripup_cost_factor: Some(0.6),
+            optimizer_max_autoroute_passes: Some(6),
+            optimizer_timeout_string: None,
             scoring: default_routing_cost_settings(),
             router_scoring: default_router_score_settings(),
             optimizer_scoring: default_optimizer_score_settings(),
@@ -891,9 +1030,6 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     if let Some(v) = cli.max_threads {
         merged.max_threads = Some(v);
     }
-    if let Some(v) = cli.improvement_threshold {
-        merged.improvement_threshold = Some(v);
-    }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
     }
@@ -941,6 +1077,46 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.fanout_timeout_string.clone() {
         merged.fanout_timeout_string = Some(v);
+    }
+    // --- the M4-T9 optimizer family (CLI priority 60) ---
+    if let Some(v) = cli.optimizer_enabled {
+        merged.optimizer_enabled = Some(v);
+    }
+    if let Some(v) = cli.optimizer_algorithm.clone() {
+        merged.optimizer_algorithm = Some(v);
+    }
+    if let Some(v) = cli.optimizer_max_passes {
+        merged.optimizer_max_passes = Some(v);
+    }
+    if let Some(v) = cli.optimizer_max_items {
+        merged.optimizer_max_items = Some(v);
+    }
+    if let Some(v) = cli.optimizer_max_threads {
+        merged.optimizer_max_threads = Some(v);
+    }
+    if let Some(v) = cli.improvement_threshold {
+        merged.improvement_threshold = Some(v);
+    }
+    if let Some(v) = cli.optimizer_enable_preflight_guards {
+        merged.optimizer_enable_preflight_guards = Some(v);
+    }
+    if let Some(v) = cli.optimizer_max_consecutive_failures {
+        merged.optimizer_max_consecutive_failures = Some(v);
+    }
+    if let Some(v) = cli.optimizer_max_consecutive_failures_pass1 {
+        merged.optimizer_max_consecutive_failures_pass1 = Some(v);
+    }
+    if let Some(v) = cli.optimizer_additional_ripup_cost_factor_at_start {
+        merged.optimizer_additional_ripup_cost_factor_at_start = Some(v);
+    }
+    if let Some(v) = cli.optimizer_trace_ripup_cost_factor {
+        merged.optimizer_trace_ripup_cost_factor = Some(v);
+    }
+    if let Some(v) = cli.optimizer_max_autoroute_passes {
+        merged.optimizer_max_autoroute_passes = Some(v);
+    }
+    if let Some(v) = cli.optimizer_timeout_string.clone() {
+        merged.optimizer_timeout_string = Some(v);
     }
     if let Some(v) = cli.via_costs {
         merged.scoring.via_costs = Some(v);
@@ -1152,6 +1328,11 @@ pub struct ResolvedRouteSettings {
     pub strict_drc: bool,
     /// `getRunRouter()`.
     pub run_router: bool,
+    /// `getRunOptimizer()` — `optimizer != null && enabled != null ?
+    /// enabled : false` (`RouterSettings.java:564-566`).
+    pub run_optimizer: bool,
+    /// The resolved optimizer-settings group (the stage's reads).
+    pub optimizer: OptimizerSettingsIr,
     /// `tracePullTightAccuracy`.
     pub pull_tight_accuracy: i32,
     /// `--deterministic-budgets` (default ON — anchors §6).
@@ -1264,6 +1445,25 @@ impl ResolvedRouteSettings {
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
+            run_optimizer: merged.optimizer_enabled.unwrap_or(false),
+            optimizer: OptimizerSettingsIr {
+                algorithm: merged
+                    .optimizer_algorithm
+                    .clone()
+                    .unwrap_or_else(|| "freerouting-optimizer".to_string()),
+                max_passes: merged.optimizer_max_passes,
+                max_items: merged.optimizer_max_items,
+                improvement_threshold: merged.improvement_threshold,
+                enable_preflight_guards: merged.optimizer_enable_preflight_guards,
+                max_consecutive_failures: merged.optimizer_max_consecutive_failures,
+                max_consecutive_failures_pass1: merged.optimizer_max_consecutive_failures_pass1,
+                additional_ripup_cost_factor_at_start: merged
+                    .optimizer_additional_ripup_cost_factor_at_start
+                    .unwrap_or(10),
+                trace_ripup_cost_factor: merged.optimizer_trace_ripup_cost_factor.unwrap_or(0.6),
+                max_autoroute_passes: merged.optimizer_max_autoroute_passes.unwrap_or(6),
+                timeout_string: merged.optimizer_timeout_string.clone(),
+            },
             pull_tight_accuracy: merged.trace_pull_tight_accuracy.unwrap_or(500),
             deterministic_budgets: deterministic_budgets.unwrap_or(true),
         }
@@ -2205,6 +2405,18 @@ mod tests {
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
+            optimizer_enabled: Some(false),
+            optimizer_algorithm: Some("t9-algo".to_string()),
+            optimizer_max_passes: Some(21),
+            optimizer_max_items: Some(22),
+            optimizer_max_threads: Some(23),
+            optimizer_enable_preflight_guards: Some(false),
+            optimizer_max_consecutive_failures: Some(24),
+            optimizer_max_consecutive_failures_pass1: Some(25),
+            optimizer_additional_ripup_cost_factor_at_start: Some(26),
+            optimizer_trace_ripup_cost_factor: Some(0.7),
+            optimizer_max_autoroute_passes: Some(27),
+            optimizer_timeout_string: Some("3:00".to_string()),
             vias_allowed: Some(true),
             via_costs: Some(11),
             plane_via_costs: Some(12),
@@ -2597,6 +2809,157 @@ mod tests {
             merged.optimizer_scoring,
             default_optimizer_score_settings(),
             "V2_LOWER_BOUND / 1000 / 2000 / 500 / 1.0 / 1.0"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // M4-T9: the optimizer settings family
+    // -----------------------------------------------------------------------
+
+    /// The `--optimizer.*` CLI face: snake_case SerializedName and
+    /// camelCase field-name spellings both apply (`ReflectionUtil`
+    /// matches either); the improvement-threshold x100 quirk covers the
+    /// optimizer spellings too; a bad value WARNs and leaves the field
+    /// unset; silence keeps the DefaultSettings seeds
+    /// (`DefaultSettings.java:177-191`).
+    #[test]
+    fn t9_optimizer_cli_family_parses_and_merges() {
+        // (1) snake_case spellings.
+        let parsed = parse_route_args(&args(&[
+            "--optimizer.enabled=off",
+            "--optimizer.max_passes=7",
+            "--optimizer.max_items=11",
+            "--optimizer.max_threads=2",
+            "--optimizer.enable_preflight_guards=off",
+            "--optimizer.max_consecutive_failures=21",
+            "--optimizer.max_consecutive_failures_pass1=5",
+            "--optimizer.additional_ripup_cost_factor_at_start=8",
+            "--optimizer.trace_ripup_cost_factor=0.8",
+            "--optimizer.max_autoroute_passes=3",
+            "--optimizer.timeout=1:30",
+            "--optimizer.algorithm=hyper",
+        ]))
+        .expect("parse");
+        let layer = &parsed.layer;
+        assert_eq!(layer.optimizer_enabled, Some(false));
+        assert_eq!(layer.optimizer_max_passes, Some(7));
+        assert_eq!(layer.optimizer_max_items, Some(11));
+        assert_eq!(layer.optimizer_max_threads, Some(2));
+        assert_eq!(layer.optimizer_enable_preflight_guards, Some(false));
+        assert_eq!(layer.optimizer_max_consecutive_failures, Some(21));
+        assert_eq!(layer.optimizer_max_consecutive_failures_pass1, Some(5));
+        assert_eq!(
+            layer.optimizer_additional_ripup_cost_factor_at_start,
+            Some(8)
+        );
+        assert_eq!(layer.optimizer_trace_ripup_cost_factor, Some(0.8));
+        assert_eq!(layer.optimizer_max_autoroute_passes, Some(3));
+        assert_eq!(layer.optimizer_timeout_string.as_deref(), Some("1:30"));
+        assert_eq!(layer.optimizer_algorithm.as_deref(), Some("hyper"));
+        assert!(layer.warnings.is_empty(), "{:?}", layer.warnings);
+
+        // (2) camelCase field-name spellings apply to the SAME slots.
+        let parsed = parse_route_args(&args(&[
+            "--optimizer.maxPasses=9",
+            "--optimizer.maxAutoroutePasses=4",
+            "--optimizer.enablePreflightGuards=on",
+            "--optimizer.traceRipupCostFactor=0.5",
+            "--optimizer.timeoutString=2:00",
+        ]))
+        .expect("parse");
+        let layer = &parsed.layer;
+        assert_eq!(layer.optimizer_max_passes, Some(9));
+        assert_eq!(layer.optimizer_max_autoroute_passes, Some(4));
+        assert_eq!(layer.optimizer_enable_preflight_guards, Some(true));
+        assert_eq!(layer.optimizer_trace_ripup_cost_factor, Some(0.5));
+        assert_eq!(layer.optimizer_timeout_string.as_deref(), Some("2:00"));
+
+        // (3) The threshold quirk: optimizer spellings get the fraction
+        // x100 treatment, including the camelCase field name.
+        let parsed = parse_route_args(&args(&[
+            "--optimizer.improvement_threshold=0.025",
+            "--optimizer.optimizationImprovementThreshold=0.05",
+        ]))
+        .expect("parse");
+        // The SECOND flag overwrites the first (both write the same slot).
+        assert_eq!(parsed.layer.improvement_threshold, Some(5.0));
+        assert!(parsed.layer.warnings.is_empty());
+
+        // (4) A bad value warns and leaves the slot unset.
+        let parsed = parse_route_args(&args(&["--optimizer.max_passes=nope"])).expect("parse");
+        assert_eq!(parsed.layer.optimizer_max_passes, None);
+        assert!(
+            parsed
+                .layer
+                .warnings
+                .iter()
+                .any(|w| w.contains("optimizer.max_passes") && w.contains("nope")),
+            "the warn row: {:?}",
+            parsed.layer.warnings
+        );
+
+        // (5) Merge over defaults: only the CLI opinions move.
+        let mut merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &parsed.layer,
+        );
+        // Silence on every other optimizer slot keeps the seeds:
+        assert_eq!(merged.optimizer_enabled, Some(true));
+        assert_eq!(merged.optimizer_max_passes, Some(100));
+        assert_eq!(merged.optimizer_max_items, Some(i32::MAX));
+        assert_eq!(merged.optimizer_enable_preflight_guards, Some(true));
+        assert_eq!(merged.optimizer_max_consecutive_failures, Some(50));
+        assert_eq!(merged.optimizer_max_consecutive_failures_pass1, Some(12));
+        assert_eq!(
+            merged.optimizer_additional_ripup_cost_factor_at_start,
+            Some(10)
+        );
+        assert_eq!(merged.optimizer_trace_ripup_cost_factor, Some(0.6));
+        assert_eq!(merged.optimizer_max_autoroute_passes, Some(6));
+        assert_eq!(merged.improvement_threshold, Some(2.5));
+        assert_eq!(
+            merged.optimizer_algorithm.as_deref(),
+            Some("freerouting-optimizer")
+        );
+
+        // And the DSN `(postroute off)` face turns the stage gate off.
+        let dsn = DsnLayer {
+            run_optimizer: Some(false),
+            ..DsnLayer::default()
+        };
+        merged = merge(&MergedSettings::default(), &dsn, &CliLayer::default());
+        assert_eq!(merged.optimizer_enabled, Some(false));
+
+        // (6) The resolve product: getRunOptimizer()'s null face is
+        // FALSE (RouterSettings.java:564-566), the group fields ride
+        // verbatim, and the two factors resolve to scalars.
+        merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &CliLayer::default(),
+        );
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(resolved.run_optimizer, "DefaultSettings seeds enabled=true");
+        assert_eq!(resolved.optimizer.algorithm, "freerouting-optimizer");
+        assert_eq!(resolved.optimizer.max_passes, Some(100));
+        assert_eq!(resolved.optimizer.max_items, Some(i32::MAX));
+        assert_eq!(resolved.optimizer.improvement_threshold, Some(2.5));
+        assert_eq!(resolved.optimizer.enable_preflight_guards, Some(true));
+        assert_eq!(resolved.optimizer.max_consecutive_failures, Some(50));
+        assert_eq!(resolved.optimizer.max_consecutive_failures_pass1, Some(12));
+        assert_eq!(resolved.optimizer.additional_ripup_cost_factor_at_start, 10);
+        assert_eq!(resolved.optimizer.trace_ripup_cost_factor, 0.6);
+        assert_eq!(resolved.optimizer.max_autoroute_passes, 6);
+        assert_eq!(resolved.optimizer.timeout_string, None);
+
+        let disabled = MergedSettings {
+            optimizer_enabled: None,
+            ..merged.clone()
+        };
+        assert!(
+            !ResolvedRouteSettings::resolve(&disabled, None).run_optimizer,
+            "enabled == null reads as FALSE (not the default-true face)",
         );
     }
 }

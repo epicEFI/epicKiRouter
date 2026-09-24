@@ -1466,11 +1466,7 @@ fn conduction_area_on_signal_layer(board: &Board, id: ItemId) -> bool {
 /// repeatedly combines the first combinable trace of the net (walking
 /// the undo list from its start), restarting after every successful
 /// combine, until a full pass combines nothing.
-pub(crate) fn combine_traces(
-    manager: &mut SearchTreeManager,
-    board: &mut Board,
-    net_number: i32,
-) -> bool {
+pub fn combine_traces(manager: &mut SearchTreeManager, board: &mut Board, net_number: i32) -> bool {
     let mut result = false;
     loop {
         // Java iterates `itemList` — the UndoableObjects list, whose

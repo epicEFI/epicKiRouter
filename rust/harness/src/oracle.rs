@@ -12,13 +12,11 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Which stages the Java oracle runs (M3-T14) and where its baselines live.
-/// The disable flags go to the JAVA jar argv ONLY — never to epic-cli:
-/// `--optimizer.enabled=false` does not parse into the Rust CLI (it warns
-/// "unsupported path in the route subset" and is dropped — there is no
-/// optimizer stage to disable), so feeding it there would put a spurious
-/// warning in the logs and a false "flag honored" reading. When T15 runs
-/// the Rust router in this profile, fanout-off expresses via
-/// `--router.fanout.enabled=false` on the Rust side instead.
+/// The disable flags go to the JAVA jar argv for the capture/verify faces;
+/// the RUST compare runs mirror them since M4-T9 (the route subset parses
+/// `--optimizer.enabled` and [`route_argv`] carries
+/// `--optimizer.enabled=false` next to the fanout flag — the committed
+/// router-only records are the both-stages-OFF face on either side).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OracleProfile {
     /// Full pipeline (fanout + autorouter + optimizer): the classic
