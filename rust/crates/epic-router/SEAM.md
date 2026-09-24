@@ -1002,8 +1002,9 @@ the port warns as the stage's first row (construction has no sink) —
 `trace_ripup_cost_factor`'s `Math.round` is MUTANT-DISCRIMINABLE only in the
 increased-face-DROPPED arm: the base is `start_ripup_costs` — an INTEGER through
 every settings path (CLI/DSN parse i32, DefaultSettings 100) — and while the
-increased face holds the base is 10·start (even), so f32(0.6)·(10·start) = 6·start
-EXACTLY and round == trunc; for start ≡ 1 or 3 (mod 5) the dropped arm's real
+increased face holds the base is 10·start (even), so f32(0.6)·(10·start) lands
+within ~1.2e-5·start of 6·start (f32(0.6)·500 = 300.0000119…) — a fraction
+≪ 0.5, hence round == trunc == 6·start; for start ≡ 1 or 3 (mod 5) the dropped arm's real
 fraction is 0.6/0.8, f32(0.6)'s ~2.4e-8·base error keeps it above 0.5, and round
 ≠ trunc (start=51 → 31 vs trunc 30; start=3 → 2 vs 1). Pinned in
 `t9_candidate_ripup_costs_ladder`; mutant T9-S3 (round→trunc) now dies there
