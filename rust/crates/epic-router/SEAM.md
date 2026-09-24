@@ -1177,3 +1177,124 @@ three SES faces unrotated AND all three manifests byte-equal to
 wired, hand the stages the shared flag). The headless scheduler's
 afterRouting StageListener (session-summary telemetry) and the whole-run
 duration backfill (`:210-216`) are non-determinism-family omissions.
+
+## T11 full-pipeline baselines + battery face flip (appended by M4-T11)
+
+`router compare` runs under ONE of two profiles
+(`CompareProfile`, `harness/src/router_compare.rs`): `router-only` (THE
+DEFAULT — the pre-T11 face byte-for-byte, so CI's bare
+`router compare --report-only` stays the M2/M3 regression face until the
+T13 exit flip) and `full` (the M4 battery face: the Rust side drops BOTH
+comparability flags and runs the assembled fanout → router → optimizer
+pipeline; the gates read the M0 full-flow jar records). Any other
+`--profile` value is a LOUD failure naming both accepted names — the
+capture/verify spelling `full-flow` is deliberately NOT a compare name.
+The two profiles write scratch under separate run roots
+(`runs/router-compare` vs `runs/router-compare-full`). The banner now
+names the face (`router compare[router-only]` / `[full]`) with the
+comparability phrase DERIVED from the built argv in both arms (a flag
+dropped from the router-only argv says MISSING; a disable flag in a full
+argv says PRESENT — the flag-gating bug face). The router-only detail
+pass keeps its EXACT historical argv face (fanout flag ONLY — the
+pinned buglog-176 fingerprint face); the full detail pass mirrors its
+profile (no flags). `router determinism` stays router-only by design
+(the canary faces must not rotate).
+
+**The M0 baselines are REUSED verbatim (carry-forward 2 — the verify-FIRST
+question).** The M0 `baselines/java/` captures were the DEFAULT-profile
+(`full-flow`: no disable flags, fanout+optimizer on) jar runs at the
+frozen tree `e7f9bdf1` with tiers.yaml timeouts: all 11 Tier A records
+carry populated optimizer faces (bm01 912.7s, bm08 4.31s, bm02 9.02s,
+sonde 6.15s; the 0.0s rows are the optimizer finding nothing to improve),
+no profile marker (= the full marker), and every `fixture_sha256` was
+re-verified against the current DSNs at T11 (11/11 match). NO new capture
+happened; no committed artifact was modified; the M3 router-only one-off
+captures were never re-run. Reuse, not recapture.
+
+**The M4 full-face battery (release, gate mode, external 7200s bound;
+2182.9s actual; exit 1 with 3 reds — the honest inventory, nothing
+tuned).** The M3 exit snapshot beside which these rows land: the router-only
+face read 8/3 (bm06 tuning, bm11 completion-by-1-at-truth, bm01
+wall-limited — T17c D-table). The FULL face reads **8 PASS / 3 RED**:
+
+| fixture | Rust full (inc/viol/score, passes, wall) | Java full (M0) | verdict + triage |
+|---|---|---|---|
+| bm01 | 1/0/993.16, 20 passes, 663.0s | 0/0/1000.0 (17 passes, optimizer 912.7s) | **RED — completion by 1** (score GREEN ≥ 980, violations GREEN). The fanout stage transformed the face vs M3 (wall-limited 33-unrouted kill → a stagnation plateau): passes 12-20 flat at 993.16/1 (ten no-gain passes → the stop fired), residual = one connection of the U53→U8 serial family (CTS/DSR/DCD/RI chain, the stop report). Not the wall (663s ≪ 1800s tier). Triage: the bug-181 victim-choice/attempt-order family at the router's plateau + the T10-banked stop face (Java's optimizer stage RAN on its 0-incomplete board; the port's preflight guard skips it at incompletes>0 — the T10 mirror). T12's lever. |
+| bm02 | 0/0/1000.00, 1 pass, 4.0s | 0/0/1000.0 (2 passes) | PASS — exact equal on all three gates; the autorouter needed ONE pass (fanout pre-routing did the heavy lifting; jar needed 2). |
+| bm06 | 5/8/930.81, 18 passes, 80.4s | 2/8/971.63 (18 passes) | **RED — incompletes 5 > 2 AND score 930.81 < 952.20 (J−ε)**; violations GREEN 8 ≤ 8. The EXACT T7 probe face (5/8/930.81, `logs/M4-T7/evidence/jar_evidence_bm06_t7fix.log`) — unchanged by T8-T10, so the red is the PRE-EXISTING bug-181 victim-choice family one stage earlier (fanout pass-2+ retry divergence: rust 7/2/+3@200 then 0/2/+0@300 in 3 passes vs jar 6/3/+1… in 5), not a new-stage delta. T12's lever per the T7 checkpoint. |
+| bm07 | 0/0/1000.00, 1 pass, 54.0s | 2/0/968.99 (18 passes) | PASS **BETTER than Java** — 0 incompletes vs 2, score 1000.00 vs 968.99. |
+| bm08 | 0/0/1000.00, 1 pass, 0.6s | 0/0/1000.0 | PASS — exact equal. |
+| bm09 | 1/0/988.51, 18 passes, 20.0s | 1/0/988.51 | PASS — exact equal to the second decimal. |
+| bm11 | wall-killed at 600.2s (integrity red: no manifest) | 3/0/975.0 | **RED — integrity by wall**, and the plateau face AT the kill was **975.00 / 3 / 0 — JAVA'S EXACT TERMINAL FACE** (passes 9-10, 62-64s each). Not a quality red: the engine converged to parity and the stagnation stop simply had not fired yet (needs ten flat passes; 9-10 was the first flat pair). Same wall family as M3's bm11 bank, but at parity. T12 lever: stop-face timing; a natural end = Java parity. |
+| ecc83-pp | 0/0/1000.00, 1 pass, 0.2s | 0/0/1000.0 | PASS — exact equal. |
+| ecc83-pp_v2 | 0/16/991.32, 1 pass, 0.2s | 0/16/991.32 | PASS — exact equal (the buglog-176 fingerprint face holds on the full pipeline too). |
+| pic_programmer | 0/1/999.77, 1 pass, 1.8s | 0/1/999.77 | PASS — exact equal. |
+| sonde xilinx | 0/0/1000.00, 1 pass, 4.0s | 0/0/1000.0 | PASS — exact equal. |
+
+**The F1/F1′ re-anchor (T8/T9 owed, closed).** The full-flow bm08 faces
+reproduce BYTE-EXACTLY through the new full profile — three independent
+runs (the battery's own + two dedicated `--work-root` witness runs): ses
+`ea68d5133f5557004bb2778b441777dde742f87a058ba481293d8fc5df08b110`,
+manifest `d0b5f0dc33420e0184f6587a620d0480c4b43eb910f3087c2f58b50305295b36`
+(`bm08_full_digests_t11.log`). The router-only faces are unrotated: the
+determinism canary reproduced ses `253e7b1401775172…` + manifest
+`8c4a9773…` (×2 byte-equal), and the disabled-control ses `ec22a0f2…`
+was not re-run (the disabled face was T9's control; the T11 gates pin the
+canary + the seven compares + events, all green). All seven compares +
+events green at the pinned faces (corpus 5000/5000, dsn `--set all`
+1332/0, ses 20, ses-snap 5, index 33, undo 33, `cmp_*_t11.log` evidence;
+drc 17/17, events 3520).
+
+**Stale-pin re-face (honest, witnessed).** The pre-existing e2e
+`e2e_router_compare_gate_mode_exits_nonzero_on_a_red_battery` expected
+bm01 as the M3-era fast panic-class red — but the T17a integrity close
+ended bm01's panics and the T7 fanout stage turned the row green (the
+bare default-profile run exited 0, live-witnessed at T11; the pin died
+in the T11 e2e set). Re-faced to a CONSTRUCTED red: `EPIC_CLI` → a
+freshly-written no-op stub (mtime passes the freshness guard), no
+manifest → integrity red → gate mode exits nonzero naming the tally.
+~0.7s, profile-independent, no committed artifact touched; the R1
+bypass mutant (battery_exit call removed) still dies. The real reds of
+the current battery cost 80s-1800s of wall — wrong shape for a smoke;
+the battery log is their witness.
+
+**Pins (crossing cells: profile × flags × record-marker, every row and
+column).** `compare_profile_parsing_is_exact_and_loud_on_unknown_names`
+(omitted/router-only/full parse; every other spelling LOUD, error names
+both values); `run_cli_argv_carries_the_comparability_flag` EXTENDED to
+the 2×2 (router-only argv = base + both flags exactly once as suffix;
+full argv = the SAME base with NO flags; banner mismatch faces BOTH
+directions — MISSING and PRESENT; detail-argv faces pinned); 
+`full_flow_record_pre_flight_accepts_only_the_markerless_m0_face` (the
+M0 face accepted, a router-only-stamped record rejected with the
+router-only loader ACCEPTING the same body as the contrast arm, marker
+typo rejected, missing file loud);
+`tier_a_fixture_enum_is_complete_against_tiers_and_records` EXTENDED to
+both profiles (11 records present under BOTH record sets, no extras);
+two e2e smokes (`e2e_router_compare_full_profile_passes_bm08_in_gate_
+mode` — banner face + derived no-flags claim + [PASS] row through the
+BUILT binary; `e2e_router_compare_wrong_profile_fails_loudly` — the
+`full-flow` spelling exits nonzero naming both values) + the re-faced
+red-battery e2e above. Every new pin is world-built (temp-dir records),
+except the two enum pins which read the real repo tree.
+
+**Gates.** fmt 0; clippy `--workspace --all-targets -- -D warnings` 0
+(incl. unwrap_used); bare `cargo test --workspace` exit 0 — census
+**1422/0/17** (1420/0/15 → +2 unit pins, +2 `#[ignore]` e2e smokes);
+seven compares + events exit 0 at the pinned faces; `router determinism`
+exit 0 with the canary ses `253e7b14…`/manifest `8c4a9773…` byte-equal
+×2; full-profile bm08 ×2 (+battery = ×3) reproducing `ea68d513…`/
+`d0b5f0dc…`; the full battery release/gate-mode exit 1 with the 8/3
+inventory above (external 7200s bound, actual 2182.9s). Docs: the rust
+README command block gained the `--profile full` face line.
+
+**Banked for T12+:** (1) bm06/bm01 reds = the bug-181 family with the
+T7 checkpoint's lever list (victim-choice tie-breaks, rip-free
+exploration order); (2) bm11's stop-face timing — the engine reached
+Java's face and the stagnation stop lagged; (3) the M0 `baselines/java`
+B/C-tier records are likewise reusable for any future full-face battery
+extension (fixture hashes NOT re-verified for B/C — only A was needed);
+(4) the banner-text face (`router compare[router-only]`) is an
+intentional stdout change in the default invocation's TEXT, not its
+behavior (flags/records/exits identical; no pin keys on the banner
+prefix).

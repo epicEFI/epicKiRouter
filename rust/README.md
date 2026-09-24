@@ -156,6 +156,16 @@ cd rust
 # wall-limited buglog 175 — each root-caused non-parity, M4 levers on
 # record; see the M3 exit note in the design doc §6).
 cargo run -q -p epic-harness --release -- router compare
+# M4 full-pipeline battery face: `--profile full` drops BOTH
+# comparability flags (the assembled fanout → router → optimizer
+# pipeline runs on the Rust side) and gates against the M0 full-flow
+# jar records (`baselines/java/A`, default-settings captures, reused
+# verbatim at M4-T11). The default (no flag) stays the router-only
+# face; the T11 full battery reads 8 pass / 3 red (bm01 completion
+# red by 1 at a 993.16 plateau; bm06 5-vs-2 + score, the bug-181
+# victim-choice family; bm11 wall-integrity red with the engine AT
+# Java's exact 975.00/3/0 face at the kill) — T12's face.
+cargo run -q -p epic-harness --release -- router compare --profile full
 # CI posture: --report-only prints every verdict and exits 0. The flip
 # to a hard gate is ONE same-commit act once the battery reads 11/11
 # under a wall-resolved profile: drop --report-only, update both

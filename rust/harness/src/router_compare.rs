@@ -52,6 +52,35 @@
 //! exact Java face the records witness. A full-flow Rust run against
 //! these records compares apples to oranges.
 //!
+//! ## The profile face (M4-T11)
+//!
+//! `router compare` runs under ONE of two profiles:
+//!
+//! - `router-only` (THE DEFAULT — the M2/M3 regression face, byte-for-byte
+//!   the pre-T11 invocation): the Rust side carries BOTH comparability
+//!   flags (`--router.fanout.enabled=false --optimizer.enabled=false`),
+//!   the gates read the committed T14 records (`baselines/router-only/A`),
+//!   and `router determinism`'s canary faces stay the router-only digests.
+//!   The default exists so the profile switch cannot rotate any default
+//!   invocation's behavior — CI's bare `router compare --report-only`
+//!   stays this face until the T13 exit flip.
+//! - `full` (the M4 battery face): the Rust side drops BOTH flags and
+//!   runs the assembled fanout → router → optimizer pipeline
+//!   (`pipeline/full.rs`, T9/T10); the gates read the M0 full-flow jar
+//!   records (`baselines/java/A`, profile marker ABSENT — captured
+//!   default-settings with both stages on). Same directional gates + ε
+//!   idiom. The M0 records are reused verbatim (fixture hashes verified
+//!   against the current DSNs at T11); committed artifacts are never
+//!   modified, so no new capture happened.
+//!
+//! The two profiles write scratch under separate run roots
+//! (`runs/router-compare` vs `runs/router-compare-full`) so the faces
+//! never clobber each other's evidence. The profile names are the
+//! dispatch's; the capture/verify surfaces spell the same full profile
+//! `full-flow` (`OracleProfile::from_name`) — the mapping is
+//! [`CompareProfile::oracle_profile`], and any other name fails loudly
+//! (never a silent fallback).
+//!
 //! ## The localizer
 //!
 //! On any red gate the harness prints the FIRST differing component:
@@ -104,7 +133,7 @@ use clap::Subcommand;
 
 use crate::baseline::{BASELINE_SCHEMA_VERSION, BaselineRecord, sha256_file};
 use crate::manifest::RoutingResultManifest;
-use crate::oracle::{find_repo_root, parse_manifest_file, wait_with_timeout};
+use crate::oracle::{OracleProfile, find_repo_root, parse_manifest_file, wait_with_timeout};
 use crate::tiers::TierFile;
 
 /// The ONE relative score-epsilon policy (module docs): ε = 2% of the
@@ -132,17 +161,116 @@ pub const COMPARABILITY_FLAG: &str = "--router.fanout.enabled=false";
 /// parses into a WARN since M4-T9 (the route subset carries the field).
 pub const OPTIMIZER_OFF_FLAG: &str = "--optimizer.enabled=false";
 
+/// THE compare profile (M4-T11, module docs): which pipeline face the
+/// battery's Rust side runs and which committed records the gates read.
+/// `RouterOnly` is the DEFAULT — the pre-T11 face byte-for-byte, so the
+/// profile switch cannot rotate any default invocation; `Full` is the M4
+/// battery face (no comparability flags, the assembled pipeline, the M0
+/// full-flow jar records in `baselines/java`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompareProfile {
+    /// Fanout + optimizer disabled on the Rust side (BOTH comparability
+    /// flags); gates against `baselines/router-only` (the T14 records).
+    RouterOnly,
+    /// The assembled pipeline, NO comparability flags; gates against
+    /// `baselines/java` (the M0 full-flow jar records, profile marker
+    /// absent).
+    Full,
+}
+
+impl CompareProfile {
+    /// Parses the `--profile` CLI value; omitted means `router-only`.
+    /// ANY other name is a LOUD failure (never a silent fallback to the
+    /// default — a typo'd profile must not silently re-face the battery).
+    /// Note: the capture/verify surfaces spell the same full profile
+    /// `full-flow`; the compare face's names are `router-only|full` and
+    /// `full-flow` is deliberately NOT accepted here (a compare against
+    /// the full-flow records is spelled `--profile full`).
+    pub fn from_name(name: Option<&str>) -> Result<Self> {
+        match name {
+            None | Some("router-only") => Ok(Self::RouterOnly),
+            Some("full") => Ok(Self::Full),
+            Some(other) => {
+                bail!("unknown compare profile {other:?} (expected \"router-only\" or \"full\")")
+            }
+        }
+    }
+
+    /// The CLI spelling.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::RouterOnly => "router-only",
+            Self::Full => "full",
+        }
+    }
+
+    /// The oracle profile this compare face mirrors — the single source
+    /// for the baselines dir (`dir_name`: `router-only` vs `java`) and the
+    /// record marker (`marker`: `Some("router-only")` vs `None`). The
+    /// compare gains NO second copy of that routing.
+    #[must_use]
+    pub fn oracle_profile(self) -> OracleProfile {
+        match self {
+            Self::RouterOnly => OracleProfile::RouterOnly,
+            Self::Full => OracleProfile::FullFlow,
+        }
+    }
+
+    /// THE argv flag suffix for this profile's subprocess runs (the one
+    /// flag source [`route_argv`] appends): router-only carries BOTH
+    /// comparability flags, full carries NONE (the assembled pipeline's
+    /// default-settings face).
+    #[must_use]
+    pub fn argv_flags(self) -> &'static [&'static str] {
+        match self {
+            Self::RouterOnly => &[COMPARABILITY_FLAG, OPTIMIZER_OFF_FLAG],
+            Self::Full => &[],
+        }
+    }
+
+    /// The detail-pass argv flags — DELIBERATELY not [`Self::argv_flags`]:
+    /// the router-only detail face is the historical T15 face
+    /// (`COMPARABILITY_FLAG` ONLY — no optimizer flag; the subprocess
+    /// gained the optimizer flag at T9, the detail pass predates it and
+    /// the buglog-176 fingerprint pin is anchored to THIS face), so the
+    /// router-only arm reproduces it exactly. The full arm drops both
+    /// flags: the detail pass must mirror ITS profile's subprocess face
+    /// (no flags). Do not "fix" the asymmetry — rotating the router-only
+    /// detail face rotates the pinned fingerprint for nothing.
+    #[must_use]
+    pub fn detail_argv_flags(self) -> &'static [&'static str] {
+        match self {
+            Self::RouterOnly => &[COMPARABILITY_FLAG],
+            Self::Full => &[],
+        }
+    }
+
+    /// The scratch run root for this profile's battery (separate so the
+    /// two faces never clobber each other's evidence — `run_cli` deletes
+    /// stale outputs, but the runs/ trees are the task evidence logs).
+    #[must_use]
+    pub fn runs_dir_name(self) -> &'static str {
+        match self {
+            Self::RouterOnly => "router-compare",
+            Self::Full => "router-compare-full",
+        }
+    }
+}
+
 /// THE one argv builder for every `router compare` subprocess run (the
 /// run faces cannot drift between sites — there is no second argv). The
-/// comparability flags ride EXACTLY once, as the argv suffix.
+/// profile's flag suffix rides EXACTLY once, as the argv suffix:
+/// router-only appends BOTH comparability flags, full appends NONE.
 #[must_use]
 pub fn route_argv(
     cli_bin: &Path,
     dsn: &Path,
     ses_path: &Path,
     manifest_path: &Path,
+    profile: CompareProfile,
 ) -> Vec<String> {
-    vec![
+    let mut argv = vec![
         cli_bin.to_string_lossy().into_owned(),
         "route".to_string(),
         "-de".to_string(),
@@ -151,22 +279,41 @@ pub fn route_argv(
         ses_path.to_string_lossy().into_owned(),
         "--result-json".to_string(),
         manifest_path.to_string_lossy().into_owned(),
-        COMPARABILITY_FLAG.to_string(),
-        OPTIMIZER_OFF_FLAG.to_string(),
-    ]
+    ];
+    argv.extend(profile.argv_flags().iter().map(|flag| (*flag).to_string()));
+    argv
 }
 
-/// The banner's comparability phrase, DERIVED from an actual built argv —
-/// if a flag ever leaves [`route_argv`], the log stops claiming
-/// fanout-off instead of lying (the OW-M2 "hardcoded banner" face).
+/// The profile-aware banner phrase, DERIVED from an actual built argv —
+/// if a flag ever leaves (router-only) or enters (full) [`route_argv`],
+/// the log says so instead of lying (the OW-M2 "hardcoded banner" face).
+/// The router-only arm derives the both-flags claim (or the MISSING face);
+/// the full arm derives the no-flags claim (or the PRESENT face). Both
+/// mismatch faces are loud — the banner can never lie about which face
+/// the battery is running.
 #[must_use]
-pub fn comparability_banner_phrase(argv: &[String]) -> String {
-    if argv.iter().any(|arg| arg == COMPARABILITY_FLAG)
-        && argv.iter().any(|arg| arg == OPTIMIZER_OFF_FLAG)
-    {
-        format!("{COMPARABILITY_FLAG} {OPTIMIZER_OFF_FLAG} vs committed router-only records")
-    } else {
-        "COMPARABILITY FLAG MISSING FROM THE ARGV vs committed router-only records".into()
+pub fn profile_banner_phrase(profile: CompareProfile, argv: &[String]) -> String {
+    match profile {
+        CompareProfile::RouterOnly => {
+            if argv.iter().any(|arg| arg == COMPARABILITY_FLAG)
+                && argv.iter().any(|arg| arg == OPTIMIZER_OFF_FLAG)
+            {
+                format!(
+                    "{COMPARABILITY_FLAG} {OPTIMIZER_OFF_FLAG} vs committed router-only records"
+                )
+            } else {
+                "COMPARABILITY FLAG MISSING FROM THE ARGV vs committed router-only records".into()
+            }
+        }
+        CompareProfile::Full => {
+            if !argv.iter().any(|arg| arg == COMPARABILITY_FLAG)
+                && !argv.iter().any(|arg| arg == OPTIMIZER_OFF_FLAG)
+            {
+                "no comparability flags (the assembled fanout → router → optimizer pipeline) vs committed full-flow records".into()
+            } else {
+                "COMPARABILITY FLAG PRESENT IN A FULL-PROFILE ARGV (the full face runs the default-settings pipeline; a disable flag here is the flag-gating bug)".into()
+            }
+        }
     }
 }
 
@@ -176,14 +323,21 @@ pub fn comparability_banner_phrase(argv: &[String]) -> String {
 
 #[derive(Subcommand)]
 pub enum RouterCommand {
-    /// Per Tier A fixture: run `epic-cli route --router.fanout.enabled=false`,
-    /// gate the manifest against the committed router-only Java record
-    /// (java-free). Every Tier A fixture gets an explicit verdict.
+    /// Per Tier A fixture: run `epic-cli route` under ONE compare profile —
+    /// `--profile router-only` (the default; BOTH comparability flags, the
+    /// committed T14 records) or `--profile full` (NO flags, the assembled
+    /// fanout → router → optimizer pipeline, the M0 full-flow jar records
+    /// in `baselines/java`). Every Tier A fixture gets an explicit verdict.
     Compare {
         /// Only run fixtures whose tiers.yaml path contains this substring
         /// (the rest still appear, marked filtered-out).
         #[arg(long)]
         fixture: Option<String>,
+        /// The compare profile face (module docs): "router-only" (default)
+        /// or "full". Any other value fails loudly (never a silent
+        /// fallback).
+        #[arg(long)]
+        profile: Option<String>,
         /// CI report mode: print every verdict, always exit 0 (the T17
         /// flip is dropping this flag — see SEAM).
         #[arg(long)]
@@ -215,12 +369,14 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
     match cmd {
         RouterCommand::Compare {
             fixture,
+            profile,
             report_only,
             detail,
             work_root,
         } => compare_cmd(
             &repo_root,
             fixture.as_deref(),
+            CompareProfile::from_name(profile.as_deref())?,
             report_only,
             detail,
             work_root,
@@ -235,11 +391,15 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
 // The Tier A fixture enum (tiers.yaml authoritative; trap 2: no silent skip)
 // ---------------------------------------------------------------------------
 
-/// The baselines directory of the router-only records.
-pub fn router_only_baselines_dir(repo_root: &Path) -> PathBuf {
+/// The baselines directory for one compare profile's committed records
+/// (single-sourced through [`CompareProfile::oracle_profile`]: the
+/// router-only records live in `baselines/router-only/A`, the M0
+/// full-flow jar records in `baselines/java/A`).
+#[must_use]
+pub fn profile_baselines_dir(repo_root: &Path, profile: CompareProfile) -> PathBuf {
     repo_root
         .join("rust/harness/baselines")
-        .join("router-only")
+        .join(profile.oracle_profile().dir_name())
         .join("A")
 }
 
@@ -257,16 +417,17 @@ pub struct RouterFixture {
 }
 
 /// The Tier A fixture walk IN tiers.yaml ORDER, each with its committed
-/// record path. The enum completeness is pinned: dropping a fixture here
-/// is the finding-class trap 2 names.
-pub fn tier_a_fixtures(repo_root: &Path) -> Result<Vec<RouterFixture>> {
+/// record path FOR THE PROFILE's record set. The enum completeness is
+/// pinned for BOTH profiles: dropping a fixture here is the finding-class
+/// trap 2 names.
+pub fn tier_a_fixtures(repo_root: &Path, profile: CompareProfile) -> Result<Vec<RouterFixture>> {
     let tiers_path = repo_root.join("rust/harness/config/tiers.yaml");
     let tier_file = TierFile::load(&tiers_path)?;
     let tier = tier_file
         .tier("A")
         .with_context(|| format!("tier A missing from {}", tiers_path.display()))?;
     let fixtures_root = tier_file.fixtures_root.display().to_string();
-    let baselines = router_only_baselines_dir(repo_root);
+    let baselines = profile_baselines_dir(repo_root, profile);
     Ok(tier
         .fixtures
         .iter()
@@ -279,13 +440,20 @@ pub fn tier_a_fixtures(repo_root: &Path) -> Result<Vec<RouterFixture>> {
         .collect())
 }
 
-/// Loads one committed router-only record strictly: exists, parses
-/// (`deny_unknown_fields`), schema current, engine `java`, profile
-/// `router-only`. The error is a plain String so callers can tally every
-/// offender into explicit verdicts (never a silent skip).
-pub fn load_java_router_only_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
+/// The strict record pre-flight shared by BOTH profile loaders: exists,
+/// parses (`deny_unknown_fields`), schema current, engine `java`, and the
+/// record's profile marker equals the profile's expected marker exactly.
+/// The error is a plain String so callers can tally every offender into
+/// explicit verdicts (never a silent skip).
+fn load_java_record_with_marker(
+    path: &Path,
+    expected_marker: Option<&str>,
+    profile_desc: &str,
+) -> std::result::Result<BaselineRecord, String> {
     if !path.is_file() {
-        return Err("missing baseline record — the T14 capture never wrote it".into());
+        return Err(format!(
+            "missing baseline record — the {profile_desc} capture never wrote it"
+        ));
     }
     let raw = std::fs::read_to_string(path).map_err(|e| format!("unreadable: {e}"))?;
     let record: BaselineRecord =
@@ -302,13 +470,29 @@ pub fn load_java_router_only_record(path: &Path) -> std::result::Result<Baseline
             record.engine
         ));
     }
-    if record.profile.as_deref() != Some("router-only") {
+    if record.profile.as_deref() != expected_marker {
         return Err(format!(
-            "profile {:?} — the compare gates against router-only records",
+            "profile {:?} — the compare gates against {profile_desc} records",
             record.profile
         ));
     }
     Ok(record)
+}
+
+/// Loads one committed router-only record strictly: exists, parses
+/// (`deny_unknown_fields`), schema current, engine `java`, profile
+/// marker `Some("router-only")`. The error is a plain String so callers
+/// can tally every offender into explicit verdicts (never a silent skip).
+pub fn load_java_router_only_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
+    load_java_record_with_marker(path, Some("router-only"), "router-only")
+}
+
+/// Loads one committed FULL-FLOW record strictly: same pre-flight, but the
+/// profile marker must be ABSENT — the M0 capture face (`FullFlow.marker()
+/// == None`); a profile-stamped record (e.g. `Some("router-only")`) is not
+/// a full-flow baseline and is rejected loudly.
+pub fn load_java_full_flow_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
+    load_java_record_with_marker(path, None, "full-flow")
 }
 
 // ---------------------------------------------------------------------------
@@ -469,11 +653,17 @@ pub struct CliRun {
     pub wall_seconds: f64,
 }
 
-/// Runs `epic-cli route` fanout-off into `work_dir` (`out.ses`,
-/// `manifest.json`, `stdout.log`, `stderr.log`) with a harness timeout.
-/// Stale outputs are deleted BEFORE the spawn so a run that dies early
-/// never reads the previous run's files as its own.
-pub fn run_cli(cli_bin: &Path, dsn: &Path, work_dir: &Path, timeout: Duration) -> Result<CliRun> {
+/// Runs `epic-cli route` under the profile's flag face into `work_dir`
+/// (`out.ses`, `manifest.json`, `stdout.log`, `stderr.log`) with a harness
+/// timeout. Stale outputs are deleted BEFORE the spawn so a run that dies
+/// early never reads the previous run's files as its own.
+pub fn run_cli(
+    cli_bin: &Path,
+    dsn: &Path,
+    work_dir: &Path,
+    timeout: Duration,
+    profile: CompareProfile,
+) -> Result<CliRun> {
     let ses_path = work_dir.join(RUN_SES_FILE);
     let manifest_path = work_dir.join(RUN_MANIFEST_FILE);
     std::fs::create_dir_all(work_dir)
@@ -483,7 +673,7 @@ pub fn run_cli(cli_bin: &Path, dsn: &Path, work_dir: &Path, timeout: Duration) -
 
     // THE single argv source ([`route_argv`]): the comparability flag
     // cannot drift between the run faces.
-    let argv = route_argv(cli_bin, dsn, &ses_path, &manifest_path);
+    let argv = route_argv(cli_bin, dsn, &ses_path, &manifest_path, profile);
     let stdout_file = std::fs::File::create(work_dir.join("stdout.log"))
         .with_context(|| format!("creating {}", work_dir.join("stdout.log").display()))?;
     let stderr_file = std::fs::File::create(work_dir.join("stderr.log"))
@@ -1017,7 +1207,11 @@ pub fn localization_lines(
 /// stderr noise, never corruption. The engine's tick-budget currency
 /// is untouched (controller constraint, buglog 175): only the WALL
 /// bound is non-deterministic.
-fn run_detail_pass(dsn: &Path, deadline: Duration) -> Result<RustDetail, String> {
+fn run_detail_pass(
+    dsn: &Path,
+    deadline: Duration,
+    profile: CompareProfile,
+) -> Result<RustDetail, String> {
     // RAII silence (quality-review T17b M-Q2): the drop restores the
     // previous hook on EVERY path out — the T17b deadline path
     // included (the sentinel's asserted invariant). NO lock HERE: the
@@ -1026,9 +1220,9 @@ fn run_detail_pass(dsn: &Path, deadline: Duration) -> Result<RustDetail, String>
     // contract — the three watchdog pins hold it; the bin's
     // compare_cmd is the only participant in its own process.
     let _silence = crate::panic_hook::Silenced::new();
-    let body = |dsn: &Path| {
+    let body = move |dsn: &Path| {
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            route_detail_inner(dsn).map_err(|e| e.to_string())
+            route_detail_inner(dsn, profile).map_err(|e| e.to_string())
         }))
         .unwrap_or_else(|payload| {
             Err(format!(
@@ -1073,7 +1267,7 @@ fn run_detail_pass(dsn: &Path, deadline: Duration) -> Result<RustDetail, String>
 }
 
 /// The detail pass body (panic boundary lives in [`run_detail_pass`]).
-fn route_detail_inner(dsn: &Path) -> Result<RustDetail, anyhow::Error> {
+fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail, anyhow::Error> {
     use epic_board::board::Board;
     use epic_board::tree_manager::SearchTreeManager;
     use epic_cli::route::{CliDriverSink, build_batch_settings};
@@ -1086,22 +1280,30 @@ fn route_detail_inner(dsn: &Path) -> Result<RustDetail, anyhow::Error> {
     use epic_router::pipeline::batch::{BatchDriver, StopFace};
     use epic_router::pipeline::board_statistics::BoardStatistics;
 
-    // The identical argv face the compare's subprocess gets (the fanout
-    // coupling flows through the SAME build_batch_settings the flow uses).
+    // The profile's detail argv face ([`CompareProfile::detail_argv_flags`]):
+    // router-only = the historical T15 face (fanout flag ONLY — the pinned
+    // buglog-176 fingerprint face), full = NO flags (the assembled
+    // pipeline). The fanout coupling flows through the SAME
+    // build_batch_settings the subprocess uses.
     let scratch_ses = std::env::temp_dir().join(format!(
         "epic-t15-detail-{}-{}.ses",
         std::process::id(),
         dsn.file_name().and_then(|n| n.to_str()).unwrap_or("board")
     ));
-    let argv = [
+    let mut argv = vec![
         "-de".to_string(),
         dsn.to_string_lossy().into_owned(),
         "-do".to_string(),
         scratch_ses.to_string_lossy().into_owned(),
-        // The SAME const the subprocess argv builder uses — every run face
-        // single-sources the comparability flag.
-        COMPARABILITY_FLAG.to_string(),
     ];
+    // The profile's detail flags — for RouterOnly the SAME const the
+    // subprocess argv builder uses (single-sourced), for Full nothing.
+    argv.extend(
+        profile
+            .detail_argv_flags()
+            .iter()
+            .map(|flag| (*flag).to_string()),
+    );
     let args = parse_route_args(&argv).map_err(anyhow::Error::msg)?;
 
     let bytes = std::fs::read(dsn).with_context(|| format!("reading {}", dsn.display()))?;
@@ -1302,7 +1504,11 @@ fn determinism_cmd(
 ) -> Result<()> {
     let started = Instant::now();
     let cli_bin = resolve_fresh_epic_cli(repo_root)?;
-    let fixtures = tier_a_fixtures(repo_root)?;
+    // THE DETERMINISM GATE STAYS ROUTER-ONLY (the dispatch tripwire: the
+    // router-only determinism faces — canary ses `253e7b14…` — must not
+    // rotate; the full profile's determinism witness is the bm08 ×2
+    // full-flow digest reproduction, not this gate).
+    let fixtures = tier_a_fixtures(repo_root, CompareProfile::RouterOnly)?;
     let wanted = fixture.unwrap_or(DEFAULT_DETERMINISM_FIXTURE);
     let entry = fixtures
         .iter()
@@ -1332,12 +1538,14 @@ fn determinism_cmd(
         &dsn,
         &run1_dir,
         Duration::from_secs(entry.timeout_seconds),
+        CompareProfile::RouterOnly,
     )?;
     let run2 = run_cli(
         &cli_bin,
         &dsn,
         &run2_dir,
         Duration::from_secs(entry.timeout_seconds),
+        CompareProfile::RouterOnly,
     )?;
     // The digest sources are a STRUCTURAL run1/run2 pair (review OW-M3 +
     // MINOR-A hardening): the construction is the pinned `pair_from_runs`
@@ -1393,13 +1601,14 @@ fn determinism_cmd(
 fn compare_cmd(
     repo_root: &Path,
     fixture_filter: Option<&str>,
+    profile: CompareProfile,
     report_only: bool,
     force_detail: bool,
     work_root: Option<PathBuf>,
 ) -> Result<()> {
     let started = Instant::now();
     let cli_bin = resolve_fresh_epic_cli(repo_root)?;
-    let fixtures = tier_a_fixtures(repo_root)?;
+    let fixtures = tier_a_fixtures(repo_root, profile)?;
     let work = work_root
         .map(|p| {
             if p.is_absolute() {
@@ -1408,18 +1617,28 @@ fn compare_cmd(
                 repo_root.join(p)
             }
         })
-        .unwrap_or_else(|| repo_root.join("rust/harness/runs/router-compare"));
-    // The banner's fanout-off claim is DERIVED from the actual argv
-    // builder (not hardcoded): if the comparability flag ever leaves
-    // [`route_argv`], the log says so instead of lying (OW-M2).
-    let banner_comparability = comparability_banner_phrase(&route_argv(
-        &cli_bin,
-        Path::new("<fixture.dsn>"),
-        Path::new("<out.ses>"),
-        Path::new("<manifest.json>"),
-    ));
+        .unwrap_or_else(|| {
+            repo_root
+                .join("rust/harness/runs")
+                .join(profile.runs_dir_name())
+        });
+    // The banner's face claim is DERIVED from the actual argv builder
+    // (not hardcoded): if a comparability flag ever leaves (router-only)
+    // or enters (full) [`route_argv`], the log says so instead of lying
+    // (OW-M2).
+    let banner_comparability = profile_banner_phrase(
+        profile,
+        &route_argv(
+            &cli_bin,
+            Path::new("<fixture.dsn>"),
+            Path::new("<out.ses>"),
+            Path::new("<manifest.json>"),
+            profile,
+        ),
+    );
     println!(
-        "router compare: {} Tier A fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli {} ; mode: {}",
+        "router compare[{}]: {} Tier A fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli {} ; mode: {}",
+        profile.name(),
         fixtures.len(),
         (SCORE_RELATIVE_EPSILON * 100.0),
         banner_comparability,
@@ -1444,8 +1663,13 @@ fn compare_cmd(
             continue;
         }
         // Every fixture gets an explicit verdict (trap 2): a bad record is
-        // a RED verdict, never a skip.
-        let java = match load_java_router_only_record(&entry.baseline_path) {
+        // a RED verdict, never a skip. The loader keys on the profile:
+        // router-only records carry `Some("router-only")`, full-flow
+        // records carry NO marker (the M0 capture face).
+        let java = match match profile {
+            CompareProfile::RouterOnly => load_java_router_only_record(&entry.baseline_path),
+            CompareProfile::Full => load_java_full_flow_record(&entry.baseline_path),
+        } {
             Ok(record) => record,
             Err(reason) => {
                 red += 1;
@@ -1460,6 +1684,7 @@ fn compare_cmd(
             &dsn,
             &work_dir,
             Duration::from_secs(entry.timeout_seconds),
+            profile,
         )
         .with_context(|| format!("spawning the run for {}", entry.tier_path))?;
         let outcome = RustOutcome::from_run(&run);
@@ -1479,7 +1704,7 @@ fn compare_cmd(
         // died inside bm01's post-kill detail pass, zero rows printed).
         let mut detail: Option<RustDetail> = None;
         if detail_pass_should_run(force_detail, &failures, run.timed_out) {
-            match run_detail_pass(&dsn, detail_deadline(entry)) {
+            match run_detail_pass(&dsn, detail_deadline(entry), profile) {
                 Ok(pass) => {
                     report.rust_trace_count = Some(pass.trace_count);
                     report.rust_via_count = Some(pass.via_count);
@@ -1942,67 +2167,189 @@ mod pins {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// THE full-flow record pre-flight (M4-T11): the full profile's loader
+    /// accepts EXACTLY the M0 capture face (profile marker ABSENT) and
+    /// rejects every mismatched record LOUDLY — a router-only-stamped
+    /// record (the wrong-profile trap), a marker typo, a missing file, a
+    /// rust-engine record. Contrast faces against the router-only loader:
+    /// the SAME record bodies get opposite verdicts from the two loaders
+    /// (the crossing cell — a loader that accepted both markers could
+    /// silently mix faces).
+    #[test]
+    fn full_flow_record_pre_flight_accepts_only_the_markerless_m0_face() {
+        let dir = std::env::temp_dir().join(format!("epic-t15-fullflow-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let write = |name: &str, body: &str| {
+            let path = dir.join(name);
+            std::fs::write(&path, body).expect("write record");
+            path
+        };
+        // THE M0 capture face: no `profile` key at all. The full loader
+        // accepts it and the numbers ride.
+        let m0_face = write(
+            "m0.json",
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"incomplete_count":0,"maximum_count":25,"normalized_score":1000.0,"optimizer_score":823.79,"optimizer_seconds":4.31}"#,
+        );
+        let record = load_java_full_flow_record(&m0_face).expect("the M0 face is the full record");
+        assert_eq!(record.profile, None);
+        assert_eq!(record.optimizer_score, Some(823.79));
+
+        // Missing file: loud.
+        let err = load_java_full_flow_record(&dir.join("nope.json"))
+            .expect_err("missing record must be an explicit error");
+        assert!(
+            err.contains("missing baseline record") && err.contains("full-flow"),
+            "the error must name the profile face: {err}"
+        );
+
+        // A router-only-STAMPED record is NOT a full-flow baseline — the
+        // wrong-profile trap must not pass silently (contrast face: the
+        // router-only loader ACCEPTS this same body).
+        let stamped = write(
+            "stamped.json",
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"router-only"}"#,
+        );
+        let err = load_java_full_flow_record(&stamped).expect_err("stamped record rejected");
+        assert!(
+            err.contains("profile") && err.contains("full-flow"),
+            "{err}"
+        );
+        assert!(
+            load_java_router_only_record(&stamped).is_ok(),
+            "contrast: the same body loads under the router-only loader"
+        );
+
+        // A marker TYPO (`full-flow` spelled into the compare face's
+        // value space) is rejected — only ABSENT is the M0 face.
+        let typo = write(
+            "typo.json",
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"full-flow"}"#,
+        );
+        let err = load_java_full_flow_record(&typo).expect_err("typo'd marker rejected");
+        assert!(err.contains("profile"), "{err}");
+
+        // Wrong engine: loud, profile-independent.
+        let err = load_java_full_flow_record(&m0_face).map(|_| ()).err();
+        assert!(err.is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// THE profile-switch pin (M4-T11): the compare profile parses the
+    /// dispatch's two names exactly — omitted and `router-only` mean the
+    /// M2/M3 regression face, `full` means the M4 battery face — and ANY
+    /// other value is a LOUD failure naming the accepted values (never a
+    /// silent fallback to the default: a typo'd profile must not silently
+    /// re-face the battery). The oracle/capture spelling `full-flow` is
+    /// deliberately NOT a compare name (the error names the two values so
+    /// the mismatch is self-explaining).
+    #[test]
+    fn compare_profile_parsing_is_exact_and_loud_on_unknown_names() {
+        assert_eq!(
+            CompareProfile::from_name(None).expect("omitted"),
+            CompareProfile::RouterOnly,
+            "the omitted profile is the router-only default (the pre-T11 face)"
+        );
+        assert_eq!(
+            CompareProfile::from_name(Some("router-only")).expect("router-only"),
+            CompareProfile::RouterOnly
+        );
+        assert_eq!(
+            CompareProfile::from_name(Some("full")).expect("full"),
+            CompareProfile::Full
+        );
+        // Every wrong spelling is LOUD, naming the accepted values.
+        for wrong in ["full-flow", "routeronly", "FULL", "", "Full", "flow"] {
+            let err = CompareProfile::from_name(Some(wrong))
+                .expect_err("a wrong profile name must fail loudly");
+            let msg = format!("{err:#}");
+            assert!(
+                msg.contains("unknown compare profile"),
+                "unexpected error for {wrong:?}: {msg}"
+            );
+            assert!(
+                msg.contains("router-only") && msg.contains("full"),
+                "the error must name BOTH accepted values for {wrong:?}: {msg}"
+            );
+        }
+    }
+
     /// THE fixture-enum completeness canary (real repo tree, java-free,
     /// cheap): Tier A in tiers.yaml order, every record present, and the
-    /// committed record set has NO extras. A dropped fixture (the walk or
-    /// the capture) is the finding-class trap 2 names — this pin dies on
-    /// that mutant.
+    /// committed record set has NO extras — for BOTH profiles. A dropped
+    /// fixture (the walk or the capture) is the finding-class trap 2
+    /// names — this pin dies on that mutant. The full arm keys the M0
+    /// `baselines/java` record set (the reuse decision's structural
+    /// witness: the battery's jar side exists for every Tier A fixture).
     #[test]
     fn tier_a_fixture_enum_is_complete_against_tiers_and_records() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let fixtures = tier_a_fixtures(&root).expect("tier A walk");
-        assert_eq!(fixtures.len(), 11, "the committed Tier A battery");
-        let expected_first = "DAC2020_boards/DAC2020_bm01.dsn";
-        assert_eq!(fixtures[0].tier_path, expected_first, "tiers.yaml order");
-        assert_eq!(
-            fixtures.last().expect("non-empty").tier_path,
-            "KiCad_10_demos/sonde xilinx.dsn",
-            "the space-bearing path survives the walk verbatim"
-        );
-        for fixture in &fixtures {
-            assert!(
-                fixture.baseline_path.is_file(),
-                "record missing for {}: {}",
-                fixture.tier_path,
-                fixture.baseline_path.display()
+        for (profile, tier_dirs) in [
+            (
+                CompareProfile::RouterOnly,
+                vec!["DAC2020_boards", "KiCad_10_demos"],
+            ),
+            (
+                CompareProfile::Full,
+                vec!["DAC2020_boards", "KiCad_10_demos"],
+            ),
+        ] {
+            let fixtures = tier_a_fixtures(&root, profile).expect("tier A walk");
+            assert_eq!(fixtures.len(), 11, "the committed Tier A battery");
+            assert_eq!(
+                fixtures[0].tier_path, "DAC2020_boards/DAC2020_bm01.dsn",
+                "tiers.yaml order ({profile:?})"
             );
-            assert!(
-                root.join(&fixture.repo_rel_dsn).is_file(),
-                "fixture missing on disk: {}",
-                fixture.repo_rel_dsn
+            assert_eq!(
+                fixtures.last().expect("non-empty").tier_path,
+                "KiCad_10_demos/sonde xilinx.dsn",
+                "the space-bearing path survives the walk verbatim ({profile:?})"
             );
-            assert!(
-                fixture.timeout_seconds > 0,
-                "the tiers.yaml timeout must ride"
-            );
-        }
-        // No extras: every committed record maps back to a walked fixture.
-        let walked: std::collections::BTreeSet<String> = fixtures
-            .iter()
-            .map(|f| format!("{}.baseline.json", f.tier_path))
-            .collect();
-        let mut extras = Vec::new();
-        let baselines = router_only_baselines_dir(&root);
-        for tier_dir in ["DAC2020_boards", "KiCad_10_demos"] {
-            let dir = baselines.join(tier_dir);
-            let entries = std::fs::read_dir(&dir).expect("record dir");
-            for entry in entries {
-                let name = entry
-                    .expect("dir entry")
-                    .file_name()
-                    .into_string()
-                    .expect("utf8");
-                if name.ends_with(".baseline.json")
-                    && !walked.contains(&format!("{tier_dir}/{name}"))
-                {
-                    extras.push(format!("{tier_dir}/{name}"));
+            for fixture in &fixtures {
+                assert!(
+                    fixture.baseline_path.is_file(),
+                    "record missing for {} under {profile:?}: {}",
+                    fixture.tier_path,
+                    fixture.baseline_path.display()
+                );
+                assert!(
+                    root.join(&fixture.repo_rel_dsn).is_file(),
+                    "fixture missing on disk: {}",
+                    fixture.repo_rel_dsn
+                );
+                assert!(
+                    fixture.timeout_seconds > 0,
+                    "the tiers.yaml timeout must ride"
+                );
+            }
+            // No extras: every committed record maps back to a walked fixture.
+            let walked: std::collections::BTreeSet<String> = fixtures
+                .iter()
+                .map(|f| format!("{}.baseline.json", f.tier_path))
+                .collect();
+            let mut extras = Vec::new();
+            let baselines = profile_baselines_dir(&root, profile);
+            for tier_dir in tier_dirs {
+                let dir = baselines.join(tier_dir);
+                for entry in std::fs::read_dir(&dir).expect("record dir") {
+                    let name = entry
+                        .expect("dir entry")
+                        .file_name()
+                        .into_string()
+                        .expect("utf8");
+                    if name.ends_with(".baseline.json")
+                        && !walked.contains(&format!("{tier_dir}/{name}"))
+                    {
+                        extras.push(format!("{tier_dir}/{name}"));
+                    }
                 }
             }
+            assert!(
+                extras.is_empty(),
+                "records without a Tier A fixture ({profile:?}): {extras:?}"
+            );
         }
-        assert!(
-            extras.is_empty(),
-            "records without a Tier A fixture: {extras:?}"
-        );
     }
 
     /// THE localizer output shape (synthetic failing pair, no engine):
@@ -2218,22 +2565,34 @@ mod pins {
         assert!(approx(engine, 0.0), "engine floors too: {engine}");
     }
 
-    /// THE comparability argv pin (spec-review MINOR-1 / OW-M2 survivor):
-    /// `route_argv` — the ONE builder `run_cli` spawns from — carries the
-    /// fanout-off flag EXACTLY once, as the argv suffix, and the banner
-    /// phrase derived from that argv claims fanout-off. M4-T9: the argv
-    /// ALSO carries `--optimizer.enabled=false` (the committed router-only
-    /// records are the both-stages-OFF face). Mutation-verified: dropping
-    /// a flag from the builder makes the asserts fail (and the
-    /// banner face flips to "MISSING" instead of a hardcoded lie).
+    /// THE comparability argv pin (spec-review MINOR-1 / OW-M2 survivor),
+    /// M4-T11 profile face: `route_argv` — the ONE builder `run_cli`
+    /// spawns from — carries the PROFILE's flag suffix, and the banner
+    /// phrase derived from that argv claims the profile's face. The 2×2
+    /// crossing cell is pinned: RouterOnly ⇒ BOTH flags EXACTLY once as
+    /// the suffix (fanout second-to-last, optimizer last — the M4-T9
+    /// face); Full ⇒ NEITHER flag on the same base contract (the same
+    /// first eight args, so the full face is the bare default-settings
+    /// pipeline). Banner mismatch faces BOTH directions: a router-only
+    /// argv with a dropped flag says MISSING; a full argv with a planted
+    /// disable flag says PRESENT (the flag-gating bug face). Mutation
+    /// faces: dropping a flag from the router-only builder fails the
+    /// position/last asserts AND flips the banner to MISSING; the
+    /// full-arm flag-injection mutant fails the no-flag asserts AND
+    /// flips the banner to PRESENT.
     #[test]
     fn run_cli_argv_carries_the_comparability_flag() {
-        let argv = route_argv(
-            Path::new("/bin/epic-cli"),
-            Path::new("/f/x.dsn"),
-            Path::new("/w/out.ses"),
-            Path::new("/w/manifest.json"),
-        );
+        let base = |profile| {
+            route_argv(
+                Path::new("/bin/epic-cli"),
+                Path::new("/f/x.dsn"),
+                Path::new("/w/out.ses"),
+                Path::new("/w/manifest.json"),
+                profile,
+            )
+        };
+        // ARM 1 — RouterOnly: BOTH flags, exactly once, as the suffix.
+        let argv = base(CompareProfile::RouterOnly);
         let flag_positions: Vec<usize> = argv
             .iter()
             .enumerate()
@@ -2251,7 +2610,7 @@ mod pins {
             "the M4-T9 optimizer-off flag is the argv suffix: {argv:?}"
         );
         // The banner face is DERIVED: a correct argv yields the claim.
-        let phrase = comparability_banner_phrase(&argv);
+        let phrase = profile_banner_phrase(CompareProfile::RouterOnly, &argv);
         assert!(
             phrase.contains(COMPARABILITY_FLAG) && phrase.contains(OPTIMIZER_OFF_FLAG),
             "the banner must claim both comparability flags from the actual argv: {phrase}"
@@ -2265,10 +2624,64 @@ mod pins {
             .filter(|arg| *arg != COMPARABILITY_FLAG)
             .cloned()
             .collect();
-        let phrase = comparability_banner_phrase(&mutant_argv);
+        let phrase = profile_banner_phrase(CompareProfile::RouterOnly, &mutant_argv);
         assert!(
             phrase.contains("COMPARABILITY FLAG MISSING"),
             "a flag-less argv must stop the banner claiming fanout-off: {phrase}"
+        );
+
+        // ARM 2 — Full: NEITHER flag, and the SAME base contract as the
+        // router-only argv minus the flags (the full face is the bare
+        // default-settings pipeline; a flags-from-full-fanout mutant that
+        // changed the base would fail the prefix equality).
+        let full_argv = base(CompareProfile::Full);
+        assert!(
+            !full_argv.iter().any(|arg| arg == COMPARABILITY_FLAG),
+            "the full profile must NOT carry the fanout-off flag: {full_argv:?}"
+        );
+        assert!(
+            !full_argv.iter().any(|arg| arg == OPTIMIZER_OFF_FLAG),
+            "the full profile must NOT carry the optimizer-off flag: {full_argv:?}"
+        );
+        let base_len = argv.len() - 2; // the two flag suffix args
+        assert_eq!(
+            &full_argv[..base_len],
+            &argv[..base_len],
+            "full and router-only share the base contract; ONLY the flag suffix differs: \
+             {argv:?} vs {full_argv:?}"
+        );
+        assert_eq!(full_argv.len(), base_len, "no flags on the full argv");
+        // The banner claims the full face — and a planted disable flag in
+        // a full argv is the flag-gating bug face (the PRESENT arm).
+        let phrase = profile_banner_phrase(CompareProfile::Full, &full_argv);
+        assert!(
+            phrase.contains("no comparability flags"),
+            "the banner must claim the full face from the actual argv: {phrase}"
+        );
+        let planted = base(CompareProfile::Full);
+        let planted = {
+            let mut v = planted;
+            v.push(OPTIMIZER_OFF_FLAG.to_string());
+            v
+        };
+        let phrase = profile_banner_phrase(CompareProfile::Full, &planted);
+        assert!(
+            phrase.contains("COMPARABILITY FLAG PRESENT IN A FULL-PROFILE ARGV"),
+            "a disable flag in a full argv must stop the banner claiming the full face: {phrase}"
+        );
+
+        // The detail-pass argv faces ([`CompareProfile::detail_argv_flags`]):
+        // RouterOnly = the historical T15 face (fanout flag ONLY — the
+        // pinned buglog-176 fingerprint face), Full = NO flags.
+        assert_eq!(
+            CompareProfile::RouterOnly.detail_argv_flags(),
+            &[COMPARABILITY_FLAG],
+            "the router-only detail face is fanout-flag-only"
+        );
+        assert_eq!(
+            CompareProfile::Full.detail_argv_flags(),
+            &[] as &[&str],
+            "the full detail face carries no flags"
         );
     }
 
@@ -2452,6 +2865,7 @@ mod pins {
         let err = run_detail_pass(
             Path::new("/nonexistent/epic-t15-world.dsn"),
             WATCHDOG_TEST_WALL,
+            CompareProfile::RouterOnly,
         )
         .expect_err("unreadable DSN must be an Err");
         assert!(err.contains("reading"), "the read-context error: {err}");
@@ -2473,13 +2887,17 @@ mod pins {
         // deadline class AND the hook must come back before it is
         // returned.
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bm01 = tier_a_fixtures(&root)
+        let bm01 = tier_a_fixtures(&root, CompareProfile::RouterOnly)
             .expect("tier A walk")
             .into_iter()
             .find(|f| f.tier_path == "DAC2020_boards/DAC2020_bm01.dsn")
             .expect("bm01 is a Tier A fixture");
-        let verdict = run_detail_pass(&root.join(&bm01.repo_rel_dsn), Duration::from_secs(10))
-            .expect_err("bm01's detail route cannot finish inside 10s (pass 1 alone >1000s)");
+        let verdict = run_detail_pass(
+            &root.join(&bm01.repo_rel_dsn),
+            Duration::from_secs(10),
+            CompareProfile::RouterOnly,
+        )
+        .expect_err("bm01's detail route cannot finish inside 10s (pass 1 alone >1000s)");
         assert!(
             verdict.contains("deadline exceeded"),
             "the deadline verdict class: {verdict}"
@@ -2517,13 +2935,17 @@ mod pins {
     fn detail_pass_deadline_fires_distinguishably() {
         let _hook_guard = crate::panic_hook::lock();
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bm01 = tier_a_fixtures(&root)
+        let bm01 = tier_a_fixtures(&root, CompareProfile::RouterOnly)
             .expect("tier A walk")
             .into_iter()
             .find(|f| f.tier_path == "DAC2020_boards/DAC2020_bm01.dsn")
             .expect("bm01 is a Tier A fixture");
-        let verdict = run_detail_pass(&root.join(&bm01.repo_rel_dsn), Duration::from_secs(2))
-            .expect_err("bm01's detail route cannot finish inside 2s");
+        let verdict = run_detail_pass(
+            &root.join(&bm01.repo_rel_dsn),
+            Duration::from_secs(2),
+            CompareProfile::RouterOnly,
+        )
+        .expect_err("bm01's detail route cannot finish inside 2s");
         assert!(
             verdict.contains("deadline exceeded"),
             "the deadline verdict class: {verdict}"
@@ -2544,7 +2966,7 @@ mod pins {
     #[test]
     fn detail_deadline_equals_the_tier_wall_and_scales_across_fixtures() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let fixtures = tier_a_fixtures(&root).expect("tier A walk");
+        let fixtures = tier_a_fixtures(&root, CompareProfile::RouterOnly).expect("tier A walk");
         let find = |tier_path: &str| {
             fixtures
                 .iter()
@@ -2598,13 +3020,17 @@ mod pins {
     fn detail_pass_deadline_silent_preserves_the_deterministic_outcome() {
         let _hook_guard = crate::panic_hook::lock();
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let fixture = tier_a_fixtures(&root)
+        let fixture = tier_a_fixtures(&root, CompareProfile::RouterOnly)
             .expect("tier A walk")
             .into_iter()
             .find(|f| f.tier_path == "KiCad_10_demos/ecc83-pp_v2.dsn")
             .expect("ecc83-pp_v2 is a Tier A fixture");
-        let detail = run_detail_pass(&root.join(&fixture.repo_rel_dsn), Duration::from_secs(600))
-            .expect("the generous wall must stay silent on a ~6s route");
+        let detail = run_detail_pass(
+            &root.join(&fixture.repo_rel_dsn),
+            Duration::from_secs(600),
+            CompareProfile::RouterOnly,
+        )
+        .expect("the generous wall must stay silent on a ~6s route");
         assert_eq!(
             detail.incomplete_total, 0,
             "buglog-176 fingerprint: net 6 ROUTES (the isTraceObstacle parity fix)"
@@ -2947,25 +3373,54 @@ mod pins {
     /// (`let _ = (report_only, red); Ok(())` at the `compare_cmd` tail,
     /// fn left correct) and kept every unit pin green while gate mode
     /// exited 0 with a red fixture; post-T17-flip that makes a red
-    /// battery exit 0 with CI green. This e2e runs the BUILT binary's
-    /// `router compare --fixture bm01` in GATE mode (bm01 is a
-    /// panic-class fixture: the subprocess dies fast, no T17 needed) and
-    /// asserts the exit code is NONZERO and the output carries the RED
-    /// verdict line. Java-free; ~2s (measured 1.8s); requires `cargo
-    /// build -p epic-cli` (the battery spawns it). Run explicitly:
-    /// `cargo test -p epic-harness --bin epic-harness
-    /// e2e_router_compare_gate_mode -- --ignored` (also after any
-    /// compare_cmd tail refactor).
+    /// battery exit 0 with CI green.
+    ///
+    /// RE-FACED M4-T11 (the original premise is STALE, witnessed live
+    /// 2026-09-24): it drove `--fixture bm01` expecting the M3-era
+    /// panic-class fast red — but the T17a integrity close ended bm01's
+    /// panics and the T7 fanout stage turned the router-only row GREEN
+    /// (the bare default-profile run exited 0), so the pin could no
+    /// longer construct its red. The re-face keeps the R1 target — the
+    /// battery_exit CALL SITE — with a CONSTRUCTED red that is cheap
+    /// (~1s), profile-independent, and touches no committed artifact:
+    /// `EPIC_CLI` points at a freshly written no-op stub (mtime = now,
+    /// so the bin-freshness guard passes), the run produces NO manifest,
+    /// the integrity gate goes red, and GATE MODE must exit NONZERO
+    /// naming the red tally. The R1 bypass mutant survives nothing: with
+    /// the call removed the stub world exits 0 and this pin dies. (The
+    /// REAL reds of the current battery — bm01/bm06/bm11 full — are
+    /// witnessed in the T11 battery log; a real red costs 80s-1800s of
+    /// wall, wrong shape for a smoke.) Requires `cargo build -p
+    /// epic-cli` once so the harness binary exists (the stub replaces
+    /// the routed bin). Run explicitly: `cargo test -p epic-harness
+    /// --bin epic-harness e2e_router_compare_gate_mode -- --ignored`
+    /// (also after any compare_cmd tail refactor).
     #[test]
     #[ignore]
     fn e2e_router_compare_gate_mode_exits_nonzero_on_a_red_battery() {
         let root = crate::oracle::find_repo_root().expect("repo root");
         let bin = e2e_built_harness_bin(&root);
+        // The no-op stub: exits 0 instantly, writes nothing — the
+        // integrity-red face ("no manifest produced"). Written FRESH so
+        // its mtime passes the structural bin-freshness guard.
+        let stub_dir =
+            std::env::temp_dir().join(format!("epic-t15-cli-stub-{}", std::process::id()));
+        std::fs::create_dir_all(&stub_dir).expect("stub dir");
+        let stub = stub_dir.join("epic-cli");
+        std::fs::write(&stub, "#!/bin/sh\nexit 0\n").expect("stub body");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod stub");
+        }
         let output = Command::new(&bin)
-            .args(["router", "compare", "--fixture", "bm01"])
+            .args(["router", "compare", "--fixture", "bm08"])
             .env("EPIC_SKIP_GRADLE", "1")
+            .env("EPIC_CLI", &stub)
             .output()
             .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        let _ = std::fs::remove_dir_all(&stub_dir);
         assert!(
             !output.status.success(),
             "a red battery in gate mode must exit NONZERO (the battery_exit call site must be \
@@ -2975,8 +3430,18 @@ mod pins {
         );
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-            stdout.contains("[RED] DAC2020_boards/DAC2020_bm01.dsn"),
+            stdout.contains("[RED] DAC2020_boards/DAC2020_bm08.dsn"),
             "the red fixture's [RED] verdict line must render: {stdout}"
+        );
+        assert!(
+            stdout.contains("integrity(no manifest produced)"),
+            "the stub world's red face is the integrity gate (the numeric gates are not \
+             judged): {stdout}"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("1 fixture(s) RED"),
+            "the bail must tally the red: {stderr}"
         );
     }
 
@@ -3012,6 +3477,101 @@ mod pins {
         assert!(
             stderr.contains("--fixture \"zzz\" matched no Tier A fixture"),
             "the bail must name the unmatched filter: stderr: {stderr}"
+        );
+    }
+
+    /// THE full-profile battery smoke (M4-T11): the BUILT harness binary's
+    /// `router compare --profile full` on ONE CHEAP fixture (bm08 — the
+    /// smallest board AND the dispatch's F1/F1′ anchor) in GATE mode must
+    /// exit 0 with the [PASS] verdict row, the `router compare[full]`
+    /// banner, and the derived no-flags comparability claim. This is the
+    /// profile wiring's end-to-end witness: the Rust side ran the
+    /// assembled pipeline (no flags) against the M0 full-flow record and
+    /// cleared all three directional gates. It does NOT duplicate the
+    /// battery's own run — the battery is 11 fixtures; this smoke is the
+    /// one-fixture gate-mode exit-code face (the report-mode battery log
+    /// is the task evidence). Requires the built `epic-harness` binary;
+    /// the spawned `epic-cli` resolves release-first (a fresh release bin
+    /// routes bm08's full face in ~7s). Run explicitly: `cargo test -p
+    /// epic-harness --bin epic-harness e2e_router_compare_full_profile
+    /// -- --ignored`.
+    #[test]
+    #[ignore]
+    fn e2e_router_compare_full_profile_passes_bm08_in_gate_mode() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let bin = e2e_built_harness_bin(&root);
+        let output = Command::new(&bin)
+            .args([
+                "router",
+                "compare",
+                "--profile",
+                "full",
+                "--fixture",
+                "bm08",
+            ])
+            .env("EPIC_SKIP_GRADLE", "1")
+            .output()
+            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        assert!(
+            output.status.success(),
+            "the full-profile bm08 row must PASS in gate mode: {} stderr: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("router compare[full]"),
+            "the banner must name the full profile: {stdout}"
+        );
+        assert!(
+            stdout.contains("no comparability flags"),
+            "the derived comparability claim must be the full face: {stdout}"
+        );
+        assert!(
+            stdout.contains("[PASS] DAC2020_boards/DAC2020_bm08.dsn"),
+            "bm08's full-profile verdict row must be [PASS]: {stdout}"
+        );
+        assert!(
+            !stdout.contains("router-only records"),
+            "a full-profile run must never claim the router-only face: {stdout}"
+        );
+    }
+
+    /// THE profile-switch loud-failure smoke (M4-T11): the capture/verify
+    /// spelling `full-flow` is NOT a compare profile name — requesting it
+    /// must exit NONZERO with the error naming BOTH accepted values,
+    /// before any fixture runs (~0s). Kills the silent-fallback mutant
+    /// (an unknown profile quietly meaning the default).
+    #[test]
+    #[ignore]
+    fn e2e_router_compare_wrong_profile_fails_loudly() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let bin = e2e_built_harness_bin(&root);
+        let output = Command::new(&bin)
+            .args([
+                "router",
+                "compare",
+                "--profile",
+                "full-flow",
+                "--fixture",
+                "zzz",
+            ])
+            .env("EPIC_SKIP_GRADLE", "1")
+            .output()
+            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        assert!(
+            !output.status.success(),
+            "a wrong profile name must exit NONZERO: status {}",
+            output.status
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("unknown compare profile"),
+            "the error must name the profile face: {stderr}"
+        );
+        assert!(
+            stderr.contains("router-only") && stderr.contains("\"full\""),
+            "the error must name BOTH accepted values: {stderr}"
         );
     }
 }
