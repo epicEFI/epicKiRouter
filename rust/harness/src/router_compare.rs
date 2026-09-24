@@ -191,7 +191,10 @@ impl CompareProfile {
             None | Some("router-only") => Ok(Self::RouterOnly),
             Some("full") => Ok(Self::Full),
             Some(other) => {
-                bail!("unknown compare profile {other:?} (expected \"router-only\" or \"full\")")
+                bail!(
+                    "unknown compare profile {other:?} (expected \"router-only\" or \"full\"; \
+                     the capture/verify surface spells the full profile \"full-flow\")"
+                )
             }
         }
     }
@@ -255,6 +258,17 @@ impl CompareProfile {
             Self::RouterOnly => "router-compare",
             Self::Full => "router-compare-full",
         }
+    }
+
+    /// Loads one committed record for THIS profile's record set — the
+    /// strict pre-flight keyed on the ORACLE profile's own marker and
+    /// capture-surface name (no literals restated one layer below their
+    /// source: `Some("router-only")`/`None` and the error's profile face
+    /// come from [`OracleProfile::marker`]/[`OracleProfile::capture_name`]
+    /// through [`Self::oracle_profile`]).
+    pub fn load_record(&self, path: &Path) -> std::result::Result<BaselineRecord, String> {
+        let oracle = self.oracle_profile();
+        load_java_record_with_marker(path, oracle.marker(), oracle.capture_name())
     }
 }
 
@@ -412,7 +426,9 @@ pub struct RouterFixture {
     /// Repo-relative DSN path.
     pub repo_rel_dsn: String,
     pub timeout_seconds: u64,
-    /// The committed router-only record for the fixture.
+    /// The committed record for the fixture under the walk's profile
+    /// (the `profile.oracle_profile().dir_name()` record set: the T14
+    /// router-only records vs the M0 full-flow `java` set).
     pub baseline_path: PathBuf,
 }
 
@@ -477,22 +493,6 @@ fn load_java_record_with_marker(
         ));
     }
     Ok(record)
-}
-
-/// Loads one committed router-only record strictly: exists, parses
-/// (`deny_unknown_fields`), schema current, engine `java`, profile
-/// marker `Some("router-only")`. The error is a plain String so callers
-/// can tally every offender into explicit verdicts (never a silent skip).
-pub fn load_java_router_only_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
-    load_java_record_with_marker(path, Some("router-only"), "router-only")
-}
-
-/// Loads one committed FULL-FLOW record strictly: same pre-flight, but the
-/// profile marker must be ABSENT — the M0 capture face (`FullFlow.marker()
-/// == None`); a profile-stamped record (e.g. `Some("router-only")`) is not
-/// a full-flow baseline and is rejected loudly.
-pub fn load_java_full_flow_record(path: &Path) -> std::result::Result<BaselineRecord, String> {
-    load_java_record_with_marker(path, None, "full-flow")
 }
 
 // ---------------------------------------------------------------------------
@@ -1284,7 +1284,9 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
     // router-only = the historical T15 face (fanout flag ONLY — the pinned
     // buglog-176 fingerprint face), full = NO flags (the assembled
     // pipeline). The fanout coupling flows through the SAME
-    // build_batch_settings the subprocess uses.
+    // build_batch_settings the subprocess uses. The scratch path exists
+    // only so parse_route_args sees a complete argv face — the in-process
+    // pass NEVER writes the session file.
     let scratch_ses = std::env::temp_dir().join(format!(
         "epic-t15-detail-{}-{}.ses",
         std::process::id(),
@@ -1352,7 +1354,6 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
     let (_, net_rows) = epic_drc::incompletes::all_incompletes(&manager, &mut board);
     let (_violation_total, violation_rows) =
         epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
-    let _ = pre_total;
     let scoring = resolved
         .scoring
         .scoring
@@ -1379,7 +1380,6 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
             actual_clearance: row.actual_clearance,
         })
         .collect();
-    let _ = scratch_ses; // no session write happens in-process
     Ok(RustDetail {
         incomplete_total,
         incomplete_nets,
@@ -1663,13 +1663,11 @@ fn compare_cmd(
             continue;
         }
         // Every fixture gets an explicit verdict (trap 2): a bad record is
-        // a RED verdict, never a skip. The loader keys on the profile:
-        // router-only records carry `Some("router-only")`, full-flow
-        // records carry NO marker (the M0 capture face).
-        let java = match match profile {
-            CompareProfile::RouterOnly => load_java_router_only_record(&entry.baseline_path),
-            CompareProfile::Full => load_java_full_flow_record(&entry.baseline_path),
-        } {
+        // a RED verdict, never a skip. The loader is profile-keyed
+        // ([`CompareProfile::load_record`]: router-only records carry
+        // `Some("router-only")`, full-flow records NO marker — the M0
+        // capture face — single-sourced through the oracle profile).
+        let java = match profile.load_record(&entry.baseline_path) {
             Ok(record) => record,
             Err(reason) => {
                 red += 1;
@@ -2122,45 +2120,48 @@ mod pins {
     /// anti-skip); a good router-only record loads.
     #[test]
     fn record_pre_flight_rejects_missing_and_mismatched_records() {
-        let dir = std::env::temp_dir().join(format!("epic-t15-preflight-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = record_world("t15-preflight");
 
-        let err = load_java_router_only_record(&dir.join("nope.json"))
+        let err = CompareProfile::RouterOnly
+            .load_record(&dir.join("nope.json"))
             .expect_err("missing record must be an explicit error");
         assert!(err.contains("missing baseline record"), "{err}");
 
-        let write = |name: &str, body: String| {
-            let path = dir.join(name);
-            std::fs::write(&path, body).expect("write record");
-            path
-        };
+        let write = |name: &str, body: &str| write_record(&dir, name, body);
         let rust_record = write(
             "rust.json",
-            r#"{"schema_version":1,"engine":"rust","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#.into(),
+            r#"{"schema_version":1,"engine":"rust","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
         );
-        let err = load_java_router_only_record(&rust_record).expect_err("rust record rejected");
+        let err = CompareProfile::RouterOnly
+            .load_record(&rust_record)
+            .expect_err("rust record rejected");
         assert!(err.contains("engine rust"), "{err}");
 
         let no_profile = write(
             "noprofile.json",
-            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#.into(),
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
         );
-        let err =
-            load_java_router_only_record(&no_profile).expect_err("profile-less record rejected");
+        let err = CompareProfile::RouterOnly
+            .load_record(&no_profile)
+            .expect_err("profile-less record rejected");
         assert!(err.contains("profile"), "{err}");
 
         let full_flow = write(
             "fullflow.json",
-            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"full-flow"}"#.into(),
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"full-flow"}"#,
         );
-        let err = load_java_router_only_record(&full_flow).expect_err("full-flow record rejected");
+        let err = CompareProfile::RouterOnly
+            .load_record(&full_flow)
+            .expect_err("full-flow record rejected");
         assert!(err.contains("router-only"), "{err}");
 
         let good = write(
             "good.json",
-            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"router-only","incomplete_count":2,"normalized_score":986.32}"#.into(),
+            r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"router-only","incomplete_count":2,"normalized_score":986.32}"#,
         );
-        let record = load_java_router_only_record(&good).expect("good record loads");
+        let record = CompareProfile::RouterOnly
+            .load_record(&good)
+            .expect("good record loads");
         assert_eq!(record.incomplete_count, Some(2));
         assert_eq!(record.normalized_score, Some(986.32));
 
@@ -2177,26 +2178,24 @@ mod pins {
     /// silently mix faces).
     #[test]
     fn full_flow_record_pre_flight_accepts_only_the_markerless_m0_face() {
-        let dir = std::env::temp_dir().join(format!("epic-t15-fullflow-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = record_world("t15-fullflow");
 
-        let write = |name: &str, body: &str| {
-            let path = dir.join(name);
-            std::fs::write(&path, body).expect("write record");
-            path
-        };
+        let write = |name: &str, body: &str| write_record(&dir, name, body);
         // THE M0 capture face: no `profile` key at all. The full loader
         // accepts it and the numbers ride.
         let m0_face = write(
             "m0.json",
             r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"incomplete_count":0,"maximum_count":25,"normalized_score":1000.0,"optimizer_score":823.79,"optimizer_seconds":4.31}"#,
         );
-        let record = load_java_full_flow_record(&m0_face).expect("the M0 face is the full record");
+        let record = CompareProfile::Full
+            .load_record(&m0_face)
+            .expect("the M0 face is the full record");
         assert_eq!(record.profile, None);
         assert_eq!(record.optimizer_score, Some(823.79));
 
         // Missing file: loud.
-        let err = load_java_full_flow_record(&dir.join("nope.json"))
+        let err = CompareProfile::Full
+            .load_record(&dir.join("nope.json"))
             .expect_err("missing record must be an explicit error");
         assert!(
             err.contains("missing baseline record") && err.contains("full-flow"),
@@ -2210,13 +2209,15 @@ mod pins {
             "stamped.json",
             r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"router-only"}"#,
         );
-        let err = load_java_full_flow_record(&stamped).expect_err("stamped record rejected");
+        let err = CompareProfile::Full
+            .load_record(&stamped)
+            .expect_err("stamped record rejected");
         assert!(
             err.contains("profile") && err.contains("full-flow"),
             "{err}"
         );
         assert!(
-            load_java_router_only_record(&stamped).is_ok(),
+            CompareProfile::RouterOnly.load_record(&stamped).is_ok(),
             "contrast: the same body loads under the router-only loader"
         );
 
@@ -2226,7 +2227,9 @@ mod pins {
             "typo.json",
             r#"{"schema_version":1,"engine":"java","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0,"profile":"full-flow"}"#,
         );
-        let err = load_java_full_flow_record(&typo).expect_err("typo'd marker rejected");
+        let err = CompareProfile::Full
+            .load_record(&typo)
+            .expect_err("typo'd marker rejected");
         assert!(err.contains("profile"), "{err}");
 
         // Wrong engine: loud, profile-independent — a rust-engine record
@@ -2239,7 +2242,9 @@ mod pins {
             "rust_full.json",
             r#"{"schema_version":1,"engine":"rust","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
         );
-        let err = load_java_full_flow_record(&rust_body).expect_err("rust record rejected");
+        let err = CompareProfile::Full
+            .load_record(&rust_body)
+            .expect_err("rust record rejected");
         assert!(err.contains("engine rust"), "{err}");
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -2281,6 +2286,15 @@ mod pins {
                 msg.contains("router-only") && msg.contains("full"),
                 "the error must name BOTH accepted values for {wrong:?}: {msg}"
             );
+            // NIT-2: the `full-flow` case is the one the clause exists
+            // for — the user learned that spelling from the capture/
+            // verify surface, and the error must map it in place.
+            if wrong == "full-flow" {
+                assert!(
+                    msg.contains("capture/verify surface spells the full profile"),
+                    "the error must map the capture-surface spelling: {msg}"
+                );
+            }
         }
     }
 
@@ -2725,7 +2739,7 @@ mod pins {
     /// equal digests and this pin fail.
     #[test]
     fn determinism_digests_read_distinct_run_paths() {
-        let dir = std::env::temp_dir().join(format!("epic-t15-digest-pair-{}", std::process::id()));
+        let dir = record_world("t15-digest-pair");
         std::fs::create_dir_all(dir.join("run1")).expect("run1 dir");
         std::fs::create_dir_all(dir.join("run2")).expect("run2 dir");
         // Planted-different bytes: run1 and run2 wrote DIFFERENT output.
@@ -2792,7 +2806,7 @@ mod pins {
     /// fails BOTH the path asserts and the digest face.
     #[test]
     fn pair_from_runs_derives_run2_from_run2_dir_only() {
-        let dir = std::env::temp_dir().join(format!("epic-t15-pair-runs-{}", std::process::id()));
+        let dir = record_world("t15-pair-runs");
         std::fs::create_dir_all(dir.join("run1")).expect("run1 dir");
         std::fs::create_dir_all(dir.join("run2")).expect("run2 dir");
         // Different bytes per run: a pair that aliases run2 onto run1
@@ -3369,6 +3383,46 @@ mod pins {
             .unwrap_or_else(|| root.join("rust/target/debug/epic-harness"))
     }
 
+    /// A throwaway world dir for the pin tests and smoke work-roots
+    /// (NIT-6 dedup): the `epic-<tag>-<pid>` temp-dir boilerplate in ONE
+    /// place. Each caller appends its own files (record worlds) or hands
+    /// the path to `--work-root` (the smokes — NIT-5 hermeticity: a pin
+    /// run must never rewrite the `runs/` battery evidence) and removes
+    /// the dir when done.
+    fn record_world(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("epic-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    /// Writes one record-body file into a pin's record world (NIT-6
+    /// dedup: the closure was redefined per record pin). Returns the
+    /// file's path.
+    fn write_record(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, body).expect("write record");
+        path
+    }
+
+    /// THE five e2e smokes' ONE spawn face (NIT-6 dedup): the BUILT
+    /// `epic-harness` binary, the CI-skip env baked, per-smoke env
+    /// overrides (the stub smoke's `EPIC_CLI`), and the centralized
+    /// spawn-panic message. Judgment precondition: [`e2e_built_harness_bin`]'s
+    /// STALE-BIN PRECONDITION — build before judging.
+    fn run_built_harness(
+        root: &std::path::Path,
+        args: &[&str],
+        env: &[(&str, &std::ffi::OsStr)],
+    ) -> std::process::Output {
+        let bin = e2e_built_harness_bin(root);
+        Command::new(&bin)
+            .args(args)
+            .env("EPIC_SKIP_GRADLE", "1")
+            .envs(env.iter().copied())
+            .output()
+            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()))
+    }
+
     /// THE dispatch smoke (quality-review MINOR-4 / Q5 survivor): the
     /// `run()` dispatcher's Determinism arm is clap wiring no pin can
     /// reach — the Q5 mutant swapped the arm to `compare_cmd` and the
@@ -3386,17 +3440,24 @@ mod pins {
     #[ignore]
     fn e2e_router_determinism_subcommand_is_the_determinism_gate() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bin = e2e_built_harness_bin(&root);
-        let output = Command::new(&bin)
-            .args([
+        // NIT-5 hermeticity: the two runs land under a THROWAWAY work
+        // root (run1/ + run2/ stay distinct paths — the trap-5 property
+        // under test is untouched), never under runs/router-determinism.
+        let work = record_world("t11-smoke-det");
+        let work_str = work.to_string_lossy().into_owned();
+        let output = run_built_harness(
+            &root,
+            &[
                 "router",
                 "determinism",
                 "--fixture",
                 DEFAULT_DETERMINISM_FIXTURE,
-            ])
-            .env("EPIC_SKIP_GRADLE", "1")
-            .output()
-            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+                "--work-root",
+                &work_str,
+            ],
+            &[],
+        );
+        let _ = std::fs::remove_dir_all(&work);
         assert!(
             output.status.success(),
             "the determinism gate must exit 0: {} stderr: {}",
@@ -3444,7 +3505,6 @@ mod pins {
     #[ignore]
     fn e2e_router_compare_gate_mode_exits_nonzero_on_a_red_battery() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bin = e2e_built_harness_bin(&root);
         // The no-op stub: exits 0 instantly, writes nothing — the
         // integrity-red face ("no manifest produced"). Written FRESH so
         // its mtime passes the structural bin-freshness guard.
@@ -3459,13 +3519,22 @@ mod pins {
             std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755))
                 .expect("chmod stub");
         }
-        let output = Command::new(&bin)
-            .args(["router", "compare", "--fixture", "bm08"])
-            .env("EPIC_SKIP_GRADLE", "1")
-            .env("EPIC_CLI", &stub)
-            .output()
-            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        let work = record_world("t11-smoke-stub");
+        let work_str = work.to_string_lossy().into_owned();
+        let output = run_built_harness(
+            &root,
+            &[
+                "router",
+                "compare",
+                "--fixture",
+                "bm08",
+                "--work-root",
+                &work_str,
+            ],
+            &[("EPIC_CLI", stub.as_os_str())],
+        );
         let _ = std::fs::remove_dir_all(&stub_dir);
+        let _ = std::fs::remove_dir_all(&work);
         assert!(
             !output.status.success(),
             "a red battery in gate mode must exit NONZERO (the battery_exit call site must be \
@@ -3508,12 +3577,23 @@ mod pins {
     #[ignore]
     fn e2e_router_compare_empty_filter_bails_instantly() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bin = e2e_built_harness_bin(&root);
-        let output = Command::new(&bin)
-            .args(["router", "compare", "--fixture", "zzz"])
-            .env("EPIC_SKIP_GRADLE", "1")
-            .output()
-            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+        // NIT-5 hermeticity: uniform temp work-root (the bail fires before
+        // any fixture runs, so nothing is ever written here anyway).
+        let work = record_world("t11-smoke-empty");
+        let work_str = work.to_string_lossy().into_owned();
+        let output = run_built_harness(
+            &root,
+            &[
+                "router",
+                "compare",
+                "--fixture",
+                "zzz",
+                "--work-root",
+                &work_str,
+            ],
+            &[],
+        );
+        let _ = std::fs::remove_dir_all(&work);
         assert!(
             !output.status.success(),
             "a --fixture filter matching ZERO fixtures must exit NONZERO (the empty-battery \
@@ -3548,19 +3628,26 @@ mod pins {
     #[ignore]
     fn e2e_router_compare_full_profile_passes_bm08_in_gate_mode() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bin = e2e_built_harness_bin(&root);
-        let output = Command::new(&bin)
-            .args([
+        // NIT-5 hermeticity: the run lands under a THROWAWAY work root —
+        // the battery's runs/router-compare-full evidence is never touched
+        // by a pin run.
+        let work = record_world("t11-smoke-full");
+        let work_str = work.to_string_lossy().into_owned();
+        let output = run_built_harness(
+            &root,
+            &[
                 "router",
                 "compare",
                 "--profile",
                 "full",
                 "--fixture",
                 "bm08",
-            ])
-            .env("EPIC_SKIP_GRADLE", "1")
-            .output()
-            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+                "--work-root",
+                &work_str,
+            ],
+            &[],
+        );
+        let _ = std::fs::remove_dir_all(&work);
         assert!(
             output.status.success(),
             "the full-profile bm08 row must PASS in gate mode: {} stderr: {}",
@@ -3595,19 +3682,25 @@ mod pins {
     #[ignore]
     fn e2e_router_compare_wrong_profile_fails_loudly() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        let bin = e2e_built_harness_bin(&root);
-        let output = Command::new(&bin)
-            .args([
+        // NIT-5 hermeticity: uniform temp work-root (the profile parse
+        // fails before any fixture runs, so nothing is ever written here).
+        let work = record_world("t11-smoke-wrong");
+        let work_str = work.to_string_lossy().into_owned();
+        let output = run_built_harness(
+            &root,
+            &[
                 "router",
                 "compare",
                 "--profile",
                 "full-flow",
                 "--fixture",
                 "zzz",
-            ])
-            .env("EPIC_SKIP_GRADLE", "1")
-            .output()
-            .unwrap_or_else(|e| panic!("spawning {} (build it first): {e}", bin.display()));
+                "--work-root",
+                &work_str,
+            ],
+            &[],
+        );
+        let _ = std::fs::remove_dir_all(&work);
         assert!(
             !output.status.success(),
             "a wrong profile name must exit NONZERO: status {}",
@@ -3621,6 +3714,12 @@ mod pins {
         assert!(
             stderr.contains("router-only") && stderr.contains("\"full\""),
             "the error must name BOTH accepted values: {stderr}"
+        );
+        // NIT-2: the clause that maps the capture-surface spelling rides
+        // the REAL binary's error output (the user's actual failure face).
+        assert!(
+            stderr.contains("capture/verify surface spells the full profile"),
+            "the error must map the capture-surface spelling: {stderr}"
         );
     }
 }

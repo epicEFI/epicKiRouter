@@ -55,6 +55,18 @@ impl OracleProfile {
         }
     }
 
+    /// The profile's name on the capture/verify `--profile` surface — the
+    /// exact spelling [`OracleProfile::from_name`] accepts. Single source
+    /// for error text that names a record set's own surface (the
+    /// router-compare loader errors route through here, so a marker
+    /// mismatch names the capture face the records came from).
+    pub fn capture_name(self) -> &'static str {
+        match self {
+            Self::FullFlow => "full-flow",
+            Self::RouterOnly => "router-only",
+        }
+    }
+
     /// Baselines directory under `rust/harness/baselines/`.
     pub fn dir_name(&self) -> &'static str {
         match self {

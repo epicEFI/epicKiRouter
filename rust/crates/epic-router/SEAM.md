@@ -1247,10 +1247,12 @@ manifest `d0b5f0dc33420e0184f6587a620d0480c4b43eb910f3087c2f58b50305295b36`
 determinism canary reproduced ses `253e7b1401775172…` + manifest
 `8c4a9773…` (×2 byte-equal), and the disabled-control ses `ec22a0f2…`
 was not re-run (the disabled face was T9's control; the T11 gates pin the
-canary + the seven compares + events, all green). All seven compares +
-events green at the pinned faces (corpus 5000/5000, dsn `--set all`
-1332/0, ses 20, ses-snap 5, index 33, undo 33, `cmp_*_t11.log` evidence;
-drc 17/17, events 3520).
+canary + the seven compares + events, all green — and was subsequently
+reproduced byte-exact by the spec reviewer: ses `ec22a0f2…` + manifest
+`d2a7102c…`). All seven compares + events green at the pinned faces
+(corpus 5000/5000, dsn `--set all` 1332/0, ses 20, ses-snap 5, index 33,
+undo 33, drc 17/17, events 3520 — evidence under
+`logs/M4-T11/evidence/compare_*_t11*.log`).
 
 **Stale-pin re-face (honest, witnessed).** The pre-existing e2e
 `e2e_router_compare_gate_mode_exits_nonzero_on_a_red_battery` expected
