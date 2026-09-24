@@ -1137,13 +1137,40 @@ bm08, `fanout.before` keys = board_statistics + score_source only). F2: the
 %.2f adapter face, value + text (above). F3: the optimizer gate's INPUT face
 is pinned (`t10_optimizer_gate_reads_the_post_routing_stop_face` — the
 reviewer's M7 pre-run-face mutant now dies). F4: `:276`→`:274`,
-`:255`→`:261`, `:494-519`→`:610-630` cite corrections. F5: the
+``:261`, `:494-519`→`:603-626` cite corrections — the initial sweep
+fixed the capture-SITE comments but MISSED the [`StageBoundaries`] type doc
+(batch.rs), which carried the same two stale cites; caught by the quality
+round, completed in the quality fix round). F5: the
 `_reroute_passes` reservation comment corrected (mis-scoped in T9; the face
 is fed from `OptimizerOutcome.passes_completed`), and the fanout-only flow
 pin's doc reclassified — only its optimizer-bypass rows are oracle-anchored;
 the fanout-row-POPULATED face is a port-side self-face (the Java CLI couples
 router-off to fanout-off; the port does not — settings-layer divergence
 bank). Census 1418 → 1419/0/15.
+
+**Quality round (quality-review-t10-1, APPROVED_WITH_NITS).** MINOR-1: the
+F4 cite sweep completed — the [`StageBoundaries`] TYPE doc carried the same
+two stale cites the capture-site comments had already shed (`:255`→`:261`,
+`:494-519`→`:603-626`, spans re-verified against the frozen tree: gate
+`:603`, after-capture `:604`, fill `:603-626`); the SEAM F4 line above is
+reconciled to say the sweep half-landed, not silently. MINOR-2: the
+non-finite render boundary is TOTAL — `JavaDecimal::of` returns `None` on
+`!is_finite`, which feeds the existing skip-serialize face (exactly Java's
+`out.nullValue()` omitted-field face, `GsonProvider.java:39`/`:59`);
+pinned by `t10_non_finite_render_boundary_is_java_null_value_face`
+(NAN/±INF → None; the `-0.0` → positive `0.00` face; the f32-eighth
+HALF_UP tie `2.125` → `2.13` where Rust's half-to-EVEN would print
+`2.12`). MINOR-3: the optimizer `after`-capture cite `:508-510` →
+`:519-526` (the actual `finalStats` walk is `:519`). NIT-1:
+`GsonProvider.java:44` → `:42`/`:62`. NIT-2: the two T10 flow pins now
+build argv through `route_argv` + a `temp_out` helper (the T9 wiring pin's
+inline block left as-is — pre-existing committed pin). NIT-3: the six
+`phase_snapshot` calls collapse through a local closure. NIT-4: the T8
+pin's doc refreshed (its world is deliberately optimizer-OUT via direct
+BatchDriver drive; the jar anchor still holds). ZERO bytes moved: all
+three SES faces unrotated AND all three manifests byte-equal to
+549f69eb1's digests (`d0b5f0dc…`/`d2a7102c…`/`8c4a9773…`). Census 1419 →
+1420/0/15.
 
 **Banked:** the optimizer stage's stop face is the T9 fresh face (Java shares
 `job.thread`; the CLI flow has no external stop source yet — when one is

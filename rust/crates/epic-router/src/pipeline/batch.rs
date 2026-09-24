@@ -386,9 +386,10 @@ pub struct BatchDriver<'a> {
 /// the manifest's per-phase faces: `fanoutBeforeStats`/`fanoutAfterStats`
 /// (`:93-98` opens with the fanout gate — BEFORE the SMD-pin skip arm —
 /// and `:231-247` closes after the stage bodies) and
-/// `autorouterBeforeStats`/`autorouterAfterStats` (the `:255` capture
-/// inside the router-enabled gate; the post-loop fill reads the board
-/// again after the completed-board tail sweep, `:494-519`). The `None`
+/// `autorouterBeforeStats`/`autorouterAfterStats` (the `:261` capture
+/// inside the router-enabled gate; the post-loop phase fill re-reads
+/// the board after the completed-board tail sweep — gate `:603`,
+/// after-capture `:604`, fill `:603-626`). The `None`
 /// faces mirror Java's capture gates exactly: fanout disabled, the
 /// router disabled (or the fanout-only override inactive), or the loop
 /// never ran (the all-layers abort throws before every capture).
@@ -890,10 +891,10 @@ impl<'a> BatchDriver<'a> {
             self.remove_tails(StopConnectionOption::None);
         }
 
-        // Java `:610-630` — the autorouter phase's after-boundary: the
-        // phase fill's own walk, taken after the completed-board tail
-        // sweep (`:591-601`), gated on the fill's own gate (before
-        // captured).
+        // Java `:603-626` — the autorouter phase's after-boundary: the
+        // phase fill's own walk (gate `:603`, after-capture `:604`),
+        // taken after the completed-board tail sweep (`:591-601`),
+        // gated on the fill's own gate (before captured).
         if self.phase_boundaries.autorouter_before.is_some() {
             self.phase_boundaries.autorouter_after =
                 Some(BoardStatistics::new(self.manager, self.board));

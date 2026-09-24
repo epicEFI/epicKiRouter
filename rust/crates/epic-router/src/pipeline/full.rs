@@ -276,7 +276,7 @@ pub fn run_optimization_stage(
     );
     let outcome = optimizer.run_batch_loop(sink);
     drop(optimizer);
-    // Java `:508-510` moment — `finalStats` after the incumbent
+    // Java `:519-526` moment — `finalStats` after the incumbent
     // restore, at runBatchLoop exit.
     let after = BoardStatistics::new(manager, board);
     // Java `:131-133` — the afterOptimization StageListeners.

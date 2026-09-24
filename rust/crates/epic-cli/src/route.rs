@@ -349,9 +349,10 @@ fn java_two_decimal(value: f32) -> f64 {
 }
 
 /// Java's manifest float face, TEXT step: the jar writes the BigDecimal
-/// LITERAL (`925.00` — trailing zeros preserved, `GsonProvider.java:44`
-/// `out.value(BigDecimal)`); serde_json numbers are shortest-form
-/// (`925.0`). The raw-literal wrapper reproduces the text exactly.
+/// LITERAL (`925.00` — trailing zeros preserved — `GsonProvider.java:42`
+/// float adapter / `:62` double adapter, `out.value(BigDecimal)`);
+/// serde_json numbers are shortest-form (`925.0`). The raw-literal
+/// wrapper reproduces the text exactly.
 /// The input is an ALREADY-ROUNDED value ([`java_two_decimal`]): the
 /// nearest f64 of a 2-decimal value re-formats at 2 decimals to
 /// itself (its error is orders of magnitude below the 0.005 tie
@@ -361,14 +362,23 @@ fn java_two_decimal(value: f32) -> f64 {
 pub struct JavaDecimal(Box<serde_json::value::RawValue>);
 
 impl JavaDecimal {
-    /// The `%.2f` literal of a rounded value.
-    fn of(value: f64) -> Self {
+    /// The `%.2f` literal of a rounded value — `None` on non-finite:
+    /// Java's adapters check `!Float.isFinite(value)` and emit
+    /// `out.nullValue()` (`GsonProvider.java:39`/`:59`), which Gson
+    /// renders as the field OMITTED — the port's `None` feeding
+    /// `skip_serializing_if` is exactly that face (no current stats
+    /// path produces non-finite; the boundary is made total for the
+    /// T15+ faces that will feed it).
+    fn of(value: f64) -> Option<Self> {
+        if !value.is_finite() {
+            return None;
+        }
         // A "%.2f"-formatted finite value is always a valid JSON number
         // literal, so the constructor cannot fail.
-        Self(
+        Some(Self(
             serde_json::value::RawValue::from_string(format!("{value:.2}"))
                 .expect("formatted number literal is always valid JSON"),
-        )
+        ))
     }
 }
 
@@ -406,16 +416,16 @@ fn phase_snapshot(
         // `fanout.before` keys = board_statistics + score_source only).
         PhaseScoreKind::Fanout => (None, "not_applicable", None, None),
         PhaseScoreKind::Autorouter => (
-            Some(JavaDecimal::of(java_two_decimal(router_score))),
+            JavaDecimal::of(java_two_decimal(router_score)),
             "current",
-            Some(JavaDecimal::of(java_two_decimal(router_score))),
-            Some(JavaDecimal::of(java_two_decimal(optimizer_score))),
+            JavaDecimal::of(java_two_decimal(router_score)),
+            JavaDecimal::of(java_two_decimal(optimizer_score)),
         ),
         PhaseScoreKind::Optimizer => (
-            Some(JavaDecimal::of(java_two_decimal(optimizer_score))),
+            JavaDecimal::of(java_two_decimal(optimizer_score)),
             "current",
-            Some(JavaDecimal::of(java_two_decimal(router_score))),
-            Some(JavaDecimal::of(java_two_decimal(optimizer_score))),
+            JavaDecimal::of(java_two_decimal(router_score)),
+            JavaDecimal::of(java_two_decimal(optimizer_score)),
         ),
     };
     ManifestPhaseSnapshot {
@@ -438,7 +448,7 @@ fn phase_snapshot(
                 total_length_mm: stats
                     .traces
                     .total_length_mm
-                    .map(|v| JavaDecimal::of(java_two_decimal(v))),
+                    .and_then(|v| JavaDecimal::of(java_two_decimal(v))),
             }),
         }),
         score,
@@ -479,47 +489,25 @@ pub fn render_manifest(
     // The T10 per-phase fill (Java `RoutingResultManifest.java:87-159`
     // + the three stage fill sites): the phases the pipeline captured,
     // each with its own score flavor.
+    let snapshot = |stats: &BoardStatistics, kind: PhaseScoreKind| {
+        phase_snapshot(
+            stats,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            kind,
+        )
+    };
     if let Some((before, after)) = &telemetry.phases.fanout {
-        phases.fanout.before = Some(phase_snapshot(
-            before,
-            telemetry.scoring.as_ref(),
-            telemetry.pre_existing_violations,
-            PhaseScoreKind::Fanout,
-        ));
-        phases.fanout.after = Some(phase_snapshot(
-            after,
-            telemetry.scoring.as_ref(),
-            telemetry.pre_existing_violations,
-            PhaseScoreKind::Fanout,
-        ));
+        phases.fanout.before = Some(snapshot(before, PhaseScoreKind::Fanout));
+        phases.fanout.after = Some(snapshot(after, PhaseScoreKind::Fanout));
     }
     if let Some((before, after)) = &telemetry.phases.autorouter {
-        phases.autorouter.before = Some(phase_snapshot(
-            before,
-            telemetry.scoring.as_ref(),
-            telemetry.pre_existing_violations,
-            PhaseScoreKind::Autorouter,
-        ));
-        phases.autorouter.after = Some(phase_snapshot(
-            after,
-            telemetry.scoring.as_ref(),
-            telemetry.pre_existing_violations,
-            PhaseScoreKind::Autorouter,
-        ));
+        phases.autorouter.before = Some(snapshot(before, PhaseScoreKind::Autorouter));
+        phases.autorouter.after = Some(snapshot(after, PhaseScoreKind::Autorouter));
     }
     if let Some(faces) = &telemetry.phases.optimizer {
-        phases.optimizer.before = Some(phase_snapshot(
-            &faces.before,
-            telemetry.scoring.as_ref(),
-            telemetry.pre_existing_violations,
-            PhaseScoreKind::Optimizer,
-        ));
-        phases.optimizer.after = Some(phase_snapshot(
-            &faces.after,
-            telemetry.scoring.as_ref(),
-            telemetry.pre_existing_violations,
-            PhaseScoreKind::Optimizer,
-        ));
+        phases.optimizer.before = Some(snapshot(&faces.before, PhaseScoreKind::Optimizer));
+        phases.optimizer.after = Some(snapshot(&faces.after, PhaseScoreKind::Optimizer));
         // Java `BatchOptimizer.java:523` (`passesCompleted =
         // currentPass`) / `:309-313` (the explicit bypass `0`).
         phases.optimizer.passes_completed = Some(i64::from(faces.outcome.passes_completed.max(0)));
@@ -540,11 +528,11 @@ pub fn render_manifest(
                 clearance_violations: telemetry.clearance_violations.clone(),
             }),
         },
-        normalized_score: telemetry.normalized_score.map(JavaDecimal::of),
+        normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
         optimizer_score: if telemetry.phases.optimizer.is_some() {
-            telemetry.final_optimizer_score.map(JavaDecimal::of)
+            telemetry.final_optimizer_score.and_then(JavaDecimal::of)
         } else {
             None
         },
@@ -1179,6 +1167,48 @@ mod tests {
         }
     }
 
+    /// The flow pins' temp directory (quality-review NIT-2: one
+    /// scaffolding helper instead of a hand-rolled block per pin).
+    fn temp_out(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("epic-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    /// THE NON-FINITE RENDER BOUNDARY (quality-review MINOR-2): Java's
+    /// adapters check `!Float.isFinite(value)` and emit
+    /// `out.nullValue()` (`GsonProvider.java:39`/`:59`) — the field
+    /// OMITTED. `JavaDecimal::of` mirrors that as `None` (feeding
+    /// `skip_serializing_if`); `java_two_decimal` passes non-finite
+    /// through (the face decision lives at the text step). Pinned on
+    /// the same boundary: the -0.0 -> positive `0.00` sign face, and
+    /// the f32-eighth HALF_UP tie (`2.125` -> `2.13` — Rust's
+    /// half-to-EVEN `format!` would print `2.12`) — cerebrum 16's
+    /// exact-boundary discipline.
+    #[test]
+    fn t10_non_finite_render_boundary_is_java_null_value_face() {
+        assert!(JavaDecimal::of(f64::NAN).is_none());
+        assert!(JavaDecimal::of(f64::INFINITY).is_none());
+        assert!(JavaDecimal::of(f64::NEG_INFINITY).is_none());
+
+        // Finite face: the %.2f literal text.
+        let finite = JavaDecimal::of(java_two_decimal(925.0)).expect("finite face");
+        assert_eq!(finite.0.get(), "925.00");
+
+        // The -0.0 sign face: positive zero, the jar's face.
+        let zero = JavaDecimal::of(java_two_decimal(-0.0)).expect("zero face");
+        assert_eq!(zero.0.get(), "0.00");
+
+        // The HALF_UP tie face on an f32 eighth.
+        let tie = JavaDecimal::of(java_two_decimal(2.125)).expect("tie face");
+        assert_eq!(tie.0.get(), "2.13");
+
+        // The value step passes non-finite through; the text step owns
+        // the nullValue decision.
+        assert!(java_two_decimal(f32::NAN).is_nan());
+        assert!(java_two_decimal(f32::INFINITY).is_infinite());
+    }
+
     /// Real (scoreable) boundary statistics from the tiny two-layer
     /// test board: `new_empty()` panics under the scorer's Java-NPE
     /// parity arm (maximumCount is None there), so the render pins
@@ -1394,20 +1424,16 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
         );
-        let out_dir = std::env::temp_dir().join(format!("epic-t10-full-{}", std::process::id()));
-        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let out_dir = temp_out("t10-full");
         let run = |tag: &str| {
             let ses_path = out_dir.join(format!("out-{tag}.ses"));
             let manifest_path = out_dir.join(format!("out-{tag}.json"));
-            let argv = vec![
-                "-de".to_string(),
-                fixture_path.to_string(),
-                "-do".to_string(),
-                ses_path.to_string_lossy().into_owned(),
-                "--result-json".to_string(),
-                manifest_path.to_string_lossy().into_owned(),
-            ];
-            let args = parse_route_args(&argv).expect("args parse");
+            let args = parse_route_args(&route_argv(
+                std::path::Path::new(fixture_path),
+                &ses_path,
+                Some(&manifest_path),
+            ))
+            .expect("args parse");
             let exit = run_route(&args).expect("route run");
             (exit, ses_path, manifest_path)
         };
@@ -1497,20 +1523,15 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
         );
-        let out_dir =
-            std::env::temp_dir().join(format!("epic-t10-fanout-only-{}", std::process::id()));
-        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let out_dir = temp_out("t10-fanout-only");
         let ses_path = out_dir.join("out.ses");
         let manifest_path = out_dir.join("out.json");
-        let argv = vec![
-            "-de".to_string(),
-            fixture_path.to_string(),
-            "-do".to_string(),
-            ses_path.to_string_lossy().into_owned(),
-            "--result-json".to_string(),
-            manifest_path.to_string_lossy().into_owned(),
-            "--router.enabled=off".to_string(),
-        ];
+        let mut argv = route_argv(
+            std::path::Path::new(fixture_path),
+            &ses_path,
+            Some(&manifest_path),
+        );
+        argv.push("--router.enabled=off".to_string());
         let args = parse_route_args(&argv).expect("args parse");
         let exit = run_route(&args).expect("route run");
         assert_eq!(exit, 0, "the fanout-only run completes (jar COMPLETED)");
@@ -2180,20 +2201,24 @@ mod tests {
             "id and fixed state survive the projection verbatim"
         );
     }
-    /// The M4-T8 jar-anchored END-TO-END score pin: the full production
-    /// flow (parse -> normalize -> load-time violation seed -> settings
-    /// resolution -> fanout stage -> batch autorouter -> post-route
-    /// statistics -> `get_optimizer_score` over the resolved V2 box) on
-    /// the bm08 tier fixture, against the jar's manifest face. The jar
-    /// (e7f9bdf1, full flow) renders `optimizer_score: 823.79` — the
-    /// TwoDecimalFloatAdapter view of the pre-optimizer board the
-    /// optimizer RESTORED (pass regressed, incumbent kept), which is
-    /// exactly the board this flow ends at (the optimizer stage is
-    /// T9). Evidence: the 823.79 face is the full-flow manifest's
-    /// (logs/M4-T8/evidence/jar-bounds/bm08-manifest.json); the exact
-    /// component faces below are the optimizer-disabled manifest's
-    /// (bm08-noopt-manifest.json); bounds/difficulty are pinned at the
-    /// parse face in `board_statistics_bounds`.
+    /// The M4-T8 jar-anchored END-TO-END score pin: the production
+    /// flow THROUGH THE ROUTING STAGE (parse -> normalize -> load-time
+    /// violation seed -> settings resolution -> fanout stage -> batch
+    /// autorouter -> post-route statistics -> `get_optimizer_score`
+    /// over the resolved V2 box; driven via `BatchDriver` directly, so
+    /// the optimization stage that M4-T10 wired into `full::run` is
+    /// deliberately OUT of this pin's world) on the bm08 tier fixture,
+    /// against the jar's manifest face. The jar (e7f9bdf1, full flow)
+    /// renders `optimizer_score: 823.79` — the TwoDecimalFloatAdapter
+    /// view of the pre-optimizer board the optimizer RESTORED (pass
+    /// regressed, incumbent kept), which is exactly the board this
+    /// pin's post-routing endpoint equals (T10 note: the jar's
+    /// restore is byte-exact, so the anchor still holds against the
+    /// live pipeline too). Evidence: the 823.79 face is the full-flow
+    /// manifest's (logs/M4-T8/evidence/jar-bounds/bm08-manifest.json);
+    /// the exact component faces below are the optimizer-disabled
+    /// manifest's (bm08-noopt-manifest.json); bounds/difficulty are
+    /// pinned at the parse face in `board_statistics_bounds`.
     #[test]
     fn t8_bm08_full_flow_optimizer_score_matches_the_jar() {
         let dsn_path = std::path::Path::new(concat!(
