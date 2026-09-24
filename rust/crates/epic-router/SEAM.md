@@ -1137,9 +1137,9 @@ bm08, `fanout.before` keys = board_statistics + score_source only). F2: the
 %.2f adapter face, value + text (above). F3: the optimizer gate's INPUT face
 is pinned (`t10_optimizer_gate_reads_the_post_routing_stop_face` — the
 reviewer's M7 pre-run-face mutant now dies). F4: `:276`→`:274`,
-``:261`, `:494-519`→`:603-626` cite corrections — the initial sweep
+`:255`→`:261`, `:494-519`→`:603-626` cite corrections — the initial sweep
 fixed the capture-SITE comments but MISSED the [`StageBoundaries`] type doc
-(batch.rs), which carried the same two stale cites; caught by the quality
+(batch.rs), which carried the same two stale cites; (caught by the quality
 round, completed in the quality fix round). F5: the
 `_reroute_passes` reservation comment corrected (mis-scoped in T9; the face
 is fed from `OptimizerOutcome.passes_completed`), and the fanout-only flow
