@@ -523,14 +523,18 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     apply_board_specific_optimizations(&mut merged, &board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
 
-    // 4. The batch driver (single-threaded by construction).
+    // 4. The batch driver (single-threaded by construction). The clone
+    // below is the optimizer stage's settings face (NIT-6): same value,
+    // one construction.
     let batch = build_batch_settings(&resolved);
+    let optimizer_batch = batch.clone();
 
     let mut sink = CliDriverSink::default();
     let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
     let run_result = driver.run(&mut sink);
     let stop_reason = driver.stop_reason;
-    // Java `RoutingPipeline.runOptimizationStage` (`:126-140`) gates the
+    // Java `RoutingPipeline.runOptimizationStage` (the stop gate at
+    // `:122`, method `:121-134`) gates the
     // stage on `!job.thread.isStopRequested()`. SPEC-REVIEW CORRECTION
     // (MIN-2): in Java only the max-items path (`AutoroutePassRunner
     // .java:218`) and EXTERNAL stops raise that full stop — the
@@ -551,7 +555,6 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // TRUE) AND the not-stopped gate above. The disabled face must
     // reproduce the pre-T9 flow byte-exactly.
     if resolved.run_optimizer && optimizer_allowed {
-        let optimizer_batch = build_batch_settings(&resolved);
         let mut stop = StopFace::default();
         let mut optimizer = BatchOptimizerStage::new(
             &mut manager,
@@ -822,8 +825,14 @@ mod tests {
     /// the disabled face (`--optimizer.enabled=false`) must reproduce
     /// the pre-T9 flow byte-exactly — here pinned as self-consistency
     /// of two identical disabled runs — and the enabled default (the
-    /// DefaultSettings seed) completes with the stage actually entered
-    /// (the guards pass on this routed world).
+    /// DefaultSettings seed) completes. (Review NIT-1 precision: this
+    /// pin observes the exit code and the manifest only — the stage's
+    /// ENTRY is witnessed by the harness determinism logs
+    /// (`determinism_fullflow_t9.log`: the "Optimization stage started"
+    /// row + the 823.37 -> 823.50 movement), not by this pin; and the
+    /// disabled arm is a self-consistency face, not a comparison
+    /// against the recorded T7 digests — those are gated by the
+    /// harness-level digest controls.)
     #[test]
     fn t9_route_wiring_disabled_face_and_enabled_default() {
         let fixture_path = concat!(

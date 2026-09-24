@@ -14,8 +14,9 @@
 //! Java sequences the stage through `RoutingPipeline.run()`:
 //! `runOptimizationStage` gates on `job.routerSettings.getRunOptimizer()`
 //! (the `optimizer.enabled` box, default TRUE from `DefaultSettings.java:
-//! 178`) AND `!job.thread.isStopRequested()` (`RoutingPipeline.java:
-//! 126-140`). SPEC-REVIEW CORRECTION (MIN-2): in Java that full stop is
+//! 178`) AND `!job.thread.isStopRequested()` (the gate at
+//! `RoutingPipeline.java:122`, method `:121-134`). SPEC-REVIEW
+//! CORRECTION (MIN-2): in Java that full stop is
 //! raised only by the max-items path (`AutoroutePassRunner.java:218`)
 //! and EXTERNAL stops — the router-side stops (max-passes, stagnation,
 //! restore exhaustion) raise AUTO_ROUTER_ONLY
@@ -219,10 +220,21 @@ impl ItemRouteResult {
         };
         // Java: `viaCountBefore != 0 && traceLengthBefore != 0 ? 1.0 -
         // (((viaCountAfter / viaCountBefore) + (traceLengthAfter /
-        // traceLengthBefore)) / 2) : 0` — int/double promotion per
-        // Java; the f32 cast happens on the whole expression.
+        // traceLengthBefore)) / 2) : 0`. QUALITY-REVIEW MIN-1 (jar probe
+        // `harness/oracle/ItemRouteResultProbe.java`, evidence
+        // `probe_ItemRouteResult_pct.log`): the via ratio is JAVA
+        // INTEGER division — two `int` fields, `(viaCountAfter /
+        // viaCountBefore)` truncates (2→1 gives 0, and 4→2 also gives 0)
+        // and promotes only when added to the double length ratio. The
+        // jar answers 0.5 on the 2→1/100→100 world (a float-division
+        // port answers 0.25) and 0.5 on the 4→2 world (float would give
+        // 0.25) — the two worlds together discriminate int from float
+        // division in both directions. Rust `/` on `i32` truncates
+        // toward zero like Java (via counts are never negative); the
+        // length ratio stays real division; the f32 cast happens on the
+        // whole expression.
         let improvement_percentage = if via_count_before != 0 && trace_length_before != 0.0 {
-            (1.0 - ((f64::from(via_count_after) / f64::from(via_count_before)
+            (1.0 - ((f64::from(via_count_after / via_count_before)
                 + trace_length_after / trace_length_before)
                 / 2.0)) as f32
         } else {
@@ -241,7 +253,7 @@ impl ItemRouteResult {
         }
     }
 
-    /// Java `compareTo` (`ItemRouteResult.java:62-87`) — the ordering
+    /// Java `compareTo` (`ItemRouteResult.java:69-91`) — the ordering
     /// the winner rule consumes (incomplete, then via, then length,
     /// then itemId). `Ordering::Equal` on the first three rungs is the
     /// itemId tie.
@@ -1178,6 +1190,14 @@ impl<'a> BatchOptimizerStage<'a> {
             self.optimizer.max_consecutive_failures.unwrap_or(50)
         };
 
+        // MIN-2 (quality review): Java chunks this loop — the deadline
+        // and stop are consulted once per CHUNK of `max(4×pool, 8)`
+        // (`BatchOptimizer.java:689`, `:706-715`) and each chunk's
+        // futures are drained in SUBMISSION order (`:735`). The port
+        // consults per candidate (the deterministic analog — Java
+        // overshoots a wall deadline by up to a chunk's work, the port
+        // notices every candidate), and the drain order IS the candidate
+        // order: that is why the winner rule transfers deterministically.
         let mut winning: Option<(ItemRouteResult, Board)> = None;
         let mut stopped_or_timed_out = false;
         let mut consecutive_failures: i32 = 0;
@@ -1351,7 +1371,10 @@ impl<'a> BatchOptimizerStage<'a> {
         let mut reroute_pass_no = 1;
         while still_unrouted
             && !self.stop.is_requested()
-            && reroute_pass_no <= candidate_settings_max_passes(&self.optimizer)
+            // Java `:894-895` — the reroute pass budget (`optimizer !=
+            // null ? maxAutoroutePasses : 1`; the merged flow always
+            // carries the box, so the resolved default 6 is the live face).
+            && reroute_pass_no <= self.optimizer.max_autoroute_passes
         {
             still_unrouted = run_single_thread(
                 worker_manager,
@@ -1375,6 +1398,10 @@ impl<'a> BatchOptimizerStage<'a> {
             TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
             candidate_settings.deterministic_budgets,
         );
+        // Java returns the pass count from
+        // `autoroutePassesForOptimizingItem` (`:280`); the port's
+        // consumer is T10's `phases.optimizer.passes_completed` manifest
+        // face — reserved, underscore-bound until that lands.
         let _reroute_passes = if !still_unrouted {
             reroute_pass_no - 1
         } else {
@@ -1402,14 +1429,8 @@ impl<'a> BatchOptimizerStage<'a> {
     }
 }
 
-/// Java `:894-895` — the reroute pass budget (`optimizer != null ?
-/// maxAutoroutePasses : 1`; the merged flow always carries the box).
-fn candidate_settings_max_passes(optimizer: &OptimizerSettingsIr) -> i32 {
-    optimizer.max_autoroute_passes
-}
-
 /// Java `DEFAULT_OPTIMIZER_IMPROVEMENT_THRESHOLD`
-/// (`DefaultSettings.java:124-128`) — the sanitation reset value.
+/// (`DefaultSettings.java:129`) — the sanitation reset value.
 pub const DEFAULT_OPTIMIZER_IMPROVEMENT_THRESHOLD: f32 = 2.5;
 
 /// Java `BoardStatistics`' banked `totalWeightedLength`
@@ -1563,6 +1584,30 @@ mod tests {
         (manager, board)
     }
 
+    /// The pins' stage constructor five-liner, retired (review NIT-3):
+    /// fresh `StopFace` + `CaptureDriverSink` + `BatchOptimizerStage`
+    /// over the given borrows and settings.
+    fn stage_on_world<'a>(
+        manager: &'a mut SearchTreeManager,
+        board: &'a mut Board,
+        stop: &'a mut StopFace,
+        optimizer: OptimizerSettingsIr,
+        settings: BatchSettings,
+    ) -> (BatchOptimizerStage<'a>, CaptureDriverSink) {
+        let sink = CaptureDriverSink::default();
+        let stage = BatchOptimizerStage::new(manager, board, settings, optimizer, stop);
+        (stage, sink)
+    }
+
+    /// The `opt_settings()` tweak helper: clone-and-mutate the defaults.
+    fn opt_with(
+        mut optimizer: OptimizerSettingsIr,
+        tweak: impl FnOnce(&mut OptimizerSettingsIr),
+    ) -> OptimizerSettingsIr {
+        tweak(&mut optimizer);
+        optimizer
+    }
+
     /// The bare fixture with the two pin PAIRS removed — every
     /// remaining net is a lone pin: 0 incompletes, 0 vias, 0 traces.
     fn pairless_world() -> (SearchTreeManager, Board) {
@@ -1702,11 +1747,29 @@ mod tests {
         assert_eq!(result.item_id, 42);
         assert_eq!(result.improvement_percentage(), 0.0);
 
-        // improvementPercentage: `1 - ((viaAfter/viaBefore + lenAfter/lenBefore)/2)`
-        // with the via rung at HALF (0.5 + 1)/2 -> 0.25; and the
-        // zero-baseline arm pins at 0.
+        // improvementPercentage: `1 - ((viaAfter/viaBefore +
+        // lenAfter/lenBefore)/2)` — the via ratio is JAVA INTEGER
+        // DIVISION (jar probe W1: via 2→1, len 100→100 answers 0.5 —
+        // int 1/2 = 0, not float 0.5; probe W2: 4→2 answers 0.5 too,
+        // where float 2/4 = 0.5 would give 0.25 — the two worlds pin
+        // the int-division drop in both directions); the length ratio
+        // stays real (probe W5: via equal, len 100→50 -> 0.25); the
+        // zero-baseline arm pins at 0 (probe W6).
         let pct = ItemRouteResult::new(7, 2, 1, 100.0, 100.0, 0, 0);
-        assert!((f64::from(pct.improvement_percentage()) - 0.25).abs() < 1e-6);
+        assert!(
+            (f64::from(pct.improvement_percentage()) - 0.5).abs() < 1e-6,
+            "jar probe W1 face"
+        );
+        let pct_exact_ratio = ItemRouteResult::new(7, 4, 2, 100.0, 100.0, 0, 0);
+        assert!(
+            (f64::from(pct_exact_ratio.improvement_percentage()) - 0.5).abs() < 1e-6,
+            "jar probe W2 face: the EXACT 4->2 ratio ALSO int-truncates to 0"
+        );
+        let pct_len = ItemRouteResult::new(7, 2, 2, 100.0, 50.0, 0, 0);
+        assert!(
+            (f64::from(pct_len.improvement_percentage()) - 0.25).abs() < 1e-6,
+            "jar probe W5 face: the length ratio stays REAL division"
+        );
         let zero = ItemRouteResult::new(7, 0, 0, 0.0, 0.0, 0, 0);
         assert_eq!(
             zero.improvement_percentage(),
@@ -1715,7 +1778,8 @@ mod tests {
         );
     }
 
-    /// The winner ordering (`compareTo`/`improvedOver`, `:62-91`): the
+    /// The winner ordering (`compareTo`/`improvedOver`,
+    /// `ItemRouteResult.java:69-91`): the
     /// incomplete rung dominates, then via count, then length, then
     /// itemId. THE TIE FACE: equal-metric outcomes rank by itemId, so
     /// the earlier-submitted candidate's outcome wins a tie — this is
@@ -2196,7 +2260,8 @@ mod tests {
         // Domain: start_ripup_costs is an INTEGER through every settings
         // path (CLI/DSN parse i32, DefaultSettings 100). While the
         // increased face holds, the base is 10·start — always even, so
-        // f32(0.6)·(10·start) = 6·start EXACTLY and round == trunc
+        // f32(0.6)·(10·start) lands within ~1.2e-5·start of 6·start —
+        // a fraction ≪ 0.5, so round == trunc == 6·start
         // unavoidably. The DROPPED arm's base is start itself, and for
         // start ≡ 1 or 3 (mod 5) the real product's fraction is 0.6/0.8:
         // f32(0.6) = 0.60000002384… adds only ~2.4e-8·base, so the
@@ -2234,14 +2299,19 @@ mod tests {
     #[test]
     fn t9_threshold_sanitation_rows() {
         let (mut manager, mut board) = routed_world_fanout_off();
-        let batch = BatchSettings::new(settings_ir(), v2_scoring());
         let mut stop = StopFace::default();
-        let mut sink = CaptureDriverSink::default();
-        let mut opt = opt_settings();
-        opt.enable_preflight_guards = Some(true);
-        opt.improvement_threshold = Some(0.025); // fraction -> 2.5%
-        opt.max_passes = Some(2); // pass 2 produces the threshold-stop row
-        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        let opt = opt_with(opt_settings(), |o| {
+            o.enable_preflight_guards = Some(true);
+            o.improvement_threshold = Some(0.025); // fraction -> 2.5%
+            o.max_passes = Some(2); // pass 2 produces the threshold-stop row
+        });
+        let (mut stage, mut sink) = stage_on_world(
+            &mut manager,
+            &mut board,
+            &mut stop,
+            opt,
+            BatchSettings::new(settings_ir(), v2_scoring()),
+        );
         stage.run_batch_loop(&mut sink);
         assert!(
             sink.any_contains(
@@ -2257,14 +2327,19 @@ mod tests {
 
         // The invalid arm: negative resets to the default with a warn.
         let (mut manager, mut board) = routed_world_fanout_off();
-        let batch = BatchSettings::new(settings_ir(), v2_scoring());
         let mut stop = StopFace::default();
-        let mut sink = CaptureDriverSink::default();
-        let mut opt = opt_settings();
-        opt.enable_preflight_guards = Some(true);
-        opt.improvement_threshold = Some(-1.0);
-        opt.max_passes = Some(2);
-        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        let opt = opt_with(opt_settings(), |o| {
+            o.enable_preflight_guards = Some(true);
+            o.improvement_threshold = Some(-1.0);
+            o.max_passes = Some(2);
+        });
+        let (mut stage, mut sink) = stage_on_world(
+            &mut manager,
+            &mut board,
+            &mut stop,
+            opt,
+            BatchSettings::new(settings_ir(), v2_scoring()),
+        );
         stage.run_batch_loop(&mut sink);
         assert!(
             sink.any_contains(
@@ -2283,16 +2358,20 @@ mod tests {
         // to 2.5 with the warn, the loop then quoting the reset value.
         for (name, value) in [("NaN", f32::NAN), ("Infinity", f32::INFINITY)] {
             let (mut manager, mut board) = routed_world_fanout_off();
-            let batch = BatchSettings::new(settings_ir(), v2_scoring());
             let mut stop = StopFace::default();
-            let mut sink = CaptureDriverSink::default();
-            let mut opt = opt_settings();
-            opt.enable_preflight_guards = Some(true);
-            opt.improvement_threshold = Some(value);
-            opt.max_passes = Some(2);
+            let opt = opt_with(opt_settings(), |o| {
+                o.enable_preflight_guards = Some(true);
+                o.improvement_threshold = Some(value);
+                o.max_passes = Some(2);
+            });
             let rendered = format!("{value:.4}"); // "NaN" / "inf"
-            let mut stage =
-                BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+            let (mut stage, mut sink) = stage_on_world(
+                &mut manager,
+                &mut board,
+                &mut stop,
+                opt,
+                BatchSettings::new(settings_ir(), v2_scoring()),
+            );
             stage.run_batch_loop(&mut sink);
             let expected_row = format!(
                 "Invalid optimizer improvement threshold: {rendered}. Resetting to default 2.50%."
@@ -2731,13 +2810,18 @@ mod tests {
     #[test]
     fn t9_pass_counters_phase_and_pass() {
         let (mut manager, mut board) = routed_world_fanout_off();
-        let batch = BatchSettings::new(settings_ir(), v2_scoring());
         let mut stop = StopFace::default();
-        let mut sink = CaptureDriverSink::default();
-        let mut opt = opt_settings();
-        opt.enable_preflight_guards = Some(true);
-        opt.max_passes = Some(1);
-        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        let opt = opt_with(opt_settings(), |o| {
+            o.enable_preflight_guards = Some(true);
+            o.max_passes = Some(1);
+        });
+        let (mut stage, mut sink) = stage_on_world(
+            &mut manager,
+            &mut board,
+            &mut stop,
+            opt,
+            BatchSettings::new(settings_ir(), v2_scoring()),
+        );
         stage.run_batch_loop(&mut sink);
         let optimizer_counters: Vec<&String> = sink
             .rows
@@ -2762,20 +2846,25 @@ mod tests {
     #[test]
     fn t9_before_optimization_debug_row() {
         let (mut manager, mut board) = routed_world_fanout_off();
-        let batch = BatchSettings::new(settings_ir(), v2_scoring());
         let mut stop = StopFace::default();
-        let mut sink = CaptureDriverSink::default();
-        let mut opt = opt_settings();
-        opt.enable_preflight_guards = Some(true);
-        opt.max_passes = Some(1);
-        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        let opt = opt_with(opt_settings(), |o| {
+            o.enable_preflight_guards = Some(true);
+            o.max_passes = Some(1);
+        });
+        let (mut stage, mut sink) = stage_on_world(
+            &mut manager,
+            &mut board,
+            &mut stop,
+            opt,
+            BatchSettings::new(settings_ir(), v2_scoring()),
+        );
         stage.run_batch_loop(&mut sink);
         // 2 vias; the raw cumulative length of the routed world in board
-        // units is deterministic — pin the row prefix and the via count.
+        // units is deterministic — pin the WHOLE row (review NIT-3).
         let debug = sink.joined("debug");
         assert!(
-            debug.contains("Before optimization: Via count: 2, trace length: "),
-            "the debug row: {debug}",
+            debug.contains("Before optimization: Via count: 2, trace length: 1320311"),
+            "the full deterministic debug row: {debug}",
         );
     }
 

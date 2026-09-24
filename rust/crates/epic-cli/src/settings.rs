@@ -62,8 +62,14 @@ pub struct CliLayer {
     /// `router.max_threads` / `-mt` — parsed but unused: the T13 engine
     /// is single-threaded by construction (SEAM).
     pub max_threads: Option<i32>,
-    /// `router.optimizer.improvement_threshold` / `-oit` — parsed and
-    /// normalized (the x100 quirk) but unused: no optimizer stage in T13.
+    /// `router.optimizer.improvement_threshold` / `-oit` (also
+    /// `optimizer.improvement_threshold` and the
+    /// `optimizationImprovementThreshold` spelling) — the OPTIMIZER
+    /// pass-stop threshold, parsed and normalized (the x100 quirk).
+    /// LIVE since M4-T9: resolved into `OptimizerSettingsIr
+    /// ::improvement_threshold` and consumed by the stage's stop gate.
+    /// (Pre-T13 name — the only family member without the
+    /// `optimizer_` prefix.)
     pub improvement_threshold: Option<f32>,
     /// `router.scoring.version` (dual-applied from `-scoring-version`).
     pub router_scoring_version: Option<RouterScoringVersion>,

@@ -927,7 +927,7 @@ counting walks are order-independent counts and stay ascending.
 
 The dossier lives in the module docs (`pipeline/optimizer.rs`); report in
 `logs/M4-T9/report-t9.md`, evidence in `logs/M4-T9/evidence/`. Baseline
-`90590891c`, census 1388 → **1409**/0/15. What T10+ must carry forward:
+`90590891c`, census 1388 → **1410**/0/15. What T10+ must carry forward:
 
 **The one-winner mapping (threaded → sequential-deterministic).** Java
 races candidates on a `maxThreads` pool, then applies ONE board:
