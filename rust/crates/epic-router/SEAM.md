@@ -886,3 +886,39 @@ existed), so this is a new-stage delta, not a regression.
 
 Dossier references: buglog-181 (`fix` field, T7 FANOUT CHECKPOINT),
 `logs/M4-T7/report-t7.md` §5.1, evidence logs above.
+## T8 optimizer score V2_LOWER_BOUND + lower bounds (appended by M4-T8 spec-review fix round)
+
+The optimizer-score dossier lives in the module docs
+(`pipeline/board_statistics.rs` for the score/`ensure_difficulty` port,
+`pipeline/board_statistics_bounds.rs` for the MST/via-cover bounds
+calculator and the two-faces pin contract) and
+`logs/M4-T8/report-t8.md`. What T9+ must carry forward:
+
+**FORWARD CARRIAGE — T9 ANCHORING RULE.** Jar-vs-Rust ROUTED GEOMETRY
+drifts ~0.05% on the fanout-ON bm08 full-flow profile: jar 94.96 mm of
+trace vs Rust ~95.00 mm at IDENTICAL counts (1 via, 21 bends, D 80) and
+identical parse faces (bounds raw-bits equal) — the composed V2
+optimizer score therefore reads 823.79 (jar) vs 823.37 (Rust), ~0.4 pp
+of the router-compare 2 pp relative budget. Pre-T8 (the ses bytes
+differ: jar `03e3260a…` vs Rust `ec22a0f2…`, T7's recorded
+self-determinism face); diagnosed and adjudicated in the T8 review
+(SPEC_COMPLIANT_WITH_MINORS, F1 closed in the implementer's favor — the
+jar's optimizer restore is byte-exact, so the delta is purely
+routing-side). **T9's composed-score pins vs the jar must use
+component-exact + composed-relative anchoring, NEVER composed-exact**;
+bounds-side pins stay exact (bounds are bit-exact and
+routing-independent). Evidence:
+`logs/M4-T8/evidence/jar-bounds/` (bm08-manifest.json = the 823.79
+full-flow face; bm08-noopt-manifest.json = the component faces, no
+optimizer_score; the two jar ses files byte-identical at `03e3260a…`),
+`logs/M4-T8/report-t8.md` §F1.
+
+**Walk-order fact (T8 recon, now doc-of-record).** Java's item walks
+(`UndoableObjects.startReadObject`) yield items in DESCENDING-id order
+(`ConcurrentSkipListMap` keyed by `Item.compareTo = other.id -
+this.id`). Order-sensitive consumers (Prim in the bounds calculator)
+must walk `iter_descending` — pinned by
+`t8_prim_walk_order_bend_count_discriminated` (a 3-terminal tie world
+where ascending yields a 1-bend MST and descending the jar's 2-bend MST
+at equal 140-unit length; the T8-S1 ascending mutant dies there). The
+counting walks are order-independent counts and stay ascending.

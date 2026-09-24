@@ -1393,9 +1393,11 @@ mod tests {
     /// TwoDecimalFloatAdapter view of the pre-optimizer board the
     /// optimizer RESTORED (pass regressed, incumbent kept), which is
     /// exactly the board this flow ends at (the optimizer stage is
-    /// T9). Evidence: logs/M4-T8/evidence/jar-bounds/bm08-manifest.json
-    /// (full-flow run; bounds/difficulty pinned at the parse face in
-    /// `board_statistics_bounds`).
+    /// T9). Evidence: the 823.79 face is the full-flow manifest's
+    /// (logs/M4-T8/evidence/jar-bounds/bm08-manifest.json); the exact
+    /// component faces below are the optimizer-disabled manifest's
+    /// (bm08-noopt-manifest.json); bounds/difficulty are pinned at the
+    /// parse face in `board_statistics_bounds`.
     #[test]
     fn t8_bm08_full_flow_optimizer_score_matches_the_jar() {
         let dsn_path = std::path::Path::new(concat!(
@@ -1448,11 +1450,15 @@ mod tests {
             "the routed bm08 board must sit INSIDE the score range (all three penalties live): {score}"
         );
 
-        // ANCHOR. The jar (e7f9bdf1, same fanout-ON flow, optimizer
-        // disabled — its restore was proven byte-exact:
-        // bm08.ses == bm08-noopt.ses == 03e3260a...) ends the ROUTE at
-        // `optimizer_score: 823.79` over 94.96 mm / 1 via / 21 bends
-        // (bm08-noopt-manifest.json). The Rust route is NOT byte-equal
+        // ANCHOR — each face cited to its own capture (spec-review
+        // MINOR-2): the composed score 823.79 is the FULL-FLOW
+        // manifest's face ONLY (jar-bounds/bm08-manifest.json, where
+        // the optimizer ran and restored the incumbent, proven
+        // byte-exact: bm08.ses == bm08-noopt.ses == 03e3260a...); the
+        // component faces 94.96 mm / 1 via / 21 bends come from the
+        // OPTIMIZER-DISABLED manifest (jar-bounds/bm08-noopt-manifest.json),
+        // which carries NO optimizer_score at all. The Rust route is
+        // NOT byte-equal
         // to the jar's on this fanout-ON profile (Rust ses ec22a0f2...,
         // the T7-recorded self-determinism face) — the routed-geometry
         // drift is 0.04% of trace length, pre-T8, and exactly the

@@ -10,13 +10,23 @@
 //!
 //! Every Java collection this module reads
 //! (`startReadObject`/`readObject`, `getTraces`, `getVias`, `getPins`,
-//! …) funnels through `UndoableObjects.readObject`, which yields the
-//! `objects` TreeMap (ascending item id) and skips only redo-only
-//! nodes; `UndoableObjects.delete` REMOVES the node from the map
-//! (`UndoableObjects.java:121`), so the walks are LIVE-ONLY. The Rust
-//! arena keeps off-board tombstones behind `on_the_board`, so every
-//! walk here filters [`epic_board::board::Board::iter_ascending`] by
-//! that flag — same elements, same ascending-id order.
+//! …) funnels through `UndoableObjects.readObject`, which iterates the
+//! `objects` ConcurrentSkipListMap (declared `UndoableObjects.java:21`,
+//! constructed `:37`) keyed by `Item.compareTo = other.id - this.id`
+//! (`Item.java:95-102`) — the DESCENDING-id order — and skips only
+//! redo-only nodes; `UndoableObjects.delete` REMOVES the node from the
+//! map (`objects.remove`, `UndoableObjects.java:126`), so the walks are
+//! LIVE-ONLY. The Rust
+//! arena keeps off-board tombstones behind `on_the_board`; the walks in
+//! THIS module use [`epic_board::board::Board::iter_ascending`], which
+//! yields the same LIVE elements in the OPPOSITE order — observably
+//! identical here because every face is an order-independent COUNT
+//! (the one f64 length SUM rounds to the same f32; the manifest
+//! canaries have pinned it since M3). Order-SENSITIVE consumers must
+//! walk descending like Java: see
+//! [`crate::pipeline::board_statistics_bounds`] (spec-review T8
+//! observation fix; the pre-T8 text wrongly claimed a TreeMap and
+//! ascending order).
 //!
 //! ## The float/double discipline
 //!
@@ -808,6 +818,15 @@ impl BoardStatistics {
     /// fields as `<= 0` (the counting ctor always writes them, and the
     /// empty aggregate's 0 plays the null role).
     pub fn ensure_difficulty(&mut self) {
+        // Java `:746-749` — the early return: a stats that already
+        // carries D is a FULL no-op (Java keeps the FIRST computation;
+        // spec-review MINOR-3: load-bearing for T9's repeated calls on
+        // evolving boards — a recompute-on-every-call port diverges).
+        // The `difficulty == null` guard above it is structural here
+        // (the aggregate is never null).
+        if self.difficulty.difficulty_d.is_some() {
+            return;
+        }
         if self.difficulty.pin_count <= 0 {
             if self.items.pin_count > 0 {
                 self.difficulty.pin_count = self.items.pin_count;
@@ -1630,6 +1649,29 @@ mod t8_optimizer_score_tests {
         stats.difficulty.difficulty_d = Some(77.0);
         stats.ensure_difficulty();
         assert_eq!(stats.difficulty.difficulty_d, Some(77.0), "set D survives");
+
+        // The EARLY-RETURN arm (Java `:746-749`; spec-review MINOR-3):
+        // with D already set the call is a FULL no-op — the ladder must
+        // not run even where it WOULD change fields. World: D set +
+        // sources that the ladder would adopt (items.pinCount 7,
+        // signalCount 3 -> pinCount 7, C 21 on a recompute). The
+        // early-return drop mutant recomputes and answers 7/21; Java
+        // (and the port) keep 0/0 — the first computation wins, which
+        // is what T9's repeated calls on evolving boards need.
+        let mut stats = BoardStatistics::new_empty();
+        stats.items.pin_count = 7;
+        stats.layers_signal_count = 3;
+        stats.difficulty.difficulty_d = Some(5.0);
+        stats.ensure_difficulty();
+        assert_eq!(stats.difficulty.difficulty_d, Some(5.0), "D kept");
+        assert_eq!(
+            stats.difficulty.pin_count, 0,
+            "early return: the ladder must not fill pinCount"
+        );
+        assert_eq!(
+            stats.difficulty.complexity_c, 0,
+            "early return: the ladder must not fill complexityC"
+        );
     }
 
     /// The three penalties, one at a time (the others at zero excess),

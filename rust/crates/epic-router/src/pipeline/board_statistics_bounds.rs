@@ -638,6 +638,73 @@ mod tests {
         );
     }
 
+    /// THE ORDER-DISCRIMINATING WORLD (spec-review MINOR-1 fix; kills
+    /// the T8-S1 ascending-walk mutant). Three terminals where two
+    /// equal-weight MSTs of the SAME point set carry different bend
+    /// counts: t0=(20000,30000), t1=(20000,30100), t2=(20020,30080).
+    /// The seed tie (t1 and t2 both at manhattan 100 from t0) is broken
+    /// toward the FIRST index, so:
+    ///   * walk [t0,t1,t2] (ASCENDING ids — the T8-S1 mutant): tree
+    ///     {t0-t1, t1-t2}, bends 1 (only t1-t2 is L-shaped);
+    ///   * walk [t2,t1,t0] (DESCENDING — Java's skip-list order): tree
+    ///     {t2-t1, t2-t0}, bends 2 (both edges L-shaped).
+    ///
+    /// Both trees span 140 units (Prim correctness — the LENGTH is
+    /// order-invariant; the BEND COUNT is the order-variant face).
+    /// JAR-ANCHORED via BoundsOracle on this exact DSN (evidence
+    /// `logs/M4-T8/evidence/t8_order_world_bounds_oracle.log`): walk
+    /// order [t2,t1,t0], mst 140.0 (bits 4639129828656676864), bends 2,
+    /// min_trace_length_mm f32 bits 1041194025 (0.14000000059604645).
+    #[test]
+    fn t8_prim_walk_order_bend_count_discriminated() {
+        let dsn = r#"(pcb t8_order_world.dsn
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 130000 70000))
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component CMP_T0 (place CMP_T0 20000 30000 front 0))
+    (component CMP_T1 (place CMP_T1 20000 30100 front 0))
+    (component CMP_T2 (place CMP_T2 20020 30080 front 0))
+  )
+  (library
+    (padstack PAD_SMD (shape (circle F.Cu 600 0 0)))
+    (padstack PAD_VIA
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+    )
+    (image CMP_T0 (pin PAD_SMD P1 0 0))
+    (image CMP_T1 (pin PAD_SMD P1 0 0))
+    (image CMP_T2 (pin PAD_SMD P1 0 0))
+  )
+  (network
+    (via V1 PAD_VIA default)
+    (via_rule R1 V1)
+    (net NET1 (pins CMP_T0-P1 CMP_T1-P1 CMP_T2-P1))
+  )
+)
+"#;
+        let (_manager, board) = parse(dsn);
+        let bounds = calculate(&board);
+        // The jar's own walk (descending) answers bends 2 — the port
+        // must reproduce it; the ascending mutant answers 1.
+        assert_eq!(
+            bounds.min_bend_count,
+            Some(2),
+            "the descending-id Prim walk must take the t2-t1 + t2-t0 tree"
+        );
+        assert_eq!(
+            bounds.min_trace_length_mm.map(f32::to_bits),
+            Some(1041194025),
+            "0.14000000059604645 mm raw — length is order-INVARIANT (140 units)"
+        );
+        assert_eq!(bounds.min_via_count, Some(0));
+    }
+
     // ------------------------------------------------------------------
     // jar-exact tier-fixture pins (the parse/ratsnest faces)
     //
