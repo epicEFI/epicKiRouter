@@ -36,8 +36,8 @@
 use epic_dsn::scope::autoroute_settings::AutorouteSettingsIr;
 use epic_router::control::{ExpansionCostFactor, FanoutSettingsIr, RouterSettingsIr};
 use epic_router::pipeline::board_statistics::{
-    RouterScoreSettings, RouterScoringVersion, RouterSettingsScoring, RoutingCostSettings,
-    default_routing_cost_settings,
+    OptimizerScoreSettings, OptimizerScoringVersion, RouterScoreSettings, RouterScoringVersion,
+    RouterSettingsScoring, RoutingCostSettings, default_routing_cost_settings,
 };
 
 // ---------------------------------------------------------------------------
@@ -66,8 +66,14 @@ pub struct CliLayer {
     pub improvement_threshold: Option<f32>,
     /// `router.scoring.version` (dual-applied from `-scoring-version`).
     pub router_scoring_version: Option<RouterScoringVersion>,
-    /// `optimizer.scoring.version` — parsed (with the v2 -> V2_LOWER_BOUND
-    /// asymmetry) but unused: no optimizer stage in T13.
+    /// `optimizer.scoring.version` / `optimizer-scoring-version` —
+    /// the ONLY CLI-settable field of the optimizer score box: the
+    /// `CliSettings` routing guard accepts only `router.*`/`optimizer.*`
+    /// prefixed paths, so `--optimizer_scoring.<scalar>` is silently
+    /// ignored and `--optimizer.scoring.<scalar>` fails the reflection
+    /// walk with a WARN — the scalars are settable only through the
+    /// GUI/API sources. Merged into the optimizer score box; the V2
+    /// formula's consumer is the M4 optimizer stage.
     pub optimizer_scoring_version: Option<OptimScoringVersion>,
     /// `router.vias_allowed`.
     pub vias_allowed: Option<bool>,
@@ -751,6 +757,11 @@ pub struct MergedSettings {
     pub scoring: RoutingCostSettings,
     /// The `routerScoring` box.
     pub router_scoring: RouterScoreSettings,
+    /// The `optimizerScoring` box (deep-merged; defaults from
+    /// DefaultSettings — V2_LOWER_BOUND). The V2 formula's consumer is
+    /// the M4 optimizer stage; the resolved box rides
+    /// [`ResolvedRouteSettings::scoring`] from T8 on.
+    pub optimizer_scoring: OptimizerScoreSettings,
     /// The layer slots (sized to the BOARD at the geometry pass).
     pub layers: Vec<MergedLayerSlot>,
     /// Java `scoring.preferredDirectionTraceCost` — the per-layer
@@ -794,6 +805,7 @@ impl Default for MergedSettings {
             improvement_threshold: Some(2.5),
             scoring: default_routing_cost_settings(),
             router_scoring: default_router_score_settings(),
+            optimizer_scoring: default_optimizer_score_settings(),
             layers: Vec::new(),
             preferred_trace_costs: Vec::new(),
             undesired_trace_costs: Vec::new(),
@@ -813,6 +825,21 @@ pub fn default_router_score_settings() -> RouterScoreSettings {
         clearance_violation_count_weight: Some(25.0),
         clearance_violation_depth_weight: Some(300.0),
         clearance_violation_depth_scale: Some(1000.0),
+    }
+}
+
+/// `DefaultSettings`' optimizerScoring box (`sources/DefaultSettings.java:
+/// 92-121, 215-220` verbatim): V2_LOWER_BOUND with the 1000/2000/500
+/// excess weights and the 1.0/1.0 floors.
+#[must_use]
+pub fn default_optimizer_score_settings() -> OptimizerScoreSettings {
+    OptimizerScoreSettings {
+        version: OptimizerScoringVersion::V2LowerBound,
+        excess_wire_length_weight: Some(1000.0),
+        excess_via_weight: Some(2000.0),
+        excess_bend_weight: Some(500.0),
+        length_floor: Some(1.0),
+        difficulty_scale_floor: Some(1.0),
     }
 }
 
@@ -926,6 +953,12 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.router_scoring_version {
         merged.router_scoring.version = v;
+    }
+    if let Some(v) = cli.optimizer_scoring_version {
+        merged.optimizer_scoring.version = match v {
+            OptimScoringVersion::V1Legacy => OptimizerScoringVersion::V1Legacy,
+            OptimScoringVersion::V2LowerBound => OptimizerScoringVersion::V2LowerBound,
+        };
     }
     merged
 }
@@ -1224,6 +1257,7 @@ impl ResolvedRouteSettings {
             scoring: RouterSettingsScoring {
                 scoring: Some(merged.scoring.clone()),
                 router_scoring: Some(merged.router_scoring.clone()),
+                optimizer_scoring: Some(merged.optimizer_scoring.clone()),
             },
             max_passes: merged.max_passes,
             max_items: merged.max_items,
@@ -2282,8 +2316,9 @@ mod tests {
             Some(13),
             "cli.start_ripup_costs"
         );
-        // optimizer_scoring_version deliberately has NO merge arm
-        // (parsed and banked for the optimizer milestone — module docs).
+        // optimizer_scoring_version now MERGES into the optimizer score
+        // box (M4-T8; the uptake test is
+        // `optimizer_score_group_uptake_parse_merge_resolve` below).
 
         // Silence from BOTH layers reproduces the DefaultSettings seed
         // exactly (copy-if-set never nulls and never invents).
@@ -2431,6 +2466,137 @@ mod tests {
         .expect("parses");
         assert!(
             parsed.layer.warnings.len() == 1 && parsed.layer.warnings[0].contains("no_such_field")
+        );
+    }
+    /// The M4-T8 optimizer-score group's UPTAKE face (the uptake
+    /// surface is the RESOLVED box, never the WARN line — buglog 168).
+    /// Java-exact CLI surface: ONLY the version is settable (`--optimizer.scoring.version`
+    /// special case, the `-optimizer-scoring-version` flag, and the
+    /// `-scoring-version` dual apply); the scalars keep the
+    /// `DefaultSettings.java:92-121, 215-220` seeds headlessly.
+    /// Worlds: (1) version=v2 → V2_LOWER_BOUND merged + resolved;
+    /// (2) the dual-apply asymmetry lands on BOTH boxes;
+    /// (3) `--optimizer_scoring.<scalar>` is SILENTLY ignored (the
+    /// CliSettings routing guard) and (4) `--optimizer.scoring.<scalar>`
+    /// hits the reflection-miss WARN — neither touches the box;
+    /// (5) silence reproduces the DefaultSettings seeds verbatim
+    /// (jar-anchored: the bm08 manifest `settings_snapshot.
+    /// optimizer_scoring` carries exactly this box).
+    #[test]
+    fn optimizer_score_group_uptake_parse_merge_resolve() {
+        // (1) The version flag.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--optimizer.scoring.version=v2",
+        ]))
+        .expect("parses");
+        assert_eq!(
+            parsed.layer.optimizer_scoring_version,
+            Some(OptimScoringVersion::V2LowerBound),
+            "the v2 alias resolves to V2_LOWER_BOUND on the optimizer box"
+        );
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &parsed.layer,
+        );
+        assert_eq!(
+            merged.optimizer_scoring.version,
+            OptimizerScoringVersion::V2LowerBound
+        );
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(
+            resolved
+                .scoring
+                .optimizer_scoring
+                .as_ref()
+                .expect("box present")
+                .version,
+            OptimizerScoringVersion::V2LowerBound,
+            "the resolved face carries the box (the T9 stage's entry point)"
+        );
+
+        // (2) The dual-apply asymmetry lands on BOTH boxes.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "-scoring-version",
+            "v2",
+        ]))
+        .expect("parses");
+        assert_eq!(
+            parsed.layer.router_scoring_version,
+            Some(RouterScoringVersion::V2Continuous),
+            "the router box takes V2_CONTINUOUS"
+        );
+        assert_eq!(
+            parsed.layer.optimizer_scoring_version,
+            Some(OptimScoringVersion::V2LowerBound),
+            "the optimizer box takes V2_LOWER_BOUND"
+        );
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &parsed.layer,
+        );
+        assert_eq!(
+            merged.router_scoring.version,
+            RouterScoringVersion::V2Continuous
+        );
+        assert_eq!(
+            merged.optimizer_scoring.version,
+            OptimizerScoringVersion::V2LowerBound
+        );
+
+        // (3) `--optimizer_scoring.<scalar>`: SILENTLY ignored (outside
+        // the router./optimizer. routing guard) — no warn, no field.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--optimizer_scoring.excess_via_weight=2400",
+        ]))
+        .expect("parses");
+        assert!(
+            parsed.layer.warnings.is_empty(),
+            "silent-ignore parity: {:?}",
+            parsed.layer.warnings
+        );
+        // (4) `--optimizer.scoring.<scalar>`: the reflection-miss WARN,
+        // field untouched.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--optimizer.scoring.excess_via_weight=2400",
+        ]))
+        .expect("parses");
+        assert!(
+            parsed.layer.warnings.len() == 1
+                && parsed.layer.warnings[0].contains("excess_via_weight"),
+            "the reflection-miss warn row: {:?}",
+            parsed.layer.warnings
+        );
+
+        // (5) Silence reproduces the DefaultSettings seeds verbatim —
+        // the same box the jar's manifest `settings_snapshot.
+        // optimizer_scoring` renders (evidence jar-bounds/bm08-manifest.json).
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &CliLayer::default(),
+        );
+        assert_eq!(
+            merged.optimizer_scoring,
+            default_optimizer_score_settings(),
+            "V2_LOWER_BOUND / 1000 / 2000 / 500 / 1.0 / 1.0"
         );
     }
 }

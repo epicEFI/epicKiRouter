@@ -9,6 +9,7 @@ pub mod batch;
 pub mod board_hash;
 pub mod board_history;
 pub mod board_statistics;
+pub mod board_statistics_bounds;
 pub mod connection_router;
 pub mod event_sink;
 pub mod fanout;

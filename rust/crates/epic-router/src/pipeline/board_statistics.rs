@@ -30,24 +30,30 @@
 //! ## Banks (SEAM carries the dossier)
 //!
 //! * Skipped diagnostics: `host`, board bounding boxes, `areaCm2`,
-//!   the bounds calculator, fanout, per-segment H/V/A lengths and the
-//!   weighted trace length — output-serialization fields no M3
-//!   surface reads (the score consumes counts, `totalLength(Mm)`,
-//!   bends, vias, connections, violations and difficulty only).
+//!   fanout, per-segment H/V/A lengths and the weighted trace length
+//!   — output-serialization fields no M3 surface reads (the score
+//!   consumes counts, `totalLength(Mm)`, bends, vias, connections,
+//!   violations and difficulty only). The `bounds` capture and the
+//!   optimizer score live in
+//!   [`crate::pipeline::board_statistics_bounds`] and the
+//!   [`Self::get_optimizer_score`]/[`Self::get_v2_optimizer_score`]
+//!   pair below (M4-T8).
 //! * The `transient double[]` preferred/undesired per-layer cost
 //!   tables of `RoutingCostSettings` are not part of the score face.
-//! * `ensureDifficulty`'s GSON-defensive fallback arms are
-//!   unreachable here: the counting ctor always sets `pinCount` /
-//!   `signalLayerCount` / `complexityC` / `difficultyD`, and the port
-//!   has no JSON-deserialized statistics. The V2 null-guard arms are
-//!   ported verbatim anyway (dead-defensive parity, reachable only
-//!   through [`BoardStatistics::new_empty`]).
+//! * The V2 ROUTER score's `ensureDifficulty()` call (`:693`) is a
+//!   no-op through the counting ctor (it always writes `pinCount` /
+//!   `signalLayerCount` / `complexityC` / `difficultyD`); the method
+//!   itself is now ported as [`Self::ensure_difficulty`] — its
+//!   GSON-defensive fallback arms stay reachable only through
+//!   [`BoardStatistics::new_empty`] (the port has no
+//!   JSON-deserialized statistics).
 //! * `BasicBoard.preExistingClearanceViolationsCount` is set once at
 //!   load by Java's `HeadlessBoardManager` (`:789-793`); the load-side
 //!   write is the headless-manager port's business (M5+), the field
 //!   itself lives on [`epic_board::board::Board`] since this module is
 //!   its first reader.
 
+use crate::pipeline::board_statistics_bounds::BoardStatisticsBounds;
 use epic_board::board::Board;
 use epic_board::items::ItemData;
 use epic_board::tree_manager::SearchTreeManager;
@@ -125,6 +131,12 @@ pub struct RouterSettingsScoring {
     pub scoring: Option<RoutingCostSettings>,
     /// Java `RouterSettings.routerScoring`.
     pub router_scoring: Option<RouterScoreSettings>,
+    /// Java `RouterSettings.optimizerScoring` (`@SerializedName
+    /// "optimizer_scoring"`) — the optimizer-score box. `None` mirrors
+    /// Java's null group (the V2 gate fails and the legacy face runs);
+    /// the CLI resolver materializes the group over the DefaultSettings
+    /// seeds, so production carries `Some` with V2_LOWER_BOUND.
+    pub optimizer_scoring: Option<OptimizerScoreSettings>,
 }
 
 /// Java `DefaultSettings().getSettings().scoring`
@@ -149,6 +161,45 @@ pub fn default_routing_cost_settings() -> RoutingCostSettings {
 /// (`BoardStatistics.java:787-789`).
 fn value_or_default(value: Option<f32>, default_value: f32) -> f32 {
     value.unwrap_or(default_value)
+}
+
+// ---------------------------------------------------------------------------
+// the optimizer-score settings types (Java's nullable settings boxes)
+// ---------------------------------------------------------------------------
+
+/// Java `settings.OptimizerScoringVersion` — the optimizer-board score
+/// formula selector. Exactly `V1_LEGACY` and `V2_LOWER_BOUND` (no
+/// V2_CONTINUOUS on this box — the fact that makes the CLI `v2` alias
+/// asymmetric across the two scoring boxes).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OptimizerScoringVersion {
+    /// Java `V1_LEGACY`.
+    V1Legacy,
+    /// Java `V2_LOWER_BOUND`.
+    V2LowerBound,
+}
+
+/// Java `settings.OptimizerScoreSettings` — the nullable settings box
+/// the V2 optimizer score reads. Every weight/floor is Java `Float`
+/// (null → the inline default at the read site); the version is the
+/// formula selector the [`BoardStatistics::get_optimizer_score`] gate
+/// reads. No `Default` (a second defaults source would duplicate the
+/// CLI resolver's `default_optimizer_score_settings` — the
+/// settings-merger trap; CLAUDE.md).
+#[derive(Clone, Debug, PartialEq)]
+pub struct OptimizerScoreSettings {
+    /// Java `OptimizerScoreSettings.version`.
+    pub version: OptimizerScoringVersion,
+    /// Java `excessWireLengthWeight`.
+    pub excess_wire_length_weight: Option<f32>,
+    /// Java `excessViaWeight`.
+    pub excess_via_weight: Option<f32>,
+    /// Java `excessBendWeight`.
+    pub excess_bend_weight: Option<f32>,
+    /// Java `lengthFloor`.
+    pub length_floor: Option<f32>,
+    /// Java `difficultyScaleFloor`.
+    pub difficulty_scale_floor: Option<f32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +346,13 @@ pub struct BoardStatistics {
     pub clearance_violations: ClearanceViolationsStats,
     /// Java `difficulty`.
     pub difficulty: DifficultyStats,
+    /// Java `bounds` (`@SerializedName("bounds")`) — the V2 optimizer
+    /// score's board-only lower bounds, captured by the ctor from
+    /// [`crate::pipeline::board_statistics_bounds::calculate`]. Java
+    /// memoizes that capture per board (`WeakHashMap`), so the value is
+    /// the load-time face even on a routed board; the port's ctor call
+    /// reproduces it (routing never moves terminals).
+    pub bounds: BoardStatisticsBounds,
 }
 
 impl BoardStatistics {
@@ -416,6 +474,11 @@ impl BoardStatistics {
                 .saturating_mul(stats.difficulty.signal_layer_count),
         );
         stats.difficulty.difficulty_d = Some(stats.difficulty.complexity_c as f32);
+
+        // Bounds (Java: `this.bounds = BoardStatisticsBoundsCalculator
+        // .calculate(board)`) — the load-time capture (see the bounds
+        // module docs for the memoization note).
+        stats.bounds = crate::pipeline::board_statistics_bounds::calculate(board);
 
         // Connections (the incompletes pass).
         if include_connections {
@@ -571,6 +634,7 @@ impl BoardStatistics {
                 complexity_c: 0,
                 difficulty_d: None,
             },
+            bounds: BoardStatisticsBounds::empty(),
         }
     }
 
@@ -731,6 +795,112 @@ impl BoardStatistics {
 }
 
 // ---------------------------------------------------------------------------
+// the optimizer score (Java `getOptimizerScore`/`getV2OptimizerScore`)
+// ---------------------------------------------------------------------------
+
+impl BoardStatistics {
+    /// Java `ensureDifficulty` (`BoardStatistics.java:743-778`) — fills
+    /// the difficulty ladder over the (possibly GSON-empty) aggregate:
+    /// pin count ← items.pinCount, else pads.totalCount, else 0;
+    /// signal layer count ← layers.signalCount, else layers.totalCount,
+    /// else 0; complexity C ← max(1, pins·layers) when ≤ 0; D ← C when
+    /// D is null. The port spells the Java null faces of the three int
+    /// fields as `<= 0` (the counting ctor always writes them, and the
+    /// empty aggregate's 0 plays the null role).
+    pub fn ensure_difficulty(&mut self) {
+        if self.difficulty.pin_count <= 0 {
+            if self.items.pin_count > 0 {
+                self.difficulty.pin_count = self.items.pin_count;
+            } else if self.pads_total_count > 0 {
+                self.difficulty.pin_count = self.pads_total_count;
+            } else {
+                self.difficulty.pin_count = 0;
+            }
+        }
+        if self.difficulty.signal_layer_count <= 0 {
+            if self.layers_signal_count > 0 {
+                self.difficulty.signal_layer_count = self.layers_signal_count;
+            } else if self.layers_total_count > 0 {
+                self.difficulty.signal_layer_count = self.layers_total_count;
+            } else {
+                self.difficulty.signal_layer_count = 0;
+            }
+        }
+        if self.difficulty.complexity_c <= 0 {
+            let pins = self.difficulty.pin_count;
+            let layers = self.difficulty.signal_layer_count;
+            self.difficulty.complexity_c = 1.max(pins.saturating_mul(layers));
+        }
+        if self.difficulty.difficulty_d.is_none() {
+            self.difficulty.difficulty_d = Some(self.difficulty.complexity_c as f32);
+        }
+    }
+
+    /// Java `getOptimizerScore(RouterSettings)` (`:795-806`): the V2
+    /// formula when the settings carry a `V2_LOWER_BOUND`
+    /// `optimizerScoring` box, the legacy normalized score over
+    /// `scoring`-or-`DefaultSettings.scoring` otherwise
+    /// (`legacyScoringOrDefault`, `:780-785`).
+    #[must_use]
+    pub fn get_optimizer_score(&self, router_settings: Option<&RouterSettingsScoring>) -> f32 {
+        let v2 = router_settings
+            .and_then(|settings| settings.optimizer_scoring.as_ref())
+            .filter(|score_settings| {
+                score_settings.version == OptimizerScoringVersion::V2LowerBound
+            });
+        if let Some(score_settings) = v2 {
+            return self.get_v2_optimizer_score(score_settings);
+        }
+        match router_settings.and_then(|s| s.scoring.as_ref()) {
+            Some(scoring) => self.get_legacy_normalized_score(scoring),
+            None => self.get_legacy_normalized_score(&default_routing_cost_settings()),
+        }
+    }
+
+    /// Java `getV2OptimizerScore(OptimizerScoreSettings)` (`:808-835`)
+    /// — the three excess penalties over the stored lower bounds, all
+    /// f64, clamped at 0. Weight defaults widen AFTER the f32 default
+    /// argument is evaluated (Java `valueOrDefault(..., 1000.0f)`);
+    /// `1000.0 - lp - vp - bp` associates LEFT (Java evaluation order);
+    /// the clamp runs on the f64 sum BEFORE the f32 cast.
+    #[must_use]
+    pub fn get_v2_optimizer_score(&self, settings: &OptimizerScoreSettings) -> f32 {
+        let difficulty = match self.difficulty.difficulty_d {
+            Some(difficulty_d) => 1.0f64.max(f64::from(difficulty_d)),
+            None => 1.0,
+        };
+        let min_trace_length = self
+            .bounds
+            .min_trace_length_mm
+            .map_or(0.0, |v| 0.0f64.max(f64::from(v)));
+        let min_via_count = f64::from(self.bounds.min_via_count.map_or(0, |v| v.max(0)));
+        let min_bend_count = f64::from(self.bounds.min_bend_count.map_or(0, |v| v.max(0)));
+        let actual_trace_length = self
+            .traces
+            .total_length_mm
+            .map_or(0.0, |v| 0.0f64.max(f64::from(v)));
+        let actual_via_count = f64::from(self.vias.total_count.max(0));
+        let actual_bend_count = f64::from(self.bends.total_count.max(0));
+        let length_floor = 0.0f64.max(f64::from(value_or_default(settings.length_floor, 1.0)));
+        let difficulty_floor = 1.0f64.max(f64::from(value_or_default(
+            settings.difficulty_scale_floor,
+            1.0,
+        )));
+        let length_penalty =
+            f64::from(value_or_default(settings.excess_wire_length_weight, 1000.0))
+                * (actual_trace_length - min_trace_length).max(0.0)
+                / min_trace_length.max(length_floor);
+        let via_penalty = f64::from(value_or_default(settings.excess_via_weight, 2000.0))
+            * (actual_via_count - min_via_count).max(0.0)
+            / difficulty.max(difficulty_floor);
+        let bend_penalty = f64::from(value_or_default(settings.excess_bend_weight, 500.0))
+            * (actual_bend_count - min_bend_count).max(0.0)
+            / difficulty.max(difficulty_floor);
+        (1000.0 - length_penalty - via_penalty - bend_penalty).max(0.0) as f32
+    }
+}
+
+// ---------------------------------------------------------------------------
 // structural tests
 // ---------------------------------------------------------------------------
 
@@ -804,6 +974,7 @@ mod tests {
                 clearance_violation_depth_weight: None,
                 clearance_violation_depth_scale: None,
             }),
+            optimizer_scoring: None,
         }
     }
 
@@ -993,6 +1164,7 @@ mod tests {
                 clearance_violation_depth_weight: None,
                 clearance_violation_depth_scale: None,
             }),
+            optimizer_scoring: None,
         };
         assert_eq!(
             stats.get_router_score(Some(&gate)),
@@ -1368,5 +1540,320 @@ mod tests {
             after.traces.total_length, base.traces.total_length,
             "the length sum drops back (the removed trace's length gone)"
         );
+    }
+}
+
+/// The T8 optimizer-score pin suite (Java `getOptimizerScore`/
+/// `getV2OptimizerScore`/`ensureDifficulty`, `BoardStatistics.java:
+/// 743-835`). Every expected value is a CLOSED-FORM dyadic world — the
+/// arithmetic is exact in f64/f32 at these inputs, so the expected
+/// literals are derived from the FORMULA, not from a run of the port
+/// itself (no tautologies; the jar faces live in the bounds module's
+/// probe-anchored pins).
+#[cfg(test)]
+mod t8_optimizer_score_tests {
+    use super::*;
+
+    /// The V2 optimizer box: version V2_LOWER_BOUND, every weight unset
+    /// (the inline defaults 1000/2000/500 and floors 1.0/1.0 apply).
+    fn v2_optimizer_box() -> OptimizerScoreSettings {
+        OptimizerScoreSettings {
+            version: OptimizerScoringVersion::V2LowerBound,
+            excess_wire_length_weight: None,
+            excess_via_weight: None,
+            excess_bend_weight: None,
+            length_floor: None,
+            difficulty_scale_floor: None,
+        }
+    }
+
+    fn v2_settings(box_: OptimizerScoreSettings) -> RouterSettingsScoring {
+        RouterSettingsScoring {
+            scoring: None,
+            router_scoring: None,
+            optimizer_scoring: Some(box_),
+        }
+    }
+
+    /// The difficulty ladder (Java `ensureDifficulty`, `:743-778`):
+    /// pinCount ← items.pinCount, ELSE pads.totalCount, ELSE 0 — the
+    /// first-nonzero ORDER is load-bearing (a swapped-fallback mutant
+    /// answers 9 where the oracle answers 7). Same ladder for the
+    /// signal layer count. C = max(1, pins·layers) only when C <= 0;
+    /// D = C only when D is null; a SET field is never overwritten.
+    #[test]
+    fn t8_ensure_difficulty_ladder_arms() {
+        // items wins over pads (order witness).
+        let mut stats = BoardStatistics::new_empty();
+        stats.items.pin_count = 7;
+        stats.pads_total_count = 9;
+        stats.layers_signal_count = 3;
+        stats.layers_total_count = 5;
+        stats.ensure_difficulty();
+        assert_eq!(stats.difficulty.pin_count, 7);
+        assert_eq!(stats.difficulty.signal_layer_count, 3);
+        assert_eq!(stats.difficulty.complexity_c, 21);
+        assert_eq!(stats.difficulty.difficulty_d, Some(21.0));
+
+        // pads arm + total-layers arm.
+        let mut stats = BoardStatistics::new_empty();
+        stats.pads_total_count = 9;
+        stats.layers_total_count = 5;
+        stats.ensure_difficulty();
+        assert_eq!(stats.difficulty.pin_count, 9);
+        assert_eq!(stats.difficulty.signal_layer_count, 5);
+        assert_eq!(stats.difficulty.complexity_c, 45);
+
+        // The zero arms: both sources empty -> 0/0, then max(1, 0) = 1.
+        let mut stats = BoardStatistics::new_empty();
+        stats.ensure_difficulty();
+        assert_eq!(stats.difficulty.pin_count, 0);
+        assert_eq!(stats.difficulty.signal_layer_count, 0);
+        assert_eq!(stats.difficulty.complexity_c, 1);
+        assert_eq!(stats.difficulty.difficulty_d, Some(1.0));
+
+        // A SET field survives: complexity_c 10 with pins·layers = 21
+        // stays 10; D set stays; D null with C set takes C.
+        let mut stats = BoardStatistics::new_empty();
+        stats.items.pin_count = 7;
+        stats.layers_signal_count = 3;
+        stats.difficulty.complexity_c = 10;
+        stats.ensure_difficulty();
+        assert_eq!(stats.difficulty.complexity_c, 10, "C <= 0 gate");
+        assert_eq!(
+            stats.difficulty.difficulty_d,
+            Some(10.0),
+            "D takes the SET C"
+        );
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.complexity_c = 10;
+        stats.difficulty.difficulty_d = Some(77.0);
+        stats.ensure_difficulty();
+        assert_eq!(stats.difficulty.difficulty_d, Some(77.0), "set D survives");
+    }
+
+    /// The three penalties, one at a time (the others at zero excess),
+    /// at the default weights. Dyadic worlds: excess/denominator is a
+    /// power-of-two fraction, so the f64 arithmetic is exact and the
+    /// f32 result is exact.
+    #[test]
+    fn t8_penalty_each_isolated_above_floor() {
+        let settings = v2_settings(v2_optimizer_box());
+        // Length-only: min 4.0 mm, actual 5.0 mm, vias/bends at min,
+        // difficulty 4: 1000 - 1000*1/4 = 750.0.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(4.0);
+        stats.traces.total_length_mm = Some(5.0);
+        stats.bounds.min_via_count = Some(1);
+        stats.vias.total_count = 1;
+        stats.bounds.min_bend_count = Some(2);
+        stats.bends.total_count = 2;
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 750.0);
+
+        // Via-only: excess 1 via, difficulty 4: 1000 - 2000/4 = 500.0.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(4.0);
+        stats.traces.total_length_mm = Some(4.0);
+        stats.bounds.min_via_count = Some(1);
+        stats.vias.total_count = 2;
+        stats.bounds.min_bend_count = Some(2);
+        stats.bends.total_count = 2;
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 500.0);
+
+        // Bend-only: excess 1 bend, difficulty 4: 1000 - 500/4 = 875.0.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(4.0);
+        stats.traces.total_length_mm = Some(4.0);
+        stats.bounds.min_via_count = Some(1);
+        stats.vias.total_count = 1;
+        stats.bounds.min_bend_count = Some(2);
+        stats.bends.total_count = 3;
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 875.0);
+    }
+
+    /// The floor boundaries (cerebrum mode 16): the world AT each
+    /// floor edge and one step either side, both directions killed.
+    ///   * length floor: min BELOW/AT/ABOVE the 1.0 default floor —
+    ///     the denominator is max(min, floor), so a floor-formula
+    ///     mutant (`min` alone, floor±0.25, or `<` instead of `max`)
+    ///     moves at least two of the three worlds.
+    ///   * difficultyScaleFloor setting: the denominator is
+    ///     max(difficulty, floor) AT the edge and both sides.
+    ///   * the `Math.max(0.0, lengthFloor)` setting clamp: a NEGATIVE
+    ///     length floor must behave as 0.0 (denominator = min), not
+    ///     as the 1.0 default.
+    #[test]
+    fn t8_penalty_floor_boundaries_both_directions() {
+        let settings = v2_settings(v2_optimizer_box());
+        // min = 0.75 (below floor): denom 1.0 -> 1000 - 1000*1/1 -> 0.0 (clamp).
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(0.75);
+        stats.traces.total_length_mm = Some(1.75);
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 0.0);
+        // min = 1.0 (AT the floor edge): denom 1.0 -> 1000*1/1 = 1000
+        // -> exactly 0.0 (the clamp boundary, not a negative sum).
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(1.0);
+        stats.traces.total_length_mm = Some(2.0);
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 0.0);
+        // min = 1.25 (above): denom 1.25 -> 1000 - 1000*1/1.25 = 200.0.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(1.25);
+        stats.traces.total_length_mm = Some(2.25);
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 200.0);
+
+        // difficultyScaleFloor setting at the edge (== difficulty 4)
+        // and both sides: bend penalty isolated, weight 500.
+        //   floor 3 -> denom 4 -> 125 -> 875; floor 4 -> denom 4 ->
+        //   875; floor 5 -> denom 5 -> 100 -> 900.
+        let floor_world = |floor: f32| {
+            let mut stats = BoardStatistics::new_empty();
+            stats.difficulty.difficulty_d = Some(4.0);
+            stats.bounds.min_bend_count = Some(1);
+            stats.bends.total_count = 2;
+            let mut box_ = v2_optimizer_box();
+            box_.difficulty_scale_floor = Some(floor);
+            stats.get_optimizer_score(Some(&v2_settings(box_)))
+        };
+        assert_eq!(floor_world(3.0), 875.0);
+        assert_eq!(floor_world(4.0), 875.0);
+        assert_eq!(floor_world(5.0), 900.0);
+
+        // lengthFloor setting clamp: negative floor behaves as 0.0.
+        // min 0.5, actual 0.75, floor -3: denom max(0.5, 0.0) = 0.5
+        // -> 1000 - 1000*0.25/0.5 = 500.0 (the 1.0 default would give
+        // 750.0 — the two faces differ, the world discriminates).
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(0.5);
+        stats.traces.total_length_mm = Some(0.75);
+        let mut box_ = v2_optimizer_box();
+        box_.length_floor = Some(-3.0);
+        assert_eq!(stats.get_optimizer_score(Some(&v2_settings(box_))), 500.0);
+    }
+
+    /// The excess clamps and the score clamp: actual BELOW min (a
+    /// negative excess) waives the term; a huge excess bottoms the
+    /// whole score out at exactly 0.0 (Java `Math.max(0.0, …)` on the
+    /// f64 sum BEFORE the f32 cast).
+    #[test]
+    fn t8_excess_clamps_and_score_clamp() {
+        let settings = v2_settings(v2_optimizer_box());
+        // actual < min on every axis: score stays 1000.0.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(50.0);
+        stats.traces.total_length_mm = Some(40.0);
+        stats.bounds.min_via_count = Some(3);
+        stats.vias.total_count = 1;
+        stats.bounds.min_bend_count = Some(7);
+        stats.bends.total_count = 5;
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 1000.0);
+
+        // The score clamp: excess 900 mm over a 10 mm min -> 1000*90
+        // = 90000 -> clamp 0.0.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(10.0);
+        stats.traces.total_length_mm = Some(100.0);
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 0.0);
+    }
+
+    /// The dispatch (Java `getOptimizerScore(RouterSettings)`,
+    /// `:795-806`): V2_LOWER_BOUND takes the V2 formula; a V1_LEGACY
+    /// box and a NULL box take the legacy normalized score over
+    /// `scoring`-or-DefaultSettings. One world, THREE DISTINCT faces —
+    /// an arm-blind port cannot pass all three (cerebrum modes 4/7).
+    #[test]
+    fn t8_version_dispatch_three_distinct_faces() {
+        // World: length excess 4 mm over min 2, difficulty 4. The
+        // legacy face unboxes the violation count (Java NPE parity —
+        // the counting ctor always writes it), so the world carries the
+        // fully-computed shape.
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(2.0);
+        stats.traces.total_length_mm = Some(6.0);
+        stats.clearance_violations.total_count = Some(0);
+        // Legacy needs a nonzero maximum count.
+        stats.connections.maximum_count = Some(2);
+        stats.connections.incomplete_count = Some(1);
+
+        // V2: 1000 - 1000*4/2 -> clamp 0.0.
+        let v2 = v2_settings(v2_optimizer_box());
+        assert_eq!(stats.get_optimizer_score(Some(&v2)), 0.0);
+
+        // V1 box: the legacy face over DefaultSettings.scoring:
+        // calculateScore = 2*5_000_000 - 1*5_000_000 - (6*1 + 0*50)
+        // = 4_999_994; /10_000_000 * 1000 = 499.9994.
+        let mut v1_box = v2_optimizer_box();
+        v1_box.version = OptimizerScoringVersion::V1Legacy;
+        let v1 = v2_settings(v1_box);
+        let legacy = stats.get_optimizer_score(Some(&v1));
+        assert_ne!(legacy, 0.0, "V1 must NOT take the V2 arm");
+        assert_eq!(legacy, (4_999_994.0f64 / 10_000_000.0 * 1000.0) as f32);
+
+        // Null box: same legacy face through the DefaultSettings
+        // fallback (a port that always dispatches V2 fails here).
+        let none = RouterSettingsScoring {
+            scoring: None,
+            router_scoring: None,
+            optimizer_scoring: None,
+        };
+        assert_eq!(stats.get_optimizer_score(Some(&none)), legacy);
+
+        // The `scoring` passthrough: a caller-supplied legacy box
+        // replaces DefaultSettings in the legacy face.
+        let custom_scoring = RoutingCostSettings {
+            unrouted_net_penalty: Some(100.0),
+            ..default_routing_cost_settings()
+        };
+        let custom = RouterSettingsScoring {
+            scoring: Some(custom_scoring),
+            router_scoring: None,
+            optimizer_scoring: None,
+        };
+        // calculateScore = 2*100 - 1*100 - 6 = 94; /200 * 1000 = 470.
+        assert_eq!(stats.get_optimizer_score(Some(&custom)), 470.0);
+    }
+
+    /// The V2 null-guard arms (the GSON-empty face): null bounds read
+    /// as 0, null difficulty as 1.0 — the whole score is then the
+    /// excess over a 0 lower bound divided by the length floor.
+    #[test]
+    fn t8_v2_null_guard_arms() {
+        let settings = v2_settings(v2_optimizer_box());
+        let stats = BoardStatistics::new_empty();
+        // Everything null/zero: excess 0, score exactly 1000.0.
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 1000.0);
+
+        // Null bounds but a real trace length: length penalty over the
+        // 1.0 length floor: 1000 - 1000*12/1 -> clamp 0.0; keep it in
+        // range with a real bound instead: the DIFFICULTY null arm is
+        // the discriminator here — null D reads as 1.0, so via excess
+        // 1 costs 2000 (clamp 0) — contrast with D=4 (cost 500).
+        let mut stats = BoardStatistics::new_empty();
+        stats.bounds.min_trace_length_mm = Some(10.0);
+        stats.traces.total_length_mm = Some(10.0);
+        stats.bounds.min_via_count = Some(0);
+        stats.vias.total_count = 1;
+        assert_eq!(
+            stats.get_optimizer_score(Some(&settings)),
+            0.0,
+            "null D = 1.0"
+        );
+        let mut stats = BoardStatistics::new_empty();
+        stats.difficulty.difficulty_d = Some(4.0);
+        stats.bounds.min_trace_length_mm = Some(10.0);
+        stats.traces.total_length_mm = Some(10.0);
+        stats.bounds.min_via_count = Some(0);
+        stats.vias.total_count = 1;
+        assert_eq!(stats.get_optimizer_score(Some(&settings)), 500.0, "D=4");
     }
 }

@@ -316,6 +316,7 @@ mod tests {
                 clearance_violation_depth_weight: Some(0.0),
                 clearance_violation_depth_scale: Some(1000.0),
             }),
+            optimizer_scoring: None,
         }
     }
 
@@ -336,6 +337,7 @@ mod tests {
                 clearance_violation_depth_weight: Some(0.0),
                 clearance_violation_depth_scale: Some(1000.0),
             }),
+            optimizer_scoring: None,
         }
     }
 

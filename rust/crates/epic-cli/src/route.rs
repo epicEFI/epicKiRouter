@@ -1384,4 +1384,106 @@ mod tests {
             "id and fixed state survive the projection verbatim"
         );
     }
+    /// The M4-T8 jar-anchored END-TO-END score pin: the full production
+    /// flow (parse -> normalize -> load-time violation seed -> settings
+    /// resolution -> fanout stage -> batch autorouter -> post-route
+    /// statistics -> `get_optimizer_score` over the resolved V2 box) on
+    /// the bm08 tier fixture, against the jar's manifest face. The jar
+    /// (e7f9bdf1, full flow) renders `optimizer_score: 823.79` — the
+    /// TwoDecimalFloatAdapter view of the pre-optimizer board the
+    /// optimizer RESTORED (pass regressed, incumbent kept), which is
+    /// exactly the board this flow ends at (the optimizer stage is
+    /// T9). Evidence: logs/M4-T8/evidence/jar-bounds/bm08-manifest.json
+    /// (full-flow run; bounds/difficulty pinned at the parse face in
+    /// `board_statistics_bounds`).
+    #[test]
+    fn t8_bm08_full_flow_optimizer_score_matches_the_jar() {
+        let dsn_path = std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn"
+        ));
+        let bytes = std::fs::read(dsn_path).expect("bm08 fixture present");
+        let mut ses = SesBoard::new();
+        match read_board(&bytes, &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
+        board.pre_existing_clearance_violations_count =
+            i32::try_from(pre_total).unwrap_or(i32::MAX);
+
+        let dsn_layer = DsnLayer::from_metadata(
+            ses.metadata.autoroute_settings.as_ref(),
+            usize::try_from(ses.metadata.layer_count).unwrap_or(0),
+        );
+        let mut merged = merge(
+            &MergedSettings::default(),
+            &dsn_layer,
+            &crate::settings::CliLayer::default(),
+        );
+        for warning in crate::settings::validate(&mut merged) {
+            eprintln!("Warning: {warning}");
+        }
+        apply_board_specific_optimizations(&mut merged, &board);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        let batch = build_batch_settings(&resolved);
+
+        let mut sink = CliDriverSink::default();
+        let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
+        let run_result = driver.run(&mut sink);
+        drop(driver);
+        assert!(
+            matches!(run_result, Ok(true)),
+            "bm08 must route to completion"
+        );
+
+        let stats = BoardStatistics::new(&mut manager, &mut board);
+        let score = stats.get_optimizer_score(Some(&resolved.scoring));
+        assert!(
+            score > 0.0 && score < 1000.0,
+            "the routed bm08 board must sit INSIDE the score range (all three penalties live): {score}"
+        );
+
+        // ANCHOR. The jar (e7f9bdf1, same fanout-ON flow, optimizer
+        // disabled — its restore was proven byte-exact:
+        // bm08.ses == bm08-noopt.ses == 03e3260a...) ends the ROUTE at
+        // `optimizer_score: 823.79` over 94.96 mm / 1 via / 21 bends
+        // (bm08-noopt-manifest.json). The Rust route is NOT byte-equal
+        // to the jar's on this fanout-ON profile (Rust ses ec22a0f2...,
+        // the T7-recorded self-determinism face) — the routed-geometry
+        // drift is 0.04% of trace length, pre-T8, and exactly the
+        // class the router-compare's RELATIVE score policy tolerates
+        // (score >= J - 2%*J). The pin therefore asserts that policy
+        // floor, the exact count faces, and the bounded length face.
+        assert!(
+            score >= 823.79_f32 - 0.02 * 823.79_f32,
+            "the relative-score policy floor (jar 823.79 - 2%): {score}"
+        );
+        // The count components are exact on both sides.
+        assert_eq!(stats.vias.total_count, 1, "jar: vias 1");
+        assert_eq!(stats.bends.total_count, 21, "jar: bends 21");
+        assert_eq!(
+            stats.difficulty.difficulty_d,
+            Some(80.0),
+            "jar: difficulty D 80"
+        );
+        // The length face drifts by the routed-geometry delta (jar
+        // renders 94.96); bound it at 0.1 mm.
+        let length_mm = stats.traces.total_length_mm.expect("length present");
+        assert!(
+            (f64::from(length_mm) - 94.96).abs() <= 0.1,
+            "routed trace length within 0.1 mm of the jar face: {length_mm}"
+        );
+        // The score's lower-bound input on this same board is pinned
+        // raw-bits-exact at the parse face (bounds module, bm08 pins).
+        assert_eq!(
+            stats.bounds.min_bend_count,
+            Some(15),
+            "the routed board keeps the load-time bounds capture"
+        );
+    }
 }

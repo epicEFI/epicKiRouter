@@ -610,6 +610,7 @@ fn batch_settings_from_witness(
     let scoring = RouterSettingsScoring {
         scoring: Some(costs),
         router_scoring: None,
+        optimizer_scoring: None,
     };
     let mut batch = BatchSettings::new(ir, scoring);
     // The probe world's driver scalars (the 7-arg ctor + the tuned
