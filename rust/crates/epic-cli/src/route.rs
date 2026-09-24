@@ -124,15 +124,15 @@ pub struct ManifestPhaseSnapshot {
     pub board_statistics: Option<ManifestPhaseStats>,
     /// Java `PhaseSnapshot.score` — the phase's own flavor (router for
     /// the autorouter row, optimizer for the optimizer row, NONE for
-    /// fanout — Java never sets it there).
+    /// fanout — Java never sets any score row there).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<f64>,
+    pub score: Option<JavaDecimal>,
     /// Java `PhaseSnapshot.routerScore` (`fromBoardStatistics`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub router_score: Option<f64>,
+    pub router_score: Option<JavaDecimal>,
     /// Java `PhaseSnapshot.optimizerScore` (`fromBoardStatistics`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub optimizer_score: Option<f64>,
+    pub optimizer_score: Option<JavaDecimal>,
     /// Java `PhaseSnapshot.scoreSource` — `"current"` on scored
     /// boundaries, `"not_applicable"` on fanout's.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -168,12 +168,12 @@ pub struct ManifestViasTotal {
     pub total_count: i64,
 }
 
-/// `traces { total_length_mm }` — Gson's `Float.toString` face of the
-/// Java float (the shortest round-trip decimal, not the widened f64).
+/// `traces { total_length_mm }` — the jar's `%.2f` adapter literal
+/// (`73.87`, `0.00`; see [`JavaDecimal`]).
 #[derive(Serialize)]
 pub struct ManifestTracesLength {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_length_mm: Option<f64>,
+    pub total_length_mm: Option<JavaDecimal>,
 }
 
 /// The three phase slots (Java always emits the object; empty slots
@@ -247,17 +247,17 @@ pub struct RouteManifest<'a> {
     pub board_statistics: Option<ManifestBoardStats>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
-    /// DefaultSettings' scoring box).
+    /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub normalized_score: Option<f64>,
+    pub normalized_score: Option<JavaDecimal>,
     /// The optimizer score — Java `:200-202`'s iff-gate: emitted iff
     /// the optimizer phase's before/after faces exist (the stage gate
     /// opened), i.e. whenever the optimizer stage RAN (the guard
     /// bypass included — Java's noroute face emits it on the bypass).
     /// The disabled control (`--optimizer.enabled=false`) keeps the key
-    /// absent — the canary/disabled manifests stay byte-stable.
+    /// absent — the run-based iff-gate. The `%.2f` adapter literal face.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub optimizer_score: Option<f64>,
+    pub optimizer_score: Option<JavaDecimal>,
     pub final_state: &'a str,
     pub exit_code: i32,
     pub output_written: bool,
@@ -325,26 +325,67 @@ pub fn exit_code_for(final_state: &str, output_written: bool) -> i32 {
     }
 }
 
-/// Gson renders Java `float` values through `Float.toString` — the
-/// SHORTEST decimal that round-trips the f32 (`893.33`, not the
-/// widened-f64 `893.33001708984375`). The renderer reproduces that face
-/// for the per-phase snapshot scores: shortest-f32 string, re-parsed as
-/// f64 for serde (deterministic; the mirror parses any form).
-fn java_float_display(value: f32) -> f64 {
-    value.to_string().parse::<f64>().unwrap_or(f64::from(value))
+/// Java's manifest float face, VALUE step: `GsonProvider.GSON`
+/// serializes every manifest float through
+/// `TwoDecimalFloatAdapter`/`TwoDecimalDoubleAdapter`
+/// (`GsonProvider.java:39-47`/`:57-65`) — `String.format(Locale.ROOT,
+/// "%.2f", v)` through `BigDecimal`, i.e. HALF_UP at 2 decimals (NOT
+/// `Float.toString`'s shortest round-trip form — the T10 first-cut
+/// rationale was wrong, corrected by the spec review). The HALF_UP
+/// rounding is done arithmetically: Rust's `format!` rounds
+/// half-to-EVEN on exact ties, and ties DO occur (f32 eighths —
+/// `v = odd/8` makes `v * 100` an exact half-integer) where Java rounds
+/// away from zero; the dyadic product `|v| * 100` is exact in f64, so
+/// `floor(|v| * 100 + 0.5)` is Java-exact. Sign: the port's stats can
+/// produce `-0.0` where the jar's produce `+0.0` — the jar's `%.2f`
+/// face of that value reads `0.00`, matched here.
+fn java_two_decimal(value: f32) -> f64 {
+    let x = f64::from(value);
+    if !x.is_finite() {
+        return x;
+    }
+    let rounded = (x.abs() * 100.0 + 0.5).floor() / 100.0;
+    if x < 0.0 { -rounded } else { rounded }
+}
+
+/// Java's manifest float face, TEXT step: the jar writes the BigDecimal
+/// LITERAL (`925.00` — trailing zeros preserved, `GsonProvider.java:44`
+/// `out.value(BigDecimal)`); serde_json numbers are shortest-form
+/// (`925.0`). The raw-literal wrapper reproduces the text exactly.
+/// The input is an ALREADY-ROUNDED value ([`java_two_decimal`]): the
+/// nearest f64 of a 2-decimal value re-formats at 2 decimals to
+/// itself (its error is orders of magnitude below the 0.005 tie
+/// bound), so `format!("{:.2}")` is the literal face.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub struct JavaDecimal(Box<serde_json::value::RawValue>);
+
+impl JavaDecimal {
+    /// The `%.2f` literal of a rounded value.
+    fn of(value: f64) -> Self {
+        // A "%.2f"-formatted finite value is always a valid JSON number
+        // literal, so the constructor cannot fail.
+        Self(
+            serde_json::value::RawValue::from_string(format!("{value:.2}"))
+                .expect("formatted number literal is always valid JSON"),
+        )
+    }
 }
 
 /// The per-phase score flavor (Java's per-phase fill arms,
 /// `RoutingResultManifest.java:148-159` + the three stage fills).
 #[derive(Clone, Copy)]
 enum PhaseScoreKind {
-    /// `not_applicable`, the three score rows stay absent (Java's
-    /// fanout fill, `AutorouteBatchLoop.java:231-246`).
+    /// `not_applicable`, ALL score rows stay absent — Java's fanout
+    /// fill (`AutorouteBatchLoop.java:234-239`) constructs a bare
+    /// `PhaseSnapshot` with ONLY `boardStatistics` +
+    /// `scoreSource="not_applicable"`; Gson omits the null
+    /// `routerScore`/`optimizerScore`/`score`.
     Fanout,
     /// `current`, `score = routerScore` (the autorouter fill).
     Autorouter,
     /// `current`, `score = optimizerScore` (the optimizer fill,
-    /// `BatchOptimizer.java:299-305`/`:520-526`).
+    /// `BatchOptimizer.java:299-305`/`:519-526`).
     Optimizer,
 }
 
@@ -359,10 +400,23 @@ fn phase_snapshot(
 ) -> ManifestPhaseSnapshot {
     let router_score = stats.get_router_score(scoring);
     let optimizer_score = stats.get_optimizer_score(scoring);
-    let (score, score_source) = match kind {
-        PhaseScoreKind::Fanout => (None, "not_applicable"),
-        PhaseScoreKind::Autorouter => (Some(java_float_display(router_score)), "current"),
-        PhaseScoreKind::Optimizer => (Some(java_float_display(optimizer_score)), "current"),
+    let (score, score_source, router_score_row, optimizer_score_row) = match kind {
+        // Java's fanout fill sets NONE of the three score rows
+        // (spec-review F1, oracle-verified: jar fanout-ran manifest
+        // `fanout.before` keys = board_statistics + score_source only).
+        PhaseScoreKind::Fanout => (None, "not_applicable", None, None),
+        PhaseScoreKind::Autorouter => (
+            Some(JavaDecimal::of(java_two_decimal(router_score))),
+            "current",
+            Some(JavaDecimal::of(java_two_decimal(router_score))),
+            Some(JavaDecimal::of(java_two_decimal(optimizer_score))),
+        ),
+        PhaseScoreKind::Optimizer => (
+            Some(JavaDecimal::of(java_two_decimal(optimizer_score))),
+            "current",
+            Some(JavaDecimal::of(java_two_decimal(router_score))),
+            Some(JavaDecimal::of(java_two_decimal(optimizer_score))),
+        ),
     };
     ManifestPhaseSnapshot {
         board_statistics: Some(ManifestPhaseStats {
@@ -381,12 +435,15 @@ fn phase_snapshot(
                 total_count: i64::from(stats.vias.total_count),
             }),
             traces: Some(ManifestTracesLength {
-                total_length_mm: stats.traces.total_length_mm.map(java_float_display),
+                total_length_mm: stats
+                    .traces
+                    .total_length_mm
+                    .map(|v| JavaDecimal::of(java_two_decimal(v))),
             }),
         }),
         score,
-        router_score: Some(java_float_display(router_score)),
-        optimizer_score: Some(java_float_display(optimizer_score)),
+        router_score: router_score_row,
+        optimizer_score: optimizer_score_row,
         score_source: Some(score_source),
     }
 }
@@ -483,11 +540,11 @@ pub fn render_manifest(
                 clearance_violations: telemetry.clearance_violations.clone(),
             }),
         },
-        normalized_score: telemetry.normalized_score,
+        normalized_score: telemetry.normalized_score.map(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
         optimizer_score: if telemetry.phases.optimizer.is_some() {
-            telemetry.final_optimizer_score
+            telemetry.final_optimizer_score.map(JavaDecimal::of)
         } else {
             None
         },
@@ -779,12 +836,16 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
 
     // 5. Post-route statistics (the manifest's board face).
     let stats = BoardStatistics::new(&mut manager, &mut board);
-    let normalized_score = Some(f64::from(stats.get_router_score(Some(&resolved.scoring))));
+    // Both top-level scores render through the manifest's %.2f adapter
+    // face (GsonProvider's TwoDecimal adapters — F2).
+    let normalized_score = Some(java_two_decimal(
+        stats.get_router_score(Some(&resolved.scoring)),
+    ));
     // Java `:201` — the value source of the top-level optimizer score
     // (the manifest's final boardStatistics); the RENDERER applies the
     // `:200-202` iff-gate on the optimizer phase faces.
     let final_optimizer_score =
-        java_float_display(stats.get_optimizer_score(Some(&resolved.scoring)));
+        java_two_decimal(stats.get_optimizer_score(Some(&resolved.scoring)));
     let connections = stats.connections.maximum_count.map(|maximum_count| {
         // Both counts ride together (the same walk fills them; the
         // incomplete face mirrors Java's null when the walk skipped).
@@ -1286,8 +1347,14 @@ mod tests {
             Some("not_applicable")
         );
         assert!(
-            value.pointer("/phases/fanout/before/score").is_none(),
-            "fanout snapshots carry no score row (Java never sets it): {json}"
+            value.pointer("/phases/fanout/before/score").is_none()
+                && value
+                    .pointer("/phases/fanout/before/router_score")
+                    .is_none()
+                && value
+                    .pointer("/phases/fanout/before/optimizer_score")
+                    .is_none(),
+            "Java's fanout fill omits ALL THREE score rows (spec-review F1): {json}"
         );
         assert!(
             value.pointer("/phases/fanout/passes_completed").is_none(),
@@ -1362,7 +1429,8 @@ mod tests {
             serde_json::from_str(&std::fs::read_to_string(&man_a).expect("manifest"))
                 .expect("json");
         // Fanout phase: populated with snapshots, not_applicable, no
-        // pass count.
+        // pass count, and NO score rows (the F1 face, oracle-verified
+        // against the jar's fanout-ran probe).
         assert!(
             value.pointer("/phases/fanout/before").is_some(),
             "fanout ran: {value}"
@@ -1372,6 +1440,15 @@ mod tests {
                 .pointer("/phases/fanout/before/score_source")
                 .and_then(serde_json::Value::as_str),
             Some("not_applicable")
+        );
+        assert!(
+            value
+                .pointer("/phases/fanout/before/router_score")
+                .is_none()
+                && value
+                    .pointer("/phases/fanout/before/optimizer_score")
+                    .is_none(),
+            "fanout rows carry no score fields (F1): {value}"
         );
         assert!(value.pointer("/phases/fanout/passes_completed").is_none());
         // Autorouter phase: snapshots + pass count.
@@ -1398,14 +1475,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&out_dir);
     }
 
-    /// THE FANOUT-ONLY FLOW FACE (oracle-anchored — the jar's
-    /// `bm08-noroute-manifest.json` face at T8: router disabled, fanout
-    /// on, optimizer enabled) — the router-disabled gate sends the run
-    /// through the pipeline's fanout-only branch: the fanout phase is
-    /// populated, the autorouter phase stays the empty `{}`, the
-    /// optimizer stage runs and is guard-bypassed (`passes_completed:
-    /// 0`), and the top-level `optimizer_score` IS emitted (Java's
-    /// bypass fill sets before/after, so the iff-gate opens).
+    /// THE FANOUT-ONLY FLOW FACE — mixed anchoring (spec-review F5b):
+    /// the ORACLE-ANCHORED rows are the optimizer-bypass faces, from
+    /// the jar's `bm08-noroute-manifest.json` (router off, FANOUT OFF —
+    /// the T8 capture did not fan out) and the T10 fix-round probe
+    /// (`logs/M4-T10/evidence/jar-fanout-ran-probe.log`: jar on bm08
+    /// with `--router.autorouter.enabled=false --router.fanout.enabled=
+    /// true` — the Java CLI couples router-off to fanout-off, so the
+    /// true fanout-ran world needs the explicit flag): fanout rows carry
+    /// NO score fields (F1), the autorouter phase stays the empty `{}`,
+    /// the optimizer stage runs and is guard-bypassed
+    /// (`passes_completed: 0`) with before/after FILLED, and the
+    /// top-level `optimizer_score` IS emitted (the bypass sets
+    /// before/after, so the iff-gate opens). The fanout-row-POPULATED
+    /// assertions are port-side self-faces (the port's `--router.
+    /// enabled=off` leaves fanout on by default; the Java coupling is
+    /// not ported — recorded as a settings-layer divergence bank).
     #[test]
     fn t10_fanout_only_flow_face_matches_the_jar_noroute_face() {
         let fixture_path = concat!(

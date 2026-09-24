@@ -1399,9 +1399,13 @@ impl<'a> BatchOptimizerStage<'a> {
             candidate_settings.deterministic_budgets,
         );
         // Java returns the pass count from
-        // `autoroutePassesForOptimizingItem` (`:280`); the port's
-        // consumer is T10's `phases.optimizer.passes_completed` manifest
-        // face — reserved, underscore-bound until that lands.
+        // `autoroutePassesForOptimizingItem` (`:280`). T10's
+        // `phases.optimizer.passes_completed` face is fed from
+        // `OptimizerOutcome.passes_completed` (the BATCH pass count,
+        // Java `BatchOptimizer.java:523`) instead — the reservation in
+        // the T9 comment was mis-scoped: a per-candidate reroute-pass
+        // number was never the right source for a batch pass count.
+        // The value is kept underscore-bound as dead observability.
         let _reroute_passes = if !still_unrouted {
             reroute_pass_no - 1
         } else {

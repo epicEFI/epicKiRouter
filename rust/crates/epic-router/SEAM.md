@@ -1049,7 +1049,7 @@ fires when `routerEnabled == false` — i.e. `runRouter == false` OR
 reads `maxPasses > 0`, `AutorouteBatchLoop.java:308-311`). The override is
 load-bearing exactly on the `maxPasses < 0` face: the loop recomputes
 `isRouterEnabled` from the live settings (`:249-253`) and seeds
-`continueAutorouting = isRouterEnabled` (`:276`) — with `runRouter == false`
+`continueAutorouting = isRouterEnabled` (`:274`) — with `runRouter == false`
 the loop never enters a pass (true fanout-only, the `--router.enabled=off`
 face); with `runRouter == true, maxPasses < 0` the override flips the
 recomputation TRUE and the router RUNS with no pass-count limit. Ported
@@ -1091,13 +1091,22 @@ phase-BLIND by contrast — it would attribute an optimizer pass to
 (a divergence-from-Java recorded here; fanout never sets `currentPass`, so
 the fanout leak Java cannot have is also pinned dead).
 
-**Manifest per-phase fill (the T10 recorded rotation).** Snapshot rows are
-Java's deterministic subset: `board_statistics` (connections,
+**Manifest per-phase fill (the T10 recorded rotation; fix-round corrected).**
+Snapshot rows are Java's deterministic subset: `board_statistics` (connections,
 clearance_violations with the load-seed subtraction, `vias.total_count`,
-`traces.total_length_mm`), both scores (`router_score`/`optimizer_score`,
-Gson `Float.toString` shortest-f32 face via `java_float_display`), the
-phase's own `score` flavor (router / optimizer / NONE for fanout) and
-`score_source` (`current` / fanout's `not_applicable`). Captures sit at
+`traces.total_length_mm`), the score rows, the phase's own `score` flavor and
+`score_source` (`current` / fanout's `not_applicable`). TWO content corrections
+from the spec review: (F1) the FANOUT rows carry NO score rows at all —
+Java's fanout fill (`AutorouteBatchLoop.java:234-239`) builds a bare
+`PhaseSnapshot` with only boardStatistics + scoreSource; (F2) every manifest
+float renders through `GsonProvider`'s TwoDecimal adapters
+(`GsonProvider.java:39-47/57-65`) — `%.2f` via BigDecimal, HALF_UP, trailing
+zeros — NOT `Float.toString` (the first-cut rationale was wrong); the port
+computes HALF_UP arithmetically (`java_two_decimal`; f32-eighth ties make
+`format!`'s half-to-EVEN wrong) and writes the literal text via `JavaDecimal`
+(serde_json `raw_value`) — `925.00`, `0.00`, `73.87`, text- and value-exact
+vs the jar; `-0.0` renders `0.00`. The T13-era top-level `normalized_score`
+(raw widening) now rides the same adapter face. Captures sit at
 Java's exact moments: fanout boundary opens with the fanout gate BEFORE the
 SMD-skip arm (`:93-98`) and closes after the stage bodies (`:231-247`) —
 captured in the driver (`StageBoundaries`); autorouter before/after inside
@@ -1109,15 +1118,32 @@ the jar's `bm08-noroute-manifest.json` face, pinned by
 `optimizer_score` iff-gate = `RoutingResultManifest.java:200-202`.
 
 **Digest rotation record (all sanctioned, determinism ×2 byte-equal
-everywhere):** ses faces ALL unrotated — full-flow `ea68d5133f555700…`,
-disabled `ec22a0f2…`, canaries `253e7b14…`. Manifests rotated exactly where
-a phase that RAN gains its snapshot rows: full-flow `a2178650f8ba6290…` →
-`c08e791ad44d2e80…` (fanout+autorouter+optimizer rows + `optimizer_score`);
-disabled control `16714d5ee3dff007…` → `c179abcd827bdef7…` (fanout ran → its
-rows land; optimizer stays `{}`, no `optimizer_score`); canary
-`16714d5ee3dff007…` → `183087754c1cec82…` (autorouter ran → its rows land;
-fanout/optimizer stay `{}`). The dispatch's "stay byte-stable" conditional
-held on the run-based part: no disabled/skipped stage emits rows.
+everywhere).** Ses faces ALL unrotated across both rounds — full-flow
+`ea68d5133f555700…`, disabled `ec22a0f2…`, canaries `253e7b14…`. Manifest
+rotations: round 1 (the per-phase fill landing): full-flow
+`a2178650f8ba6290…` → `c08e791ad44d2e80…`; disabled `16714d5ee3dff007…` →
+`c179abcd827bdef7…` (fanout ran → its rows land; optimizer stays `{}`); canary
+`16714d5ee3dff007…` → `183087754c1cec82…` (autorouter ran → its rows land).
+Round 2 (the fix round's F1+F2 content corrections): full-flow →
+`d0b5f0dc33420e0184f6587a620d0480c4b43eb910f3087c2f58b50305295b36`; disabled
+→ `d2a7102c971cd99a166c78d6cdc807df687feb7cb3e45cafb57b90410aac9e00`; canary
+→ `8c4a97738375e67d7c937c6518b7bc27e29236f77b7062da3d46447b465cc1db`. No
+disabled/skipped stage ever emits rows (the run-based part held).
+
+**Fix round (spec-review-t10-1, SPEC_COMPLIANT_WITH_MINORS).** F1: fanout
+rows carry NO score rows (oracle: the T10 probe
+`logs/M4-T10/evidence/jar-fanout-ran-probe.log` — jar fanout-ran world on
+bm08, `fanout.before` keys = board_statistics + score_source only). F2: the
+%.2f adapter face, value + text (above). F3: the optimizer gate's INPUT face
+is pinned (`t10_optimizer_gate_reads_the_post_routing_stop_face` — the
+reviewer's M7 pre-run-face mutant now dies). F4: `:276`→`:274`,
+`:255`→`:261`, `:494-519`→`:610-630` cite corrections. F5: the
+`_reroute_passes` reservation comment corrected (mis-scoped in T9; the face
+is fed from `OptimizerOutcome.passes_completed`), and the fanout-only flow
+pin's doc reclassified — only its optimizer-bypass rows are oracle-anchored;
+the fanout-row-POPULATED face is a port-side self-face (the Java CLI couples
+router-off to fanout-off; the port does not — settings-layer divergence
+bank). Census 1418 → 1419/0/15.
 
 **Banked:** the optimizer stage's stop face is the T9 fresh face (Java shares
 `job.thread`; the CLI flow has no external stop source yet — when one is

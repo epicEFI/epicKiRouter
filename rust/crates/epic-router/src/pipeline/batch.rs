@@ -555,7 +555,7 @@ impl<'a> BatchDriver<'a> {
                 || self.settings.max_passes.is_some_and(|m| m >= 0));
         if is_router_enabled {
             let hash = board_hash(self.board);
-            // Java `:255` — the autorouter phase's before-boundary (the
+            // Java `:261` — the autorouter phase's before-boundary (the
             // same walk the baseline-score row reads).
             let stats_before = BoardStatistics::new(self.manager, self.board);
             let score_before = stats_before.get_router_score(Some(&self.settings.scoring));
@@ -890,9 +890,10 @@ impl<'a> BatchDriver<'a> {
             self.remove_tails(StopConnectionOption::None);
         }
 
-        // Java `:494-519` — the autorouter phase's after-boundary: the
+        // Java `:610-630` — the autorouter phase's after-boundary: the
         // phase fill's own walk, taken after the completed-board tail
-        // sweep, gated on the fill's own gate (before captured).
+        // sweep (`:591-601`), gated on the fill's own gate (before
+        // captured).
         if self.phase_boundaries.autorouter_before.is_some() {
             self.phase_boundaries.autorouter_after =
                 Some(BoardStatistics::new(self.manager, self.board));

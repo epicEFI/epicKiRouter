@@ -11,7 +11,7 @@
 //! is load-bearing exactly on the `maxPasses < 0` face: the batch loop
 //! recomputes `isRouterEnabled` from the live settings
 //! (`AutorouteBatchLoop.java:249-253`) and seeds its pass loop with
-//! `continueAutorouting = isRouterEnabled` (`:276`) — with
+//! `continueAutorouting = isRouterEnabled` (`:274`) — with
 //! `runRouter == false` the loop never enters a pass (fanout only, the
 //! `--router.enabled=off` face); with `runRouter == true` and
 //! `maxPasses < 0` the override flips the recomputation TRUE and the
@@ -484,7 +484,7 @@ mod tests {
 
     /// THE FANOUT-ONLY-MODE PIN (`--router.enabled=off` face): the
     /// router disabled + fanout enabled runs the fanout stage and ZERO
-    /// autorouter passes (Java `AutorouteBatchLoop.java:276`
+    /// autorouter passes (Java `AutorouteBatchLoop.java:274`
     /// `continueAutorouting = isRouterEnabled` with the recomputed gate
     /// FALSE), and the pipeline-owned `max_passes` is RESTORED after
     /// the temporary override (Java's `finally`, `:111`). The restore
@@ -605,6 +605,39 @@ mod tests {
         // raises MaxItemsReached, which IS the full stop in the port's
         // collapsed flag — the optimizer-disabled arm has no gate to
         // consult either way.)
+        assert_eq!(
+            outcome.stage_transitions,
+            vec![RoutingStage::Routing, RoutingStage::Idle]
+        );
+    }
+
+    /// THE OPTIMIZER GATE'S INPUT FACE (spec-review M7): the gate reads
+    /// the DRIVER's POST-routing stop face — an internal stop raised
+    /// DURING routing (the bounded world's max-items face) must close
+    /// it. The reviewer's M7 mutant reads the PRE-run face
+    /// (`stop.is_requested()`, false here), the optimizer then RUNS on
+    /// the stopped board, and this pin dies on the first assert.
+    #[test]
+    fn t10_optimizer_gate_reads_the_post_routing_stop_face() {
+        let (mut manager, mut board, settings, optimizer) = bounded_world();
+        let mut sink = CaptureDriverSink::default();
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            StopFace::default(),
+            &mut sink,
+        );
+        assert!(
+            outcome.stop_after_routing,
+            "the bounded world raises the internal (full) stop during routing"
+        );
+        assert!(
+            outcome.optimizer.is_none(),
+            "the post-routing stop face keeps the stage out"
+        );
         assert_eq!(
             outcome.stage_transitions,
             vec![RoutingStage::Routing, RoutingStage::Idle]
