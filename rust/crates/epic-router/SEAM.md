@@ -1203,13 +1203,20 @@ profile (no flags). `router determinism` stays router-only by design
 **The M0 baselines are REUSED verbatim (carry-forward 2 — the verify-FIRST
 question).** The M0 `baselines/java/` captures were the DEFAULT-profile
 (`full-flow`: no disable flags, fanout+optimizer on) jar runs at the
-frozen tree `e7f9bdf1` with tiers.yaml timeouts: all 11 Tier A records
-carry populated optimizer faces (bm01 912.7s, bm08 4.31s, bm02 9.02s,
-sonde 6.15s; the 0.0s rows are the optimizer finding nothing to improve),
-no profile marker (= the full marker), and every `fixture_sha256` was
-re-verified against the current DSNs at T11 (11/11 match). NO new capture
-happened; no committed artifact was modified; the M3 router-only one-off
-captures were never re-run. Reuse, not recapture.
+frozen tree `e7f9bdf1` with tiers.yaml timeouts. The verifiable reuse
+facts: all 11 Tier A records carry the `optimizer_seconds` and
+`optimizer_score` FIELDS; exactly four carry NONZERO `optimizer_seconds`
+(bm01 912.7s, bm08 4.31s, bm02 9.02s, sonde 6.15s) and the rest 0.0 —
+consistent with the manifest's iff-gate emitting `optimizer_score` only
+when the optimizer phase carries before/after snapshots
+(`RoutingResultManifest.java:200-203`, the harness's own PROVE-gate doc,
+`oracle.rs`); bm01's 912.7s-with-score-0.0 combination is left
+UNCHARACTERIZED (an unverified engine-behavior story does not belong in
+the reuse record — the gates never read these fields). The profile
+marker is ABSENT (= the full marker) and every `fixture_sha256` was
+re-verified against the current DSNs at T11 (11/11 match). NO new
+capture happened; no committed artifact was modified; the M3 router-only
+one-off captures were never re-run. Reuse, not recapture.
 
 **The M4 full-face battery (release, gate mode, external 7200s bound;
 2182.9s actual; exit 1 with 3 reds — the honest inventory, nothing

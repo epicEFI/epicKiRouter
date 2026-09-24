@@ -2229,9 +2229,18 @@ mod pins {
         let err = load_java_full_flow_record(&typo).expect_err("typo'd marker rejected");
         assert!(err.contains("profile"), "{err}");
 
-        // Wrong engine: loud, profile-independent.
-        let err = load_java_full_flow_record(&m0_face).map(|_| ()).err();
-        assert!(err.is_none());
+        // Wrong engine: loud, profile-independent — a rust-engine record
+        // (markerless, the full face's marker) must be rejected by the
+        // full loader naming the engine, exactly as the router-only
+        // loader rejects it (the shared core's engine check is
+        // profile-INdependent; a mutant that made it
+        // router-only-conditional dies HERE).
+        let rust_body = write(
+            "rust_full.json",
+            r#"{"schema_version":1,"engine":"rust","fixture":"x.dsn","final_state":"COMPLETED","captured_at_unix":0}"#,
+        );
+        let err = load_java_full_flow_record(&rust_body).expect_err("rust record rejected");
+        assert!(err.contains("engine rust"), "{err}");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2618,7 +2627,9 @@ mod pins {
         // Degraded face: an argv WITHOUT the fanout flag (the OW-M2
         // mutant) must make the banner say MISSING — the log can never
         // lie about the comparability face. The optimizer-flag drop is
-        // caught by the SAME conjunction (either missing -> MISSING).
+        // caught by the SAME conjunction (either missing -> MISSING) —
+        // pinned by its OWN planted arm below (NIT-1: the conjunction's
+        // second column must not ride on the comment).
         let mutant_argv: Vec<String> = argv
             .iter()
             .filter(|arg| *arg != COMPARABILITY_FLAG)
@@ -2628,6 +2639,26 @@ mod pins {
         assert!(
             phrase.contains("COMPARABILITY FLAG MISSING"),
             "a flag-less argv must stop the banner claiming fanout-off: {phrase}"
+        );
+        // The second column: dropping ONLY the optimizer-off flag (the
+        // M4-T9 flag) from an otherwise-correct router-only argv must
+        // produce the SAME MISSING face — a mutant that keyed the banner
+        // on the fanout flag alone survives nothing.
+        let optimizer_only_drop: Vec<String> = argv
+            .iter()
+            .filter(|arg| *arg != OPTIMIZER_OFF_FLAG)
+            .cloned()
+            .collect();
+        assert!(
+            optimizer_only_drop
+                .iter()
+                .any(|arg| arg == COMPARABILITY_FLAG),
+            "premise: the fanout flag is still present in this planted argv"
+        );
+        let phrase = profile_banner_phrase(CompareProfile::RouterOnly, &optimizer_only_drop);
+        assert!(
+            phrase.contains("COMPARABILITY FLAG MISSING"),
+            "an optimizer-flag-only drop must ALSO say MISSING: {phrase}"
         );
 
         // ARM 2 — Full: NEITHER flag, and the SAME base contract as the
@@ -3312,12 +3343,22 @@ mod pins {
     /// The BUILT `epic-harness` binary, located the way the e2e smokes
     /// (and `resolve_epic_cli`) do: the unit-test exe lives in
     /// `target/<profile>/deps/`, so the bin target is one level up; fall
-    /// back to the repo-relative debug path. STALENESS WARNING: these
-    /// smokes spawn the BUILT ARTIFACT, not the freshly-compiled test
-    /// exe — `cargo test --bin` does not rebuild the bin — so before
-    /// judging mutants (or trusting a green) run `cargo build -p
-    /// epic-harness` first. CI orders its steps the same way (build →
-    /// run).
+    /// back to the repo-relative debug path.
+    ///
+    /// STALE-BIN PRECONDITION (spec-review-t11-1 MINOR-3, live-witnessed
+    /// false green): these smokes spawn the BUILT ARTIFACT, not the
+    /// freshly-compiled test exe — `cargo test -p epic-harness`
+    /// rebuilds the test binary but does NOT relink
+    /// `target/debug/epic-harness` (witnessed: bin mtime 14:39 vs test
+    /// binary 15:08), so after ANY harness-source edit the pin silently
+    /// judges the STALE bin and can stay green on old bytes — the
+    /// buglog-184 stale-bin-green family, one layer up. ALWAYS run
+    /// `cargo build -p epic-harness` before judging these pins (or any
+    /// mutant against them); CI orders its steps the same way (build →
+    /// run). Where a pin routes a real router face, the spawned
+    /// `epic-cli` needs its own freshness (`cargo build -p epic-cli`
+    /// and/or `--release` — the gates' structural guard does not apply
+    /// to these smokes).
     fn e2e_built_harness_bin(root: &std::path::Path) -> std::path::PathBuf {
         std::env::current_exe()
             .expect("test exe")
@@ -3335,10 +3376,12 @@ mod pins {
     /// green). This e2e runs the BUILT `epic-harness` binary's
     /// `router determinism` as a real subprocess and asserts the output
     /// is the DETERMINISM gate's own OK line. Java-free; ~1s; requires
-    /// `cargo build -p epic-cli` (the determinism run spawns it). Run
-    /// explicitly: `cargo test -p epic-harness --bin epic-harness
-    /// e2e_router_determinism -- --ignored` (also after any dispatch
-    /// refactor).
+    /// a FRESHLY LINKED `epic-harness` bin (`cargo build -p
+    /// epic-harness` — see [`e2e_built_harness_bin`]'s stale-bin
+    /// precondition) plus `cargo build -p epic-cli` (the determinism
+    /// run spawns it). Run explicitly: `cargo test -p epic-harness
+    /// --bin epic-harness e2e_router_determinism -- --ignored` (also
+    /// after any dispatch refactor).
     #[test]
     #[ignore]
     fn e2e_router_determinism_subcommand_is_the_determinism_gate() {
@@ -3390,11 +3433,13 @@ mod pins {
     /// the call removed the stub world exits 0 and this pin dies. (The
     /// REAL reds of the current battery — bm01/bm06/bm11 full — are
     /// witnessed in the T11 battery log; a real red costs 80s-1800s of
-    /// wall, wrong shape for a smoke.) Requires `cargo build -p
-    /// epic-cli` once so the harness binary exists (the stub replaces
-    /// the routed bin). Run explicitly: `cargo test -p epic-harness
-    /// --bin epic-harness e2e_router_compare_gate_mode -- --ignored`
-    /// (also after any compare_cmd tail refactor).
+    /// wall, wrong shape for a smoke.) Requires a FRESHLY LINKED
+    /// `epic-harness` bin (`cargo build -p epic-harness` — see
+    /// [`e2e_built_harness_bin`]'s stale-bin precondition; the stub
+    /// replaces the routed bin, so no epic-cli build matters here).
+    /// Run explicitly: `cargo test -p epic-harness --bin epic-harness
+    /// e2e_router_compare_gate_mode -- --ignored` (also after any
+    /// compare_cmd tail refactor).
     #[test]
     #[ignore]
     fn e2e_router_compare_gate_mode_exits_nonzero_on_a_red_battery() {
@@ -3453,10 +3498,12 @@ mod pins {
     /// `router compare --fixture zzz` in gate mode — the filter matches
     /// nothing, so the bail fires before any fixture runs (~0s) — and
     /// asserts the exit is NONZERO with the exact bail message on
-    /// stderr. Java-free; needs the built `epic-harness` binary (no
-    /// epic-cli: nothing spawns). Run explicitly: `cargo test -p
-    /// epic-harness --bin epic-harness e2e_router_compare_empty_filter
-    /// -- --ignored`.
+    /// stderr. Java-free; needs a FRESHLY LINKED `epic-harness` bin
+    /// (`cargo build -p epic-harness` — see
+    /// [`e2e_built_harness_bin`]'s stale-bin precondition; no epic-cli:
+    /// nothing spawns). Run explicitly: `cargo test -p epic-harness
+    /// --bin epic-harness e2e_router_compare_empty_filter --
+    /// --ignored`.
     #[test]
     #[ignore]
     fn e2e_router_compare_empty_filter_bails_instantly() {
@@ -3490,9 +3537,11 @@ mod pins {
     /// cleared all three directional gates. It does NOT duplicate the
     /// battery's own run — the battery is 11 fixtures; this smoke is the
     /// one-fixture gate-mode exit-code face (the report-mode battery log
-    /// is the task evidence). Requires the built `epic-harness` binary;
-    /// the spawned `epic-cli` resolves release-first (a fresh release bin
-    /// routes bm08's full face in ~7s). Run explicitly: `cargo test -p
+    /// is the task evidence). Requires a FRESHLY LINKED `epic-harness`
+    /// bin (`cargo build -p epic-harness` — see
+    /// [`e2e_built_harness_bin`]'s stale-bin precondition); the spawned
+    /// `epic-cli` resolves release-first (a fresh release bin routes
+    /// bm08's full face in ~7s). Run explicitly: `cargo test -p
     /// epic-harness --bin epic-harness e2e_router_compare_full_profile
     /// -- --ignored`.
     #[test]
