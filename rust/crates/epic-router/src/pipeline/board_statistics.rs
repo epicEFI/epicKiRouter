@@ -50,7 +50,7 @@
 //!   pair below (M4-T8).
 //! * The `transient double[]` preferred/undesired per-layer cost
 //!   tables of `RoutingCostSettings` are not part of the score face.
-//! * The V2 ROUTER score's `ensureDifficulty()` call (`:693`) is a
+//! * The V2 ROUTER score's `ensureDifficulty()` call (`:689`) is a
 //!   no-op through the counting ctor (it always writes `pinCount` /
 //!   `signalLayerCount` / `complexityC` / `difficultyD`); the method
 //!   itself is now ported as [`Self::ensure_difficulty`] — its
@@ -818,7 +818,7 @@ impl BoardStatistics {
     /// fields as `<= 0` (the counting ctor always writes them, and the
     /// empty aggregate's 0 plays the null role).
     pub fn ensure_difficulty(&mut self) {
-        // Java `:746-749` — the early return: a stats that already
+        // Java `:747-749` — the early return: a stats that already
         // carries D is a FULL no-op (Java keeps the FIRST computation;
         // spec-review MINOR-3: load-bearing for T9's repeated calls on
         // evolving boards — a recompute-on-every-call port diverges).
@@ -848,6 +848,13 @@ impl BoardStatistics {
         if self.difficulty.complexity_c <= 0 {
             let pins = self.difficulty.pin_count;
             let layers = self.difficulty.signal_layer_count;
+            // House convention (matches the M3 counting ctor above):
+            // saturating_mul where Java's int `pins * layers` wraps.
+            // Unreachable on any real board (overflow needs
+            // pins*layers > 2^31; layers <= a few dozen, so pins
+            // > 33M); if ever reached, Java's face is
+            // `max(1, wrapped-negative) = 1` — materially different,
+            // documented rather than "fixed" (quality-review NIT-3).
             self.difficulty.complexity_c = 1.max(pins.saturating_mul(layers));
         }
         if self.difficulty.difficulty_d.is_none() {
@@ -882,6 +889,23 @@ impl BoardStatistics {
     /// argument is evaluated (Java `valueOrDefault(..., 1000.0f)`);
     /// `1000.0 - lp - vp - bp` associates LEFT (Java evaluation order);
     /// the clamp runs on the f64 sum BEFORE the f32 cast.
+    ///
+    /// # Non-finite inputs (documented divergence, quality-review
+    /// MINOR-1 — do not "fix" silently either way)
+    ///
+    /// Rust `f64::max` returns the non-NaN operand; Java
+    /// `Math.max(double,double)` propagates NaN. Both parsers ACCEPT
+    /// NaN coordinate text (Rust `text.parse::<f64>()`,
+    /// `epic-dsn/src/lexer.rs:395`; Java `Double.valueOf(yytext())`,
+    /// `io.specctra.parser.SpecctraDsnStreamReader.java:1487`), so a
+    /// crafted DSN with `nan` coordinates poisons the bounds
+    /// accumulator on BOTH sides identically (`<`/`+=`/`abs` are
+    /// NaN-identical — the bounds module itself has no `max` and is
+    /// NOT affected) — after which Java's score is NaN end-to-end
+    /// (e.g. jar `optimizer_score: NaN`) while this port clamps each
+    /// NaN term to the finite side and returns a finite number.
+    /// Unreachable from real boards; NaN-propagating arms would buy
+    /// strict parity on crafted worlds only, if ever wanted.
     #[must_use]
     pub fn get_v2_optimizer_score(&self, settings: &OptimizerScoreSettings) -> f32 {
         let difficulty = match self.difficulty.difficulty_d {
@@ -1650,7 +1674,7 @@ mod t8_optimizer_score_tests {
         stats.ensure_difficulty();
         assert_eq!(stats.difficulty.difficulty_d, Some(77.0), "set D survives");
 
-        // The EARLY-RETURN arm (Java `:746-749`; spec-review MINOR-3):
+        // The EARLY-RETURN arm (Java `:747-749`; spec-review MINOR-3):
         // with D already set the call is a FULL no-op — the ladder must
         // not run even where it WOULD change fields. World: D set +
         // sources that the ladder would adopt (items.pinCount 7,

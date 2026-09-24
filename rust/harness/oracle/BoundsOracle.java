@@ -12,6 +12,14 @@
 // totals (raw bits) and the final f32 casts (Float.floatToRawIntBits).
 // Optional second arg: print only that net's line.
 //
+// WHY TRANSCRIBED: the real calculator is package-private in the jar
+// (`final class BoardStatisticsBoundsCalculator`) — direct invocation is
+// impossible — so the arithmetic below is transcribed verbatim from the
+// frozen tree (reviewer-verified line-identical). The public alternative
+// `new BoardStatistics(board).bounds` (BoardStatistics.java:94, wired at
+// :228) exposes the TOTALS only, not the per-net walk-order face — which
+// is the point of this probe.
+//
 // Serialization: doubles as {"bits":<i64>}; floats as {"fbits":<i32>} — the
 // capture-tool-rounding lesson (cerebrum mode 5) — never through toString.
 

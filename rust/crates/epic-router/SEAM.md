@@ -895,7 +895,7 @@ calculator and the two-faces pin contract) and
 `logs/M4-T8/report-t8.md`. What T9+ must carry forward:
 
 **FORWARD CARRIAGE — T9 ANCHORING RULE.** Jar-vs-Rust ROUTED GEOMETRY
-drifts ~0.05% on the fanout-ON bm08 full-flow profile: jar 94.96 mm of
+drifts 0.04% on the fanout-ON bm08 full-flow profile: jar 94.96 mm of
 trace vs Rust ~95.00 mm at IDENTICAL counts (1 via, 21 bends, D 80) and
 identical parse faces (bounds raw-bits equal) — the composed V2
 optimizer score therefore reads 823.79 (jar) vs 823.37 (Rust), ~0.4 pp

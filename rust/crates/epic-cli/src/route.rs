@@ -1457,7 +1457,10 @@ mod tests {
         // byte-exact: bm08.ses == bm08-noopt.ses == 03e3260a...); the
         // component faces 94.96 mm / 1 via / 21 bends come from the
         // OPTIMIZER-DISABLED manifest (jar-bounds/bm08-noopt-manifest.json),
-        // which carries NO optimizer_score at all. The Rust route is
+        // which carries no TOP-LEVEL/final optimizer_score key (it DOES
+        // carry per-phase scores — phases.autorouter.before.optimizer_score
+        // 925.0 and .after 823.79 — so a grep hits; the ANCHOR for the
+        // composed score is the full-flow manifest only). The Rust route is
         // NOT byte-equal
         // to the jar's on this fanout-ON profile (Rust ses ec22a0f2...,
         // the T7-recorded self-determinism face) — the routed-geometry
