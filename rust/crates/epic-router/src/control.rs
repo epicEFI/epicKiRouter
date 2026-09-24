@@ -81,7 +81,8 @@ pub struct FanoutSettingsIr {
     pub max_passes: i32,
     /// Java `maxItems` — resolved; DefaultSettings `Integer.MAX_VALUE`.
     /// The stage's cap gate ALSO requires `maxItems > 0`
-    /// (`BatchFanout.java:209-213`), so non-positive disables the cap.
+    /// (`BatchFanout.java:117-122` between passes, `:222-230` within a
+    /// pass), so non-positive disables the cap.
     pub max_items: i32,
     /// Java `maxMillisecondsPerPin` — resolved; DefaultSettings 10000.
     /// Wall clock in Java; behind `deterministic_budgets` the same
@@ -107,7 +108,8 @@ pub struct FanoutSettingsIr {
     /// (`inner_first`/`outer_first`/`distanceToClosestOnNet`/
     /// `surroundingsDensity`) and treats ANY OTHER value as "compare
     /// equal, fall through to the `pinIndex` tie-break"
-    /// (`BatchFanout.java:781-795`). DefaultSettings "outer_first".
+    /// (`BatchFanout.java:764-792` dispatch, `:793-795` tie-break).
+    /// DefaultSettings "outer_first".
     pub pin_sorting_order: String,
     /// Java `fallbackToBoardVias` — resolved; DefaultSettings true.
     pub fallback_to_board_vias: bool,

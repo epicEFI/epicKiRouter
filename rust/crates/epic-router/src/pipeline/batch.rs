@@ -24,7 +24,7 @@
 //!   0.00 GB total allocated, and 0.0 MB peak heap usage` (the
 //!   duration faces stay real). Java's fanout manifest phase writes
 //!   only before/after snapshots + duration + cpu
-//!   (`:247-263`, never `passesCompleted`); the port manifest's
+//!   (`:231-246`, never `passesCompleted`); the port manifest's
 //!   non-determinism projection serializes that as the empty `{}`
 //!   slot, so the renderer needs no fanout face — only the
 //!   autorouter backfill's phase filter.
@@ -464,7 +464,8 @@ impl<'a> BatchDriver<'a> {
             if smd_pins == 0 {
                 sink.info("Fanout stage is enabled but skipped because the board has no SMD pins.");
             } else {
-                // Java `:113-131` — the stage-start walk and info row.
+                // Java `:108-133` — the stage-start walk (`:108-121`)
+                // and info row (`:122-133`).
                 let (net_connected_smd_pins, already_connected_at_start) =
                     smd_pin_connection_counts(self.manager, self.board);
                 let pins_to_fanout = net_connected_smd_pins - already_connected_at_start;
@@ -509,7 +510,7 @@ impl<'a> BatchDriver<'a> {
                     summary.escape_statistics.to_display(),
                 ));
             }
-            // Java `:247-263` — the fanout phase metrics
+            // Java `:231-246` — the fanout phase metrics
             // (before/after snapshots, duration, cpu). The port's
             // manifest projection carries no fanout phase faces (see
             // the module bank); nothing to record here.

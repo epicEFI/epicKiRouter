@@ -584,7 +584,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 emit.already_checked,
             );
             // Java reads the two gate facts LIVE at the add
-            // (`MazeSearchEngine.java:89-126`): the entered room's
+            // (`MazeSearchEngine.java:88-123`): the entered room's
             // layer and the drill location (the door here is always a
             // drill, so both arms are reachable).
             let next_room_layer = self.ctx.room_layer(emit.next_room_key);

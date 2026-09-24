@@ -231,7 +231,7 @@ pub fn render_manifest(
     // filter is the autorouter phase's face — the fanout stage's
     // counters (`phase="fanout"`) must not leak into it: Java's fanout
     // phase never sets `passesCompleted` (AutorouteBatchLoop.java
-    // `:247-263` writes only the before/after snapshots, duration and
+    // `:231-246` writes only the before/after snapshots, duration and
     // cpu into `resultPhaseMetrics.fanout`).
     phases.autorouter.passes_completed = telemetry
         .last_counters
@@ -658,7 +658,7 @@ mod tests {
     /// phase-attribution face: the fanout stage's counters (`"fanout"`,
     /// emitted LAST when the stage ran) must not leak into
     /// `phases.autorouter.passesCompleted` — Java's fanout phase never
-    /// sets `passesCompleted` (AutorouteBatchLoop.java:247-263).
+    /// sets `passesCompleted` (AutorouteBatchLoop.java:231-246).
     #[test]
     fn manifest_passes_completed_backfill() {
         let counters = RouterCounters {
@@ -717,7 +717,7 @@ mod tests {
     /// `phases.autorouter.passes_completed`, and the fanout phase slot
     /// itself stays the empty `{}` projection (Java's fanout phase
     /// metrics carry only before/after snapshots + duration + cpu,
-    /// AutorouteBatchLoop.java:247-263 — all in the manifest's
+    /// AutorouteBatchLoop.java:231-246 — all in the manifest's
     /// non-determinism omission family). The dropped-filter mutant (or
     /// a `phase.contains("route")` laxity) fails the first assert.
     #[test]

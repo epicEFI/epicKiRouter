@@ -1108,7 +1108,7 @@ fn fanout_pass(
     let extra_vias_this_pass = (via_count(board) - vias_before_pass).max(0);
     state.extra_vias_total += extra_vias_this_pass;
     let escape_statistics = escape_statistics_from_board(manager, board);
-    // Java `pass_end` (`:471-494`) — the 5-arg trace row folded.
+    // Java `pass_end` (`:465-488`) — the 5-arg trace row folded.
     sink.trace(&format!(
         "pass_end pass={}, durationMs={}, routed={routed_count}, notRouted={not_routed_count}, \
          insertErrors={insert_error_count}, alreadyConnected={already_connected_count}, \
@@ -1612,15 +1612,33 @@ mod tests {
         assert_eq!(b.compare(&a, InnerFirst), Ordering::Greater);
         assert_eq!(a.compare(&b, OuterFirst), Ordering::Greater);
         assert_eq!(b.compare(&a, OuterFirst), Ordering::Less);
-        // Equal center keys fall to the tie-break for BOTH center
-        // arms (the crossing cell — the tie-break is arm-independent).
-        assert_eq!(a.compare(&a, InnerFirst), Ordering::Equal);
+        // GENUINE tie on the center key (both rows 100.0): BOTH center
+        // arms fall through to the pinIndex tie-break, arm-independently
+        // — the crossing cell this block claims. (The strict faces
+        // above used centers 100 vs 101; these rows do not.)
+        let tie_a = row(0, 100.0, 7.0, 1);
+        let tie_b = row(1, 100.0, 7.0, 1);
+        assert_eq!(tie_a.compare(&tie_a, InnerFirst), Ordering::Equal);
         assert_eq!(
-            a.compare(&b.clone(), InnerFirst),
+            tie_a.compare(&tie_b, InnerFirst),
             Ordering::Less,
-            "tie → pinIndex"
+            "genuine tie → pinIndex"
         );
-        assert_eq!(b.compare(&a, OuterFirst), Ordering::Less, "tie → pinIndex");
+        assert_eq!(
+            tie_b.compare(&tie_a, InnerFirst),
+            Ordering::Greater,
+            "genuine tie → pinIndex"
+        );
+        assert_eq!(
+            tie_a.compare(&tie_b, OuterFirst),
+            Ordering::Less,
+            "genuine tie → pinIndex"
+        );
+        assert_eq!(
+            tie_b.compare(&tie_a, OuterFirst),
+            Ordering::Greater,
+            "genuine tie → pinIndex"
+        );
 
         // The net keys differ by exactly 1.0; center/density equal.
         let a = row(0, 100.0, 7.0, 1);
@@ -1731,7 +1749,7 @@ mod tests {
             let state = FanoutState::new(&mut manager, &mut board, &fanout_settings(sorting_order));
             assert_eq!(
                 state.total_smd_pin_count, 7,
-                "{sorting_order}: 6 SMD pins minus the unnetted orphan"
+                "{sorting_order}: 8 SMD pins on the world minus the unnetted orphan"
             );
             assert_eq!(
                 state.already_connected_pin_count, 3,
@@ -1864,7 +1882,7 @@ mod tests {
             "no oscillation stop: {trace:?}"
         );
         assert!(!sink.any_contains("Max items limit"), "{trace:?}");
-        // The listener-less pass info row (Java `:471-494` shape).
+        // The listener-less pass info row (Java `:490-508` shape).
         assert!(
             sink.joined("info").contains(
                 "fanout pass: 1, routed: 0, not routed: 3, errors: 0, \
@@ -1915,7 +1933,10 @@ mod tests {
     /// The constant is the Java face (`BatchFanout.java:105`
     /// `stagnationPassLimit = 3`), `fanout_board` feeds exactly this
     /// constant to the detector, and the third consecutive REPEAT
-    /// stops exactly AT it.
+    /// stops exactly AT it. The call site itself is pinned END-TO-END
+    /// by [`fanout_board_stops_on_three_identical_pass_states`] (the
+    /// quality-review MINOR-3 fix): the substitution mutant now dies
+    /// there.
     #[test]
     fn stagnation_limit_production_constant_is_java_face() {
         assert_eq!(STAGNATION_PASS_LIMIT, 3, "Java BatchFanout.java:105");
@@ -1992,6 +2013,233 @@ mod tests {
         assert_eq!(stats.to_display(), "1/7 (14.3%)");
         assert!((stats.escaped_percentage - 100.0 / 7.0).abs() < 1e-9);
         assert_eq!(EscapeStatistics::placeholder(4).to_display(), "0/4 (0.0%)");
+    }
+
+    /// The escape scan's Via and ConductionArea ARMS (quality review
+    /// NIT-1: every earlier world exercised only the Trace arm). All
+    /// geometry is pre-placed, no routing. Drill normal contacts are
+    /// CENTER-COINCIDENCE, not shape overlap (`DrillItem.java:273-306`),
+    /// so the world's via sits EXACTLY on P1's center — and its
+    /// witness, a same-net trace ENDING at that center, necessarily
+    /// contacts P1 directly too. Arm purity comes from the violation
+    /// gate: the witness deliberately VIOLATES against the foreign-net
+    /// pad at its far end, so P1's direct TRACE arm is dead (the
+    /// violations-non-empty gate) while the VIA arm still counts the
+    /// same trace as its witness (the arm does NOT gate the witness —
+    /// `isPinEscaped`, `:590-608`). Deleting the Via arm — or adding a
+    /// violation gate on its witness — both flip P1 to not-escaped.
+    /// P2's only qualifying contact is the bare `(plane ...)` pour —
+    /// the CA arm. P3 touches nothing; the foreign pin's only contact
+    /// is the violating trace (the trace arm's violation gate holds
+    /// from its side too) — neither escapes.
+    #[test]
+    fn escape_scan_via_and_conduction_area_arms() {
+        const ARMS_DSN: &str = r#"(pcb epic-router-escape-arms.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 120000 80000))
+    (rule (width 200) (clearance 200))
+    (plane N1 (rect F.Cu 19000 19000 21000 21000))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 20000 40000 front 0)
+    )
+    (component CMP2
+      (place CMP2 26000 40000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_SMD
+      (shape (circle F.Cu 600 0 0))
+    )
+    (padstack PAD_VIA
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+    )
+    (image CMP1
+      (pin PAD_SMD P1 0 0)
+      (pin PAD_SMD P2 0 -20000)
+      (pin PAD_SMD P3 0 20000)
+    )
+    (image CMP2
+      (pin PAD_SMD P1 0 0)
+    )
+  )
+  (network
+    (via V1 PAD_VIA default)
+    (via_rule R1 V1)
+    (net N1 (pins CMP1-P1 CMP1-P2 CMP1-P3))
+    (net FNET (pins CMP2-P1))
+  )
+  (wiring
+    (via PAD_VIA 20000 40000 (net N1))
+    (wire (path F.Cu 200  20000 40000  26000 40000) (net N1))
+  )
+)
+"#;
+        let (mut manager, mut board) = parse(ARMS_DSN);
+        // Every NETTED SMD pin, ascending id: [P1, P2, P3, foreign].
+        let netted_pins: Vec<ItemId> = board
+            .iter_ascending()
+            .filter(|entry| matches!(entry.data, ItemData::Pin { .. }) && !entry.nets.is_empty())
+            .map(|entry| entry.id)
+            .collect();
+        assert_eq!(netted_pins.len(), 4);
+        // The arms, individually (P1 = via arm, P2 = CA arm, the rest none).
+        assert!(
+            is_pin_escaped(&mut manager, &mut board, netted_pins[0]),
+            "P1 escaped via the VIA arm (the witness trace is violating, \
+             so the direct TRACE arm is dead)"
+        );
+        assert!(
+            is_pin_escaped(&mut manager, &mut board, netted_pins[1]),
+            "P2 escaped via the bare CONDUCTION-AREA arm"
+        );
+        assert!(
+            !is_pin_escaped(&mut manager, &mut board, netted_pins[2]),
+            "P3 has no contact — not escaped"
+        );
+        assert!(
+            !is_pin_escaped(&mut manager, &mut board, netted_pins[3]),
+            "the foreign pin's only contact is the violating trace — \
+             the trace arm's violation gate holds"
+        );
+        let stats = escape_statistics_from_board(&mut manager, &mut board);
+        assert_eq!(stats.total_smd_pins, 4);
+        assert_eq!(stats.escaped_count, 2);
+        assert_eq!(stats.to_display(), "2/4 (50.0%)");
+    }
+
+    /// THE OSCILLATION STOP, END-TO-END (quality review MINOR-3): the
+    /// production `fanout_board` loop armS the extracted detector on
+    /// REAL passes and prints the exact stop row. The world: ONE
+    /// netted SMD pin and FOUR floating same-net wire stubs at
+    /// strictly increasing bounding-box distances (2000/4500/7000/9500)
+    /// — the closest-first target sort makes each pass escape to the
+    /// next stub, so passes 1..4 all answer routed=1 with the via
+    /// count constant at 0: four IDENTICAL detector states
+    /// `(1 << 32) ^ 0` while every board hash differs (each pass adds
+    /// one trace). The detector arms at the third repeat and the loop
+    /// stops after pass 4. The stubs must be wires, not pads: an SMD
+    /// helper pin would itself be fanout-attempted (the net would
+    /// self-complete inside pass 1), and any multi-layer item on the
+    /// net trips the transitive same-layer contact guard
+    /// (Java `RoutingBoard.fanout`, `:991-997`) — a floating wire is
+    /// neither. All stubs sit in the full-height slab within 4500 of
+    /// the pin, so every room-door crossing passes the frontier gate's
+    /// max-escape arm and each escape completes AT the stub's
+    /// gate-exempt target door (+0 vias, `vias_allowed = false`).
+    #[test]
+    fn fanout_board_stops_on_three_identical_pass_states() {
+        const OSC_DSN: &str = r#"(pcb epic-router-fanout-osc.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 60000 120000))
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 0 0 front 0)
+    )
+  )
+  (library
+    (padstack PAD_SMD
+      (shape (circle F.Cu 200 0 0))
+    )
+    (padstack PAD_VIA
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+    )
+    (image CMP1
+      (pin PAD_SMD P1 22000 60600)
+    )
+  )
+  (network
+    (via V1 PAD_VIA default)
+    (via_rule R1 V1)
+    (net N0 (pins CMP1-P1))
+  )
+  (wiring
+    (wire (path F.Cu 200  21200 58600  22800 58600) (net N0))
+    (wire (path F.Cu 200  21200 56100  22800 56100) (net N0))
+    (wire (path F.Cu 200  21200 53600  22800 53600) (net N0))
+    (wire (path F.Cu 200  21200 51100  22800 51100) (net N0))
+  )
+)
+"#;
+        let (mut manager, mut board) = parse(OSC_DSN);
+        let mut settings = fanout_settings("junk");
+        settings.router_settings.fanout.ripup_allowed = false;
+        settings.router_settings.vias_allowed = false;
+        let traces_before = board
+            .iter_ascending()
+            .filter(|entry| entry.on_the_board && matches!(entry.data, ItemData::Trace { .. }))
+            .count();
+        let vias_before = board
+            .iter_ascending()
+            .filter(|entry| entry.on_the_board && matches!(entry.data, ItemData::Via { .. }))
+            .count();
+        let mut sink = CaptureDriverSink::default();
+        let summary = fanout_board(&mut manager, &mut board, &settings, None, None, &mut sink);
+        assert_eq!(
+            summary.completed_pass_count, 4,
+            "the third identical-state REPEAT stops after pass 4"
+        );
+        assert!(!summary.is_timed_out);
+        assert!(
+            sink.joined("info")
+                .contains("Fanout stopped after 4 passes: no progress for 3 consecutive passes."),
+            "the exact oscillation stop row: {:?}",
+            sink.joined("info")
+        );
+        // Every pass routed exactly the one pin; the board grew by one
+        // trace per pass and never by a via.
+        let trace = sink.joined("trace");
+        assert_eq!(trace.matches("pin_routed pin=").count(), 4, "{trace}");
+        assert_eq!(trace.matches("pin_already_connected pin=").count(), 0);
+        assert_eq!(trace.matches("pin_failed pin=").count(), 0, "{trace}");
+        // Each escape merges the reached stub into the connected
+        // geometry: the normalizer rebuilds the overlapping same-net
+        // polylines, so this world grows by exactly 2 trace ITEMS per
+        // pass (measured; the via count stays pinned above).
+        assert_eq!(
+            board
+                .iter_ascending()
+                .filter(|entry| entry.on_the_board && matches!(entry.data, ItemData::Trace { .. }))
+                .count(),
+            traces_before + 8,
+            "two normalized trace items per escape pass"
+        );
+        assert_eq!(
+            board
+                .iter_ascending()
+                .filter(|entry| entry.on_the_board && matches!(entry.data, ItemData::Via { .. }))
+                .count(),
+            vias_before,
+            "no vias inserted (completion at the stub target doors)"
+        );
+        let stats = summary.escape_statistics;
+        assert_eq!(stats.total_smd_pins, 1);
+        assert_eq!(stats.escaped_count, 1);
+        assert_eq!(stats.to_display(), "1/1 (100.0%)");
+        // The detector consumed four identical states — the pass_end
+        // rows confirm each pass routed exactly 1.
+        assert_eq!(trace.matches("routed=1, notRouted=0").count(), 4, "{trace}");
     }
 
     /// The per-pin escape (Java `RoutingBoard.fanout`) through the

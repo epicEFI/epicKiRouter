@@ -391,7 +391,7 @@ impl Front {
     }
 
     /// Installs the fanout frontier gate (Java's `TreeSet.add`
-    /// override, `MazeSearchEngine.java:88-127`). Once installed, every
+    /// override, `MazeSearchEngine.java:87-124`). Once installed, every
     /// `gated_add` filters; `add` stays the raw `super.add` for
     /// probe/pin worlds that construct a gateless front by hand.
     pub fn set_fanout_gate(&mut self, gate: FanoutFrontGate) {
@@ -458,7 +458,7 @@ impl Front {
 }
 
 /// The fanout frontier gate — Java `MazeSearchEngine`'s `TreeSet.add`
-/// override body (`MazeSearchEngine.java:88-127`), hoisted into a pure
+/// override body (`MazeSearchEngine.java:87-124`), hoisted into a pure
 /// data + one method. Java closes over `ctrl` and the board on every
 /// add; the port snapshots the four constants the body reads (they are
 /// invariant during one search: the pin anchor and layer are
@@ -478,10 +478,10 @@ pub struct FanoutFrontGate {
     /// Java `ctrl.fanoutStartPinLayer`.
     pin_layer: i32,
     /// Java `maxLen`: `maxEscapeLengthMm * 1000.0` when set, else the
-    /// raw 3000.0-coordinate fallback (`:108-111`).
+    /// raw 3000.0-coordinate fallback (`:95-98`).
     max_escape_length: f64,
     /// Java `minLen`: `minEscapeLengthMm * 1000.0` when set, else the
-    /// raw 500.0-coordinate fallback (`:117-120`).
+    /// raw 500.0-coordinate fallback (`:110-113`).
     min_escape_length: f64,
     /// Java `board.communication.getResolution(Unit.UM)`.
     resolution: f64,
@@ -489,7 +489,8 @@ pub struct FanoutFrontGate {
 
 impl FanoutFrontGate {
     /// Java gate constant capture — the `?:` ternaries of
-    /// `MazeSearchEngine.java:105-121` resolve here once. `settings`
+    /// `MazeSearchEngine.java:95-98`/`:110-113` resolve here once.
+    /// `settings`
     /// is `ctrl.settings.fanout` (the group-null arm is banked: the
     /// resolver always materializes the group, see
     /// [`crate::control::RouterSettingsIr::fanout`]).
@@ -512,7 +513,7 @@ impl FanoutFrontGate {
         }
     }
 
-    /// The override body (`:89-126`): reject when the element's entry
+    /// The override body (`:88-123`): reject when the element's entry
     /// segment middle escapes beyond `maxEscapeLength` of the fanout
     /// pin ON THE PIN'S LAYER, or when a drill sits closer than
     /// `minEscapeLength`. Both arms are independent (Java's two `if`s
@@ -524,7 +525,7 @@ impl FanoutFrontGate {
         next_room_layer: Option<i32>,
         drill_location: Option<&FloatPoint>,
     ) -> bool {
-        // Java `:101-103`: onStartLayer = nextRoom != null &&
+        // Java `:91-93`: onStartLayer = nextRoom != null &&
         // nextRoom.getLayer() == ctrl.fanoutStartPinLayer.
         let on_start_layer =
             element.next_room_key.is_some() && next_room_layer == Some(self.pin_layer);
@@ -535,7 +536,7 @@ impl FanoutFrontGate {
                 return true;
             }
         }
-        // Java `:113-124`: `element.door instanceof ExpansionDrill`
+        // Java `:109-119`: `element.door instanceof ExpansionDrill`
         // (page-grid and standalone drills are one Java class).
         if element.door.is_drill() {
             // The caller resolves the location for every drill door
@@ -639,15 +640,21 @@ mod tests {
         (element, location)
     }
 
-    /// Drives [`Front::gated_add`] — the production entry — and
-    /// reports whether the element entered the front.
+    /// Drives the gate through the GENERIC production insertion entry —
+    /// the `FrontSink::add` impl (`maze/expansion_engine.rs`) is a
+    /// one-line delegation to [`Front::gated_add`], and every
+    /// production front insertion rides that trait path. A revert of
+    /// the delegation to the raw `Front::add` would silently disable
+    /// the gate everywhere (cerebrum 13c production-impl blind spot);
+    /// routing the boundary probes through this generic helper keeps
+    /// the delegation itself under pin.
     fn admits(
-        front: &mut Front,
+        front: &mut impl crate::maze::expansion_engine::FrontSink,
         element: MazeListElement,
         layer: Option<i32>,
         drill: Option<&FloatPoint>,
     ) -> bool {
-        front.gated_add(element, layer, drill)
+        front.add(element, layer, drill)
     }
 
     /// The max arm at its EXACT boundary (cerebrum 16): Java rejects

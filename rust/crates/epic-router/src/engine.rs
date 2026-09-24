@@ -1028,7 +1028,7 @@ impl<'a> AutorouteEngine<'a> {
             let mut checker = BoardLayerChecker;
             // Java installs the fanout frontier filter on the expansion
             // TreeSet at MAZE-ENGINE CONSTRUCTION
-            // (`MazeSearchEngine.java:88-127`), gated on
+            // (`MazeSearchEngine.java:87-124`), gated on
             // `ctrl.isFanout && ctrl.fanoutStartPinCenter != null` —
             // the port snapshots the search-invariant gate constants
             // here (pin anchor/layer, the escape-length ternaries, the

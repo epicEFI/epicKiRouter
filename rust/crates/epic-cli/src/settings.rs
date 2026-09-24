@@ -104,7 +104,7 @@ pub struct CliLayer {
     pub fanout_end_via_diameter_mm: Option<f64>,
     /// `router.fanout.pin_sorting_order` — stored VERBATIM (Java
     /// dispatches on the raw string; any unknown value falls through to
-    /// the `pinIndex` tie-break, `BatchFanout.java:781-795`).
+    /// the `pinIndex` tie-break, `BatchFanout.java:764-795`).
     pub fanout_pin_sorting_order: Option<String>,
     /// `router.fanout.fallback_to_board_vias`.
     pub fanout_fallback_to_board_vias: Option<bool>,

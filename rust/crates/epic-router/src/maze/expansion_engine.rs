@@ -19,7 +19,7 @@ use crate::maze::list_element::{ExpandableObject, Front, MazeListElement};
 pub trait FrontSink {
     /// Java `search.mazeExpansionList.add` — the TreeSet add override
     /// INCLUDING the fanout frontier filter (`MazeSearchEngine
-    /// .java:88-127`). The two optionals are the per-element facts
+    /// .java:87-124`). The two optionals are the per-element facts
     /// Java reads live off the room/drill objects at add time:
     /// `next_room_layer` is `element.nextRoom.getLayer()` (`None` =
     /// Java `nextRoom == null`), `drill_location` the
@@ -147,7 +147,7 @@ impl MazeExpansionEngine {
         );
         // The element's next room is Java-null (a drill element) and
         // the door IS a drill — the start-layer arm cannot fire, the
-        // drill arm reads this drill's location (`:113-124`).
+        // drill arm reads this drill's location (`:109-119`).
         front.add(new_element, None, Some(&drill.location.to_float()));
     }
 
