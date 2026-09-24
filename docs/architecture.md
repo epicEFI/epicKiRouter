@@ -308,7 +308,9 @@ final milestone. Crates enter this map as their milestones complete
   `board.searchtree` (33/33 query-set parity).
 - `rust/crates/epic-router` — detail-routing core: expansion
   rooms/doors, maze search, ripup/shove, found-connection locator,
-  forced insertion, batch driver — the Rust counterpart of
+  forced insertion, batch driver, fanout and optimizer stages, and the
+  full-pipeline assembly (`pipeline/full.rs`, the
+  `RoutingPipeline.run()` equivalent) — the Rust counterpart of
   `autoroute.*`; port ledger in
   [SEAM.md](../rust/crates/epic-router/SEAM.md).
 - `rust/crates/epic-drc` — incompletes + clearance counting — the Rust

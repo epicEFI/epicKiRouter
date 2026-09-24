@@ -13,5 +13,6 @@ pub mod board_statistics_bounds;
 pub mod connection_router;
 pub mod event_sink;
 pub mod fanout;
+pub mod full;
 pub mod optimizer;
 pub mod pass_runner;

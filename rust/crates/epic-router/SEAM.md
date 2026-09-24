@@ -1032,3 +1032,95 @@ all-user-fixed vacuous-TRUE quirk (`:231-233`).
 `phases.optimizer` snapshots), `job.stage` IDLE transitions, fanout-only
 mode (`maxPasses=0` temporary override), stage-order pins. The stage
 itself, its settings family, and the CLI gate are T9-done.
+
+## T10 full-pipeline assembly — RoutingPipeline parity (appended by M4-T10)
+
+`pipeline/full.rs` is the port of `RoutingPipeline.java`; the CLI flow
+(`epic-cli/src/route.rs` step 4) now calls `full::run` — ONE pipeline shape,
+the T9 inline wiring moved, not forked. Report: `logs/M4-T10/report-t10.md`,
+evidence in `logs/M4-T10/evidence/`. Baseline `b32ad60fa`, census 1410 →
+**1418**/0/15.
+
+**The fanout-only mode's real semantics (doc-of-record — the "mode" is not
+what its name suggests).** Java's branch (`RoutingPipeline.java:104-113`)
+fires when `routerEnabled == false` — i.e. `runRouter == false` OR
+`maxPasses < 0` — and temporarily sets `maxPasses = 0`, which per
+`RouterSettings.java:939` means NO LIMIT (the batch loop's pass-count gate
+reads `maxPasses > 0`, `AutorouteBatchLoop.java:308-311`). The override is
+load-bearing exactly on the `maxPasses < 0` face: the loop recomputes
+`isRouterEnabled` from the live settings (`:249-253`) and seeds
+`continueAutorouting = isRouterEnabled` (`:276`) — with `runRouter == false`
+the loop never enters a pass (true fanout-only, the `--router.enabled=off`
+face); with `runRouter == true, maxPasses < 0` the override flips the
+recomputation TRUE and the router RUNS with no pass-count limit. Ported
+verbatim; both arms pinned (`t10_fanout_only_mode_restores_setting_and_skips_
+the_router`, `t10_fanout_only_override_load_bearing_on_negative_max_passes`;
+the `-1` face is settings-reachable only — CLI `validate()` normalizes
+negatives to 0 first, the T13 F1 pin).
+
+**finishAutoroute — recon recorded, no port face.** `RoutingBoard.java:
+899-904` + `AutorouteEngine.java:307-316`: clears the retained
+expansion-room database and `clearAllItemTemporaryAutorouteData()` —
+memory-cache cleanup only; nothing after the pipeline reads the engine, and
+the port holds no retained engine between stages.
+
+**Stage lifecycle events — recon recorded, no new emission.** Java's
+per-stage STARTED/RUNNING/FINISHED task-state events are emitted by the
+stages themselves (`BatchAutorouter`, `BatchOptimizer`) — already mirrored
+by the T12 driver and the T9 optimizer through the sink. `job.stage`
+(ROUTING/OPTIMIZATION/IDLE, `:99/:126/:89`) is a public FIELD write — no
+event, and the headless scheduler registers only a board-updated listener +
+an afterRouting StageListener (telemetry-only, banked). The port records the
+transitions in `PipelineOutcome::stage_transitions` so the stage-order pin
+has a witness; events compare stayed 3520 rows aligned.
+
+**The T13 phase-blind bank — RESOLVED (and a new sink fix).** The T13 bank
+("M4 must filter the `passes_completed` backfill by phase") was resolved at
+T7 (the `phase == "autoroute"` filter); T10 extends the attribution: the
+OPTIMIZER row's pass count comes from the stage OUTCOME
+(`OptimizerOutcome.passes_completed` — Java `BatchOptimizer.java:523`,
+explicit bypass `0` at `:309-313`), never from counters. The T13-bank concern
+then surfaced for real: the CLI sink kept ONE last-counters slot, so once the
+optimizer emitted counters LAST, the autorouter backfill filter discarded the
+legitimate autoroute counters and `phases.autorouter.passes_completed` went
+absent (caught by the flow pin before landing). `CliDriverSink` now keeps
+last counters PER PHASE (`last_counters_by_phase`). Java's own manifest
+backfill (`RoutingResultManifest.java:206-208`, `job.getCurrentPass()`) stays
+phase-BLIND by contrast — it would attribute an optimizer pass to
+`phases.autorouter` in a router-disabled world; the port deliberately filters
+(a divergence-from-Java recorded here; fanout never sets `currentPass`, so
+the fanout leak Java cannot have is also pinned dead).
+
+**Manifest per-phase fill (the T10 recorded rotation).** Snapshot rows are
+Java's deterministic subset: `board_statistics` (connections,
+clearance_violations with the load-seed subtraction, `vias.total_count`,
+`traces.total_length_mm`), both scores (`router_score`/`optimizer_score`,
+Gson `Float.toString` shortest-f32 face via `java_float_display`), the
+phase's own `score` flavor (router / optimizer / NONE for fanout) and
+`score_source` (`current` / fanout's `not_applicable`). Captures sit at
+Java's exact moments: fanout boundary opens with the fanout gate BEFORE the
+SMD-skip arm (`:93-98`) and closes after the stage bodies (`:231-247`) —
+captured in the driver (`StageBoundaries`); autorouter before/after inside
+the router-enabled gate and after the tail sweep; optimizer at stage
+entry/exit (a guard bypass leaves before == after, matching Java's bypass
+fill, and emits `passes_completed: 0` + the top-level `optimizer_score` —
+the jar's `bm08-noroute-manifest.json` face, pinned by
+`t10_fanout_only_flow_face_matches_the_jar_noroute_face`). Top-level
+`optimizer_score` iff-gate = `RoutingResultManifest.java:200-202`.
+
+**Digest rotation record (all sanctioned, determinism ×2 byte-equal
+everywhere):** ses faces ALL unrotated — full-flow `ea68d5133f555700…`,
+disabled `ec22a0f2…`, canaries `253e7b14…`. Manifests rotated exactly where
+a phase that RAN gains its snapshot rows: full-flow `a2178650f8ba6290…` →
+`c08e791ad44d2e80…` (fanout+autorouter+optimizer rows + `optimizer_score`);
+disabled control `16714d5ee3dff007…` → `c179abcd827bdef7…` (fanout ran → its
+rows land; optimizer stays `{}`, no `optimizer_score`); canary
+`16714d5ee3dff007…` → `183087754c1cec82…` (autorouter ran → its rows land;
+fanout/optimizer stay `{}`). The dispatch's "stay byte-stable" conditional
+held on the run-based part: no disabled/skipped stage emits rows.
+
+**Banked:** the optimizer stage's stop face is the T9 fresh face (Java shares
+`job.thread`; the CLI flow has no external stop source yet — when one is
+wired, hand the stages the shared flag). The headless scheduler's
+afterRouting StageListener (session-summary telemetry) and the whole-run
+duration backfill (`:210-216`) are non-determinism-family omissions.

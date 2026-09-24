@@ -1,9 +1,10 @@
 //! The `route` flow (M3-T13): DSN read -> board build + trace
-//! normalization -> the T12 batch driver -> SES write + result manifest.
+//! normalization -> the M4-T10 pipeline (`pipeline/full.rs`, the
+//! `RoutingPipeline.run()` equivalent) -> SES write + result manifest.
 //!
 //! Java mirror: `HeadlessBoardManager`'s load-route-save walk
-//! (`DsnReader` -> `BasicBoard` -> `BatchAutorouter` -> `SES`), with the
-//! manifest carried by `RoutingResultManifest` (schema v1). Two
+//! (`DsnReader` -> `BasicBoard` -> the `RoutingPipeline` -> `SES`), with
+//! the manifest carried by `RoutingResultManifest` (schema v1). Two
 //! deliberate deviations, both SEAM-documented:
 //!
 //! 1. **The non-determinism family is OMITTED** from the emitted
@@ -13,11 +14,11 @@
 //!    payloads (they are never null in this flow), the harness mirror
 //!    reader ignores them, and T13 chooses not to emit them.
 //!    `settings_snapshot`/`bounds` fall in the same bucket (Java emits
-//!    both — non-null whenever the job ran); `optimizer_score`'s
-//!    absence is now the T9 state of the staged plan: the optimizer
-//!    STAGE is live (step 4b) but the manifest's optimizer faces
-//!    (`optimizer_score`, `phases.optimizer`) land with M4-T10, so the
-//!    renderer still emits none of them.
+//!    both — non-null whenever the job ran). The per-phase faces are
+//!    the T10 Java-faithful fill: snapshot rows (deterministic subset)
+//!    with each phase's score flavor and `score_source`, phase-
+//!    attributed `passes_completed`, and the top-level `optimizer_score`
+//!    iff-gate (`RoutingResultManifest.java:200-202`).
 //! 2. **The final-state mapping** follows the Java scheduler, not the
 //!    driver's internal stops: `Ok(true)` -> COMPLETED; `Ok(false)` is
 //!    CANCELLED only for an EXTERNAL stop (`StopReason::UserStop`) —
@@ -39,10 +40,10 @@ use epic_dsn::sink::{FixedStateIr, TraceIr, ViaIr};
 use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::rounding::java_round;
-use epic_router::pipeline::batch::{BatchDriver, BatchSettings, StopFace, StopReason};
-use epic_router::pipeline::board_statistics::BoardStatistics;
+use epic_router::pipeline::batch::{BatchSettings, StopFace, StopReason};
+use epic_router::pipeline::board_statistics::{BoardStatistics, RouterSettingsScoring};
 use epic_router::pipeline::event_sink::DriverSink;
-use epic_router::pipeline::optimizer::BatchOptimizerStage;
+use epic_router::pipeline::full::{PipelineOutcome, PipelinePhases};
 use epic_router::pipeline::pass_runner::RouterCounters;
 use serde::Serialize;
 use sha2::Digest;
@@ -57,13 +58,16 @@ use crate::settings::{
 // ---------------------------------------------------------------------------
 
 /// The CLI's driver sink: log rows echo to stderr (the headless host's
-/// FRLogger backend), and the LAST `board_updated` counters are kept —
-/// the manifest's `phases.autorouter.passes_completed` backfill source
-/// (T12 quality MINOR-2: typed counters, never row parsing).
+/// FRLogger backend), and the LAST `board_updated` counters are kept
+/// PER PHASE — the manifest's phase-attributed pass-count sources (T12
+/// quality MINOR-2: typed counters, never row parsing; T10: with all
+/// stages live, the LAST event overall may be a fanout or optimizer
+/// one, so a single slot mis-attributes — exactly the T13 bank's
+/// concern).
 #[derive(Debug, Default)]
 pub struct CliDriverSink {
-    /// The last progress event's counters (None before the first).
-    pub last_counters: Option<RouterCounters>,
+    /// The last counters per phase (keyed by `counters.phase`).
+    pub last_counters_by_phase: std::collections::BTreeMap<String, RouterCounters>,
 }
 
 impl DriverSink for CliDriverSink {
@@ -74,7 +78,8 @@ impl DriverSink for CliDriverSink {
         eprintln!("Warning: {message}");
     }
     fn board_updated(&mut self, counters: &RouterCounters) {
-        self.last_counters = Some(counters.clone());
+        self.last_counters_by_phase
+            .insert(counters.phase.clone(), counters.clone());
     }
 }
 
@@ -82,29 +87,109 @@ impl DriverSink for CliDriverSink {
 // the manifest (schema v1 — harness/src/manifest.rs mirror names)
 // ---------------------------------------------------------------------------
 
-/// The autorouter phase's slice. `duration_seconds` is deliberately
-/// ABSENT from the type (the non-determinism omission — see module
-/// docs); only the deterministic pass count rides.
+/// The per-phase slice (Java `RoutingResultManifest.PhaseDetail`). The
+/// duration/cpu/memory rows are deliberately ABSENT from the type (the
+/// non-determinism omission — module docs); the deterministic rows are
+/// the before/after snapshots (Java `PhaseSnapshot`'s deterministic
+/// subset) + the pass count.
 #[derive(Serialize, Default)]
 pub struct ManifestPhaseDetail {
-    /// The backfilled pass count: the last counters' `passCount` when
-    /// it exceeds 0; absent otherwise (Java emits the phase pass count
-    /// only when the phase ran).
+    /// Java `PhaseDetail.before` (T10; `None` = the phase stayed empty
+    /// under Java's capture gates).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before: Option<ManifestPhaseSnapshot>,
+    /// Java `PhaseDetail.after`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after: Option<ManifestPhaseSnapshot>,
+    /// The phase-attributed pass count: the autorouter row backfills
+    /// from the AUTOROUTE-phase counters only (the fanout stage's
+    /// counters must not leak in — the T7/T9 attribution pins); the
+    /// optimizer row comes from the stage outcome (Java's explicit `0`
+    /// bypass face included). Java's fanout row NEVER sets it
+    /// (AutorouteBatchLoop.java:231-246).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passes_completed: Option<i64>,
+}
+
+/// One phase-boundary snapshot (Java `RoutingResultManifest.
+/// PhaseSnapshot`'s deterministic subset: the boundary board-statistics
+/// subset, the two scores, the phase's own `score`, and the
+/// `score_source` tag). Java also emits `duration_seconds`/`cpu` at the
+/// DETAIL level — omitted family.
+#[derive(Serialize)]
+pub struct ManifestPhaseSnapshot {
+    /// Java `PhaseSnapshot.boardStatistics` — the deterministic subset
+    /// (connections, clearance violations, via count, trace length).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub board_statistics: Option<ManifestPhaseStats>,
+    /// Java `PhaseSnapshot.score` — the phase's own flavor (router for
+    /// the autorouter row, optimizer for the optimizer row, NONE for
+    /// fanout — Java never sets it there).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<f64>,
+    /// Java `PhaseSnapshot.routerScore` (`fromBoardStatistics`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub router_score: Option<f64>,
+    /// Java `PhaseSnapshot.optimizerScore` (`fromBoardStatistics`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub optimizer_score: Option<f64>,
+    /// Java `PhaseSnapshot.scoreSource` — `"current"` on scored
+    /// boundaries, `"not_applicable"` on fanout's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score_source: Option<&'static str>,
+}
+
+/// The phase-boundary board-statistics subset (Java `BoardStatistics`'s
+/// deterministic rows the dispatch names: score/vias/length — the
+/// connections + clearance-violation faces ride too). Deliberately a
+/// SEPARATE struct from the top-level `ManifestBoardStats`: extending
+/// the top-level face would rotate the disabled-face control for a
+/// NON-per-phase reason, outside T10's sanctioned rotation envelope.
+#[derive(Serialize)]
+pub struct ManifestPhaseStats {
+    /// `BoardStatistics.connections`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connections: Option<ManifestConnections>,
+    /// `BoardStatistics.clearanceViolations` (the load-seed
+    /// subtraction face, same as the top-level walk).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clearance_violations: Option<ManifestClearanceViolations>,
+    /// `BoardStatistics.vias.total_count`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vias: Option<ManifestViasTotal>,
+    /// `BoardStatistics.traces.total_length_mm`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traces: Option<ManifestTracesLength>,
+}
+
+/// `vias { total_count }`.
+#[derive(Serialize)]
+pub struct ManifestViasTotal {
+    pub total_count: i64,
+}
+
+/// `traces { total_length_mm }` — Gson's `Float.toString` face of the
+/// Java float (the shortest round-trip decimal, not the widened f64).
+#[derive(Serialize)]
+pub struct ManifestTracesLength {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_length_mm: Option<f64>,
 }
 
 /// The three phase slots (Java always emits the object; empty slots
 /// serialize as `{}`).
 #[derive(Serialize, Default)]
 pub struct ManifestPhases {
-    /// The fanout stage — empty in T13 (the stage lands in M4).
+    /// The fanout stage — populated when the stage gate captured the
+    /// boundary pair (Java `AutorouteBatchLoop.java:93-98/231-247`),
+    /// empty `{}` when fanout is disabled.
     pub fanout: ManifestPhaseDetail,
-    /// The batch autorouter.
+    /// The batch autorouter — populated when the batch loop ran with
+    /// the router enabled.
     pub autorouter: ManifestPhaseDetail,
-    /// The optimizer — the slot exists (Java always emits the object)
-    /// but stays the empty `{}` projection until M4-T10 fills the
-    /// phase faces; the STAGE itself is live since M4-T9 (step 4b).
+    /// The optimizer — populated whenever the stage gate opened
+    /// (Java's bypass fill included: `passes_completed: 0` + identical
+    /// before/after).
     pub optimizer: ManifestPhaseDetail,
 }
 
@@ -165,9 +250,12 @@ pub struct RouteManifest<'a> {
     /// DefaultSettings' scoring box).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub normalized_score: Option<f64>,
-    /// The optimizer score — always absent until M4-T10 wires the
-    /// phase-snapshot iff-gate (the stage is live since M4-T9, but the
-    /// manifest face is T10's).
+    /// The optimizer score — Java `:200-202`'s iff-gate: emitted iff
+    /// the optimizer phase's before/after faces exist (the stage gate
+    /// opened), i.e. whenever the optimizer stage RAN (the guard
+    /// bypass included — Java's noroute face emits it on the bypass).
+    /// The disabled control (`--optimizer.enabled=false`) keeps the key
+    /// absent — the canary/disabled manifests stay byte-stable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimizer_score: Option<f64>,
     pub final_state: &'a str,
@@ -183,7 +271,7 @@ pub struct RouteTelemetry {
     pub final_state: String,
     /// The last progress counters (the pass-count backfill source).
     pub last_counters: Option<RouterCounters>,
-    /// Post-route connections (`None` = the skip face).
+    /// Post-route connections (`None` = the stop face).
     pub connections: Option<ManifestConnections>,
     /// Post-route clearance violations (`None` = the skip face).
     pub clearance_violations: Option<ManifestClearanceViolations>,
@@ -193,6 +281,22 @@ pub struct RouteTelemetry {
     /// flow's real write outcome (Java `fromJob`'s `outputWritten`,
     /// `RoutingResultManifest.java:191`), not a constant.
     pub output_written: bool,
+    /// The pipeline's per-phase boundary faces (M4-T10) — `None` faces
+    /// leave the phase slot the empty `{}` projection (Java's capture
+    /// gates: fanout disabled, router disabled/loop unrun, optimizer
+    /// gated out).
+    pub phases: PipelinePhases,
+    /// The load-time violation seed — the per-phase clearance rows'
+    /// `router_introduced` subtraction face (Java's
+    /// `BoardStatistics.routerIntroducedCount` uses the same seed on
+    /// every snapshot).
+    pub pre_existing_violations: i32,
+    /// The score box (the per-phase snapshot scores' input).
+    pub scoring: Option<RouterSettingsScoring>,
+    /// The FINAL board's optimizer score (Java `:201`'s value source —
+    /// the manifest's final `BoardStatistics`); EMISSION is gated on
+    /// the optimizer phase faces in the renderer (the `:200-202` iff).
+    pub final_optimizer_score: Option<f64>,
 }
 
 /// The final-state mapping (module docs for the Java-scheduler rule).
@@ -221,10 +325,77 @@ pub fn exit_code_for(final_state: &str, output_written: bool) -> i32 {
     }
 }
 
+/// Gson renders Java `float` values through `Float.toString` — the
+/// SHORTEST decimal that round-trips the f32 (`893.33`, not the
+/// widened-f64 `893.33001708984375`). The renderer reproduces that face
+/// for the per-phase snapshot scores: shortest-f32 string, re-parsed as
+/// f64 for serde (deterministic; the mirror parses any form).
+fn java_float_display(value: f32) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(f64::from(value))
+}
+
+/// The per-phase score flavor (Java's per-phase fill arms,
+/// `RoutingResultManifest.java:148-159` + the three stage fills).
+#[derive(Clone, Copy)]
+enum PhaseScoreKind {
+    /// `not_applicable`, the three score rows stay absent (Java's
+    /// fanout fill, `AutorouteBatchLoop.java:231-246`).
+    Fanout,
+    /// `current`, `score = routerScore` (the autorouter fill).
+    Autorouter,
+    /// `current`, `score = optimizerScore` (the optimizer fill,
+    /// `BatchOptimizer.java:299-305`/`:520-526`).
+    Optimizer,
+}
+
+/// One phase-boundary snapshot face (Java `RoutingResultManifest.
+/// PhaseSnapshot`): the deterministic stats subset + both scores + the
+/// phase's own `score` flavor and `score_source` tag.
+fn phase_snapshot(
+    stats: &BoardStatistics,
+    scoring: Option<&RouterSettingsScoring>,
+    pre_existing: i32,
+    kind: PhaseScoreKind,
+) -> ManifestPhaseSnapshot {
+    let router_score = stats.get_router_score(scoring);
+    let optimizer_score = stats.get_optimizer_score(scoring);
+    let (score, score_source) = match kind {
+        PhaseScoreKind::Fanout => (None, "not_applicable"),
+        PhaseScoreKind::Autorouter => (Some(java_float_display(router_score)), "current"),
+        PhaseScoreKind::Optimizer => (Some(java_float_display(optimizer_score)), "current"),
+    };
+    ManifestPhaseSnapshot {
+        board_statistics: Some(ManifestPhaseStats {
+            connections: stats
+                .connections
+                .maximum_count
+                .map(|maximum_count| ManifestConnections {
+                    incomplete_count: i64::from(stats.connections.incomplete_count.unwrap_or(0)),
+                    maximum_count: i64::from(maximum_count),
+                }),
+            clearance_violations: Some(clearance_face(
+                stats.clearance_violations.total_count,
+                pre_existing,
+            )),
+            vias: Some(ManifestViasTotal {
+                total_count: i64::from(stats.vias.total_count),
+            }),
+            traces: Some(ManifestTracesLength {
+                total_length_mm: stats.traces.total_length_mm.map(java_float_display),
+            }),
+        }),
+        score,
+        router_score: Some(java_float_display(router_score)),
+        optimizer_score: Some(java_float_display(optimizer_score)),
+        score_source: Some(score_source),
+    }
+}
+
 /// Renders the manifest JSON (compact — Gson's default is pretty but
 /// the mirror parses any whitespace; compact keeps the CLI output
 /// stable). The iff-gates live in the Option members.
 #[must_use]
+#[allow(clippy::too_many_lines)] // the Java per-phase fill faces, inline
 pub fn render_manifest(
     telemetry: &RouteTelemetry,
     app_version: &str,
@@ -238,7 +409,9 @@ pub fn render_manifest(
     // counters (`phase="fanout"`) must not leak into it: Java's fanout
     // phase never sets `passesCompleted` (AutorouteBatchLoop.java
     // `:231-246` writes only the before/after snapshots, duration and
-    // cpu into `resultPhaseMetrics.fanout`).
+    // cpu into `resultPhaseMetrics.fanout`). The OPTIMIZER row never
+    // reads the counters either — its pass count comes from the stage
+    // outcome (Java `BatchOptimizer.java:523`).
     phases.autorouter.passes_completed = telemetry
         .last_counters
         .as_ref()
@@ -246,6 +419,54 @@ pub fn render_manifest(
         .map(|counters| counters.pass_count)
         .filter(|pass_count| *pass_count > 0)
         .map(i64::from);
+    // The T10 per-phase fill (Java `RoutingResultManifest.java:87-159`
+    // + the three stage fill sites): the phases the pipeline captured,
+    // each with its own score flavor.
+    if let Some((before, after)) = &telemetry.phases.fanout {
+        phases.fanout.before = Some(phase_snapshot(
+            before,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            PhaseScoreKind::Fanout,
+        ));
+        phases.fanout.after = Some(phase_snapshot(
+            after,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            PhaseScoreKind::Fanout,
+        ));
+    }
+    if let Some((before, after)) = &telemetry.phases.autorouter {
+        phases.autorouter.before = Some(phase_snapshot(
+            before,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            PhaseScoreKind::Autorouter,
+        ));
+        phases.autorouter.after = Some(phase_snapshot(
+            after,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            PhaseScoreKind::Autorouter,
+        ));
+    }
+    if let Some(faces) = &telemetry.phases.optimizer {
+        phases.optimizer.before = Some(phase_snapshot(
+            &faces.before,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            PhaseScoreKind::Optimizer,
+        ));
+        phases.optimizer.after = Some(phase_snapshot(
+            &faces.after,
+            telemetry.scoring.as_ref(),
+            telemetry.pre_existing_violations,
+            PhaseScoreKind::Optimizer,
+        ));
+        // Java `BatchOptimizer.java:523` (`passesCompleted =
+        // currentPass`) / `:309-313` (the explicit bypass `0`).
+        phases.optimizer.passes_completed = Some(i64::from(faces.outcome.passes_completed.max(0)));
+    }
     let manifest = RouteManifest {
         schema_version: 1,
         app_version,
@@ -263,8 +484,13 @@ pub fn render_manifest(
             }),
         },
         normalized_score: telemetry.normalized_score,
-        // M4-T10 owns the optimizer phase faces; T9 renders none.
-        optimizer_score: None,
+        // Java `:200-202` — the optimizer_score iff-gate: the key rides
+        // only when the optimizer phase's before/after faces exist.
+        optimizer_score: if telemetry.phases.optimizer.is_some() {
+            telemetry.final_optimizer_score
+        } else {
+            None
+        },
         final_state: &telemetry.final_state,
         exit_code: exit_code_for(&telemetry.final_state, telemetry.output_written),
         output_written: telemetry.output_written,
@@ -523,51 +749,27 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     apply_board_specific_optimizations(&mut merged, &board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
 
-    // 4. The batch driver (single-threaded by construction). The clone
-    // below is the optimizer stage's settings face (NIT-6): same value,
-    // one construction.
+    // 4. The pipeline (M4-T10, the `RoutingPipeline.run()` equivalent —
+    //    Java `RoutingPipeline.java:86-134`): the routing stage (fanout
+    //    + batch autorouter, the T12/T7 driver) then the optimization
+    //    stage (the T9 optimizer), ONE pipeline shape — the T9 inline
+    //    wiring moved, not forked. The stop-gate semantics (the T9
+    //    MIN-2 collapsed-face doc) live on the pipeline module now
+    //    (`pipeline/full.rs`); the stage-boundary captures ride the
+    //    outcome for the manifest's per-phase faces.
     let batch = build_batch_settings(&resolved);
-    let optimizer_batch = batch.clone();
-
     let mut sink = CliDriverSink::default();
-    let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
-    let run_result = driver.run(&mut sink);
-    let stop_reason = driver.stop_reason;
-    // Java `RoutingPipeline.runOptimizationStage` (the stop gate at
-    // `:122`, method `:121-134`) gates the
-    // stage on `!job.thread.isStopRequested()`. SPEC-REVIEW CORRECTION
-    // (MIN-2): in Java only the max-items path (`AutoroutePassRunner
-    // .java:218`) and EXTERNAL stops raise that full stop — the
-    // router-side stops (max-passes/stagnation/restore exhaustion) raise
-    // AUTO_ROUTER_ONLY (`AutorouteBatchLoop.java:311/349/356/512/543`),
-    // which does NOT satisfy the gate: Java lets the stage RUN there and
-    // the preflight guards (incompletes > 0) do the skipping. The port's
-    // single shared flag collapses the two faces — a stopped router
-    // skips the stage directly, the same net outcome (no optimization
-    // on partially-routed boards), with the one corner divergence: a
-    // fully-routed-but-stopped board would run no-op reroute passes in
-    // Java and skip the stage here. Read BEFORE the driver drops its face.
-    let optimizer_allowed = !driver.stop.is_requested();
-    drop(driver);
-
-    // 4b. The optimizer stage (M4-T9, Java `RoutingPipeline.runOptimizationStage`):
-    // gated on `getRunOptimizer()` (the `optimizer.enabled` box, default
-    // TRUE) AND the not-stopped gate above. The disabled face must
-    // reproduce the pre-T9 flow byte-exactly.
-    if resolved.run_optimizer && optimizer_allowed {
-        let mut stop = StopFace::default();
-        let mut optimizer = BatchOptimizerStage::new(
-            &mut manager,
-            &mut board,
-            optimizer_batch,
-            resolved.optimizer.clone(),
-            &mut stop,
-        );
-        // T10 owns the manifest faces (phases.optimizer, optimizer_score);
-        // T9 changes only the BOARD the session/statistics are written
-        // from (log rows ride the stderr echo).
-        let _ = optimizer.run_batch_loop(&mut sink);
-    }
+    let outcome = epic_router::pipeline::full::run(
+        &mut manager,
+        &mut board,
+        batch,
+        resolved.optimizer.clone(),
+        resolved.run_optimizer,
+        StopFace::default(),
+        &mut sink,
+    );
+    let run_result = outcome.routing;
+    let stop_reason = outcome.stop_reason;
 
     let final_state: String = match &run_result {
         Err(_) => "TERMINATED".to_string(),
@@ -578,6 +780,11 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // 5. Post-route statistics (the manifest's board face).
     let stats = BoardStatistics::new(&mut manager, &mut board);
     let normalized_score = Some(f64::from(stats.get_router_score(Some(&resolved.scoring))));
+    // Java `:201` — the value source of the top-level optimizer score
+    // (the manifest's final boardStatistics); the RENDERER applies the
+    // `:200-202` iff-gate on the optimizer phase faces.
+    let final_optimizer_score =
+        java_float_display(stats.get_optimizer_score(Some(&resolved.scoring)));
     let connections = stats.connections.maximum_count.map(|maximum_count| {
         // Both counts ride together (the same walk fills them; the
         // incomplete face mirrors Java's null when the walk skipped).
@@ -590,7 +797,21 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         stats.clearance_violations.total_count,
         board.pre_existing_clearance_violations_count,
     ));
-    let last_counters = sink.last_counters.take();
+    let last_counters = sink.last_counters_by_phase.get("autoroute").cloned();
+    // The pipeline's per-phase faces (the render builds the snapshot
+    // rows from the raw boundary pairs).
+    let PipelineOutcome {
+        boundaries,
+        optimizer,
+        ..
+    } = outcome;
+    let phases = PipelinePhases {
+        fanout: boundaries.fanout_before.zip(boundaries.fanout_after),
+        autorouter: boundaries
+            .autorouter_before
+            .zip(boundaries.autorouter_after),
+        optimizer,
+    };
 
     // The SES design name is the job name WITHOUT extension
     // (`RoutingJob.java:519` -> `SesWriter.write`: the writer's
@@ -626,6 +847,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         clearance_violations,
         normalized_score,
         output_written,
+        phases,
+        pre_existing_violations: board.pre_existing_clearance_violations_count,
+        scoring: Some(resolved.scoring.clone()),
+        final_optimizer_score: Some(final_optimizer_score),
     };
     let manifest = render_manifest(
         &telemetry,
@@ -656,6 +881,7 @@ mod tests {
     use epic_dsn::layer_structure::{Layer, LayerStructure};
     use epic_dsn::sink::{BoardRulesIr, BoardSink, CreateBoardIr};
     use epic_geometry::int_box::IntBox;
+    use epic_router::pipeline::batch::BatchDriver;
 
     /// The final-state mapping (module-docs rule): run-finished ->
     /// COMPLETED; external stop -> CANCELLED; every internal stop ->
@@ -892,6 +1118,351 @@ mod tests {
         }
     }
 
+    /// Real (scoreable) boundary statistics from the tiny two-layer
+    /// test board: `new_empty()` panics under the scorer's Java-NPE
+    /// parity arm (maximumCount is None there), so the render pins
+    /// carry a genuine walk.
+    fn scoreable_stats() -> BoardStatistics {
+        let ses = two_layer_ses();
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        BoardStatistics::new(&mut manager, &mut board)
+    }
+
+    /// THE OPTIMIZER-SCORE IFF-GATE (Java RoutingResultManifest.java:200-202),
+    /// both arms plus the fanout crossing: the top-level key rides iff
+    /// the OPTIMIZER phase's before/after faces exist — not with
+    /// fanout/autorouter faces alone, and not when the stage was
+    /// disabled or gated out. A mutant emitting unconditionally fails
+    /// the absent arm; a mutant gating on ANY phase face fails the
+    /// fanout arm (cerebrum 13: the crossing cell is the pin).
+    #[test]
+    fn t10_optimizer_score_iff_gate_both_arms() {
+        let opt_faces = || epic_router::pipeline::full::OptimizerStageFaces {
+            before: scoreable_stats(),
+            after: scoreable_stats(),
+            outcome: epic_router::pipeline::optimizer::OptimizerOutcome {
+                passes_completed: 2,
+                is_timed_out: false,
+            },
+        };
+        let telemetry_with = |phases: PipelinePhases| RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            last_counters: None,
+            connections: Some(ManifestConnections {
+                incomplete_count: 0,
+                maximum_count: 5,
+            }),
+            clearance_violations: Some(ManifestClearanceViolations {
+                total_count: 0,
+                router_introduced_count: 0,
+            }),
+            normalized_score: Some(1000.0),
+            output_written: true,
+            phases,
+            pre_existing_violations: 0,
+            scoring: Some(RouterSettingsScoring::default()),
+            final_optimizer_score: Some(823.5),
+        };
+
+        // Arm 1: the optimizer stage ran -> the key is present.
+        let json = render_manifest(
+            &telemetry_with(PipelinePhases {
+                optimizer: Some(opt_faces()),
+                ..PipelinePhases::default()
+            }),
+            "0.1.0",
+            "deadbeef",
+            fixture("b.dsn", "aa"),
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert_eq!(
+            value["optimizer_score"].as_f64(),
+            Some(823.5),
+            "iff-gate open arm: {json}"
+        );
+        assert_eq!(
+            value
+                .pointer("/phases/optimizer/passes_completed")
+                .and_then(serde_json::Value::as_i64),
+            Some(2)
+        );
+
+        // Arm 2: no faces at all (stage disabled/gated out) -> absent.
+        let json = render_manifest(
+            &telemetry_with(PipelinePhases::default()),
+            "0.1.0",
+            "deadbeef",
+            fixture("b.dsn", "aa"),
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert!(
+            value.get("optimizer_score").is_none(),
+            "iff-gate closed arm: {json}"
+        );
+
+        // Arm 3 (crossing): fanout + autorouter faces WITHOUT the
+        // optimizer -> still absent (the gate is the OPTIMIZER phase).
+        let json = render_manifest(
+            &telemetry_with(PipelinePhases {
+                fanout: Some((scoreable_stats(), scoreable_stats())),
+                autorouter: Some((scoreable_stats(), scoreable_stats())),
+                optimizer: None,
+            }),
+            "0.1.0",
+            "deadbeef",
+            fixture("b.dsn", "aa"),
+        );
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert!(
+            value.get("optimizer_score").is_none(),
+            "fanout/autorouter faces must not open the gate: {json}"
+        );
+        assert!(
+            value.pointer("/phases/fanout/before").is_some(),
+            "fanout faces render"
+        );
+    }
+
+    /// THE T10 PER-PHASE ATTRIBUTION PIN: each phase carries ITS OWN
+    /// source. Fanout snapshots: `score_source not_applicable`, NO
+    /// score rows, NO `passes_completed` (Java AutorouteBatchLoop.java:
+    /// 231-246); the autorouter row backfills from autoroute counters
+    /// only; the OPTIMIZER row's pass count comes from the stage
+    /// outcome — a fanout counters event (pass 1) must not backfill it
+    /// (the T13-bank crossing: a counters-sourced mutant emits 1 here).
+    #[test]
+    fn t10_phase_rows_attribution_crossing_cells() {
+        let fanout_counters = RouterCounters {
+            phase: "fanout".to_string(),
+            pass_count: 1,
+            queued_to_be_routed_count: 4,
+            skipped_count: 0,
+            ripped_count: 0,
+            failed_to_be_routed_count: 4,
+            routed_count: 0,
+            incomplete_count: 2,
+            fanout_extra_vias_count: 0,
+        };
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            last_counters: Some(fanout_counters),
+            connections: Some(ManifestConnections {
+                incomplete_count: 2,
+                maximum_count: 6,
+            }),
+            clearance_violations: Some(ManifestClearanceViolations {
+                total_count: 1,
+                router_introduced_count: 0,
+            }),
+            normalized_score: Some(900.0),
+            output_written: true,
+            phases: PipelinePhases {
+                fanout: Some((scoreable_stats(), scoreable_stats())),
+                optimizer: Some(epic_router::pipeline::full::OptimizerStageFaces {
+                    before: scoreable_stats(),
+                    after: scoreable_stats(),
+                    outcome: epic_router::pipeline::optimizer::OptimizerOutcome {
+                        passes_completed: 0,
+                        is_timed_out: false,
+                    },
+                }),
+                ..PipelinePhases::default()
+            },
+            pre_existing_violations: 1,
+            scoring: Some(RouterSettingsScoring::default()),
+            final_optimizer_score: Some(950.25),
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        // Fanout rows: snapshots present, score_source not_applicable,
+        // no score rows, and NO passes_completed.
+        assert!(value.pointer("/phases/fanout/before").is_some());
+        assert_eq!(
+            value
+                .pointer("/phases/fanout/before/score_source")
+                .and_then(serde_json::Value::as_str),
+            Some("not_applicable")
+        );
+        assert!(
+            value.pointer("/phases/fanout/before/score").is_none(),
+            "fanout snapshots carry no score row (Java never sets it): {json}"
+        );
+        assert!(
+            value.pointer("/phases/fanout/passes_completed").is_none(),
+            "fanout phase never carries a pass count: {json}"
+        );
+        // Optimizer row: pass count from the OUTCOME (0), not the
+        // fanout counters (1).
+        assert_eq!(
+            value
+                .pointer("/phases/optimizer/passes_completed")
+                .and_then(serde_json::Value::as_i64),
+            Some(0),
+            "the outcome is the source, counters must not leak: {json}"
+        );
+        // The top-level gate opens (optimizer faces exist).
+        assert_eq!(value["optimizer_score"].as_f64(), Some(950.25));
+        // No autorouter faces -> no autorouter snapshot, no pass count.
+        assert!(
+            value
+                .pointer("/phases/autorouter/passes_completed")
+                .is_none()
+        );
+    }
+
+    /// THE FULL-FLOW MANIFEST FACES (feature pin — the per-phase rows
+    /// do not exist pre-T10; the manifest digest rotation IS the
+    /// pre-refactor witness, see evidence/pre-refactor-witness.md): two
+    /// runs through the real flow on the locator fixture (fanout +
+    /// optimizer ON by default, no pass bound so the router completes
+    /// and the optimizer gate opens) must be byte-equal, and the
+    /// manifest carries Java's per-phase faces — fanout snapshots with
+    /// `not_applicable`, autorouter with pass count, optimizer rows +
+    /// the top-level `optimizer_score` (the `:200-202` iff-gate arm).
+    #[test]
+    fn t10_full_flow_manifest_carries_the_java_phase_faces() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
+        );
+        let out_dir = std::env::temp_dir().join(format!("epic-t10-full-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let run = |tag: &str| {
+            let ses_path = out_dir.join(format!("out-{tag}.ses"));
+            let manifest_path = out_dir.join(format!("out-{tag}.json"));
+            let argv = vec![
+                "-de".to_string(),
+                fixture_path.to_string(),
+                "-do".to_string(),
+                ses_path.to_string_lossy().into_owned(),
+                "--result-json".to_string(),
+                manifest_path.to_string_lossy().into_owned(),
+            ];
+            let args = parse_route_args(&argv).expect("args parse");
+            let exit = run_route(&args).expect("route run");
+            (exit, ses_path, manifest_path)
+        };
+        let (exit_a, ses_a, man_a) = run("a");
+        let (exit_b, ses_b, man_b) = run("b");
+        assert_eq!(exit_a, 0);
+        assert_eq!(exit_b, 0);
+        assert_eq!(
+            std::fs::read(&ses_a).expect("ses a"),
+            std::fs::read(&ses_b).expect("ses b"),
+            "ses byte-equal x2"
+        );
+        assert_eq!(
+            std::fs::read(&man_a).expect("man a"),
+            std::fs::read(&man_b).expect("man b"),
+            "manifest byte-equal x2"
+        );
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&man_a).expect("manifest"))
+                .expect("json");
+        // Fanout phase: populated with snapshots, not_applicable, no
+        // pass count.
+        assert!(
+            value.pointer("/phases/fanout/before").is_some(),
+            "fanout ran: {value}"
+        );
+        assert_eq!(
+            value
+                .pointer("/phases/fanout/before/score_source")
+                .and_then(serde_json::Value::as_str),
+            Some("not_applicable")
+        );
+        assert!(value.pointer("/phases/fanout/passes_completed").is_none());
+        // Autorouter phase: snapshots + pass count.
+        assert!(value.pointer("/phases/autorouter/before").is_some());
+        assert_eq!(
+            value
+                .pointer("/phases/autorouter/before/score_source")
+                .and_then(serde_json::Value::as_str),
+            Some("current")
+        );
+        let passes = value
+            .pointer("/phases/autorouter/passes_completed")
+            .and_then(serde_json::Value::as_i64)
+            .expect("the router ran");
+        assert!(passes >= 1);
+        // Optimizer phase + the iff-gate arm.
+        assert!(value.pointer("/phases/optimizer/before").is_some());
+        assert!(
+            value
+                .get("optimizer_score")
+                .and_then(serde_json::Value::as_f64)
+                .is_some()
+        );
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// THE FANOUT-ONLY FLOW FACE (oracle-anchored — the jar's
+    /// `bm08-noroute-manifest.json` face at T8: router disabled, fanout
+    /// on, optimizer enabled) — the router-disabled gate sends the run
+    /// through the pipeline's fanout-only branch: the fanout phase is
+    /// populated, the autorouter phase stays the empty `{}`, the
+    /// optimizer stage runs and is guard-bypassed (`passes_completed:
+    /// 0`), and the top-level `optimizer_score` IS emitted (Java's
+    /// bypass fill sets before/after, so the iff-gate opens).
+    #[test]
+    fn t10_fanout_only_flow_face_matches_the_jar_noroute_face() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
+        );
+        let out_dir =
+            std::env::temp_dir().join(format!("epic-t10-fanout-only-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let ses_path = out_dir.join("out.ses");
+        let manifest_path = out_dir.join("out.json");
+        let argv = vec![
+            "-de".to_string(),
+            fixture_path.to_string(),
+            "-do".to_string(),
+            ses_path.to_string_lossy().into_owned(),
+            "--result-json".to_string(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--router.enabled=off".to_string(),
+        ];
+        let args = parse_route_args(&argv).expect("args parse");
+        let exit = run_route(&args).expect("route run");
+        assert_eq!(exit, 0, "the fanout-only run completes (jar COMPLETED)");
+        let value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&manifest_path).expect("manifest"))
+                .expect("json");
+        assert!(
+            value.pointer("/phases/fanout/before").is_some(),
+            "fanout ran: {value}"
+        );
+        assert!(
+            value.pointer("/phases/autorouter/before").is_none(),
+            "no autorouter boundary"
+        );
+        assert!(
+            value
+                .pointer("/phases/autorouter/passes_completed")
+                .is_none(),
+            "no passes ran"
+        );
+        assert_eq!(
+            value
+                .pointer("/phases/optimizer/passes_completed")
+                .and_then(serde_json::Value::as_i64),
+            Some(0),
+            "guard-1 bypass: explicit 0 (jar face)"
+        );
+        assert!(
+            value
+                .get("optimizer_score")
+                .and_then(serde_json::Value::as_f64)
+                .is_some(),
+            "the bypass still emits the top-level score (jar face)"
+        );
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
     /// The manifest's REQUIRED members and the OMITTED non-determinism
     /// family: the emitted bytes contain NONE of generated_at /
     /// duration / cpu / memory / resource_usage / settings_snapshot /
@@ -923,6 +1494,14 @@ mod tests {
             }),
             normalized_score: Some(812.5),
             output_written: true,
+            // No phase faces and no optimizer score in this world — the
+            // T13-era omission assertions stay honest (the top-level
+            // `optimizer_score` key is now the T10 iff-gate, and it
+            // holds NONE faces -> absent here).
+            phases: PipelinePhases::default(),
+            pre_existing_violations: 0,
+            scoring: None,
+            final_optimizer_score: None,
         };
         let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
         for omitted in [

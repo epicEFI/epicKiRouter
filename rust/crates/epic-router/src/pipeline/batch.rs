@@ -377,6 +377,32 @@ pub struct BatchDriver<'a> {
     /// via `isFanoutTimedOut` `:331-333`) — the fanout stage deadline
     /// fired.
     pub fanout_timed_out: bool,
+    /// The stage-boundary statistics the pipeline's per-phase manifest
+    /// faces read (M4-T10; see [`StageBoundaries`]).
+    pub phase_boundaries: StageBoundaries,
+}
+
+/// The stage-boundary statistics Java `AutorouteBatchLoop` captures for
+/// the manifest's per-phase faces: `fanoutBeforeStats`/`fanoutAfterStats`
+/// (`:93-98` opens with the fanout gate — BEFORE the SMD-pin skip arm —
+/// and `:231-247` closes after the stage bodies) and
+/// `autorouterBeforeStats`/`autorouterAfterStats` (the `:255` capture
+/// inside the router-enabled gate; the post-loop fill reads the board
+/// again after the completed-board tail sweep, `:494-519`). The `None`
+/// faces mirror Java's capture gates exactly: fanout disabled, the
+/// router disabled (or the fanout-only override inactive), or the loop
+/// never ran (the all-layers abort throws before every capture).
+#[derive(Debug, Default)]
+pub struct StageBoundaries {
+    /// Java `fanoutBeforeStats`.
+    pub fanout_before: Option<BoardStatistics>,
+    /// Java `fanoutAfterStats`.
+    pub fanout_after: Option<BoardStatistics>,
+    /// Java `autorouterBeforeStats`.
+    pub autorouter_before: Option<BoardStatistics>,
+    /// The post-loop board statistics (Java `autorouterAfterStats`,
+    /// captured after the tail sweep inside the phase fill).
+    pub autorouter_after: Option<BoardStatistics>,
 }
 
 impl<'a> BatchDriver<'a> {
@@ -400,6 +426,7 @@ impl<'a> BatchDriver<'a> {
             stop_reason: None,
             fanout_recovery_applied: false,
             fanout_timed_out: false,
+            phase_boundaries: StageBoundaries::default(),
         }
     }
 
@@ -461,6 +488,11 @@ impl<'a> BatchDriver<'a> {
             self.settings.fanout_enabled, smd_pins
         ));
         if self.settings.fanout_enabled {
+            // Java `:93-98` — the fanout phase's before-boundary opens
+            // with the stage gate, BEFORE the SMD-pin skip arm (a
+            // no-SMD board still fills the phase row).
+            self.phase_boundaries.fanout_before =
+                Some(BoardStatistics::new(self.manager, self.board));
             if smd_pins == 0 {
                 sink.info("Fanout stage is enabled but skipped because the board has no SMD pins.");
             } else {
@@ -510,10 +542,11 @@ impl<'a> BatchDriver<'a> {
                     summary.escape_statistics.to_display(),
                 ));
             }
-            // Java `:231-246` — the fanout phase metrics
-            // (before/after snapshots, duration, cpu). The port's
-            // manifest projection carries no fanout phase faces (see
-            // the module bank); nothing to record here.
+            // Java `:231-246` — the fanout phase capture closes after
+            // the stage bodies (the skip arm included) — the T7 module
+            // bank ("no fanout phase faces") consumed by M4-T10.
+            self.phase_boundaries.fanout_after =
+                Some(BoardStatistics::new(self.manager, self.board));
         }
 
         // Java `:249-252`.
@@ -522,8 +555,11 @@ impl<'a> BatchDriver<'a> {
                 || self.settings.max_passes.is_some_and(|m| m >= 0));
         if is_router_enabled {
             let hash = board_hash(self.board);
-            let score_before = BoardStatistics::new(self.manager, self.board)
-                .get_router_score(Some(&self.settings.scoring));
+            // Java `:255` — the autorouter phase's before-boundary (the
+            // same walk the baseline-score row reads).
+            let stats_before = BoardStatistics::new(self.manager, self.board);
+            let score_before = stats_before.get_router_score(Some(&self.settings.scoring));
+            self.phase_boundaries.autorouter_before = Some(stats_before);
             let unrouted = self.calculate_incomplete_count();
             sink.info(&format!(
                 "Auto-routing stage started on board '{hash}' with baseline score \
@@ -852,6 +888,14 @@ impl<'a> BatchDriver<'a> {
                 || self.stop.is_requested())
         {
             self.remove_tails(StopConnectionOption::None);
+        }
+
+        // Java `:494-519` — the autorouter phase's after-boundary: the
+        // phase fill's own walk, taken after the completed-board tail
+        // sweep, gated on the fill's own gate (before captured).
+        if self.phase_boundaries.autorouter_before.is_some() {
+            self.phase_boundaries.autorouter_after =
+                Some(BoardStatistics::new(self.manager, self.board));
         }
 
         history.clear();
