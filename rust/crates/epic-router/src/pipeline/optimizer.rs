@@ -14,11 +14,19 @@
 //! Java sequences the stage through `RoutingPipeline.run()`:
 //! `runOptimizationStage` gates on `job.routerSettings.getRunOptimizer()`
 //! (the `optimizer.enabled` box, default TRUE from `DefaultSettings.java:
-//! 178`) AND `!job.thread.isStopRequested()` — every router-side stop
-//! (max-passes, stagnation, restore exhaustion, the external stop)
-//! raises the shared stop, so a router that stopped at all skips the
-//! stage (`RoutingPipeline.java:126-140`). The CLI wiring owns that
-//! gate; this module owns `runBatchLoop` (`:278-547`).
+//! 178`) AND `!job.thread.isStopRequested()` (`RoutingPipeline.java:
+//! 126-140`). SPEC-REVIEW CORRECTION (MIN-2): in Java that full stop is
+//! raised only by the max-items path (`AutoroutePassRunner.java:218`)
+//! and EXTERNAL stops — the router-side stops (max-passes, stagnation,
+//! restore exhaustion) raise AUTO_ROUTER_ONLY
+//! (`AutorouteBatchLoop.java:311/349/356/512/543`), which does NOT
+//! satisfy the gate, so Java lets the stage RUN on them and preflight
+//! guard 1 (incompletes > 0) is what skips it. The port's single shared
+//! stop flag collapses the two faces — the same net outcome (no
+//! optimization on partially-routed boards), with the one corner where
+//! they differ: a fully-routed-but-stopped board runs no-op reroute
+//! passes in Java and skips the stage in the port. The CLI wiring owns
+//! the gate; this module owns `runBatchLoop` (`:278-547`).
 //!
 //! ## Banks (SEAM carries the dossier)
 //!
@@ -2107,7 +2115,8 @@ mod tests {
                 .is_some_and(|r| r.contains("theoretical maximum (995.00)")),
             "guard 3a firing world: {reason:?}",
         );
-        // Adjacent: score 980 (excess 2%) stays below 995.
+        // Adjacent: score 960 at the ACTIVE weight 2000 (penalty
+        // 2000 x 2% = 40) — stays below 995 (review NIT fix).
         let s = stats(100.0, 102.0, Some(1), 1);
         // Guard 3b: total == 100*1.02f (f32-exactly 102.0 here) AND
         // vias 1 <= min_via 1.
@@ -2182,6 +2191,37 @@ mod tests {
             30,
             "round(0.6 x 50) — trace discount alone"
         );
+
+        // MIN-4 (spec review S3): the ROUND-vs-TRUNC discriminator rows.
+        // Domain: start_ripup_costs is an INTEGER through every settings
+        // path (CLI/DSN parse i32, DefaultSettings 100). While the
+        // increased face holds, the base is 10·start — always even, so
+        // f32(0.6)·(10·start) = 6·start EXACTLY and round == trunc
+        // unavoidably. The DROPPED arm's base is start itself, and for
+        // start ≡ 1 or 3 (mod 5) the real product's fraction is 0.6/0.8:
+        // f32(0.6) = 0.60000002384… adds only ~2.4e-8·base, so the
+        // fraction stays above 0.5 and `Math.round` rounds UP where
+        // truncation would cut down. start = 51 -> 30.6000012… -> 31
+        // (trunc 30); start = 3 -> 1.8000001… -> 2 (trunc 1).
+        for (start, expected) in [(51, 31), (3, 2)] {
+            let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
+            settings.start_ripup_costs = start;
+            let mut stop = StopFace::default();
+            let mut stage = BatchOptimizerStage::new(
+                &mut manager,
+                &mut board,
+                settings,
+                opt_settings(),
+                &mut stop,
+            );
+            stage.use_increased_ripup_costs = false;
+            assert_eq!(
+                stage.candidate_ripup_costs(true),
+                expected,
+                "start={start}: java_round rounds the 0.6-fraction UP (trunc would give {})",
+                expected - 1,
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -2236,6 +2276,36 @@ mod tests {
             sink.any_contains("is below the threshold (2.50%)."),
             "the loop runs on the reset 2.5 default: {sink:?}",
         );
+
+        // MIN-3 (spec review): the NON-FINITE arms of the SAME gate
+        // (`is_nan() || is_infinite() || < 0`, Java `:353`) — NaN and
+        // +Infinity through the resolved settings face, each resetting
+        // to 2.5 with the warn, the loop then quoting the reset value.
+        for (name, value) in [("NaN", f32::NAN), ("Infinity", f32::INFINITY)] {
+            let (mut manager, mut board) = routed_world_fanout_off();
+            let batch = BatchSettings::new(settings_ir(), v2_scoring());
+            let mut stop = StopFace::default();
+            let mut sink = CaptureDriverSink::default();
+            let mut opt = opt_settings();
+            opt.enable_preflight_guards = Some(true);
+            opt.improvement_threshold = Some(value);
+            opt.max_passes = Some(2);
+            let rendered = format!("{value:.4}"); // "NaN" / "inf"
+            let mut stage =
+                BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+            stage.run_batch_loop(&mut sink);
+            let expected_row = format!(
+                "Invalid optimizer improvement threshold: {rendered}. Resetting to default 2.50%."
+            );
+            assert!(
+                sink.any_contains(&expected_row),
+                "the {name} arm resets to 2.5: {sink:?}",
+            );
+            assert!(
+                sink.any_contains("is below the threshold (2.50%)."),
+                "the loop runs on the reset default after {name}: {sink:?}",
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -2311,11 +2381,14 @@ mod tests {
     // E2E: reject + restore + threshold stop (Java runBatchLoop :407-479)
     // -----------------------------------------------------------------------
 
-    /// Full stage on the routed fanout-off world with guards ON: both
-    /// passes adopt a candidate (the improved-ladder quirk makes a
-    /// successful reroute "improved"), the pass-level gates reject them
-    /// (score not strictly improved), the incumbent is restored each
-    /// time, and the 0% improvement stops the loop. THE RESTORE TEETH:
+    /// Full stage on the routed fanout-off world with guards ON: each
+    /// pass's outcome loses the strict-score gate and the incumbent is
+    /// restored, then the 0% improvement stops the loop. (Review-NIT
+    /// precision: pass 2's REGRESSED row `951.88 -> 942.92` directly
+    /// OBSERVES an adopted-then-restored candidate; pass 1's UNCHANGED
+    /// row is consistent with either adoption-at-equal-score or no
+    /// adoption — the pin claims only what the rows show.) THE RESTORE
+    /// TEETH:
     /// the final board hash equals the baseline hash — a skipped
     /// restore, a mutated-during-evaluation live board, or a corrupt
     /// manager all fail this pin.
@@ -2401,6 +2474,84 @@ mod tests {
             s.get_optimizer_score(Some(&v2_scoring()))
         };
         assert_eq!(final_score, baseline_score);
+    }
+
+    /// MIN-1 (spec review A3): THE winner-SELECTION world — first-improver
+    /// and improvedOver-best pick DIFFERENT candidates here. Fanout-on
+    /// routed world with `via_costs = 50`; candidates in order
+    /// [123 (net-98 via), 152 (L0 trace), 132 (net-98 via)], every one
+    /// improving, with outcome faces (incomplete, via, length-after):
+    /// 123 -> (0, 2, 1320310.5), 152 -> (0, 2, 1300790.375) — SHORTER,
+    /// 132 -> (0, 2, 1320310.5). compareTo ranks 152 strictly best on the
+    /// length rung, so best-overall adopts 152's board `a13e3699…` even
+    /// though 123 improved FIRST (its board `3bb0969a…` must be
+    /// discarded). Kills a first-improver mutant, a last-improver
+    /// mutant, and a worst-overall mutant in one world.
+    #[test]
+    fn t9_winner_rule_best_overall_not_first_improver() {
+        let (mut manager, mut board) = {
+            let (mut manager, mut board) = parse_fixture();
+            let mut ir = settings_ir();
+            ir.via_costs = 50;
+            let settings = BatchSettings::new(ir, v2_scoring());
+            let mut sink = CaptureDriverSink::default();
+            let mut driver =
+                BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
+            assert_eq!(
+                driver.run(&mut sink),
+                Ok(true),
+                "the via-costly world routes"
+            );
+            (manager, board)
+        };
+        let baseline_hash = board_hash(&board);
+        let candidates = {
+            let mut m2 = SearchTreeManager::new();
+            m2.reinsert_tree_items(&mut board);
+            read_sorted_route_items(&m2, &mut board)
+        };
+        let candidate_ids: Vec<u32> = candidates.iter().map(|id| id.get()).collect();
+        assert_eq!(candidate_ids, vec![123, 152, 132], "candidate order face");
+        // World validation (mode-13 discipline): the rules can only
+        // differ when the best candidate is NOT the first one — 152
+        // (the shorter reroute) sorts between the two net-98 vias.
+        assert_ne!(
+            candidate_ids.first(),
+            Some(&152),
+            "152 is not first in order"
+        );
+
+        let mut ir = settings_ir();
+        ir.via_costs = 50;
+        let batch = BatchSettings::new(ir, v2_scoring());
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        let mut opt = opt_settings();
+        opt.enable_preflight_guards = Some(true);
+        opt.max_passes = Some(1);
+        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        let outcome = stage.run_batch_loop(&mut sink);
+        assert_eq!(outcome.passes_completed, 1);
+        let info = sink.joined("info");
+        assert!(
+            info.contains(
+                "Optimizer pass #1 on board 'a13e3699283d2aa32c7a2e8739531e02d5321b6c3bdf8db9b123b358d65e212d'",
+            ),
+            "the adopted board is the BEST candidate's (152, the shorter reroute), not the \
+             first improver's (123): {info}",
+        );
+        assert!(
+            !info.contains("3bb0969ab1490643"),
+            "the first improver's board (123) was discarded: {info}",
+        );
+        // The pass gate is a SEPARATE discipline: this world's baseline
+        // optimizer score is ALSO 974.39, so the adopted best loses the
+        // gate at an equal score and the incumbent is restored.
+        assert!(
+            info.contains("candidate rejected: OPTIMIZER_SCORE_NOT_IMPROVED"),
+            "the adopted best still loses the pass gate at an equal score: {info}",
+        );
+        assert_eq!(board_hash(&board), baseline_hash, "incumbent restored");
     }
 
     /// The one-winner/order face END-TO-END: `max_items = 1` restricts

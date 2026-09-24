@@ -531,10 +531,18 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     let run_result = driver.run(&mut sink);
     let stop_reason = driver.stop_reason;
     // Java `RoutingPipeline.runOptimizationStage` (`:126-140`) gates the
-    // stage on `!job.thread.isStopRequested()` — EVERY router-side stop
-    // (max-passes, stagnation, restore exhaustion, the external stop)
-    // raises the shared flag, so the optimizer runs only when the router
-    // finished of its own accord. Read BEFORE the driver drops its face.
+    // stage on `!job.thread.isStopRequested()`. SPEC-REVIEW CORRECTION
+    // (MIN-2): in Java only the max-items path (`AutoroutePassRunner
+    // .java:218`) and EXTERNAL stops raise that full stop — the
+    // router-side stops (max-passes/stagnation/restore exhaustion) raise
+    // AUTO_ROUTER_ONLY (`AutorouteBatchLoop.java:311/349/356/512/543`),
+    // which does NOT satisfy the gate: Java lets the stage RUN there and
+    // the preflight guards (incompletes > 0) do the skipping. The port's
+    // single shared flag collapses the two faces — a stopped router
+    // skips the stage directly, the same net outcome (no optimization
+    // on partially-routed boards), with the one corner divergence: a
+    // fully-routed-but-stopped board would run no-op reroute passes in
+    // Java and skip the stage here. Read BEFORE the driver drops its face.
     let optimizer_allowed = !driver.stop.is_requested();
     drop(driver);
 

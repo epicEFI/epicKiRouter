@@ -970,10 +970,19 @@ arms, and strict key ascent). Mutant T9-M2 (order inversion) kills 6 pins.
 (`phase == "autoroute"`) must keep excluding it — pinned by
 `t9_optimizer_counters_do_not_backfill_autorouter_passes`.
 
-**Stage gate coupling (M4-T9 hardening of the harness).**
+**Stage gate coupling (M4-T9 hardening of the harness; MIN-2 correction).**
 `RoutingPipeline.runOptimizationStage` gates on `getRunOptimizer()`
 (default TRUE from DefaultSettings.java:178) AND
-`!thread.isStopRequested()` — EVERY router-side stop skips the stage.
+`!thread.isStopRequested()`. That full stop in Java is raised only by the
+max-items path (`AutoroutePassRunner.java:218`) and EXTERNAL stops; the
+router-side stops (max-passes/stagnation/restore-exhaustion) raise
+AUTO_ROUTER_ONLY (`AutorouteBatchLoop.java:311/349/356/512/543`), which
+does NOT satisfy the gate — Java lets the stage RUN on router-side stops
+and preflight guard 1 (incompletes > 0) does the skipping. The port's
+single shared flag collapses the two faces: same net outcome (no
+optimization on partially-routed boards), with one corner divergence (a
+fully-routed-but-stopped board runs no-op reroute passes in Java and
+skips the stage in the port).
 The committed router-only Java records are the both-stages-OFF face, so
 `route_argv` now carries `--optimizer.enabled=false` next to the fanout
 flag (the banner phrase derives both; `run_cli_argv_carries_the_
@@ -988,6 +997,19 @@ byte-equal; bm08's stage ran and improved 823.37 → 823.50, +0.0153% <
 **`normalizeAlgorithm` moved.** Java warns in `BatchOptimizer.create`;
 the port warns as the stage's first row (construction has no sink) —
 `freerouting-optimizer` is `BatchOptimizerStage::ALGORITHM_ID`.
+
+**The ripup-cost round-vs-trunc domain (MIN-4, fix round).**
+`trace_ripup_cost_factor`'s `Math.round` is MUTANT-DISCRIMINABLE only in the
+increased-face-DROPPED arm: the base is `start_ripup_costs` — an INTEGER through
+every settings path (CLI/DSN parse i32, DefaultSettings 100) — and while the
+increased face holds the base is 10·start (even), so f32(0.6)·(10·start) = 6·start
+EXACTLY and round == trunc; for start ≡ 1 or 3 (mod 5) the dropped arm's real
+fraction is 0.6/0.8, f32(0.6)'s ~2.4e-8·base error keeps it above 0.5, and round
+≠ trunc (start=51 → 31 vs trunc 30; start=3 → 2 vs 1). Pinned in
+`t9_candidate_ripup_costs_ladder`; mutant T9-S3 (round→trunc) now dies there
+(fix-round evidence `mut_T9-S3_round_trunc.log`). The T8-S4 equivalent-mutant
+precedent applies to the INCREASED arm: on it the mutant is equivalent, and that
+is a domain fact, not a pin gap.
 
 **Banked (unreachable headless, documented in optimizer.rs):** the
 thread pool (`maxThreads` parsed, unused), `resultMap` + the PRIORITIZED

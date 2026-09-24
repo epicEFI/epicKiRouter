@@ -2885,6 +2885,25 @@ mod tests {
         assert_eq!(parsed.layer.improvement_threshold, Some(5.0));
         assert!(parsed.layer.warnings.is_empty());
 
+        // (3b) MIN-3: the NON-FINITE sanitation inputs are reachable
+        // through the CLI face too — Rust parses "NaN"/"inf" exactly
+        // like Java's Float.parseFloat("NaN"/"Infinity"), and the quirk
+        // block's (0, 1) interval excludes both, so the raw value rides
+        // to the stage's reset arm (pinned in optimizer.rs).
+        let parsed = parse_route_args(&args(&[
+            "--optimizer.improvement_threshold=NaN",
+            "--optimizer.improvement_threshold=inf",
+        ]))
+        .expect("parse");
+        let threshold = parsed
+            .layer
+            .improvement_threshold
+            .expect("the non-finite value rides to the layer");
+        assert!(
+            threshold.is_infinite() && threshold.is_sign_positive(),
+            "the +inf face: {threshold}",
+        );
+
         // (4) A bad value warns and leaves the slot unset.
         let parsed = parse_route_args(&args(&["--optimizer.max_passes=nope"])).expect("parse");
         assert_eq!(parsed.layer.optimizer_max_passes, None);
