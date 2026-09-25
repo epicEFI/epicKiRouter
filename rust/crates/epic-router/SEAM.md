@@ -1313,19 +1313,21 @@ prefix).
 Task 12's alignment work did NOT land a code change; the honest outcome
 is a NEW divergence family classified upstream of the buglog-181
 tie-break family and a residual adjudicated not-alignable this task.
-The Java wins every conflict below. Full dossier: buglog 185
-(`.wolf/buglog.json` — note: numeric id 184 is referenced by the
-stale-bin family in SEAM/cerebrum prose but has no landed entry, so the
-new entry took 185); raw instruments under `logs/M4-T12/scratch/`
-(git-ignored).
+The Java wins every conflict below. Full dossier: buglog 189
+(`.wolf/buglog.json` — id note: the stale-bin family IS landed as string
+`bug-184` and the string block runs `bug-184`…`bug-188` (numeric 185
+would have collided with `bug-185`, the M4-T5 DSN `;`-comment lexer
+bug), so the T12 entry takes numeric **189**); raw instruments under
+`logs/M4-T12/scratch/` (git-ignored).
 
 **The first full-flow fork is NOT the tie-break family.** The
 attempt-stream diff re-derived on the full-flow face (fanout-only
 capture, both engines traced with `--debug.enable_detailed_logging=true`
 vs a scratch capture sink through the production `BatchDriver`
-construction): the two engines align through the first assign row of
-the FIRST fanout search (pin U9-1, net 21) and fork at its SECOND row —
-the start room's EAST door differs because the START ROOM's completed
+construction): assign-stream rows 1-6 align byte-for-byte (the west
+door's six section rows) of the FIRST fanout search (pin U9-1, net 21);
+the fork is stream row 7 — the EAST door, the second door-group: the
+start room's east door differs because the START ROOM's completed
 north edge is **y=-911636 (jar CLI) vs y=-911136 (Rust)** — a 500-DBU
 completion-geometry divergence at the 45°
 `ShapeSearchTree45Degree.completeShape`/`restrainShape` face
@@ -1337,8 +1339,14 @@ no landable pin world this task.
 
 **Why it is a residual and not a port fix (the disconfirmation
 dossier):** (1) the two engines' compensated class-1 search trees are
-LEAF-IDENTICAL (byte-diff of every leaf in the query boxes — all 8
-octagon fields, both outline bands, pins, obstacle areas); (2) Java's
+LEAF-IDENTICAL AS A MULTISET (20 rows in the query box; the dumps' ROW
+ORDER differs and the Java side carries a `total_leaves` line, so the
+files are not byte-identical; all 8 octagon fields equal) — and the
+Java side was dumped from the direct-read construction whose board hash
+is `4207fa7f…`, a THIRD state distinct from the cliflow replication
+(`202d1017…`) and the CLI (`b84a773a…`): leaf-identity binds Rust vs
+direct-read only, and tree identity against the CLI's live process
+remains unproven — exactly what M5 lever (a) must observe; (2) Java's
 own `completeShape`, called DIRECTLY from jshell with the reconstructed
 inputs — the enlarged room octagon (all 16 diagonal-field variants),
 the pin-center point contained octagon, net 21, layer 0, ignore null —
@@ -1349,9 +1357,12 @@ loadFromSpecctraDsn + RouterSettings + RoutingPipeline.run) also
 produces -911136, and a DIFFERENT board hash (`202d1017…` vs the CLI's
 stable `b84a773a…`) — the CLI's loaded board state differs in a way the
 replication does not reach; (4) the CLI subprocess reproduces -911636
-deterministically (×2, 4 hours apart); (5) Java's
+deterministically (×2, 1 h 52 min apart); (5) Java's
 `signedLineDistance`/`obstacleSegmentTouchesInside` tables (reflection
-per border line) MATCH the port; (6) excluded causes, each verified
+per border line) MATCH the port — both sides landed:
+`evidence/instrument_distance_table_java.out` /
+`instrument_distance_table_rust.out` (values equal line-for-line; Rust
+prints integral f64 without the `.0`); (6) excluded causes, each verified
 from source: `DsnFile.adjustPlaneAutorouteSettings` (bm06 is 2-layer,
 early return), the hole-clearance override (DSN 0 == default 0.0 µm →
 no reinsert), the copper-to-edge override (flag unset),
@@ -1364,20 +1375,40 @@ completeShape inputs — did not land inside the task budget (jshell/
 session-API friction), and the only remaining route (a jar rebuilt with
 traces at the restrain sites) is FORBIDDEN by the oracle freeze.
 
+**The mechanism and the reachable oracle (spec-review MINOR-3, the
+reviewer's derivation from the T12 artifacts):** the reconstruction's
+completed north face −911136 EQUALS the compensated BoardOutline band's
+inner edge (outline leaf bbox ly=−911136; centerline −910036; the
+values dump: outline class 1 × tree class 1 comp=1000, val=2000 = the
+DSN's 200 µm default at resolution 10), no other obstacle sits near the
+north band in the query box, and the CLI's face is exactly −911636 = one
+500-DBU clearance quantum further south — so the CLI's north-band
+restraint source (the outline band, or a CLI-only item on it) is 500 DBU
+more restrictive than the port's (candidate faces: matrix val 3000 vs
+2000 on the outline×class-1 pair, or a thicker raw outline insertion).
+`BasicBoard.getHash()` (`BoardSnapshotManager.java:58-72`) printed by
+the CLI at fanout start makes the state hunt a CLOSED reproduction
+oracle — a jshell loop replicating the CLI load path and comparing
+`getHash()` to `b84a773a…` needs no live-process injection. (Labeled
+speculative, from the review: a port room extending 500 DBU closer to
+the board edge is the DRC-risk direction and rhymes with the known KiCad
+copper-to-edge quirk.)
+
 **bm01 wall discharge (the plan's step 4, recorded):** the full
-pipeline is NOT wall-limited on bm01 — 20 passes, Σ pass walls ~663 s
-(re-confirmed at T12's battery re-run), stagnation-stopped at
+pipeline is NOT wall-limited on bm01 — 20 passes, Σ pass walls 663.0 s
+at T11 / 673.6 s at the T12 re-run, stagnation-stopped at
 993.16/1/0 (passes 12-20 flat); the M3-era 8.5-13.4 h router-only
 natural-end bound is COLLAPSED by the fanout stage. buglog 175 stays
 OPEN with the M4 measurement appended; bm01's residual = the one
 U53→U8 connection = the same tuning family as bm06 (upstream of it:
-buglog 185).
+buglog 189).
 
 **bm11 stop-face verification (no change):** the port's stagnation stop
 fires on Java's exact predicate at the same pass boundary
 (`batch.rs:88/:94` — `STAGNATION_PASS_LIMIT` 10, `STAGNATION_SCORE_THRESHOLD`
 0.5, the pass-local + global trackers, the one-time fanout recovery;
-Java `AutorouteBatchLoop.java:451-536`) — read-verified this task. The
+Java: the constants at `BatchAutorouter.java:46-60`, the stop block at
+`AutorouteBatchLoop.java:450-543`) — read-verified this task. The
 600 s-tier red is the per-pass wall (62-64 s vs Java's ~21 s TOTAL),
 i.e. search cost — the M5-chartered lift; the T10-banked optimizer stop
 face is NOT involved and stays banked.
