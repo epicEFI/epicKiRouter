@@ -146,9 +146,13 @@ pub struct PipelineOutcome {
     pub routing: Result<bool, BatchLoopError>,
     /// Java `router.stop_reason` (port-added observability).
     pub stop_reason: Option<StopReason>,
-    /// The driver's post-routing stop face — the optimization gate's
-    /// input (read before the driver drops it; the collapsed-face
-    /// semantics live in the module docs).
+    /// The driver's post-routing AUTO_ROUTER_ONLY stop face (Java
+    /// `isStopAutoRouterRequested()`, true for ANY stop — internal
+    /// stagnation/pass-exhaustion raises included). Port-added
+    /// observability, NOT the optimization gate's input: that gate reads
+    /// the FULL-stop face only (Java `isStopRequested()` = ALL; see
+    /// `stop_full` on `RoutingStageResult` and the module docs'
+    /// STOP-GATE SEMANTICS).
     pub stop_after_routing: bool,
     /// The driver's stage-boundary captures (fanout + autorouter).
     pub boundaries: StageBoundaries,
@@ -256,11 +260,15 @@ impl RoutingStageResult {
 }
 
 /// Java `RoutingPipeline.runOptimizationStage` (`:121-134`). `None` =
-/// the gate kept the stage out (`run_optimizer == false` is Java's
-/// `optimizer == null` face; `stop_requested` is the driver's
-/// post-routing stop face — the collapsed-face semantics live in the
-/// module docs). When the stage runs, the boundary statistics pair is
-/// captured at Java's own moments (stage entry / stage exit — a
+/// the gate kept the stage out: `run_optimizer == false` is Java's
+/// `optimizer == null` face, and `full_stop` is Java's
+/// `isStopRequested()` = `StopRequestState.ALL` only (external stops +
+/// the max-items path) — the AUTO_ROUTER_ONLY internal stops
+/// (stagnation, pass exhaustion) do NOT close this gate; Java's
+/// `BatchOptimizer.evaluatePreFlightGuards` does the skipping inside.
+/// The two-face mapping and its residuals live in the module docs
+/// (STOP-GATE SEMANTICS). When the stage runs, the boundary statistics
+/// pair is captured at Java's own moments (stage entry / stage exit — a
 /// preflight bypass leaves the board untouched, so `after == before`
 /// there, matching Java's bypass fill).
 #[allow(clippy::too_many_arguments)]
