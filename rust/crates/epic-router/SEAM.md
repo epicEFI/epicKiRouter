@@ -1430,3 +1430,52 @@ equal with the canary digests UNROTATED (ses `253e7b14…`, manifest
 `8c4a9773…`); the full battery re-run (release, gate mode, external
 7200 s) re-confirmed the T11 face — 8 PASS / 3 RED, no row moved (the
 truth table and triage lines are T11's, re-anchored in the T12 report).
+
+## M4 milestone-criterion map (appended by M4-T13; successor to the T17c map above — adjudication input)
+
+The T17c map above stays exactly as landed (HISTORICAL). Criteria read
+the design §6 M4 row's own faces: the pipeline runs (criterion 1), all
+fixtures ≥ Java on completion/violations/score (criterion 2, the
+zero-regression moment), and the standing §5 guarantee (criterion 3).
+The battery of record is the FULL-face battery (T11 face, re-confirmed
+at T12; `logs/M4-T12/evidence/battery_full_t12.log`).
+
+| Criterion | Verdict | Evidence + citation |
+|---|---|---|
+| 1 — the full pipeline runs (fanout + detail router + optimizer assembled) | **MET** | `pipeline/full.rs` mirrors `RoutingPipeline.run()` (T10 dossier); `--profile full` gates the assembled pipeline vs the M0 full-flow records with all 11 `fixture_sha256` re-verified — reuse, not recapture (T11 dossier, "The M0 baselines are REUSED verbatim"); the CLI drives the whole pipeline. The F1/F1′ re-anchor closed at T11 (full-flow bm08 byte-exact ×3). |
+| 2 — all fixtures ≥ Java on completion/violations/score | **NOT MET** | 8 PASS / 3 RED, exit 1, 2061.2 s (`battery_full_t12.log:711/:1035/:1064/:1077-1079`): bm01 1/0/993.16 (673.6 s, stagnation-stopped — NOT wall-limited; completion by 1; the 175/181 victim-choice family, upstream 189); bm06 5/8/930.81 vs 2/8/971.63 (incompletes AND score; the 500-DBU room-completion fork at the first fanout search — 189's face, upstream of every maze fork); bm11 wall-integrity 600.2 s, no manifest, the plateau AT the kill = Java's exact terminal face 975.00/3/0 (per-pass search cost — the M5 lift; 175 + the T12 stop-face verification). Violations ≤ Java on ALL 11 fixtures (0 router-introduced anywhere); the full truth table with triage lines is T11's, re-anchored in the T12 dossier above. |
+| 3 — the standing §5 zero-regression guarantee (all compares green, no M2/M3 regression) | **MET** | T12 end-state gates (spec-review A5 re-ran all personally, exits recorded): corpus 5000/5000; dsn `--set all` 1,332/0; ses 20/20; ses-snap 5/5; index 33/33; undo 33/33; drc 17/17; events 3,520 golden rows aligned exit 0 (the buglog 172-174 classes stay closed); `router determinism` ×2 byte-equal, canaries UNROTATED (ses `253e7b14…`, manifest `8c4a9773…`); census 1422/0/17. |
+
+**The flip-hold record (M4-T13).** The CI flip precondition is unmet on
+BOTH faces: (a) the battery reads 8/3, not 11/11; (b) the suite wall
+(2061.2 s release ≈ 34 min) exceeds the compare step's 30-minute
+budget (`.github/workflows/rust-check.yml:117`, `timeout-minutes: 30`).
+`--report-only` stays with both `ci_tripwire.rs` pins intact — the
+held posture continues from the M3 adjudication, now with M4 evidence
+and named M5 exit conditions (full battery 11/11 AND wall under
+budget). FACE SEPARATION (the map's non-substitution rule, T17c
+precedent): the CI step's own router-only profile has read 11 green /
+0 red in 337.7 s since M4-T6 (`logs/M4-T6/evidence/cmp_router_t6.log`,
+live-witnessed exit 0 at T11) — a green router-only face is NOT the
+flip criterion; the flip is judged on the milestone full-face battery,
+and the two vocabularies must not be substituted for each other.
+
+**Events-compare-in-CI decision (M4-T13).** The events step stays OUT
+of CI for M4 and rides the SAME flip-commit family when the M5 exit
+conditions are met, with its own `ci_tripwire`-style pin. Rationale:
+T6's recommendation (SEAM T16 "CI" row) is explicitly "RECOMMENDED AT
+THE M4 CI-FLIP MOMENT … adding it to rust-check.yml should ride the M4
+CI-flip commit … rather than shipping alone" — it does not argue
+independence from the flip; and with the compare gate itself still
+`--report-only`, adding events now would widen a gate that is on hold.
+The step is CI-READY (java-free, ~0.4 s over three in-process worlds,
+exit 0 since M4-T6) — the flip commit adds it in the same edit.
+
+**Pointer rows into the task dossiers:** criterion-1 evidence → T10
+(full-pipeline assembly) + T11 (profiles, M0-reuse record, the battery
+face-flip table); criterion-2 reds → T12's dossier (the 189 fork
+re-derivation + the bm01 discharge + the bm11 stop-face verification)
+and buglog 175/181/189; criterion-3 → the T12 gates table + the T11
+"Ripple" faces; the fanout/optimizer stage parity → T7/T8/T9 dossiers;
+the events close → T4→T5→T6 (buglog 172-174, bug-187); the M3 map and
+its snapshot rows above stay HISTORICAL, never overwritten.

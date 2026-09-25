@@ -151,7 +151,7 @@ The standing §5 zero-regression guarantee held: all six M2 compares
 green (geometry 5000/5000; dsn 1,332; ses 20; index 33; undo 33;
 ses-snap 5), 1,305-test census, determinism digests stable. Two
 plan-level supersets tracked by the M3 plan are NOT §6 criteria (SEAM
-criterion map) and are recorded here only to keep the vocabularies
+criterion map) and are recorded here only to carry the vocabularies
 apart: the score gate (R ≥ J − 2%), which bm01 fails, and
 events-corpus equality — the corpus is honest-red by charter, a triage
 instrument (§5), not a gate. The CI router gate stays HELD in
@@ -161,7 +161,82 @@ under a wall-resolved profile — drop `--report-only`, update both
 `ci_tripwire.rs` pins, and refresh the prose describing the posture
 (the rust/README status block and gates comment, and this paragraph);
 that moment is M4's zero-regression moment. Faces and ledger:
-`rust/crates/epic-router/SEAM.md` (MILESTONE-CRITERION MAP).
+`rust/crates/epic-router/SEAM.md` (MILESTONE-CRITERION MAP). (M4
+UPDATE, T13 close: the HOLD continues — the flip was adjudicated unmet
+on both preconditions at the M4 close: the milestone full-face battery
+reads 8 PASS / 3 RED (buglog 175/181/189;
+`logs/M4-T12/evidence/battery_full_t12.log`) and its suite wall
+(2061.2 s release ≈ 34 min) exceeds the compare step's 30-minute
+budget (`rust-check.yml:117`). The events-compare step also stays out
+of CI until the same flip commit brings it with its own pin. M5 flip
+conditions: full battery 11/11 AND wall under budget. The M4 exit note
+below carries the full record.)
+
+M4 exit note (T13, drafted 2026-09-24 at tree `e6956b345`; the verdict
+token is left to the milestone adjudication — the fresh reviewer
+produces it and the final one-line edit lands per its authority):
+**VERDICT: <per milestone adjudication>**
+Criterion 1 (the full pipeline runs — fanout + detail router +
+optimizer assembled end-to-end) **MET**: `pipeline/full.rs` mirrors
+`RoutingPipeline.run()` (M4-T10), the router-compare `--profile full`
+face gates the assembled pipeline against the M0 full-flow jar records
+(M4-T11 — reuse, not recapture: all 11 `fixture_sha256` re-verified),
+and `epic-cli` drives the whole pipeline.
+
+Criterion 2 (all fixtures ≥ Java on completion/violations/score — the
+zero-regression moment) **NOT MET**: the full-face battery reads
+8 PASS / 3 RED (exit 1, 2061.2 s;
+`logs/M4-T12/evidence/battery_full_t12.log` — T11's face reproduced
+exactly at T12):
+
+| Red | Face (inc/viol/score, wall) | Root cause | Owner | Buglog |
+| --- | --- | --- | --- | --- |
+| bm01 | 1/0/993.16, 20 passes, 673.6 s — completion by 1; score/violations green; NOT wall-limited (stagnation-stopped, passes 12–20 flat) | the victim-choice/attempt-order family at the router's plateau, upstaged upstream by the 189 completion-face divergence (lever (c) re-derives 181's fork evidence after 189 closes) | M5 | 175/181 → 189 |
+| bm06 | 5/8/930.81 vs jar 2/8/971.63 — incompletes 5 > 2 AND score < J−ε; violations green 8 ≤ 8 | a 500-DBU expansion-room completion divergence at the FIRST fanout search (start-room north face −911636 jar vs −911136 Rust; compensated outline-band mechanism candidate, `getHash()` reproduction oracle) — upstream of every maze fork | M5, levers (a)/(b)/(c) | 189 (181's family downstream) |
+| bm11 | wall-integrity red: harness-killed at 600.2 s, no manifest; the plateau AT the kill is 975.00/3/0 — Java's exact terminal face | per-pass search cost (62–64 s/pass vs Java's ~21 s TOTAL); the stagnation stop is Java-exact (`BatchAutorouter.java:46-60`, `AutorouteBatchLoop.java:450-543`) and simply had not fired yet | M5 (arena/SoA + deterministic parallelism) | 175 |
+
+Criterion 3 (the standing §5 zero-regression guarantee — every compare
+green, no regression on the M2/M3 faces) **MET** at the T12 close:
+corpus 5000/5000; dsn `--set all` 1,332/0; ses 20/20; ses-snap 5/5;
+index 33/33; undo 33/33; drc 17/17; events 3,520 golden rows aligned,
+exit 0; `router determinism` ×2 byte-equal with the canaries UNROTATED
+(ses `253e7b14…`, manifest `8c4a9773…`); census 1422/0/17.
+
+The CI flip was adjudicated HELD at the M4 close — both preconditions
+unmet: (a) the battery reads 8/3, not 11/11; (b) the suite wall
+(2061.2 s release ≈ 34 min) exceeds the compare step's 30-minute CI
+budget (`rust-check.yml:117`). `--report-only` stays; both
+`ci_tripwire.rs` pins are intact. Face separation (do not substitute
+vocabularies): the CI step's own router-only profile has read 11/0 in
+337.7 s since M4-T6 (`logs/M4-T6/evidence/cmp_router_t6.log`) — that
+is NOT the flip criterion; the flip is judged on the milestone's
+full-face battery, the §6 zero-regression face. M5 exit conditions for
+the flip: the full battery reads 11/11 AND its wall fits the CI
+budget; the flip commit also brings the events-compare step (java-free,
+green since M4-T6) with its own pin.
+
+Carry-forwards (every line traces to a dossier/entry): the buglog-189
+levers (a) live-process recording instrument, (b) the `getHash()`
+reproduction oracle + CLI-state diff, (c) re-derive the 181 fork
+evidence after the completion face aligns — M5; bm11/bm01 per-pass
+search cost — M5 arena/SoA + deterministic parallelism; bug-186 — port
+BOTH DSN comment faces (EOL `#` + TraditionalComment) into epic-dsn
+with the corpus-neutrality proof and a truncation-loudness companion —
+M1b-reopen; the T10-banked optimizer stop faces stay banked (not
+involved in bm11's red — verified T12); SEAM BACKLOG: the FORMAT
+tripwire + the enumeration-order pin (both wait on the `events
+id-order` capture pipeline); the keep_point sixth-field fresh-face
+candidate (the RETAINED-fields checklist,
+`epic-board/src/trace_tightener/mod.rs` `with_fresh_algo_face` doc);
+the design §6 dead-hypothesis annotations — the M3 note's "Class-B
+slicing may be the causal ancestor" cell is superseded (T2
+disconfirmed the door-slicing premise; T12 located the ancestor one
+stage earlier, the 189 completion face) and THIS note supersedes it,
+the M3 table stays as landed; M5 checklist — ExpansionDoor tag
+construction order under parallelism (`expansion/door.rs`
+`DOOR_TAG_COUNTER` single-threaded-determinism note) and T9's F3 exit
+condition (the guard-4 through-hole-pin arm closes with a crafted
+through-hole-pin fixture).
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 

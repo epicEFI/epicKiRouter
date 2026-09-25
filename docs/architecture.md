@@ -298,7 +298,8 @@ The `rust/` tree is the ground-up Rust rewrite of the routing engine
 ([design](superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md));
 the Java packages above stay the frozen parity oracle until the rewrite's
 final milestone. Crates enter this map as their milestones complete
-(M0–M3 done; commands and parity gates: [rust/README.md](../rust/README.md)).
+(M0–M4 done — M4's exit verdict pending the milestone adjudication;
+commands and parity gates: [rust/README.md](../rust/README.md)).
 
 - `rust/crates/epic-board` — arena board model: ItemId/undoable-object
   storage, item geometry, trace combine/split/normalize, and the
@@ -317,6 +318,14 @@ final milestone. Crates enter this map as their milestones complete
   counterpart of `drc`.
 - `rust/crates/epic-cli` — headless `route` command (`epicrouter -de
   board.dsn -do out.ses`) — the counterpart of the Java CLI surface.
+- `rust/harness` — differential parity + benchmark harness: the
+  java-free compare gates (geometry corpus, DSN/SES, index, undo, DRC,
+  events), the router-compare battery (router-only default + the
+  `--profile full` M4 face vs the committed Java records — Tier A
+  router-only records under `baselines/router-only/`, the M0 full-flow
+  default-settings captures under `baselines/java/`), the determinism
+  self-gate, and the CI workflow tripwire pins
+  (`src/ci_tripwire.rs`).
 
 ## How The Code Fits Together
 
