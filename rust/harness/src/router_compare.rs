@@ -1318,17 +1318,9 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
         DsnReadResult::IoError => bail!("I/O error reading {}", dsn.display()),
     }
 
-    let mut board = Board::from_ses_board(&ses);
-    let mut manager = SearchTreeManager::new();
-    manager.reinsert_tree_items(&mut board);
-    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
-
-    // The load-time violation seed (the flow's step 2b).
-    let (pre_total, _) =
-        epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
-    board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
-
-    // Settings: the same resolution chain as run_route step 3.
+    // Settings: the same resolution chain as run_route step 1b —
+    // hoisted above the board build so the override can consume the
+    // merged settings at its parse-time call point.
     let dsn_layer = DsnLayer::from_metadata(
         ses.metadata.autoroute_settings.as_ref(),
         usize::try_from(ses.metadata.layer_count).unwrap_or(0),
@@ -1337,11 +1329,25 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
     for warning in validate(&mut merged) {
         eprintln!("Warning: {warning}");
     }
-    apply_board_specific_optimizations(&mut merged, &board);
-    // The manager's load-time copper-to-edge override (Java
-    // `applyRouterSettingsForLoadedBoard` :750) — the detail pass MUST
-    // mirror the subprocess face it localizes (the buglog-189 fix).
+
+    let mut board = Board::from_ses_board(&ses);
+    let mut manager = SearchTreeManager::new();
+    manager.reinsert_tree_items(&mut board);
+    // The manager's parse-time copper-to-edge override (Java
+    // `createBoard` :346, BEFORE `Wiring.java:347` normalizeAllTraces)
+    // — the detail pass MUST mirror the subprocess face it localizes
+    // (the buglog-189 fix; the seed below reads post-override state,
+    // exactly like Java's deferred DRC at `:788-793`).
     epic_cli::route::apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+
+    // The load-time violation seed (the flow's step 2b — post-override,
+    // Java's deferred-seed state).
+    let (pre_total, _) =
+        epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
+    board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
+
+    apply_board_specific_optimizations(&mut merged, &board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
     let batch = build_batch_settings(&resolved);
 

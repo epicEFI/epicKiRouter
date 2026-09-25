@@ -720,36 +720,50 @@ const BOARD_EDGE_CLEARANCE_CLASS_NAME: &str = "board_edge";
 /// further out (bm06: north edge −911636 vs the port's −911136).
 ///
 /// Placement: Java applies this from the MANAGER load flow at two call
-/// sites — `:346` (`createBoard`, the parse-time face) and `:750`
+/// sites — `:346` (`createBoard`, fired by the DSN parser at
+/// `Structure.java:1268`, when only the default tree exists) and `:750`
 /// (`applyRouterSettingsForLoadedBoard`, the post-load face). The
-/// skip-gate (`:502`) makes the second application a no-op, so ONE
-/// post-load call reproduces the CLI's final state. It is NOT part of
-/// `DsnReader.readBoard` — the direct-read flows (every harness oracle
-/// probe, the events corpus capture: `RouteEventProbe.java:198-205`
-/// calls `DsnReader.readBoard` directly) bypass the manager and MUST
-/// NOT apply this. The port applies it at the post-load position of
-/// every flow that replicates the manager walk: [`run_route`], and the
-/// harness's in-process detail/alloc replicators.
+/// skip-gate (`:509-511`) makes the second application a no-op on the
+/// default-value path (idempotent on the non-default path: the append
+/// dedups, the set rewrites the same values, the remove/insert is
+/// stable), so ONE parse-time call reproduces the CLI's final state —
+/// and Java's EFFECTIVE ordering puts this state BEFORE everything the
+/// Rust flow does next: the wiring scope's `normalizeAllTraces`
+/// (`Wiring.java:347`), `applyBoardSpecificOptimizations` (`:749`),
+/// and the deferred pre-existing-violation seed (`:788-793`), whose
+/// background DRC reads the promoted board. The port therefore fires
+/// the call right after the default-tree fill, BEFORE
+/// `normalize_all_traces` and the seed, in every flow that replicates
+/// the manager walk: [`run_route`], and the harness's in-process
+/// detail/alloc replicators. It is NOT part of `DsnReader.readBoard` —
+/// the direct-read flows (every harness oracle probe, the events
+/// corpus capture: `RouteEventProbe.java:198-205` calls
+/// `DsnReader.readBoard` directly) bypass the manager and MUST NOT
+/// apply this. One value note: Java's `:346` face reads the job's
+/// routerSettings before the DSN layer is applied, the Rust call reads
+/// the fully merged settings — but NO settings source writes
+/// `copperToEdgeClearanceUm` in the frozen tree (only
+/// `DefaultSettings.java:155` seeds it), so the value is identical.
 ///
-/// Sequence, Java-exact (`:471-547`):
+/// Sequence, Java-exact (`:471-548`):
 /// 1. Null guards (`:471-476`) — the `Option` here; the board/rules/
 ///    matrix null guards are structural impossibilities in the port
 ///    (`BoardRules` always carries a matrix).
-/// 2. Negative µm → warn + skip (`:478-485`).
-/// 3. Outline unavailable → warn + skip (`:488-496`).
-/// 4. Skip-gate (`:501-504`): `usesDefaultEdgeClearanceValue &&
+/// 2. Negative µm → warn + skip (`:478-484`).
+/// 3. Outline unavailable → warn + skip (`:491-496`).
+/// 4. Skip-gate (`:504-511`): `usesDefaultEdgeClearanceValue &&
 ///    !usesFallbackOutlineClass` → untouched. An EXPLICIT DSN outline
 ///    class survives the default value; a fallback-class outline IS
 ///    promoted even at the default (both faces pinned below).
-/// 5. µm → board units (`:508-517`):
+/// 5. µm → board units (`:513-520`):
 ///    `round(um * max(1, resolution))`, `Unit.scale(.., UM, unit)` —
 ///    bm06: 250 µm × resolution 10 = 2500 DBU.
-/// 6. `board_edge` class: `get_no` (`:519-520`), `append_class` when
-///    absent (`:524-526`), warn+skip when still absent (`:527-533`).
+/// 6. `board_edge` class: `get_no` (`:523-524`), `append_class` when
+///    absent (`:525`), warn+skip when still absent (`:528-532`).
 /// 7. Full symmetric set for EVERY class ≥ 1 on EVERY layer
 ///    (`:534-541`) — class 0 stays at the `append_class` init value
 ///    `v(1, 0)`; the even-rounding of `set_value` applies.
-/// 8. The TARGETED reclassification (`:542-547` — the T2 spec-review
+/// 8. The TARGETED reclassification (`:541-548` — the T2 spec-review
 ///    port guidance): `remove` → `set_item_clearance_class` →
 ///    `clear_derived_data` → `insert`. NOT a bulk reinsert.
 pub fn apply_copper_to_edge_clearance_override(
@@ -894,26 +908,15 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         eprintln!("Warning: Couldn't delete the file '{}'", ses_path.display());
     }
 
-    // 2. Build the live board + the search tree, normalize the traces
-    //    (bug-131 convention: the parse's corner collapse must not leak
-    //    into the router's geometry).
-    let mut board = Board::from_ses_board(&ses);
-    let mut manager = SearchTreeManager::new();
-    manager.reinsert_tree_items(&mut board);
-    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
-
-    // 2b. The load-time violation seed (`HeadlessBoardManager.java:
-    //     788-793`: `preExistingClearanceViolationsCount =
-    //     getAllClearanceViolations().size()` before any routing —
-    //     deferred to a background thread there, synchronous here, so
-    //     the manifest's router_introduced_count subtracts the REAL
-    //     load-time face and never reads the not-yet-measured 0).
-    let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
-    board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
-
-    // 3. Resolve the settings: Default(0) -> Dsn(20) -> Cli(60), then
-    //    the merger's trailing validate() (SettingsMerger.java:189),
-    //    then the unconditional geometry pass (bug-compat fact 1).
+    // 1b. Resolve the settings: Default(0) -> Dsn(20) -> Cli(60), then
+    //     the merger's trailing validate() (SettingsMerger.java:189).
+    //     Hoisted ABOVE the board build because the copper-to-edge
+    //     override consumes the merged settings at its parse-time call
+    //     point (Java `:346`, mid-parse — the job's routerSettings
+    //     exist there). Java applies no DSN or CLI source to
+    //     `copperToEdgeClearanceUm` (only `DefaultSettings.java:155`
+    //     seeds it), so the value the override sees here equals Java's
+    //     at both of its call sites.
     let dsn_layer = DsnLayer::from_metadata(
         ses.metadata.autoroute_settings.as_ref(),
         usize::try_from(ses.metadata.layer_count).unwrap_or(0),
@@ -922,12 +925,44 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     for warning in crate::settings::validate(&mut merged) {
         eprintln!("Warning: {warning}");
     }
-    apply_board_specific_optimizations(&mut merged, &board);
-    // The manager's load-time clearance overrides (Java
-    // `applyRouterSettingsForLoadedBoard`, `:749-751`): copper-to-edge
-    // first, exactly where the CLI face applies it. (The hole-clearance
-    // override is out of scope here — see the fn's doc block.)
+
+    // 2. Build the live board + the search tree, normalize the traces
+    //    (bug-131 convention: the parse's corner collapse must not leak
+    //    into the router's geometry).
+    let mut board = Board::from_ses_board(&ses);
+    let mut manager = SearchTreeManager::new();
+    manager.reinsert_tree_items(&mut board);
+    // The manager's parse-time copper-to-edge override (Java
+    // `createBoard`, `:346` — fired by the DSN parser at
+    // `Structure.java:1268` BEFORE the wiring scope's items exist and
+    // BEFORE `Wiring.java:347` normalizeAllTraces): the outline is on
+    // the board, nothing else has consumed its class yet. The post-load
+    // second application (`:750`) is a skip-gate no-op / idempotent, so
+    // this one call carries the whole state. The hole-clearance
+    // override (`:347`/`:751`, `applyHoleClearanceOverride`) is NOT
+    // ported — no Rust caller reads `rules.hole_clearance` beyond the
+    // DSN's own parse value; porting it is its own task.
     apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+    epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+
+    // 2b. The load-time violation seed (`HeadlessBoardManager.java:
+    //     788-793`: `preExistingClearanceViolationsCount =
+    //     getAllClearanceViolations().size()` before any routing —
+    //     deferred to a background thread there, synchronous here).
+    //     Java's deferred DRC reads POST-override state (the `:346`
+    //     parse-time application long preceded it), so this seed runs
+    //     after the override above — the manifest's pre-existing vs
+    //     router-introduced split measures the promoted-outline board
+    //     exactly as Java's does.
+    let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
+    board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
+
+    // 3. The unconditional geometry pass (bug-compat fact 1; Java
+    //    `applyRouterSettingsForLoadedBoard` `:749`, which runs after
+    //    the `:346` override — the pass reads only the board's
+    //    bounds/layers and writes settings, so the two orders are
+    //    state-equivalent, but this placement mirrors Java's).
+    apply_board_specific_optimizations(&mut merged, &board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
 
     // 4. The pipeline (M4-T10, the `RoutingPipeline.run()` equivalent —
@@ -2580,6 +2615,13 @@ mod tests {
     /// `get_autoroute_tree` insert filled.
     struct WitnessObjects<'a>(&'a Board, u64);
     impl epic_index::CompleteShapeObjects for WitnessObjects<'_> {
+        // HARDCODED, and coincides with the production face for THIS
+        // world only: the pinned outline is net-less, and production
+        // (`EngineShapeView` -> `neighbours.rs` -> `Board::
+        // is_trace_obstacle_read`, board.rs) answers `true` for a
+        // net-less outline against every net. Do NOT extend this arm to
+        // worlds with net-carrying obstacles — call the production fn
+        // there.
         fn is_trace_obstacle(&self, _object_key: u64, _net_number: i32) -> bool {
             true
         }

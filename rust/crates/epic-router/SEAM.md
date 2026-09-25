@@ -1489,9 +1489,19 @@ clearance override entirely (`HeadlessBoardManager.applyCopperToEdgeClearanceOve
 `DsnReader.readBoard`, which is why every direct-read oracle probe and the events
 corpus (`RouteEventProbe.java:198-205`) legitimately bypass it). Ported as
 `epic_cli::route::apply_copper_to_edge_clearance_override` (pub; called from
-`run_route` after `apply_board_specific_optimizations` — the Java
-`applyRouterSettingsForLoadedBoard` `:749->:750` order; the second Java call site is
-a skip-gate no-op, so one post-load call reproduces the CLI state), called from BOTH
+`run_route` right after the default-tree fill and BEFORE `normalize_all_traces`,
+the violation seed, and `apply_board_specific_optimizations` — the Java EFFECTIVE
+ordering: `:346` fires inside `createBoard` (the parser reaches it at
+`Structure.java:1268`) before the wiring scope's `Wiring.java:347` normalize,
+before `:749`, and before the deferred seed's background DRC (`:788-793`) reads
+the board; the second Java call site (`:750`) is a skip-gate no-op / idempotent,
+so the one parse-time call carries the whole state. FIX ROUND 1 (commit 74728b887's
+successor) moved it there from the textual `:749->:750` position after the T3
+spec review's Finding 1 — the seed had read pre-override state — and the
+settings resolution hoisted to step 1b to feed the override its merged settings;
+`apply_board_specific_optimizations` consumes no override-mutated state (it
+reads bounds/layers, writes settings only), so its order is state-equivalent
+either way and mirrors Java's `:749`-after-`:346`), called from BOTH
 in-process flow replicators (the harness detail pass `router_compare.rs`, the T1
 alloc instrument `alloc_route.rs`) so the subprocess and in-process faces cannot
 split, and from NO direct-read path. Supporting surfaces: the live
