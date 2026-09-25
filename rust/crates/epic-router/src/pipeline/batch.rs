@@ -197,13 +197,10 @@ impl StopFace {
 
     /// Java `isStopRequested()` (`StoppableThread.java:28-30`) — the
     /// FULL stop: a driver-side [`Self::request_full`] (the max-items
-    /// face) or the shared flag (an external owner's raise). Port
-    /// residual, documented in `pipeline::full`: the port's
-    /// auto-router-only [`Self::request`] ALSO stores the shared flag
-    /// when one exists (the engines' mid-search interrupt), so a FLAGGED
-    /// face cannot distinguish external from driver raises after the
-    /// fact; production headless faces carry no flag
-    /// ([`StopFace::default`]), where this reads exactly Java's face.
+    /// face) or the shared flag (an external owner's raise). The
+    /// flagged-face residual (this port's auto-router-only raises also
+    /// store the shared flag) is documented ONCE, in `pipeline::full`'s
+    /// module docs (STOP-GATE SEMANTICS, residual 1).
     #[must_use]
     pub fn is_full_stop_requested(&self) -> bool {
         self.full_stop
@@ -1409,12 +1406,13 @@ mod tests {
         assert!(stop.is_full_stop_requested());
         // A fresh face over a raised EXTERNAL flag reads as the full
         // stop (the external raise is Java's requestStop() from another
-        // thread); a fresh UN-raised flag face reads as none.
+        // thread). The UN-raised flag face is field-for-field
+        // StopFace::default(), whose row the asserts above already
+        // cover.
         let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let stop = StopFace::from_flag(Some(flag));
         assert!(stop.is_requested());
         assert!(stop.is_full_stop_requested());
-        assert!(!StopFace::from_flag(None).is_full_stop_requested());
     }
 
     /// The pass runner's maxItems face (`AutoroutePassRunner:211-220`):

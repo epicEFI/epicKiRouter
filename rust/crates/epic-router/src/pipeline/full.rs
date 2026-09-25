@@ -282,12 +282,9 @@ pub fn run_optimization_stage(
     sink: &mut dyn DriverSink,
     transitions: &mut Vec<RoutingStage>,
 ) -> Option<OptimizerStageFaces> {
-    // Java `:122-124` — the two-gate early return; the stop face is the
-    // FULL stop only (ALL: external + max-items). The routing-side
-    // internal stops (AUTO_ROUTER_ONLY: stagnation, pass exhaustion)
-    // must NOT close it — Java's `BatchOptimizer.evaluatePreFlightGuards`
-    // does the skipping inside (T1b; the T9-era collapsed face read
-    // here falsified the "same net outcome" claim — see the module doc).
+    // Java `:122-124` — the two-gate early return (the FULL-stop face
+    // only; the two-face mapping and its residuals live in the fn doc
+    // and the module block).
     if !run_optimizer || full_stop {
         return None;
     }
@@ -458,10 +455,13 @@ mod tests {
 
     /// The pipeline pin world: fanout+router+optimizer ON, batch budget
     /// bounded (`max_passes=1`, `max_items=20`) so the world stays
-    /// cheap. NOTE the collapsed-stop consequence: the internal stop
-    /// this world raises is the FULL stop in the port's single-flag
-    /// model, so the optimizer gate closes — the stage-order pin needs
-    /// the no-stop face and uses [`Self::completed_world`] instead.
+    /// cheap. The internal stop it raises is MAX-PASSES (Java's
+    /// `requestStopAutoRouter()` AUTO_ROUTER_ONLY face,
+    /// `StoppableThread.java:33-37`) — post-T1b the optimizer gate
+    /// OPENS on it (the gate pin's max-passes world witnesses that);
+    /// the stage-order pin still uses [`Self::completed_world`] for the
+    /// clean NO-STOP face so its stage-order claim stays decoupled from
+    /// any stop face.
     fn bounded_world() -> (SearchTreeManager, Board, BatchSettings, OptimizerSettingsIr) {
         let (manager, board) = parse_fixture();
         let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
@@ -476,20 +476,17 @@ mod tests {
     /// the stop Java raises with `requestStop()` (`AutoroutePassRunner.java:211-218`)
     /// — the optimizer-stage gate must close on it.
     fn max_items_world() -> (SearchTreeManager, Board, BatchSettings, OptimizerSettingsIr) {
-        let (manager, board) = parse_fixture();
-        let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
+        let (manager, board, mut settings, optimizer) = bounded_world();
         settings.max_passes = Some(5);
         settings.max_items = Some(1);
-        let optimizer = opt_settings();
         (manager, board, settings, optimizer)
     }
 
     /// The no-stop pipeline world: the locator fixture routes to
     /// COMPLETION (the T9 suite's routed-world face — `Ok(true)`, no
-    /// stop reason), so the post-routing stop face is CLEAN and the
-    /// optimizer gate opens (Java's router-side AUTO_ROUTER_ONLY stops
-    /// would also leave it open; the port's collapsed flag requires the
-    /// router to actually finish).
+    /// stop reason), so the post-routing stop face is CLEAN (neither
+    /// stop face raised) and the optimizer gate opens — the same face
+    /// Java's `:122` gate sees with no stop requested.
     fn completed_world() -> (SearchTreeManager, Board, BatchSettings, OptimizerSettingsIr) {
         let (manager, board) = parse_fixture();
         let settings = BatchSettings::new(settings_ir(), v2_scoring());
@@ -504,7 +501,8 @@ mod tests {
     /// `[Optimization, Routing, Idle]` and dies here on the first
     /// assert. The second assert witnesses the ordering EFFECT: the
     /// optimizer ran only after the batch loop had consumed its pass
-    /// (the stage gate read the POST-routing stop face).
+    /// (the stage gate reads the post-routing FULL-stop face; this
+    /// world raises no stop at all).
     #[test]
     fn t10_stage_order_optimizer_never_precedes_routing() {
         let (mut manager, mut board, settings, optimizer) = completed_world();
@@ -654,9 +652,10 @@ mod tests {
         );
         assert!(outcome.optimizer.is_none());
         // (No `stop_after_routing` face assert here: the bounded world
-        // raises MaxItemsReached — Java's requestStop() FULL stop
-        // (AutoroutePassRunner.java:211-218) — which closes the gate in
-        // Java too; the optimizer-disabled arm has no gate to consult.)
+        // raises the MAX-PASSES stop — Java's `requestStopAutoRouter()`
+        // AUTO_ROUTER_ONLY face (`StoppableThread.java:33-37`) — whose
+        // observability face is true for unrelated-to-the-gate reasons;
+        // the optimizer-disabled arm has no gate to consult either way.)
         assert_eq!(
             outcome.stage_transitions,
             vec![RoutingStage::Routing, RoutingStage::Idle]
@@ -690,7 +689,10 @@ mod tests {
             StopFace::default(),
             &mut sink,
         );
-        assert!(outcome.stop_after_routing);
+        assert!(
+            outcome.stop_after_routing,
+            "the max-items world raises a stop mid-pass"
+        );
         assert_eq!(outcome.stop_reason, Some(StopReason::MaxItemsReached));
         assert!(
             outcome.optimizer.is_none(),
@@ -714,7 +716,10 @@ mod tests {
             StopFace::default(),
             &mut sink,
         );
-        assert!(outcome.stop_after_routing);
+        assert!(
+            outcome.stop_after_routing,
+            "the bounded world raises the max-passes stop after pass 1"
+        );
         assert_eq!(outcome.stop_reason, Some(StopReason::MaxPasses));
         assert!(
             outcome.optimizer.is_some(),
