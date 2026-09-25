@@ -8,6 +8,13 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod baseline;
+// The M5-T1 allocation-cost instrument (feature `alloc-profile` ONLY —
+// default builds cfg it out entirely and keep the std allocator, so the
+// production face is untouched; never wired into CI).
+#[cfg(feature = "alloc-profile")]
+mod alloc_profile;
+#[cfg(feature = "alloc-profile")]
+mod alloc_route;
 // THE workflow tripwire pin (M3-T17c; closes banked mutant S6): the CI
 // test step's 30-minute wall and the router-compare step's
 // `--report-only` are pinned — the exit flip or a wall move must be a
@@ -157,6 +164,21 @@ enum Command {
         #[command(subcommand)]
         cmd: route_events::EventsCommand,
     },
+    /// M5-T1 allocation-cost instrument (feature `alloc-profile`): route
+    /// ONE fixture in-process under the counting allocator. Never a
+    /// default build; never wired into CI.
+    #[cfg(feature = "alloc-profile")]
+    AllocRoute {
+        /// The fixture DSN to route (absolute path).
+        #[arg(long)]
+        dsn: PathBuf,
+        /// Where the allocator stats file is flushed (1 s watcher + final).
+        #[arg(long)]
+        stats: PathBuf,
+        /// Capture a backtrace sample every Nth allocation (0 = off).
+        #[arg(long, default_value_t = 0)]
+        sample: u64,
+    },
 }
 
 fn main() {
@@ -168,6 +190,11 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+    // The allocation instrument needs no tier file or JVM resolution.
+    #[cfg(feature = "alloc-profile")]
+    if let Command::AllocRoute { dsn, stats, sample } = cli.command {
+        return alloc_route::run(&dsn, &stats, sample);
+    }
     if let Command::Corpus { cmd } = cli.command {
         // The corpus pipeline needs no tier file or eager JVM resolution.
         return corpus::run(cmd);
@@ -222,6 +249,8 @@ fn run() -> Result<()> {
         Command::Drc { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Router { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Events { .. } => unreachable!("handled before tier/JVM resolution"),
+        #[cfg(feature = "alloc-profile")]
+        Command::AllocRoute { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {

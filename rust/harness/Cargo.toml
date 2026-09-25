@@ -26,3 +26,11 @@ sha2 = "0.10"
 
 [lints]
 workspace = true
+
+[features]
+# The M5-T1 allocation-cost instrument (measurement-only, harness-side).
+# NEVER a default build: without this feature the counting-allocator
+# static is cfg'd out entirely and the binary face is unchanged. Build:
+#   cargo build -p epic-harness --release --features alloc-profile \
+#     && (env CARGO_PROFILE_RELEASE_DEBUG=2 for backtrace-symbol faces)
+alloc-profile = []
