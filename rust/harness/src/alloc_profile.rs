@@ -14,6 +14,9 @@
 //!   [`install`] are uncounted, so a post-install free of one floors `live`
 //!   at zero rather than underflowing; the pre-install population is
 //!   process-startup scale — kilobytes — against multi-GB route churn).
+//!   The mirror asymmetry: DEALLOCS/DEALLOC_BYTES can legitimately EXCEED
+//!   ALLOCS/ALLOC_BYTES by the same pre-install population (its frees are
+//!   counted while its allocations are not) — not an inconsistency.
 //! * **The 1-second bucket histogram** — per-second allocation count +
 //!   bytes since install, the phase-attribution face (fanout → batch
 //!   passes → optimizer are aligned against the route's own stderr stage
@@ -48,17 +51,19 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-/// One-second buckets, a 6 h ring (364 MB/s of bytes would saturate u64
-/// long before the ring wraps; the saturating index drop past 6 h is
-/// documented, never a panic).
+/// One-second buckets, a 6 h ring. The u64 per-bucket counters cannot
+/// saturate in practice (at 364 MB/s that takes centuries); the operative
+/// bound is the ring itself — allocations past 6 h fall off it (the
+/// saturating index drop), never a panic.
 const BUCKETS: usize = 21_600;
 
 /// Top-N sites written into the stats file (the full map stays in memory).
 const TOP_SITES: usize = 50;
 
-/// Site-map entry cap: beyond this, further DISTINCT traces are dropped
-/// (counted in `samples_distinct_cap_drops`) rather than growing memory
-/// without bound.
+/// Site-map entry cap: once the map reaches it, samples of NEW distinct
+/// traces are dropped AND already-recorded sites stop aggregating — both
+/// counted in `SITE_CAP_DROPS` (rendered `distinct_cap_drops`) — rather
+/// than growing memory without bound.
 const SITES_CAP: usize = 50_000;
 
 static ARMED: AtomicBool = AtomicBool::new(false);
@@ -72,7 +77,6 @@ static SAMPLE_EVERY: AtomicU64 = AtomicU64::new(0);
 static SAMPLE_SEQ: AtomicU64 = AtomicU64::new(0);
 static SAMPLED_ALLOCS: AtomicU64 = AtomicU64::new(0);
 static SAMPLED_BYTES: AtomicU64 = AtomicU64::new(0);
-static SAMPLE_DROPS_IN_CAPTURE: AtomicU64 = AtomicU64::new(0);
 static SITE_CAP_DROPS: AtomicU64 = AtomicU64::new(0);
 
 static BUCKET_ALLOCS: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKETS];
@@ -81,6 +85,15 @@ static BUCKET_BYTES: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKET
 static T0: OnceLock<Instant> = OnceLock::new();
 static STATS_PATH: OnceLock<PathBuf> = OnceLock::new();
 static SITES: Mutex<Option<HashMap<String, (u64, u64)>>> = Mutex::new(None);
+/// Serializes the write-then-rename critical section of the TWO writers
+/// (the 1 s watcher thread and [`freeze`]) so their tmp-file contents
+/// cannot interleave (quality-review MINOR-2: the mutex, not
+/// thread-unique tmp names, because one tmp path strands no orphan tmp
+/// files on a kill between write and rename and the ordering it gives is
+/// trivially provable — whole critical section excluded).
+static STATS_WRITE_LOCK: Mutex<()> = Mutex::new(());
+/// One-time warning latch for the first stats-write failure (MINOR-5).
+static STATS_WRITE_WARNED: AtomicBool = AtomicBool::new(false);
 
 thread_local! {
     /// Set while the current thread runs instrument-internal work (a
@@ -96,7 +109,7 @@ static GLOBAL_ALLOC: CountingAlloc = CountingAlloc;
 
 /// The counting allocator: forwards EVERY operation to [`System`] first —
 /// counting never blocks or fails an allocation — then records.
-pub struct CountingAlloc;
+struct CountingAlloc;
 
 // GlobalAlloc is an unsafe trait; the bodies' only unsafe operations are
 // the System forwards, each in its own unsafe block (edition 2024's
@@ -186,11 +199,9 @@ impl CountingAlloc {
     }
 
     fn record_sample(&self, bytes: u64) {
-        if IN_INSTRUMENT.get() {
-            // An allocation INSIDE a capture is dropped, not recursed.
-            SAMPLE_DROPS_IN_CAPTURE.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
+        // The caller (count_alloc) has already returned when the
+        // thread-local guard is set, so this body only ever runs on an
+        // unguarded thread; the guard is set HERE around the capture.
         IN_INSTRUMENT.with(|flag| flag.set(true));
         let key = format!("{}", std::backtrace::Backtrace::force_capture());
         if let Ok(mut sites) = SITES.lock()
@@ -212,7 +223,7 @@ impl CountingAlloc {
 
 /// One instant's counter face (the delta between two snapshots is the
 /// attribution window).
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Snapshot {
     pub allocs: u64,
     pub alloc_bytes: u64,
@@ -245,8 +256,10 @@ pub fn install(stats_path: &Path, sample_every: u64) {
 }
 
 /// Unarms the instrument and writes the final stats file: everything
-/// allocated AFTER this call is uncounted, so the file preserves the
-/// route-only attribution across the post-route face walks.
+/// allocated AFTER this call is uncounted, so the file's totals are the
+/// FREEZE-TIME face — setup (parse/board/normalize/DRC seed/settings,
+/// armed since [`install`]) plus the attribution window; only the
+/// post-route face walks are excluded.
 pub fn freeze() {
     ARMED.store(false, Ordering::Relaxed);
     write_stats_file();
@@ -263,9 +276,11 @@ pub fn snapshot() -> Snapshot {
     }
 }
 
-/// Writes the stats file now (atomic tmp+rename; the 1 s watcher uses the
-/// same path, so the last writer always carries the same content).
-pub fn write_stats_file() {
+/// Writes the stats file now. Readers see only atomic tmp+rename
+/// publishes; the two potential writers (the 1 s watcher and
+/// [`freeze`]) serialize on [`STATS_WRITE_LOCK`] so their tmp
+/// write-then-rename critical sections cannot interleave (MINOR-2).
+fn write_stats_file() {
     let Some(path) = STATS_PATH.get() else {
         return;
     };
@@ -273,11 +288,22 @@ pub fn write_stats_file() {
         return;
     }
     IN_INSTRUMENT.with(|flag| flag.set(true));
+    let _guard = STATS_WRITE_LOCK.lock();
     let text = render_stats();
     let tmp = PathBuf::from(format!("{}.tmp", path.display()));
     if std::fs::write(&tmp, text).is_ok() {
         let _ = std::fs::rename(&tmp, path);
+    } else if !STATS_WRITE_WARNED.swap(true, Ordering::Relaxed) {
+        // One-time visibility for the silent-failure case (a typo'd
+        // --stats parent dir being the obvious cause); the watcher
+        // stays infallible by design (MINOR-5).
+        eprintln!(
+            "alloc-profile WARNING: stats write to {} failed — no stats file will be \
+             produced (further failures suppressed)",
+            path.display()
+        );
     }
+    drop(_guard);
     IN_INSTRUMENT.with(|flag| flag.set(false));
 }
 
@@ -304,11 +330,10 @@ fn render_stats() -> String {
     let _ = writeln!(
         out,
         "\"sampling\": {{\"every\": {}, \"sampled_allocs\": {}, \"sampled_bytes\": {}, \
-         \"drops_in_capture\": {}, \"distinct_cap_drops\": {}}},",
+         \"distinct_cap_drops\": {}}},",
         SAMPLE_EVERY.load(Ordering::Relaxed),
         SAMPLED_ALLOCS.load(Ordering::Relaxed),
         SAMPLED_BYTES.load(Ordering::Relaxed),
-        SAMPLE_DROPS_IN_CAPTURE.load(Ordering::Relaxed),
         SITE_CAP_DROPS.load(Ordering::Relaxed),
     );
     // Nonzero buckets only: [second, allocs, bytes].

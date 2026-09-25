@@ -4,18 +4,22 @@
 //! Routes ONE fixture IN-PROCESS through the SAME construction the
 //! battery's `epic-cli route` subprocess runs (the documented
 //! detail-pass construction: parse → board → search tree → normalize →
-//! DRC seed → the settings resolution chain → `BatchDriver::run`), under
+//! DRC seed → the settings resolution chain → `BatchDriver`), under
 //! the counting allocator armed by [`alloc_profile::install`]. The
-//! attribution window is the `BatchDriver::run` call alone: the snapshot
-//! pair brackets exactly the route, so parse/normalize/settings/face-walk
-//! allocations are excluded and the totals are route-only.
+//! attribution window is **driver construction + run + drop** (the
+//! snapshot pair brackets `CliDriverSink::default()` + `BatchDriver::new`,
+//! the `BatchDriver::run` call, and the driver drop): parse/normalize/
+//! settings allocations fall BEFORE the window and the post-route face
+//! walks fall after it.
 //!
 //! NO session file is written (the scratch `-do` path exists only so
 //! `parse_route_args` sees a complete argv face, exactly like the detail
 //! pass). The route's completion face (incomplete/violation totals) is
 //! computed AFTER [`alloc_profile::freeze`] — its allocations are outside
-//! the attribution window and the stats file preserves the route-only
-//! totals.
+//! the window, so the stats file's totals are the freeze-time face
+//! (setup + window; the post-route walks are excluded). The RESULT
+//! stderr line is the WINDOW-ONLY face (the deltas between the two
+//! snapshots).
 //!
 //! External timeout discipline (the standing rule): the CALLER bounds the
 //! run (`timeout <tiers timeout>`) — the instrument adds no deadline of
@@ -101,7 +105,9 @@ pub fn run(dsn: &Path, stats: &Path, sample: u64) -> Result<()> {
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
     let batch = build_batch_settings(&resolved);
 
-    // THE ATTRIBUTION WINDOW: the BatchDriver::run call alone.
+    // THE ATTRIBUTION WINDOW: driver construction + run + drop (the
+    // snapshot pair brackets CliDriverSink + BatchDriver::new, the
+    // BatchDriver::run call, and the driver drop).
     let before = alloc_profile::snapshot();
     let route_started = Instant::now();
     let mut sink = CliDriverSink::default();
@@ -110,11 +116,12 @@ pub fn run(dsn: &Path, stats: &Path, sample: u64) -> Result<()> {
     drop(driver);
     let route_wall = route_started.elapsed();
     let after = alloc_profile::snapshot();
-    // Freeze BEFORE the face walks: the file keeps the route-only totals.
+    // Freeze BEFORE the face walks: the stats file's totals are the
+    // freeze-time face (setup + window; the post-route walks excluded).
     alloc_profile::freeze();
 
     eprintln!(
-        "alloc-route RESULT window=BatchDriver::run wall={:.3}s allocs={} alloc_bytes={} live_at_exit={} peak_live={}",
+        "alloc-route RESULT window=driver construction + run + drop wall={:.3}s allocs={} alloc_bytes={} live_at_exit={} peak_live={}",
         route_wall.as_secs_f64(),
         after.allocs - before.allocs,
         after.alloc_bytes - before.alloc_bytes,
