@@ -1501,11 +1501,11 @@ spec review's Finding 1 — the seed had read pre-override state — and the
 settings resolution hoisted to step 1b to feed the override its merged settings;
 `apply_board_specific_optimizations` consumes no override-mutated state (it
 reads bounds/layers, writes settings only), so its order is state-equivalent
-either way and mirrors Java's `:749`-after-`:346`), called from BOTH
+either way and mirrors Java's `:749`-after-`:346`, called from BOTH
 in-process flow replicators (the harness detail pass `router_compare.rs`, the T1
 alloc instrument `alloc_route.rs`) so the subprocess and in-process faces cannot
-split, and from NO direct-read path. Supporting surfaces: the live
-`ClearanceMatrix::append_class` (Java `:281-325` port — new row/col init from
+split, and from NO direct-read path). Supporting surfaces: the live
+`ClearanceMatrix::append_class` (Java `:281-322` port — new row/col init from
 class 1 per layer, class 0 included, diagonal `v(1,1)`, maxima never lowered),
 `MergedSettings.copper_to_edge_clearance_um = Some(250.0)`
 (`DefaultSettings.java:83/:155`; no DSN/CLI source writes it in the frozen tree).

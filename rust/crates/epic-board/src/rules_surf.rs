@@ -282,7 +282,7 @@ impl ClearanceMatrix {
         }
     }
 
-    /// Java `appendClass(String)` (`:281-325`): appends a new class and
+    /// Java `appendClass(String)` (`:281-322`): appends a new class and
     /// initializes every new entry on EVERY layer from class 1 —
     /// `(new, i)` and `(i, new)` from `getValue(1, i, layer)` (class 0
     /// included), the diagonal `(new, new)` from `getValue(1, 1,

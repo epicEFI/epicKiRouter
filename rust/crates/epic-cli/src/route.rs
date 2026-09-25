@@ -709,7 +709,10 @@ fn filename_without_extension(filename: &str) -> &str {
 const BOARD_EDGE_CLEARANCE_CLASS_NAME: &str = "board_edge";
 
 /// Java `HeadlessBoardManager.applyCopperToEdgeClearanceOverride`
-/// (`HeadlessBoardManager.java:470-551`). The load-time settings
+/// (`HeadlessBoardManager.java:470-556`, ported body `:471-548`; the
+/// trailing `FRLogger.debug` success log at `:550-555` is deliberately
+/// omitted — the port has no debug-logging surface here). The load-time
+/// settings
 /// behavior the port lacked ENTIRELY — the buglog-189 root cause
 /// (M5-T2): on every manager DSN load whose outline sits at the
 /// fallback default-area clearance class, the CLI promotes the outline
@@ -761,7 +764,7 @@ const BOARD_EDGE_CLEARANCE_CLASS_NAME: &str = "board_edge";
 /// 6. `board_edge` class: `get_no` (`:523-524`), `append_class` when
 ///    absent (`:525`), warn+skip when still absent (`:528-532`).
 /// 7. Full symmetric set for EVERY class ≥ 1 on EVERY layer
-///    (`:534-541`) — class 0 stays at the `append_class` init value
+///    (`:534-539`) — class 0 stays at the `append_class` init value
 ///    `v(1, 0)`; the even-rounding of `set_value` applies.
 /// 8. The TARGETED reclassification (`:541-548` — the T2 spec-review
 ///    port guidance): `remove` → `set_item_clearance_class` →
@@ -781,7 +784,7 @@ pub fn apply_copper_to_edge_clearance_override(
         return;
     }
     // Java's `board.rules == null || rules.clearanceMatrix == null`
-    // guards (`:480-486`) are structural impossibilities here.
+    // guards (`:485-489`) are structural impossibilities here.
     let Some(outline_id) = board
         .iter_descending()
         .find(|entry| matches!(entry.data, ItemData::BoardOutline { .. }))
@@ -799,7 +802,7 @@ pub fn apply_copper_to_edge_clearance_override(
     let uses_default_edge_clearance_value =
         (configured_clearance_um - DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM).abs() < 1e-9;
     // Keep explicit DSN outline-clearance classes untouched when only
-    // the global default is active (Java `:501-504`).
+    // the global default is active (Java `:504-511`).
     if uses_default_edge_clearance_value && !uses_fallback_outline_class {
         return;
     }
@@ -822,7 +825,7 @@ pub fn apply_copper_to_edge_clearance_override(
         return;
     }
     // The full symmetric set: EVERY class >= 1 on EVERY layer, BOTH
-    // directions (Java `:534-541`). Class 0 stays at the `append_class`
+    // directions (Java `:534-539`). Class 0 stays at the `append_class`
     // init value `v(1, 0)` — Java's loop starts at class 1.
     for layer in 0..matrix.layer_count() as i32 {
         for class_no in 1..matrix.class_count() as i32 {
@@ -840,7 +843,7 @@ pub fn apply_copper_to_edge_clearance_override(
             );
         }
     }
-    // The TARGETED reclassification (Java `:542-547`, the T2 spec-review
+    // The TARGETED reclassification (Java `:541-548`, the T2 spec-review
     // port guidance): remove the outline from every live tree, reclass
     // it, clear its derived caches, reinsert. NOT a bulk reinsert.
     manager.remove(board, outline_id);
@@ -2494,15 +2497,16 @@ mod tests {
     // band edges (cerebrum 16): the class-1 outline leaf's north edge is
     // -911136 BEFORE the override (the T12 direct-read face) and
     // -911636 AFTER (the Java CLI face); both pinned as LITERALS at the
-    // exact-boundary world, with the +/-1 faces mutation-verified (the
-    // report's mutation table). The witness drives the REAL 45-degree
+    // exact-boundary world, with the +/-1 faces mutation-verified — the
+    // durable mutation record lives in SEAM.md's T3 dossier and buglog
+    // 189. The witness drives the REAL 45-degree
     // completion (epic-index complete_shape) over the REAL class-1
     // compensated outline shapes with T2's exact fork-row input.
     // -------------------------------------------------------------------
 
     /// The bm06-faithful minimal world — bm06's OWN boundary path
     /// (scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm06.dsn
-    /// lines 27-30), so the parse stays at scale factor 10 (bm06's
+    /// lines 23-25), so the parse stays at scale factor 10 (bm06's
     /// raw coordinates are far under the `calc_scale_factor` overflow
     /// shrink, 5 x |coor| x resolution vs CRIT_INT 2^25) and the north
     /// edge centerline lands at exactly -910036 DBU. `(rule
