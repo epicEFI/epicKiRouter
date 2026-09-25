@@ -5,8 +5,10 @@ import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.matcher.ElementMatchers;
 
 /**
- * SCRATCH (M5-T2, never committed from here): a premain javaagent that lands the buglog-189
- * recording instrument INSIDE the real CLI process. The recording form is the M4-T12
+ * M5-T2 (buglog 189 lever (a)): a premain javaagent that lands the buglog-189
+ * recording instrument INSIDE the real CLI process. These SOURCES are committed here;
+ * the BUILT FAT JAR stays uncommitted (build it from this tree per README.md into
+ * logs/, which is git-ignored). The recording form is the M4-T12
  * instrument_T12RecordingTree45 subclass form ported to an in-place class transform: the CLI
  * constructs its class-1 autoroute tree as a hardcoded {@code new ShapeSearchTree45Degree(board, 1)}
  * (SearchTreeManager.java:154) and the base ShapeSearchTree constructor is package-private, so an
