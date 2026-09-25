@@ -4,8 +4,10 @@ Rust rewrite of the Freerouting autorouter (design:
 `docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`).
 The Java tree under `src/` stays untouched as the parity oracle.
 
-Status: M0–M4 complete (M4's exit verdict pending the milestone
-adjudication) — scaffold + golden baselines, geometry kernel,
+Status: M0–M4 complete (M4 exited M4_EXIT_WITH_DEVIATIONS —
+criterion 2's three full-face battery reds owned by M5 / M1b-reopen;
+design §6 M4 exit note) — scaffold + golden baselines, geometry
+kernel,
 DSN/SES I/O, arena board model, incremental spatial index, the
 detail-routing core (`epic-router`: expansion → maze → ripup/shove →
 locator → forced insertion → batch driver), `epic-drc` (incompletes +

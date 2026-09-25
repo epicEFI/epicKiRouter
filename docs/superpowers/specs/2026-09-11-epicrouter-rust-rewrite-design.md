@@ -173,10 +173,8 @@ of CI until the same flip commit brings it with its own pin. M5 flip
 conditions: full battery 11/11 AND wall under budget. The M4 exit note
 below carries the full record.)
 
-M4 exit note (T13, drafted 2026-09-24 at tree `e6956b345`; the verdict
-token is left to the milestone adjudication — the fresh reviewer
-produces it and the final one-line edit lands per its authority):
-**VERDICT: <per milestone adjudication>**
+M4 exit note (T13, adjudicated 2026-09-24 at tree `6a0dbd00b`):
+**M4_EXIT_WITH_DEVIATIONS**, adjudicated on this row's own faces.
 Criterion 1 (the full pipeline runs — fanout + detail router +
 optimizer assembled end-to-end) **MET**: `pipeline/full.rs` mirrors
 `RoutingPipeline.run()` (M4-T10), the router-compare `--profile full`
@@ -238,7 +236,9 @@ the M3 table stays as landed; M5 checklist — ExpansionDoor tag
 construction order under parallelism (`expansion/door.rs`
 `DOOR_TAG_COUNTER` single-threaded-determinism note) and T9's F3 exit
 condition (the guard-4 through-hole-pin arm closes with a crafted
-through-hole-pin fixture).
+through-hole-pin fixture); the T2 BACKLOG pair on the same file (the
+unpinned `getSectionSegments` EMPTY door-shape and both-complete-NULL
+arms, SEAM :728) pins at that door.rs edit.
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 

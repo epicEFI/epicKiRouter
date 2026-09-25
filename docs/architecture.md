@@ -298,7 +298,9 @@ The `rust/` tree is the ground-up Rust rewrite of the routing engine
 ([design](superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md));
 the Java packages above stay the frozen parity oracle until the rewrite's
 final milestone. Crates enter this map as their milestones complete
-(M0–M4 done — M4's exit verdict pending the milestone adjudication;
+(M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS: criterion 2's
+three full-face battery reds are owned by M5 (buglog 175/181/189)
+and M1b-reopen (bug-186); design §6 M4 exit note;
 commands and parity gates: [rust/README.md](../rust/README.md)).
 
 - `rust/crates/epic-board` — arena board model: ItemId/undoable-object
