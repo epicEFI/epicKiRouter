@@ -1343,7 +1343,9 @@ LEAF-IDENTICAL AS A MULTISET (20 rows in the query box; the dumps' ROW
 ORDER differs and the Java side carries a `total_leaves` line, so the
 files are not byte-identical; all 8 octagon fields equal) — and the
 Java side was dumped from the direct-read construction whose board hash
-is `4207fa7f…`, a THIRD state distinct from the cliflow replication
+is `4207fa7f…` (reproduced at HEAD `88fac5944`:
+`evidence/instrument_directread_hash.out` — hash-neutral to the tree
+reinsert), a THIRD state distinct from the cliflow replication
 (`202d1017…`) and the CLI (`b84a773a…`): leaf-identity binds Rust vs
 direct-read only, and tree identity against the CLI's live process
 remains unproven — exactly what M5 lever (a) must observe; (2) Java's
@@ -1372,15 +1374,20 @@ exists), DSN `autoroute_settings` (absent). The one instrument that
 would close it — a recording `ShapeSearchTree45Degree` subclass
 injected into the LIVE CLI process to read the engine's actual
 completeShape inputs — did not land inside the task budget (jshell/
-session-API friction), and the only remaining route (a jar rebuilt with
-traces at the restrain sites) is FORBIDDEN by the oracle freeze.
+session-API friction; the attempted subclass form is preserved at
+`evidence/instrument_T12RecordingTree45.java.txt`), and the only
+remaining route (a jar rebuilt with traces at the restrain sites) is
+FORBIDDEN by the oracle freeze.
 
 **The mechanism and the reachable oracle (spec-review MINOR-3, the
 reviewer's derivation from the T12 artifacts):** the reconstruction's
 completed north face −911136 EQUALS the compensated BoardOutline band's
-inner edge (outline leaf bbox ly=−911136; centerline −910036; the
-values dump: outline class 1 × tree class 1 comp=1000, val=2000 = the
-DSN's 200 µm default at resolution 10), no other obstacle sits near the
+inner edge (outline leaf bbox ly=−911136, both leaf dumps; centerline
+−910036 = `scratch/java_fanoutonly/java-trace.log:31`, the BoardOutline
+ITEM_ACTIVITY INSERT row's bounds y2; calibration values:
+`evidence/rust_values_dump.out` — outline class 1 × tree class 1
+comp=1000, val=2000 = the DSN's 200 µm default at resolution 10), no
+other obstacle sits near the
 north band in the query box, and the CLI's face is exactly −911636 = one
 500-DBU clearance quantum further south — so the CLI's north-band
 restraint source (the outline band, or a CLI-only item on it) is 500 DBU
