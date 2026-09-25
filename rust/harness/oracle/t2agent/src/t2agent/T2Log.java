@@ -26,7 +26,6 @@ public final class T2Log {
   static final Object LOCK = new Object();
   static volatile int rowCounter = 0;
   static volatile int dumpCount = 0;
-  static volatile boolean installed = false;
 
   // ---------------------------------------------------------------------------
   // Instrument options: the ONE home for every fork-tunable (the T3 surface).

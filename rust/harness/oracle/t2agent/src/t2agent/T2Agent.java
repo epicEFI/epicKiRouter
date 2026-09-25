@@ -30,6 +30,9 @@ public class T2Agent {
               ElementMatchers.named("app.freerouting.board.searchtree.ShapeSearchTree45Degree")
                   .or(
                       ElementMatchers.named(
+                          "app.freerouting.board.searchtree.ShapeSearchTree90Degree"))
+                  .or(
+                      ElementMatchers.named(
                           "app.freerouting.board.searchtree.ShapeSearchTree")))
           .transform(
               (builder, typeDescription, classLoader, module, protectionDomain) ->

@@ -14,8 +14,8 @@ import java.lang.reflect.Field;
  * M5-T2 (buglog 189 lever (a); SOURCES COMMITTED at rust/harness/oracle/t2agent/ - the BUILT
  * FAT JAR is the uncommitted part, built per README.md): the fork-row north-band dump. Read-only: reflectively reads the tree's root,
  * walks the node graph, and prints each band leaf's stored tree shape (the EXACT face
- * completeShape sees), the outline's RAW shape beside it, and the clearance-matrix band rows.
- * Tied to board.getHash() so the dump names its board state.
+ * completeShape sees) and the clearance-matrix band rows. Tied to board.getHash() so the
+ * dump names its board state.
  */
 public final class T2Dump {
 
