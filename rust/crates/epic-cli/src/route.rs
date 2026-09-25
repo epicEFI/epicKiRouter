@@ -37,6 +37,7 @@ use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
 use epic_dsn::ses_board::{ItemIr, SesBoard};
 use epic_dsn::sink::{FixedStateIr, TraceIr, ViaIr};
+use epic_dsn::state::Unit as DsnUnit;
 use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::rounding::java_round;
@@ -49,8 +50,8 @@ use serde::Serialize;
 use sha2::Digest;
 
 use crate::settings::{
-    DsnLayer, MergedSettings, ParsedRouteArgs, ResolvedRouteSettings,
-    apply_board_specific_optimizations, merge,
+    DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM, DsnLayer, MergedSettings, ParsedRouteArgs,
+    ResolvedRouteSettings, apply_board_specific_optimizations, merge,
 };
 
 // ---------------------------------------------------------------------------
@@ -704,6 +705,136 @@ fn filename_without_extension(filename: &str) -> &str {
 // the flow
 // ---------------------------------------------------------------------------
 
+/// Java `HeadlessBoardManager.BOARD_EDGE_CLEARANCE_CLASS_NAME` (`:88`).
+const BOARD_EDGE_CLEARANCE_CLASS_NAME: &str = "board_edge";
+
+/// Java `HeadlessBoardManager.applyCopperToEdgeClearanceOverride`
+/// (`HeadlessBoardManager.java:470-551`). The load-time settings
+/// behavior the port lacked ENTIRELY — the buglog-189 root cause
+/// (M5-T2): on every manager DSN load whose outline sits at the
+/// fallback default-area clearance class, the CLI promotes the outline
+/// item to the appended `board_edge` class at 2500 DBU, so the class-1
+/// autoroute tree's outline leaf grows
+/// `halfWidth + (2500 − compValue(1,0))` = 1600 instead of 1100 and
+/// the first fanout search's start-room completion lands 500 DBU
+/// further out (bm06: north edge −911636 vs the port's −911136).
+///
+/// Placement: Java applies this from the MANAGER load flow at two call
+/// sites — `:346` (`createBoard`, the parse-time face) and `:750`
+/// (`applyRouterSettingsForLoadedBoard`, the post-load face). The
+/// skip-gate (`:502`) makes the second application a no-op, so ONE
+/// post-load call reproduces the CLI's final state. It is NOT part of
+/// `DsnReader.readBoard` — the direct-read flows (every harness oracle
+/// probe, the events corpus capture: `RouteEventProbe.java:198-205`
+/// calls `DsnReader.readBoard` directly) bypass the manager and MUST
+/// NOT apply this. The port applies it at the post-load position of
+/// every flow that replicates the manager walk: [`run_route`], and the
+/// harness's in-process detail/alloc replicators.
+///
+/// Sequence, Java-exact (`:471-547`):
+/// 1. Null guards (`:471-476`) — the `Option` here; the board/rules/
+///    matrix null guards are structural impossibilities in the port
+///    (`BoardRules` always carries a matrix).
+/// 2. Negative µm → warn + skip (`:478-485`).
+/// 3. Outline unavailable → warn + skip (`:488-496`).
+/// 4. Skip-gate (`:501-504`): `usesDefaultEdgeClearanceValue &&
+///    !usesFallbackOutlineClass` → untouched. An EXPLICIT DSN outline
+///    class survives the default value; a fallback-class outline IS
+///    promoted even at the default (both faces pinned below).
+/// 5. µm → board units (`:508-517`):
+///    `round(um * max(1, resolution))`, `Unit.scale(.., UM, unit)` —
+///    bm06: 250 µm × resolution 10 = 2500 DBU.
+/// 6. `board_edge` class: `get_no` (`:519-520`), `append_class` when
+///    absent (`:524-526`), warn+skip when still absent (`:527-533`).
+/// 7. Full symmetric set for EVERY class ≥ 1 on EVERY layer
+///    (`:534-541`) — class 0 stays at the `append_class` init value
+///    `v(1, 0)`; the even-rounding of `set_value` applies.
+/// 8. The TARGETED reclassification (`:542-547` — the T2 spec-review
+///    port guidance): `remove` → `set_item_clearance_class` →
+///    `clear_derived_data` → `insert`. NOT a bulk reinsert.
+pub fn apply_copper_to_edge_clearance_override(
+    settings: &MergedSettings,
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+) {
+    let Some(configured_clearance_um) = settings.copper_to_edge_clearance_um else {
+        return; // Java `:471-476`.
+    };
+    if configured_clearance_um < 0.0 {
+        eprintln!(
+            "Warning: Ignoring router.copper_to_edge_clearance_um because it is negative: {configured_clearance_um}"
+        );
+        return;
+    }
+    // Java's `board.rules == null || rules.clearanceMatrix == null`
+    // guards (`:480-486`) are structural impossibilities here.
+    let Some(outline_id) = board
+        .iter_descending()
+        .find(|entry| matches!(entry.data, ItemData::BoardOutline { .. }))
+        .map(|entry| entry.id)
+    else {
+        eprintln!(
+            "Warning: Ignoring router.copper_to_edge_clearance_um because the board outline is unavailable."
+        );
+        return;
+    };
+    let default_area_class_no =
+        board.rules().default_item_clearance_classes[epic_dsn::sink::ItemClassIr::Area as usize];
+    let uses_fallback_outline_class =
+        board.item_clearance_class(outline_id) == Some(default_area_class_no);
+    let uses_default_edge_clearance_value =
+        (configured_clearance_um - DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM).abs() < 1e-9;
+    // Keep explicit DSN outline-clearance classes untouched when only
+    // the global default is active (Java `:501-504`).
+    if uses_default_edge_clearance_value && !uses_fallback_outline_class {
+        return;
+    }
+    let board_resolution = board.communication().resolution.max(1);
+    let configured_clearance_board_units = java_round(DsnUnit::scale(
+        configured_clearance_um * f64::from(board_resolution),
+        DsnUnit::Um,
+        board.communication().unit,
+    )) as i32;
+    let matrix = &mut board.rules_mut().clearance;
+    let mut board_edge_class_no = matrix.get_no(BOARD_EDGE_CLEARANCE_CLASS_NAME);
+    if board_edge_class_no < 0 {
+        matrix.append_class(BOARD_EDGE_CLEARANCE_CLASS_NAME);
+        board_edge_class_no = matrix.get_no(BOARD_EDGE_CLEARANCE_CLASS_NAME);
+    }
+    if board_edge_class_no < 0 {
+        eprintln!(
+            "Warning: Unable to create/find the board_edge clearance class for copper-to-edge override."
+        );
+        return;
+    }
+    // The full symmetric set: EVERY class >= 1 on EVERY layer, BOTH
+    // directions (Java `:534-541`). Class 0 stays at the `append_class`
+    // init value `v(1, 0)` — Java's loop starts at class 1.
+    for layer in 0..matrix.layer_count() as i32 {
+        for class_no in 1..matrix.class_count() as i32 {
+            matrix.set_value(
+                board_edge_class_no,
+                class_no,
+                layer,
+                configured_clearance_board_units,
+            );
+            matrix.set_value(
+                class_no,
+                board_edge_class_no,
+                layer,
+                configured_clearance_board_units,
+            );
+        }
+    }
+    // The TARGETED reclassification (Java `:542-547`, the T2 spec-review
+    // port guidance): remove the outline from every live tree, reclass
+    // it, clear its derived caches, reinsert. NOT a bulk reinsert.
+    manager.remove(board, outline_id);
+    board.set_item_clearance_class(outline_id, board_edge_class_no);
+    board.clear_derived_data(outline_id);
+    manager.insert(board, outline_id);
+}
+
 /// The whole `route` run: returns the PROCESS EXIT CODE. Parse warnings
 /// and driver rows echo to stderr; the SES file and (optionally) the
 /// manifest land on disk. The caller (`main`) guarantees
@@ -792,6 +923,11 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         eprintln!("Warning: {warning}");
     }
     apply_board_specific_optimizations(&mut merged, &board);
+    // The manager's load-time clearance overrides (Java
+    // `applyRouterSettingsForLoadedBoard`, `:749-751`): copper-to-edge
+    // first, exactly where the CLI face applies it. (The hole-clearance
+    // override is out of scope here — see the fn's doc block.)
+    apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
 
     // 4. The pipeline (M4-T10, the `RoutingPipeline.run()` equivalent —
@@ -926,10 +1062,12 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
 mod tests {
     use super::*;
     use crate::settings::parse_route_args;
+    use epic_board::id::ItemId;
     use epic_dsn::coordinate_transform::CoordinateTransform;
     use epic_dsn::layer_structure::{Layer, LayerStructure};
     use epic_dsn::sink::{BoardRulesIr, BoardSink, CreateBoardIr};
     use epic_geometry::int_box::IntBox;
+    use epic_geometry::tile_shape::TileShape;
     use epic_router::pipeline::batch::BatchDriver;
 
     /// The final-state mapping (module-docs rule): run-finished ->
@@ -2314,6 +2452,361 @@ mod tests {
             stats.bounds.min_bend_count,
             Some(15),
             "the routed board keeps the load-time bounds capture"
+        );
+    }
+    // -------------------------------------------------------------------
+    // The copper-to-edge override pins (M5-T3, buglog 189). The measured
+    // band edges (cerebrum 16): the class-1 outline leaf's north edge is
+    // -911136 BEFORE the override (the T12 direct-read face) and
+    // -911636 AFTER (the Java CLI face); both pinned as LITERALS at the
+    // exact-boundary world, with the +/-1 faces mutation-verified (the
+    // report's mutation table). The witness drives the REAL 45-degree
+    // completion (epic-index complete_shape) over the REAL class-1
+    // compensated outline shapes with T2's exact fork-row input.
+    // -------------------------------------------------------------------
+
+    /// The bm06-faithful minimal world — bm06's OWN boundary path
+    /// (scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm06.dsn
+    /// lines 27-30), so the parse stays at scale factor 10 (bm06's
+    /// raw coordinates are far under the `calc_scale_factor` overflow
+    /// shrink, 5 x |coor| x resolution vs CRIT_INT 2^25) and the north
+    /// edge centerline lands at exactly -910036 DBU. `(rule
+    /// (clearance 200))` -> v(1,1) = 2000; the outline half width is
+    /// the `outline::half_width()` constant 100; no DSN outline
+    /// clearance class -> the outline sits at the fallback AREA class,
+    /// so the CLI override fires at the 250 um default.
+    const COPPER_WORLD_DSN: &str = r#"(pcb t3-copper-world.dsn
+  (parser
+    (string_quote ')
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (rule (clearance 200))
+    (boundary
+      (path pcb 0  176001 -119004  121001 -119004  121001 -91003.6  176001 -91003.6
+            176001 -119004)
+    )
+  )
+)
+"#;
+
+    /// The skip-gate contrast world: SAME geometry, plus an EXPLICIT
+    /// boundary `(clearance_class edge)` — the outline leaves the
+    /// fallback class, so the default-value override must NOT fire.
+    const COPPER_WORLD_EXPLICIT_EDGE_DSN: &str = r#"(pcb t3-copper-world-edge.dsn
+  (parser
+    (string_quote ')
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (rule (clearance 200))
+    (boundary
+      (path pcb 0  176001 -119004  121001 -119004  121001 -91003.6  176001 -91003.6
+            176001 -119004)
+      (clearance_class edge)
+    )
+  )
+)
+"#;
+
+    /// Parses a copper world into the post-load board + manager +
+    /// outline id (the CLI load walk minus the override: read_board ->
+    /// from_ses_board -> reinsert_tree_items -> normalize).
+    fn copper_world_from(dsn: &'static str) -> (SearchTreeManager, Board, ItemId) {
+        let mut ses = SesBoard::new();
+        match read_board(dsn.as_bytes(), &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("copper world parse failed: {other:?}"),
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        let outline = board
+            .iter_descending()
+            .find(|entry| matches!(entry.data, ItemData::BoardOutline { .. }))
+            .map(|entry| entry.id)
+            .expect("the world carries an outline");
+        (manager, board, outline)
+    }
+
+    fn copper_world() -> (SearchTreeManager, Board, ItemId) {
+        copper_world_from(COPPER_WORLD_DSN)
+    }
+
+    /// The class-1 45-degree compensated outline tiles (the shapes the
+    /// autoroute tree inserts and the completion restrains against),
+    /// one per layer.
+    fn class1_outline_tiles(board: &mut Board, outline: ItemId) -> Vec<Option<TileShape>> {
+        epic_board::tree_shapes::item_tree_shapes(
+            board,
+            epic_index::search_tree::SearchTreeVariant::FortyfiveDegree,
+            1,
+            outline,
+        )
+    }
+
+    /// The outline's class-1 NORTH leaf face: the inner (south) face
+    /// of the north-edge segment's tile = max over tiles of ll.y (y
+    /// grows upward; the north tile's lower face is the room's north
+    /// restraint). This is the quantity buglog 189 measured: -911136
+    /// pre-override, -911636 post.
+    fn north_leaf_face(board: &mut Board, outline: ItemId) -> i32 {
+        class1_outline_tiles(board, outline)
+            .iter()
+            .map(|tile| {
+                tile.clone()
+                    .expect("a tile per segment")
+                    .bounding_box()
+                    .ll
+                    .y
+            })
+            .max()
+            .expect("the outline carries tiles")
+    }
+
+    /// The completion objects view for the witness — the PRODUCTION
+    /// accessors (`EngineShapeView`'s item arm): the outline is a
+    /// trace obstacle for every net (its nets list is empty), the
+    /// shapes/layers come from the board's per-tree shape cache the
+    /// `get_autoroute_tree` insert filled.
+    struct WitnessObjects<'a>(&'a Board, u64);
+    impl epic_index::CompleteShapeObjects for WitnessObjects<'_> {
+        fn is_trace_obstacle(&self, _object_key: u64, _net_number: i32) -> bool {
+            true
+        }
+        fn shape_layer(&self, object_key: u64, shape_index: u32) -> i32 {
+            let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
+            self.0
+                .item_shape_layer_read(id, shape_index as i32)
+                .expect("live tree shapes carry a layer")
+        }
+        fn tree_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {
+            let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
+            self.0
+                .tree_shape_precalc_peek(id, self.1)
+                .and_then(|shapes| shapes.get(shape_index as usize).cloned().flatten())
+        }
+        fn is_complete_free_space(&self, _object_key: u64) -> bool {
+            false
+        }
+    }
+
+    /// The north-face runner: builds the class-1 45-degree tree the way
+    /// the engine's lazy build does (get_autoroute_tree), then drives
+    /// the REAL completion with T2's exact fork-row input and returns
+    /// the north face (max uy over the completed rooms).
+    fn completion_north_face(manager: &mut SearchTreeManager, board: &mut Board) -> i32 {
+        let tree_index = manager.get_autoroute_tree(board, 1);
+        let tree_object_id = manager.trees()[tree_index].object_id();
+        let objects = WitnessObjects(board, tree_object_id);
+        let tree = &manager.trees()[tree_index];
+        // T2's fork-row input (logs/M5-T2/evidence/
+        // instrument_agent_rows_run1.log row 2): the first fanout
+        // search's start-room completion, pin U9-1, net 21, layer 0.
+        let oct_tile = |o: epic_geometry::int_octagon::IntOctagon| {
+            TileShape::RegularTileShape(
+                epic_geometry::regular_tile_shape::RegularTileShape::IntOctagon(o),
+            )
+        };
+        let in_shape = oct_tile(TileShape::from_8_ints(
+            -33_554_432,
+            -1_019_136,
+            1_376_811,
+            33_554_432,
+            -33_554_432,
+            2_395_947,
+            -33_554_432,
+            33_554_432,
+        ));
+        let contained = oct_tile(TileShape::from_8_ints(
+            1_371_811, -1_016_636, 1_371_811, -1_016_636, 2_388_447, 2_388_447, 355_175, 355_175,
+        ));
+        let query = epic_index::CompleteShapeQuery {
+            room_shape: Some(&in_shape),
+            contained: Some(&contained),
+            layer: 0,
+            net_number: 21,
+            ignore_object: None,
+            ignore_shape: None,
+        };
+        let bbox = board.bounding_box().expect("the world has a bbox");
+        let rooms = epic_index::complete_shape::complete_shape(tree, &objects, &query, &bbox);
+        assert!(!rooms.is_empty(), "the completion returned rooms");
+        rooms
+            .iter()
+            .map(|room| room.shape.bounding_box().ur.y)
+            .max()
+            .expect("rooms non-empty")
+    }
+
+    /// PIN (the band's SOUTH edge — the pre-state): without the
+    /// override the class-1 outline leaf's north face is -911136 — the
+    /// exact T12 direct-read / pre-fix Rust face.
+    #[test]
+    fn band_edge_before_override_is_the_direct_read_face_911136() {
+        let (mut manager, mut board, outline) = copper_world();
+        // World self-check: the fallback AREA class carries the outline
+        // and the matrix diagonal is bm06's 2000.
+        let area = board.rules().default_item_clearance_classes
+            [epic_dsn::sink::ItemClassIr::Area as usize];
+        assert_eq!(
+            board.item_clearance_class(outline),
+            Some(area),
+            "fallback outline class"
+        );
+        assert_eq!(
+            board.rules().clearance.get_value(1, 1, 0),
+            2000,
+            "v(1,1) = 200 um x 10"
+        );
+        let leaf = north_leaf_face(&mut board, outline);
+        assert_eq!(
+            leaf, -911_136,
+            "pre-override north edge (growth 100 + (2000 - 1000) = 1100)"
+        );
+        // The completion consumes the same state: north face -911136.
+        let face = completion_north_face(&mut manager, &mut board);
+        assert_eq!(face, -911_136, "the pre-state completion face");
+    }
+
+    /// PIN (the band's NORTH edge — the fixed state): after the
+    /// override the outline is promoted to `board_edge` at 2500 DBU,
+    /// the class-1 leaf's north face is -911636 — the exact Java CLI
+    /// face (T2 LFDUMP), and the completion delivers it.
+    #[test]
+    fn band_edge_after_override_is_the_cli_face_911636() {
+        let (mut manager, mut board, outline) = copper_world();
+        let merged = MergedSettings::default();
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        let edge = board.rules().clearance.get_no("board_edge");
+        assert!(edge > 0, "the board_edge class was appended");
+        assert_eq!(
+            board.item_clearance_class(outline),
+            Some(edge),
+            "outline promoted"
+        );
+        // The symmetric full set: every class >= 1 on both directions,
+        // 2500; class 0 stays at the append init v(1,0).
+        let classes = board.rules().clearance.class_count() as i32;
+        for class_no in 1..classes {
+            assert_eq!(
+                board.rules().clearance.get_value(edge, class_no, 0),
+                2500,
+                "v(edge, {class_no})"
+            );
+            assert_eq!(
+                board.rules().clearance.get_value(class_no, edge, 0),
+                2500,
+                "v({class_no}, edge)"
+            );
+        }
+        assert_eq!(
+            board.rules().clearance.get_value(edge, 0, 0),
+            board.rules().clearance.get_value(1, 0, 0),
+            "class 0 untouched (the append init v(1,0))"
+        );
+        let leaf = north_leaf_face(&mut board, outline);
+        assert_eq!(
+            leaf, -911_636,
+            "post-override north edge (growth 100 + (2500 - 1000) = 1600)"
+        );
+        let face = completion_north_face(&mut manager, &mut board);
+        assert_eq!(
+            face, -911_636,
+            "the CLI completion face at the first fanout search"
+        );
+    }
+
+    /// PIN (the even lattice): the matrix's even-rounding absorbs the
+    /// -1 DBU face — applying 249.9 um (2499 DBU) stores 2500 and the
+    /// boundary value is UNCHANGED. This is the mutation-verified
+    /// "minus" direction's honest face: through the value knob the
+    /// smallest DOWN step Java can express is -2 DBU (the next even
+    /// lattice point).
+    #[test]
+    fn the_minus_one_value_face_is_absorbed_by_the_even_lattice() {
+        let (mut manager, mut board, outline) = copper_world();
+        let merged = MergedSettings {
+            copper_to_edge_clearance_um: Some(249.9),
+            ..MergedSettings::default()
+        };
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        let leaf = north_leaf_face(&mut board, outline);
+        assert_eq!(
+            leaf, -911_636,
+            "2499 DBU stores 2500 (odd rounds up) — the boundary holds"
+        );
+    }
+
+    /// PIN (the skip gate, contrast pair — DNR mode 7): the EXPLICIT
+    /// boundary class at the default value is UNTOUCHED; the SAME world
+    /// at a non-default value (300 um) IS promoted. Both arms assert
+    /// the class AND the leaf, so an inverted or literal-gate mutant
+    /// trips at least one arm.
+    #[test]
+    fn skip_gate_explicit_class_contrast() {
+        // Arm 1 (untouched face): explicit class + default value.
+        let (mut manager, mut board, outline) = copper_world_from(COPPER_WORLD_EXPLICIT_EDGE_DSN);
+        let merged = MergedSettings::default();
+        let before = board.item_clearance_class(outline);
+        let leaf_before = north_leaf_face(&mut board, outline);
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        assert_eq!(
+            board.item_clearance_class(outline),
+            before,
+            "explicit DSN outline class untouched at the default value"
+        );
+        assert_eq!(
+            board.rules().clearance.get_no("board_edge"),
+            -1,
+            "no class appended"
+        );
+        let leaf_after = north_leaf_face(&mut board, outline);
+        assert_eq!(leaf_after, leaf_before, "leaf unmoved");
+
+        // Arm 2 (fires face): explicit class + NON-default value.
+        let (mut manager, mut board, outline) = copper_world_from(COPPER_WORLD_EXPLICIT_EDGE_DSN);
+        let merged = MergedSettings {
+            copper_to_edge_clearance_um: Some(300.0),
+            ..MergedSettings::default()
+        };
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        assert_eq!(
+            board.item_clearance_class(outline),
+            Some(board.rules().clearance.get_no("board_edge")),
+            "non-default value promotes even an explicit-class outline"
+        );
+    }
+
+    /// PIN (the negative-um guard): -1 um warns and skips — the outline
+    /// stays at the fallback class and no class is appended.
+    #[test]
+    fn negative_um_guard_skips() {
+        let (mut manager, mut board, outline) = copper_world();
+        let merged = MergedSettings {
+            copper_to_edge_clearance_um: Some(-1.0),
+            ..MergedSettings::default()
+        };
+        let before = board.item_clearance_class(outline);
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        assert_eq!(
+            board.item_clearance_class(outline),
+            before,
+            "negative skips"
+        );
+        assert_eq!(
+            board.rules().clearance.get_no("board_edge"),
+            -1,
+            "no class appended"
         );
     }
 }

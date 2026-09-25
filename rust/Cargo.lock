@@ -171,6 +171,7 @@ dependencies = [
  "epic-drc",
  "epic-dsn",
  "epic-geometry",
+ "epic-index",
  "epic-router",
  "num-bigint",
  "serde",

@@ -1338,6 +1338,10 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
         eprintln!("Warning: {warning}");
     }
     apply_board_specific_optimizations(&mut merged, &board);
+    // The manager's load-time copper-to-edge override (Java
+    // `applyRouterSettingsForLoadedBoard` :750) — the detail pass MUST
+    // mirror the subprocess face it localizes (the buglog-189 fix).
+    epic_cli::route::apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
     let batch = build_batch_settings(&resolved);
 

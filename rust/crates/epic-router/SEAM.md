@@ -1480,3 +1480,56 @@ and buglog 175/181/189; criterion-3 → the T12 gates table + the T11
 "Ripple" faces; the fanout/optimizer stage parity → T7/T8/T9 dossiers;
 the events close → T4→T5→T6 (buglog 172-174, bug-187); the M3 map and
 its snapshot rows above stay HISTORICAL, never overwritten.
+
+## T3 (M5) copper-to-edge override — the 189 fix, the canary rotation, the 181 re-charter (appended by M5-T3)
+
+**The fix (buglog 189 CLOSED).** The Rust load path lacked Java's CLI copper-to-edge
+clearance override entirely (`HeadlessBoardManager.applyCopperToEdgeClearanceOverride`,
+`:470-551`, called from the manager load flow at `:346`/`:750` — NOT from
+`DsnReader.readBoard`, which is why every direct-read oracle probe and the events
+corpus (`RouteEventProbe.java:198-205`) legitimately bypass it). Ported as
+`epic_cli::route::apply_copper_to_edge_clearance_override` (pub; called from
+`run_route` after `apply_board_specific_optimizations` — the Java
+`applyRouterSettingsForLoadedBoard` `:749->:750` order; the second Java call site is
+a skip-gate no-op, so one post-load call reproduces the CLI state), called from BOTH
+in-process flow replicators (the harness detail pass `router_compare.rs`, the T1
+alloc instrument `alloc_route.rs`) so the subprocess and in-process faces cannot
+split, and from NO direct-read path. Supporting surfaces: the live
+`ClearanceMatrix::append_class` (Java `:281-325` port — new row/col init from
+class 1 per layer, class 0 included, diagonal `v(1,1)`, maxima never lowered),
+`MergedSettings.copper_to_edge_clearance_um = Some(250.0)`
+(`DefaultSettings.java:83/:155`; no DSN/CLI source writes it in the frozen tree).
+
+**Pins (cerebrum 16, mutation-verified).** The measured band edges pinned as
+LITERALS at a bm06-faithful crafted world (bm06's OWN boundary path — scale-10
+parse face; `(rule (clearance 200))` -> v(1,1) = 2000; fallback AREA outline
+class): the class-1 outline leaf's north face is -911136 before the override (the
+T12 direct-read face) and -911636 after (the Java CLI face), AND the REAL
+completion (`get_autoroute_tree(1)` + epic-index `complete_shape` with T2's exact
+fork-row input) returns uy = -911136 pre / -911636 post. Mutants: gate-invert M1
+(killed by the post-fix pin and the skip-gate contrast pin — the explicit-class
+default-value face stays untouched, the non-default-value face still fires),
+units+1 M2 (2501 stores 2502 -> leaf -911638, killed), units-3 M3 (2497 stores
+2498 -> -911634, killed), reclass-skip M4 (killed); units-1 is ABSORBED by the
+even lattice (2499 stores 2500 — Java's own rounding), pinned as the lattice face.
+
+**Canary rotation (sanctioned; the M4-T1 precedent).** The determinism canaries
+ROTATED: ses `253e7b1401775172...` / manifest `8c4a97738375e67d...` (the M4-close
+values, cited in the README status block) -> ses
+`dc271114627632d6a959891559d2ee837c180142c06fb36fde20f441f0f91deb` / manifest
+`cf6077141d2f2910b709764b8d3a61ace9e8be2defb85b92b4c956b68b438639`, x2
+byte-identical. Why sanctioned: the canary rides bm08, whose outline ALSO sits at
+the fallback AREA class — the override promotes it like bm06 — so bm08's route
+moves toward Java's live CLI state. This is the FIRST sanctioned digest rotation
+in the rewrite; the events golden is NOT part of it (3520 rows aligned, exit 0 —
+the STOP condition never fired). The router-only battery rows that moved
+(bm01 1->0/1000.00/7 passes; bm02 -> Java-exact 1/960.78/18; bm07 -> 1/984.50/18;
+bm06 unchanged at Java's exact 9/8/876.39) are the same movement seen through the
+gate faces: every moved row landed ON or past Java's face, 11/0 green.
+
+**The 181 re-charter.** The fix moved bm06's full-flow face 5/8/930.81 ->
+3/8/958.02 (Java 2/8/971.63) without collapsing the cascade: the fanout stage's
+totals align exactly (101/5/0/+28 pass 1; escaped 113/124 both), but the PASS-2+
+ATTRIBUTION fork survives (rust 7/2/+3 @ripup 200 vs jar 6/3/+1 @200,
+`logs/M4-T7/evidence/jar_evidence_bm06_t7fix.log`) — the NEW first fork. No
+tie-break tuning; owner M6 (T8 re-faces the battery with the updated red row).

@@ -282,6 +282,45 @@ impl ClearanceMatrix {
         }
     }
 
+    /// Java `appendClass(String)` (`:281-325`): appends a new class and
+    /// initializes every new entry on EVERY layer from class 1 —
+    /// `(new, i)` and `(i, new)` from `getValue(1, i, layer)` (class 0
+    /// included), the diagonal `(new, new)` from `getValue(1, 1,
+    /// layer)`. Returns false (no-op) when the name already exists.
+    /// The old rows' accumulated maxima carry over (Java copies
+    /// `currentOldRow.maxValue`); the new row starts at 0 and is
+    /// raised by the init `setValue`s — the per-layer max only rises,
+    /// exactly as in Java (`:299-321` never lowers `maxValue`).
+    pub fn append_class(&mut self, name: &str) -> bool {
+        if self.get_no(name) >= 0 {
+            return false;
+        }
+        let old_class_count = self.names.len();
+        self.names.push(name.to_string());
+        let new_class_count = old_class_count + 1;
+        let layer_count = self.values.len();
+        for per_layer in &mut self.values {
+            for row in per_layer.iter_mut() {
+                row.resize(new_class_count, 0);
+            }
+            per_layer.resize(new_class_count, vec![0; new_class_count]);
+        }
+        self.row_max.resize(new_class_count, vec![0; layer_count]);
+        let new_index = old_class_count as i32;
+        for i in 0..old_class_count {
+            for layer in 0..layer_count as i32 {
+                let default_value = self.get_value(1, i as i32, layer);
+                self.set_value(new_index, i as i32, layer, default_value);
+                self.set_value(i as i32, new_index, layer, default_value);
+            }
+        }
+        for layer in 0..layer_count as i32 {
+            let default_value = self.get_value(1, 1, layer);
+            self.set_value(new_index, new_index, layer, default_value);
+        }
+        true
+    }
+
     /// Java `maxValue(int classI, int layer)` (`:207-213`): the per-row
     /// ACCUMULATED max — class and layer are clamped into range (Java
     /// `Math.max`/`Math.min` clamps, not bounds checks). "Row" here
@@ -1042,5 +1081,48 @@ mod tests {
             !class.is_active_routing_layer(-1),
             "negative layer_index -> false (same guard)"
         );
+    }
+    /// Java `appendClass` (`:281-325`) on the LIVE matrix: the new
+    /// row/col initializes from class 1 per layer (`(new, i)` and
+    /// `(i, new)` from `getValue(1, i)`, class 0 INCLUDED — the
+    /// java-verified `/tmp/epic-t5-probe.out` face; the diagonal from
+    /// `getValue(1, 1)`); a second append with the same name is a
+    /// false-return no-op; the maxima never go DOWN.
+    #[test]
+    fn append_class_initializes_from_class_1_and_dedups() {
+        let mut matrix = matrix_3x2();
+        // Asymmetric seed: v(1,0)=200 raw even, v(1,2)=400; diagonal
+        // v(1,1)=2000 (setValue rounds odd up — 199 -> 200).
+        matrix.set_value(1, 0, 0, 200);
+        matrix.set_value(0, 1, 0, 200);
+        matrix.set_value(1, 2, 0, 400);
+        matrix.set_value(2, 1, 0, 400);
+        matrix.set_value(1, 1, 0, 2000);
+        matrix.set_value(1, 1, 1, 1200);
+
+        assert!(matrix.append_class("board_edge"), "first append");
+        let edge = matrix.get_no("board_edge");
+        assert_eq!(edge, 3, "appended at the tail");
+        assert_eq!(matrix.class_count(), 4);
+        // (new, i) and (i, new) from class 1, ALL layers — class 0
+        // included (200), class 2 (400); the diagonal from v(1,1).
+        assert_eq!(matrix.get_value(edge, 0, 0), 200);
+        assert_eq!(matrix.get_value(0, edge, 0), 200);
+        assert_eq!(matrix.get_value(edge, 2, 0), 400);
+        assert_eq!(matrix.get_value(2, edge, 0), 400);
+        assert_eq!(matrix.get_value(edge, edge, 0), 2000);
+        assert_eq!(matrix.get_value(edge, edge, 1), 1200);
+        // The append did not disturb the seeded cells.
+        assert_eq!(matrix.get_value(1, 2, 0), 400);
+        assert_eq!(matrix.get_value(1, 0, 0), 200);
+        // The new row's accumulated max rises with the init writes.
+        assert_eq!(
+            matrix.max_value(edge, 0),
+            2000,
+            "row max from the diagonal init"
+        );
+        // A second append with the same name: false, no growth.
+        assert!(!matrix.append_class("BOARD_EDGE"), "case-insensitive dedup");
+        assert_eq!(matrix.class_count(), 4);
     }
 }

@@ -806,6 +806,12 @@ impl From<DsnLayerSlot> for MergedLayerSlot {
     }
 }
 
+/// `DefaultSettings.DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM`
+/// (`DefaultSettings.java:83`) — the CLI-default copper-to-edge
+/// clearance in µm that drives the load-time outline promotion
+/// ([`crate::route::apply_copper_to_edge_clearance_override`]).
+pub const DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM: f64 = 250.0;
+
 /// The merged `RouterSettings` — the T13-consumed subset, all nullable,
 /// resolved Default(0) -> Dsn(20) -> Cli(60). Defaults come from
 /// `DefaultSettings.getSettings()` (the single authoritative source).
@@ -828,6 +834,12 @@ pub struct MergedSettings {
     pub trace_pull_tight_accuracy: Option<i32>,
     /// `strictDrc`.
     pub strict_drc: Option<bool>,
+    /// `copperToEdgeClearanceUm` (`RouterSettings.java:28`). No DSN or
+    /// CLI source writes it in the frozen tree — only `DefaultSettings`
+    /// (:155) seeds the default, so `merge` carries it through
+    /// untouched and the field is consumed by
+    /// [`crate::route::apply_copper_to_edge_clearance_override`].
+    pub copper_to_edge_clearance_um: Option<f64>,
     /// `fanout.enabled`.
     pub fanout_enabled: Option<bool>,
     /// `fanout.maxPasses` (`fanout.max_passes` on the wire).
@@ -916,6 +928,10 @@ impl Default for MergedSettings {
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
             strict_drc: Some(false),
+            // `DefaultSettings.java:83` + `:155` verbatim — the
+            // always-live CLI default that drives the load-time
+            // copper-to-edge override on every manager DSN load.
+            copper_to_edge_clearance_um: Some(DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM),
             fanout_enabled: Some(true),
             fanout_max_passes: Some(20),
             fanout_max_items: Some(i32::MAX),

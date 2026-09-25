@@ -20,6 +20,7 @@ serde_json = { version = "1", features = ["raw_value"] }
 sha2 = "0.10"
 
 [dev-dependencies]
+epic-index = { path = "../epic-index" }
 num-bigint = "0.4"
 
 [lints]

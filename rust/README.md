@@ -193,9 +193,12 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # records the condition.
 cargo run -q -p epic-harness -- router compare --report-only
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
-# manifest (canaries at the M4 close: ses 253e7b14… / manifest
-# 8c4a9773… — the M3-exit values were 96ba7300… / 16714d5e…; every
-# rotation is recorded in SEAM's task dossiers). STALENESS has TWO
+# manifest (canaries at the M5-T3 fix: ses dc271114… / manifest
+# cf607714… — the M4-close values were 253e7b14… / 8c4a9773…, the
+# M3-exit values 96ba7300… / 16714d5e…; the M5-T3 rotation is the
+# sanctioned copper-to-edge movement (the canary rides bm08, whose
+# outline gets the same fallback-class promotion as bm06), recorded
+# in SEAM's T3 dossier). STALENESS has TWO
 # witnessed axes: `-p epic-harness` does not rebuild the spawned
 # epic-cli bin (library-only dep), and a debug-profile run once
 # adopted its stale target/debug sibling over the fresh release bin.
