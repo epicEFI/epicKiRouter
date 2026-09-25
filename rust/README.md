@@ -205,10 +205,10 @@ cargo run -q -p epic-harness -- router determinism
 # DRC compare: parse-time incompletes + clearance violations on 17
 # fixtures (11 Tier A + 3 PCBench pre-routed + 3 crafted pin boards).
 cargo run -q -p epic-harness -- drc compare
-# Event-stream compare vs the committed Java probe golden: HONEST-RED
-# by design — exit 1 localizes the first divergence (triaged as #61:
-# item-id assignment / door-slicing / insert-path-id classes, buglog
-# 172-174). Not in CI until #61 closes.
+# Event-stream compare vs the committed Java probe golden:
+# green since M4-T6 — 3,520 golden trace rows aligned, exit 0 (the #61
+# classes closed: buglog 172-174). Not in CI — it rides the future flip
+# commit with its own pin (see the CI posture comment above).
 cargo run -q -p epic-harness -- events compare
 ```
 

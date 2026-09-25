@@ -151,7 +151,7 @@ The standing §5 zero-regression guarantee held: all six M2 compares
 green (geometry 5000/5000; dsn 1,332; ses 20; index 33; undo 33;
 ses-snap 5), 1,305-test census, determinism digests stable. Two
 plan-level supersets tracked by the M3 plan are NOT §6 criteria (SEAM
-criterion map) and are recorded here only to carry the vocabularies
+criterion map) and are recorded here only to keep the vocabularies
 apart: the score gate (R ≥ J − 2%), which bm01 fails, and
 events-corpus equality — the corpus is honest-red by charter, a triage
 instrument (§5), not a gate. The CI router gate stays HELD in
