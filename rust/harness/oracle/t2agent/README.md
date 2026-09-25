@@ -20,6 +20,15 @@ live instances.
 
 ## Build (JDK 25; ByteBuddy from the local Gradle cache; frozen jar UNTOUCHED)
 
+The cache directory hash IS the artifact's canonical Maven Central sha1
+(`3856bfab61beb23e099a0d6629f2ba8de4b98ace` for byte-buddy-1.17.7.jar, verified
+against repo1.maven.org's published `.sha1`), so the pin is machine-independent;
+on a cache miss, fetch
+`https://repo1.maven.org/maven2/net/bytebuddy/byte-buddy/1.17.7/byte-buddy-1.17.7.jar`,
+verify its sha1, and use that path in BB below.
+
+Run from this directory (`cd rust/harness/oracle/t2agent`):
+
 ```sh
 BB=$HOME/.gradle/caches/modules-2/files-2.1/net.bytebuddy/byte-buddy/1.17.7/3856bfab61beb23e099a0d6629f2ba8de4b98ace/byte-buddy-1.17.7.jar
 JAR=build/libs/freerouting-current-executable.jar   # never rebuilt/modified
@@ -31,7 +40,10 @@ $JDK/bin/jar cfm t2agent.jar manifest.txt -C classes . -C fatroot .
 
 ## Run (bm06 fanout-only face; the T12 invocation shape)
 
+Run from the repo root (the `-de`/`-do`/log paths below are repo-relative):
+
 ```sh
+cd /path/to/epicrouter   # the repo root
 timeout 300 $JDK/bin/java -Xmx4g \
   -javaagent:'.../t2agent.jar=log=/abs/path/t2.log;net=21' \
   -jar $JAR -de scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm06.dsn \
@@ -41,8 +53,16 @@ timeout 300 $JDK/bin/java -Xmx4g \
   --router.fanout.enabled=true
 ```
 
-Agent options (semicolon-separated): `log=<abs path>` (required), `net=<n>`
-(row filter, default 21), `maxrows=<n>`.
+Agent options (semicolon-separated, `-javaagent:t2agent.jar=k=v;k=v`; the ONE
+normative surface is the options block in T2Log.java — edit the two together):
+`log=<path>` (sink; default `logs/M5-T2/scratch/agent/t2agent.log`),
+`net=<n>` (row filter; default 21, the bm06 fork net), `maxrows=<n>` (row
+budget; default 2000000), `bandhi=<int>` (dump-trigger upper band edge,
+exclusive; default -911000), `bandlo=<int>` (lower edge, exclusive; default
+-911700), `bandlayer=<int>` (dump-trigger layer; default 0), `dumpcap=<n>`
+(max band dumps; default 32), `margin=<int>` (dump band margin in DBU; default
+2000). The DEFAULTS reproduce the M5-T2 bm06 capture byte-for-byte — any T3
+retargeting must pass overrides, never edit defaults.
 
 Transparency discipline (M5-T2 evidence): compare the run's stdout board
 hashes against the uninstrumented face (`b84a773a...` at fanout start,
@@ -52,5 +72,7 @@ that moves any hash or SES byte is a perturbing instrument, not evidence.
 ## Counterface use (no -javaagent)
 
 The fat jar doubles as a plain classpath helper for jshell band dumps:
-`t2agent.T2Log.init("log=/abs/path")` + `t2agent.T2Dump.dump(tree, octagon)`
-(see `logs/M5-T2/evidence/instrument_counterface.jsh`).
+`t2agent.T2Log.init("log=/abs/path")` + `t2agent.T2Dump.dump(tree, octagon)`.
+The worked example (`logs/M5-T2/evidence/instrument_counterface.jsh`) is
+git-ignored — it exists in the M5-T2 evidence record, not on a fresh clone;
+the two calls above are the complete contract.

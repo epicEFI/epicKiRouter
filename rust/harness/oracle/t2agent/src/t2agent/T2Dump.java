@@ -11,14 +11,13 @@ import app.freerouting.geometry.planar.TileShape;
 import java.lang.reflect.Field;
 
 /**
- * SCRATCH (M5-T2): the fork-row north-band dump. Read-only: reflectively reads the tree's root,
+ * M5-T2 (buglog 189 lever (a); SOURCES COMMITTED at rust/harness/oracle/t2agent/ - the BUILT
+ * FAT JAR is the uncommitted part, built per README.md): the fork-row north-band dump. Read-only: reflectively reads the tree's root,
  * walks the node graph, and prints each band leaf's stored tree shape (the EXACT face
  * completeShape sees), the outline's RAW shape beside it, and the clearance-matrix band rows.
  * Tied to board.getHash() so the dump names its board state.
  */
 public final class T2Dump {
-
-  static volatile BasicBoard boardCache = null;
 
   static BasicBoard boardOf(ShapeSearchTree tree) {
     try {
@@ -44,19 +43,20 @@ public final class T2Dump {
       } catch (Throwable t) {
         // keep going; the dump's leaves matter more than the hash
       }
+      int m = T2Log.margin;
       T2Log.logRaw("DUMP tree=" + System.identityHashCode(tree)
           + " ccl=" + tree.compensatedClearanceClassNo + " hash=" + hash
-          + " bandY=[" + roomOut.topY + ".." + (roomOut.topY + 2000) + "]"
-          + " bandX=[" + (roomOut.leftX - 2000) + ".." + (roomOut.rightX + 2000) + "]");
+          + " bandY=[" + roomOut.topY + ".." + (roomOut.topY + m) + "]"
+          + " bandX=[" + (roomOut.leftX - m) + ".." + (roomOut.rightX + m) + "]");
       Object root = readRoot(tree);
       if (root == null) {
         T2Log.logRaw("# dump: tree root is null");
         return;
       }
-      long xlo = (long) roomOut.leftX - 2000L;
-      long xhi = (long) roomOut.rightX + 2000L;
+      long xlo = (long) roomOut.leftX - (long) m;
+      long xhi = (long) roomOut.rightX + (long) m;
       long ylo = roomOut.topY;
-      long yhi = (long) roomOut.topY + 2000L;
+      long yhi = (long) roomOut.topY + (long) m;
       walk(root, tree, xlo, xhi, ylo, yhi);
       dumpMatrix(board, tree);
       T2Log.logRaw("DUMP-END");
@@ -121,19 +121,6 @@ public final class T2Dump {
       IntBox lb = leaf.boundingShape.boundingBox();
       b.append("Box[(").append(lb.ll.x).append(',').append(lb.ll.y)
           .append(")..(").append(lb.ur.x).append(',').append(lb.ur.y).append(")]");
-      if (st instanceof Item it2) {
-        TileShape raw = null;
-        try {
-          java.lang.reflect.Method m = Item.class.getMethod("getShape", int.class);
-          raw = (TileShape) m.invoke(it2, leaf.shapeIndexInObject);
-        } catch (Throwable t) {
-          // no getShape(int) on Item; skip the raw column
-        }
-        if (raw != null) {
-          b.append(" raw=");
-          T2Log.appendShape(b, raw);
-        }
-      }
       T2Log.logRaw(b.toString());
     } catch (Throwable t) {
       T2Log.logRaw("# leafRow FAILED: " + t);

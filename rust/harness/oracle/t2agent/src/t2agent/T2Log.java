@@ -7,16 +7,18 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import app.freerouting.geometry.planar.TileShape;
 import app.freerouting.autoroute.expansion.IncompleteFreeSpaceExpansionRoom;
-import app.freerouting.board.facade.BasicBoard;
-import app.freerouting.board.model.items.Item;
-import app.freerouting.board.searchtree.ShapeSearchTree;
-import app.freerouting.datastructures.ShapeTree;
 import app.freerouting.geometry.planar.IntBox;
 import app.freerouting.geometry.planar.IntOctagon;
 
 /**
- * SCRATCH (M5-T2, logs/-uncommitted): row sink for the live-process instrument. Never throws,
- * never mutates engine state; rows are flushed so a kill keeps the evidence.
+ * M5-T2 (buglog 189 lever (a); SOURCES COMMITTED at rust/harness/oracle/t2agent/ - the BUILT
+ * FAT JAR is the uncommitted part, built per README.md): row sink for the live-process
+ * instrument. Never throws, never mutates engine state; rows are flushed so a kill keeps the
+ * evidence. Exceptional-exit face: the exit advice fires via ByteBuddy's default
+ * onThrowable=true, so a thrown completeShape logs EXIT with size=-1 and no room columns and
+ * the enter/exit row pairing stays balanced. Re-entrancy non-goal: completeShape does not
+ * self-recur in the frozen engine (see the quality-review record); hypothetical nesting would
+ * still pair by row number.
  */
 public final class T2Log {
 
@@ -24,23 +26,58 @@ public final class T2Log {
   static final Object LOCK = new Object();
   static volatile int rowCounter = 0;
   static volatile int dumpCount = 0;
-  static volatile int maxRows = 2000000;
-  static volatile int netFilter = 21;
   static volatile boolean installed = false;
+
+  // ---------------------------------------------------------------------------
+  // Instrument options: the ONE home for every fork-tunable (the T3 surface).
+  // Defaults reproduce the M5-T2 bm06 capture byte-for-byte; every value is
+  // overridable via the -javaagent option string (semicolon-separated, parsed in
+  // init(); e.g. -javaagent:t2agent.jar=log=/abs/run.log;net=21). This block and
+  // the README's option table are one source of truth - edit both together.
+  // ---------------------------------------------------------------------------
+  /** Sink path (log=). Default: the M5-T2 evidence home, relative to the repo root. */
+  static volatile String logPath = "logs/M5-T2/scratch/agent/t2agent.log";
+  /** Net row filter (net=). Default: the bm06 fork net. */
+  static volatile int netFilter = 21;
+  /** Row budget (maxrows=). */
+  static volatile int maxRows = 2000000;
+  /** Dump-trigger upper band edge, EXCLUSIVE (bandhi=). */
+  static volatile int bandHi = -911000;
+  /** Dump-trigger lower band edge, EXCLUSIVE (bandlo=). */
+  static volatile int bandLo = -911700;
+  /** Dump-trigger layer (bandlayer=). */
+  static volatile int bandLayer = 0;
+  /** Max band dumps before the trigger stops firing (dumpcap=). */
+  static volatile int dumpCap = 32;
+  /** Dump band margin in DBU (margin=); feeds the DUMP header and the leaf walk bounds. */
+  static volatile int margin = 2000;
 
   private T2Log() {}
 
   public static void init(String args) {
-    String logPath = "logs/M5-T2/scratch/agent/t2agent.log";
     if (args != null) {
       for (String o : args.split(";")) {
-        String t = o.trim();
-        if (t.startsWith("log=")) {
-          logPath = t.substring(4);
-        } else if (t.startsWith("net=")) {
-          netFilter = Integer.parseInt(t.substring(4));
-        } else if (t.startsWith("maxrows=")) {
-          maxRows = Integer.parseInt(t.substring(8));
+        String k = o.trim();
+        try {
+          if (k.startsWith("log=")) {
+            logPath = k.substring(4);
+          } else if (k.startsWith("net=")) {
+            netFilter = Integer.parseInt(k.substring(4));
+          } else if (k.startsWith("maxrows=")) {
+            maxRows = Integer.parseInt(k.substring(8));
+          } else if (k.startsWith("bandhi=")) {
+            bandHi = Integer.parseInt(k.substring(7));
+          } else if (k.startsWith("bandlo=")) {
+            bandLo = Integer.parseInt(k.substring(7));
+          } else if (k.startsWith("bandlayer=")) {
+            bandLayer = Integer.parseInt(k.substring(10));
+          } else if (k.startsWith("dumpcap=")) {
+            dumpCap = Integer.parseInt(k.substring(8));
+          } else if (k.startsWith("margin=")) {
+            margin = Integer.parseInt(k.substring(7));
+          }
+        } catch (NumberFormatException e) {
+          System.err.println("T2Log option parse warning: " + o);
         }
       }
     }
@@ -85,7 +122,7 @@ public final class T2Log {
    */
   public static int enterRow(
       Object self, Object room, int netNumber, Object ignoreObject, Object ignoreShape) {
-    if (netNumber != netFilter || rowCounter > maxRows) {
+    if (netNumber != netFilter || rowCounter >= maxRows) {
       return -1;
     }
     try {
@@ -124,22 +161,23 @@ public final class T2Log {
       return;
     }
     try {
+      java.util.Collection<?> rooms = null;
+      if (result instanceof java.util.Collection<?> c) {
+        rooms = c;
+      }
       StringBuilder b = new StringBuilder(256);
       b.append("EXIT row=").append(rowNo)
           .append(" tree=").append(System.identityHashCode(self))
           .append(" net=").append(netNumber)
-          .append(" size=").append(result == null ? -1 : ((java.util.Collection<?>) result).size());
-      java.util.Collection<?> rooms = (java.util.Collection<?>) result;
+          .append(" size=").append(rooms == null ? -1 : rooms.size());
       int i = 0;
-      if (rooms != null) {
-        for (Object r : rooms) {
-          TileShape s = (r instanceof app.freerouting.autoroute.expansion.FreeSpaceExpansionRoom fr2)
-              ? fr2.getShape()
-              : null;
-          b.append(" r").append(i).append('=');
-          appendShape(b, s);
-          i++;
-        }
+      for (Object r : rooms == null ? java.util.List.<Object>of() : rooms) {
+        TileShape s = (r instanceof app.freerouting.autoroute.expansion.FreeSpaceExpansionRoom fr2)
+            ? fr2.getShape()
+            : null;
+        b.append(" r").append(i).append('=');
+        appendShape(b, s);
+        i++;
       }
       logRaw(b.toString());
       maybeDump(self, rooms);
@@ -171,7 +209,7 @@ public final class T2Log {
   /** Fork-face trigger: net-21 single-room result with the north edge inside the 189 band. */
   static void maybeDump(Object self, java.util.Collection<?> rooms) {
     try {
-      if (rooms == null || rooms.size() != 1 || dumpCount >= 32) {
+      if (rooms == null || rooms.size() != 1 || dumpCount >= dumpCap) {
         return;
       }
       Object only = rooms.iterator().next();
@@ -179,10 +217,10 @@ public final class T2Log {
           || !(fr.getShape() instanceof IntOctagon o)) {
         return;
       }
-      if (o.topY > -911000 || o.topY < -911700) {
+      if (o.topY >= bandHi || o.topY <= bandLo) {
         return;
       }
-      if (fr.getLayer() != 0) {
+      if (fr.getLayer() != bandLayer) {
         return;
       }
       dumpCount++;

@@ -8,16 +8,12 @@ import net.bytebuddy.matcher.ElementMatchers;
  * M5-T2 (buglog 189 lever (a)): a premain javaagent that lands the buglog-189
  * recording instrument INSIDE the real CLI process. These SOURCES are committed here;
  * the BUILT FAT JAR stays uncommitted (build it from this tree per README.md into
- * logs/, which is git-ignored). The recording form is the M4-T12
- * instrument_T12RecordingTree45 subclass form ported to an in-place class transform: the CLI
- * constructs its class-1 autoroute tree as a hardcoded {@code new ShapeSearchTree45Degree(board, 1)}
- * (SearchTreeManager.java:154) and the base ShapeSearchTree constructor is package-private, so an
- * out-of-package subclass cannot even be constructed — the recording lives on the very same
- * completeShape method the T12 subclass would have hooked, via ByteBuddy Advice inlined into
- * ShapeSearchTree45Degree (and the ShapeSearchTree base for the 90Degree-free path).
- *
- * <p>Agent options (the -javaagent argument string): {@code log=<path>}, {@code net=<n>} (default
- * 21), {@code maxrows=<n>}.
+ * logs/, which is git-ignored). The recording form and the interception seam (why an
+ * in-place class transform; the exact SearchTreeManager hardcode + package-private
+ * base-constructor blockage) are anchored in README.md; agent options live in T2Log's
+ * options block. Coverage: the 45-degree tree (the bm06 fork face), the 90-degree tree,
+ * and the base ShapeSearchTree arm - each completeShape call is instrumented exactly
+ * once (the subclasses override without delegating to the base method).
  */
 public class T2Agent {
 
