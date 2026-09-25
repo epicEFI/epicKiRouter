@@ -167,6 +167,10 @@ pub struct StopFace {
     /// Set only by the pass runner's maxItems face — the stop-CAUSE
     /// mark [`Self::take_max_items_faced`] consumes.
     max_items_faced: bool,
+    /// Java `StopRequestState.ALL` — the FULL stop (external requests
+    /// and the max-items path). Sticky; the pipeline's optimizer-stage
+    /// gate reads exactly this face (Java `RoutingPipeline.java:122`).
+    full_stop: bool,
 }
 
 impl StopFace {
@@ -177,10 +181,11 @@ impl StopFace {
             flag,
             local: false,
             max_items_faced: false,
+            full_stop: false,
         }
     }
 
-    /// Java `isStopAutoRouterRequested()`.
+    /// Java `isStopAutoRouterRequested()` (`StoppableThread.java:40-42`).
     #[must_use]
     pub fn is_requested(&self) -> bool {
         self.local
@@ -190,12 +195,42 @@ impl StopFace {
                 .is_some_and(|flag| flag.load(Ordering::Relaxed))
     }
 
-    /// Java `requestStopAutoRouter()`.
+    /// Java `isStopRequested()` (`StoppableThread.java:28-30`) — the
+    /// FULL stop: a driver-side [`Self::request_full`] (the max-items
+    /// face) or the shared flag (an external owner's raise). Port
+    /// residual, documented in `pipeline::full`: the port's
+    /// auto-router-only [`Self::request`] ALSO stores the shared flag
+    /// when one exists (the engines' mid-search interrupt), so a FLAGGED
+    /// face cannot distinguish external from driver raises after the
+    /// fact; production headless faces carry no flag
+    /// ([`StopFace::default`]), where this reads exactly Java's face.
+    #[must_use]
+    pub fn is_full_stop_requested(&self) -> bool {
+        self.full_stop
+            || self
+                .flag
+                .as_ref()
+                .is_some_and(|flag| flag.load(Ordering::Relaxed))
+    }
+
+    /// Java `requestStopAutoRouter()` (`StoppableThread.java:33-37`).
     pub fn request(&mut self) {
         self.local = true;
         if let Some(flag) = &self.flag {
             flag.store(true, Ordering::Relaxed);
         }
+    }
+
+    /// Java `requestStop()` (`StoppableThread.java:23-25`) — the FULL
+    /// stop (external requests and the max-items path,
+    /// `AutoroutePassRunner.java:211-218`). Satisfies BOTH stop faces
+    /// (`isStopAutoRouterRequested` reads `state != NONE`), raises the
+    /// shared flag (ALL interrupts a running search — the engines'
+    /// `isStopRequested` checks), and leaves the sticky marker the
+    /// optimizer-stage gate consumes.
+    pub fn request_full(&mut self) {
+        self.full_stop = true;
+        self.request();
     }
 
     /// The shared flag, handed to the per-connection engines as their
@@ -1349,6 +1384,37 @@ mod tests {
             .filter(|row| row.contains("state=RUNNING"))
             .count();
         assert_eq!(running_count, 3, "exactly three passes ran: {states_text}");
+    }
+
+    /// The T1b two-face mapping (Java `StoppableThread.java`): the
+    /// auto-router-only raise satisfies the routing gate's face but NOT
+    /// the full face; the FULL raise satisfies BOTH (ALL satisfies
+    /// `isStopAutoRouterRequested()` too, `:40-42` vs `:28-30`).
+    #[test]
+    fn t1b_stop_face_two_face_mapping() {
+        // AUTO_ROUTER_ONLY: `isStopAutoRouterRequested()` true,
+        // `isStopRequested()` false.
+        let mut stop = StopFace::default();
+        assert!(!stop.is_requested());
+        assert!(!stop.is_full_stop_requested());
+        stop.request();
+        assert!(stop.is_requested());
+        assert!(
+            !stop.is_full_stop_requested(),
+            "the auto-router-only raise must not set the full face"
+        );
+        // ALL: both faces true.
+        stop.request_full();
+        assert!(stop.is_requested());
+        assert!(stop.is_full_stop_requested());
+        // A fresh face over a raised EXTERNAL flag reads as the full
+        // stop (the external raise is Java's requestStop() from another
+        // thread); a fresh UN-raised flag face reads as none.
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let stop = StopFace::from_flag(Some(flag));
+        assert!(stop.is_requested());
+        assert!(stop.is_full_stop_requested());
+        assert!(!StopFace::from_flag(None).is_full_stop_requested());
     }
 
     /// The pass runner's maxItems face (`AutoroutePassRunner:211-220`):

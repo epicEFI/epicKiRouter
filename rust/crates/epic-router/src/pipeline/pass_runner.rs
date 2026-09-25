@@ -363,7 +363,11 @@ pub fn run_single_thread(
                 sink.info(&format!(
                     "Max items limit reached ({max_items}). Stopping auto-router."
                 ));
-                stop.request();
+                // Java `AutoroutePassRunner.java:211-218`: the maxItems
+                // face raises the FULL stop (`router.thread.requestStop()`),
+                // not the auto-router-only face — the optimizer-stage
+                // gate (`RoutingPipeline.java:122`) must see it.
+                stop.request_full();
                 // Mark the CAUSE (quality MINOR-3): the driver
                 // attributes `StopReason::MaxItemsReached` only off
                 // this mark, so an external shared-flag stop during a

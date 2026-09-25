@@ -23,17 +23,35 @@
 //!
 //! **`runOptimizationStage` (`:121-134`).** Gated on the optimizer
 //! existing (`getRunOptimizer()`) AND `!job.thread.isStopRequested()`.
-//! STOP-GATE SEMANTICS (the T9 MIN-2 correction, carried verbatim — do
-//! not re-introduce a divergence while extracting): Java's router-side
-//! AUTO_ROUTER_ONLY stops do NOT satisfy `isStopRequested()` — the
-//! stage RUNS there and preflight guard 1 (incompletes > 0) does the
-//! skipping; only the max-items path (`AutoroutePassRunner.java:211-218`)
-//! and external stops raise the full stop. The port's single shared
-//! `StopFace` collapses the two faces — the same net outcome (no
-//! optimization on partially-routed boards), with the one corner
-//! divergence (a fully-routed-but-stopped board runs no-op reroute
-//! passes in Java and skips the stage here). The gate input is the
-//! DRIVER's post-routing stop face, read before the driver drops it.
+//! STOP-GATE SEMANTICS (the T1b two-face port — this block REPLACES the
+//! T9-era collapsed-face text, which the T1 measurement FALSIFIED: under
+//! the collapse the optimizer stage never entered on ANY Tier A fixture
+//! while Java's full-flow baselines carry 932.18 s of optimizer time on
+//! exactly the incomplete=0 boards): Java keeps TWO stop faces on the
+//! job thread (`StoppableThread.java`: `requestStop()` → ALL,
+//! `requestStopAutoRouter()` → AUTO_ROUTER_ONLY). The routing-stage
+//! gates read `isStopAutoRouterRequested()` (`:102`, `:105` — true for
+//! BOTH non-NONE states); the optimization-stage gate reads
+//! `isStopRequested()` (`:122` — ALL only, raised by external stops and
+//! the max-items path `AutoroutePassRunner.java:211-218`), so an
+//! internally-stopped board (stagnation, pass exhaustion) reaches the
+//! stage and Java's `BatchOptimizer.evaluatePreFlightGuards`
+//! (`:155-225`) does the skipping inside. The port maps the faces onto
+//! [`StopFace`]: `request()`/`is_requested()` = AUTO_ROUTER_ONLY face;
+//! `request_full()`/`is_full_stop_requested()` = the ALL face (the
+//! max-items site raises `request_full()`); the gate here consumes the
+//! ALL face only. PORT RESIDUALS, both documented, neither gate-side:
+//! (1) `request()` also stores the shared flag when one exists (the
+//! engines' mid-search interrupt), so a FLAGGED face cannot
+//! distinguish external from driver raises after the fact — flagged
+//! faces keep the pre-T1b collapsed face; production headless faces
+//! carry no flag (`StopFace::default()`), where the mapping is exact.
+//! (2) The optimizer's OWN loop reads a fresh in-stage face (the T9
+//! wiring artifact) — matching Java's loop reading `isStopRequested()`
+//! (`BatchOptimizer.java:384`), an ALL-only face, for the
+//! internally-stopped case, but not the external-during-optimization
+//! interrupt. (Fix provenance: M5-T1's measurement-only battery
+//! (`logs/M5-T1/`) named the gate; T1b lands the port.)
 //!
 //! **`finishAutoroute` (`RoutingBoard.java:899-904`).** RECON INSIDE,
 //! recorded: the call clears the retained `AutorouteEngine`
@@ -192,7 +210,7 @@ pub fn run_routing_stage(
         // Both branches skipped (a stop already raised, or nothing
         // enabled): Java runs neither branch — the board passes
         // through untouched to `finishAutoroute`.
-        RoutingStageResult::pass_through(stop.is_requested())
+        RoutingStageResult::pass_through(stop.is_requested(), stop.is_full_stop_requested())
     }
 }
 
@@ -206,6 +224,11 @@ pub struct RoutingStageResult {
     pub stop_reason: Option<StopReason>,
     /// The driver's post-run stop face.
     pub stop_requested: bool,
+    /// The FULL-stop face after routing (Java `isStopRequested()` =
+    /// `StopRequestState.ALL`): external stops and the max-items path
+    /// (`AutoroutePassRunner.java:211-218`) — the ONLY stop face the
+    /// optimizer-stage gate consumes (Java `:122`).
+    pub stop_full: bool,
     /// The stage-boundary captures.
     pub boundaries: StageBoundaries,
 }
@@ -216,15 +239,17 @@ impl RoutingStageResult {
             routing,
             stop_reason: driver.stop_reason,
             stop_requested: driver.stop.is_requested(),
+            stop_full: driver.stop.is_full_stop_requested(),
             boundaries: std::mem::take(&mut driver.phase_boundaries),
         }
     }
 
-    fn pass_through(stop_requested: bool) -> Self {
+    fn pass_through(stop_requested: bool, stop_full: bool) -> Self {
         Self {
             routing: Ok(true),
             stop_reason: None,
             stop_requested,
+            stop_full,
             boundaries: StageBoundaries::default(),
         }
     }
@@ -245,12 +270,17 @@ pub fn run_optimization_stage(
     settings: BatchSettings,
     optimizer_settings: OptimizerSettingsIr,
     run_optimizer: bool,
-    stop_requested: bool,
+    full_stop: bool,
     sink: &mut dyn DriverSink,
     transitions: &mut Vec<RoutingStage>,
 ) -> Option<OptimizerStageFaces> {
-    // Java `:122-124` — the two-gate early return.
-    if !run_optimizer || stop_requested {
+    // Java `:122-124` — the two-gate early return; the stop face is the
+    // FULL stop only (ALL: external + max-items). The routing-side
+    // internal stops (AUTO_ROUTER_ONLY: stagnation, pass exhaustion)
+    // must NOT close it — Java's `BatchOptimizer.evaluatePreFlightGuards`
+    // does the skipping inside (T1b; the T9-era collapsed face read
+    // here falsified the "same net outcome" claim — see the module doc).
+    if !run_optimizer || full_stop {
         return None;
     }
 
@@ -316,7 +346,7 @@ pub fn run(
             settings,
             optimizer_settings,
             run_optimizer,
-            stage.stop_requested,
+            stage.stop_full,
             sink,
             &mut transitions,
         )
@@ -429,6 +459,19 @@ mod tests {
         let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
         settings.max_passes = Some(1);
         settings.max_items = Some(20);
+        let optimizer = opt_settings();
+        (manager, board, settings, optimizer)
+    }
+
+    /// The bounded world with the maxItems budget tripping MID-PASS (the
+    /// first attempt spends it, the second sees `total >= max_items`):
+    /// the stop Java raises with `requestStop()` (`AutoroutePassRunner.java:211-218`)
+    /// — the optimizer-stage gate must close on it.
+    fn max_items_world() -> (SearchTreeManager, Board, BatchSettings, OptimizerSettingsIr) {
+        let (manager, board) = parse_fixture();
+        let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
+        settings.max_passes = Some(5);
+        settings.max_items = Some(1);
         let optimizer = opt_settings();
         (manager, board, settings, optimizer)
     }
@@ -549,22 +592,23 @@ mod tests {
         assert_eq!(settings.max_passes, Some(-1));
     }
 
-    /// THE STOP-REQUEST SHORT-CIRCUIT PIN: a stop raised BEFORE the
-    /// pipeline skips BOTH stage bodies (Java `:102` and `:105` both
-    /// require `!isStopAutoRouterRequested()`; the optimizer gate at
-    /// `:122` then sees the full stop) — transitions still record
+    /// THE STOP-REQUEST SHORT-CIRCUIT PIN (T1b two-face form): a FULL
+    /// stop raised BEFORE the pipeline skips BOTH stage bodies (Java
+    /// `:102` requires `!isStopAutoRouterRequested()` — ALL satisfies
+    /// it — and the optimizer gate at `:122` reads
+    /// `isStopRequested()` = ALL) — transitions still record
     /// ROUTING (the `:99` write happens under
     /// `routerEnabled || fanoutEnabled`) and IDLE, the boundaries stay
     /// empty, and the optimizer stage never opens. Crossing arms: the
-    /// enabled/no-stop face runs (the stage-order pin); the
-    /// disabled/no-stop face skips the optimizer WITHOUT a stop (the
-    /// second half here).
+    /// AUTO_ROUTER_ONLY pre-raise now OPENS the optimizer gate (the
+    /// `t1b_` pin below); the disabled/no-stop face skips the optimizer
+    /// WITHOUT a stop (the second half here).
     #[test]
     fn t10_stop_request_short_circuits_both_stages() {
-        // World 1: stop raised, optimizer enabled — everything skips.
+        // World 1: FULL stop raised, optimizer enabled — everything skips.
         let (mut manager, mut board, settings, optimizer) = bounded_world();
         let mut stop = StopFace::default();
-        stop.request();
+        stop.request_full();
         let mut sink = CaptureDriverSink::default();
         let outcome = run(
             &mut manager,
@@ -602,23 +646,55 @@ mod tests {
         );
         assert!(outcome.optimizer.is_none());
         // (No `stop_after_routing` face assert here: the bounded world
-        // raises MaxItemsReached, which IS the full stop in the port's
-        // collapsed flag — the optimizer-disabled arm has no gate to
-        // consult either way.)
+        // raises MaxItemsReached — Java's requestStop() FULL stop
+        // (AutoroutePassRunner.java:211-218) — which closes the gate in
+        // Java too; the optimizer-disabled arm has no gate to consult.)
         assert_eq!(
             outcome.stage_transitions,
             vec![RoutingStage::Routing, RoutingStage::Idle]
         );
     }
 
-    /// THE OPTIMIZER GATE'S INPUT FACE (spec-review M7): the gate reads
-    /// the DRIVER's POST-routing stop face — an internal stop raised
-    /// DURING routing (the bounded world's max-items face) must close
-    /// it. The reviewer's M7 mutant reads the PRE-run face
-    /// (`stop.is_requested()`, false here), the optimizer then RUNS on
-    /// the stopped board, and this pin dies on the first assert.
+    /// THE OPTIMIZER GATE'S INPUT FACE (spec-review M7, T1b form): the
+    /// gate reads the DRIVER's post-routing FULL-stop face (Java
+    /// `:122` = `StopRequestState.ALL` only). TWO worlds:
+    /// (a) the MAX-ITEMS stop (Java's `AutoroutePassRunner.java:211-218`
+    /// `requestStop()` — the maxItems world trips it mid-pass) CLOSES
+    /// the gate;
+    /// (b) the MAX-PASSES stop (Java's `requestStopAutoRouter()` face —
+    /// the bounded world raises it after pass 1) does NOT — the stage
+    /// opens on the stopped board and Java's preflight guards own the
+    /// skipping. The pre-T1b collapsed gate read
+    /// `stop_requested` for both and skipped (a) correctly but (b)
+    /// wrongly; the reviewer's M7 mutant reads the PRE-run face and
+    /// dies on world (a)'s first assert.
     #[test]
-    fn t10_optimizer_gate_reads_the_post_routing_stop_face() {
+    fn t1b_optimizer_gate_reads_the_full_stop_face() {
+        // (a) The max-items world: the FULL stop mid-pass — gate CLOSED.
+        let (mut manager, mut board, settings, optimizer) = max_items_world();
+        let mut sink = CaptureDriverSink::default();
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            StopFace::default(),
+            &mut sink,
+        );
+        assert!(outcome.stop_after_routing);
+        assert_eq!(outcome.stop_reason, Some(StopReason::MaxItemsReached));
+        assert!(
+            outcome.optimizer.is_none(),
+            "the max-items face is Java's requestStop() — the gate stays closed"
+        );
+        assert_eq!(
+            outcome.stage_transitions,
+            vec![RoutingStage::Routing, RoutingStage::Idle]
+        );
+
+        // (b) The bounded (max-passes) world: the AUTO_ROUTER_ONLY stop
+        // after pass 1 — gate OPEN, the stage runs on the stopped board.
         let (mut manager, mut board, settings, optimizer) = bounded_world();
         let mut sink = CaptureDriverSink::default();
         let outcome = run(
@@ -630,17 +706,60 @@ mod tests {
             StopFace::default(),
             &mut sink,
         );
+        assert!(outcome.stop_after_routing);
+        assert_eq!(outcome.stop_reason, Some(StopReason::MaxPasses));
         assert!(
-            outcome.stop_after_routing,
-            "the bounded world raises the internal (full) stop during routing"
-        );
-        assert!(
-            outcome.optimizer.is_none(),
-            "the post-routing stop face keeps the stage out"
+            outcome.optimizer.is_some(),
+            "the max-passes face is requestStopAutoRouter() — the gate opens"
         );
         assert_eq!(
             outcome.stage_transitions,
-            vec![RoutingStage::Routing, RoutingStage::Idle]
+            vec![
+                RoutingStage::Routing,
+                RoutingStage::Optimization,
+                RoutingStage::Idle
+            ]
+        );
+    }
+
+    /// THE T1b PARITY PIN: an AUTO_ROUTER_ONLY stop (the port's
+    /// `request()`, Java `requestStopAutoRouter()`,
+    /// `StoppableThread.java:33-37`) raised BEFORE the pipeline closes
+    /// the ROUTING-stage gate (`:102` — `isStopAutoRouterRequested()`)
+    /// but must NOT close the optimizer gate (`:122` reads
+    /// `isStopRequested()` = ALL only). Pre-T1b the collapsed face
+    /// skipped the stage here; Java's optimizer then runs (its loop
+    /// also reads the ALL-only face, `BatchOptimizer.java:384`) and its
+    /// own preflight guards do the skipping. Contrast arms: the FULL
+    /// pre-raise skips (the short-circuit pin above); the max-items
+    /// raise during routing closes the gate (the post-routing-face pin
+    /// above).
+    #[test]
+    fn t1b_auto_router_only_stop_opens_the_optimizer_gate() {
+        let (mut manager, mut board, settings, optimizer) = bounded_world();
+        let mut stop = StopFace::default();
+        stop.request();
+        let mut sink = CaptureDriverSink::default();
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            stop,
+            &mut sink,
+        );
+        assert_eq!(
+            outcome.stage_transitions,
+            vec![
+                RoutingStage::Routing,
+                RoutingStage::Optimization,
+                RoutingStage::Idle
+            ]
+        );
+        assert!(
+            outcome.optimizer.is_some(),
+            "the AUTO_ROUTER_ONLY face leaves the optimizer gate open"
         );
     }
 }
