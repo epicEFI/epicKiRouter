@@ -167,7 +167,8 @@ on both preconditions at the M4 close: the milestone full-face battery
 reads 8 PASS / 3 RED (buglog 175/181/189;
 `logs/M4-T12/evidence/battery_full_t12.log`) and its suite wall
 (2061.2 s release ≈ 34 min) exceeds the compare step's 30-minute
-budget (`rust-check.yml:117`). The events-compare step also stays out
+budget (the compare step's `timeout-minutes: 30`, now at
+`rust-check.yml:125` after the T13 comment refresh). The events-compare step also stays out
 of CI until the same flip commit brings it with its own pin. M5 flip
 conditions: full battery 11/11 AND wall under budget. The M4 exit note
 below carries the full record.)
@@ -205,7 +206,8 @@ exit 0; `router determinism` ×2 byte-equal with the canaries UNROTATED
 The CI flip was adjudicated HELD at the M4 close — both preconditions
 unmet: (a) the battery reads 8/3, not 11/11; (b) the suite wall
 (2061.2 s release ≈ 34 min) exceeds the compare step's 30-minute CI
-budget (`rust-check.yml:117`). `--report-only` stays; both
+budget (`rust-check.yml:125`, post-comment-refresh numbering).
+`--report-only` stays; both
 `ci_tripwire.rs` pins are intact. Face separation (do not substitute
 vocabularies): the CI step's own router-only profile has read 11/0 in
 337.7 s since M4-T6 (`logs/M4-T6/evidence/cmp_router_t6.log`) — that

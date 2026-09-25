@@ -1449,7 +1449,8 @@ at T12; `logs/M4-T12/evidence/battery_full_t12.log`).
 **The flip-hold record (M4-T13).** The CI flip precondition is unmet on
 BOTH faces: (a) the battery reads 8/3, not 11/11; (b) the suite wall
 (2061.2 s release ≈ 34 min) exceeds the compare step's 30-minute
-budget (`.github/workflows/rust-check.yml:117`, `timeout-minutes: 30`).
+budget (`.github/workflows/rust-check.yml:125`, the compare step's
+`timeout-minutes: 30` — line per the post-comment-refresh committed tree).
 `--report-only` stays with both `ci_tripwire.rs` pins intact — the
 held posture continues from the M3 adjudication, now with M4 evidence
 and named M5 exit conditions (full battery 11/11 AND wall under
