@@ -2139,10 +2139,16 @@ impl DrillEngine for AutorouteEngine<'_> {
     }
 
     fn item_trace_corner_count(&self, item_key: u64) -> i32 {
-        // Java `Polyline.size()` — `lines.length`, the CORNER count.
+        // Java `PolylineTrace.cornerCount()` =
+        // `PolylineTraceGeometry.cornerCount(lines)` =
+        // `lines.length - 1` (Polyline.java:178-180) — the LINE count
+        // minus 1. The `== 2` consumer is the fanout-via protection's
+        // 2-corner shove-fixed arm (`MazeRipupResolver.java:51-56`);
+        // counting LINES there made every 2-corner trace answer 3 and
+        // silently killed the arm (the bm06 fanout fork, buglog 181).
         i32::try_from(
             self.item_trace_polyline(item_key)
-                .map_or(0, |polyline| polyline.lines.len()),
+                .map_or(0, |polyline| polyline.lines.len().saturating_sub(1)),
         )
         .expect("corner count fits i32")
     }
@@ -4257,5 +4263,132 @@ mod tests {
         let r3 = engine.resolve(k3).expect("k3 resolves after shift");
         assert_eq!(*r3.shape(), shape_of("ccc"), "k3 resolved to its own room");
         finish_autoroute(Some(engine));
+    }
+    /// The fanout-via protection's 2-corner boundary (buglog 181, the
+    /// bm06 fanout-stage fork origin). Java
+    /// `MazeRipupResolver.calcFanoutViaRipupCostFactor` (:35-66)
+    /// protects an obstacle trace whose single end contact is a
+    /// SHOVE_FIXED trace with `cornerCount() == 2` — where Java
+    /// `PolylineTrace.cornerCount()` = `lines.length - 1`
+    /// (Polyline.java:178-180). The port's corner-count seam counted
+    /// LINES (`lines.len()`), so every 2-corner contact answered 3 and
+    /// the arm never fired: freshly inserted fanout escapes were
+    /// rippable at base ripup cost in Rust while Java priced them at
+    /// the `Integer.MAX_VALUE/100` clamp — the exact fork the bm06
+    /// instrument captured (jar CHECK_RIPUP net=15 obstacle=177
+    /// halfWidth=1000.0 ripupCosts=100 detour=1.0 result=21474836 —
+    /// the clamp — where the pre-fix Rust computed 100000; evidence
+    /// logs/M6-T2/). Pinned through the PRODUCTION
+    /// `impl DrillEngine for AutorouteEngine` (DNR-13), both
+    /// directions of the boundary: a 2-corner shove-fixed end contact
+    /// protects (factor > 1, the formula literal), a 3-corner contact
+    /// one step over the boundary does not (factor == 1.0).
+    #[test]
+    fn fanout_via_protection_two_corner_boundary() {
+        let (mut manager, mut board) = parse_fixture();
+        // The probed obstacle trace P: (600000,300000)->(620000,300000),
+        // layer 0, halfWidth 1500, net 94. lengthApprox = 20000.
+        let p_key = u64::from(
+            epic_board::trace_ops::insert_trace_without_cleaning(
+                &mut manager,
+                &mut board,
+                Polyline::from_two_corners(
+                    &Point::Int(corner(600000, 300000)),
+                    &Point::Int(corner(620000, 300000)),
+                ),
+                0,
+                1500,
+                &[94],
+                0,
+                FixedState::Unfixed,
+            )
+            .expect("probe trace")
+            .get(),
+        );
+        // The contact trace C (2 corners: 3 lines, SHOVE_FIXED) whose
+        // first corner touches P's end corner.
+        let c_key = u64::from(
+            epic_board::trace_ops::insert_trace_without_cleaning(
+                &mut manager,
+                &mut board,
+                Polyline::from_two_corners(
+                    &Point::Int(corner(620000, 300000)),
+                    &Point::Int(corner(640000, 300000)),
+                ),
+                0,
+                1000,
+                &[94],
+                0,
+                FixedState::ShoveFixed,
+            )
+            .expect("2-corner contact trace")
+            .get(),
+        );
+        // The second probe pair, far from the first: P2 with a 3-corner
+        // SHOVE_FIXED dogleg touching its end corner only.
+        let p2_key = u64::from(
+            epic_board::trace_ops::insert_trace_without_cleaning(
+                &mut manager,
+                &mut board,
+                Polyline::from_two_corners(
+                    &Point::Int(corner(800000, 300000)),
+                    &Point::Int(corner(820000, 300000)),
+                ),
+                0,
+                1500,
+                &[94],
+                0,
+                FixedState::Unfixed,
+            )
+            .expect("second probe trace")
+            .get(),
+        );
+        let c4_key = u64::from(
+            epic_board::trace_ops::insert_trace_without_cleaning(
+                &mut manager,
+                &mut board,
+                Polyline::from_points(&[
+                    Point::Int(corner(820000, 300000)),
+                    Point::Int(corner(840000, 300000)),
+                    Point::Int(corner(840000, 320000)),
+                ]),
+                0,
+                1000,
+                &[94],
+                0,
+                FixedState::ShoveFixed,
+            )
+            .expect("3-corner contact trace 2")
+            .get(),
+        );
+        let (mut engine, _ctrl) = build_engine(&mut manager, &mut board, 94, false);
+        // The seam itself: a 3-line polyline = 2 corners (Java
+        // Polyline.cornerCount = lines.length - 1); a 4-line polyline
+        // = 3 corners.
+        assert_eq!(
+            engine.item_trace_corner_count(c_key),
+            2,
+            "corner count = lines - 1 (the fixed face)"
+        );
+        assert_eq!(
+            engine.item_trace_corner_count(c4_key),
+            3,
+            "4-line polyline = 3 corners (boundary +1 face)"
+        );
+        // The protect arm: factor = max((halfWidth/length)^2 * 20000, 1)
+        // = max(0.075^2 * 20000, 1) = 112.5 (Java MazeRipupResolver
+        // :59-62). PRE-FIX (the mutation), the seam counted LINES so the
+        // 2-corner contact answered 3, the arm did not fire, and this
+        // assert read 1.0 — the pin kills it.
+        let factor = crate::maze::ripup::calc_fanout_via_ripup_cost_factor(&mut engine, p_key);
+        assert_eq!(
+            factor, 112.5,
+            "2-corner shove-fixed end contact protects (Java factor formula)"
+        );
+        let factor2 = crate::maze::ripup::calc_fanout_via_ripup_cost_factor(&mut engine, p2_key);
+        assert_eq!(
+            factor2, 1.0,
+            "3-corner shove-fixed end contact does not protect (boundary +1)"
+        );
     }
 }
