@@ -97,18 +97,32 @@ jobs:
       # 337.7s, logs/M4-T6/evidence/cmp_router_t6.log). The exit flip is
       # judged on the MILESTONE battery — the full-profile face
       # (fanout + router + optimizer vs the M0 full-flow records), which
-      # reads 8 PASS / 3 RED (bm01 1/0/993.16 completion-by-1; bm06
-      # 5/8/930.81 completion+score; bm11 wall-killed at 600.2s with the
-      # engine at Java's exact terminal face — buglog 175/181/189;
-      # logs/M4-T12/evidence/battery_full_t12.log). The M4-T13 close
-      # recorded the flip HELD: both preconditions unmet (battery 8/3
-      # != 11/11; suite wall 2061.2s release = ~34 min exceeds this
-      # step's 30-min bound). M5 exit conditions: the full battery reads
-      # 11/11 AND its wall fits this budget — then drop `--report-only`
+      # reads 8 PASS / 3 RED (logs/M5-T8/evidence/battery_full_t8.log).
+      # The M5-T8 close recorded the flip HELD for a second consecutive
+      # milestone, with the failure COMPOSITION changed: the maze-search
+      # wall collapsed (bm01 routing now COMPLETES 0/0/1000.00 in ~276s
+      # vs M4's kill-at-plateau 668.8s; bm11 600.2s -> 197.7s; bm06
+      # 80.0s -> 25.0s), but bm01 is now killed at the 1800s optimizer
+      # tier on a NON-improvable 0.00-score incumbent (the T1b-parity-
+      # corrected optimizer stage is the binding face; routing itself
+      # is complete — not a search regression), and bm06 3>2 / bm11 4>3
+      # are the buglog-181 completion residuals (owner M6).
+      # Preconditions, both unmet: battery 8/11 != 11/11; suite wall
+      # 2286.1s harness-elapsed (~38.1 min) exceeds this 30-min bound
+      # and reads 2.02x Σ-Java (1130.39s vs the <=0.5x target of
+      # 565.19s; like-for-like per-fixture excl-bm01: 256.7s = 2.42x —
+      # both bases labeled per the T8 report). Next-flip precondition
+      # (M6): the wall work — the bm01 optimizer-entry question (re-read
+      # Java's preflight guard) + the 1800s tier bound + the bm06/bm11
+      # completion levers (buglog 181) — until the full battery reads
+      # 11/11 AND its wall fits this budget. Then: drop `--report-only`
       # here, update BOTH ci_tripwire.rs pins in the SAME commit, add
       # the events-compare step (java-free, green since M4-T6) with its
       # own pin, and refresh the posture prose (rust/README status block
-      # + gates comment, design §6 CI paragraph).
+      # + gates comment, design §6 CI paragraph). The in-tree
+      # threads-invariance gate (bm06 byte-identical across -mt 1/3/4)
+      # stays pinned in-tree only; its CI wiring is RE-DEFERRED to the
+      # same M6 flip-adjacent moment (the T9 decision).
       # WALL WARNING: the battery's wall is the SUM of tier timeouts;
       # a full-battery push trips this 30-min step bound (the designed
       # tripwire for the wall), and a harness-KILLED run skips the
@@ -119,8 +133,8 @@ jobs:
       # 466.67 / 78 unrouted / 0 violations); the spawned epic-cli
       # prefers a release bin (the bug-184 freshness guard), but a
       # cacheless CI checkout can still adopt a debug sibling. Retiring
-      # the trip needs the wall to drop (M5 search-cost work) or this
-      # bound to rise.
+      # the trip needs the wall to drop (the M6 wall work described
+      # above) or this bound to rise.
       - run: cargo run -q -p epic-harness -- router compare --report-only
         timeout-minutes: 30
         env:

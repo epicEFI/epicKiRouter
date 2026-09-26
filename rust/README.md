@@ -4,31 +4,40 @@ Rust rewrite of the Freerouting autorouter (design:
 `docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`).
 The Java tree under `src/` stays untouched as the parity oracle.
 
-Status: M0–M4 complete (M4 exited M4_EXIT_WITH_DEVIATIONS —
-criterion 2's three full-face battery reds owned by M5 / M1b-reopen;
-design §6 M4 exit note) — scaffold + golden baselines, geometry
-kernel,
+Status: M0–M4 complete (M4 exited M4_EXIT_WITH_DEVIATIONS; design §6
+M4 exit note), M5 executed on top (wall slices + deterministic
+parallelism) — scaffold + golden baselines, geometry kernel,
 DSN/SES I/O, arena board model, incremental spatial index, the
 detail-routing core (`epic-router`: expansion → maze → ripup/shove →
 locator → forced insertion → batch driver), `epic-drc` (incompletes +
 clearance counting), the M4 fanout + batch-optimizer stages with the
 assembled full pipeline (`pipeline/full.rs`, the `RoutingPipeline.run()`
-equivalent), and `epic-cli` (headless route: `epicrouter -de
-board.dsn -do out.ses`); 1,422 workspace tests green. The M4 full-face
-battery (fanout → router → optimizer vs the M0 full-flow jar records)
-reads **8 pass / 3 red**: bm01 completion-by-1 at the 993.16 plateau
-(buglog 175/181), bm06 5-vs-2 + score (buglog 189's room-completion
-divergence, upstream of the 181 victim-choice family), bm11
-wall-integrity at 600.2 s with the engine AT Java's exact terminal face
-(buglog 175 — per-pass search cost, M5's lift). All seven standing
+equivalent), the deterministic per-net partitioned executor with
+`--threads`, and `epic-cli` (headless route: `epicrouter -de
+board.dsn -do out.ses`); **1,444 workspace tests green**. The M5-T8
+full-face battery (fanout → router → optimizer vs the M0 full-flow jar
+records) reads **8 pass / 3 red** with the failure composition CHANGED
+from M4: bm01's routing now COMPLETES 0/0/1000.00 in ~276 s (M4:
+kill-at-plateau 668.8 s) and the red is the optimizer stage — killed
+at the 1800 s tier on a non-improvable 0.00-score incumbent (not a
+search regression); bm06 3-vs-2 and bm11 4-vs-3 incompletes are the
+buglog-181 completion residuals (owner M6). All seven standing
 compares stay green (corpus 5000/5000; DSN 1,332; SES 20; ses-snap 5;
-index 33; undo 33; drc 17) and the events compare is green (3,520
-golden rows, exit 0 since M4-T6). The CI router gate stays in
-`--report-only`: the M4 close adjudicated the flip HELD on both
-preconditions (battery 8/3 ≠ 11/11; suite wall 2061.2 s ≈ 34 min >
-the CI compare step's 30-min budget). M5 flip conditions: the full
-battery reads 11/11 AND its wall fits the budget (the design doc §6 M4
-exit note and the rust-check.yml comment).
+index 33; undo 33; drc 17), the events compare is green (3,520
+golden rows, exit 0 since M4-T6), determinism canaries are unrotated
+(ses `dc271114…` / manifest `cf607714…`), and the in-tree
+threads-invariance gate is green (bm06 SES `77caf2099a2f…` / manifest
+`90f08ad2…` byte-identical across `-mt 1/3/4`). The CI router gate
+stays in `--report-only`: the M5-T8 close adjudicated the flip
+NO-GO on BOTH preconditions (battery 8/11 ≠ 11/11; suite wall
+2286.1 s harness-elapsed ≈ 38.1 min > the CI compare step's 30-min
+budget — 2.02× Σ-Java 1130.39 s vs the ≤0.5× target, like-for-like
+per-fixture excl-bm01 256.7 s = 2.42×; basis labels per the T8
+report). M6 flip conditions: the wall work — the bm01 optimizer-entry
+question + the 1800 s tier bound + the bm06/bm11 completion levers
+(buglog 181) — until the full battery reads 11/11 AND its wall fits
+the budget (the design doc §6 M4/M5 notes and the rust-check.yml
+comment).
 Port ledger: `crates/epic-router/SEAM.md`.
 
 ## Layout
@@ -179,18 +188,26 @@ cargo run -q -p epic-harness --release -- router compare
 # victim-choice family; bm11 wall-integrity red with the engine AT
 # Java's exact 975.00/3/0 face at the kill) — T12's face.
 cargo run -q -p epic-harness --release -- router compare --profile full
-# CI posture (M4-T13): --report-only prints every verdict and exits 0.
-# The flip to a hard gate stays HELD after M4 — both preconditions
-# unmet: the milestone full-face battery reads 8 pass / 3 red (buglog
-# 175/181/189; logs/M4-T12/evidence/battery_full_t12.log) and its
-# suite wall (2061.2 s release ≈ 34 min) exceeds the compare step's
-# 30-min budget. M5 flip conditions: the full battery reads 11/11 AND
-# the wall fits the budget — then drop --report-only, update BOTH
-# ci_tripwire.rs pins in the SAME commit, add the events-compare step
-# (java-free, green since M4-T6) with its own pin, and refresh the
-# posture prose (this file's status block and this comment, plus the
-# design doc §6 note's CI paragraph); the rust-check.yml comment
-# records the condition.
+# CI posture (M4-T13, refreshed at M5-T9): --report-only prints every
+# verdict and exits 0. The flip to a hard gate stays HELD after M5 —
+# both preconditions unmet for a second consecutive milestone, with
+# the failure composition changed (the maze-search wall collapsed;
+# bm01's red is now the optimizer stage under the 1800 s tier on a
+# non-improvable 0.00-score incumbent; bm06/bm11 are the buglog-181
+# completion residuals): the milestone full-face battery reads 8 pass
+# / 3 red (logs/M5-T8/evidence/battery_full_t8.log) and its suite wall
+# (2286.1 s harness-elapsed ≈ 38.1 min) exceeds the compare step's
+# 30-min budget. The in-tree threads-invariance gate stays pinned
+# in-tree only (green, hashed) — its CI wiring is RE-DEFERRED to the
+# M6 flip-adjacent moment, so no CI step additions ride the T9
+# docs-only commit. M6 flip conditions: the wall work (the bm01
+# optimizer-entry question + the tier bound + the bm06/bm11 completion
+# levers) until the full battery reads 11/11 AND the wall fits the
+# budget — then drop --report-only, update BOTH ci_tripwire.rs pins in
+# the SAME commit, add the events-compare step (java-free, green since
+# M4-T6) with its own pin, and refresh the posture prose (this file's
+# status block and this comment, plus the design doc §6 note's CI
+# paragraph); the rust-check.yml comment records the condition.
 cargo run -q -p epic-harness -- router compare --report-only
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
 # manifest (canaries at the M5-T3 fix: ses dc271114… / manifest

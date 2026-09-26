@@ -171,7 +171,36 @@ budget (the compare step's `timeout-minutes: 30`, now at
 `rust-check.yml:125` after the T13 comment refresh). The events-compare step also stays out
 of CI until the same flip commit brings it with its own pin. M5 flip
 conditions: full battery 11/11 AND wall under budget. The M4 exit note
-below carries the full record.)
+below carries the full record.) (M5 UPDATE, T9: the HOLD continues —
+adjudicated NO-GO on both preconditions at the M5-T8 close
+(`logs/M5-T8/report-t8.md`, §(e)): the milestone full-face battery
+reads 8 PASS / 3 RED (`logs/M5-T8/evidence/battery_full_t8.log`; Σ
+wall 2286.1 s harness-elapsed ≈ 38.1 min > the compare step's 30-min
+budget, `rust-check.yml` `timeout-minutes: 30` — at `:139` in this
+tree, post-T9-comment-refresh; the M4 note's `:125` anchors below are
+T13-era numbering) — the hold's
+composition changed, not its verdict: the maze-search wall collapsed
+(bm01 routing now completes 0/0/1000.00 in ~276 s; bm11 600.2→197.7 s;
+bm06 80.0→25.0 s), but the T1b-parity-corrected optimizer stage is now
+the binding face on bm01 (killed at the 1800 s tier on a
+non-improvable 0.00-score incumbent). The named deviations rows,
+compactly (the M5 exit note will expand them): criterion 1 **MISS** —
+Σ 2286.1 s harness-elapsed = 2.02× Σ-Java 1130.39 s vs the ≤0.5×
+target (565.19 s); like-for-like per-fixture excl-bm01 256.7 s =
+2.42× (both bases labeled, per finding MINOR-1); criterion 2 **NOT
+MET** — the speedup collapses on the large boards (bm11 0.24×, bm06
+0.69×; bm01 ≤0.57× kill-truncated) while the M4→M5 compression is
+real progress: bm11 ≥12.5×→4.13×, bm06 4.63×→1.45×, bm07 7.74×→0.58×
+slowness; criterion 3 **MET** — threads-invariance byte-identical at
+the T7 hashes (bm08 `dc271114…`/`cf607714…`, bm06
+`77caf2099a2f…`/`90f08ad2…` across `-mt 1/3/4`); the three reds —
+bm01: optimizer-stage wall kill at the 1800 s tier with routing
+COMPLETE (the optimizer-entry question — should the optimizer be
+entered at all on a 1000.00/0/0 incumbent, Java's preflight guard —
+plus the tier-bound question) → M6; bm06 3>2 and bm11 4>3
+incompletes: the buglog-181 completion residuals → M6. The
+threads-gate CI wiring is RE-DEFERRED to the M6 flip-adjacent moment
+(the gate stays pinned in-tree, green and hashed).)
 
 M4 exit note (T13, adjudicated 2026-09-24 at tree `6a0dbd00b`):
 **M4_EXIT_WITH_DEVIATIONS**, adjudicated on this row's own faces.

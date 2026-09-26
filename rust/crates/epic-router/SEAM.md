@@ -1946,5 +1946,27 @@ verdict faces inside `determinism_check_catches_a_planted_divergence`
 faces die — KILLED). Spec round F1 adds the partitioned fail-fast pin
 `t7_f1_panicking_worker_fails_fast_with_unit_identity` (its mutation
 record in the spec-fix paragraph below). Gates: fmt 0; clippy
-`--workspace --all-targets -D warnings` 0; census **1443/0/17 at
-HEAD** (1442 at the feat commit + 1 F1 pin).
+`--workspace --all-targets -D warnings` 0; census **1442 at the feat
+commit `923f16ae5`, 1443 at the spec-fix `c6d148a7a` (its F1 pin) and
+at the docs addendum `3092f2effb`, 1444 at the quality round
+`977e07a47` (its +1 Q1 verdict-face pin)** — commit-anchored, never
+"at HEAD" (the T7-quality-r2 N2 closure: an "at HEAD" census figure
+goes stale on the very next pin-adding commit).
+
+## M5 hold posture (appended by M5-T9; the flip record at the SEAM surface)
+
+The M5 close adjudicated the CI flip **NO-GO on both preconditions**
+at T8 (`logs/M5-T8/report-t8.md` §(e); measurement-only — no engine
+change, tree untouched). This section is the append-only posture
+record; everything above it stands as landed.
+
+| Row | Record | Evidence |
+|---|---|---|
+| Flip decision | **NO-GO, both preconditions unmet**: battery 8/11 ≠ 11/11 AND Σ wall 2286.1 s harness-elapsed (≈ 38.1 min) > the compare step's 30-min budget (`rust-check.yml` `timeout-minutes: 30`). `--report-only` and BOTH `ci_tripwire.rs` pins stay INTACT (the NO-GO rule) — the second consecutive honest hold, with the failure composition changed from M4 | `logs/M5-T8/report-t8.md` §(a)/(b)/(e); `logs/M5-T8/evidence/battery_full_t8.log` |
+| Battery face (composition changed) | bm01 routing now COMPLETES 0/0/1000.00 at P8 in ~276 s (fanout 4.43 s + routing P1–P9 271.26 s = 275.69 s) — the maze-search wall is GONE (M4: kill-at-plateau 668.8 s; bm11 600.2 → 197.7 s; bm06 80.0 → 25.0 s); the bm01 red is the T1b-parity-corrected optimizer stage, killed at the 1800 s tier on a non-improvable 0.00-score incumbent (not a search regression); bm06 3>2 and bm11 4>3 incompletes are the buglog-181 completion residuals, owner M6 | §(a) table; `bm01_stderr_t8.log`; T3/T6 dossiers above |
+| Criterion 1 (Σ wall ≤ 0.5× Σ-Java) | **MISS** — Σ 2286.1 s harness-elapsed = 2.02× Σ-Java 1130.39 s vs the ≤ 565.19 s target; like-for-like per-fixture excl-bm01: 256.7 s = 2.42× (both bases labeled, per finding MINOR-1; verdict invariant under either basis) | §(b) |
+| Criterion 2 (trend toward 10× on large boards) | **NOT MET** — speedup peaks small (bm08 4.51×) and collapses large (bm11 0.24×, bm06 0.69×, bm09 0.57×, bm01 ≤0.57× kill-truncated); the M4→M5 compression is the progress sentence: bm11 ≥12.5×→4.13×, bm06 4.63×→1.45×, bm07 7.74×→0.58× slowness | §(c) |
+| Criterion 3 (threads-invariance) | **MET** — byte-identical across `-mt 1/3/4` at the T7 hashes (bm08 ses `dc271114…` / manifest `cf607714…`; bm06 ses `77caf2099a2f…` / manifest `90f08ad2…`) | §(d); the T7 dossier above |
+| Threads-gate CI wiring | **RE-DEFERRED to the M6 flip-adjacent moment** (coordinator decision riding T8's closeout): the plan's NO-GO branch is ONE docs-only commit, so no CI step additions ride T9; the gate stays pinned in-tree (green, hashed, argv + verdict + override-naming pins) | T7 dossier (pins + hashes); the T8 closeout decisions of record |
+| Suite census | 1444/0/17 at `977e07a47` — commit-anchored in the T7 dossier above, never "at HEAD"; both `ci_tripwire` pins ok inside the bare suite | T8 gates r2 (`census_t8_r2.log`) |
+| M6 flip conditions | the wall work — the bm01 optimizer-entry question (should the optimizer be entered at all on a 1000.00/0/0 incumbent; re-reading Java's preflight guard is the first M6 step) + the 1800 s tier bound + the bm06/bm11 completion levers (buglog 181) — until the full battery reads 11/11 AND its wall fits the CI budget; the flip commit then also brings the events step with its own pin | T8 concerns (1)–(3); the M4 criterion map's flip-hold record above |
