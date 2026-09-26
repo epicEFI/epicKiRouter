@@ -842,7 +842,8 @@ impl<'a> BatchOptimizerStage<'a> {
         // Java `:316-319` — the incumbent snapshot.
         // M6-T1b slice (storage-only, byte-invariant): compact the
         // item-undo slab ONCE at stage entry so the per-candidate
-        // worker deep copies (`:1003` at `opt_route_pass`) stop
+        // worker deep copies (rust: `opt_route_pass`'s `self.board.clone()`,
+        // `:1234` at this writing) stop
         // carrying the routing history's unreachable residue. Java's
         // deepCopy never copies that residue (its `UndoableObjects`
         // skip-list holds only current nodes — the dead clones are

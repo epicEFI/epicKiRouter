@@ -533,7 +533,10 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
     /// nodes Java's GC drops, outside the digest/serialization stream —
     /// is dropped. Every reader observes identical behavior
     /// (`iter_visible`/`get`/`value_mut` walk the unchanged map;
-    /// undo/redo/digest walk the unchanged reachable graph).
+    /// undo/redo/digest walk the unchanged reachable graph). Slab
+    /// indices are NOT stable across `compact`: every prior `NodeIdx`
+    /// is invalidated (a survivor's index shifts), so any external
+    /// index holder must re-derive.
     ///
     /// M6-T1b (storage-only cost slice): the optimizer's per-candidate
     /// worker clones were copying the routing history's dead slab on
@@ -568,13 +571,8 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
         if next_new == self.nodes.len() {
             return; // nothing unreachable — the slab stays as-is
         }
-        // Pass 2: rebuild the slab in new-index order, remapping links.
-        let mut order: Vec<NodeIdx> = vec![0; next_new];
-        for (old_idx, slot) in remap.iter().enumerate() {
-            if let Some(new_idx) = *slot {
-                order[new_idx] = old_idx;
-            }
-        }
+        // Pass 2: rebuild the slab in new-index order, remapping links
+        // (the rebuild walks `remap` directly — no inverse map needed).
         let mut new_nodes: Vec<Option<Node<K, T>>> = (0..next_new).map(|_| None).collect();
         for (old_idx, node) in std::mem::take(&mut self.nodes).into_iter().enumerate() {
             if let Some(new_idx) = remap[old_idx] {
@@ -771,7 +769,13 @@ mod tests {
     /// order) are IDENTICAL before vs after, while the dead slab
     /// actually shrinks. A mutant that drops chain edges from the
     /// reachability walk fails the digest equality (chain nodes vanish)
-    /// and the undo equality (restores diverge).
+    /// and the undo equality (restores diverge). Defensive-arm caveat:
+    /// this world holds no redo-only-reachable node, so a mutant that
+    /// drops ONLY the redo-edge push survives — accepted, because the
+    /// module doc's dead-state analysis (:43-64) shows no live state
+    /// can make a redo edge load-bearing; the redo push is
+    /// digest_walk-parity transliteration, not a live correctness
+    /// surface.
     #[test]
     fn compact_reachable_graph_preserves_digest_and_undo() {
         let build = || {
