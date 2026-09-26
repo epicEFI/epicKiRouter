@@ -2218,6 +2218,116 @@ mod tests {
         );
     }
 
+    /// The M6-T1 exact edges (buglog 196; charter boundary list):
+    /// guard 1 at the 0-vs-1 incomplete edge (the interpolated count
+    /// is part of the reason face), guard 2a at the 950.0 score edge
+    /// with zero vias (exact edge + one step either side), guard 3a at
+    /// the 995.0 edge with ONE via on the board — which is also the
+    /// vias 0-vs-1 face at score >= 950 (the via count closes guard
+    /// 2's zero-via gate, so the 3a message fires instead of 2a's).
+    /// Scores are crafted through the V2 lower-bound formula
+    /// (min=100, weight=1000: `score = 1000 - 10 x (total - min)`)
+    /// with via/bend weights zeroed, so each edge value lands exactly
+    /// in f32. The `>` and `>=` mutants at every edge were killed
+    /// during development (both directions; see the task report).
+    #[test]
+    fn m6_t1_preflight_exact_score_and_count_edges() {
+        let (mut manager, mut board) = pairless_world(); // 0 incompletes, 0 vias
+        let mut stop = StopFace::default();
+        let batch = BatchSettings::new(settings_ir(), v2_scoring());
+        let mut opt = opt_settings();
+        opt.enable_preflight_guards = Some(true); // guards ON — the pin targets them
+        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        stage.settings.scoring = RouterSettingsScoring {
+            scoring: Some(default_routing_cost_settings()),
+            router_scoring: None,
+            optimizer_scoring: Some(OptimizerScoreSettings {
+                version: crate::pipeline::board_statistics::OptimizerScoringVersion::V2LowerBound,
+                excess_wire_length_weight: Some(1000.0),
+                excess_via_weight: Some(0.0),
+                excess_bend_weight: Some(0.0),
+                length_floor: Some(1.0),
+                difficulty_scale_floor: Some(1.0),
+            }),
+        };
+        let stats =
+            |incomplete: Option<i32>, total_len: f32, min_via: Option<i32>, via_count: i32| {
+                let mut s = BoardStatistics::new_empty();
+                s.connections.incomplete_count = incomplete;
+                s.vias.total_count = via_count;
+                s.bounds.min_trace_length_mm = Some(100.0);
+                s.bounds.min_via_count = min_via;
+                s.traces.total_length_mm = Some(total_len);
+                s
+            };
+
+        // Guard 1 at the exact 0-vs-1 edge; the full row is pinned so
+        // an interpolation or wording drift fails the pin.
+        let s = stats(Some(1), 100.0, Some(1), 0);
+        assert_eq!(
+            stage.evaluate_pre_flight_guards(&s).as_deref(),
+            Some(
+                "the board has 1 unrouted connection(s) (optimizer only runs on completely \
+                 routed boards)"
+            ),
+            "guard 1 fires at exactly 1 incomplete with the exact Java row",
+        );
+        // One step down (0 incompletes) on a world where every later
+        // guard also fails -> the guards pass.
+        let s = stats(Some(0), 105.001, Some(1), 0);
+        assert_eq!(
+            stage.evaluate_pre_flight_guards(&s),
+            None,
+            "0 incompletes on an all-guards-fail world does not fire",
+        );
+
+        // The 950.0 edge, zero vias. Exactly AT the edge: fires
+        // (Java `>= 950.0f`).
+        let s = stats(Some(0), 105.0, Some(1), 0);
+        let reason = stage.evaluate_pre_flight_guards(&s);
+        assert!(
+            reason.as_deref().is_some_and(|r| r.contains(">= 950.00")),
+            "guard 2a at the exact 950.0 edge fires: {reason:?}",
+        );
+        // One step above the edge (score ~950.01): fires.
+        let s = stats(Some(0), 104.999, Some(1), 0);
+        let reason = stage.evaluate_pre_flight_guards(&s);
+        assert!(
+            reason.as_deref().is_some_and(|r| r.contains(">= 950.00")),
+            "guard 2a just above the 950.0 edge fires: {reason:?}",
+        );
+        // One step below the edge (score ~949.99): 2a stays shut and
+        // 2b (1.05), 3a, 3b all fail on this shape -> guards pass.
+        let s = stats(Some(0), 105.001, Some(1), 0);
+        assert_eq!(
+            stage.evaluate_pre_flight_guards(&s),
+            None,
+            "guard 2a just below the 950.0 edge does not fire",
+        );
+
+        // The 995.0 edge with one via (score 995 - 10 x (total-100) =
+        // 995.0 exactly at total=100.5): guard 3a fires.
+        let s = stats(Some(0), 100.5, Some(1), 1);
+        let reason = stage.evaluate_pre_flight_guards(&s);
+        assert!(
+            reason
+                .as_deref()
+                .is_some_and(|r| r.contains("theoretical maximum (995.00)")),
+            "guard 3a at the exact 995.0 edge fires: {reason:?}",
+        );
+        // One step below the edge (score ~994.99): 3a stays shut; the
+        // fall-through lands on 3b (total within the 1.02 face and the
+        // via count at the minimum).
+        let s = stats(Some(0), 100.501, Some(1), 1);
+        let reason = stage.evaluate_pre_flight_guards(&s);
+        assert!(
+            reason
+                .as_deref()
+                .is_some_and(|r| r.contains("within 2% of the theoretical")),
+            "guard 3a just below the 995.0 edge does not fire (3b catches): {reason:?}",
+        );
+    }
+
     // -----------------------------------------------------------------------
     // the candidate ripup costs (Java :884-892)
     // -----------------------------------------------------------------------

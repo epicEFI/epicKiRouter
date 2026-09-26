@@ -307,6 +307,15 @@ struct PassUnit {
     items_remaining: i32,
 }
 
+/// The unit's `first_net` face: the item's first net, or the inert
+/// `-1` sentinel when the item carries no nets. One named helper for
+/// BOTH construction sites (the serial walk and the partitioned
+/// walk — the M6-T1 N3 dedup of the duplicated `unwrap_or(-1)`
+/// fallbacks); behavior byte-identical.
+fn unit_first_net(nets: &[i32]) -> i32 {
+    nets.first().copied().unwrap_or(-1)
+}
+
 /// The counter deltas one attempt contributes (its sink rows are
 /// emitted inside [`run_attempt`]).
 struct AttemptTally {
@@ -620,7 +629,7 @@ pub fn run_single_thread(
             let unit = PassUnit {
                 item_id: *item_id,
                 net: *net,
-                first_net: nets.first().copied().unwrap_or(-1),
+                first_net: unit_first_net(&nets),
                 simple_name,
                 items_remaining: items_to_go_count,
             };
@@ -861,7 +870,7 @@ pub fn run_partitioned<'a>(
                 let unit = PassUnit {
                     item_id: *item_id,
                     net: *net,
-                    first_net: nets.first().copied().unwrap_or(-1),
+                    first_net: unit_first_net(&nets),
                     simple_name,
                     items_remaining: items_to_go_count,
                 };
