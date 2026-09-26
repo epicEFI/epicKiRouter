@@ -1589,16 +1589,6 @@ impl DrillEngine for Harness {
             .is_some_and(|e| matches!(e.fixed, FixedState::ShoveFixed))
     }
 
-    fn item_trace_corner_count(&self, item_key: u64) -> i32 {
-        // Java `PolylineTrace.cornerCount()` — `lines.length - 1`
-        // (Polyline.java:178-180), matching the engine impl above.
-        i32::try_from(
-            self.item_trace_polyline(item_key)
-                .map_or(0, |polyline| polyline.lines.len().saturating_sub(1)),
-        )
-        .expect("corner count fits i32")
-    }
-
     fn item_trace_length(&self, item_key: u64) -> f64 {
         // Java `Trace.getLength()` (`Polyline.getLengthApprox`).
         self.item_trace_polyline(item_key)

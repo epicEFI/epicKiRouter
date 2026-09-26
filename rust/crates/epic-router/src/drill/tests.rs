@@ -673,10 +673,6 @@ impl DrillEngine for SynthWorld {
         false
     }
 
-    fn item_trace_corner_count(&self, _item_key: u64) -> i32 {
-        0
-    }
-
     fn item_trace_length(&self, item_key: u64) -> f64 {
         self.trace_lengths.get(&item_key).copied().unwrap_or(0.0)
     }

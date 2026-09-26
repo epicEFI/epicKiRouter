@@ -286,9 +286,24 @@ pub trait DrillEngine: NeighbourEngine {
     /// `calcFanoutViaRipupCostFactor`.
     fn item_is_shove_fixed(&self, item_key: u64) -> bool;
 
-    /// Java `Polyline.size()` of the item's trace polyline
-    /// (`lines.length` — the corner count).
-    fn item_trace_corner_count(&self, item_key: u64) -> i32;
+    /// Java `PolylineTrace.cornerCount()` =
+    /// `PolylineTraceGeometry.cornerCount(lines)` =
+    /// `lines.length - 1` (Polyline.java:178-180) — the LINE count
+    /// minus 1, saturating at 0; Java's −1 on the empty polyline is
+    /// unreachable for real traces. The `== 2` consumer is the
+    /// fanout-via protection's 2-corner shove-fixed arm
+    /// (`MazeRipupResolver.java:51-56`); counting LINES there made
+    /// every 2-corner trace answer 3 and silently killed the arm (the
+    /// bm06 fanout fork, buglog 181). Provided by default — every
+    /// engine reads the same board model, so the body is shared
+    /// verbatim through the required [`Self::item_trace_polyline`].
+    fn item_trace_corner_count(&self, item_key: u64) -> i32 {
+        i32::try_from(
+            self.item_trace_polyline(item_key)
+                .map_or(0, |polyline| polyline.lines.len().saturating_sub(1)),
+        )
+        .expect("corner count fits i32")
+    }
 
     /// Java `Trace.getLength()` — the polyline length approximation.
     fn item_trace_length(&self, item_key: u64) -> f64;
