@@ -292,30 +292,35 @@ impl MinAreaTree {
             return found;
         };
         // Java ArrayStack (LIFO): push firstChild, then secondChild —
-        // second pops first (MinAreaTree.java:42-43).
-        let mut node_stack: Vec<NodeIdx> = vec![root];
-        while let Some(current) = node_stack.pop() {
-            if intersects(self.base.bounds(current), shape) {
-                match &self.base.node(current).kind {
-                    NodeKind::Leaf {
-                        object_key,
-                        shape_index_in_object,
-                        bounds,
-                    } => {
-                        found.push(LeafEntry {
-                            node: current,
-                            object_key: *object_key,
-                            shape_index_in_object: *shape_index_in_object,
-                            bounds: bounds.clone(),
-                        });
-                    }
-                    NodeKind::Inner { first, second, .. } => {
-                        node_stack.push(*first);
-                        node_stack.push(*second);
+        // second pops first (MinAreaTree.java:42-43). The stack is the
+        // pooled per-thread DFS stack (slice B): cleared before the
+        // walk, capacity retained across queries.
+        crate::scratch::with_node_stack(|node_stack| {
+            node_stack.clear();
+            node_stack.push(root);
+            while let Some(current) = node_stack.pop() {
+                if intersects(self.base.bounds(current), shape) {
+                    match &self.base.node(current).kind {
+                        NodeKind::Leaf {
+                            object_key,
+                            shape_index_in_object,
+                            bounds,
+                        } => {
+                            found.push(LeafEntry {
+                                node: current,
+                                object_key: *object_key,
+                                shape_index_in_object: *shape_index_in_object,
+                                bounds: bounds.clone(),
+                            });
+                        }
+                        NodeKind::Inner { first, second, .. } => {
+                            node_stack.push(*first);
+                            node_stack.push(*second);
+                        }
                     }
                 }
             }
-        }
+        });
         // TreeSet<Leaf> semantics (Leaf.compareTo, ShapeTree.java:217-223):
         // object order (caller-supplied) then shape index ASC, dedup on
         // compareTo == 0.

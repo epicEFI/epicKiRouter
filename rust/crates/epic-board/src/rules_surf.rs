@@ -1082,7 +1082,7 @@ mod tests {
             "negative layer_index -> false (same guard)"
         );
     }
-    /// Java `appendClass` (`:281-325`) on the LIVE matrix: the new
+    /// Java `appendClass` (`:281-322`) on the LIVE matrix: the new
     /// row/col initializes from class 1 per layer (`(new, i)` and
     /// `(i, new)` from `getValue(1, i)`, class 0 INCLUDED — the
     /// java-verified `/tmp/epic-t5-probe.out` face; the diagonal from

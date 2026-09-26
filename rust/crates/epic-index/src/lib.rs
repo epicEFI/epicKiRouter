@@ -20,6 +20,9 @@ pub mod min_area_tree;
 pub mod search_tree;
 pub mod shape_tree;
 
+/// The per-thread scratch-buffer pool (M5 slice B — crate-internal).
+mod scratch;
+
 pub use complete_shape::{CompleteShapeObjects, CompleteShapeQuery, IncompleteRoom};
 pub use min_area_tree::MinAreaTree;
 pub use search_tree::{SearchTree, SearchTreeVariant, TreeEntry};

@@ -420,46 +420,50 @@ impl SearchTree {
     ) -> Vec<TreeEntry> {
         // The TreeSet sort keys: (clearance, entryId). entryIds are
         // allocated HERE, in candidate arrival order — the only order
-        // Java can construct them in.
-        let mut sorted: Vec<(i32, i32, usize)> = Vec::with_capacity(candidates.len());
-        for (index, (_, clearance, _)) in candidates.iter().enumerate() {
-            self.last_generated_entry_id = if self.last_generated_entry_id == i32::MAX {
-                0
-            } else {
-                self.last_generated_entry_id + 1
-            };
-            sorted.push((*clearance, self.last_generated_entry_id, index));
-        }
-        // (clearance, entryId) is a total order — ids are unique — so
-        // an unstable sort cannot reorder ties arbitrarily.
-        sorted.sort_unstable();
+        // Java can construct them in. The keys Vec is the pooled
+        // per-thread scratch (slice B): cleared per call, capacity
+        // retained.
+        crate::scratch::with_clearance_sort_keys(|sorted| {
+            sorted.clear();
+            for (index, (_, clearance, _)) in candidates.iter().enumerate() {
+                self.last_generated_entry_id = if self.last_generated_entry_id == i32::MAX {
+                    0
+                } else {
+                    self.last_generated_entry_id + 1
+                };
+                sorted.push((*clearance, self.last_generated_entry_id, index));
+            }
+            // (clearance, entryId) is a total order — ids are unique — so
+            // an unstable sort cannot reorder ties arbitrarily.
+            sorted.sort_unstable();
 
-        let mut result = Vec::new();
-        let mut current_half_clearance = 0;
-        // Java :490-491: the initial offset shape is the RAW query —
-        // NOT enlarge(0).
-        let mut current_offset_shape = query.clone();
-        for (clearance, _entry_id, index) in sorted {
-            let (leaf, _leaf_clearance, stored) = &candidates[index];
-            // Rust `/` and Java int `/` both truncate toward zero —
-            // identical results for EVERY sign combination, so the
-            // port is exact by construction (the clearances here are
-            // non-negative regardless). Do not "fix" this into a
-            // flooring divide; that would diverge on negatives.
-            let tmp_half_clearance = clearance / 2;
-            if tmp_half_clearance != current_half_clearance {
-                current_half_clearance = tmp_half_clearance;
-                current_offset_shape = query.enlarge(f64::from(tmp_half_clearance));
+            let mut result = Vec::new();
+            let mut current_half_clearance = 0;
+            // Java :490-491: the initial offset shape is the RAW query —
+            // NOT enlarge(0).
+            let mut current_offset_shape = query.clone();
+            for (clearance, _entry_id, index) in sorted.iter().copied() {
+                let (leaf, _leaf_clearance, stored) = &candidates[index];
+                // Rust `/` and Java int `/` both truncate toward zero —
+                // identical results for EVERY sign combination, so the
+                // port is exact by construction (the clearances here are
+                // non-negative regardless). Do not "fix" this into a
+                // flooring divide; that would diverge on negatives.
+                let tmp_half_clearance = clearance / 2;
+                if tmp_half_clearance != current_half_clearance {
+                    current_half_clearance = tmp_half_clearance;
+                    current_offset_shape = query.enlarge(f64::from(tmp_half_clearance));
+                }
+                let stored_offset = stored.enlarge(f64::from(current_half_clearance));
+                if current_offset_shape.intersects(&stored_offset) {
+                    result.push(TreeEntry {
+                        object_key: leaf.object_key,
+                        shape_index_in_object: leaf.shape_index_in_object,
+                    });
+                }
             }
-            let stored_offset = stored.enlarge(f64::from(current_half_clearance));
-            if current_offset_shape.intersects(&stored_offset) {
-                result.push(TreeEntry {
-                    object_key: leaf.object_key,
-                    shape_index_in_object: leaf.shape_index_in_object,
-                });
-            }
-        }
-        result
+            result
+        })
     }
 
     /// Java `ShapeSearchTree.validateEntries(Item)`

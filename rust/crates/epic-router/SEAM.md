@@ -1485,7 +1485,7 @@ its snapshot rows above stay HISTORICAL, never overwritten.
 
 **The fix (buglog 189 CLOSED).** The Rust load path lacked Java's CLI copper-to-edge
 clearance override entirely (`HeadlessBoardManager.applyCopperToEdgeClearanceOverride`,
-`:470-551`, called from the manager load flow at `:346`/`:750` — NOT from
+`:470-556`, called from the manager load flow at `:346`/`:750` — NOT from
 `DsnReader.readBoard`, which is why every direct-read oracle probe and the events
 corpus (`RouteEventProbe.java:198-205`) legitimately bypass it). Ported as
 `epic_cli::route::apply_copper_to_edge_clearance_override` (pub; called from
@@ -1543,3 +1543,77 @@ totals align exactly (101/5/0/+28 pass 1; escaped 113/124 both), but the PASS-2+
 ATTRIBUTION fork survives (rust 7/2/+3 @ripup 200 vs jar 6/3/+1 @200,
 `logs/M4-T7/evidence/jar_evidence_bm06_t7fix.log`) — the NEW first fork. No
 tie-break tuning; owner M6 (T8 re-faces the battery with the updated red row).
+
+## T4 (M5) slice B — the epic-index hot-path allocation elimination (appended by M5-T4)
+
+**The slice (plan Task 5 content, T1's binding ranking #1; commit `perf(m5): slice B …`).**
+The T1 profile ranked `epic_index::complete_shape` #1 (family 39.2%/29.2% of all
+allocations on bm06/bm11; single site `complete_shape.rs:810` = the 45-degree
+KEEP_NON_OVERLAP `room.clone()` push, 36.0%/26.2% — cite re-verified at dispatch HEAD
+`e81cd82e7`). ZERO semantic change: same inserts, same walk/iteration order, same
+removals, same query results — only the storage/allocation strategy moved. Three
+storage-only mechanisms, each value-identical to the owned form it replaced:
+
+1. **Per-thread scratch pool** (`epic-index/src/scratch.rs`, crate-private): the
+   complete-shape room double buffer (Java's `result`/`newResult` pair), the DFS node
+   stacks (the Java `ArrayStack` of the 45/90-degree walks and `MinAreaTree::overlaps`)
+   and the with-clearance sift's sort keys are TAKE/PUT-pooled per thread; capacity
+   persists across queries, every consumer clears before filling, the returned room
+   list leaves the pool (one `Vec` per query at the floor). Thread-local (not
+   per-tree) because the walk APIs take `&SearchTree`; per-THREAD (not global) so the
+   M5-T7 deterministic parallelism inherits safety for free (no cross-thread state).
+2. **Double-buffer swap instead of fresh Vecs**: `complete_shape` (all three arms)
+   reuses Java's `result`/`newResult` pair via `clear` + `swap` per processed obstacle
+   instead of allocating a new `Vec` per obstacle; `restrainShape` (all three arms) and
+   `divideLargeRoom` gained appending/in-place cores (`*_into` / `*_in_place`) so the
+   per-restrain-call `Vec` and the recursion's extends land in the caller's buffer.
+   The owned Java-parity surfaces (`restrain_shape_*`, `divide_large_room_*`) remain
+   and delegate to the cores.
+3. **Query-path elimination**: `SearchTree::clearance_test`'s sort-keys `Vec` is pooled
+   (the sift runs per maze element via `expand_to_door_section`); `MinAreaTree::overlaps`
+   walks the pooled DFS stack.
+
+Epoch reclamation (design :261's third leg) was EVALUATED AND DEFERRED: the slab
+(`shape_tree.rs:16`) keeps removed slots unreachable-but-populated and re-insertion
+allocates fresh — with the rip-up churn measured at only 1.6% of allocations
+(`min_area_tree`), a free-list/epoch scheme buys nothing T1 measured and risks the
+Java-slot-match pin (`search_tree.rs:262`); recorded honestly as not-taken.
+SoA field split likewise not-taken: the hot walk reads the WHOLE node kind
+(bounds + payload together), so an SoA split adds indirection without removing a
+measured chase.
+
+**Pins (+1, census 1430→1431).** `scratch_reuse_across_queries_is_invisible`
+(complete_shape.rs tests): a second 45-degree query through the SAME pooled buffers
+reproduces the fresh-state T3_simplex octagon exactly and equals a fresh-tree control.
+Mutation-verified: dropping the 45-degree arm's `next.clear()` makes the pin unable to
+complete — without the per-obstacle clear, surviving stale rooms double every obstacle
+(2^obstacles blowup; the mutant dies at any time/memory cap). Kill by non-completion,
+witnessed honestly (buglog 194 records the excursion: an unverified bulk mutation sed
+briefly took out BOTH `next.clear()` sites (:546 90-degree, :889 45-degree) and the
+resulting 14.5 GB test blowup OOM-killed two coordinator sessions; every cargo/harness
+command now runs under `systemd-run --user --scope -p MemoryMax=6G`).
+
+**Ripple (all at the slice commit; EPIC_SKIP_GRADLE=1, real exits, memory-capped).**
+corpus 5000/5000 exit 0; dsn `--set all` 1332/0 exit 0; ses 20/20 byte-equal; ses-snap
+5/5; index 33/33; undo 33/33; drc 17/17; events golden 3520 rows aligned exit 0;
+`router determinism` ×2 byte-identical, canaries UNROTATED (ses `dc271114…` / manifest
+`cf607714…`, the T3-rotated values); router-only Tier A battery **11 green / 0 red,
+every row at T3's exact terminal face** (bm01 0/0/1000.00/7, bm02 1/0/960.78/18,
+bm06 9/8/876.39, bm11 14/0/883.33/18) — no row moved. Gates: fmt 0; clippy
+`--workspace --all-targets -D warnings` 0; census 1431/0 (+1 = the new pin).
+
+**Wall + alloc delta** (T1 instrument faces, in-process driver window, same machine,
+before/after both release + CARGO_PROFILE_RELEASE_DEBUG=2):
+
+| fixture | wall before → after | allocs before → after | bytes before → after | FACE |
+|---|---|---|---|---|
+| bm08 | 0.103 s → 0.089 s | 569,694 → 433,646 (−23.9%) | 66.7 MB → 53.2 MB (−20.2%) | 0/0/64/1 identical |
+| bm06 | 46.15 s → 46.45 s (+0.6%) | 72,950,462 → 41,868,462 (**−42.6%**) | 14.13 GB → 5.52 GB (**−60.9%**) | 3/8/223/21 identical |
+| bm11 | 501.96 s → 524.78 s (+4.5%) | 239,982,054 → 155,594,549 (**−35.2%**) | 50.00 GB → 26.20 GB (**−47.6%**) | 4/0/326/55 identical, 18+3 passes both |
+
+Honest reading (T1's own caveat): allocation COUNT and BYTES drop hard on the
+allocation-ranked fixtures, but the WALL on the wall-dominated fixtures is unchanged
+within this shared box's noise (bm06 +0.6%; bm11 +4.5% traced to one 88 s pass #17 in
+the after-run — pass durations on bm11 swing 0.9–88 s run-to-run at load ~6, work
+identical both runs). The slice's win is the churn/bytes floor (peak-live unchanged —
+the retained buffers are KB-scale); whether it moves the Σ wall is T8's judgment.
