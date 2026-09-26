@@ -183,7 +183,9 @@ cargo run -q -p epic-harness --release -- router compare
 # pipeline runs on the Rust side) and gates against the M0 full-flow
 # jar records (`baselines/java/A`, default-settings captures, reused
 # verbatim at M4-T11). The default (no flag) stays the router-only
-# face; the T11 full battery reads 8 pass / 3 red (bm01 completion
+# face; the M4-era face (T11/T12 — the CURRENT face is the status
+# block's M5-T8 composition): the T11 full battery reads 8 pass / 3
+# red (bm01 completion
 # red by 1 at a 993.16 plateau; bm06 5-vs-2 + score, the bug-181
 # victim-choice family; bm11 wall-integrity red with the engine AT
 # Java's exact 975.00/3/0 face at the kill) — T12's face.
@@ -200,9 +202,10 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # 30-min budget. The in-tree threads-invariance gate stays pinned
 # in-tree only (green, hashed) — its CI wiring is RE-DEFERRED to the
 # M6 flip-adjacent moment, so no CI step additions ride the T9
-# docs-only commit. M6 flip conditions: the wall work (the bm01
-# optimizer-entry question + the tier bound + the bm06/bm11 completion
-# levers) until the full battery reads 11/11 AND the wall fits the
+# docs-only commit. M6 flip conditions: the wall work — the bm01
+# optimizer-entry question + the 1800 s tier bound + the bm06/bm11
+# completion levers (buglog 181) — until the full battery reads 11/11
+# AND the wall fits the
 # budget — then drop --report-only, update BOTH ci_tripwire.rs pins in
 # the SAME commit, add the events-compare step (java-free, green since
 # M4-T6) with its own pin, and refresh the posture prose (this file's
