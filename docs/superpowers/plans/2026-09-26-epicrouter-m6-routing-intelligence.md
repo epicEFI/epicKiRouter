@@ -1,0 +1,144 @@
+# EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Take the M5-closed engine (full pipeline, deterministic parallelism, `M5_EXIT_WITH_DEVIATIONS`) to the design §6 M6 exit — **Tier B/C completion strictly > Java**, **Issue093-class violations = 0**, **island detection works** — by landing the design's routing-intelligence pillars (§4 :69–72: congestion-aware global stage with PathFinder negotiated congestion, push-and-shove, plane-aware routing) while first discharging the M5-chartered residuals: buglog **196** (the optimizer preflight guard — Java-exact port), buglog **181** (bm06/bm11 completion), and the **CI flip** (11/11 + Σ wall < 30 min) with its re-deferred threads-gate wiring.
+
+**Architecture:** Two regimes, one engine. **Default settings = the parity regime**: output stays byte-identical to the M5 tree on every existing gate (seven compares, events golden 3520, determinism canaries, Tier A battery faces) — the M5 byte-invariance rule carries verbatim. **M6 intelligence = the improvement regime**: the new stages (congestion map, global planning guides, PathFinder history costs, push-and-shove extensions) land behind default-off settings on the `epic-cli/src/settings.rs` seam (the `-mt` precedent), get their own committed goldens at first landing, and are measured ON for the Tier B/C strictly-> faces. Plane work splits the same way: Java-parity pieces (preflight guards, whatever the plane-branch audit finds missing) are default-on fixes; beyond-Java pieces (fragmentation avoidance, island detection's connectivity clamp) are advisory-first, setting-gated where they change routes.
+
+**Tech Stack:** Rust workspace in `rust/` (run cargo from there); Java oracle via `rust/harness` (JDK 25 at `~/.jdks/jdk-25.0.4.1+1`); branch `epic/main`; NEVER push; NEVER modify Java under `src/`/`src_v19/` (reading fine and REQUIRED — the 196 port reads `BatchOptimizer.java`; `rust/harness/oracle/*.java` is harness-side/editable); committed artifacts (`rust/harness/baselines/**`, corpus dirs, events-golden, `tiers.yaml`) never modified — **timeouts are NOT raised to make walls fit; the wall must genuinely drop; any tiers.yaml edit needs the coordinator's explicit sanction in the task brief (196's default disposition: NO edit, the 1800 s bound recorded as post-fix slack)**.
+
+**Recon basis (2026-09-26, at tree `5082cfc27`):** design §2 :14 (plane/pour awareness, island detection), §4 :69–72 (fanout congestion ordering, global routing/PathFinder/pattern routing, push-and-shove, plane routing), §6 :112 (M6 row) + :356 (sequencing: "speed (M5) lands before intelligence (M6–M8)"); the M5 exit note's carry-forwards paragraph (:341–354) + `M5_EXIT_WITH_DEVIATIONS` verdict (:276); buglog 181 + 196 verbatim; **Java `BatchOptimizer.evaluatePreFlightGuards`** (`src/main/java/app/freerouting/autoroute/pipeline/BatchOptimizer.java:155+` — guard 1 `incompleteCount > 0` bypass, guard 2 zero-vias/`initialScore >= 950` bypass, the `optimizer.enablePreflightGuards` settings switch); `rust/harness/config/tiers.yaml` (A = 11 fixtures, B = 9, C = 3; Java Σ walls A 1130.39 s / B 850.46 s / C 1009.26 s from `rust/harness/baselines/java/{A,B,C}/**/*.baseline.json`); Rust plane branches already present (`epic-router/src/pipeline/batch.rs:1107` `already_connected_to_plane`, `pipeline/connection_router.rs:113` `contains_plane`, `epic-board/src/rules_surf.rs:425`); shove faces from M3 (`epic-board/src/trace_shover.rs`, `epic-router/src/maze/shove_probe.rs`, `maze/ripup.rs`); NO congestion/global-stage code exists (grep-verified — greenfield); harness `--tier` filter exists on capture/verify (battery tier-filter face to be located/added); `pass_runner.rs:623`/`:864` the N3 `unwrap_or(-1)` twins. Implementers RE-VERIFY every anchor — the committed tree wins every conflict, including with this plan.
+
+**Key facts baked in:**
+- **196 is a parity fix, not a policy invention**: Java's optimizer BYPASSES on bm01's face (0 incompletes + score 1000.00 ≥ 950 → guard fires — verify which guard clause; the whole guard chain ports Java-exactly incl. the settings switch). bm01's 1800 s kill + 866 s rejected P1 both evaporate → Tier A Σ drops ~2286 → ~760 s ≈ 12.7 min < the 30-min CI budget with ~2.4× margin. The flip's precondition 2 turns on this task.
+- **Guard 1 changes other fixtures' optimizer faces too**: Java bypasses the optimizer on ANY board with incompletes (`incompleteCount > 0`) — if Rust's current pipeline enters the optimizer on incomplete boards (bm06/bm11 — CHECK), the port changes their walls/pass-faces as well. That movement is sanctioned (it IS Java parity); the battery re-face is T3's, never re-run ad hoc here.
+- **181 is CLASSIFIED TUNING, not a parity bug** (the T17c full attempt-stream diff: attempt 42 — Rust's space strictly CONTAINS Java's, rip-free and DRC-clean; the residual is victim-choice ordering at the net-12/13 forks). The M5 exit note charters the close as "a T12/T17c-style attempt-stream re-derivation **inside the fanout stage**". The T17c discipline rides verbatim: if the fork traces to a DERIVABLE Java rule Rust violates → fix + pin; if it stays bistable tuning → honest re-charter (owner M6-continued/M7) with the fresh fork row. NEVER tune tie-breaks to force a close.
+- **The events golden (3520) and crafted-world goldens never exercise the optimizer-entry face on incomplete boards** (expected — verify at T1): the guard port should rotate NOTHING. Any rotation = adjudicate before landing (M4-T1 precedent: cite, then update SEAM same-commit).
+- **Tier B/C have never been battery-run on Rust** (M4/M5 batteries were Tier A; M5-T8's ratio table sampled B/C walls only). T3 lands the first full B/C completion table — the milestone's before-face. Worst-case B+C battery ≈ 3.75 h at tier bounds; run tier-by-tier, systemd-capped, backgroundable.
+- **The flip is TWO workflow-touching commits at its moment** (GO branch): (1) the flip one-commit protocol (drop `--report-only`, both `ci_tripwire` pins + the events pin same-commit, posture surfaces — the M4-T13/M5-T9 enumerated list); (2) the threads-gate CI wiring (the T7 in-tree threads gate gets its yml step + refreshed comment — re-deferred from M5 T8 decision (2), due at "the M6 flip-adjacent moment" = here). ci vs feat never mix.
+
+## Milestone exit criteria (design §6 M6 + inherited carry-forwards)
+
+1. **Tier B/C completion strictly > Java** — per-fixture across the 12 B/C fixtures, Rust incompletes < Java incompletes, on the M6-settings-ON face (the improvement regime), table-cited at T10. Both faces (default + enhanced) recorded.
+2. **Issue093-class violations = 0** — plane-routing-induced clearance violations zero on the pour-carrying fixture set (the T3 census names them), judged by the real violation counter (the `getAllClearanceViolations`-class face — never the outline-only `BoardStatistics` count).
+3. **Island detection works** — floating-island detection on pours demonstrated: crafted-world pins (isolated region detected, connected pour clean) + fixture evidence.
+4. **Inherited residuals discharged**: 196 closed (Java-exact guards, bm01 battery face green); 181 dispositioned (closed with pinned evidence or honestly re-chartered); the flip decided (GO → landed via the two-commit protocol; NO-GO → the M4-T13 hold record); threads-gate CI wired (GO branch) or re-deferred with cause (NO-GO branch).
+5. **Zero regressions, default settings** — seven compares (corpus 5000, dsn 1332, ses 20, ses-snap 5, index 33, undo 33, drc 17), events 3520 exit 0, determinism canaries UNROTATED, census additions only, Tier A battery at ≥ its M5 face (11/11 expected once T1/T2 land).
+
+**Carry-forwards baked into tasks:** 196 + N3 fold (`pass_runner.rs:623`/`:864` — T1 touches pass_runner) → T1; 181 fanout re-derivation → T2; flip + threads-gate → T3 adjudication + T4 landing; pour-fixture census + Issue093 population → T3/T5; banked opportunists (four cut pub items return with first consumer; F3 through-hole-pin fixture = first drill-page-expansion world, likely T9; hole-override port note citing `HeadlessBoardManager.java:350-468` rides the first drill/hole task; banked inert mutants; `scratch.rs:38` byte-size NIT; T6-quality-r2 cosmetic note) → wherever first touched. **Battery discipline: full batteries ONLY at T3 and T10** (single-fixture release re-runs are sanctioned inside T1/T2 for their named fixtures, and inside T8/T9 for the fixtures they tune).
+
+**Byte-invariance rule (recurring, every task):** at DEFAULT settings, outputs stay byte-identical to the pre-task tree on: the seven compares, the events golden, the router-only Tier A face, and ×2 determinism runs. Any rotation = an ordering change = a bug or an adjudicated exception — never churn. New M6 stages' settings-ON outputs are NEW faces: goldens captured once at first landing (`epic-harness capture`, justification in the commit) and then pinned.
+
+---
+
+## Task 1: Buglog 196 — port Java's optimizer preflight guards + the N3 fold
+
+**Files:** Modify the Rust optimizer-entry site (the pass-runner/batch handoff where the T1b two-face stop-gate `bb37cc2e2`/bug-193 lives — locate via `openwolf find pass_runner`; expected `rust/crates/epic-router/src/pipeline/pass_runner.rs` + its settings face); `rust/crates/epic-cli/src/settings.rs` (the `optimizer.enablePreflightGuards` switch parity); pins in the matching test tree; `.wolf/buglog.json` (196 disposition).
+
+- [ ] Re-read Java end-to-end: `BatchOptimizer.evaluatePreFlightGuards` (ALL guard clauses, message formats, the `optimizer.enablePreflightGuards` null/false semantics) + its caller (who consults it, when — before the batch loop; what the bypass DOES: skips the whole optimizer stage? records the reason?). Port Java-exactly: same guards, same order, same threshold (950.0f), same reason strings (the Rust log/manifest face), same settings-switch default.
+- [ ] Pins (T3-M5 measured-boundary discipline, cerebrum 16): the exact guard boundaries — incompleteCount 0 vs 1, optimizer score 949.99/950.0/950.01 with zero vias, vias 0 vs 1 at score ≥950, the settings switch off/on — mutation-verified both directions where the boundary is closed-form.
+- [ ] bm01 single-fixture release re-run (sanctioned): optimizer BYPASSES at entry with the guard's reason face; routing face unchanged (0/0/1000.00, ~276 s); wall recorded. bm06 + bm11 single-fixture re-runs (sanctioned — the guard-1 face may change their optimizer entries): record before/after faces honestly.
+- [ ] Tier-bound adjudication (coordinator decision, recorded in the report): default = NO tiers.yaml edit — bm01's 1800 s bound stays, recorded as post-fix slack; the wall dropped genuinely via the guard. Any other disposition needs the coordinator's explicit sanction in this task's brief (there is none — record the default).
+- [ ] N3 fold (this task touches pass_runner): dedup the duplicated inert `unwrap_or(-1)` fallback at `pass_runner.rs:623`/`:864` into one named helper; behavior byte-identical.
+- [ ] Byte-invariance gate (recurring rule — expect ZERO rotations: the crafted-world goldens never reach a bypassed optimizer; VERIFY that claim, and if a golden rotates, adjudicate before landing per the M4-T1 precedent). Gates: fmt, clippy `--workspace --all-targets -- -D warnings`, bare `cargo test --workspace` (census additions only), seven compares, events, determinism ×2.
+- [ ] Buglog 196 CLOSED (fix commit pinned); ONE commit `fix(m6): port Java's optimizer preflight guards — buglog 196 + N3 fold`.
+
+## Task 2: Buglog 181 — bm06/bm11 completion, the fanout-stage attempt-stream re-derivation
+
+**Files:** Create `logs/M6-T2/` (report + evidence; scratch under `logs/M6-T2/scratch/`); engine change ONLY if the re-derivation names a violated Java rule (expected sites: the fanout-stage victim-choice/attempt-order faces in `rust/crates/epic-router/src/pipeline/fanout.rs` + the batch attempt loop); pins follow any fix.
+
+- [ ] Re-run the T12/T17c instrument discipline INSIDE THE FANOUT STAGE (the M5 exit note's charter): production `run_route` + `CaptureDriverSink`, board hashes per pass, the full attempt stream on bm06 — focused on where the P1 fork originates (attempt 42's net-37 rip-free route; the net-12/13 victim-choice forks id 841-vs-903, item 335-vs-1199). Answer: does Java's fanout-stage victim-choice/attempt-order follow a DERIVABLE rule (cost tie-break, id ordering, insertion order) that Rust violates anywhere — or is the fork genuine bistable tuning?
+- [ ] Verdict branch A (a violated rule exists): port it Java-exactly, pin the rule's boundary (the exact tie/cost condition ±1), re-run bm06 + bm11 single-fixture (sanctioned): bm06 → ≥ Java's 2/8/971.63-class face, bm11 → ≤ 3 incompletes. 181 CLOSED with the pinned evidence.
+- [ ] Verdict branch B (bistable tuning confirmed at the fanout origin): honest re-charter — 181 stays OPEN with the fresh fork row, owner M6-continued (the T10 tuning iteration gets one principled shot) or M7; do NOT tune tie-breaks to force a close (T17c discipline verbatim).
+- [ ] Byte-invariance gate (recurring rule) if any engine change landed; single-fixture faces recorded either way.
+- [ ] Buglog 181 dispositioned (closed or re-chartered verbatim row); ONE commit if a fix landed (`fix(m6): fanout-stage victim-choice parity at the bm06 fork — buglog 181`) — else report only, no commit.
+
+## Task 3: The battery re-faces + flip adjudication (the measurement moment, part 1)
+
+**Files:** Create `logs/M6-T3/` (report + evidence); harness addition ONLY if the battery face lacks a tier filter (a `--tier` arg on the battery subcommand — harness-side, editable; commits separately as `chore(m6): battery tier filter` if landed).
+
+- [ ] Tier A full battery (AFTER T1/T2): expect 11/11 (bm01 green via the guard; bm06/bm11 per T2's verdict); per-fixture walls + Σ recorded (expect ≈760 s ≈ 12.7 min — verify the 196 arithmetic landed).
+- [ ] Tier B+C BEFORE-face (first full Rust B/C battery, default settings): per-fixture completion/violations/score vs the Java baselines — the milestone's baseline table. Run tier-by-tier, systemd-capped (`MemoryMax=6G`), backgroundable (worst case ≈3.75 h at tier bounds); tier kills recorded as kills, honestly.
+- [ ] Pour-fixture census: which Tier A/B/C fixtures carry plane nets (`contains_plane` from the parsed DSN — a harness or scratch face) → the Issue093 population named per fixture, with each one's plane-induced clearance-violation count (real counter face) — Java vs Rust.
+- [ ] Flip adjudication (cite both preconditions): 11/11 AND Σ Tier A wall < the compare step's 30-min budget → GO (T4 lands it). Either failed → NO-GO honest hold (T4 becomes the record task). This adjudication is the task's product — write it as the report's headline.
+- [ ] Gates (unchanged tree): fmt, clippy `--all-targets`, bare census. Report + evidence only (plus the separate harness chore commit if the tier filter landed).
+
+## Task 4: The CI flip + threads-gate wiring (GO), or the hold record (NO-GO)
+
+**Files (GO branch):** Modify `.github/workflows/rust-check.yml` (compare step run line + the events step + the NEW threads-gate step + comments), `rust/harness/src/ci_tripwire.rs` (both pins + the events pin, same-commit), `rust/README.md` + the design doc §6 CI paragraph + SEAM posture rows (the enumerated refresh list).
+
+- [ ] GO, commit 1 — the flip ONE-commit protocol (M4-T13 verbatim): drop `--report-only` from the compare run line; update BOTH `ci_tripwire` pins to the new truth same-commit (mutant discipline: pin fails on the pre-commit tree — edit + edit-back); the events compare step with its own pin; every posture surface refreshed (yml comment block, README gates/status/events comments, design §6 M5-UPDATE parenthetical appended); wall margin recorded (Σ vs 30 min; if < 2× margin, the WALL WARNING survives in reduced form).
+- [ ] GO, commit 2 — the threads-gate CI wiring: the T7/M5 in-tree threads-invariance gate (`--threads 1 ≡ N` hashes) gets its yml step + the refreshed comment (the M5-T8 decision (2) discharge). ci vs feat never mix: two commits, this order.
+- [ ] NO-GO branch: leave `--report-only` + pins intact; the hold + residuals recorded at all surfaces (one docs-only commit); the threads-gate wiring re-deferred with cause.
+- [ ] Gates: bare `cargo test --workspace` (pins ok), events compare exit 0, fmt, clippy. ONE or TWO commits total (GO), ONE docs commit (NO-GO).
+
+## Task 5: Plane-aware routing — the parity audit + Issue093-class face
+
+**Files:** Modify the plane-branch sites the audit names (expected: `rust/crates/epic-router/src/pipeline/batch.rs:1107` vicinity, `pipeline/connection_router.rs:113` vicinity, `drill/`/`fanout.rs` plane faces, `epic-board` conduction-area connectivity); pins in the matching test tree; `.wolf/buglog.json`.
+
+- [ ] Audit Rust's `contains_plane` mode end-to-end against Java (`rules.Net.contains_plane` → plane-routing mode: stub+via-to-plane; `HeadlessBoardManager` + `autoroute` plane branches) ON THE POUR FIXTURES (T3's census): every divergence named (decision, message, cost face). Fix Java-exactly whatever is missing/wrong — default-on (it is parity, not new capability).
+- [ ] Issue093-class face: plane-induced clearance violations on the pour population (T3's counts) → driven to **0** on Rust's face (Java's own counts recorded for contrast — upstream's known bug is NOT copied if the fix is Java-exact; if Java's bug IS the parity behavior, the fix lands behind the plane setting and the deviation is adjudicated — STOP and report if that fork is reached, it is a plan-level decision).
+- [ ] Pour-fragmentation avoidance (design :72): a pour split by routed obstacles must not strand connectivity — audit Java's behavior, port what exists, note honestly what is beyond-Java (rides T6/T8 settings if route-changing).
+- [ ] Byte-invariance gate (recurring rule — default settings; pour fixtures' faces may move ONLY where the audit found a genuine parity gap, each movement named). Single-fixture re-runs (sanctioned) on the pour population.
+- [ ] Gates + ONE commit `fix(m6): plane-routing parity audit + Issue093-class violations = 0`.
+
+## Task 6: Island detection (new capability, advisory-first)
+
+**Files:** Create the detector in `rust/crates/epic-board/src/` (pour-region connectivity analysis — the conduction-area/shape faces; locate via `openwolf find`); report face in the harness/CLI output; crafted-world pins in the matching test tree.
+
+- [ ] The detector: partition each pour into connected regions (obstacle-aware), decide floating islands (regions unreachable from the net's pins/vias), report them (count + geometry digest) in the run manifest/report face — ADVISORY by default (no route change).
+- [ ] Crafted-world pins (T3-M5 discipline): an isolated region detected (boundary: the exact gap width that disconnects ±1 unit, mutation-verified both directions); a connected pour clean (zero islands); an empty/fully-covered pour face.
+- [ ] Fixture evidence: the detector's face on the pour population (T3's census) — counts recorded Java-vs-Rust context (Java detects nothing — upstream cannot do this at all, design :14).
+- [ ] The connectivity clamp (treat islands as non-connectable when routing) lands ONLY behind the plane setting (default-off) — its route effect measured at T8/T9, not here.
+- [ ] Byte-invariance gate (recurring rule — advisory default ⇒ zero rotation expected). Gates + ONE commit `feat(m6): floating-island detection on pours (advisory face + crafted-world pins)`.
+
+## Task 7: The congestion map + global planning stage (default-off setting family)
+
+**Files:** Create `rust/crates/epic-router/src/global/` (the stage: congestion map + per-net guides + pattern routing); `rust/crates/epic-cli/src/settings.rs` (the M6 intelligence family: `router.congestion_global` default-off — the `-mt` seam precedent; document each flag); harness golden capture for the settings-ON faces; pins in `global/tests.rs`.
+
+- [ ] The congestion map: coarse-grid occupancy/overflow estimator over the board (signal layers; obstacle + already-routed occupancy), queryable per cell — an engine artifact (the M9 heatmap's substrate, design :360). Unit-pinned on crafted worlds (known occupancies → exact overflow vectors).
+- [ ] Global planning: per-net guides (regions/layers/expected topology) derived from the map (design :70); net ordering becomes a planned decision (congestion-aware, not DSN file order). Pattern routing (L/Z 1–2 bend) inside guides for easy nets — the cheap-net fast path.
+- [ ] The settings seam: `router.congestion_global` (+ sub-flags as the design demands) default-OFF; default-off ⇒ the ENTIRE M5 gate set byte-identical (the recurring rule — this is the parity contract for all of T7–T9).
+- [ ] Settings-ON goldens: capture the new faces once (`epic-harness capture`, justification in the commit), pin them; determinism: settings-ON runs are threads-invariant too (one witness fixture at `-mt 1/3/4`).
+- [ ] Wall guard: settings-ON must not blow Tier A walls (single-fixture witness bm08/bm11 — the global stage is a cost, its PAYOFF is completion, measured at T8/T10).
+- [ ] Gates (default settings: the full recurring set; expect zero rotations) + ONE commit `feat(m6): congestion map + global planning stage (router.congestion_global, default-off)`.
+
+## Task 8: PathFinder negotiated congestion (default-off)
+
+**Files:** Modify `rust/crates/epic-router/src/global/` (history costs + the negotiated scheduler); the batch pass loop's scheduler seam (design :70: "persistent per-resource history costs" as the rip-up scheduler — replaces linear pass-scaled costs WHEN ENABLED); sub-flags on the settings family; golden re-capture for changed settings-ON faces.
+
+- [ ] The PathFinder core: per-resource history costs persisting across passes (present-cost + history-cost mix, decay schedule), negotiated rip-up (congested resources get more expensive each pass → nets negotiate around each other) — the design's :24/:70 contract, replacing Freerouting's oscillation-prone linear pass costs + snapshot restore WHEN the setting is on.
+- [ ] Fanout congestion-aware pin ordering (design :69) rides this setting: the map feeds fanout's pin order when enabled (the adjacent-QFP mutual-blocking fix — a crafted adjacent-QFP world pins the ordering change).
+- [ ] Tuning evidence: single-fixture settings-ON runs (sanctioned) on the T3 before-table's RED B/C fixtures; per-fixture completion deltas recorded. NO Tier A battery here (T10 owns the full faces).
+- [ ] Byte-invariance gate (recurring rule, default settings — zero rotation) + settings-ON determinism witness + golden re-capture (justified).
+- [ ] Gates + ONE commit `feat(m6): PathFinder negotiated congestion (history-cost rip-up scheduler, default-off)`.
+
+## Task 9: Push-and-shove extension (default-off)
+
+**Files:** Modify `rust/crates/epic-board/src/trace_shover.rs` + `rust/crates/epic-router/src/maze/shove_probe.rs`/`ripup.rs` (extend the M3 shove faces: shove neighbors during insertion, not only rip-up — design :71); sub-flag on the settings family; golden capture.
+
+- [ ] The extension: during detail insertion, displaced neighbor traces get SHOVED (slid to make room within clearance) before/instead of ripping — bounded (shove budget per insertion, deterministic order), preserving the M3 shove-decision jar-pins where the default path runs.
+- [ ] Determinism discipline: shoves are board mutations — the events/manifest faces must stay deterministic under `-mt N` (witness fixture) and reproducible (canary-style hash on one shove-heavy world).
+- [ ] F3 opportunistic: this task likely lands drill-page-expansion worlds — if so, the M4-T9 F3 through-hole-pin fixture pin lands here (return-with-first-consumer).
+- [ ] Tuning evidence: single-fixture settings-ON runs on the shove-sensitive B/C fixtures (the T3 table names them — dense boards).
+- [ ] Byte-invariance gate (recurring rule) + settings-ON faces. Gates + ONE commit `feat(m6): push-and-shove insertion (bounded, deterministic, default-off)`.
+
+## Task 10: Tier B/C AFTER-face + the strictly-> adjudication (the measurement moment, part 2)
+
+**Files:** Create `logs/M6-T10/` (report + evidence); no engine change expected.
+
+- [ ] Full B+C battery, **M6 settings ON** (the improvement regime): per-fixture completion vs Java — the strictly-> table (criterion 1). Any fixture not strictly > → ONE principled tuning iteration (T8/T9 levers, single-fixture sanctioned) or an honest deviations row.
+- [ ] Full Tier A battery, **default settings** (the parity regime): 11/11 held + Σ wall + the wall trend table (A/B/C, Rust-vs-Java ratios — the §5 ratchet's trend statement; the 0.5× Σ goal's status stated honestly).
+- [ ] The criterion-2 face: Issue093-class counts on the pour population (default settings post-T5; and settings-ON — both recorded) = 0.
+- [ ] The criterion-3 face: island detection's fixture evidence re-confirmed at final HEAD.
+- [ ] Full gate lap (fmt, clippy `--all-targets`, bare census, seven compares, events, determinism ×2 default + settings-ON ×1). Report + evidence only; no commit.
+
+## Task 11: M6 close-out + adjudication prep (the M5-T10 pattern)
+
+**Files:** Modify the design doc (the M6 exit note in the M3/M4/M5 shape, verdict slot OPEN — `**VERDICT: <per milestone adjudication>**`), `docs/architecture.md`, `rust/README.md`, `rust/crates/epic-router/SEAM.md` (the M6 criterion map appended below the untouched M5 map); `.wolf/buglog.json` sweep.
+
+- [ ] Buglog sweep: every M6-touched entry dispositioned with pinned commits or honest open-with-owner; whole-ledger straggler sweep.
+- [ ] The M6 exit note: criterion verdicts with cited evidence (the T3/T10 tables), deviations table if any red remains (face/root-cause/owner/buglog), carry-forwards (every line traces to a dossier/buglog), the verdict slot left open.
+- [ ] Architecture map + README at the M6 face (the intelligence stages, the settings family, the flip outcome); SEAM M6 criterion map (zero deletions above).
+- [ ] Gates (cheap set) + ONE docs commit. Then the coordinator dispatches the MILESTONE ADJUDICATION (fresh opus, the M4-T17d/M5 pattern, report-only) — this plan's terminal act.
