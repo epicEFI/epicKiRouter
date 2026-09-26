@@ -175,10 +175,37 @@ impl ExpansionDoor {
         second_shape: &TileShape,
         offset_param: f64,
     ) -> (usize, Vec<FloatLine>) {
+        let mut out = Vec::new();
+        let count = self.get_section_segments_into(
+            door_shape,
+            both_complete_free_space,
+            first_shape,
+            second_shape,
+            offset_param,
+            &mut out,
+        );
+        (count, out)
+    }
+
+    /// The appending core of [`Self::get_section_segments`] (slice C):
+    /// the identical sections in the identical order appended to `out`
+    /// (cleared first), so the caller's buffer is reused across door
+    /// expansions. Returns the section count (the Java
+    /// `allocateSections` arity).
+    pub fn get_section_segments_into(
+        &self,
+        door_shape: &TileShape,
+        both_complete_free_space: bool,
+        first_shape: &TileShape,
+        second_shape: &TileShape,
+        offset_param: f64,
+        out: &mut Vec<FloatLine>,
+    ) -> usize {
+        out.clear();
         let offset = offset_param + TRACE_WIDTH_TOLERANCE;
         if door_shape.is_empty() {
             // Java :108-112.
-            return (0, Vec::new());
+            return 0;
         }
         let (door_line_segment, shrinked_line_segment) = if self.dimension == 1 {
             // Java :115-117 — the diagonal corner segment of the
@@ -198,12 +225,12 @@ impl ExpansionDoor {
                 calc_door_line_segment(door_shape, first_shape, second_shape)
             else {
                 // Java :124-127 — a complete room inside the other.
-                return (0, Vec::new());
+                return 0;
             };
             if door_line_segment.b.distance_square(&door_line_segment.a) < 4.0 * offset * offset {
                 // Java :128-131 — the door is small; 2-dimensional
                 // small doors are not yet expanded.
-                return (0, Vec::new());
+                return 0;
             }
             let shrinked = door_line_segment.shrink_segment(offset);
             (door_line_segment, shrinked)
@@ -224,10 +251,8 @@ impl ExpansionDoor {
         let section_count = (door_line_segment.b.distance(&door_line_segment.a)
             / max_door_section_width) as i32
             + 1;
-        (
-            section_count as usize,
-            shrinked_line_segment.divide_segment_into_sections(section_count),
-        )
+        shrinked_line_segment.divide_segment_into_sections_into(section_count, out);
+        section_count as usize
     }
 }
 

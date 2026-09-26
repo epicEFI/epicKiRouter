@@ -248,14 +248,26 @@ impl FloatLine {
     /// length (Java `divideSegmentIntoSections`; at most maxSectionLength
     /// per the javadoc).
     pub fn divide_segment_into_sections(&self, count: i32) -> Vec<FloatLine> {
+        let mut result = Vec::new();
+        self.divide_segment_into_sections_into(count, &mut result);
+        result
+    }
+
+    /// The appending core of [`Self::divide_segment_into_sections`]
+    /// (slice C): appends the identical sections in the identical
+    /// order to `out` (cleared first), so the caller's buffer is
+    /// reused across calls.
+    pub fn divide_segment_into_sections_into(&self, count: i32, out: &mut Vec<FloatLine>) {
+        out.clear();
         if count == 0 {
-            return Vec::new();
+            return;
         }
         if count == 1 {
-            return vec![*self];
+            out.push(*self);
+            return;
         }
         let line_length = self.b.distance(&self.a);
-        let mut result = Vec::with_capacity(count as usize);
+        out.reserve(count as usize);
         let section_length = line_length / count as f64;
         let dx = self.b.x - self.a.x;
         let dy = self.b.y - self.a.y;
@@ -270,10 +282,9 @@ impl FloatLine {
                     self.a.y + dy * current_distance / line_length,
                 )
             };
-            result.push(FloatLine::new(current_a, current_b));
+            out.push(FloatLine::new(current_a, current_b));
             current_a = current_b;
         }
-        result
     }
 }
 
@@ -411,5 +422,38 @@ mod tests {
     fn float_point_projection_approx() {
         let line = Line::from_int_coords(0, 1, 2, 1);
         assert_eq!(fp(3.0, 5.0).projection_approx(&line), fp(3.0, 1.0));
+    }
+
+    /// PIN (M5 slice C) — the appending core's reuse is invisible:
+    /// repeated `_into` calls into ONE buffer reproduce the owned
+    /// form's sections exactly across all three count arms (0, 1,
+    /// many), and a shorter re-fill drops the previous call's tail
+    /// (the clear-before-fill contract). The missing-`out.clear()`
+    /// mutant survives the value faces (identical sections appended
+    /// after the stale ones) but dies on the LENGTH face — which is
+    /// why the length asserts are separate from the equality asserts.
+    #[test]
+    fn divide_segment_into_sections_reuse_is_invisible() {
+        let seg = fl(0.0, 0.0, 10.0, 0.0);
+        let mut buf: Vec<FloatLine> = Vec::new();
+        // The many-section arm.
+        seg.divide_segment_into_sections_into(3, &mut buf);
+        assert_eq!(buf, seg.divide_segment_into_sections(3));
+        assert_eq!(buf.len(), 3);
+        // The single-section arm, refilling the NON-EMPTY buffer: the
+        // stale two-section tail must be gone.
+        seg.divide_segment_into_sections_into(1, &mut buf);
+        assert_eq!(buf, seg.divide_segment_into_sections(1));
+        assert_eq!(buf.len(), 1, "stale tail dropped on re-fill");
+        // The zero arm: empty result, buffer emptied.
+        seg.divide_segment_into_sections_into(0, &mut buf);
+        assert!(buf.is_empty());
+        // Cross-check the many-arm VALUES against the jshell capture
+        // convention: 3 sections of a 10-long segment at 1/3 marks.
+        seg.divide_segment_into_sections_into(3, &mut buf);
+        assert_eq!(buf[0].b.x, 10.0 / 3.0);
+        assert_eq!(buf[1].a.x, 10.0 / 3.0);
+        assert_eq!(buf[1].b.x, 20.0 / 3.0);
+        assert_eq!(buf[2].b.x, 10.0);
     }
 }

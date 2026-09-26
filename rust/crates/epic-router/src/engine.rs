@@ -339,7 +339,7 @@ impl ViaLayerChecker for BoardLayerChecker {
 struct EngineShapeView<'e> {
     board: &'e Board,
     rooms: &'e [ExpansionRoom],
-    keys: &'e [u64],
+    key_index: &'e HashMap<u64, usize>,
     graveyard: &'e BTreeMap<u64, ExpansionRoom>,
     /// The autoroute tree's object id — the warm-cache peek key.
     tree_object_id: u64,
@@ -349,18 +349,23 @@ struct EngineShapeView<'e> {
 /// through the live references held by in-flight maze elements; the
 /// graveyard is that object identity). Free-standing so the view and
 /// the engine share it.
+///
+/// The live-registry arm is a HASH lookup (slice C): the key→index
+/// side map answers with the same index the linear
+/// `keys.iter().position()` scan used to find — registry keys are
+/// unique by construction (monotone `alloc_key`) — so the resolved
+/// room, or the miss, is identical for every key in every registry
+/// state. The graveyard arm is untouched.
 fn registry_resolve<'r>(
     rooms: &'r [ExpansionRoom],
-    keys: &'r [u64],
+    key_index: &'r HashMap<u64, usize>,
     graveyard: &'r BTreeMap<u64, ExpansionRoom>,
     key: u64,
 ) -> Option<&'r ExpansionRoom> {
     if let Some(room) = graveyard.get(&key) {
         return Some(room);
     }
-    keys.iter()
-        .position(|&k| k == key)
-        .map(|index| &rooms[index])
+    key_index.get(&key).map(|&index| &rooms[index])
 }
 
 fn is_room_key(key: u64) -> bool {
@@ -370,7 +375,8 @@ fn is_room_key(key: u64) -> bool {
 impl CompleteShapeObjects for EngineShapeView<'_> {
     fn is_trace_obstacle(&self, object_key: u64, net_number: i32) -> bool {
         if is_room_key(object_key) {
-            let Some(room) = registry_resolve(self.rooms, self.keys, self.graveyard, object_key)
+            let Some(room) =
+                registry_resolve(self.rooms, self.key_index, self.graveyard, object_key)
             else {
                 return false;
             };
@@ -394,7 +400,7 @@ impl CompleteShapeObjects for EngineShapeView<'_> {
 
     fn shape_layer(&self, object_key: u64, shape_index: u32) -> i32 {
         if is_room_key(object_key) {
-            return registry_resolve(self.rooms, self.keys, self.graveyard, object_key)
+            return registry_resolve(self.rooms, self.key_index, self.graveyard, object_key)
                 .map(ExpansionRoom::layer)
                 .unwrap_or(0);
         }
@@ -406,7 +412,7 @@ impl CompleteShapeObjects for EngineShapeView<'_> {
 
     fn tree_shape(&self, object_key: u64, shape_index: u32) -> Option<TileShape> {
         if is_room_key(object_key) {
-            return registry_resolve(self.rooms, self.keys, self.graveyard, object_key)
+            return registry_resolve(self.rooms, self.key_index, self.graveyard, object_key)
                 .map(|room| room.shape().clone());
         }
         let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
@@ -420,7 +426,7 @@ impl CompleteShapeObjects for EngineShapeView<'_> {
 
     fn is_complete_free_space(&self, object_key: u64) -> bool {
         is_room_key(object_key)
-            && registry_resolve(self.rooms, self.keys, self.graveyard, object_key)
+            && registry_resolve(self.rooms, self.key_index, self.graveyard, object_key)
                 .is_some_and(ExpansionRoom::is_complete_free_space)
     }
 }
@@ -457,6 +463,15 @@ pub struct AutorouteEngine<'a> {
     /// ArrayLists).
     rooms: Vec<ExpansionRoom>,
     keys: Vec<u64>,
+    /// The live-registry key→index side map (slice C): answers
+    /// `registry_resolve`/`room_mut` with the same index the linear
+    /// `keys.iter().position()` scan found — keys are unique
+    /// (monotone `alloc_key`) — at O(1) instead of O(n). Maintained at
+    /// every registry push/removal/clear; rebuilt on removal (the
+    /// order-preserving `Vec::remove` shifts every higher index down
+    /// by one; removals are rare next to resolves — bm06 measured
+    /// 77.3M resolves against 145k graveyard insertions).
+    key_index: HashMap<u64, usize>,
     /// Java removed rooms remain REACHABLE: in-flight maze elements
     /// hold live references to discarded objects.
     graveyard: BTreeMap<u64, ExpansionRoom>,
@@ -505,6 +520,7 @@ impl<'a> AutorouteEngine<'a> {
             drill_page_array: DrillPageArray::default(),
             rooms: Vec::new(),
             keys: Vec::new(),
+            key_index: HashMap::new(),
             graveyard: BTreeMap::new(),
             next_key: 0,
             id_counter: 0,
@@ -538,7 +554,7 @@ impl<'a> AutorouteEngine<'a> {
         EngineShapeView {
             board: self.board,
             rooms: &self.rooms,
-            keys: &self.keys,
+            key_index: &self.key_index,
             graveyard: &self.graveyard,
             tree_object_id: self.tree_object_id(),
         }
@@ -712,10 +728,21 @@ impl<'a> AutorouteEngine<'a> {
     /// Registry → graveyard without door work (the Java
     /// object-still-referenced face).
     fn drop_room_reference(&mut self, room_key: u64) {
-        if let Some(index) = self.keys.iter().position(|&k| k == room_key) {
+        if let Some(&index) = self.key_index.get(&room_key) {
             let room = self.rooms.remove(index);
             self.keys.remove(index);
             self.graveyard.insert(room_key, room);
+            // The order-preserving Vec::remove shifted every higher
+            // index down by one — rebuild the side map (removals are
+            // rare next to resolves; bm06 measured 77.3M resolves
+            // against 145k graveyard insertions). clear() KEEPS the
+            // table's capacity: the fresh-`collect()` form allocated a
+            // full new table per removal and DOUBLED bm06's byte churn
+            // (measured, 4.61→8.95 GB) before being replaced here.
+            self.key_index.clear();
+            for (i, &k) in self.keys.iter().enumerate() {
+                self.key_index.insert(k, i);
+            }
         }
     }
 
@@ -733,6 +760,7 @@ impl<'a> AutorouteEngine<'a> {
         }
         self.rooms.clear();
         self.keys.clear();
+        self.key_index.clear();
         self.graveyard.clear();
         self.pending_completed.clear();
         self.obstacle_rooms.clear();
@@ -913,14 +941,13 @@ impl<'a> AutorouteEngine<'a> {
 
     /// The live-then-graveyard room read.
     fn resolve(&self, key: u64) -> Option<&ExpansionRoom> {
-        registry_resolve(&self.rooms, &self.keys, &self.graveyard, key)
+        registry_resolve(&self.rooms, &self.key_index, &self.graveyard, key)
     }
 
     fn room_mut(&mut self, key: u64) -> &mut ExpansionRoom {
-        let index = self
-            .keys
-            .iter()
-            .position(|&k| k == key)
+        let index = *self
+            .key_index
+            .get(&key)
             .unwrap_or_else(|| panic!("room key {key} not registered"));
         &mut self.rooms[index]
     }
@@ -1243,6 +1270,7 @@ impl NeighbourEngine for AutorouteEngine<'_> {
         self.rooms
             .push(ExpansionRoom::new_incomplete(shape, layer, contained_shape));
         self.keys.push(key);
+        self.key_index.insert(key, self.keys.len() - 1);
         key
     }
 
@@ -1255,6 +1283,7 @@ impl NeighbourEngine for AutorouteEngine<'_> {
         self.rooms
             .push(ExpansionRoom::new_complete_free_space(shape, layer, id));
         self.keys.push(key);
+        self.key_index.insert(key, self.keys.len() - 1);
         self.pending_completed.push(key);
         key
     }
@@ -1395,6 +1424,7 @@ impl NeighbourEngine for AutorouteEngine<'_> {
             layer,
         ));
         self.keys.push(key);
+        self.key_index.insert(key, self.keys.len() - 1);
         // Java does NOT put ObstacleExpansionRoom into the search tree
         // (it is not a SearchTreeObject) — see the T7 pins doc.
         self.obstacle_rooms.insert((object_key, shape_index), key);
@@ -4151,5 +4181,64 @@ mod tests {
             leaves_after, post_items,
             "finish restored the items-only tree"
         );
+    }
+
+    /// PIN (M5 slice C) — the registry key→index side map tracks the
+    /// order-preserving removal + rebuild (bm06 measured 77.3M
+    /// registry resolves against 145k graveyard insertions, so the
+    /// map's rebuild-on-removal is the correctness-critical half).
+    /// Three rooms registered, the FIRST removed (every higher index
+    /// shifts down by one): the removed room must still resolve
+    /// (graveyard arm — Java's live-reference semantics) with its
+    /// original shape, and both surviving rooms must resolve to the
+    /// field-for-field same rooms as before the removal — the
+    /// skip-the-rebuild mutant leaves `k3`'s map entry pointing past
+    /// the registry end (panic) and `k2`'s at the removed room's slot
+    /// (wrong shape).
+    #[test]
+    fn t6_registry_side_map_tracks_removal_rebuild() {
+        let (mut manager, mut board) = parse_fixture();
+        let (mut engine, _ctrl) = build_engine(&mut manager, &mut board, 94, true);
+        let shape_of = |s: &str| -> TileShape {
+            TileShape::RegularTileShape(
+                epic_geometry::regular_tile_shape::RegularTileShape::IntBox(
+                    epic_geometry::int_box::IntBox::new(
+                        corner(100_000 * s.len() as i32, 0),
+                        corner(200_000 * s.len() as i32, 100_000),
+                    ),
+                ),
+            )
+        };
+        let k1 = NeighbourEngine::add_incomplete_expansion_room(
+            &mut engine,
+            shape_of("a"),
+            0,
+            shape_of("aa"),
+        );
+        let k2 = NeighbourEngine::add_incomplete_expansion_room(
+            &mut engine,
+            shape_of("b"),
+            0,
+            shape_of("bb"),
+        );
+        let k3 = NeighbourEngine::add_incomplete_expansion_room(
+            &mut engine,
+            shape_of("c"),
+            0,
+            shape_of("cc"),
+        );
+        assert!(k1 != k2 && k2 != k3 && k1 != k3);
+        // Pre-removal resolutions answer through the map.
+        assert!(engine.resolve(k2).is_some(), "k2 resolves pre-removal");
+        // Remove the FIRST room: the shift face.
+        NeighbourEngine::remove_incomplete_room(&mut engine, k1);
+        // The removed room stays reachable (graveyard arm).
+        assert!(engine.resolve(k1).is_some(), "graveyard arm live");
+        // Both survivors resolve — to rooms, not to a shifted slot.
+        let r2 = engine.resolve(k2).expect("k2 resolves after shift");
+        let r3 = engine.resolve(k3).expect("k3 resolves after shift");
+        assert_eq!(*r2.shape(), shape_of("b"), "k2 resolved to its own room");
+        assert_eq!(*r3.shape(), shape_of("c"), "k3 resolved to its own room");
+        finish_autoroute(Some(engine));
     }
 }

@@ -200,6 +200,11 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// API to serve, no cross-fn nesting — so a field needs no pool
     /// machinery and no crate dependency.
     pub(crate) row_buf: String,
+    /// The reusable door-section buffer (slice C): taken and refilled
+    /// by [`Self::expand_to_door`] via `get_section_segments_into`,
+    /// restored on the normal exit (early returns drop it — capacity
+    /// loss only, the epic-index scratch precedent).
+    pub(crate) section_buf: Vec<FloatLine>,
 }
 
 impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngine<'a, E, D, V> {
@@ -230,6 +235,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             random_generator: epic_geometry::java_random::JavaRandom::new(random_seed),
             trace_sink: None,
             row_buf: String::new(),
+            section_buf: Vec::new(),
         }
     }
 
@@ -451,7 +457,11 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         );
         let vec = self.door_sections.entry(door.key()).or_default();
         if vec.len() != section_count {
-            *vec = vec![crate::drill::MazeSearchElement::default(); section_count];
+            // clear + resize keeps the allocated capacity across
+            // re-segmentations (slice C); the element values are the
+            // identical all-default array either way.
+            vec.clear();
+            vec.resize(section_count, crate::drill::MazeSearchElement::default());
         }
     }
 
@@ -1043,12 +1053,18 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             && second_key.is_some_and(|k| self.ctx.room_is_complete_free_space(k));
         let door_shape =
             crate::expansion::ExpansionDoor::shape_between(&first_shape, &second_shape);
-        let (section_count, line_sections) = to_door.get_section_segments(
+        // The section buffer is the engine's reusable buffer (slice
+        // C): taken, cleared and refilled by the appending core, and
+        // restored on the normal exit; the `return false` exits drop
+        // it (capacity loss only — the epic-index scratch precedent).
+        let mut line_sections = std::mem::take(&mut self.section_buf);
+        let section_count = to_door.get_section_segments_into(
             &door_shape,
             both_complete_free_space,
             &first_shape,
             &second_shape,
             half_width,
+            &mut line_sections,
         );
         // Java `getSectionSegments` allocates the door's maze-search
         // section state as a side effect (`allocateSections`, idempotent
@@ -1108,6 +1124,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                 something_expanded = true;
             }
         }
+        self.section_buf = line_sections;
         something_expanded
     }
 

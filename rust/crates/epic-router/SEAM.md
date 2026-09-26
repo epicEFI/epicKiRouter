@@ -1725,3 +1725,94 @@ bm06's two after-samples differ by 21 s with BYTE-IDENTICAL allocation counts
 bm11): bm11's −18.5% should be read as "possibly helped, unproven on a shared
 box", bm06's +28%/−14% spread as noise. The slice's proven win is the churn
 floor (T1 sites #2/#3/#4 cut 28–38%); the Σ-wall judgment stays T8's.
+
+---
+
+## T6 (M5) slice C — geometry/rational churn + the maps/PQ family + the completion-candidates churn (appended by M5-T6)
+
+**The slice (T1's binding ranking #3):** the T5-surfaced
+`completion::complete_candidates` churn + the compute-side maps/PQ family
+(plan-Task-4 content, <0.5% allocations, wall-judged) + the geometry
+temporaries. The T1 allocation ranking was RE-MEASURED at the dispatch HEAD
+`b5bbca54b` (post-T4/T5 the allocation profile changed shape): bm06's 299
+samples / bm11's 971 samples now rank the Simplex/BigInt intersection
+family, `tree_shape_precalc` cache-clone, `min_area_tree::overlaps`, the
+completion door scan, `divide_segment_into_sections`, and — via an op-count
+instrument (patch → measure → revert) — **411.7M LINEAR REGISTRY SCANS on
+bm11 (77.3M on bm06)** in `registry_resolve`'s live-registry arm
+(`keys.iter().position()` per resolve; Java resolves by object reference at
+O(1)). That linear scan was the family's real compute-side cost — not
+B-tree rebalancing.
+
+**Mechanisms (all storage/allocation strategy; ZERO semantic change — same
+inserts, same construction/iteration/pop order, same removals, same query
+results, comparators untouched):**
+
+1. **The registry key→index side map** (`engine.rs`): `key_index:
+   HashMap<u64, usize>` answers `registry_resolve`/`room_mut` with the
+   same index the linear scan found (keys unique — monotone
+   `alloc_key`); maintained at every push, rebuilt on the
+   order-preserving removal (`drop_room_reference`), cleared in
+   `clear()`. The rebuild REUSES the table's capacity (clear + insert
+   loop): the first draft's fresh-`collect()` per removal allocated a
+   full new table at every graveyard move and DOUBLED bm06's byte churn
+   (measured 4.61 → 8.95 GB, alloc_bm06_after_v1_rebuildcollect.* in
+   `logs/M5-T6/evidence/` — the excursion is retained as the honesty
+   record; the pin battery stayed green through it, which is exactly
+   why the alloc delta protocol exists). The rebuild itself is
+   allocation-free at steady state. The `EngineShapeView` snapshot
+   carries the map by reference, so the completion-query resolves take
+   the same path. Graveyard/obstacle_rooms/room_tree_entries/
+   ripped_item_list stay BTreeMap: the op-count instrument measured
+   graveyard 145k ops (max 5,609) / 352k (max 14,579 bm11),
+   obstacle_rooms 121k/263k (max 416/841), room_tree_entries 31k/91k,
+   ripped_item_list 285/388 ops (max 2/5 — negligible); B-tree
+   rebalancing at those sizes is noise.
+2. **`complete_candidates`** (`maze/completion.rs`): the per-first-candidate
+   one-element `vec![cell]` is gone (the first 2-dim candidate registers
+   directly), and the registration body (`register_candidate`) MOVES the
+   candidate's two shapes instead of cloning them (the candidate value has
+   no other reader — Java clones its own copies; the constructed room is
+   field-for-field identical). Same candidate order, same
+   first/recalc split, same key burn order (12 existing completion pins
+   kill the recalc-skip mutant).
+3. **`divide_segment_into_sections_into` + `get_section_segments_into`**
+   (`epic-geometry/float_line.rs`, `expansion/door.rs`): appending cores
+   (clear-before-fill) with owned delegates kept; the maze engine's
+   `expand_to_door` takes the per-engine `section_buf` (the T5 `row_buf`
+   field pattern), restores on the normal exit, and drops it on the early
+   `return false` paths (capacity loss only). `allocate_sections`
+   re-segmentation reuses capacity (clear + resize; all-default values
+   identical — capacity-only, no observable).
+4. **`big_integer_int_value`** (`big_int_aux.rs`): the low-word extraction
+   walks `iter_u32_digits()` (zero-alloc) instead of materializing
+   `to_u32_digits()` — identical truncation (both answer the
+   least-significant nonzero word; both yield nothing for zero).
+5. **NOT-TAKEN (each with its measured derivation, bm06/bm11 shares):**
+   - **Front PQ (BTreeSet) arena/SoA conversion** — the op-count
+     instrument measured 574k adds + 474k pops (bm06) and 2.72M adds +
+     2.36M pops (bm11, max depth 37,099): ~1-2% of the event loop's op
+     volume at B-tree-log cost each, i.e. an unproven ≤5% wall on a
+     structure whose dedup + NaN-fall-through comparator semantics are
+     load-bearing (list_element.rs module docs); the comparator is
+     INVARIANT and the storage conversion risks order drift for a
+     compute win the profile does not name.
+   - **Simplex intersection family** (`remove_redundant_lines`/
+     `intersection_simplex`/`to_simplex`/`offset`; 12/299 bm06, 36/971
+     bm11 samples): the loops mutate the line vector while holding
+     prev/current/next line values (borrow-checker rejects
+     reference-ification), the nothing-removed arm returns a clone, and
+     the float-tolerance control flow (`side_of_intersection`'s float
+     fast path feeding the exact check) must not be restructured —
+     algorithm-inherent owned transforms.
+   - **`tree_shape_precalc` cache-hit clone** (board.rs; 9/299 bm06,
+     12/971 bm11): owned-return API serving six call sites that mutate
+     the board between reads — a borrow-return would ripple; an
+     epic-board scratch pool is out of slice scope.
+   - **`min_area_tree::overlaps` `found` Vec** (12/971 bm11): owned
+     return (result leaves any pool); single growth chain per query.
+   - **`insert_entry_point` Polyline/nets clones** (24/971 bm11): the
+     entry OWNS the data afterward — an Rc refactor is out of slice
+     scope.
+   - **SIMD kernels**: out of scope by charter; no kernel ≥15% named by
+     the profile (none expected) — decision recorded.

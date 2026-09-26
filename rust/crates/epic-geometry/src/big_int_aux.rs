@@ -124,9 +124,12 @@ pub(crate) fn big_integer_hash_code(v: &BigInt) -> i32 {
 /// wraparound (sign * low magnitude word, modulo 2^32 — identical to the
 /// JDK two's-complement truncation).
 pub(crate) fn big_integer_int_value(v: &BigInt) -> i32 {
-    let digits = v.magnitude().to_u32_digits();
-    let low = match digits.first() {
-        Some(&word) => word as i32,
+    // The zero-alloc LE digit iterator (slice C): `first()` answers the
+    // same least-significant word `to_u32_digits().first()` answered
+    // (both strip the zero words above the low word; both yield
+    // nothing for zero) — identical truncation, no temp `Vec`.
+    let low = match v.magnitude().iter_u32_digits().next() {
+        Some(word) => word as i32,
         None => 0,
     };
     match v.sign() {

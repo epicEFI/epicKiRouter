@@ -62,39 +62,56 @@ fn complete_candidates(
         if cell.shape.dimension() != 2 {
             continue;
         }
-        // The candidates the recalc walks; the first branch uses a
-        // one-element path to share the registration helper.
-        let batch: Vec<epic_index::complete_shape::IncompleteRoom> = if !first_done {
+        if !first_done {
             first_done = true;
-            vec![cell]
-        } else {
-            // The shape of the first completed room may have changed
-            // and may intersect the other shapes now — re-complete
-            // (`:492-498`).
-            ctx.complete_shape(
-                Some(&cell.shape),
-                Some(&cell.contained_shape),
-                cell.layer,
-                ignore_object,
-                from_door_shape,
-            )
-        };
-        for tmp in batch {
-            let key = ctx.add_incomplete_expansion_room(
-                tmp.shape.clone(),
-                tmp.layer,
-                tmp.contained_shape.clone(),
-            );
-            temp_keys.push(key);
-            if let Some(done_key) = add_complete_room(ctx, key) {
-                completed.push(done_key);
-            }
+            // The first 2-dim candidate is completed directly — Java's
+            // one-element `batch`, built here WITHOUT the one-element
+            // `Vec` (slice C).
+            register_candidate(ctx, cell, &mut temp_keys, &mut completed);
+            continue;
+        }
+        // The shape of the first completed room may have changed and
+        // may intersect the other shapes now — re-complete
+        // (`:492-498`).
+        let recalc = ctx.complete_shape(
+            Some(&cell.shape),
+            Some(&cell.contained_shape),
+            cell.layer,
+            ignore_object,
+            from_door_shape,
+        );
+        for tmp in recalc {
+            register_candidate(ctx, tmp, &mut temp_keys, &mut completed);
         }
     }
     for key in temp_keys {
         ctx.remove_incomplete_room(key);
     }
     completed
+}
+
+/// The per-candidate registration body (slice C): Java's
+/// `addIncompleteExpansionRoom(...)` + the completion call on the
+/// candidate. The candidate is CONSUMED — Java clones the two shapes
+/// into the new room object; here the candidate's own shapes MOVE
+/// (the candidate value has no other reader), constructing the
+/// field-for-field identical room without the clones.
+fn register_candidate(
+    ctx: &mut impl DrillEngine,
+    tmp: epic_index::complete_shape::IncompleteRoom,
+    temp_keys: &mut Vec<u64>,
+    completed: &mut Vec<u64>,
+) {
+    let epic_index::complete_shape::IncompleteRoom {
+        shape,
+        layer,
+        contained_shape,
+    } = tmp;
+    let key = ctx.add_incomplete_expansion_room(shape, layer, contained_shape);
+    temp_keys.push(key);
+    if let Some(done_key) = add_complete_room(ctx, key) {
+        completed.push(done_key);
+    }
 }
 
 /// The door scan (`:423-434`): the FIRST 2-dim door of the room that
