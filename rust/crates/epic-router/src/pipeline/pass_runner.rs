@@ -425,7 +425,7 @@ fn run_attempt(
 static FORCE_ATTEMPT_PANIC: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-/// The per-attempt body, extracted verbatim from the original
+/// The maxItems face (Java `AutoroutePassRunner.java:211-218`),
 /// extracted verbatim: returns false when the walk must stop (the info
 /// row, the FULL stop raise and the CAUSE mark are exactly the
 /// original inline block).
