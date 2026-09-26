@@ -247,6 +247,16 @@ impl FloatLine {
     /// Divides this line segment into count line segments of nearly equal
     /// length (Java `divideSegmentIntoSections`; at most maxSectionLength
     /// per the javadoc).
+    ///
+    /// ORPHANED-DELEGATE DISCLOSURE (spec round NIT-5, the T4 option-(a)
+    /// precedent): this owned Java-parity form has NO production caller
+    /// since slice C — the production path is the appending core
+    /// [`Self::divide_segment_into_sections_into`] via
+    /// `ExpansionDoor::get_section_segments_into`. The owned form is
+    /// kept deliberately as the parity-reading surface of the Java
+    /// method and as the reuse pin's comparison oracle; wrapper pins
+    /// over it are identity tautologies (cerebrum 11) and are not
+    /// added.
     pub fn divide_segment_into_sections(&self, count: i32) -> Vec<FloatLine> {
         let mut result = Vec::new();
         self.divide_segment_into_sections_into(count, &mut result);

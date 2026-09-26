@@ -1756,18 +1756,25 @@ results, comparators untouched):**
    `clear()`. The rebuild REUSES the table's capacity (clear + insert
    loop): the first draft's fresh-`collect()` per removal allocated a
    full new table at every graveyard move and DOUBLED bm06's byte churn
-   (measured 4.61 → 8.95 GB, alloc_bm06_after_v1_rebuildcollect.* in
+   (measured 4.61 → 8.95 GB, alloc_bm06_after2_v1_rebuildcollect.* in
    `logs/M5-T6/evidence/` — the excursion is retained as the honesty
    record; the pin battery stayed green through it, which is exactly
    why the alloc delta protocol exists). The rebuild itself is
    allocation-free at steady state. The `EngineShapeView` snapshot
    carries the map by reference, so the completion-query resolves take
-   the same path. Graveyard/obstacle_rooms/room_tree_entries/
+   the same path. SCOPE DISCLOSURE (spec round NIT-6): the side map
+   serves `registry_resolve`/`room_mut` only — the REMOVAL paths keep
+   their linear scans (`keys.iter().position`/`contains` at the
+   removal/clear sites); they are bounded by the measured removal op
+   counts (145k graveyard moves/run on bm06, 352k on bm11) and were
+   left untouched. Graveyard/obstacle_rooms/room_tree_entries/
    ripped_item_list stay BTreeMap: the op-count instrument measured
    graveyard 145k ops (max 5,609) / 352k (max 14,579 bm11),
    obstacle_rooms 121k/263k (max 416/841), room_tree_entries 31k/91k,
    ripped_item_list 285/388 ops (max 2/5 — negligible); B-tree
-   rebalancing at those sizes is noise.
+   rebalancing at those sizes is noise. (Instrument outputs retained at
+   the dispatch HEAD: `opcount_bm06_pre_slice.log` / `opcount_bm11_pre_slice.log`
+   in `logs/M5-T6/evidence/` — spec-round MINOR-1 closure.)
 2. **`complete_candidates`** (`maze/completion.rs`): the per-first-candidate
    one-element `vec![cell]` is gone (the first 2-dim candidate registers
    directly), and the registration body (`register_candidate`) MOVES the
@@ -1783,7 +1790,11 @@ results, comparators untouched):**
    field pattern), restores on the normal exit, and drops it on the early
    `return false` paths (capacity loss only). `allocate_sections`
    re-segmentation reuses capacity (clear + resize; all-default values
-   identical — capacity-only, no observable).
+   identical — capacity-only). An observability note (spec round NIT-4):
+   a capacity witness IS possible here (the T5 `row_buf.capacity()`
+   precedent) — it was not added because the VALUES are already covered
+   by the existing maze-section pins and the capacity face would pin
+   only the reuse implementation, not any Java-parity behavior.
 4. **`big_integer_int_value`** (`big_int_aux.rs`): the low-word extraction
    walks `iter_u32_digits()` (zero-alloc) instead of materializing
    `to_u32_digits()` — identical truncation (both answer the
