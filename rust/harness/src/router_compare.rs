@@ -381,6 +381,13 @@ pub enum RouterCommand {
         /// detail-vs-manifest consistency face per fixture).
         #[arg(long)]
         detail: bool,
+        /// Which tier battery to walk (A/B/C; default A — the
+        /// pre-M6-T3 face, byte-identical argv). B and C run the FULL
+        /// profile only: the full-flow jar records exist for all three
+        /// tiers, the router-only records for A alone (a B/C router-only
+        /// battery is a loud bail, never a silent RED walk).
+        #[arg(long, default_value = "A")]
+        tier: String,
         /// Work-root override (default `harness/runs/router-compare`).
         #[arg(long)]
         work_root: Option<PathBuf>,
@@ -425,6 +432,7 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
         RouterCommand::Compare {
             fixture,
             profile,
+            tier,
             report_only,
             detail,
             work_root,
@@ -432,6 +440,7 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
             &repo_root,
             fixture.as_deref(),
             CompareProfile::from_name(profile.as_deref())?,
+            &tier,
             report_only,
             detail,
             work_root,
@@ -458,16 +467,21 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
 // The Tier A fixture enum (tiers.yaml authoritative; trap 2: no silent skip)
 // ---------------------------------------------------------------------------
 
-/// The baselines directory for one compare profile's committed records
+/// The baselines directory for ONE tier under the profile's record set
 /// (single-sourced through [`CompareProfile::oracle_profile`]: the
-/// router-only records live in `baselines/router-only/A`, the M0
-/// full-flow jar records in `baselines/java/A`).
+/// router-only records live in `baselines/router-only/{tier}`, the M0
+/// full-flow jar records in `baselines/java/{tier}` — router-only
+/// committed for A alone, full-flow for A/B/C).
 #[must_use]
-pub fn profile_baselines_dir(repo_root: &Path, profile: CompareProfile) -> PathBuf {
+pub fn profile_tier_baselines_dir(
+    repo_root: &Path,
+    profile: CompareProfile,
+    tier: &str,
+) -> PathBuf {
     repo_root
         .join("rust/harness/baselines")
         .join(profile.oracle_profile().dir_name())
-        .join("A")
+        .join(tier)
 }
 
 /// One Tier A compare row: the fixture, its timeout, its committed record.
@@ -490,13 +504,24 @@ pub struct RouterFixture {
 /// pinned for BOTH profiles: dropping a fixture here is the finding-class
 /// trap 2 names.
 pub fn tier_a_fixtures(repo_root: &Path, profile: CompareProfile) -> Result<Vec<RouterFixture>> {
+    tier_fixtures(repo_root, profile, "A")
+}
+
+/// The fixture walk for ONE tier (the M6-T3 tier filter): tiers.yaml
+/// order, each with its committed record path under the profile's
+/// `{tier}` record set. `tier_a_fixtures` is the `"A"` spelling.
+pub fn tier_fixtures(
+    repo_root: &Path,
+    profile: CompareProfile,
+    tier_name: &str,
+) -> Result<Vec<RouterFixture>> {
     let tiers_path = repo_root.join("rust/harness/config/tiers.yaml");
     let tier_file = TierFile::load(&tiers_path)?;
     let tier = tier_file
-        .tier("A")
-        .with_context(|| format!("tier A missing from {}", tiers_path.display()))?;
+        .tier(tier_name)
+        .with_context(|| format!("tier {tier_name} missing from {}", tiers_path.display()))?;
     let fixtures_root = tier_file.fixtures_root.display().to_string();
-    let baselines = profile_baselines_dir(repo_root, profile);
+    let baselines = profile_tier_baselines_dir(repo_root, profile, tier_name);
     Ok(tier
         .fixtures
         .iter()
@@ -1839,13 +1864,20 @@ fn compare_cmd(
     repo_root: &Path,
     fixture_filter: Option<&str>,
     profile: CompareProfile,
+    tier: &str,
     report_only: bool,
     force_detail: bool,
     work_root: Option<PathBuf>,
 ) -> Result<()> {
+    // The tier guard fires BEFORE any bin resolution or walk: a B/C
+    // battery without the full-flow records is a loud bail, never a
+    // silent 9-RED "missing baseline record" walk (the M6-T3 chore).
+    if tier != "A" && profile == CompareProfile::RouterOnly {
+        bail!("--tier {tier} requires --profile full (router-only records exist for Tier A only)");
+    }
     let started = Instant::now();
     let cli_bin = resolve_fresh_epic_cli(repo_root)?;
-    let fixtures = tier_a_fixtures(repo_root, profile)?;
+    let fixtures = tier_fixtures(repo_root, profile, tier)?;
     let work = work_root
         .map(|p| {
             if p.is_absolute() {
@@ -1874,9 +1906,10 @@ fn compare_cmd(
         ),
     );
     println!(
-        "router compare[{}]: {} Tier A fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli {} ; mode: {}",
+        "router compare[{}]: {} Tier {} fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli {} ; mode: {}",
         profile.name(),
         fixtures.len(),
+        tier,
         (SCORE_RELATIVE_EPSILON * 100.0),
         banner_comparability,
         if report_only {
@@ -2025,7 +2058,7 @@ fn compare_cmd(
     if let Some(filter) = fixture_filter
         && green + red == 0
     {
-        bail!("--fixture {filter:?} matched no Tier A fixture");
+        bail!("--fixture {filter:?} matched no Tier {tier} fixture");
     }
     // The exit ladder, extracted pure for the pin (MINOR-3).
     battery_exit(report_only, red)
@@ -2589,7 +2622,7 @@ mod pins {
                 .map(|f| format!("{}.baseline.json", f.tier_path))
                 .collect();
             let mut extras = Vec::new();
-            let baselines = profile_baselines_dir(&root, profile);
+            let baselines = profile_tier_baselines_dir(&root, profile, "A");
             for tier_dir in tier_dirs {
                 let dir = baselines.join(tier_dir);
                 for entry in std::fs::read_dir(&dir).expect("record dir") {
@@ -2610,6 +2643,76 @@ mod pins {
                 "records without a Tier A fixture ({profile:?}): {extras:?}"
             );
         }
+    }
+
+    /// THE tier-filter walk pin (M6-T3 chore): `tier_fixtures` walks
+    /// tiers B and C in tiers.yaml order against the REAL repo tree,
+    /// every full-flow record present, and the router-only+B battery is
+    /// a LOUD bail (the compare_cmd tier guard), never a silent RED
+    /// walk. The default A face stays byte-identical —
+    /// `tier_a_fixture_enum_is_complete_against_tiers_and_records`
+    /// holds it.
+    #[test]
+    fn tier_fixture_walk_covers_b_and_c_against_full_records() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let expected: &[(&str, usize, &str, &str)] = &[
+            (
+                "B",
+                9,
+                "DAC2020_boards/DAC2020_bm05.dsn",
+                "PCBench/1Bitsy_1bitsy/unrouted.dsn",
+            ),
+            (
+                "C",
+                3,
+                "DAC2020_boards/DAC2020_bm04.dsn",
+                "PCBench/front-end-modules_LimeSDR_Sony/unrouted.dsn",
+            ),
+        ];
+        for (tier_name, count, first, last) in expected {
+            let fixtures =
+                tier_fixtures(&root, CompareProfile::Full, tier_name).expect("tier walk");
+            assert_eq!(
+                fixtures.len(),
+                *count,
+                "the committed tier {tier_name} battery"
+            );
+            assert_eq!(&fixtures[0].tier_path, first, "tiers.yaml order");
+            assert_eq!(
+                &fixtures.last().expect("non-empty").tier_path,
+                last,
+                "tiers.yaml order"
+            );
+            for fixture in &fixtures {
+                assert!(
+                    fixture.baseline_path.is_file(),
+                    "full-flow record missing for tier {tier_name}: {}",
+                    fixture.baseline_path.display()
+                );
+                assert!(
+                    root.join(&fixture.repo_rel_dsn).is_file(),
+                    "fixture missing on disk: {}",
+                    fixture.repo_rel_dsn
+                );
+                assert!(fixture.timeout_seconds > 0);
+            }
+        }
+        // The B/C router-only face is the loud bail (before any bin
+        // resolution or walk).
+        let err = compare_cmd(
+            &root,
+            None,
+            CompareProfile::RouterOnly,
+            "B",
+            true,
+            false,
+            None,
+        )
+        .expect_err("router-only + tier B must bail");
+        assert!(
+            err.to_string().contains("requires --profile full"),
+            "the bail must name the profile requirement: {err}"
+        );
     }
 
     /// THE localizer output shape (synthetic failing pair, no engine):
