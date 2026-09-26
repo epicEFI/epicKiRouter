@@ -300,7 +300,7 @@ the Java packages above stay the frozen parity oracle until the rewrite's
 final milestone. Crates enter this map as their milestones complete
 (M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS; M5 executed on top:
 arena/SoA allocation slices + deterministic per-net parallelism, closed
-with the milestone verdict still open — Σ wall 2286.1 s harness-elapsed =
+M5_EXIT_WITH_DEVIATIONS — Σ wall 2286.1 s harness-elapsed =
 2.02× Σ-Java vs the ≤0.5× target and the full-face battery 8/11, so
 the CI router gate stays in `--report-only`; crafted DSNs stay
 comment-free pending bug-186 (M1b-reopen); design §6 M4/M5 exit

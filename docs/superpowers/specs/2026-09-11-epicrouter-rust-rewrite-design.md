@@ -273,7 +273,7 @@ M5 exit note (T10, 2026-09-26; close-out docs commit as sole child of
 `8950deba9` — the measurement record predates this note: T8 measured
 at `977e07a47`, the posture record is T9's `e6302bb3e` plus its
 quality round):
-**VERDICT: <per milestone adjudication>**
+**VERDICT: M5_EXIT_WITH_DEVIATIONS**, adjudicated 2026-09-26 at tree `bff565249` (fresh-eyes adjudicator): criteria 1 + 2 NOT MET on the T8 record (Σ 2286.1 s harness-elapsed = 2.02× Σ-Java 1130.39 s vs ≤ 565.19 s; speedup peaks small and collapses large), criterion 3 MET (the T7 hashes exact); all three reds owned by M6 via buglog 196 (bm01 optimizer-entry/tier-bound) and 181 (bm06/bm11 completion); the zero-regression guarantee held; the flip stays HELD on both preconditions (8/11; 2286.1 s ≈ 38.1 min > 30 min).
 
 Criterion 1 (Tier A Σ wall ≤ 0.5× Java — Σ `autorouter_seconds +
 optimizer_seconds` over the 11 Tier A fixtures; the §5 :98 ratchet's
@@ -351,7 +351,7 @@ mutation at `HeadlessBoardManager.java:350-468` (`logs/M5-T3/report-t3.md`
 :110); the M4-T9 F3 through-hole-pin fixture stays open under
 return-with-first-consumer — T8 §(f) swept the whole M5 test diff
 and found zero drill-page-expansion worlds, so first consumer
-remains the first task landing one.
+remains the first task landing one. Two residues named by M5's dossiers, recorded here for durability: the T7 quality-r2 banked N3 — the duplicated inert `unwrap_or(-1)` fallback at `pass_runner.rs:623`/`:864` — folds into M6's first pass_runner touch; the buglog sweep (196 NEW, 175/181 tags) lands via the chore(wolf) commit of this adjudication.
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
