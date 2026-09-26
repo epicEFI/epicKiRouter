@@ -146,26 +146,87 @@ impl IndentFileWriter {
 /// where Java prints `1.0E-4` — the two threshold rules this replica
 /// exists for.
 pub fn java_double_to_string(value: f64) -> String {
+    let mut out = String::new();
+    java_double_to_string_into(value, &mut out);
+    out
+}
+
+/// A fixed-capacity byte buffer implementing [`std::fmt::Write`] — the
+/// allocation-free backing for the `{magnitude:e}` render below. The
+/// shortest-round-trip form of a finite non-zero `f64` carries at most
+/// 17 significant digits, so the whole `d.ddddde±xxx` render is bounded
+/// by 1 + 1 + 16 + 1 + 1 + 4 = 24 bytes; 48 leaves headroom and the
+/// overflow assert is unreachable by construction.
+struct StackFmt {
+    buf: [u8; 48],
+    len: usize,
+}
+
+impl StackFmt {
+    const fn new() -> Self {
+        StackFmt {
+            buf: [0; 48],
+            len: 0,
+        }
+    }
+
+    /// Only ASCII (`{:e}` output: digits, `.`, `e`, `-`) is ever
+    /// written, so the UTF-8 check is static.
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.buf[..self.len])
+            .expect("StackFmt only receives ASCII `{:e}` renders")
+    }
+}
+
+impl std::fmt::Write for StackFmt {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        let Some(rest) = self.buf.get_mut(self.len..) else {
+            return Err(std::fmt::Error);
+        };
+        if s.len() > rest.len() {
+            return Err(std::fmt::Error);
+        }
+        rest[..s.len()].copy_from_slice(s.as_bytes());
+        self.len += s.len();
+        Ok(())
+    }
+}
+
+/// The appending core of [`java_double_to_string`] — identical output,
+/// ZERO allocations: the `{magnitude:e}` render lands in a stack buffer
+/// ([`StackFmt`]), the digit sequence is extracted into a second stack
+/// buffer (shortest round-trip ≤ 17 digits), and every piece is pushed
+/// straight into `out`. The M5-T5 slice calls this PER MAZE ELEMENT
+/// from the `RAW_SECTION` row builders (`MazeSearchEngine`); the
+/// owning [`java_double_to_string`] delegates here, so the SES/DSN
+/// output byte-path is unchanged.
+pub fn java_double_to_string_into(value: f64, out: &mut String) {
     if value.is_nan() {
-        return "NaN".to_string();
+        out.push_str("NaN");
+        return;
     }
     if value.is_infinite() {
-        return if value > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
+        out.push_str(if value > 0.0 { "Infinity" } else { "-Infinity" });
+        return;
     }
     if value == 0.0 {
-        return if value.is_sign_negative() {
-            "-0.0".to_string()
+        out.push_str(if value.is_sign_negative() {
+            "-0.0"
         } else {
-            "0.0".to_string()
-        };
+            "0.0"
+        });
+        return;
     }
     let negative = value < 0.0;
     let magnitude = value.abs();
     // "d.dddde<exp>" — digits without the point, exponent of the FIRST
-    // digit (1.xxxx * 10^exp10).
-    let scientific = format!("{magnitude:e}");
+    // digit (1.xxxx * 10^exp10). Infallible: bound 24 bytes < 48.
+    let mut sci = StackFmt::new();
+    let _ = std::fmt::write(&mut sci, format_args!("{magnitude:e}"));
+    let scientific = sci.as_str();
     let Some((mantissa, exponent)) = scientific.split_once('e') else {
-        return scientific; // unreachable for finite non-zero
+        out.push_str(scientific); // unreachable for finite non-zero
+        return;
     };
     // Rust `{:e}` always writes a parseable exponent (any sign lives in
     // the exponent half, never the mantissa), so both the parse and the
@@ -173,8 +234,20 @@ pub fn java_double_to_string(value: f64) -> String {
     let exp10: i32 = exponent
         .parse()
         .expect("Rust {:e} exponent is always a parseable i32");
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let mut out = String::new();
+    let mut digit_buf = [0u8; 24];
+    let mut ndigits = 0usize;
+    for b in mantissa.bytes() {
+        if b != b'.' {
+            assert!(
+                ndigits < digit_buf.len(),
+                "shortest-round-trip digits exceed the 24-byte buffer (bound: 17)"
+            );
+            digit_buf[ndigits] = b;
+            ndigits += 1;
+        }
+    }
+    let digits: &str =
+        std::str::from_utf8(&digit_buf[..ndigits]).expect("the digit bytes are ASCII");
     if negative {
         out.push('-');
     }
@@ -187,9 +260,9 @@ pub fn java_double_to_string(value: f64) -> String {
             for _ in 0..-point_position {
                 out.push('0');
             }
-            out.push_str(&digits);
+            out.push_str(digits);
         } else if point_position >= n {
-            out.push_str(&digits);
+            out.push_str(digits);
             for _ in 0..(point_position - n) {
                 out.push('0');
             }
@@ -210,9 +283,8 @@ pub fn java_double_to_string(value: f64) -> String {
             out.push('0');
         }
         out.push('E');
-        out.push_str(&exp10.to_string());
+        let _ = std::fmt::write(out, format_args!("{exp10}"));
     }
-    out
 }
 
 /// Java `board.model.structure.Unit.toString()` (`Unit.java:36-38`:
@@ -374,6 +446,30 @@ mod tests {
         assert_eq!(java_double_to_string(0.001), "0.001");
         // 1.25e-3 = 0.00125
         assert_eq!(java_double_to_string(0.00125), "0.00125");
+    }
+
+    /// The M5-T5 appending core: writes INTO the caller's buffer
+    /// without clobbering prior content, across ALL render arms
+    /// (special values, plain range with the integer-padding and
+    /// leading-zero faces, scientific), and the owning
+    /// [`java_double_to_string`] is exactly its single-value form (the
+    /// delegation contract — a wrapper that stops delegating still
+    /// passes the pins above, but this face holds the append-only
+    /// behavior the maze row builders rely on).
+    #[test]
+    fn java_double_to_string_into_appends_without_clobbering() {
+        let mut out = String::from("x=");
+        java_double_to_string_into(2.15, &mut out);
+        assert_eq!(out, "x=2.15");
+        java_double_to_string_into(-0.000123456, &mut out);
+        assert_eq!(out, "x=2.15-1.23456E-4");
+        java_double_to_string_into(100000.0, &mut out);
+        assert_eq!(out, "x=2.15-1.23456E-4100000.0");
+        java_double_to_string_into(f64::NAN, &mut out);
+        assert_eq!(out, "x=2.15-1.23456E-4100000.0NaN");
+        let mut fresh = String::new();
+        java_double_to_string_into(-0.0, &mut fresh);
+        assert_eq!(fresh, "-0.0");
     }
 
     /// `Unit.toString()` is the lowercase enum name (`Unit.java:36-38`).

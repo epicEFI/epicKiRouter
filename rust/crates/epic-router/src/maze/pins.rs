@@ -2032,6 +2032,174 @@ fn expand_to_door_precheck_is_per_section() {
     assert_eq!(engine.front.len(), size_before, "no new elements");
 }
 
+/// The M5-T5 row-buffer reuse face: the RAW_SECTION rows build into
+/// the engine's reusable buffer and the reuse must be INVISIBLE —
+/// three consecutive emissions on ONE engine (assign → skip → the
+/// same assign again) must reproduce identical texts for identical
+/// inputs, carry their own template prefixes, and leave no residue of
+/// a previous row in either direction. The controllable fields are
+/// pinned from the world's own literals (section indexes, the
+/// add-cost/adjustment/roomRipped inputs); the geometry-derived
+/// fields are bounded by prefix+suffix, not re-derived. The row
+/// GRAMMAR is independently judged against the Java-captured events
+/// golden (`route_events compare`, 3520 rows). Mutants: a missing
+/// `clear()` leaves the first assign's stale tail on the skip row
+/// (suffix face dies); a take-without-restore corrupts the third row
+/// (row3 == row1 dies); a wrong-template mutant dies on the prefixes.
+#[test]
+fn raw_row_buffer_reuse_is_invisible() {
+    use crate::path::inserter::CaptureSink;
+
+    let mut sink = CaptureSink::default();
+    let rows: Vec<String>;
+    {
+        let (mut harness, mut ctrl, mut distance, mut checker, mut pages) = make_run(false);
+        let mut engine = MazeSearchEngine::new(
+            &mut harness,
+            &mut ctrl,
+            &mut distance,
+            &mut checker,
+            &mut pages,
+        );
+        assert!(engine.init(&[START_PIN], &[DEST_PIN]), "init ok");
+        engine.trace_sink(&mut sink);
+
+        // The precheck world: door 232558643 of the seed's room, two
+        // sections. The from element is a HAND-BUILT seed (section
+        // fields pinned at 0/0) so the row prefixes are world
+        // literals.
+        let seed = engine.front.iter().next().expect("the init seed").clone();
+        let from_room = seed.next_room_key.expect("the seed's room");
+        let door = engine.ctx.room_doors(from_room)[0].clone();
+        assert_eq!(door.id(), 232558643, "the start door");
+        let door_object = ExpandableObject::RoomDoor(door.clone());
+        let (first_key, second_key, first_shape, second_shape) = {
+            let ctx = &*engine.ctx;
+            let fk = ctx.room_key_of_id(door.first_room_id);
+            let sk = ctx.room_key_of_id(door.second_room_id);
+            let fs = ctx.room_shape(fk.expect("live first room"));
+            let ss = ctx.room_shape(sk.expect("live second room"));
+            (fk, sk, fs, ss)
+        };
+        let both_complete_free_space = first_key
+            .is_some_and(|k| engine.ctx.room_is_complete_free_space(k))
+            && second_key.is_some_and(|k| engine.ctx.room_is_complete_free_space(k));
+        let door_shape = ExpansionDoor::shape_between(&first_shape, &second_shape);
+        let layer = engine.ctx.room_layer(from_room);
+        let half_width = f64::from(engine.ctrl.compensated_trace_half_width[layer as usize]);
+        let (section_count, _) = door.get_section_segments(
+            &door_shape,
+            both_complete_free_space,
+            &first_shape,
+            &second_shape,
+            half_width,
+        );
+        assert_eq!(section_count, 2, "the start door has two sections");
+        engine.allocate_sections(&door_object, section_count);
+
+        let c = door_shape.centre_of_gravity();
+        let from_elem = MazeListElement::new(
+            door_object.clone(),
+            0,
+            None,
+            0,
+            100.0,
+            100.0,
+            Some(from_room),
+            FloatLine::new(c, c),
+            false,
+            Adjustment::None,
+            false,
+        );
+
+        // Rounds drive `expand_to_door_section` DIRECTLY (the row
+        // emitters; `expand_to_door`'s own section loop `continue`s
+        // over occupied sections BEFORE the section call, so a door-
+        // level walk cannot reach the skip arm). The entry segment is
+        // the same `FloatLine` for every round so identical inputs
+        // must reproduce identical rows.
+        // Round 1: section 1 free → one assign row.
+        let expanded = engine.expand_to_door_section(
+            door_object.clone(),
+            1,
+            FloatLine::new(c, c),
+            &from_elem,
+            0,
+            Adjustment::None,
+        );
+        assert!(expanded, "the free section 1 expanded");
+
+        // Round 2: section 1 occupied → one skip row.
+        engine.maze_element_mut(&door_object, 1).is_occupied = true;
+        let expanded = engine.expand_to_door_section(
+            door_object.clone(),
+            1,
+            FloatLine::new(c, c),
+            &from_elem,
+            0,
+            Adjustment::None,
+        );
+        assert!(!expanded, "the occupied section 1 must skip");
+
+        // Round 3: section 1 freed again → the SAME assign row as
+        // round 1 (identical inputs on the SAME buffer must reproduce
+        // the same text byte-for-byte).
+        engine.maze_element_mut(&door_object, 1).is_occupied = false;
+        let expanded = engine.expand_to_door_section(
+            door_object,
+            1,
+            FloatLine::new(c, c),
+            &from_elem,
+            0,
+            Adjustment::None,
+        );
+        assert!(expanded, "the re-freed section 1 expanded again");
+
+        // The REUSE face: the buffer must be retained across rows (a
+        // take-without-restore leaves the engine's buffer empty and
+        // re-allocates per row — text-identical, so only a capacity
+        // witness catches it).
+        assert!(
+            engine.row_buf.capacity() > 0,
+            "the row buffer must be retained across rows (a take-without-restore \
+             leaves it at capacity 0, re-allocating per row)"
+        );
+
+        // The engine holds the sink borrow; the row texts are read
+        // only after the engine is dropped.
+        drop(engine);
+        rows = sink
+            .rows
+            .iter()
+            .filter_map(|r| r.strip_prefix("TRACE ").map(str::to_string))
+            .collect();
+    }
+    assert_eq!(rows.len(), 3, "exactly one RAW row per round: {rows:?}");
+    assert!(
+        rows[0]
+            .starts_with("RAW_SECTION assign selected_section=1, from_section=0, backtrack_section=0, add_costs=0, adjustment=NONE, roomRipped=false, expansionValue="),
+        "row 1 template prefix drifted: {}",
+        rows[0]
+    );
+    assert!(
+        rows[1]
+            .starts_with("RAW_SECTION skip selected_section=1, from_section=0, backtrack_section=0, occupied=true, shape_entry_null=false, adjustment=NONE, door="),
+        "row 2 template prefix drifted: {}",
+        rows[1]
+    );
+    assert_eq!(rows[2], rows[0], "row 3 must byte-equal row 1");
+    // No stale residue in either direction: every row terminates at
+    // its net field exactly once (a missing clear() leaves the
+    // previous row's tail beyond the new text).
+    for row in &rows {
+        assert_eq!(
+            row.matches(", net=").count(),
+            1,
+            "row does not terminate at its net field: {row}"
+        );
+    }
+}
+
 /// A comparator tie element — DIRECT struct literal (not
 /// `MazeListElement::new`, whose finiteness debug-asserts would
 /// reject the NaN probes).

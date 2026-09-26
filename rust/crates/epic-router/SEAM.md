@@ -1618,3 +1618,104 @@ within this shared box's noise (bm06 +0.6%; bm11 +4.5% decomposed as +18.2 s on 
 work, pass-duration swing: bm11 passes run 0.9–88 s at load ~6). The slice's win is the
 churn/bytes floor (peak-live unchanged — the retained buffers are KB-scale); whether it
 moves the Σ wall is T8's judgment.
+
+---
+
+## T5 (M5) slice A (re-pointed #2) — maze/drill element churn + the formatting face (appended by M5-T5)
+
+**The slice (T1's binding ranking #2: the formatting face + maze/drill element
+churn; plan-Task-4 lineage kept in the commit message).** T1 ranked
+`java_double_to_string` #2 (7.8%/8.5% of ALL allocations on bm06/bm11 —
+write_scope.rs:148 at dispatch HEAD; the appending core `java_double_to_string_into` lands at :203) with 100% of its sampled hot-path traces
+riding `MazeSearchEngine` row construction (`expand_to_door_section`'s
+`expansionValue`/`sortingValue` fields, search_engine.rs:1257 at dispatch), the
+`epic_router::maze` bucket #3 (4.5%/7.8%) and `expand_to_drills_of_page`'s
+drill snapshot #4 (4.3%/6.9%). Two mechanisms, ZERO semantic change — same
+inserts, same construction/iteration/pop order, same removals, same row TEXT
+byte-for-byte, same stream positions:
+
+1. **The formatting face — allocation elimination, CALLER-SIDE, formatter
+   untouched on the output byte-path.** `write_scope.rs` gains
+   `java_double_to_string_into(value, &mut String)`: the identical algorithm
+   (same `{:e}` shortest-round-trip digits, same layout rules) with the
+   `{magnitude:e}` render and the digit extraction moved onto STACK buffers
+   (shortest-round-trip ≤ 17 digits; the 17-digit bound is asserted), pushing
+   straight into the caller's `String` — zero allocations. The owning
+   `java_double_to_string` delegates to it, so the SES/DSN output byte-path is
+   UNCHANGED (ses 20/20 + ses-snap 5/5 byte-equal are the direct judges). The
+   maze row builders consume the core: both RAW_SECTION sites (skip + assign)
+   build into a per-engine reusable row buffer (`row_buf`, take → clear →
+   build → emit → restore) and the describes render via appending cores
+   (`describe_expandable_into`/`_bounds_into`, `int_box_to_string_into`,
+   `point_to_string_into`); the drill arm of `describe_expandable_into` reads
+   the live drill BY REFERENCE (the owned form deep-cloned the drill's two
+   `Vec`s just to print three fields). Java parity on the construction itself
+   is DELIBERATELY preserved: Java builds the raw rows unconditionally at the
+   call site and the backend filters — the committed events pin
+   `trace_disabled_sink_gates_compare_rows_but_raw_rows_still_flow` (route_events.rs)
+   holds a RECORDING trace-disabled sink at 331 assigns, so the alternative
+   "skip construction when the sink is silent" design was REJECTED (it would
+   change a pinned observable); only the allocation strategy moved.
+2. **The drill churn — the deep clone eliminated, live reads proven identical
+   by the borrow checker.** `expand_to_drills_of_page` previously snapshotted
+   the memoized drill array with `to_vec()` (1 + 2N heap buffers per page
+   expansion — every `ExpansionDrill` carries two `Vec`s); now the memoization
+   runs in a scoped `&mut` borrow (get_drills called exactly once, same side
+   effects) and the loop reads the drill fields through `&DrillPageArray`
+   (`page_drill(row, column, d)`), coexisting with the shared reborrow the
+   callee takes. `pages`/`ctx` are distinct borrows, the loop body never
+   mutates pages, and nothing on the `expand_to_drill` path touches the memo —
+   so live index reads are read-for-read identical to the snapshot reads.
+   Same loop order (`0..drill_count`), same filters, same `Drill{id}` tags.
+
+**Not-taken (recorded):** a Front-arena/SoA conversion — the charter's
+"maze element construction" bucket decomposes at the T1 traces into the row
+strings (the slice took these), the drill snapshot (taken), and
+`completion::complete_candidates`-path Vec churn (797/2733 bm11 samples — NOT
+named by the charter; routed to the coordinator as a T6-adjacent candidate);
+the Front `BTreeSet` node churn itself measured <0.5% (the PQ family is T6's
+by charter) — an arena there chases unmeasured noise. A `is_trace_enabled()`
+gate on row construction was REJECTED (see 1).
+
+**Pins (+2, census 1431→1433).** `raw_row_buffer_reuse_is_invisible`
+(maze/pins.rs): three consecutive emissions on ONE engine (assign → skip →
+the same assign) must reproduce byte-identical texts for identical inputs,
+carry their template prefixes, terminate exactly at their `net=` field (no
+stale-residue face), and leave the buffer retained (capacity witness). 
+Mutation-verified: (i) drill-loop mutant `0.. → 1..` — KILLED by 8 existing
+pins (drill_phase_protocol_pins among them); (ii) `row.clear()` removed at
+both sites — KILLED on the text face; (iii) `row_buf` restore removed —
+text-invisible (identical rows either way), KILLED by the capacity witness;
+(iv) `java_double_to_string_into` clobbering `out` — KILLED by
+`java_double_to_string_into_appends_without_clobbering` (write_scope.rs; also
+covers the append-only contract: special values, plain range with padding and
+leading-zero faces, scientific, appending into a non-empty buffer).
+
+**Ripple (all at the slice commit; EPIC_SKIP_GRADLE=1, real exits,
+memory-capped):** corpus 5000/5000; dsn `--set all` 1332/0; ses 20/20
+byte-equal; ses-snap 5/5; index 33/33; undo 33/33; drc 17/17; events golden
+3520 rows aligned; `router determinism` ×2 byte-identical, canaries UNROTATED
+(ses `dc271114…` / manifest `cf607714…`, the T3-rotated values); router-only
+Tier A battery 11/11 green, every row at T3's exact terminal face (bm01
+0/0/1000.00/7, bm02 1/0/960.78/18, bm06 9/8/876.39, bm11 14/0/883.33/18).
+Gates: fmt 0; clippy `--workspace --all-targets -D warnings` 0; census
+1433/0/17 (+2 = the two new pins).
+
+**Wall + alloc delta** (T1 instrument faces, in-process driver window, same
+machine; before captured at dispatch HEAD `6a4ff650c`, after at the slice
+tree; both release + CARGO_PROFILE_RELEASE_DEBUG=2):
+
+| fixture | wall before → after | allocs before → after | bytes before → after | FACE |
+|---|---|---|---|---|
+| bm08 | 0.103 s → 0.120 s | 433,646 → 361,406 (**−16.7%**) | 53.2 MB → 47.3 MB (−11.1%) | 0/0/64/1 identical |
+| bm06 | 49.329 s → 63.330 s (2nd after-sample **42.213 s**) | 41,868,462 → 29,873,741 (**−28.6%**) | 5.521 GB → 4.607 GB (**−16.6%**) | 3/8/223/21 identical |
+| bm11 | 546.224 s → 445.087 s (**−18.5%**) | 155,594,549 → 97,051,551 (**−37.6%**) | 26.199 GB → 21.079 GB (**−19.5%**) | 4/0/326/55 identical |
+
+Honest reading: the alloc/bytes drop is real and stable (identical counts across
+re-runs — deterministic work), and the FACE lines reproduce exactly. The WALL
+readings sit inside this box's load noise (load average 8–9 during the runs;
+bm06's two after-samples differ by 21 s with BYTE-IDENTICAL allocation counts
+— same work, pure pass-duration swing, the same phenomenon T4 decomposed on
+bm11): bm11's −18.5% should be read as "possibly helped, unproven on a shared
+box", bm06's +28%/−14% spread as noise. The slice's proven win is the churn
+floor (T1 sites #2/#3/#4 cut 28–38%); the Σ-wall judgment stays T8's.

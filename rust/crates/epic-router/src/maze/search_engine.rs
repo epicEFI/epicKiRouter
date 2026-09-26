@@ -23,6 +23,8 @@
 //!   single-net with no tie pins, so Java walks an empty mutation
 //!   set. T9 lands it with the trace machinery.
 
+use std::fmt::Write as _;
+
 use epic_geometry::float_line::FloatLine;
 use epic_geometry::float_point::FloatPoint;
 use epic_geometry::tile_shape::TileShape;
@@ -49,12 +51,14 @@ pub(crate) const ALREADY_RIPPED_COSTS: i32 = 1;
 /// are `IntPoint`s in practice (`"(x,y)"`, no space), matching the
 /// [`crate::pipeline::pass_runner`] row convention; the rational arm
 /// renders the float approximation in the same shape.
-fn point_to_string(point: &epic_geometry::point::Point) -> String {
+fn point_to_string_into(point: &epic_geometry::point::Point, out: &mut String) {
     match point {
-        epic_geometry::point::Point::Int(p) => format!("({},{})", p.x, p.y),
+        epic_geometry::point::Point::Int(p) => {
+            let _ = write!(out, "({},{})", p.x, p.y);
+        }
         epic_geometry::point::Point::Rational(_) => {
             let f = point.to_float();
-            format!("({},{})", f.x, f.y)
+            let _ = write!(out, "({},{})", f.x, f.y);
         }
     }
 }
@@ -62,12 +66,15 @@ fn point_to_string(point: &epic_geometry::point::Point) -> String {
 /// Java `IntBox` bounds rendering inside `describeExpandable` —
 /// `"[(ll.x,ll.y)..(ur.x,ur.y)]"` without the outer brackets (the
 /// brackets are the describe callers'; `describeExpandableBounds`
-/// adds its own pair).
-fn int_box_to_string(box_: &epic_geometry::int_box::IntBox) -> String {
-    format!(
+/// adds its own pair). The appending core (M5-T5): the owned render
+/// allocated a fresh `String` per call and sat on the per-element
+/// row-construction path.
+fn int_box_to_string_into(box_: &epic_geometry::int_box::IntBox, out: &mut String) {
+    let _ = write!(
+        out,
         "[({},{})..({},{})]",
         box_.ll.x, box_.ll.y, box_.ur.x, box_.ur.y
-    )
+    );
 }
 
 /// Java `door.getClass().getSimpleName()` for the DEFAULT arm of
@@ -177,6 +184,17 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// probe/pin worlds that construct the engine by hand without a
     /// backend.
     pub(crate) trace_sink: Option<&'a mut dyn InserterEventSink>,
+    /// The M5-T5 reusable row buffer — the `RAW_SECTION assign/skip`
+    /// rows build into it (`std::mem::take` → build → emit → put
+    /// back), so the per-element row construction is allocation-free
+    /// at steady state. Java parity: Java's call-site concat also runs
+    /// unconditionally (the committed events pin
+    /// `trace_disabled_sink_gates_compare_rows_but_raw_rows_still_flow`
+    /// holds a RECORDING trace-disabled sink, so the construction can
+    /// never be gated on the backend's trace level). The buffer holds
+    /// one row at a time; `emit_raw_row` completes before the restore,
+    /// and no row builder re-enters.
+    pub(crate) row_buf: String,
 }
 
 impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngine<'a, E, D, V> {
@@ -206,6 +224,7 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             backtrack_registry: std::collections::HashMap::new(),
             random_generator: epic_geometry::java_random::JavaRandom::new(random_seed),
             trace_sink: None,
+            row_buf: String::new(),
         }
     }
 
@@ -238,46 +257,58 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     /// Java `MazeSearchEngine.describeExpandable` (`:206-234`) —
     /// verbatim rendering, the shape read through the
     /// [`MazeExpansionEngine::door_shape`] seam (Java's
-    /// `door.getShape()`).
-    fn describe_expandable(&self, door: &ExpandableObject) -> String {
+    /// `door.getShape()`). The appending core (M5-T5): zero
+    /// allocation, and the drill arm reads the live drill by REFERENCE
+    /// (the previous owned render deep-cloned the drill's two `Vec`s
+    /// just to print three of its fields).
+    fn describe_expandable_into(&self, door: &ExpandableObject, out: &mut String) {
         let section_count = self.maze_search_element_count(door);
         match door {
             ExpandableObject::TargetDoor(target_door) => {
                 let item_id = i32::try_from(target_door.item_key).unwrap_or(i32::MAX);
-                format!(
+                let _ = write!(
+                    out,
                     "TargetItemExpansionDoor/item={item_id}/tree_entry={}/dim={}/sections={section_count}",
                     target_door.tree_entry_no,
                     door.dimension(),
-                )
+                );
             }
-            ExpandableObject::Drill { .. } | ExpandableObject::StandaloneDrill { .. } => {
-                let drill = self.live_drill(door);
-                let location = point_to_string(&drill.location);
-                let layers = format!("{}-{}", drill.first_layer, drill.last_layer);
-                format!(
-                    "ExpansionDrill/location={location}/layers={layers}/dim={}/sections={section_count}",
-                    door.dimension(),
-                )
+            ExpandableObject::Drill { row, column, d, .. } => {
+                let drill = self.pages.page_drill(*row, *column, *d);
+                out.push_str("ExpansionDrill/location=");
+                point_to_string_into(&drill.location, out);
+                let _ = write!(out, "/layers={}-{}", drill.first_layer, drill.last_layer);
+                let _ = write!(out, "/dim={}/sections={section_count}", door.dimension());
+            }
+            ExpandableObject::StandaloneDrill { id, .. } => {
+                let drill = self
+                    .standalone_drills
+                    .get(id)
+                    .expect("a standalone drill is registered at construction");
+                out.push_str("ExpansionDrill/location=");
+                point_to_string_into(&drill.location, out);
+                let _ = write!(out, "/layers={}-{}", drill.first_layer, drill.last_layer);
+                let _ = write!(out, "/dim={}/sections={section_count}", door.dimension());
             }
             ExpandableObject::RoomDoor(_) | ExpandableObject::DrillPage { .. } => {
-                let bounds = int_box_to_string(
-                    &MazeExpansionEngine::door_shape(self.ctx, self.pages, door).bounding_box(),
-                );
+                let bounds =
+                    MazeExpansionEngine::door_shape(self.ctx, self.pages, door).bounding_box();
                 let name = expandable_simple_name(door);
-                format!(
-                    "{name}/bounds={bounds}/dim={}/sections={section_count}",
-                    door.dimension(),
-                )
+                out.push_str(name);
+                out.push_str("/bounds=");
+                int_box_to_string_into(&bounds, out);
+                let _ = write!(out, "/dim={}/sections={section_count}", door.dimension());
             }
         }
     }
 
     /// Java `MazeSearchEngine.describeExpandableBounds` (`:260-266`)
-    /// — verbatim: `"[(ll.x,ll.y)..(ur.x,ur.y)]"`.
-    fn describe_expandable_bounds(&self, door: &ExpandableObject) -> String {
-        int_box_to_string(
+    /// — verbatim: `"[(ll.x,ll.y)..(ur.x,ur.y)]"`. Appending core.
+    fn describe_expandable_bounds_into(&self, door: &ExpandableObject, out: &mut String) {
+        int_box_to_string_into(
             &MazeExpansionEngine::door_shape(self.ctx, self.pages, door).bounding_box(),
-        )
+            out,
+        );
     }
 
     /// Java `getInstance` + `init` — `None` is Java's null result
@@ -1147,27 +1178,41 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
     ) -> bool {
         if self.maze_element(&door, section_index).is_occupied {
             // Java `RAW_SECTION skip` (`:798-821`) — the raw row is
-            // built unconditionally (call-site concat) and handed to
-            // the one-arg trace backend. The `shape_entry_null` arm
-            // renders `false` always: the port's `FloatLine` parameter
-            // is non-optional (Java's null shape entries are filtered
-            // at the callers — `expandToDoor` `:752-754`, the target
-            // caller `:696` — before reaching this method).
-            let row = format!(
+            // built UNCONDITIONALLY (call-site concat; the committed
+            // events pin `trace_disabled_sink_gates_compare_rows_but_
+            // raw_rows_still_flow` holds a RECORDING trace-disabled
+            // sink, so the construction itself must never be gated)
+            // and handed to the one-arg trace backend. The M5-T5 slice
+            // builds it into the engine's reusable row buffer (zero
+            // steady-state allocation — the M5-T1 profile ranked the
+            // per-element row strings at ~10% of all allocations on
+            // bm06/bm11). The `shape_entry_null` arm renders `false`
+            // always: the port's `FloatLine` parameter is non-optional
+            // (Java's null shape entries are filtered at the callers —
+            // `expandToDoor` `:752-754`, the target caller `:696` —
+            // before reaching this method).
+            let mut row = std::mem::take(&mut self.row_buf);
+            row.clear();
+            let _ = write!(
+                row,
                 "RAW_SECTION skip selected_section={section_index}, \
                  from_section={}, backtrack_section={}, occupied=true, \
-                 shape_entry_null=false, adjustment={}, door={}, \
-                 door_bounds={}, from_door={}, from_door_bounds={}, net={}",
+                 shape_entry_null=false, adjustment={}",
                 from_element.section_no_of_door,
                 from_element.section_no_of_backtrack_door,
                 adjustment_name(adjustment),
-                self.describe_expandable(&door),
-                self.describe_expandable_bounds(&door),
-                self.describe_expandable(&from_element.door),
-                self.describe_expandable_bounds(&from_element.door),
-                self.ctrl.net_number,
             );
+            row.push_str(", door=");
+            self.describe_expandable_into(&door, &mut row);
+            row.push_str(", door_bounds=");
+            self.describe_expandable_bounds_into(&door, &mut row);
+            row.push_str(", from_door=");
+            self.describe_expandable_into(&from_element.door, &mut row);
+            row.push_str(", from_door_bounds=");
+            self.describe_expandable_bounds_into(&from_element.door, &mut row);
+            let _ = write!(row, ", net={}", self.ctrl.net_number);
             self.emit_raw_row(&row);
+            self.row_buf = row;
             return false;
         }
         let Some(from_room_key) = from_element.next_room_key else {
@@ -1245,17 +1290,37 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         // into the front element (Java's row concat reads the live
         // references at `:907-933`; the port renders the same fields
         // first and emits at the Java position below — after the
-        // ripupCost ride, before the mazeExpansionList add).
-        let door_desc = self.describe_expandable(&door);
-        let door_bounds_desc = self.describe_expandable_bounds(&door);
-        let from_door_desc = self.describe_expandable(&from_element.door);
-        let from_door_bounds_desc = self.describe_expandable_bounds(&from_element.door);
+        // ripupCost ride, before the mazeExpansionList add). M5-T5:
+        // the row builds into the engine's reusable buffer — the
+        // previous form materialized `expansionValue`/`sortingValue`
+        // through `java_double_to_string` (the M5-T1 profile's #2
+        // ranked site, 7.8%/8.5% of ALL allocations) plus four more
+        // intermediate strings per element.
         let from_section = from_element.section_no_of_door;
         let backtrack_section = from_element.section_no_of_backtrack_door;
         let adjustment_text = adjustment_name(adjustment);
-        let expansion_text = epic_dsn::write_scope::java_double_to_string(expansion_value);
-        let sorting_text = epic_dsn::write_scope::java_double_to_string(sorting_value);
         let net = self.ctrl.net_number;
+        let mut row = std::mem::take(&mut self.row_buf);
+        row.clear();
+        let _ = write!(
+            row,
+            "RAW_SECTION assign selected_section={section_index}, \
+             from_section={from_section}, backtrack_section={backtrack_section}, \
+             add_costs={add_costs}, adjustment={adjustment_text}, \
+             roomRipped={room_ripped}, expansionValue=",
+        );
+        epic_dsn::write_scope::java_double_to_string_into(expansion_value, &mut row);
+        row.push_str(", sortingValue=");
+        epic_dsn::write_scope::java_double_to_string_into(sorting_value, &mut row);
+        row.push_str(", door=");
+        self.describe_expandable_into(&door, &mut row);
+        row.push_str(", door_bounds=");
+        self.describe_expandable_bounds_into(&door, &mut row);
+        row.push_str(", from_door=");
+        self.describe_expandable_into(&from_element.door, &mut row);
+        row.push_str(", from_door_bounds=");
+        self.describe_expandable_bounds_into(&from_element.door, &mut row);
+        let _ = write!(row, ", net={net}");
 
         let mut new_element = MazeListElement::new(
             door,
@@ -1278,17 +1343,13 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         // Java `RAW_SECTION assign` (`:907-933`) — the raw row is
         // built unconditionally (call-site concat) and handed to the
         // one-arg trace backend; the doubles rendered through Java
-        // `Double.toString` (the M1b `java_double_to_string` port).
-        let row = format!(
-            "RAW_SECTION assign selected_section={section_index}, \
-             from_section={from_section}, backtrack_section={backtrack_section}, \
-             add_costs={add_costs}, adjustment={adjustment_text}, \
-             roomRipped={room_ripped}, expansionValue={expansion_text}, \
-             sortingValue={sorting_text}, door={door_desc}, \
-             door_bounds={door_bounds_desc}, from_door={from_door_desc}, \
-             from_door_bounds={from_door_bounds_desc}, net={net}"
-        );
+        // `Double.toString` (the M1b `java_double_to_string` port,
+        // now its appending core). Emitting the buffer built BEFORE
+        // the element construction keeps the exact Java stream
+        // position; restoring the buffer after the emission keeps the
+        // reuse invisible to every later row.
         self.emit_raw_row(&row);
+        self.row_buf = row;
         // Java reads nextRoom.getLayer() live at the add; the door is
         // a room or target door here — never a drill — so the gate's
         // drill arm cannot fire (`expandToDoorSection` is only called

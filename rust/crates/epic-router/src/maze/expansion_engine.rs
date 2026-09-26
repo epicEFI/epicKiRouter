@@ -224,12 +224,25 @@ impl MazeExpansionEngine {
             panic!("expandToDrillsOfPage requires a DrillPage door");
         };
         let from_room_layer = from_element.section_no_of_door;
-        let drills = {
+        // Java iterates the LIVE `page.drills` array (`getDrills`
+        // memoized once before the loop, `DrillPage.java:63-131` +
+        // `:145-235`). The port previously snapshotted it with a full
+        // deep clone (`to_vec()` — the M5-T1 ranked drill site,
+        // 4.3%/6.9% of all allocations: every `ExpansionDrill` carries
+        // two heap `Vec`s, so each page expansion cloned 1 + 2N
+        // buffers). The clone was unnecessary BY THE BORROW CHECKER:
+        // `pages` and `ctx` are distinct borrows, the loop body reads
+        // the memo only through `&DrillPageArray`, and nothing on the
+        // `expand_to_drill` path mutates it — so a scoped memoization
+        // plus an index walk over the live array is read-for-read
+        // identical.
+        let drill_count = {
             let page = pages.page_mut(row, column);
             page.get_drills(ctx, ctrl.net_number, ctrl.attach_smd_allowed)
-                .to_vec()
+                .len()
         };
-        for (d, current_drill) in drills.iter().enumerate() {
+        for d in 0..drill_count {
+            let current_drill = pages.page_drill(row, column, d);
             let section_index = from_room_layer - current_drill.first_layer;
             if section_index < 0 || section_index >= current_drill.room_arr.len() as i32 {
                 continue;
