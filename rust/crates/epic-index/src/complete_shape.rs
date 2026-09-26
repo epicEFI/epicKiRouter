@@ -286,7 +286,8 @@ pub fn complete_shape_generic<OBJ: CompleteShapeObjects>(
 /// to Simplex first because octagon border lines of length 0 may
 /// otherwise be mishandled). Allocation-free core in
 /// [`restrain_shape_generic_into`]; this owned form is the Java-parity
-/// surface.
+/// surface. No in-tree callers (the arms call the `*_into` core);
+/// kept as the owned Java-parity surface.
 #[must_use]
 pub fn restrain_shape_generic(
     room: &IncompleteRoom,
@@ -397,7 +398,9 @@ fn restrain_shape_generic_into(
 /// Java `ShapeSearchTree.divideLargeRoom`
 /// (`ShapeSearchTree.java:1095-1118`) — split a single large room into
 /// sections so every layer keeps more than one room for the maze's via
-/// handling. Owned Java-parity surface over the in-place core.
+/// handling. Owned Java-parity surface over the in-place core. No
+/// in-tree callers (the arms call the `*_in_place` core); kept as the
+/// owned Java-parity surface.
 #[must_use]
 pub fn divide_large_room_generic(
     mut room_list: Vec<IncompleteRoom>,
@@ -601,7 +604,8 @@ pub fn complete_shape_ninety_degree<OBJ: CompleteShapeObjects>(
 /// restrained box; the fallback splits the room at the obstacle edge
 /// the contained shape touches and RECURSES on the far piece.
 /// Allocation-free core in [`restrain_shape_ninety_degree_into`]; this
-/// owned form is the Java-parity surface.
+/// owned form is the Java-parity surface. No in-tree callers (the arm
+/// calls the `*_into` core); kept as the owned Java-parity surface.
 #[must_use]
 pub fn restrain_shape_ninety_degree(
     room: &IncompleteRoom,
@@ -933,7 +937,8 @@ pub fn complete_shape_fortyfive_degree<OBJ: CompleteShapeObjects>(
 /// contained shape) converted to its bounding octagon. The `None` arms
 /// of the conversions are unreachable (Java would store null and NPE
 /// later): the original shape is kept there. Owned Java-parity surface
-/// over the in-place core.
+/// over the in-place core. No in-tree callers (the 45-degree arm calls
+/// the `*_in_place` core); kept as the owned Java-parity surface.
 #[must_use]
 pub fn divide_large_room_fortyfive_degree(
     mut room_list: Vec<IncompleteRoom>,
@@ -960,7 +965,8 @@ fn divide_large_room_fortyfive_in_place(rooms: &mut Vec<IncompleteRoom>, board_b
 /// Java `ShapeSearchTree45Degree.restrainShape`
 /// (`:305-418`) — pure IntOctagon integer arithmetic. Allocation-free
 /// core in [`restrain_shape_fortyfive_degree_into`]; this owned form
-/// is the Java-parity surface.
+/// is the Java-parity surface. No in-tree callers (the arm calls the
+/// `*_into` core); kept as the owned Java-parity surface.
 #[must_use]
 pub fn restrain_shape_fortyfive_degree(
     room: &IncompleteRoom,

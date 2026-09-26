@@ -1613,7 +1613,8 @@ before/after both release + CARGO_PROFILE_RELEASE_DEBUG=2):
 
 Honest reading (T1's own caveat): allocation COUNT and BYTES drop hard on the
 allocation-ranked fixtures, but the WALL on the wall-dominated fixtures is unchanged
-within this shared box's noise (bm06 +0.6%; bm11 +4.5% traced to one 88 s pass #17 in
-the after-run — pass durations on bm11 swing 0.9–88 s run-to-run at load ~6, work
-identical both runs). The slice's win is the churn/bytes floor (peak-live unchanged —
-the retained buffers are KB-scale); whether it moves the Σ wall is T8's judgment.
+within this shared box's noise (bm06 +0.6%; bm11 +4.5% decomposed as +18.2 s on pass
+#17 PLUS +4.8 s on pass #16, board hashes identical passes #16–#18 both runs — same
+work, pass-duration swing: bm11 passes run 0.9–88 s at load ~6). The slice's win is the
+churn/bytes floor (peak-live unchanged — the retained buffers are KB-scale); whether it
+moves the Σ wall is T8's judgment.
