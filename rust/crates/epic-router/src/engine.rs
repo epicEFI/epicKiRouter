@@ -1269,6 +1269,10 @@ impl NeighbourEngine for AutorouteEngine<'_> {
         let key = self.alloc_key();
         self.rooms
             .push(ExpansionRoom::new_incomplete(shape, layer, contained_shape));
+        // INVARIANT (slice C): the side-map insert MUST follow this
+        // push (registry key→index coupling — see the key_index field
+        // doc; the pin t6_registry_side_map_tracks_removal_rebuild
+        // witnesses the rebuild half).
         self.keys.push(key);
         self.key_index.insert(key, self.keys.len() - 1);
         key
@@ -1282,6 +1286,10 @@ impl NeighbourEngine for AutorouteEngine<'_> {
         let key = self.alloc_key();
         self.rooms
             .push(ExpansionRoom::new_complete_free_space(shape, layer, id));
+        // INVARIANT (slice C): the side-map insert MUST follow this
+        // push (registry key→index coupling — see the key_index field
+        // doc; the pin t6_registry_side_map_tracks_removal_rebuild
+        // witnesses the rebuild half).
         self.keys.push(key);
         self.key_index.insert(key, self.keys.len() - 1);
         self.pending_completed.push(key);
@@ -1423,6 +1431,10 @@ impl NeighbourEngine for AutorouteEngine<'_> {
             shape.clone(),
             layer,
         ));
+        // INVARIANT (slice C): the side-map insert MUST follow this
+        // push (registry key→index coupling — see the key_index field
+        // doc; the pin t6_registry_side_map_tracks_removal_rebuild
+        // witnesses the rebuild half).
         self.keys.push(key);
         self.key_index.insert(key, self.keys.len() - 1);
         // Java does NOT put ObstacleExpansionRoom into the search tree
@@ -4187,14 +4199,16 @@ mod tests {
     /// order-preserving removal + rebuild (bm06 measured 77.3M
     /// registry resolves against 145k graveyard insertions, so the
     /// map's rebuild-on-removal is the correctness-critical half).
-    /// Three rooms registered, the FIRST removed (every higher index
-    /// shifts down by one): the removed room must still resolve
-    /// (graveyard arm — Java's live-reference semantics) with its
-    /// original shape, and both surviving rooms must resolve to the
-    /// field-for-field same rooms as before the removal — the
-    /// skip-the-rebuild mutant leaves `k3`'s map entry pointing past
-    /// the registry end (panic) and `k2`'s at the removed room's slot
-    /// (wrong shape).
+    /// Three rooms registered with GEOMETRICALLY DISTINCT shapes
+    /// (lengths 1/2/3 — the quality-round fix: equal-length keys made
+    /// the survivors shape-equal and collapsed the kill arms), the
+    /// FIRST removed (every higher index shifts down by one): the
+    /// removed room must still resolve (graveyard arm — Java's
+    /// live-reference semantics) and each survivor must resolve to ITS
+    /// OWN room. Skip-the-rebuild kill faces, each independently
+    /// discriminative: `k2`'s stale index 1 lands on `k3`'s room
+    /// (wrong-shape assert), `k3`'s stale index 2 points past the
+    /// post-removal registry end (index-out-of-bounds panic).
     #[test]
     fn t6_registry_side_map_tracks_removal_rebuild() {
         let (mut manager, mut board) = parse_fixture();
@@ -4217,15 +4231,15 @@ mod tests {
         );
         let k2 = NeighbourEngine::add_incomplete_expansion_room(
             &mut engine,
-            shape_of("b"),
-            0,
             shape_of("bb"),
+            0,
+            shape_of("bbb"),
         );
         let k3 = NeighbourEngine::add_incomplete_expansion_room(
             &mut engine,
-            shape_of("c"),
+            shape_of("ccc"),
             0,
-            shape_of("cc"),
+            shape_of("cccc"),
         );
         assert!(k1 != k2 && k2 != k3 && k1 != k3);
         // Pre-removal resolutions answer through the map.
@@ -4234,11 +4248,14 @@ mod tests {
         NeighbourEngine::remove_incomplete_room(&mut engine, k1);
         // The removed room stays reachable (graveyard arm).
         assert!(engine.resolve(k1).is_some(), "graveyard arm live");
-        // Both survivors resolve — to rooms, not to a shifted slot.
+        // Both survivors resolve — each to its OWN room, not a shifted
+        // slot. Each survivor is ASSERTED before the next is resolved,
+        // so either kill face fires independently (the k2 wrong-shape
+        // assert is not masked by a later out-of-bounds panic).
         let r2 = engine.resolve(k2).expect("k2 resolves after shift");
+        assert_eq!(*r2.shape(), shape_of("bb"), "k2 resolved to its own room");
         let r3 = engine.resolve(k3).expect("k3 resolves after shift");
-        assert_eq!(*r2.shape(), shape_of("b"), "k2 resolved to its own room");
-        assert_eq!(*r3.shape(), shape_of("c"), "k3 resolved to its own room");
+        assert_eq!(*r3.shape(), shape_of("ccc"), "k3 resolved to its own room");
         finish_autoroute(Some(engine));
     }
 }

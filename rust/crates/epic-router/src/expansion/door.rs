@@ -166,6 +166,11 @@ impl ExpansionDoor {
     /// restraint line is only calculated in that case. `first_shape` /
     /// `second_shape` are the rooms' live shapes (`calcDoorLineSegment`
     /// reads them, `:149-172`).
+    ///
+    /// The owned Java-parity surface: this wrapper delegates to
+    /// [`Self::get_section_segments_into`] (the production path — the
+    /// maze engine's reusable `section_buf`); see the core's doc for
+    /// the appending contract.
     #[must_use]
     pub fn get_section_segments(
         &self,

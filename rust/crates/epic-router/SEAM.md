@@ -1827,3 +1827,47 @@ results, comparators untouched):**
      scope.
    - **SIMD kernels**: out of scope by charter; no kernel ≥15% named by
      the profile (none expected) — decision recorded.
+
+**Ripple + wall/alloc delta + pins/census (the T4-dossier shape, appended
+by the M5-T6 quality round — this paragraph is T8's durable reference; the
+slice is the milestone's FIRST COMPUTE-SIDE WALL WIN):**
+
+| fixture | wall before → after | allocs before → after | bytes before → after | FACE |
+|---|---|---|---|---|
+| bm08 | 0.095 s → 0.088 s | 361,406 → 347,391 (−3.9%) | 47.32 → 47.16 MB | 0/0/64/1 identical |
+| bm06 | 40.444 s → 25.202 s (**−37.7%**) | 29,873,741 → 27,584,115 (−7.7%) | 4.607 → 4.575 GB | 3/8/223/21 identical |
+| bm06 (2nd sample) | 25.377 s | 27,584,115 (byte-identical) | 4,574,763,300 (byte-identical) | identical |
+| bm11 | 420.912 s → 187.578 s (**−55.4%**) | 97,051,551 → 88,140,377 (−9.2%) | 21.079 → 20.923 GB | 4/0/326/55 identical |
+
+Honest reading: the wall wins are the mechanism's (411.7M/77.3M O(n)
+registry scans → O(1) hash lookups), stable across the two bm06 samples
+whose allocation counts AND bytes are byte-identical (determinism of
+work); bytes ~flat (−0.7%) because the linear scans never allocated —
+this slice's win is compute-side, the alloc-count drop (−7.7%/−9.2%) is
+the completion/section/bigint takes. The T1 "allocation share ≠ wall
+share" caveat runs the OTHER way here: a <0.5%-of-allocations family
+turned out to carry the wall. The Σ-wall judgment stays T8's, which
+should carry slice C as wall-proven on the two heavier fixtures.
+
+**Ripple (what the slice ripples forward):** T8's Σ wall table (the
+bm11/bm06 walls above are the per-fixture faces); T7's deterministic
+parallelism (the side map is per-engine state, unshared — thread-safe by
+construction); the op-count evidence files (`opcount_bm06_pre_slice.log`
+/ `opcount_bm11_pre_slice.log`, byte-reproducible at the dispatch HEAD)
+are the durable witness for this dossier's every op count.
+
+**Ripple faces (all at the slice commits; EPIC_SKIP_GRADLE=1, real exits,
+memory-capped, re-run on the final tree):** corpus 5000/5000; dsn
+`--set all` 1332/0; ses 20/20 byte-equal; ses-snap 5/5; index 33/33;
+undo 33/33; drc 17/17; events golden 3520 rows aligned; `router
+determinism` ×2 byte-identical, canaries UNROTATED (ses `dc271114…` /
+manifest `cf607714…`); router-only Tier A battery 11/11 green, every row
+at the exact terminal face (bm01 0/0/1000.00/7, bm02 1/0/960.78/18, bm06
+9/8/876.39, bm11 14/0/883.33/18). Census **1433 → 1435** (+2 = the two
+new pins), both mutation-verified with BOTH kill faces witnessed
+independently: `t6_registry_side_map_tracks_removal_rebuild` (the
++1-index mutant dies on k2's wrong-shape assert; the
+rebuild-only-first-key mutant dies on k3's resolution failure with k2
+passing) and `divide_segment_into_sections_reuse_is_invisible` (the
+missing-clear mutant dies on the stale-tail length face). Gates: fmt 0;
+clippy `--workspace --all-targets -D warnings` 0; census 1435/0/17.
