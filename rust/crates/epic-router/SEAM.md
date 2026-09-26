@@ -1924,7 +1924,7 @@ allowance (the executor is the deliverable; T8 judges). Search-level
 wall wins need provable search independence, which needs the design §4
 global-routing plans.
 
-**Pins + census (1435 → 1442, +7):** door.rs `empty_door_shape_answers_
+**Pins + census (1435 → 1443 across feat + spec-fix, +7 +1):** door.rs `empty_door_shape_answers_
 empty_before_dimension_dispatch` (mutant: empty-check disabled → the
 dim=1 dispatch panics on the empty shape — KILLED) and
 `dim2_complete_rooms_without_common_border_corners_answer_null_arm`
@@ -1943,5 +1943,8 @@ thread state to move a limit); harness `threads_gate_argv_appends_mt_
 flag` (mutant: `-mt` append dropped — KILLED) + the threads-invariance
 verdict faces inside `determinism_check_catches_a_planted_divergence`
 (mutant: verdict comparing only -mt 1 vs -mt 3 → the planted EVEN-N
-faces die — KILLED). Gates: fmt 0; clippy `--workspace --all-targets
--D warnings` 0; census 1442/0/17.
+faces die — KILLED). Spec round F1 adds the partitioned fail-fast pin
+`t7_f1_panicking_worker_fails_fast_with_unit_identity` (its mutation
+record in the spec-fix paragraph below). Gates: fmt 0; clippy
+`--workspace --all-targets -D warnings` 0; census **1443/0/17 at
+HEAD** (1442 at the feat commit + 1 F1 pin).

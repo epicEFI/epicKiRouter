@@ -1681,8 +1681,11 @@ fn determinism_cmd(
 // Threads-invariance gate (M5-T7)
 // ---------------------------------------------------------------------------
 
-/// The three thread faces one fixture runs under (the golden, the odd
-/// N, the even N).
+/// The DEFAULT three thread faces one fixture runs under (the golden,
+/// the odd N, the even N) — the command's `--odd-threads`/
+/// `--even-threads` overrides replace slots 1/2, and the verdict names
+/// the ACTUAL faces it is handed (quality round Q1: the diagnostics
+/// must not lie about which face diverged).
 pub const THREADS_GATE_FACES: [usize; 3] = [1, 3, 4];
 
 /// The threads-invariance verdict over the three runs' digests: OK
@@ -1690,12 +1693,13 @@ pub const THREADS_GATE_FACES: [usize; 3] = [1, 3, 4];
 /// Pure — planted-divergence pinnable.
 pub fn threads_invariance_verdict(
     digests: [(Option<String>, Option<String>); 3],
+    faces: [usize; 3],
 ) -> std::result::Result<String, String> {
     for (index, (ses, manifest)) in digests.iter().enumerate() {
         if ses.is_none() || manifest.is_none() {
             return Err(format!(
                 "the -mt {} run produced no session or manifest (ses={ses:?} manifest={manifest:?})",
-                THREADS_GATE_FACES[index]
+                faces[index]
             ));
         }
     }
@@ -1704,19 +1708,21 @@ pub fn threads_invariance_verdict(
     for index in 1..3 {
         if digests[index].0 != digests[0].0 {
             return Err(format!(
-                "SES bytes diverge between -mt 1 and -mt {} — threads invariance broken",
-                THREADS_GATE_FACES[index]
+                "SES bytes diverge between -mt {} and -mt {} — threads invariance broken",
+                faces[0], faces[index]
             ));
         }
         if digests[index].1 != digests[0].1 {
             return Err(format!(
-                "manifest bytes diverge between -mt 1 and -mt {} — threads invariance broken",
-                THREADS_GATE_FACES[index]
+                "manifest bytes diverge between -mt {} and -mt {} — threads invariance broken",
+                faces[0], faces[index]
             ));
         }
     }
     Ok(format!(
-        "threads invariance: OK (ses {ses_1}, manifest {manifest_1} byte-identical across -mt 1/3/4)"
+        "threads invariance: OK (ses {ses_1}, manifest {manifest_1} byte-identical across \
+         -mt {}/{}/{})",
+        faces[0], faces[1], faces[2]
     ))
 }
 
@@ -1758,7 +1764,11 @@ fn threads_invariance_cmd(
                 format!("fixture {wanted_path:?} is not a Tier A fixture (tiers.yaml paths only)")
             })?;
         let dsn = repo_root.join(&entry.repo_rel_dsn);
-        let faces = [1usize, odd_threads, even_threads];
+        // Slot 0 (the golden) is always 1; the flags replace the odd
+        // and even slots of the DEFAULT face set.
+        let mut faces = THREADS_GATE_FACES;
+        faces[1] = odd_threads;
+        faces[2] = even_threads;
         println!(
             "router threads-invariance: {} (faces -mt 1/-mt {odd_threads}/-mt {even_threads}, fanout-off, timeout {}s)",
             entry.tier_path, entry.timeout_seconds
@@ -1800,7 +1810,7 @@ fn threads_invariance_cmd(
             digests[index] = (ses_digest, manifest_digest);
             ran += 1;
         }
-        match threads_invariance_verdict(digests) {
+        match threads_invariance_verdict(digests, faces) {
             Ok(line) => println!("  {line}"),
             Err(reason) => {
                 bail!(
@@ -2731,35 +2741,47 @@ mod pins {
         // passes; a planted divergence on the ODD-N face and on the
         // EVEN-N face each fail naming the face. Kills the
         // run3-blind mutant (a verdict comparing only -mt 1 vs -mt 3).
-        let ok = threads_invariance_verdict([
-            (Some("aaaa".into()), Some("m1".into())),
-            (Some("aaaa".into()), Some("m1".into())),
-            (Some("aaaa".into()), Some("m1".into())),
-        ])
+        let ok = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+            ],
+            THREADS_GATE_FACES,
+        )
         .expect("all-equal digests are OK");
         assert!(ok.contains("threads invariance: OK"), "{ok}");
 
-        let err = threads_invariance_verdict([
-            (Some("aaaa".into()), Some("m1".into())),
-            (Some("bbbb".into()), Some("m1".into())),
-            (Some("aaaa".into()), Some("m1".into())),
-        ])
+        let err = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("bbbb".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+            ],
+            THREADS_GATE_FACES,
+        )
         .expect_err("a planted ODD-N SES divergence must fail");
         assert!(err.contains("-mt 3"), "{err}");
 
-        let err = threads_invariance_verdict([
-            (Some("aaaa".into()), Some("m1".into())),
-            (Some("aaaa".into()), Some("m1".into())),
-            (Some("aaaa".into()), Some("m2".into())),
-        ])
+        let err = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m2".into())),
+            ],
+            THREADS_GATE_FACES,
+        )
         .expect_err("a planted EVEN-N manifest divergence must fail");
         assert!(err.contains("-mt 4"), "{err}");
 
-        let err = threads_invariance_verdict([
-            (Some("aaaa".into()), Some("m1".into())),
-            (Some("aaaa".into()), Some("m1".into())),
-            (None, Some("m1".into())),
-        ])
+        let err = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+                (None, Some("m1".into())),
+            ],
+            THREADS_GATE_FACES,
+        )
         .expect_err("a missing EVEN-N run must fail naming the face");
         assert!(err.contains("-mt 4"), "{err}");
 
@@ -2771,6 +2793,59 @@ mod pins {
         )
         .expect_err("a missing manifest must fail independently of the ses face");
         assert!(err.contains("no manifest"), "{err}");
+    }
+
+    /// M5-T7 quality Q1: the verdict names the ACTUAL faces it is
+    /// handed — an override run (`--odd-threads 5 --even-threads 6`)
+    /// gets a banner naming 1/5/6 and divergence messages naming the
+    /// override face, never the defaults (the gate's diagnostics must
+    /// not lie — the `route_argv` banner standard).
+    #[test]
+    fn threads_gate_verdict_names_override_faces() {
+        let overrides = [1usize, 5, 6];
+        let ok = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+            ],
+            overrides,
+        )
+        .expect("all-equal digests are OK");
+        assert!(
+            ok.contains("-mt 1/5/6"),
+            "banner must name the overrides: {ok}"
+        );
+
+        let err = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("bbbb".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+            ],
+            overrides,
+        )
+        .expect_err("a divergence at the override odd face names it");
+        assert!(err.contains("-mt 5"), "{err}");
+        assert!(
+            !err.contains("-mt 3"),
+            "the default odd face must not appear: {err}"
+        );
+
+        let err = threads_invariance_verdict(
+            [
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m1".into())),
+                (Some("aaaa".into()), Some("m2".into())),
+            ],
+            overrides,
+        )
+        .expect_err("a divergence at the override even face names it");
+        assert!(err.contains("-mt 6"), "{err}");
+        assert!(
+            !err.contains("-mt 4"),
+            "the default even face must not appear: {err}"
+        );
     }
 
     /// M5-T7: the threads gate's argv wiring — `-mt <n>` rides the

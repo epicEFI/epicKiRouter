@@ -296,7 +296,11 @@ fn log_net94_items(board: &mut Board, sink: &mut dyn DriverSink) {
 struct PassUnit {
     item_id: ItemId,
     net: i32,
-    nets: Vec<i32>,
+    /// The item's first net — the only face `run_attempt` reads from
+    /// the item's net list (the failure log's `first_net`); the full
+    /// `Vec<i32>` clone the first draft carried was dead weight on the
+    /// golden path (quality round N6).
+    first_net: i32,
     simple_name: &'static str,
     /// The walk's `items_to_go_count` at this unit (pre-decrement) —
     /// the failure row's "items remaining" face.
@@ -389,7 +393,7 @@ fn run_attempt(
         _ => {
             // Java records the failure against the ITEM with the
             // item's first net read at creation.
-            let first_net = unit.nets.first().copied().unwrap_or(-1);
+            let first_net = unit.first_net;
             board.failure_log.record_failure(
                 u64::from(unit.item_id.get()),
                 first_net,
@@ -472,7 +476,7 @@ fn begin_pass(
         return Vec::new();
     }
     let items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
-    let counters = RouterCounters {
+    let mut counters = RouterCounters {
         phase: "autoroute".to_string(),
         pass_count: pass_no,
         queued_to_be_routed_count: items_to_go_count,
@@ -483,7 +487,6 @@ fn begin_pass(
     // [`crate::pipeline::batch::calculate_incomplete_count`]).
     let (_max_connections, incomplete_rows) = all_incompletes(manager, board);
     let total_incompletes: usize = incomplete_rows.iter().map(|row| row.incomplete_count).sum();
-    let mut counters = counters;
     counters.incomplete_count = i32::try_from(total_incompletes).unwrap_or(i32::MAX);
     log_incomplete_details(
         board,
@@ -617,7 +620,7 @@ pub fn run_single_thread(
             let unit = PassUnit {
                 item_id: *item_id,
                 net: *net,
-                nets: nets.clone(),
+                first_net: nets.first().copied().unwrap_or(-1),
                 simple_name,
                 items_remaining: items_to_go_count,
             };
@@ -858,7 +861,7 @@ pub fn run_partitioned<'a>(
                 let unit = PassUnit {
                     item_id: *item_id,
                     net: *net,
-                    nets: nets.clone(),
+                    first_net: nets.first().copied().unwrap_or(-1),
                     simple_name,
                     items_remaining: items_to_go_count,
                 };
@@ -1606,10 +1609,10 @@ mod tests {
                 "net {net} must own partition {part} at threads=4, max_net=10"
             );
         }
-        // The exact ±1 boundary faces: net 3 is the LAST of range 0
-        // and net 4 the FIRST of range 1; net 8 the LAST of range 2
-        // and net 9 the FIRST of range 3 (floor(7*4/10)=1, wait —
-        // floor(idx*4/10): idx2→0, idx3→1, idx7→2, idx8→3).
+        // The exact ±1 boundary faces: floor(idx*4/10) steps at
+        // idx2→0, idx3→1, idx7→2, idx8→3 — net 3 is the LAST of
+        // range 0, net 4 the FIRST of range 1, net 8 the LAST of
+        // range 2, net 9 the FIRST of range 3.
         assert_eq!(net_partition(3, 4, 10), 0);
         assert_eq!(net_partition(4, 4, 10), 1);
         assert_eq!(net_partition(8, 4, 10), 2);
@@ -1709,8 +1712,9 @@ mod tests {
     /// observes WHICH worker ran.
     #[test]
     fn t7_executor_engages_distinct_partition_workers() {
-        // The world's nets (33/94/98) under threads=3, max_net=98:
-        // 33→0, 94→1, 98→1 — at least two partitions own units.
+        // The world's attempt nets under threads=3, max_net=98:
+        // 33→0, 94→2, 98→2 (floor(93·3/98)=2, floor(97·3/98)=2) —
+        // at least two partitions own units.
         assert_eq!(net_partition(33, 3, 98), 0);
         assert_eq!(net_partition(94, 3, 98), 2);
         assert_eq!(net_partition(98, 3, 98), 2);
