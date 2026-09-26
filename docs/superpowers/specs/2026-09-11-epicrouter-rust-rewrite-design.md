@@ -321,7 +321,7 @@ determinism ×2 canaries UNROTATED at the T3 values, census
 The CI flip: **NO-GO on both preconditions** at the T8 close — (a)
 8/11 ≠ 11/11; (b) Σ wall 2286.1 s ≈ 38.1 min > the compare step's
 30-min budget (`timeout-minutes: 30`, at `rust-check.yml:139` in
-this tree; the M4 note's `:125` cites below are T13-era numbering —
+this tree; the M4 note's `:125` cites above are T13-era numbering —
 T9's comment refresh moved the compare run line to :138/:139).
 `--report-only` and both `ci_tripwire.rs` pins stay INTACT: the
 second consecutive honest hold, with the composition changed — M4's

@@ -1983,19 +1983,20 @@ the posture chain is T9's `e6302bb3e` + `8950deba9`).
 
 | Criterion | Verdict | Evidence + citation |
 |---|---|---|
-| 1 — Tier A Σ wall ≤ 0.5× Σ-Java | **FAIL (both bases labeled)** | Σ 2286.1 s harness-elapsed = 2.02× Σ-Java 1130.39 s vs the ≤ 565.19 s target (4.04× target); like-for-like per-fixture excl-bm01: 256.7 s = 2.42× — the verdict is invariant under either basis (MINOR-1 discipline; basis labels on every Σ). Evidence: `logs/M5-T8/report-t8.md` §(a)/(b); `logs/M5-T8/evidence/battery_full_t8.log`. |
+| 1 — Tier A Σ wall ≤ 0.5× Σ-Java | **NOT MET (both bases labeled)** | Σ 2286.1 s harness-elapsed = 2.02× Σ-Java 1130.39 s vs the ≤ 565.19 s target (4.04× target); like-for-like per-fixture excl-bm01: 256.7 s = 2.42× — the verdict is invariant under either basis (MINOR-1 discipline; basis labels on every Σ). Evidence: `logs/M5-T8/report-t8.md` §(a)/(b); `logs/M5-T8/evidence/battery_full_t8.log`. |
 | 2 — large-board trend toward 10× | **NOT MET** — speedup (Java/Rust) peaks small (bm08 4.51×, bm02 2.31×, bm07 1.73×) and collapses large (bm06 0.69×, bm09 0.57×, bm11 0.24×, bm01 ≤0.57× kill-truncated); the M4→M5 compression is the progress sentence, not the verdict: bm11 ≥12.5×→4.13×, bm06 4.63×→1.45×, bm07 7.74×→0.58× slowness | Evidence: `logs/M5-T8/report-t8.md` §(c). |
 | 3 — `--threads N` ≡ `--threads 1` byte-identical, pinned in-tree | **MET** | `router threads-invariance` re-faced at T8 with fresh bins: exit 0, 6 runs 127.7 s, ses `77caf2099a2f…` / manifest `90f08ad2b94d…` byte-identical across `-mt 1/3/4` — the T7 pinned hashes EXACT (T7 dossier above; landed `923f16ae5`); the gate's CI wiring RE-DEFERRED to the M6 flip-adjacent moment (green, hashed, in-tree only). Evidence: `logs/M5-T8/report-t8.md` §(d). |
 
 **Erratum (T10-era, cite-numbering only):** the M4-era prose cites the
-compare step as `rust-check.yml:125` (the design doc's M4
-parenthetical chain, the M4 exit note's flip-hold paragraph, and the
-M4 map's flip-hold record above). Those anchors are T13-era numbering,
-one yml comment-refresh behind: after T9's comment refresh the compare
-run line is `:138` and its `timeout-minutes: 30` is `:139` (verified
-at the T10 tree). The M4 texts stay append-frozen; read their `:125`
-as `:139`. The design doc's M5 parenthetical (T9) already carries the
-same fact for its own context.
+compare step as `rust-check.yml:125` — the design doc's M4-parenthetical
+passage (the M4 exit note's flip-hold paragraph, including the T9
+parenthetical chain) and the M4 map's flip-hold record above. Those
+anchors are T13-era numbering, one yml comment-refresh behind: after
+T9's comment refresh the compare run line is `:138` and its
+`timeout-minutes: 30` is `:139` (verified at the T10 tree). The M4
+texts stay append-frozen; read their `:125` as `:139`. The design
+doc's M5 parenthetical (T9) already carries the same fact for its own
+context.
 
 **Pointer rows into the task dossiers:** criterion-1/2 before/after
 faces → T1 (`logs/M5-T1/report-t1.md` §(b)) + T8 (§(a)–(c)); the bm01
