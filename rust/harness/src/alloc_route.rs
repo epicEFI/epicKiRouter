@@ -24,6 +24,15 @@
 //! External timeout discipline (the standing rule): the CALLER bounds the
 //! run (`timeout <tiers timeout>`) — the instrument adds no deadline of
 //! its own, mirroring the battery's harness-side timeout face.
+//!
+//! M6-T1b: a SECOND attribution window rides the same run — after the
+//! driver window freezes, the optimization stage runs at the exact
+//! `full::run` stage seam (two-gate + fresh stage stop face + the same
+//! `BatchOptimizerStage` construction), re-armed onto a sibling stats
+//! file (`<stats>.opt.json`) so the optimizer's allocation face is
+//! attributed directly, not by differencing. The FULL-stop gate input is
+//! `false` by construction (the completed-routing profile face this
+//! window targets — routing raised no stop at all).
 
 use std::path::Path;
 use std::time::Instant;
@@ -55,6 +64,7 @@ pub fn run(dsn: &Path, stats: &Path, sample: u64) -> Result<()> {
     use epic_dsn::ses_board::SesBoard;
     use epic_router::pipeline::batch::{BatchDriver, StopFace};
     use epic_router::pipeline::board_statistics::BoardStatistics;
+    use epic_router::pipeline::optimizer::BatchOptimizerStage;
 
     // The full-profile argv face: NO comparability flags (the assembled
     // fanout → router → optimizer pipeline, the battery face).
@@ -112,6 +122,11 @@ pub fn run(dsn: &Path, stats: &Path, sample: u64) -> Result<()> {
     apply_board_specific_optimizations(&mut merged, &board);
     let resolved = ResolvedRouteSettings::resolve(&merged, args.deterministic_budgets);
     let batch = build_batch_settings(&resolved);
+    // full::run hands the pipeline-owned settings through the routing
+    // stage (which restores its fanout-only override before returning)
+    // into the optimization stage; the driver gets its own clone. The
+    // optimizer window below receives the same post-restore face.
+    let batch_for_optimizer = batch.clone();
 
     // THE ATTRIBUTION WINDOW: driver construction + run + drop (the
     // snapshot pair brackets CliDriverSink + BatchDriver::new, the
@@ -138,6 +153,46 @@ pub fn run(dsn: &Path, stats: &Path, sample: u64) -> Result<()> {
     );
 
     run_result.map_err(|e| anyhow::anyhow!("batch driver error: {e:?}"))?;
+
+    // THE OPTIMIZER WINDOW (M6-T1b): the stage `BatchDriver::run` never
+    // ran — the driver is fanout + batch only, the optimization stage is
+    // `full::run`'s second leg. The window below mirrors the stage seam
+    // (`full.rs` `run_optimization_stage` :288-312) exactly: the same
+    // two-gate (`run_optimizer` + the FULL-stop face), the same fresh
+    // stage stop face, the same `BatchOptimizerStage` construction. The
+    // FULL-stop input is `false` — this profile face targets the
+    // COMPLETED-routing fixture class (bm01: routing ends with no stop
+    // raised at all), where the gate reads exactly `run_optimizer`.
+    if resolved.run_optimizer {
+        let opt_stats = stats.with_extension("opt.json");
+        alloc_profile::re_arm(&opt_stats, sample);
+        let opt_before = alloc_profile::snapshot();
+        let opt_started = Instant::now();
+        let mut stage_stop = StopFace::default();
+        let mut optimizer = BatchOptimizerStage::new(
+            &mut manager,
+            &mut board,
+            batch_for_optimizer,
+            resolved.optimizer.clone(),
+            &mut stage_stop,
+        );
+        let opt_outcome = optimizer.run_batch_loop(&mut sink);
+        drop(optimizer);
+        let opt_wall = opt_started.elapsed();
+        let opt_after = alloc_profile::snapshot();
+        alloc_profile::freeze();
+
+        eprintln!(
+            "alloc-route OPTIMIZER-RESULT window=optimization stage wall={:.3}s allocs={} \
+             alloc_bytes={} live_at_exit={} peak_live={} passes_completed={}",
+            opt_wall.as_secs_f64(),
+            opt_after.allocs - opt_before.allocs,
+            opt_after.alloc_bytes - opt_before.alloc_bytes,
+            opt_after.live,
+            opt_after.peak,
+            opt_outcome.passes_completed,
+        );
+    }
 
     // The completion face (post-freeze: uncounted, battery-comparable
     // totals + violation counts — the same walks the detail pass runs;

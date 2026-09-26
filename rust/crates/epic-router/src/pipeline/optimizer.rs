@@ -840,6 +840,18 @@ impl<'a> BatchOptimizerStage<'a> {
         }
 
         // Java `:316-319` — the incumbent snapshot.
+        // M6-T1b slice (storage-only, byte-invariant): compact the
+        // item-undo slab ONCE at stage entry so the per-candidate
+        // worker deep copies (`:1003` at `opt_route_pass`) stop
+        // carrying the routing history's unreachable residue. Java's
+        // deepCopy never copies that residue (its `UndoableObjects`
+        // skip-list holds only current nodes — the dead clones are
+        // GC'd), so the compacted slab is the Java-copy-shaped state;
+        // every live read surface (map order, values, levels, links,
+        // undo/redo/digest walks) is preserved — the pin at
+        // `undo.rs` (`compact_reachable_graph_preserves_digest_and_undo`)
+        // pins the contract.
+        self.board.compact_item_undo_history();
         self.best_board = Some(self.board.clone());
         self.best_score = initial_optimizer_score;
         self.best_incomplete_count = initial_incomplete;
@@ -2256,8 +2268,8 @@ mod tests {
     /// (min=100, weight=1000: `score = 1000 - 10 x (total - min)`)
     /// with via/bend weights zeroed, so each edge value lands exactly
     /// in f32. The just-below worlds sit MID-WINDOW (score ~X.995,
-    /// hundreds of f32 ulps from both the true threshold and the
-    /// re-killed `>=X.99` mutants) so a future faithful reassociation
+    /// 82 ulps each way from both the true threshold and the re-killed
+    /// `>=X.99` mutants) so a future faithful reassociation
     /// of the penalty arithmetic cannot silently flip them under a
     /// mutant.
     #[test]

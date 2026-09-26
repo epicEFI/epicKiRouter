@@ -83,7 +83,10 @@ static BUCKET_ALLOCS: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKE
 static BUCKET_BYTES: [AtomicU64; BUCKETS] = [const { AtomicU64::new(0) }; BUCKETS];
 
 static T0: OnceLock<Instant> = OnceLock::new();
-static STATS_PATH: OnceLock<PathBuf> = OnceLock::new();
+/// Switchable so [`re_arm`] can point the SECOND attribution window at
+/// its own stats file (M6-T1b); read once per flush, never in the alloc
+/// hot path, so the mutex costs nothing measurable.
+static STATS_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static SITES: Mutex<Option<HashMap<String, (u64, u64)>>> = Mutex::new(None);
 /// Serializes the write-then-rename critical section of the TWO writers
 /// (the 1 s watcher thread and [`freeze`]) so their tmp-file contents
@@ -235,7 +238,9 @@ pub struct Snapshot {
 /// `alloc-route` before the fixture pipeline is built.
 pub fn install(stats_path: &Path, sample_every: u64) {
     let _ = T0.set(Instant::now());
-    let _ = STATS_PATH.set(stats_path.to_path_buf());
+    if let Ok(mut slot) = STATS_PATH.lock() {
+        *slot = Some(stats_path.to_path_buf());
+    }
     SAMPLE_EVERY.store(sample_every, Ordering::Relaxed);
     if sample_every > 0 {
         let mut sites = SITES.lock().expect("sites mutex poisoned at install");
@@ -265,6 +270,37 @@ pub fn freeze() {
     write_stats_file();
 }
 
+/// Re-arms the instrument for a SECOND attribution window (the M6-T1b
+/// optimizer-window face): switches the stats path, resets the
+/// window-relative counters and the sampled-sites map, and leaves the
+/// global timeline (T0/buckets) and the process-wide `live`/`peak` faces
+/// untouched — the second file's nonzero buckets therefore bracket the
+/// window directly, and `live` keeps its saturating-decrement
+/// correctness. Call only AFTER [`freeze`] (the first window's file is
+/// already final); the 1 s watcher keeps flushing, now to the new path.
+pub fn re_arm(stats_path: &Path, sample_every: u64) {
+    ARMED.store(false, Ordering::Relaxed);
+    if let Ok(mut slot) = STATS_PATH.lock() {
+        *slot = Some(stats_path.to_path_buf());
+    }
+    ALLOCS.store(0, Ordering::Relaxed);
+    ALLOC_BYTES.store(0, Ordering::Relaxed);
+    DEALLOCS.store(0, Ordering::Relaxed);
+    DEALLOC_BYTES.store(0, Ordering::Relaxed);
+    SAMPLE_SEQ.store(0, Ordering::Relaxed);
+    SAMPLED_ALLOCS.store(0, Ordering::Relaxed);
+    SAMPLED_BYTES.store(0, Ordering::Relaxed);
+    SITE_CAP_DROPS.store(0, Ordering::Relaxed);
+    if let Ok(mut sites) = SITES.lock() {
+        *sites = if sample_every > 0 {
+            Some(HashMap::new())
+        } else {
+            None
+        };
+    }
+    ARMED.store(true, Ordering::Relaxed);
+}
+
 /// The current counters (call before and after the measured window).
 #[must_use]
 pub fn snapshot() -> Snapshot {
@@ -281,7 +317,7 @@ pub fn snapshot() -> Snapshot {
 /// [`freeze`]) serialize on [`STATS_WRITE_LOCK`] so their tmp
 /// write-then-rename critical sections cannot interleave (MINOR-2).
 fn write_stats_file() {
-    let Some(path) = STATS_PATH.get() else {
+    let Some(path) = STATS_PATH.lock().ok().and_then(|slot| slot.clone()) else {
         return;
     };
     if IN_INSTRUMENT.get() {

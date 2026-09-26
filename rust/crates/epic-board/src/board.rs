@@ -300,6 +300,19 @@ impl Board {
         self.id_generator.max_generated_id()
     }
 
+    /// M6-T1b (storage-only cost slice): compacts the item-undo slab to
+    /// its reachable graph — [`UndoableObjects::compact`] for the exact
+    /// preservation contract. The optimizer calls this ONCE at stage
+    /// entry so the per-candidate worker clones stop copying the
+    /// routing history's unreachable residue; Java's `deepCopy` never
+    /// carries that residue (its skip-list holds only current nodes),
+    /// so the compacted board is the Java-copy-shaped state. No live
+    /// read surface changes: `iter_visible`/`combine_traces` walk the
+    /// unchanged map order.
+    pub fn compact_item_undo_history(&mut self) {
+        self.item_undo.compact();
+    }
+
     /// Inserts a constructed entry. The id must have come from
     /// [`Board::alloc_id`] (or a parse IR) and must be free — Java's
     /// map would silently replace a duplicate key, which this port

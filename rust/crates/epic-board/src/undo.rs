@@ -524,6 +524,86 @@ impl<K: Ord + Copy, T: Clone + PartialEq> UndoableObjects<K, T> {
         }
     }
 
+    /// Compacts the node slab in place to the REACHABLE subgraph — the
+    /// same roots and edges [`Self::digest_walk`] visits (the live map
+    /// entries and the deleted-object lists, each with its undo/redo
+    /// chains). Values, levels, link shapes, map/list shapes, and the
+    /// scalar faces (`stack_level`/`redo_possible`) are preserved
+    /// bit-for-bit; only the unreachable residue — the replace-burned
+    /// nodes Java's GC drops, outside the digest/serialization stream —
+    /// is dropped. Every reader observes identical behavior
+    /// (`iter_visible`/`get`/`value_mut` walk the unchanged map;
+    /// undo/redo/digest walk the unchanged reachable graph).
+    ///
+    /// M6-T1b (storage-only cost slice): the optimizer's per-candidate
+    /// worker clones were copying the routing history's dead slab on
+    /// every candidate; Java's deepCopy never carries it (the Java
+    /// skip-list holds only current nodes). The optimizer compacts ONCE
+    /// at stage entry, so every later clone is naturally compact.
+    pub fn compact(&mut self) {
+        // Pass 1: reachability + new-index assignment. Roots in map
+        // order, then delete lists in level/list order; worklist edges
+        // undo-links before redo-links (any fixed traversal gives the
+        // same reachable SET; this one is deterministic, and the new
+        // index order is internal-only).
+        let mut remap: Vec<Option<usize>> = vec![None; self.nodes.len()];
+        let mut next_new: usize = 0;
+        let mut worklist: Vec<NodeIdx> = self.objects.values().copied().collect();
+        for list in &self.deleted_objects_stack {
+            worklist.extend_from_slice(list);
+        }
+        while let Some(idx) = worklist.pop() {
+            if remap[idx].is_some() {
+                continue;
+            }
+            remap[idx] = Some(next_new);
+            next_new += 1;
+            if let Some(u) = self.nodes[idx].undo_object {
+                worklist.push(u);
+            }
+            if let Some(r) = self.nodes[idx].redo_object {
+                worklist.push(r);
+            }
+        }
+        if next_new == self.nodes.len() {
+            return; // nothing unreachable — the slab stays as-is
+        }
+        // Pass 2: rebuild the slab in new-index order, remapping links.
+        let mut order: Vec<NodeIdx> = vec![0; next_new];
+        for (old_idx, slot) in remap.iter().enumerate() {
+            if let Some(new_idx) = *slot {
+                order[new_idx] = old_idx;
+            }
+        }
+        let mut new_nodes: Vec<Option<Node<K, T>>> = (0..next_new).map(|_| None).collect();
+        for (old_idx, node) in std::mem::take(&mut self.nodes).into_iter().enumerate() {
+            if let Some(new_idx) = remap[old_idx] {
+                new_nodes[new_idx] = Some(node);
+            }
+        }
+        let mut compacted: Vec<Node<K, T>> = new_nodes
+            .into_iter()
+            .map(|slot| slot.expect("compact: reachable node missing from slab"))
+            .collect();
+        for node in &mut compacted {
+            if let Some(u) = node.undo_object {
+                node.undo_object = remap[u];
+            }
+            if let Some(r) = node.redo_object {
+                node.redo_object = remap[r];
+            }
+        }
+        self.nodes = compacted;
+        for idx in self.objects.values_mut() {
+            *idx = remap[*idx].expect("compact: live map node unreachable");
+        }
+        for list in &mut self.deleted_objects_stack {
+            for idx in list.iter_mut() {
+                *idx = remap[*idx].expect("compact: delete-list node unreachable");
+            }
+        }
+    }
+
     /// Java `disableRedo` (:293-309) — runs on every mutator.
     fn disable_redo(&mut self) {
         if !self.redo_possible {
@@ -681,6 +761,65 @@ mod tests {
 
     fn iter(stack: &Stack) -> Vec<Rec> {
         stack.iter_visible().map(|(_, v)| v.clone()).collect()
+    }
+
+    /// M6-T1b: `compact` drops only unreachable slab residue. Two
+    /// identically-built churned stacks — same-key replace burns,
+    /// a `save_for_undo` chain, a snapshot + delete — then one is
+    /// compacted: the digest walk, the visible iteration, the scalar
+    /// faces, and a subsequent `undo()` (cancelled + restored, in
+    /// order) are IDENTICAL before vs after, while the dead slab
+    /// actually shrinks. A mutant that drops chain edges from the
+    /// reachability walk fails the digest equality (chain nodes vanish)
+    /// and the undo equality (restores diverge).
+    #[test]
+    fn compact_reachable_graph_preserves_digest_and_undo() {
+        let build = || {
+            let mut s = Stack::new();
+            for (id, v) in [(1, "a0"), (2, "b0"), (3, "c0")] {
+                s.insert(Reverse(id), Rec::new(id, v));
+            }
+            s.generate_snapshot(); // level 1
+            s.save_for_undo(&Reverse(2));
+            *s.value_mut(&Reverse(2)).expect("key 2 live") = Rec::new(2, "b1");
+            // A replace-burn: same-key reinsert burns the first node.
+            s.insert(Reverse(4), Rec::new(4, "d0"));
+            s.insert(Reverse(4), Rec::new(4, "d0'"));
+            // Delete at level 1 of a level-1 node with an undo chain —
+            // the S7 arm: the PRE-CHANGE node is pushed to the list.
+            s.delete(&Reverse(1));
+            s
+        };
+        let mut control = build();
+        let mut compacted = build();
+        compacted.compact();
+
+        let digest = |s: &Stack| {
+            let mut rows: Vec<String> = Vec::new();
+            s.digest_walk(|n| {
+                rows.push(format!(
+                    "{:?}|{}|{}|{}|{}",
+                    n.role, n.key.0, n.value.id, n.value.value, n.level
+                ));
+            });
+            rows
+        };
+        assert_eq!(digest(&control), digest(&compacted));
+        assert_eq!(show(&iter(&control)), show(&iter(&compacted)));
+        assert_eq!(control.stack_level(), compacted.stack_level());
+        // The slice's premise: the churn actually left dead residue.
+        assert!(compacted.nodes.len() < control.nodes.len());
+
+        let control_undo = control.undo();
+        let compacted_undo = compacted.undo();
+        match (control_undo, compacted_undo) {
+            (Some((c_cancelled, c_restored)), Some((k_cancelled, k_restored))) => {
+                assert_eq!(show(&c_cancelled), show(&k_cancelled));
+                assert_eq!(show(&c_restored), show(&k_restored));
+            }
+            (a, b) => assert!(a.is_none() && b.is_none(), "undo availability diverged"),
+        }
+        assert_eq!(show(&iter(&control)), show(&iter(&compacted)));
     }
 
     /// S1: fresh inserts at L0 iterate DESCENDING id — the capture's
