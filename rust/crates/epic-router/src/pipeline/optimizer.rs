@@ -1058,6 +1058,9 @@ impl<'a> BatchOptimizerStage<'a> {
             return None;
         }
         // Guard 1 (`:161-167`): incomplete connections.
+        // Java unboxes the boxed `Integer` (`:296`) before the guard
+        // call — a null never reaches here alive; `unwrap_or(0)` is
+        // unreachable tolerance, not a port decision.
         let incomplete = stats.connections.incomplete_count.unwrap_or(0);
         if incomplete > 0 {
             return Some(format!(
@@ -2045,6 +2048,45 @@ mod tests {
     // the preflight guards (Java evaluatePreFlightGuards :155-219)
     // -----------------------------------------------------------------------
 
+    /// The shared crafted-world builder for the preflight boundary
+    /// pins: a `BoardStatistics` carrying ONLY the fields the guards
+    /// read, all four parameterized (the NIT-4 dedup — the two
+    /// adjacent boundary tests previously carried body-identical
+    /// test-local closures).
+    fn crafted_stats(
+        incomplete: Option<i32>,
+        min_len: f32,
+        total_len: f32,
+        min_via: Option<i32>,
+        via_count: i32,
+    ) -> BoardStatistics {
+        let mut s = BoardStatistics::new_empty();
+        s.connections.incomplete_count = incomplete;
+        s.vias.total_count = via_count;
+        s.bounds.min_trace_length_mm = Some(min_len);
+        s.bounds.min_via_count = min_via;
+        s.traces.total_length_mm = Some(total_len);
+        s
+    }
+
+    /// The shared V2 scoring face for the preflight boundary pins: the
+    /// length weight is the only live weight (via/bend zeroed), floor
+    /// 1.0 — `score = 1000 - weight x (total - min) / max(min, 1)`.
+    fn crafted_scoring(length_weight: f32) -> RouterSettingsScoring {
+        RouterSettingsScoring {
+            scoring: Some(default_routing_cost_settings()),
+            router_scoring: None,
+            optimizer_scoring: Some(OptimizerScoreSettings {
+                version: crate::pipeline::board_statistics::OptimizerScoringVersion::V2LowerBound,
+                excess_wire_length_weight: Some(length_weight),
+                excess_via_weight: Some(0.0),
+                excess_bend_weight: Some(0.0),
+                length_floor: Some(1.0),
+                difficulty_scale_floor: Some(1.0),
+            }),
+        }
+    }
+
     /// Guard matrix: guard 1 fires on the bare fixture (2 unrouted) and
     /// passes on the routed world; ONLY an explicit `Some(false)`
     /// bypasses (Java `Boolean.FALSE.equals`); unset (`None`) runs the
@@ -2120,26 +2162,9 @@ mod tests {
         opt.enable_preflight_guards = Some(true); // guards ON — the pin targets them
         let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
 
-        let scoring = |length_weight: f32| RouterSettingsScoring {
-            scoring: Some(default_routing_cost_settings()),
-            router_scoring: None,
-            optimizer_scoring: Some(OptimizerScoreSettings {
-                version: crate::pipeline::board_statistics::OptimizerScoringVersion::V2LowerBound,
-                excess_wire_length_weight: Some(length_weight),
-                excess_via_weight: Some(0.0),
-                excess_bend_weight: Some(0.0),
-                length_floor: Some(1.0),
-                difficulty_scale_floor: Some(1.0),
-            }),
-        };
+        let scoring = crafted_scoring;
         let stats = |min_len: f32, total_len: f32, min_via: Option<i32>, via_count: i32| {
-            let mut s = BoardStatistics::new_empty();
-            s.connections.incomplete_count = Some(0);
-            s.vias.total_count = via_count;
-            s.bounds.min_trace_length_mm = Some(min_len);
-            s.bounds.min_via_count = min_via;
-            s.traces.total_length_mm = Some(total_len);
-            s
+            crafted_stats(Some(0), min_len, total_len, min_via, via_count)
         };
 
         // Guard 2a: no vias + score >= 950. min=100, total=100 -> 0 excess
@@ -2218,7 +2243,9 @@ mod tests {
         );
     }
 
-    /// The M6-T1 exact edges (buglog 196; charter boundary list):
+    /// The M6-T1 exact edges (buglog 196; charter boundary list) in
+    /// Java `BatchOptimizer.evaluatePreFlightGuards` (`:155-219`; the
+    /// `>= 950.0f` / `>= 995.0f` thresholds live at `:171-211`):
     /// guard 1 at the 0-vs-1 incomplete edge (the interpolated count
     /// is part of the reason face), guard 2a at the 950.0 score edge
     /// with zero vias (exact edge + one step either side), guard 3a at
@@ -2228,8 +2255,11 @@ mod tests {
     /// Scores are crafted through the V2 lower-bound formula
     /// (min=100, weight=1000: `score = 1000 - 10 x (total - min)`)
     /// with via/bend weights zeroed, so each edge value lands exactly
-    /// in f32. The `>` and `>=` mutants at every edge were killed
-    /// during development (both directions; see the task report).
+    /// in f32. The just-below worlds sit MID-WINDOW (score ~X.995,
+    /// hundreds of f32 ulps from both the true threshold and the
+    /// re-killed `>=X.99` mutants) so a future faithful reassociation
+    /// of the penalty arithmetic cannot silently flip them under a
+    /// mutant.
     #[test]
     fn m6_t1_preflight_exact_score_and_count_edges() {
         let (mut manager, mut board) = pairless_world(); // 0 incompletes, 0 vias
@@ -2238,27 +2268,10 @@ mod tests {
         let mut opt = opt_settings();
         opt.enable_preflight_guards = Some(true); // guards ON — the pin targets them
         let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
-        stage.settings.scoring = RouterSettingsScoring {
-            scoring: Some(default_routing_cost_settings()),
-            router_scoring: None,
-            optimizer_scoring: Some(OptimizerScoreSettings {
-                version: crate::pipeline::board_statistics::OptimizerScoringVersion::V2LowerBound,
-                excess_wire_length_weight: Some(1000.0),
-                excess_via_weight: Some(0.0),
-                excess_bend_weight: Some(0.0),
-                length_floor: Some(1.0),
-                difficulty_scale_floor: Some(1.0),
-            }),
-        };
+        stage.settings.scoring = crafted_scoring(1000.0);
         let stats =
             |incomplete: Option<i32>, total_len: f32, min_via: Option<i32>, via_count: i32| {
-                let mut s = BoardStatistics::new_empty();
-                s.connections.incomplete_count = incomplete;
-                s.vias.total_count = via_count;
-                s.bounds.min_trace_length_mm = Some(100.0);
-                s.bounds.min_via_count = min_via;
-                s.traces.total_length_mm = Some(total_len);
-                s
+                crafted_stats(incomplete, 100.0, total_len, min_via, via_count)
             };
 
         // Guard 1 at the exact 0-vs-1 edge; the full row is pinned so
@@ -2274,7 +2287,7 @@ mod tests {
         );
         // One step down (0 incompletes) on a world where every later
         // guard also fails -> the guards pass.
-        let s = stats(Some(0), 105.001, Some(1), 0);
+        let s = stats(Some(0), 105.0005, Some(1), 0);
         assert_eq!(
             stage.evaluate_pre_flight_guards(&s),
             None,
@@ -2282,23 +2295,29 @@ mod tests {
         );
 
         // The 950.0 edge, zero vias. Exactly AT the edge: fires
-        // (Java `>= 950.0f`).
+        // (Java `>= 950.0f`); the interpolated score is part of the
+        // pinned face.
         let s = stats(Some(0), 105.0, Some(1), 0);
         let reason = stage.evaluate_pre_flight_guards(&s);
         assert!(
-            reason.as_deref().is_some_and(|r| r.contains(">= 950.00")),
+            reason.as_deref().is_some_and(
+                |r| r.contains("initial optimizer score (950.00) is already >= 950.00")
+            ),
             "guard 2a at the exact 950.0 edge fires: {reason:?}",
         );
         // One step above the edge (score ~950.01): fires.
         let s = stats(Some(0), 104.999, Some(1), 0);
         let reason = stage.evaluate_pre_flight_guards(&s);
         assert!(
-            reason.as_deref().is_some_and(|r| r.contains(">= 950.00")),
+            reason.as_deref().is_some_and(
+                |r| r.contains("initial optimizer score (950.01) is already >= 950.00")
+            ),
             "guard 2a just above the 950.0 edge fires: {reason:?}",
         );
-        // One step below the edge (score ~949.99): 2a stays shut and
-        // 2b (1.05), 3a, 3b all fail on this shape -> guards pass.
-        let s = stats(Some(0), 105.001, Some(1), 0);
+        // MID-WINDOW just-below world (score ~949.995, not a
+        // threshold-adjacent rounding survivor): 2a stays shut and 2b
+        // (1.05), 3a, 3b all fail on this shape -> guards pass.
+        let s = stats(Some(0), 105.0005, Some(1), 0);
         assert_eq!(
             stage.evaluate_pre_flight_guards(&s),
             None,
@@ -2310,20 +2329,23 @@ mod tests {
         let s = stats(Some(0), 100.5, Some(1), 1);
         let reason = stage.evaluate_pre_flight_guards(&s);
         assert!(
-            reason
-                .as_deref()
-                .is_some_and(|r| r.contains("theoretical maximum (995.00)")),
+            reason.as_deref().is_some_and(|r| r.contains(
+                "initial optimizer score (995.00) is already at or near theoretical maximum \
+                 (995.00)"
+            )),
             "guard 3a at the exact 995.0 edge fires: {reason:?}",
         );
-        // One step below the edge (score ~994.99): 3a stays shut; the
-        // fall-through lands on 3b (total within the 1.02 face and the
-        // via count at the minimum).
-        let s = stats(Some(0), 100.501, Some(1), 1);
+        // MID-WINDOW just-below world (score ~994.995): 3a stays shut;
+        // the fall-through lands on 3b (total within the 1.02 face and
+        // the via count at the minimum); the interpolated total is
+        // part of the pinned face.
+        let s = stats(Some(0), 100.5005, Some(1), 1);
         let reason = stage.evaluate_pre_flight_guards(&s);
         assert!(
-            reason
-                .as_deref()
-                .is_some_and(|r| r.contains("within 2% of the theoretical")),
+            reason.as_deref().is_some_and(|r| r.contains(
+                "total trace length (100.50 mm) is already within 2% of the theoretical \
+                 minimum (100.00 mm)"
+            )),
             "guard 3a just below the 995.0 edge does not fire (3b catches): {reason:?}",
         );
     }
