@@ -35,6 +35,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use epic_board::board::Board;
+use epic_board::id::ItemId;
 use epic_board::items::ItemData;
 use epic_board::trace_ops::StopConnectionOption;
 use epic_board::tree_manager::SearchTreeManager;
@@ -284,37 +285,181 @@ fn log_net94_items(board: &mut Board, sink: &mut dyn DriverSink) {
 }
 
 // ---------------------------------------------------------------------------
-// the pass walk (Java runSingleThread, :150-335)
+// the pass walk (Java runSingleThread, :150-335) + the T7 partitioned
+// executor
 // ---------------------------------------------------------------------------
 
-/// Java `AutoroutePassRunner.runSingleThread(passNo)` (`:150-335`):
-/// one pass over the item queue. Returns Java's `anyProgress` —
-/// `routed > 0 || notRouted > 0` (`:329`); an empty queue returns
-/// `false` (`:162-165`).
-#[allow(clippy::too_many_lines)] // the Java body is one flat walk
-#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
-pub fn run_single_thread(
+/// One (item, net) work unit of the golden walk — the atom both
+/// drivers execute. `nets`/`simple_name` are the item's faces read
+/// from the live board at walk time (the sequential read semantics,
+/// [`crate::pipeline::pass_runner`] doc).
+struct PassUnit {
+    item_id: ItemId,
+    net: i32,
+    nets: Vec<i32>,
+    simple_name: &'static str,
+    /// The walk's `items_to_go_count` at this unit (pre-decrement) —
+    /// the failure row's "items remaining" face.
+    items_remaining: i32,
+}
+
+/// The counter deltas one attempt contributes (its sink rows are
+/// emitted inside [`run_attempt`]).
+struct AttemptTally {
+    routed: bool,
+    skipped: bool,
+    ripped_count: usize,
+}
+
+/// The per-attempt body, extracted verbatim from the original
+/// `run_single_thread` loop (M5-T7 pure motion): the sequential driver
+/// and the partitioned executor share THIS body, so the golden bytes
+/// cannot drift between `--threads 1` and `--threads N`.
+#[allow(clippy::too_many_arguments)] // the extracted loop body's face
+fn run_attempt(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     settings: &BatchSettings,
+    sink: &mut dyn DriverSink,
+    stop_flag: Option<&std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pass_no: i32,
-    total_items_routed: &mut i32,
-    progress_items_since_statistics: &mut i32,
+    unit: &PassUnit,
+) -> AttemptTally {
+    board.start_marking_changed_area();
+
+    // Fresh per-attempt accumulators (Java `:224-225`).
+    let mut ripped_item_list: BTreeMap<i32, RippedItemSeed> = BTreeMap::new();
+    let mut ripped_item_costs: HashMap<u64, i32> = HashMap::new();
+    let net_items_before = board.get_connectable_items(unit.net).len();
+
+    let result = route_connection(
+        manager,
+        board,
+        settings,
+        unit.item_id,
+        unit.net,
+        &mut ripped_item_list,
+        &mut ripped_item_costs,
+        pass_no,
+        stop_flag,
+        sink,
+    );
+
+    log_ripped_items(
+        sink,
+        i32::try_from(unit.item_id.get()).unwrap_or(i32::MAX),
+        unit.net,
+        &ripped_item_list,
+        &ripped_item_costs,
+    );
+    if sink.is_trace_enabled() {
+        log_trace_route_comparison(
+            manager,
+            board,
+            sink,
+            unit.simple_name,
+            unit.net,
+            &result,
+            ripped_item_list.len(),
+            net_items_before,
+        );
+    }
+    if unit.net == 94 {
+        log_net94_items(board, sink);
+    }
+
+    let mut tally = AttemptTally {
+        routed: false,
+        skipped: false,
+        ripped_count: ripped_item_list.len(),
+    };
+    match result.state {
+        AutorouteAttemptState::Routed => {
+            tally.routed = true;
+        }
+        AutorouteAttemptState::AlreadyConnected
+        | AutorouteAttemptState::NoUnconnectedNets
+        | AutorouteAttemptState::ConnectedToPlane => {
+            tally.skipped = true;
+        }
+        _ => {
+            // Java records the failure against the ITEM with the
+            // item's first net read at creation.
+            let first_net = unit.nets.first().copied().unwrap_or(-1);
+            board.failure_log.record_failure(
+                u64::from(unit.item_id.get()),
+                first_net,
+                i64::from(pass_no),
+                result.state.as_str(),
+                Some(&result.details),
+            );
+            sink.debug(&format!("Autorouter {}", result.details));
+            let failure_count = board
+                .failure_log
+                .failure_count(u64::from(unit.item_id.get()));
+            if unit.items_remaining <= 5 || failure_count >= 3 {
+                let name = net_name_or(board, unit.net);
+                sink.debug(&format!(
+                    "Pass #{pass_no}: Failed to route {} on net '{name}' \
+                     ({} items remaining, {failure_count} failures). State: {}",
+                    unit.simple_name,
+                    unit.items_remaining,
+                    result.state.as_str()
+                ));
+            }
+        }
+    }
+    tally
+}
+
+/// The maxItems face (Java `AutoroutePassRunner.java:211-218`),
+/// extracted verbatim: returns false when the walk must stop (the info
+/// row, the FULL stop raise and the CAUSE mark are exactly the
+/// original inline block).
+fn max_items_gate(
+    settings: &BatchSettings,
+    total_items_routed: i32,
     stop: &mut StopFace,
     sink: &mut dyn DriverSink,
 ) -> bool {
+    if let Some(max_items) = settings.max_items
+        && max_items > 0
+        && total_items_routed >= max_items
+    {
+        sink.info(&format!(
+            "Max items limit reached ({max_items}). Stopping auto-router."
+        ));
+        // Java `AutoroutePassRunner.java:211-218`: the maxItems
+        // face raises the FULL stop (`router.thread.requestStop()`),
+        // not the auto-router-only face — the optimizer-stage
+        // gate (`RoutingPipeline.java:122`) must see it.
+        stop.request_full();
+        // Mark the CAUSE (quality MINOR-3): the driver
+        // attributes `StopReason::MaxItemsReached` only off
+        // this mark, so an external shared-flag stop during a
+        // max-items-bounded run is never misclassified.
+        stop.mark_max_items_faced();
+        return false;
+    }
+    true
+}
+
+/// The pass prelude shared by both drivers (the queue walk + the
+/// opening counters event). Empty queue → the caller returns Java's
+/// `anyProgress = false` WITHOUT touching the progress counter.
+fn begin_pass(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    sink: &mut dyn DriverSink,
+    pass_no: i32,
+) -> Vec<ItemId> {
     let autoroute_item_list = get_autoroute_items(manager, board, sink);
     if autoroute_item_list.is_empty() {
         // Java `router.airLine = null` — banked GUI seam.
-        return false;
+        return Vec::new();
     }
-    // Java `router.progressStatistics = new BoardStatistics(...)` —
-    // the snapshot is the GUI event (banked); the counter reset is the
-    // live residue.
-    *progress_items_since_statistics = 0;
-
-    let mut items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
-    let mut counters = RouterCounters {
+    let items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
+    let counters = RouterCounters {
         phase: "autoroute".to_string(),
         pass_count: pass_no,
         queued_to_be_routed_count: items_to_go_count,
@@ -325,6 +470,7 @@ pub fn run_single_thread(
     // [`crate::pipeline::batch::calculate_incomplete_count`]).
     let (_max_connections, incomplete_rows) = all_incompletes(manager, board);
     let total_incompletes: usize = incomplete_rows.iter().map(|row| row.incomplete_count).sum();
+    let mut counters = counters;
     counters.incomplete_count = i32::try_from(total_incompletes).unwrap_or(i32::MAX);
     log_incomplete_details(
         board,
@@ -335,133 +481,26 @@ pub fn run_single_thread(
         &incomplete_rows,
     );
     sink.board_updated(&counters);
+    autoroute_item_list
+}
 
-    let mut ripped_item_count: i32 = 0;
-    let mut not_routed: i32 = 0;
-    let mut routed: i32 = 0;
-    let mut skipped: i32 = 0;
-    for item_id in &autoroute_item_list {
-        if stop.is_requested() {
-            break;
-        }
-        // The current item's faces, read BEFORE any attempt can touch
-        // the board (Java reads the live object throughout; the queued
-        // items are non-routable connectables, so the read is stable —
-        // capturing early keeps the borrows flat).
-        let (nets, simple_name): (Vec<i32>, &'static str) = match board.get(*item_id) {
-            Some(entry) => (entry.nets.clone(), entry.data.java_simple_name()),
-            None => (Vec::new(), "Item"),
-        };
-        for net in &nets {
-            if stop.is_requested() {
-                break;
-            }
-            if let Some(max_items) = settings.max_items
-                && max_items > 0
-                && *total_items_routed >= max_items
-            {
-                sink.info(&format!(
-                    "Max items limit reached ({max_items}). Stopping auto-router."
-                ));
-                // Java `AutoroutePassRunner.java:211-218`: the maxItems
-                // face raises the FULL stop (`router.thread.requestStop()`),
-                // not the auto-router-only face — the optimizer-stage
-                // gate (`RoutingPipeline.java:122`) must see it.
-                stop.request_full();
-                // Mark the CAUSE (quality MINOR-3): the driver
-                // attributes `StopReason::MaxItemsReached` only off
-                // this mark, so an external shared-flag stop during a
-                // max-items-bounded run is never misclassified.
-                stop.mark_max_items_faced();
-                break;
-            }
-            *total_items_routed += 1;
-            board.start_marking_changed_area();
-
-            // Fresh per-attempt accumulators (Java `:224-225`).
-            let mut ripped_item_list: BTreeMap<i32, RippedItemSeed> = BTreeMap::new();
-            let mut ripped_item_costs: HashMap<u64, i32> = HashMap::new();
-            let net_items_before = board.get_connectable_items(*net).len();
-
-            let result = route_connection(
-                manager,
-                board,
-                settings,
-                *item_id,
-                *net,
-                &mut ripped_item_list,
-                &mut ripped_item_costs,
-                pass_no,
-                stop.flag(),
-                sink,
-            );
-
-            log_ripped_items(
-                sink,
-                i32::try_from(item_id.get()).unwrap_or(i32::MAX),
-                *net,
-                &ripped_item_list,
-                &ripped_item_costs,
-            );
-            if sink.is_trace_enabled() {
-                log_trace_route_comparison(
-                    manager,
-                    board,
-                    sink,
-                    simple_name,
-                    *net,
-                    &result,
-                    ripped_item_list.len(),
-                    net_items_before,
-                );
-            }
-            if *net == 94 {
-                log_net94_items(board, sink);
-            }
-
-            match result.state {
-                AutorouteAttemptState::Routed => {
-                    routed += 1;
-                }
-                AutorouteAttemptState::AlreadyConnected
-                | AutorouteAttemptState::NoUnconnectedNets
-                | AutorouteAttemptState::ConnectedToPlane => {
-                    skipped += 1;
-                }
-                _ => {
-                    // Java records the failure against the ITEM with
-                    // the item's first net read at creation.
-                    let first_net = nets.first().copied().unwrap_or(-1);
-                    board.failure_log.record_failure(
-                        u64::from(item_id.get()),
-                        first_net,
-                        i64::from(pass_no),
-                        result.state.as_str(),
-                        Some(&result.details),
-                    );
-                    sink.debug(&format!("Autorouter {}", result.details));
-                    let failure_count = board.failure_log.failure_count(u64::from(item_id.get()));
-                    if items_to_go_count <= 5 || failure_count >= 3 {
-                        let name = net_name_or(board, *net);
-                        sink.debug(&format!(
-                            "Pass #{pass_no}: Failed to route {simple_name} on net '{name}' \
-                             ({items_to_go_count} items remaining, {failure_count} failures). \
-                             State: {}",
-                            result.state.as_str()
-                        ));
-                    }
-                    not_routed += 1;
-                }
-            }
-            // Java decrements AFTER the failure row — the row's
-            // "items remaining" still counts the current item.
-            items_to_go_count -= 1;
-            ripped_item_count += i32::try_from(ripped_item_list.len()).unwrap_or(i32::MAX);
-            update_progress(progress_items_since_statistics);
-        }
-    }
-
-    // Java `:296-302` — the tail removal with its before/after rows.
+/// The pass tail shared by both drivers (Java `:296-329` verbatim):
+/// the tail removal with its before/after rows, the final counters
+/// fill + event, and the `anyProgress` answer.
+#[allow(clippy::too_many_arguments)] // the extracted tail's face
+fn finish_pass(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    settings: &BatchSettings,
+    stop: &StopFace,
+    sink: &mut dyn DriverSink,
+    pass_no: i32,
+    items_to_go_count: i32,
+    skipped: i32,
+    ripped_item_count: i32,
+    not_routed: i32,
+    routed: i32,
+) -> bool {
     let incompletes_before = calculate_incomplete_count(manager, board);
     sink.trace(&format!(
         "compare_trace_remove_tails Incompletes before remove_tails={incompletes_before}"
@@ -488,19 +527,409 @@ pub fn run_single_thread(
 
     // Java `:308-320` — the final statistics + counters fill and the
     // (ungated) board-update fire.
+    let mut counters = RouterCounters {
+        phase: "autoroute".to_string(),
+        pass_count: pass_no,
+        queued_to_be_routed_count: items_to_go_count,
+        skipped_count: skipped,
+        ripped_count: ripped_item_count,
+        failed_to_be_routed_count: not_routed,
+        routed_count: routed,
+        incomplete_count: calculate_incomplete_count(manager, board),
+        ..RouterCounters::default()
+    };
     counters.pass_count = pass_no;
-    counters.queued_to_be_routed_count = items_to_go_count;
-    counters.skipped_count = skipped;
-    counters.ripped_count = ripped_item_count;
-    counters.failed_to_be_routed_count = not_routed;
-    counters.routed_count = routed;
-    counters.incomplete_count = calculate_incomplete_count(manager, board);
     sink.board_updated(&counters);
 
     // Java `:322-329` — PerformanceProfiler.recordPass + the benchmark
     // profile render are banked; `router.airLine = null` is the GUI
     // seam.
     routed > 0 || not_routed > 0
+}
+
+/// Java `AutoroutePassRunner.runSingleThread(passNo)` (`:150-335`):
+/// one pass over the item queue. Returns Java's `anyProgress` —
+/// `routed > 0 || not_routed > 0` (`:329`); an empty queue returns
+/// `false` (`:162-165`).
+///
+/// THE GOLDEN PATH (M5-T7): this is the `--threads 1` face — byte-for-
+/// byte the pre-T7 walk (the attempt body/tail now live in the shared
+/// [`run_attempt`]/[`finish_pass`] helpers, a pure code motion).
+#[allow(clippy::too_many_lines)] // the Java body is one flat walk
+#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+pub fn run_single_thread(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    settings: &BatchSettings,
+    pass_no: i32,
+    total_items_routed: &mut i32,
+    progress_items_since_statistics: &mut i32,
+    stop: &mut StopFace,
+    sink: &mut dyn DriverSink,
+) -> bool {
+    let autoroute_item_list = begin_pass(manager, board, sink, pass_no);
+    if autoroute_item_list.is_empty() {
+        return false;
+    }
+    // Java `router.progressStatistics = new BoardStatistics(...)` —
+    // the snapshot is the GUI event (banked); the counter reset is the
+    // live residue.
+    *progress_items_since_statistics = 0;
+
+    let mut items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
+    let mut ripped_item_count: i32 = 0;
+    let mut not_routed: i32 = 0;
+    let mut routed: i32 = 0;
+    let mut skipped: i32 = 0;
+    for item_id in &autoroute_item_list {
+        if stop.is_requested() {
+            break;
+        }
+        // The current item's faces, read BEFORE any attempt can touch
+        // the board (Java reads the live object throughout; the queued
+        // items are non-routable connectables, so the read is stable —
+        // capturing early keeps the borrows flat).
+        let (nets, simple_name): (Vec<i32>, &'static str) = match board.get(*item_id) {
+            Some(entry) => (entry.nets.clone(), entry.data.java_simple_name()),
+            None => (Vec::new(), "Item"),
+        };
+        for net in &nets {
+            if stop.is_requested() {
+                break;
+            }
+            if !max_items_gate(settings, *total_items_routed, stop, sink) {
+                break;
+            }
+            *total_items_routed += 1;
+            let unit = PassUnit {
+                item_id: *item_id,
+                net: *net,
+                nets: nets.clone(),
+                simple_name,
+                items_remaining: items_to_go_count,
+            };
+            let tally = run_attempt(manager, board, settings, sink, stop.flag(), pass_no, &unit);
+            match tally {
+                AttemptTally { routed: true, .. } => routed += 1,
+                AttemptTally { skipped: true, .. } => skipped += 1,
+                _ => not_routed += 1,
+            }
+            // Java decrements AFTER the failure row — the row's
+            // "items remaining" still counts the current item.
+            items_to_go_count -= 1;
+            ripped_item_count += i32::try_from(tally.ripped_count).unwrap_or(i32::MAX);
+            update_progress(progress_items_since_statistics);
+        }
+    }
+    finish_pass(
+        manager,
+        board,
+        settings,
+        stop,
+        sink,
+        pass_no,
+        items_to_go_count,
+        skipped,
+        ripped_item_count,
+        not_routed,
+        routed,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// the deterministic partitioned executor (M5-T7, design :260/:261)
+// ---------------------------------------------------------------------------
+
+/// Fixed net-id partitioning (design :260): the net ids `1..=max_net`
+/// are mapped onto `threads` CONTIGUOUS owner partitions by
+/// `((net - 1) * threads) / max_net` — a pure function of
+/// `(net, threads, max_net)`, monotone in `net`, balanced, and
+/// identical for every pass and every run. Out-of-domain ids are
+/// total: `net < 1` and `max_net <= 0` answer partition 0; `net >
+/// max_net` answers the last partition (cannot occur on parsed
+/// boards — every item net exists in the rules table).
+///
+/// The partition decides WHICH worker executes a unit, never WHEN:
+/// the deterministic reduction is the golden walk order itself (see
+/// [`run_partitioned`]).
+fn net_partition(net: i32, threads: usize, max_net: i32) -> usize {
+    if threads <= 1 || max_net <= 0 || net < 1 {
+        return 0;
+    }
+    if net > max_net {
+        return threads - 1;
+    }
+    let idx = (net - 1) as usize;
+    let max = max_net as usize;
+    idx * threads / max
+}
+
+/// The board-side environment one partition worker holds while it
+/// executes a unit — handed off unit-by-unit in the golden order.
+struct UnitEnv<'a> {
+    manager: &'a mut SearchTreeManager,
+    board: &'a mut Board,
+    sink: &'a mut dyn DriverSink,
+}
+
+/// The [`Send`] wrapper for the hand-off.
+///
+/// SAFETY: the coordinator dispatches ONE unit at a time and BLOCKS on
+/// the worker's reply before the next dispatch — at most one worker
+/// can touch the environment at any instant, so exclusive access is
+/// guaranteed by construction (this total order IS the deterministic
+/// reduction: with ripup enabled every search may rip any item, so
+/// every unit is a conflicted point and the byte contract demands the
+/// golden interleaving; the executor therefore serializes all of it
+/// and parallelizes nothing that could change a byte). No worker
+/// retains a reference after replying — the env moves back inside the
+/// reply. The referenced types carry no thread-affine state: the only
+/// production thread-locals are the epic-index scratch pools (owned
+/// `Cell<Option<Vec<_>>>` buffers, take/put within a single call —
+/// `epic-index/src/scratch.rs`), and the per-engine `row_buf`/
+/// `key_index` fields are created within one attempt.
+struct SendUnitEnv<'a>(UnitEnv<'a>);
+
+// The workspace's single deliberate unsafe opt-in outside the SIMD
+// charter: the Send assertion is load-bearing for the hand-off
+// executor, and its soundness contract is the struct doc above (the
+// coordinator's one-in-flight dispatch makes exclusive access true by
+// construction).
+#[allow(unsafe_code)]
+unsafe impl Send for SendUnitEnv<'_> {}
+
+/// One dispatch envelope (the worker owns the unit through the call).
+struct UnitJob<'a> {
+    env: SendUnitEnv<'a>,
+    unit: PassUnit,
+}
+
+enum WorkerMessage<'a> {
+    Run(UnitJob<'a>),
+    Quit,
+}
+
+/// The deterministic partitioned executor (M5-T7): the pass walk over
+/// the SAME golden queue with `threads > 1`. Units are assigned to
+/// FIXED net-id partitions ([`net_partition`]); each partition owns an
+/// OS worker thread and every unit runs FULLY (search + insert + the
+/// log rows) on its owning worker. The board/manager/sink environment
+/// is handed off per unit in the golden order — the conflicted points
+/// are serialized exactly, so the output is byte-identical to
+/// [`run_single_thread`] at every `threads` (the threads-invariance
+/// gate pins this). What the executor buys at N>1 today is
+/// partition-affine worker residency (per-thread scratch pools and
+/// caches warm up per partition); it does NOT buy search parallelism,
+/// because with net-agnostic ripup any search may rip any item, so
+/// the parallel order could not reproduce the sequential
+/// interleaving the byte contract demands — the charter's
+/// "serialize the conflicted points" arm, taken to its sound
+/// conclusion. Wall delta is recorded honestly in SEAM/report.
+#[allow(clippy::too_many_lines)] // the hand-off walk
+#[allow(clippy::too_many_arguments)] // mirrors run_single_thread
+pub fn run_partitioned<'a>(
+    manager: &'a mut SearchTreeManager,
+    board: &'a mut Board,
+    settings: &BatchSettings,
+    pass_no: i32,
+    total_items_routed: &mut i32,
+    progress_items_since_statistics: &mut i32,
+    stop: &mut StopFace,
+    sink: &'a mut (dyn DriverSink + 'a),
+    threads: usize,
+) -> bool {
+    let autoroute_item_list = begin_pass(manager, board, sink, pass_no);
+    if autoroute_item_list.is_empty() {
+        return false;
+    }
+    *progress_items_since_statistics = 0;
+
+    let mut items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
+    let max_net = board.rules().nets.max_net_number();
+
+    let mut routed: i32 = 0;
+    let mut skipped: i32 = 0;
+    let mut not_routed: i32 = 0;
+    let mut ripped_item_count: i32 = 0;
+
+    // The environment lives in an Option OUTSIDE the scope closure so
+    // the coordinator can check it out per unit and the borrow returns
+    // to the function body afterwards (closures capture by move; the
+    // Option indirection keeps the &mut reassignable across hand-offs).
+    let mut env: Option<UnitEnv<'a>> = Some(UnitEnv {
+        manager,
+        board,
+        sink,
+    });
+    let stop_flag = stop.flag().cloned();
+    std::thread::scope(|scope| {
+        let (reply_tx, reply_rx) = std::sync::mpsc::channel::<(SendUnitEnv<'a>, AttemptTally)>();
+        let mut job_txs: Vec<std::sync::mpsc::Sender<WorkerMessage<'a>>> =
+            Vec::with_capacity(threads);
+        let mut handles = Vec::with_capacity(threads);
+        for _ in 0..threads {
+            let (job_tx, job_rx) = std::sync::mpsc::channel::<WorkerMessage<'a>>();
+            let reply_tx = reply_tx.clone();
+            let stop_flag = stop_flag.clone();
+            handles.push(scope.spawn(move || {
+                let stop_flag = stop_flag.as_ref();
+                while let Ok(message) = job_rx.recv() {
+                    match message {
+                        WorkerMessage::Quit => break,
+                        WorkerMessage::Run(job) => {
+                            let UnitJob { env, unit } = job;
+                            let SendUnitEnv(UnitEnv {
+                                manager,
+                                board,
+                                sink,
+                            }) = env;
+                            let tally = run_attempt(
+                                manager, board, settings, sink, stop_flag, pass_no, &unit,
+                            );
+                            let reply = (
+                                SendUnitEnv(UnitEnv {
+                                    manager,
+                                    board,
+                                    sink,
+                                }),
+                                tally,
+                            );
+                            if reply_tx.send(reply).is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }));
+            job_txs.push(job_tx);
+        }
+        drop(reply_tx);
+
+        // The coordinator walk: the golden order, one unit in flight.
+        'items: for item_id in &autoroute_item_list {
+            if stop.is_requested() {
+                break;
+            }
+            // The item's faces read at walk time from the live board —
+            // the same read semantics as the sequential driver.
+            let (nets, simple_name): (Vec<i32>, &'static str) =
+                match env.as_ref().expect("env free").board.get(*item_id) {
+                    Some(entry) => (entry.nets.clone(), entry.data.java_simple_name()),
+                    None => (Vec::new(), "Item"),
+                };
+            for net in &nets {
+                if stop.is_requested() {
+                    break 'items;
+                }
+                if !max_items_gate(
+                    settings,
+                    *total_items_routed,
+                    stop,
+                    env.as_mut().expect("env free").sink,
+                ) {
+                    break 'items;
+                }
+                *total_items_routed += 1;
+                let unit = PassUnit {
+                    item_id: *item_id,
+                    net: *net,
+                    nets: nets.clone(),
+                    simple_name,
+                    items_remaining: items_to_go_count,
+                };
+                let part = net_partition(*net, threads, max_net);
+                let job_tx = &job_txs[part];
+                let checked_out = env.take().expect("env free between units");
+                job_tx
+                    .send(WorkerMessage::Run(UnitJob {
+                        env: SendUnitEnv(checked_out),
+                        unit,
+                    }))
+                    .expect("partition worker alive");
+                let (env_back, tally) = reply_rx.recv().expect("partition worker replied");
+                let SendUnitEnv(restored) = env_back;
+                env = Some(restored);
+                match tally {
+                    AttemptTally { routed: true, .. } => routed += 1,
+                    AttemptTally { skipped: true, .. } => skipped += 1,
+                    _ => not_routed += 1,
+                }
+                items_to_go_count -= 1;
+                ripped_item_count += i32::try_from(tally.ripped_count).unwrap_or(i32::MAX);
+                update_progress(progress_items_since_statistics);
+            }
+        }
+
+        for job_tx in &job_txs {
+            let _ = job_tx.send(WorkerMessage::Quit);
+        }
+        for handle in handles {
+            let _ = handle.join();
+        }
+    });
+
+    let UnitEnv {
+        manager,
+        board,
+        sink,
+    } = env
+        .take()
+        .expect("env returned after the worker fleet drains");
+
+    finish_pass(
+        manager,
+        board,
+        settings,
+        stop,
+        sink,
+        pass_no,
+        items_to_go_count,
+        skipped,
+        ripped_item_count,
+        not_routed,
+        routed,
+    )
+}
+
+/// The one pass entry both stages share (M5-T7): `settings.max_threads`
+/// 0/1 engages the golden sequential face, `>= 2` the partitioned
+/// executor. Byte-identical at every N by construction.
+#[allow(clippy::too_many_arguments)] // the shared entry
+pub fn run_pass(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    settings: &BatchSettings,
+    pass_no: i32,
+    total_items_routed: &mut i32,
+    progress_items_since_statistics: &mut i32,
+    stop: &mut StopFace,
+    sink: &mut dyn DriverSink,
+) -> bool {
+    let threads = usize::try_from(settings.max_threads.max(0)).unwrap_or(0);
+    if threads <= 1 {
+        run_single_thread(
+            manager,
+            board,
+            settings,
+            pass_no,
+            total_items_routed,
+            progress_items_since_statistics,
+            stop,
+            sink,
+        )
+    } else {
+        run_partitioned(
+            manager,
+            board,
+            settings,
+            pass_no,
+            total_items_routed,
+            progress_items_since_statistics,
+            stop,
+            sink,
+            threads,
+        )
+    }
 }
 
 /// Java `updateProgress` (`:489-513`): bump the interval counter and
@@ -1054,6 +1483,283 @@ mod tests {
         assert!(
             !board.get(anchor).is_some_and(|entry| entry.on_the_board),
             "the dangling anchor was swept"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // M5-T7 — deterministic partitioned executor pins
+    // -----------------------------------------------------------------
+
+    /// A capture sink that also witnesses the thread each row was
+    /// emitted on — the executor-engagement observer.
+    struct ThreadWitnessSink {
+        inner: CaptureDriverSink,
+        thread_ids: Vec<std::thread::ThreadId>,
+    }
+
+    impl ThreadWitnessSink {
+        fn note(&mut self) {
+            self.thread_ids.push(std::thread::current().id());
+        }
+    }
+
+    impl DriverSink for ThreadWitnessSink {
+        fn info(&mut self, message: &str) {
+            self.note();
+            self.inner.info(message);
+        }
+        fn warn(&mut self, message: &str) {
+            self.note();
+            self.inner.warn(message);
+        }
+        fn debug(&mut self, message: &str) {
+            self.note();
+            self.inner.debug(message);
+        }
+        fn trace(&mut self, message: &str) {
+            self.note();
+            self.inner.trace(message);
+        }
+        fn task_state(&mut self, state: &str, pass: i32, hash: &str) {
+            self.note();
+            self.inner.task_state(state, pass, hash);
+        }
+        fn board_updated(&mut self, counters: &RouterCounters) {
+            self.note();
+            self.inner.board_updated(counters);
+        }
+    }
+
+    /// M5-T7 PIN (T7-P1) — the fixed net-id partition function
+    /// (design :260), pinned at its EXACT boundaries: monotone,
+    /// total over `1..=max_net`, balanced contiguous ranges with the
+    /// exact `floor(idx * threads / max)` edges, and a pure function
+    /// of `(net, threads, max_net)` — the same net lands on the same
+    /// partition for every call and every pass.
+    #[test]
+    fn t7_net_partition_exact_boundaries() {
+        // threads=4 over nets 1..=10: ranges [1..4)→0, [4..8)→1,
+        // [8..10)→2 — wait, floor(idx*4/10): idx 0..2→0, 3..4→1 (wait:
+        // idx3→1, idx4→1), 5..7→2, 8..9→3? Pinned exactly below.
+        let expected_4_10 = [
+            (1usize, 0usize),
+            (2, 0),
+            (3, 0),
+            (4, 1),
+            (5, 1),
+            (6, 2),
+            (7, 2),
+            (8, 2),
+            (9, 3),
+            (10, 3),
+        ];
+        for (net, part) in expected_4_10 {
+            assert_eq!(
+                net_partition(net as i32, 4, 10),
+                part,
+                "net {net} must own partition {part} at threads=4, max_net=10"
+            );
+        }
+        // The exact ±1 boundary faces: net 3 is the LAST of range 0
+        // and net 4 the FIRST of range 1; net 8 the LAST of range 2
+        // and net 9 the FIRST of range 3 (floor(7*4/10)=1, wait —
+        // floor(idx*4/10): idx2→0, idx3→1, idx7→2, idx8→3).
+        assert_eq!(net_partition(3, 4, 10), 0);
+        assert_eq!(net_partition(4, 4, 10), 1);
+        assert_eq!(net_partition(8, 4, 10), 2);
+        assert_eq!(net_partition(9, 4, 10), 3);
+
+        // The odd N: threads=3 over nets 1..=7 → floor(idx*3/7):
+        // ranges [1..3]→0, [4..5]→1, [6..7]→2.
+        let expected_3_7 = [
+            (1usize, 0usize),
+            (2, 0),
+            (3, 0),
+            (4, 1),
+            (5, 1),
+            (6, 2),
+            (7, 2),
+        ];
+        for (net, part) in expected_3_7 {
+            assert_eq!(
+                net_partition(net as i32, 3, 7),
+                part,
+                "net {net} at threads=3"
+            );
+        }
+
+        // Totality + monotonicity over a bigger sweep.
+        let mut last = 0usize;
+        for net in 1..=160i32 {
+            let part = net_partition(net, 4, 160);
+            assert!(part < 4, "partition index in range");
+            assert!(part >= last, "monotone in net");
+            last = part;
+        }
+        // Degenerate domains answer total values (never panic).
+        assert_eq!(net_partition(0, 4, 10), 0, "net<1 → 0");
+        assert_eq!(net_partition(5, 4, 0), 0, "max_net<=0 → 0");
+        assert_eq!(net_partition(5, 0, 10), 0, "threads<=1 → 0");
+        assert_eq!(net_partition(11, 4, 10), 3, "net>max_net → last partition");
+        assert_eq!(net_partition(5, 1, 10), 0, "single thread → 0");
+    }
+
+    /// M5-T7 PIN (T7-P2) — the executor is byte-identical to the
+    /// golden sequential face: the SAME starved world routed through
+    /// `run_pass` at threads 1 / 3 / 4 produces the identical sink row
+    /// stream (every level, in emission order), identical attempt
+    /// counts, and an identical board hash afterwards.
+    #[test]
+    fn t7_executor_rows_and_hash_identical_across_threads() {
+        let faces = [1usize, 3, 4];
+        type BaselineRecord = (Vec<(&'static str, String)>, bool, i32, String);
+        let mut baseline: Option<BaselineRecord> = None;
+        for threads in faces {
+            let (mut manager, mut board, mut settings) = starved_world();
+            settings.max_threads = threads as i32;
+            let mut total = 0;
+            let mut progress = 0;
+            let mut stop = StopFace::default();
+            let mut sink = ThreadWitnessSink {
+                inner: CaptureDriverSink::default(),
+                thread_ids: Vec::new(),
+            };
+            let any_progress = run_pass(
+                &mut manager,
+                &mut board,
+                &settings,
+                1,
+                &mut total,
+                &mut progress,
+                &mut stop,
+                &mut sink,
+            );
+            let hash = crate::pipeline::board_hash::board_hash(&board);
+            let rows = sink.inner.rows.clone();
+            match &baseline {
+                None => baseline = Some((rows, any_progress, total, hash)),
+                Some((base_rows, base_progress, base_total, base_hash)) => {
+                    assert_eq!(rows, *base_rows, "sink rows at threads={threads}");
+                    assert_eq!(any_progress, *base_progress);
+                    assert_eq!(total, *base_total, "attempt count at threads={threads}");
+                    assert_eq!(hash, *base_hash, "board hash at threads={threads}");
+                }
+            }
+        }
+        let (_, _, total, _) = baseline.expect("at least one face ran");
+        assert_eq!(
+            total, 7,
+            "the starved world's seven attempts ran at every face"
+        );
+    }
+
+    /// M5-T7 PIN (T7-P3) — the partition assignment is LOAD-BEARING:
+    /// at threads=3 the starved world's units execute on at least two
+    /// DISTINCT worker threads (the world's nets span ≥ 2 partitions),
+    /// while the golden sequential face stays on the single calling
+    /// thread. Kills the always-partition-0 wiring mutant that the
+    /// byte-invariance pin (T7-P2) cannot see — any partition map is
+    /// byte-identical by construction; only the thread witness
+    /// observes WHICH worker ran.
+    #[test]
+    fn t7_executor_engages_distinct_partition_workers() {
+        // The world's nets (33/94/98) under threads=3, max_net=98:
+        // 33→0, 94→1, 98→1 — at least two partitions own units.
+        assert_eq!(net_partition(33, 3, 98), 0);
+        assert_eq!(net_partition(94, 3, 98), 2);
+        assert_eq!(net_partition(98, 3, 98), 2);
+
+        let (mut manager, mut board, mut settings) = starved_world();
+        settings.max_threads = 3;
+        let mut total = 0;
+        let mut progress = 0;
+        let mut stop = StopFace::default();
+        let mut sink = ThreadWitnessSink {
+            inner: CaptureDriverSink::default(),
+            thread_ids: Vec::new(),
+        };
+        let any_progress = run_pass(
+            &mut manager,
+            &mut board,
+            &settings,
+            1,
+            &mut total,
+            &mut progress,
+            &mut stop,
+            &mut sink,
+        );
+        assert!(any_progress);
+        // The world's attempt nets under threads=3, max_net=98 span
+        // THREE partitions: 33→0, 49→1, 94/98→2 — plus the coordinator
+        // thread, so the row witness must see >= 4 distinct threads.
+        // (The coordinator's prelude/tail rows always count as one; a
+        // lower threshold would survive an always-partition-0 mutant.)
+        assert_eq!(net_partition(49, 3, 98), 1);
+        let distinct: std::collections::HashSet<std::thread::ThreadId> =
+            sink.thread_ids.iter().copied().collect();
+        assert!(
+            distinct.len() >= 4,
+            "units must execute on the >= 3 distinct partition owners + coordinator, saw {distinct:?}"
+        );
+
+        // Contrast face: threads=1 stays on the calling thread.
+        let (mut manager, mut board, mut settings) = starved_world();
+        settings.max_threads = 1;
+        let mut total = 0;
+        let mut progress = 0;
+        let mut stop = StopFace::default();
+        let mut sink = ThreadWitnessSink {
+            inner: CaptureDriverSink::default(),
+            thread_ids: Vec::new(),
+        };
+        run_pass(
+            &mut manager,
+            &mut board,
+            &settings,
+            1,
+            &mut total,
+            &mut progress,
+            &mut stop,
+            &mut sink,
+        );
+        let distinct_1: std::collections::HashSet<std::thread::ThreadId> =
+            sink.thread_ids.iter().copied().collect();
+        assert_eq!(
+            distinct_1.len(),
+            1,
+            "the sequential face emits every row from one thread"
+        );
+    }
+
+    /// M5-T7 PIN (T7-B1) — deterministic budgets are thread-count
+    /// invariant: the call-tick ladder (`deterministic_limit_for_pass`,
+    /// Java `:72-74`) is a pure function of the pass number and the
+    /// budget instance is created per attempt inside the unit body
+    /// (`route` → `init_autoroute`), so no thread state can move a
+    /// limit. Pinned at the ladder's faces: doubling passes, the
+    /// `i32::MAX` saturation, and the exact boundary pass where the
+    /// ladder saturates (pass 16 = 100000·2^15 = 3_276_800_000 >
+    /// i32::MAX — the first saturated rung).
+    #[test]
+    fn t7_deterministic_budget_ladder_thread_invariant() {
+        use crate::pipeline::connection_router::deterministic_limit_for_pass;
+        assert_eq!(deterministic_limit_for_pass(1), 100_000);
+        assert_eq!(deterministic_limit_for_pass(2), 200_000);
+        assert_eq!(deterministic_limit_for_pass(11), 102_400_000);
+        assert_eq!(
+            deterministic_limit_for_pass(15),
+            1_638_400_000,
+            "last unsaturated rung (100000·2^14)"
+        );
+        assert_eq!(
+            deterministic_limit_for_pass(16),
+            2_147_483_647,
+            "the i32::MAX saturation face"
+        );
+        assert_eq!(
+            deterministic_limit_for_pass(32),
+            2_147_483_647,
+            "saturation holds for deep passes"
         );
     }
 }

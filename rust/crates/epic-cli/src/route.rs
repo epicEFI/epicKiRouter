@@ -976,7 +976,18 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     //    MIN-2 collapsed-face doc) live on the pipeline module now
     //    (`pipeline/full.rs`); the stage-boundary captures ride the
     //    outcome for the manifest's per-phase faces.
-    let batch = build_batch_settings(&resolved);
+    let mut batch = build_batch_settings(&resolved);
+    // M5-T7: the executor thread count. The DEFAULT is 1 — the golden
+    // sequential path — even though the merged surface resolves Java's
+    // `max(1, cores-1)` parity default in validate(): the executor
+    // engages only on an EXPLICIT `router.max_threads`/`-mt` (the
+    // validated value is then already clamped/warned by the Java-parity
+    // arms). Byte-identical output at every N by construction.
+    batch.max_threads = if args.layer.max_threads.is_some() {
+        merged.max_threads.unwrap_or(1).max(0)
+    } else {
+        1
+    };
     let mut sink = CliDriverSink::default();
     let outcome = epic_router::pipeline::full::run(
         &mut manager,

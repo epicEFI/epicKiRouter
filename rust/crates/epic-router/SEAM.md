@@ -1871,3 +1871,77 @@ rebuild-only-first-key mutant dies on k3's resolution failure with k2
 passing) and `divide_segment_into_sections_reuse_is_invisible` (the
 missing-clear mutant dies on the stale-tail length face). Gates: fmt 0;
 clippy `--workspace --all-targets -D warnings` 0; census 1435/0/17.
+
+## M5-T7 — deterministic per-net partitioned executor + `--threads` + the door.rs BACKLOG pins (appended by M5-T7)
+
+**The charter's conflict analysis, and the executor it forced (the honest
+core of this slice):** with ripup enabled EVERY batch-pass search may rip
+any item on the board (`ctrl.ripup_allowed = true`, net-agnostic), so
+every (item, net) work unit is a CONFLICTED point — a concurrent search
+could not observe the sequential interleaving the byte contract demands.
+The charter's own escape arm ("serialize exactly the conflicted points
+and parallelize only the independent searches") therefore resolves to:
+serialize ALL units in the golden walk order and parallelize nothing that
+could move a byte. What the executor delivers at N>1 is the partitioned
+STRUCTURE (fixed net-id partitions, per-partition worker residency so
+the thread-local scratch pools and caches warm per partition) with the
+wall delta honestly ≈ neutral (below); search-level parallelism needs
+the future global-routing plans (design §4 stage 2) to make independence
+provable a priori.
+
+| Seam | Status | Notes |
+|---|---|---|
+| Fixed net-id partitioning (`pass_runner::net_partition`) | LIVE | `((net-1) * threads) / max_net` onto contiguous ranges — a pure function of `(net, threads, max_net)`, monotone, total (out-of-domain arms pinned). The partition decides WHICH worker executes a unit, never WHEN; the deterministic reduction is the golden walk order itself (queue order × net order — the strictly finer order over "sorted by net id, then tie order": the golden order IS net-id-grouped per item and it is the only order that reproduces the bytes). |
+| The partitioned executor (`pass_runner::run_partitioned`) | LIVE | Scoped-thread fleet of `threads` workers; the board/manager/sink environment (`UnitEnv`) is handed off per unit through channels; the coordinator dispatches ONE unit at a time and blocks on the reply — exclusive access by construction. The `Send` assertion is the workspace's single deliberate `unsafe` opt-in outside the SIMD charter (`#[allow(unsafe_code)]`, soundness contract on `SendUnitEnv`: one-in-flight dispatch + no thread-affine state — the only production thread-locals are the epic-index scratch pools, owned `Cell<Option<Vec<_>>>` buffers with take/put inside one call; the per-engine `row_buf`/`key_index` are created within one attempt). |
+| The shared unit body (`run_attempt` / `max_items_gate` / `begin_pass` / `finish_pass`) | PURE MOTION | The sequential `run_single_thread` is byte-for-byte the pre-T7 walk over the extracted helpers; the executor runs the SAME body, so the golden bytes cannot drift between faces. `run_pass` is the one entry both stages' batch passes share (dispatch on `settings.max_threads`; 0/1 → sequential). |
+| `--threads` CLI face | LIVE, default 1 | `router.max_threads`/`-mt` was parsed-but-unused; now `route.rs` reads the EXPLICIT CLI face into `BatchSettings.max_threads` (default 1 — the golden path — even though the merged surface keeps Java's `max(1, cores-1)` validation default; the executor engages only on an explicit `-mt`). `BatchSettings::new` seeds 1. The optimizer stage's inline reroute passes still call `run_single_thread` directly (documented scope line — the batch pass loop is the charter face). |
+| DOOR_TAG_COUNTER threads strategy (`expansion/door.rs`) | RECONCILED-BY-SERIALIZATION | The plan's "reconciled to the sequential counter order" arm: the executor's one-in-flight discipline makes every tag draw happen in the golden sequential order regardless of thread count — strategy documented at the counter site; the "hoist to the reduction" arm is explicitly not needed while the board is fully serialized. |
+| The M4-T2 BACKLOG pins (door.rs) | LANDED (the obligation closed) | `empty_door_shape_answers_empty_before_dimension_dispatch` (Java `ExpansionDoor.java:109-112` — the EMPTY arm fires before any dimension dispatch; world: dim=1 door on a disjoint-intersection empty shape) and `dim2_complete_rooms_without_common_border_corners_answer_null_arm` (Java `:124-127` — fewer than two distinct common-border corners → null → `(0, empty)`; world: room 1 strictly contains the door shape, room 2 IS it, shape deliberately LARGE so it cannot be confused with T2-P3's small-door arm). Both mutation-verified. |
+| Threads-invariance gate (harness `router threads-invariance`) | LIVE, exit-0 truth | New java-free gate: bm08 + bm06 (default fixtures), three faces `-mt 1/-mt 3/-mt 4`, byte-identical SES + manifest required across all three. `route_argv_threads`/`run_cli_threads` extend the single-source argv builder. bm06 doubles as the budget-exercising world (18 passes up the deterministic ladder). |
+
+**Threads-invariance + ripple faces (all at the slice tree, release profile,
+EPIC_SKIP_GRADLE=1, memory-capped, real exits):** threads gate GREEN on
+both fixtures — bm08 ses `dc271114…` / manifest `cf607714…` (== the
+dispatch canaries — the golden path unrotated THROUGH the pure-motion
+refactor) byte-identical across -mt 1/3/4; bm06 ses `77caf2099a2f…` /
+manifest `90f08ad2…` byte-identical across -mt 1/3/4 (18-pass budget
+ladder exercised). BONUS face: bm11 SES `d979bfea…` byte-identical
+across the same three faces. The seven compares: corpus 5000/5000; dsn
+`--set all` 1332/0 (digest 175/175, soak 1157/1157); ses 20/20
+byte-equal; ses-snap 5/5; index 33/33; undo 33/33; drc 17/17; events
+golden 3520 rows aligned; `router determinism` ×2 canaries UNROTATED;
+router-only Tier A battery **11/11 green, every row at the exact
+terminal face** (bm01 0/0/1000.00/7 passes wall 135.6s; bm02 1/0/960.78/
+18; bm06 9/8/876.39/18; bm11 14/0/883.33/18 — no row moved).
+
+**Wall delta on bm11 (the parallelism-sensitive fixture; release
+single-fixture re-runs, fanout-off argv, honest):** -mt 1 = 32.99 s,
+-mt 3 = 32.83 s, -mt 4 = 32.86 s — delta ≈ 0 (−0.5%, within noise). The
+executor buys structure, not speed, today: at N>1 the hand-off cost
+(µs-scale rendezvous per unit) is offset by per-partition warm caches,
+netting neutral. NOT a regression either — the charter's explicit
+allowance (the executor is the deliverable; T8 judges). Search-level
+wall wins need provable search independence, which needs the design §4
+global-routing plans.
+
+**Pins + census (1435 → 1442, +7):** door.rs `empty_door_shape_answers_
+empty_before_dimension_dispatch` (mutant: empty-check disabled → the
+dim=1 dispatch panics on the empty shape — KILLED) and
+`dim2_complete_rooms_without_common_border_corners_answer_null_arm`
+(mutant: NULL-arm `return 0` → `return 1` — KILLED); pass_runner
+`t7_net_partition_exact_boundaries` (mutant: boundary `max` → `max+1`
+— KILLED), `t7_executor_rows_and_hash_identical_across_threads` (mutant:
+executor-side unit increment dropped → attempt-count divergence —
+KILLED), `t7_executor_engages_distinct_partition_workers` (witness
+threshold ≥4 threads — the FIRST threshold ≥2 SURVIVED the
+always-partition-0 mutant because the coordinator's prelude/tail rows
+count as a second thread; strengthened and the mutant RE-KILLED — the
+honest correction record), `t7_deterministic_budget_ladder_thread_
+invariant` (ladder faces incl. the exact saturation boundary pass 16 =
+i32::MAX; a pure function + per-attempt budget instance — no shared
+thread state to move a limit); harness `threads_gate_argv_appends_mt_
+flag` (mutant: `-mt` append dropped — KILLED) + the threads-invariance
+verdict faces inside `determinism_check_catches_a_planted_divergence`
+(mutant: verdict comparing only -mt 1 vs -mt 3 → the planted EVEN-N
+faces die — KILLED). Gates: fmt 0; clippy `--workspace --all-targets
+-D warnings` 0; census 1442/0/17.

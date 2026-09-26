@@ -298,6 +298,26 @@ pub fn route_argv(
     argv
 }
 
+/// [`route_argv`] plus the T7 threads face: `-mt <n>` appended when
+/// `max_threads` is `Some` (the gate's one argv extension — the flag
+/// value rides the same single-source argv builder so it cannot drift
+/// between the run faces).
+pub fn route_argv_threads(
+    cli_bin: &Path,
+    dsn: &Path,
+    ses_path: &Path,
+    manifest_path: &Path,
+    profile: CompareProfile,
+    max_threads: Option<usize>,
+) -> Vec<String> {
+    let mut argv = route_argv(cli_bin, dsn, ses_path, manifest_path, profile);
+    if let Some(n) = max_threads {
+        argv.push("-mt".to_string());
+        argv.push(n.to_string());
+    }
+    argv
+}
+
 /// The profile-aware banner phrase, DERIVED from an actual built argv —
 /// if a flag ever leaves (router-only) or enters (full) [`route_argv`],
 /// the log says so instead of lying (the OW-M2 "hardcoded banner" face).
@@ -376,6 +396,27 @@ pub enum RouterCommand {
         #[arg(long)]
         work_root: Option<PathBuf>,
     },
+    /// Java-free THREADS-INVARIANCE gate (M5-T7, the design :78
+    /// "`--threads N` output is byte-identical to `--threads 1`"
+    /// contract): for each gate fixture (default bm08 + bm06) run
+    /// `epic-cli route` THREE times — `--threads 1`, the odd N (3) and
+    /// the even N (4) — and require byte-identical SES + manifest
+    /// across all three. Exit nonzero on any divergence.
+    ThreadsInvariance {
+        /// Only run this fixture (tiers.yaml path suffix); default runs
+        /// both gate fixtures (bm08 + bm06).
+        #[arg(long)]
+        fixture: Option<String>,
+        /// The even thread count (default 4).
+        #[arg(long, default_value_t = 4)]
+        even_threads: usize,
+        /// The odd thread count (default 3).
+        #[arg(long, default_value_t = 3)]
+        odd_threads: usize,
+        /// Work-root override (default `harness/runs/router-threads`).
+        #[arg(long)]
+        work_root: Option<PathBuf>,
+    },
 }
 
 pub fn run(cmd: RouterCommand) -> Result<()> {
@@ -398,6 +439,18 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
         RouterCommand::Determinism { fixture, work_root } => {
             determinism_cmd(&repo_root, fixture.as_deref(), work_root)
         }
+        RouterCommand::ThreadsInvariance {
+            fixture,
+            even_threads,
+            odd_threads,
+            work_root,
+        } => threads_invariance_cmd(
+            &repo_root,
+            fixture.as_deref(),
+            even_threads,
+            odd_threads,
+            work_root,
+        ),
     }
 }
 
@@ -664,6 +717,19 @@ pub fn run_cli(
     timeout: Duration,
     profile: CompareProfile,
 ) -> Result<CliRun> {
+    run_cli_threads(cli_bin, dsn, work_dir, timeout, profile, None)
+}
+
+/// [`run_cli`] with the T7 threads face (`-mt <n>` when `max_threads`
+/// is `Some`).
+pub fn run_cli_threads(
+    cli_bin: &Path,
+    dsn: &Path,
+    work_dir: &Path,
+    timeout: Duration,
+    profile: CompareProfile,
+    max_threads: Option<usize>,
+) -> Result<CliRun> {
     let ses_path = work_dir.join(RUN_SES_FILE);
     let manifest_path = work_dir.join(RUN_MANIFEST_FILE);
     std::fs::create_dir_all(work_dir)
@@ -671,9 +737,16 @@ pub fn run_cli(
     let _ = std::fs::remove_file(&ses_path);
     let _ = std::fs::remove_file(&manifest_path);
 
-    // THE single argv source ([`route_argv`]): the comparability flag
-    // cannot drift between the run faces.
-    let argv = route_argv(cli_bin, dsn, &ses_path, &manifest_path, profile);
+    // THE single argv source ([`route_argv`]/[`route_argv_threads`]):
+    // the comparability flag cannot drift between the run faces.
+    let argv = route_argv_threads(
+        cli_bin,
+        dsn,
+        &ses_path,
+        &manifest_path,
+        profile,
+        max_threads,
+    );
     let stdout_file = std::fs::File::create(work_dir.join("stdout.log"))
         .with_context(|| format!("creating {}", work_dir.join("stdout.log").display()))?;
     let stderr_file = std::fs::File::create(work_dir.join("stderr.log"))
@@ -1605,6 +1678,150 @@ fn determinism_cmd(
 }
 
 // ---------------------------------------------------------------------------
+// Threads-invariance gate (M5-T7)
+// ---------------------------------------------------------------------------
+
+/// The three thread faces one fixture runs under (the golden, the odd
+/// N, the even N).
+pub const THREADS_GATE_FACES: [usize; 3] = [1, 3, 4];
+
+/// The threads-invariance verdict over the three runs' digests: OK
+/// line, or an Err naming the first divergent (or missing) face.
+/// Pure — planted-divergence pinnable.
+pub fn threads_invariance_verdict(
+    digests: [(Option<String>, Option<String>); 3],
+) -> std::result::Result<String, String> {
+    for (index, (ses, manifest)) in digests.iter().enumerate() {
+        if ses.is_none() || manifest.is_none() {
+            return Err(format!(
+                "the -mt {} run produced no session or manifest (ses={ses:?} manifest={manifest:?})",
+                THREADS_GATE_FACES[index]
+            ));
+        }
+    }
+    let ses_1 = digests[0].0.clone().expect("checked above");
+    let manifest_1 = digests[0].1.clone().expect("checked above");
+    for index in 1..3 {
+        if digests[index].0 != digests[0].0 {
+            return Err(format!(
+                "SES bytes diverge between -mt 1 and -mt {} — threads invariance broken",
+                THREADS_GATE_FACES[index]
+            ));
+        }
+        if digests[index].1 != digests[0].1 {
+            return Err(format!(
+                "manifest bytes diverge between -mt 1 and -mt {} — threads invariance broken",
+                THREADS_GATE_FACES[index]
+            ));
+        }
+    }
+    Ok(format!(
+        "threads invariance: OK (ses {ses_1}, manifest {manifest_1} byte-identical across -mt 1/3/4)"
+    ))
+}
+
+/// The default gate fixtures (tiers.yaml path suffixes): the smallest
+/// Tier A board + the parallelism-sensitive middle board.
+pub const THREADS_GATE_FIXTURES: [&str; 2] = [
+    "DAC2020_boards/DAC2020_bm08.dsn",
+    "DAC2020_boards/DAC2020_bm06.dsn",
+];
+
+fn threads_invariance_cmd(
+    repo_root: &Path,
+    fixture: Option<&str>,
+    even_threads: usize,
+    odd_threads: usize,
+    work_root: Option<PathBuf>,
+) -> Result<()> {
+    let started = Instant::now();
+    let cli_bin = resolve_fresh_epic_cli(repo_root)?;
+    let fixtures = tier_a_fixtures(repo_root, CompareProfile::RouterOnly)?;
+    let wanted: Vec<&str> = fixture
+        .map(|f| vec![f])
+        .unwrap_or_else(|| THREADS_GATE_FIXTURES.to_vec());
+    let work = work_root
+        .map(|p| {
+            if p.is_absolute() {
+                p
+            } else {
+                repo_root.join(p)
+            }
+        })
+        .unwrap_or_else(|| repo_root.join("rust/harness/runs/router-threads"));
+    let mut ran = 0usize;
+    for wanted_path in &wanted {
+        let entry = fixtures
+            .iter()
+            .find(|f| f.tier_path == *wanted_path)
+            .with_context(|| {
+                format!("fixture {wanted_path:?} is not a Tier A fixture (tiers.yaml paths only)")
+            })?;
+        let dsn = repo_root.join(&entry.repo_rel_dsn);
+        let faces = [1usize, odd_threads, even_threads];
+        println!(
+            "router threads-invariance: {} (faces -mt 1/-mt {odd_threads}/-mt {even_threads}, fanout-off, timeout {}s)",
+            entry.tier_path, entry.timeout_seconds
+        );
+        let mut digests: [(Option<String>, Option<String>); 3] =
+            [(None, None), (None, None), (None, None)];
+        for (index, threads) in faces.iter().enumerate() {
+            let run_dir = work.join(format!(
+                "{}-mt{}",
+                entry
+                    .tier_path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("fixture")
+                    .trim_end_matches(".dsn"),
+                threads
+            ));
+            let run = run_cli_threads(
+                &cli_bin,
+                &dsn,
+                &run_dir,
+                Duration::from_secs(entry.timeout_seconds),
+                CompareProfile::RouterOnly,
+                Some(*threads),
+            )?;
+            let ses_digest = std::fs::File::open(&run.ses_path)
+                .ok()
+                .and_then(|_| sha256_file(&run.ses_path).ok());
+            let manifest_path = run_dir.join(RUN_MANIFEST_FILE);
+            let manifest_digest = std::fs::File::open(&manifest_path)
+                .ok()
+                .and_then(|_| sha256_file(&manifest_path).ok());
+            println!(
+                "  -mt {threads}: exit {:?} wall {:.1}s ses {:?}",
+                run.exit_code,
+                run.wall_seconds,
+                ses_digest.as_deref().map(|d| &d[..12])
+            );
+            digests[index] = (ses_digest, manifest_digest);
+            ran += 1;
+        }
+        match threads_invariance_verdict(digests) {
+            Ok(line) => println!("  {line}"),
+            Err(reason) => {
+                bail!(
+                    "router threads-invariance FAILED for {}: {reason}",
+                    entry.tier_path
+                )
+            }
+        }
+    }
+    if ran == 0 {
+        bail!("router threads-invariance ran no fixtures");
+    }
+    println!(
+        "router threads-invariance: {} run(s) in {:.1}s",
+        ran,
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // `router compare`
 // ---------------------------------------------------------------------------
 
@@ -2510,6 +2727,42 @@ mod pins {
             .expect_err("missing output must fail (a panicking run writes no session)");
         assert!(err.contains("no session file"), "{err}");
 
+        // M5-T7: the threads-invariance gate's verdict — all-equal
+        // passes; a planted divergence on the ODD-N face and on the
+        // EVEN-N face each fail naming the face. Kills the
+        // run3-blind mutant (a verdict comparing only -mt 1 vs -mt 3).
+        let ok = threads_invariance_verdict([
+            (Some("aaaa".into()), Some("m1".into())),
+            (Some("aaaa".into()), Some("m1".into())),
+            (Some("aaaa".into()), Some("m1".into())),
+        ])
+        .expect("all-equal digests are OK");
+        assert!(ok.contains("threads invariance: OK"), "{ok}");
+
+        let err = threads_invariance_verdict([
+            (Some("aaaa".into()), Some("m1".into())),
+            (Some("bbbb".into()), Some("m1".into())),
+            (Some("aaaa".into()), Some("m1".into())),
+        ])
+        .expect_err("a planted ODD-N SES divergence must fail");
+        assert!(err.contains("-mt 3"), "{err}");
+
+        let err = threads_invariance_verdict([
+            (Some("aaaa".into()), Some("m1".into())),
+            (Some("aaaa".into()), Some("m1".into())),
+            (Some("aaaa".into()), Some("m2".into())),
+        ])
+        .expect_err("a planted EVEN-N manifest divergence must fail");
+        assert!(err.contains("-mt 4"), "{err}");
+
+        let err = threads_invariance_verdict([
+            (Some("aaaa".into()), Some("m1".into())),
+            (Some("aaaa".into()), Some("m1".into())),
+            (None, Some("m1".into())),
+        ])
+        .expect_err("a missing EVEN-N run must fail naming the face");
+        assert!(err.contains("-mt 4"), "{err}");
+
         let err = determinism_verdict(
             Some("aaaa".into()),
             Some("aaaa".into()),
@@ -2518,6 +2771,38 @@ mod pins {
         )
         .expect_err("a missing manifest must fail independently of the ses face");
         assert!(err.contains("no manifest"), "{err}");
+    }
+
+    /// M5-T7: the threads gate's argv wiring — `-mt <n>` rides the
+    /// SAME single-source argv builder, appended AFTER the profile's
+    /// comparability flags; the plain face carries no `-mt`. Kills the
+    /// drop-the-flag mutant.
+    #[test]
+    fn threads_gate_argv_appends_mt_flag() {
+        let cli = Path::new("/tmp/epic-cli");
+        let dsn = Path::new("/tmp/board.dsn");
+        let ses = Path::new("/tmp/out.ses");
+        let manifest = Path::new("/tmp/manifest.json");
+        let plain = route_argv(cli, dsn, ses, manifest, CompareProfile::RouterOnly);
+        assert!(
+            !plain.iter().any(|arg| arg == "-mt"),
+            "the plain face must not carry -mt"
+        );
+        let threaded =
+            route_argv_threads(cli, dsn, ses, manifest, CompareProfile::RouterOnly, Some(3));
+        let mt_position = threaded
+            .iter()
+            .position(|arg| arg == "-mt")
+            .expect("-mt must be present");
+        assert_eq!(
+            threaded.get(mt_position + 1).map(String::as_str),
+            Some("3"),
+            "-mt takes the thread count as its value"
+        );
+        assert!(
+            threaded.starts_with(&plain[..]),
+            "-mt is appended after the profile's comparability flags"
+        );
     }
 
     /// The score decomposition terms sum to the engine face: with an

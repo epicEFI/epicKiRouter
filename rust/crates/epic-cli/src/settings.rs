@@ -59,8 +59,13 @@ pub struct CliLayer {
     /// `router.autorouter.max_items` (or deprecated flat
     /// `router.max_items`).
     pub max_items: Option<i32>,
-    /// `router.max_threads` / `-mt` — parsed but unused: the T13 engine
-    /// is single-threaded by construction (SEAM).
+    /// `router.max_threads` / `-mt` — LIVE since M5-T7: the explicit
+    /// CLI face engages the deterministic partitioned executor
+    /// (`run_partitioned`, byte-identical to the sequential path at
+    /// every N). The default is 1 — the golden sequential path — even
+    /// though the merged settings surface keeps Java's
+    /// `max(1, cores-1)` parity default for validation (the executor
+    /// face reads the EXPLICIT CLI value only; see `route.rs`).
     pub max_threads: Option<i32>,
     /// `router.optimizer.improvement_threshold` / `-oit` (also
     /// `optimizer.improvement_threshold` and the
@@ -823,7 +828,11 @@ pub struct MergedSettings {
     pub max_passes: Option<i32>,
     /// `autorouter.maxItems`.
     pub max_items: Option<i32>,
-    /// `maxThreads` — parsed but unused (single-threaded engine).
+    /// `maxThreads` — the Java-parity validation surface (the
+    /// `max(1, cores-1)` default, the `< 0`/`> cores` warn arms). The
+    /// executor's DEFAULT stays 1 — `route.rs` reads the EXPLICIT CLI
+    /// face into `BatchSettings.max_threads`, not this post-validate
+    /// value (M5-T7).
     pub max_threads: Option<i32>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,

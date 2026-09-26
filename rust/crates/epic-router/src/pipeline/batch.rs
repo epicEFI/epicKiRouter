@@ -70,7 +70,7 @@ use crate::pipeline::event_sink::DriverSink;
 use crate::pipeline::fanout::{
     FanoutPassStatus, FanoutProgressListener, fanout_board, smd_pin_connection_counts,
 };
-use crate::pipeline::pass_runner::{RouterCounters, run_single_thread};
+use crate::pipeline::pass_runner::{RouterCounters, run_pass};
 
 // ---------------------------------------------------------------------------
 // the Java constants (BatchAutorouter.java:55-80 / AutorouteBatchLoop)
@@ -328,6 +328,15 @@ pub struct BatchSettings {
     pub strict_drc: bool,
     /// Java `settings.getRunRouter()`.
     pub run_router: bool,
+    /// Java `router.maxThreads` — the T7 partitioned executor's thread
+    /// count (0/1 = the golden sequential path; `>= 2` engages
+    /// [`crate::pipeline::pass_runner::run_partitioned`]). The output is
+    /// byte-identical at every N (the conflicted points — board
+    /// mutations — serialize in the golden order; see the executor's
+    /// doc). The DEFAULT is 1: today's behavior, while the merged
+    /// settings surface keeps Java's `max(1, cores-1)` parity default
+    /// for its own validation face.
+    pub max_threads: i32,
     /// The explicit ctor's `withPreferredDirections` — only feeds the
     /// [`Self::trace_costs`] resolution at construction.
     pub with_preferred_directions: bool,
@@ -370,6 +379,7 @@ impl BatchSettings {
             neck_width_um: 0.0,
             strict_drc: false,
             run_router: true,
+            max_threads: 1,
             with_preferred_directions: true,
             deterministic_budgets: true,
             via_costs: 50,
@@ -644,7 +654,7 @@ impl<'a> BatchDriver<'a> {
                     "BatchAutorouter.autoroute_pass #{current_pass} on board '{current_board_hash}'"
                 ));
             }
-            continue_autorouting = run_single_thread(
+            continue_autorouting = run_pass(
                 self.manager,
                 self.board,
                 &self.settings,

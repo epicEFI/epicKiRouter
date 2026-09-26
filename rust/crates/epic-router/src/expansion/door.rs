@@ -57,6 +57,20 @@ pub const TRACE_WIDTH_TOLERANCE: f64 = 2.0;
 /// The instance-tag source (see the module doc): Java's door object
 /// identity, one draw per construction. Single-threaded parity runs
 /// make the draw order deterministic; the values are never printed.
+///
+/// THREADS STRATEGY (M5-T7, the plan's "reconciled to the sequential
+/// counter order" arm): the T7 partitioned executor keeps at most ONE
+/// search in flight — the board-side environment is handed off between
+/// partition workers per work unit and the coordinator blocks on the
+/// reply before the next dispatch (see `pipeline::pass_runner`
+/// `SendUnitEnv`). Every door construction therefore draws its tag in
+/// exactly the golden sequential order regardless of the thread
+/// count, so tag-equality/membership outcomes are thread-count
+/// invariant by construction, not by coincidence of timing. (The
+/// alternative "hoist tag assignment into the reduction" arm is not
+/// needed while the conflicted point — the board — is fully
+/// serialized; revisit only if a future executor runs searches
+/// concurrently.)
 static DOOR_TAG_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// An expansion door: a common edge between two expansion rooms
@@ -209,7 +223,8 @@ impl ExpansionDoor {
         out.clear();
         let offset = offset_param + TRACE_WIDTH_TOLERANCE;
         if door_shape.is_empty() {
-            // Java :108-112.
+            // Java :109-112 — the EMPTY door-shape arm fires BEFORE any
+            // dimension dispatch.
             return 0;
         }
         let (door_line_segment, shrinked_line_segment) = if self.dimension == 1 {
@@ -493,5 +508,72 @@ mod tests {
             216250, 91250, 539482, 233750, -22500, 448232, 307500, 630732,
         );
         assert_eq!(trapezoid.dimension(), 2, "overlap door is dim=2");
+    }
+
+    /// M5-T7 PIN (T7-D1) — the EMPTY door-shape arm (Java `:109-112`,
+    /// the M4-T2 BACKLOG obligation): an empty door shape answers
+    /// `(0, empty)` BEFORE any dimension dispatch, so even a dim=1
+    /// door never reaches `diagonalCornerSegment` on an empty shape
+    /// (Java would return the empty array; the mis-derived empty-check
+    /// arity falls through to the dim dispatch here).
+    #[test]
+    fn empty_door_shape_answers_empty_before_dimension_dispatch() {
+        // Two disjoint rectangles: the intersection IS the empty shape.
+        let room1 = oct(0, 0, 1000, 1000, -1000, 1000, 0, 2000);
+        let room2 = oct(5000, 5000, 9000, 9000, 0, 9000, 5000, 14000);
+        let door_shape = room1.intersection(&room2);
+        assert!(
+            door_shape.is_empty(),
+            "world check: disjoint rooms intersect empty"
+        );
+        let door = ExpansionDoor::new(1, 2, 1);
+        let (count, sections) =
+            door.get_section_segments(&door_shape, false, &room1, &room2, 11250.0);
+        assert_eq!(count, 0, "EMPTY arm: zero sections (Java :109-112). {ROT}");
+        assert!(
+            sections.is_empty(),
+            "EMPTY arm: no segment lines (Java :109-112). {ROT}"
+        );
+    }
+
+    /// M5-T7 PIN (T7-D2) — the both-complete-NULL arm (Java `:124-127`,
+    /// the M4-T2 BACKLOG obligation): a dim=2 door between two complete
+    /// free-space rooms where fewer than two DISTINCT corners lie on
+    /// the border of BOTH room shapes — here room 1 strictly contains
+    /// the door shape and room 2 IS it, so every door corner sits
+    /// strictly inside room 1 — `calcDoorLineSegment` answers null and
+    /// the arm answers `(0, empty)` ("a complete room inside the
+    /// other"). The shape is deliberately LARGE, so this world cannot
+    /// be confused with the small-door arm (T2-P3, Java `:128-131`)
+    /// that shares the `(0, empty)` verdict.
+    #[test]
+    fn dim2_complete_rooms_without_common_border_corners_answer_null_arm() {
+        // Door shape: rectangle (0,0)..(10000,20000), dim=2.
+        let door_shape = oct(0, 0, 10000, 20000, -20000, 10000, 0, 30000);
+        // Room 1 strictly contains the door shape (its corners are
+        // strictly inside room 1, so never "on the border of both").
+        let room1 = oct(-5000, -5000, 15000, 25000, -30000, 20000, -10000, 40000);
+        // Room 2 equals the door shape: its corners sit on room 2's
+        // border but strictly inside room 1.
+        let room2 = door_shape.clone();
+        // World check: each corner is strictly inside room 1.
+        for i in 0..door_shape.border_line_count() {
+            let corner = door_shape.corner(i as i32);
+            assert!(
+                room1.contains_inside(&corner),
+                "world check: door corner strictly inside room 1"
+            );
+        }
+        let door = ExpansionDoor::new(1, 2, 2);
+        let (count, sections) =
+            door.get_section_segments(&door_shape, true, &room1, &room2, 11250.0);
+        assert_eq!(
+            count, 0,
+            "NULL arm: zero sections (Java :124-127, a complete room inside the other). {ROT}"
+        );
+        assert!(
+            sections.is_empty(),
+            "NULL arm: no segment lines (Java :124-127). {ROT}"
+        );
     }
 }
