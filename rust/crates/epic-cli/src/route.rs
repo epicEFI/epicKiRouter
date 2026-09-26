@@ -984,7 +984,11 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // validated value is then already clamped/warned by the Java-parity
     // arms). Byte-identical output at every N by construction.
     batch.max_threads = if args.layer.max_threads.is_some() {
-        merged.max_threads.unwrap_or(1).max(0)
+        // An explicit CLI face survives merge+validate as `Some` (0
+        // survives; only `< 0` / `> cores` are rewritten by validate).
+        merged
+            .max_threads
+            .expect("explicit CLI max_threads is Some post-validate")
     } else {
         1
     };

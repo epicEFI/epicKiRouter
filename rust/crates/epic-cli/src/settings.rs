@@ -1205,6 +1205,13 @@ pub fn validate(merged: &mut MergedSettings) -> Vec<String> {
         i32::try_from(cores).unwrap_or(i32::MAX)
     };
     let default_max_threads = (available - 1).max(1);
+    // DEVIATION (M5-T7, F5): Java's normalizeMaxThreads maps `0 →
+    // cores` (`RouterSettings.java:139-141`, the `==0` arm); the Rust
+    // headless flow DELIBERATELY keeps `0` unnormalized — it means no
+    // explicit executor face, and the executor (which reads the
+    // EXPLICIT CLI value only, `route.rs`) then stays SEQUENTIAL, so
+    // the golden `--threads 1` default can never be accidentally
+    // parallel.
     match merged.max_threads {
         None => merged.max_threads = Some(default_max_threads),
         Some(value) if value < 0 => {

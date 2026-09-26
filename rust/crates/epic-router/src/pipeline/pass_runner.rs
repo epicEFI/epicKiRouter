@@ -325,6 +325,10 @@ fn run_attempt(
     pass_no: i32,
     unit: &PassUnit,
 ) -> AttemptTally {
+    #[cfg(test)]
+    if FORCE_ATTEMPT_PANIC.load(std::sync::atomic::Ordering::SeqCst) && pass_no == 777 {
+        panic!("t7-f1 forced attempt panic on net {}", unit.net);
+    }
     board.start_marking_changed_area();
 
     // Fresh per-attempt accumulators (Java `:224-225`).
@@ -412,7 +416,16 @@ fn run_attempt(
     tally
 }
 
-/// The maxItems face (Java `AutoroutePassRunner.java:211-218`),
+/// T7-F1 pin hook (test-only): when set, `run_attempt` panics on
+/// entry FOR PASS NUMBER 777 ONLY (the gate keeps concurrent tests in
+/// the same binary from ever seeing the hook — no other test uses a
+/// pass outside the production ladder 1..=20) — the forced-panic face
+/// the partitioned fail-fast pin drives.
+#[cfg(test)]
+static FORCE_ATTEMPT_PANIC: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// The per-attempt body, extracted verbatim from the original
 /// extracted verbatim: returns false when the walk must stop (the info
 /// row, the FULL stop raise and the CAUSE mark are exactly the
 /// original inline block).
@@ -763,13 +776,25 @@ pub fn run_partitioned<'a>(
     });
     let stop_flag = stop.flag().cloned();
     std::thread::scope(|scope| {
-        let (reply_tx, reply_rx) = std::sync::mpsc::channel::<(SendUnitEnv<'a>, AttemptTally)>();
+        // PER-WORKER reply channels (T7 spec round F1): the coordinator
+        // recv()s from EXACTLY the worker it dispatched to, so a
+        // panicking worker's sender drop turns that recv into Err BY
+        // CONSTRUCTION — the pass fail-fasts instead of hanging on the
+        // other workers' alive clones (the shared-channel defect the
+        // spec review found). The panic then propagates out of the
+        // scope closure; unwinding drops the job senders, the blocked
+        // workers drain (`recv() → Err`) and the scope joins before the
+        // panic re-raises — the run aborts, mirroring the
+        // `catch (Exception) → no Rust catch` bank.
+        let mut reply_rxs: Vec<std::sync::mpsc::Receiver<(SendUnitEnv<'a>, AttemptTally)>> =
+            Vec::with_capacity(threads);
         let mut job_txs: Vec<std::sync::mpsc::Sender<WorkerMessage<'a>>> =
             Vec::with_capacity(threads);
         let mut handles = Vec::with_capacity(threads);
         for _ in 0..threads {
             let (job_tx, job_rx) = std::sync::mpsc::channel::<WorkerMessage<'a>>();
-            let reply_tx = reply_tx.clone();
+            let (reply_tx, reply_rx) =
+                std::sync::mpsc::channel::<(SendUnitEnv<'a>, AttemptTally)>();
             let stop_flag = stop_flag.clone();
             handles.push(scope.spawn(move || {
                 let stop_flag = stop_flag.as_ref();
@@ -802,8 +827,8 @@ pub fn run_partitioned<'a>(
                 }
             }));
             job_txs.push(job_tx);
+            reply_rxs.push(reply_rx);
         }
-        drop(reply_tx);
 
         // The coordinator walk: the golden order, one unit in flight.
         'items: for item_id in &autoroute_item_list {
@@ -837,6 +862,10 @@ pub fn run_partitioned<'a>(
                     simple_name,
                     items_remaining: items_to_go_count,
                 };
+                // The unit identity outlives the move into the job (the
+                // F1 panic path names it after the worker dies).
+                let unit_net = unit.net;
+                let unit_item_id = unit.item_id.get();
                 let part = net_partition(*net, threads, max_net);
                 let job_tx = &job_txs[part];
                 let checked_out = env.take().expect("env free between units");
@@ -846,7 +875,21 @@ pub fn run_partitioned<'a>(
                         unit,
                     }))
                     .expect("partition worker alive");
-                let (env_back, tally) = reply_rx.recv().expect("partition worker replied");
+                // Fail-fast (F1): this recv reads EXACTLY the worker
+                // the job was dispatched to, so `Err` means that worker
+                // PANICKED mid-attempt — propagate with the unit
+                // identity (the original panic's message already went
+                // to stderr through the default hook; the payload
+                // cannot cross the channel in general — a documented
+                // residual vs Java's exception object).
+                let (env_back, tally) = match reply_rxs[part].recv() {
+                    Ok(reply) => reply,
+                    Err(_) => panic!(
+                        "partition worker died executing unit net={unit_net} \
+                         item={unit_item_id} (pass {pass_no}); the worker's own panic message \
+                         precedes this on stderr"
+                    ),
+                };
                 let SendUnitEnv(restored) = env_back;
                 env = Some(restored);
                 match tally {
@@ -891,9 +934,12 @@ pub fn run_partitioned<'a>(
     )
 }
 
-/// The one pass entry both stages share (M5-T7): `settings.max_threads`
+/// The batch stage's pass entry (M5-T7): `settings.max_threads`
 /// 0/1 engages the golden sequential face, `>= 2` the partitioned
-/// executor. Byte-identical at every N by construction.
+/// executor. Byte-identical at every N by construction. The OPTIMIZER
+/// stage's inline reroute passes call [`run_single_thread`] directly
+/// (sequential only at this tree — the scope comment at that call
+/// site); they do NOT route through here.
 #[allow(clippy::too_many_arguments)] // the shared entry
 pub fn run_pass(
     manager: &mut SearchTreeManager,
@@ -1538,9 +1584,9 @@ mod tests {
     /// partition for every call and every pass.
     #[test]
     fn t7_net_partition_exact_boundaries() {
-        // threads=4 over nets 1..=10: ranges [1..4)→0, [4..8)→1,
-        // [8..10)→2 — wait, floor(idx*4/10): idx 0..2→0, 3..4→1 (wait:
-        // idx3→1, idx4→1), 5..7→2, 8..9→3? Pinned exactly below.
+        // threads=4 over nets 1..=10: floor(idx*4/10) with
+        // idx = net-1 gives ranges [1..3]→0, [4..5]→1, [6..8]→2,
+        // [9..10]→3. Pinned exactly below.
         let expected_4_10 = [
             (1usize, 0usize),
             (2, 0),
@@ -1761,5 +1807,58 @@ mod tests {
             2_147_483_647,
             "saturation holds for deep passes"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // M5-T7 F1 — the partitioned face fail-fast pin
+    // -----------------------------------------------------------------
+
+    /// RAII reset so a mid-test panic cannot leak the hook into other
+    /// tests (belt-and-braces: the pass-777 gate already isolates).
+    struct ResetForcePanic;
+    impl Drop for ResetForcePanic {
+        fn drop(&mut self) {
+            FORCE_ATTEMPT_PANIC.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    /// M5-T7 F1 PIN — a panicking partition worker FAILS FAST with the
+    /// unit identity instead of hanging the pass (the shared-reply-
+    /// channel defect the spec review found, closed with per-worker
+    /// reply channels: the coordinator recv()s from exactly the
+    /// dispatched worker, so the dead worker's sender drop is the
+    /// propagation trigger BY CONSTRUCTION). The forced panic fires on
+    /// pass 777 only (cross-test isolation).
+    ///
+    /// MUTATION DISCLOSURE (cerebrum-11): the natural no-propagation
+    /// mutant (a revert to the shared reply channel) manifests as a
+    /// HANG — unpinnable-without-timeout, disclosed per the fix brief.
+    /// The FAIL-FAST mutants ARE killed: (a) a propagation-message
+    /// mutant (identity stripped / generic text) dies on the expected-
+    /// prefix mismatch; (b) any swallow-mutant loses the env, and the
+    /// next unit's `env.take()` panics with "env free between units" —
+    /// also a fast expected-prefix mismatch.
+    #[test]
+    #[should_panic(expected = "partition worker died executing unit net=")]
+    fn t7_f1_panicking_worker_fails_fast_with_unit_identity() {
+        FORCE_ATTEMPT_PANIC.store(true, std::sync::atomic::Ordering::SeqCst);
+        let _reset = ResetForcePanic;
+        let (mut manager, mut board, mut settings) = starved_world();
+        settings.max_threads = 3;
+        let mut total = 0;
+        let mut progress = 0;
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        run_pass(
+            &mut manager,
+            &mut board,
+            &settings,
+            777,
+            &mut total,
+            &mut progress,
+            &mut stop,
+            &mut sink,
+        );
+        panic!("the forced-panic attempt did not propagate");
     }
 }

@@ -1376,6 +1376,9 @@ impl<'a> BatchOptimizerStage<'a> {
             // carries the box, so the resolved default 6 is the live face).
             && reroute_pass_no <= self.optimizer.max_autoroute_passes
         {
+            // SCOPE (M5-T7): the optimizer's reroute stays on the
+            // sequential face — `run_pass`'s partitioned executor
+            // engages only from the batch driver at this tree.
             still_unrouted = run_single_thread(
                 worker_manager,
                 worker_board,
