@@ -298,9 +298,12 @@ The `rust/` tree is the ground-up Rust rewrite of the routing engine
 ([design](superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md));
 the Java packages above stay the frozen parity oracle until the rewrite's
 final milestone. Crates enter this map as their milestones complete
-(M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS: criterion 2's
-three full-face battery reds are owned by M5 (buglog 175/181/189)
-and M1b-reopen (bug-186); design §6 M4 exit note;
+(M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS; M5 executed on top:
+arena/SoA allocation slices + deterministic per-net parallelism, closed
+with the wall verdict still open — Σ wall 2286.1 s harness-elapsed =
+2.02× Σ-Java vs the ≤0.5× target and the full-face battery 8/11, so
+the CI router gate stays in `--report-only`; design §6 M4/M5 exit
+notes, `logs/M5-T8/report-t8.md`;
 commands and parity gates: [rust/README.md](../rust/README.md)).
 
 - `rust/crates/epic-board` — arena board model: ItemId/undoable-object
@@ -328,6 +331,22 @@ commands and parity gates: [rust/README.md](../rust/README.md)).
   default-settings captures under `baselines/java/`), the determinism
   self-gate, and the CI workflow tripwire pins
   (`src/ci_tripwire.rs`).
+
+M5 performance face (landed on top of the M4 pipeline, byte-invariant
+throughout): the hot maze/expansion `BTreeMap`s, the boxed
+priority-queue site, the `epic-index` slab hot path, and the
+geometry/rational churn sites were allocation-eliminated (M5-T4–T6
+dossiers in [SEAM.md](../rust/crates/epic-router/SEAM.md)); the
+optimizer stage gained Java's two-face stop semantics so completed
+boards reach it (M5-T1b, `bb37cc2e2`); and the batch pass loop runs on
+a deterministic per-net partitioned executor behind `--threads`
+(`epic-router` `pass_runner.rs`: fixed net-ID partitioning, per-worker
+reply channels) with `--threads N` byte-identical to `--threads 1`
+(pinned in-tree; CI wiring deferred to the M6 flip moment). The CI
+flip outcome is an honest hold (second consecutive; composition
+changed — the maze-search wall collapsed, the residual is the bm01
+optimizer stage under the 1800 s tier plus the buglog-181 completion
+residuals): design §6 M5 exit note and `logs/M5-T8/report-t8.md`.
 
 ## How The Code Fits Together
 

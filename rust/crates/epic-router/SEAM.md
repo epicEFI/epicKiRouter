@@ -1972,3 +1972,36 @@ record; everything above it stands as landed.
 | Threads-gate CI wiring | **RE-DEFERRED to the M6 flip-adjacent moment** (coordinator decision riding T8's closeout): the plan's NO-GO branch is ONE docs-only commit, so no CI step additions ride T9; the gate stays pinned in-tree (green, hashed, argv + verdict + override-naming pins) | T7 dossier (pins + hashes); the T8 closeout decisions of record |
 | Suite census | 1444/0/17 at `977e07a47` — commit-anchored in the T7 dossier above, never "at HEAD"; both `ci_tripwire` pins ok inside the bare suite | T8 gates r2 (`census_t8_r2.log`) |
 | M6 flip conditions | the wall work — the bm01 optimizer-entry question (should the optimizer be entered at all on a 1000.00/0/0 incumbent; re-reading Java's preflight guard is the first M6 step) + the 1800 s tier bound + the bm06/bm11 completion levers (buglog 181) — until the full battery reads 11/11 AND its wall fits the CI budget; the flip commit then also brings the events step with its own pin | T8 concerns (1)–(3); the M4 criterion map's flip-hold record above |
+
+## M5 milestone-criterion map (appended by M5-T10; successor to the M4 map above — adjudication input)
+
+The M4 map above stays exactly as landed (HISTORICAL), as does the M5
+hold-posture table (T9). Criteria read the design §6 M5 row and the
+plan's "Milestone exit criteria" faces. Battery of record:
+`logs/M5-T8/evidence/battery_full_t8.log` (measured at `977e07a47`;
+the posture chain is T9's `e6302bb3e` + `8950deba9`).
+
+| Criterion | Verdict | Evidence + citation |
+|---|---|---|
+| 1 — Tier A Σ wall ≤ 0.5× Σ-Java | **FAIL (both bases labeled)** | Σ 2286.1 s harness-elapsed = 2.02× Σ-Java 1130.39 s vs the ≤ 565.19 s target (4.04× target); like-for-like per-fixture excl-bm01: 256.7 s = 2.42× — the verdict is invariant under either basis (MINOR-1 discipline; basis labels on every Σ). Evidence: `logs/M5-T8/report-t8.md` §(a)/(b); `logs/M5-T8/evidence/battery_full_t8.log`. |
+| 2 — large-board trend toward 10× | **NOT MET** — speedup (Java/Rust) peaks small (bm08 4.51×, bm02 2.31×, bm07 1.73×) and collapses large (bm06 0.69×, bm09 0.57×, bm11 0.24×, bm01 ≤0.57× kill-truncated); the M4→M5 compression is the progress sentence, not the verdict: bm11 ≥12.5×→4.13×, bm06 4.63×→1.45×, bm07 7.74×→0.58× slowness | Evidence: `logs/M5-T8/report-t8.md` §(c). |
+| 3 — `--threads N` ≡ `--threads 1` byte-identical, pinned in-tree | **MET** | `router threads-invariance` re-faced at T8 with fresh bins: exit 0, 6 runs 127.7 s, ses `77caf2099a2f…` / manifest `90f08ad2b94d…` byte-identical across `-mt 1/3/4` — the T7 pinned hashes EXACT (T7 dossier above; landed `923f16ae5`); the gate's CI wiring RE-DEFERRED to the M6 flip-adjacent moment (green, hashed, in-tree only). Evidence: `logs/M5-T8/report-t8.md` §(d). |
+
+**Erratum (T10-era, cite-numbering only):** the M4-era prose cites the
+compare step as `rust-check.yml:125` (the design doc's M4
+parenthetical chain, the M4 exit note's flip-hold paragraph, and the
+M4 map's flip-hold record above). Those anchors are T13-era numbering,
+one yml comment-refresh behind: after T9's comment refresh the compare
+run line is `:138` and its `timeout-minutes: 30` is `:139` (verified
+at the T10 tree). The M4 texts stay append-frozen; read their `:125`
+as `:139`. The design doc's M5 parenthetical (T9) already carries the
+same fact for its own context.
+
+**Pointer rows into the task dossiers:** criterion-1/2 before/after
+faces → T1 (`logs/M5-T1/report-t1.md` §(b)) + T8 (§(a)–(c)); the bm01
+optimizer-entry/tier-bound question → T8 concern (1), buglog 196,
+owner M6; the bm06/bm11 completion reds → buglog 181 (owner M6) + the
+T3/T6 dossiers above; 189's close → the T3 dossier (fix commit
+`74728b887`); threads-invariance → the T7 dossier + the T8 §(d)
+re-face; the flip-hold → the M5 hold-posture table above (T9) and the
+design §6 M5 exit note.

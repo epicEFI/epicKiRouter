@@ -269,6 +269,90 @@ through-hole-pin fixture); the T2 BACKLOG pair on the same file (the
 unpinned `getSectionSegments` EMPTY door-shape and both-complete-NULL
 arms, SEAM :728) pins at that door.rs edit.
 
+M5 exit note (T10, 2026-09-26; close-out docs commit as sole child of
+`8950deba9` — the measurement record predates this note: T8 measured
+at `977e07a47`, the posture record is T9's `e6302bb3e` plus its
+quality round):
+**VERDICT: <per milestone adjudication>**
+
+Criterion 1 (Tier A Σ wall ≤ 0.5× Java — Σ `autorouter_seconds +
+optimizer_seconds` over the 11 Tier A fixtures; the §5 :98 ratchet's
+first notch) **NOT MET**: Rust Σ 2286.1 s harness-elapsed = 2.02×
+Σ-Java 1130.39 s (independently re-derived from the committed
+`baselines/java/A/**` JSONs) vs the ≤ 565.19 s target — 4.04× the
+target. Decompositions, both bases labeled (the MINOR-1 discipline;
+the verdict is invariant under either basis): excl-bm01 on the
+harness-elapsed basis 486.0 s = 4.59× vs Σ-Java-minus-bm01
+105.93 s; like-for-like per-fixture basis 256.7 s = 2.42×. bm01
+autoroute-only ~276 s vs Java 111.76 s = 2.47× (diagnostic column).
+Evidence: `logs/M5-T8/report-t8.md` §(a)/(b);
+`logs/M5-T8/evidence/battery_full_t8.log`.
+
+Criterion 2 (large-board trend toward 10× — the criterion is the
+TREND, stated with numbers, not a threshold) **NOT MET**: speedup
+(Java/Rust) peaks on SMALL boards (bm08 4.51×, bm02 2.31×, bm07
+1.73×) and collapses on the large ones (bm06 0.69×, bm09 0.57×,
+bm11 0.24×, bm01 ≤0.57× kill-truncated). The M4→M5 compression is
+the progress sentence, distinct from the verdict: large-board
+slowness compressed 3–4× (bm11 ≥12.5×→4.13×, bm06 4.63×→1.45×,
+bm07 7.74×→0.58×). Evidence: `logs/M5-T8/report-t8.md` §(c).
+
+Criterion 3 (`--threads N` output byte-identical to `--threads 1`,
+pinned in-tree) **MET**: `router threads-invariance` re-faced at T8
+(fresh bins): exit 0, 6 runs 127.7 s, ses `77caf2099a2f…` /
+manifest `90f08ad2b94d…` byte-identical across `-mt 1/3/4` — T7's
+pinned hashes EXACT. The gate's CI wiring is RE-DEFERRED to the M6
+flip-adjacent moment (the plan's NO-GO branch is one docs-only
+commit); the gate stays pinned in-tree, green and hashed.
+Evidence: `logs/M5-T8/report-t8.md` §(d); the T7 dossier.
+
+Inherited completion parity (the flip's precondition family): buglog
+189 CLOSED at M5-T3 (fix commit `74728b887`, the copper-to-edge
+override; the sanctioned canary rotation `dc271114…`/`cf607714…` is
+recorded there) — but the full battery reads 8/11, not 11/11: bm06
+3>2 and bm11 4>3 incompletes are the buglog-181 completion residuals
+(owner M6), and bm01's red is the optimizer stage, not a completion
+face. The standing zero-regression guarantee held (criterion-6
+family): all seven compares green (corpus 5000/5000; dsn 1,332/0;
+ses 20; ses-snap 5; index 33; undo 33; drc 17), events 3,520 exit 0,
+determinism ×2 canaries UNROTATED at the T3 values, census
+1444/0/17.
+
+The CI flip: **NO-GO on both preconditions** at the T8 close — (a)
+8/11 ≠ 11/11; (b) Σ wall 2286.1 s ≈ 38.1 min > the compare step's
+30-min budget (`timeout-minutes: 30`, at `rust-check.yml:139` in
+this tree; the M4 note's `:125` cites below are T13-era numbering —
+T9's comment refresh moved the compare run line to :138/:139).
+`--report-only` and both `ci_tripwire.rs` pins stay INTACT: the
+second consecutive honest hold, with the composition changed — M4's
+wall was the maze search (mid-routing kills); M5's is the bm01
+optimizer stage under the 1800 s tier plus the two completion
+residuals.
+
+Deviations (the three reds, each with face / root cause / owner /
+buglog):
+
+| Red | Face (T8) | Root cause | Owner | Buglog |
+| --- | --- | --- | --- | --- |
+| bm01 | wall-killed 1800.1 s inside optimizer P2; routing COMPLETED 0/0/1000.00 at P8 in 275.69 s (fanout 4.43 s + routing P1–P9 271.26 s); optimizer P1 866.57 s REJECTED (`OPTIMIZER_SCORE_NOT_IMPROVED`, score already 0.00) | the T1b-parity-corrected optimizer ENTERS on a completed, non-improvable 0.00-score incumbent (Java's preflight-guard answer needs re-reading — the first M6 step) and burns the 1800 s tier bound sized for the pre-slice router; the maze-search wall it replaced is GONE | M6 | 196 (NEW: optimizer-entry + tier bound); 175 face updated |
+| bm06 | 3/8/958.02, 18 passes — incomplete 3 > Java 2; score/violations green | the buglog-181 bistable victim-choice/attempt-order family (net 12), post-189 alignment | M6 | 181 |
+| bm11 | 4/0/966.67, 18 passes — incomplete 4 > Java 3; no longer wall-killed (600.2 → 197.7 s) | same 181 family, completion-only | M6 | 181 |
+
+Carry-forwards (every line traces to a dossier/buglog entry): M6
+flip conditions — the bm01 optimizer-entry question + the 1800 s
+tier bound (buglog 196; T8 concern (1) verbatim is its seed), the
+buglog-181 completion levers (bm06 net-12 / bm11; closing the fork
+needs a T12/T17c-style attempt-stream re-derivation inside the
+fanout stage), and the threads-gate CI wiring (re-deferred — T8
+closeout decision (2)); the T3 spec-review-r2 banked N3 — the
+hole-override deferral note's conflation — rides the future
+hole-override port task, which must cite Java's actual board-state
+mutation at `HeadlessBoardManager.java:350-468` (`logs/M5-T3/report-t3.md`
+:110); the M4-T9 F3 through-hole-pin fixture stays open under
+return-with-first-consumer — T8 §(f) swept the whole M5 test diff
+and found zero drill-page-expansion worlds, so first consumer
+remains the first task landing one.
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI
