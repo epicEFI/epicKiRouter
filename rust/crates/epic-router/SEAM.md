@@ -1668,6 +1668,12 @@ byte-for-byte, same stream positions:
    so live index reads are read-for-read identical to the snapshot reads.
    Same loop order (`0..drill_count`), same filters, same `Drill{id}` tags.
 
+**Why a per-engine FIELD, not the epic-index scratch pool** (SEAM "T4 slice
+B" item 1, the per-thread take/put pool): the engine OWNS `row_buf` and is
+its only consumer — one long-lived buffer, an existing `&mut self` row path,
+no `&self`-immutable API to serve, no cross-fn nesting — so the field needs
+neither pool machinery nor an epic-index dependency.
+
 **Not-taken (recorded):** a Front-arena/SoA conversion — the charter's
 "maze element construction" bucket decomposes at the T1 traces into the row
 strings (the slice took these), the drill snapshot (taken), and

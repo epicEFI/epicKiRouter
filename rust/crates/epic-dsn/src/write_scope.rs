@@ -144,7 +144,8 @@ impl IndentFileWriter {
 /// sequence as JDK 19+'s Ryu); only the rendering is Java's. Rust `{}`
 /// would print `12345678` where Java prints `1.2345678E7` and `0.0001`
 /// where Java prints `1.0E-4` — the two threshold rules this replica
-/// exists for.
+/// exists for. The appending core [`java_double_to_string_into`] holds
+/// the algorithm; this wrapper is its single-value form.
 pub fn java_double_to_string(value: f64) -> String {
     let mut out = String::new();
     java_double_to_string_into(value, &mut out);
@@ -155,8 +156,10 @@ pub fn java_double_to_string(value: f64) -> String {
 /// allocation-free backing for the `{magnitude:e}` render below. The
 /// shortest-round-trip form of a finite non-zero `f64` carries at most
 /// 17 significant digits, so the whole `d.ddddde±xxx` render is bounded
-/// by 1 + 1 + 16 + 1 + 1 + 4 = 24 bytes; 48 leaves headroom and the
-/// overflow assert is unreachable by construction.
+/// by 1 + 1 + 16 + 1 + 1 + 3 = 23 bytes (worst case
+/// `1.7976931348623157e-308`); 48 leaves headroom, and `write_str`'s
+/// overflow Err is unreachable by construction (the caller asserts the
+/// `Ok`).
 struct StackFmt {
     buf: [u8; 48],
     len: usize,
@@ -220,9 +223,14 @@ pub fn java_double_to_string_into(value: f64, out: &mut String) {
     let negative = value < 0.0;
     let magnitude = value.abs();
     // "d.dddde<exp>" — digits without the point, exponent of the FIRST
-    // digit (1.xxxx * 10^exp10). Infallible: bound 24 bytes < 48.
+    // digit (1.xxxx * 10^exp10). Infallible: bound 23 bytes < 48 (the
+    // overflow Err the write returns on is unreachable, asserted live
+    // like the digit-buffer bound below).
     let mut sci = StackFmt::new();
-    let _ = std::fmt::write(&mut sci, format_args!("{magnitude:e}"));
+    assert!(
+        std::fmt::write(&mut sci, format_args!("{magnitude:e}")).is_ok(),
+        "the {{:e}} render exceeds the 48-byte StackFmt buffer (bound: 23)"
+    );
     let scientific = sci.as_str();
     let Some((mantissa, exponent)) = scientific.split_once('e') else {
         out.push_str(scientific); // unreachable for finite non-zero

@@ -2044,8 +2044,9 @@ fn expand_to_door_precheck_is_per_section() {
 /// GRAMMAR is independently judged against the Java-captured events
 /// golden (`route_events compare`, 3520 rows). Mutants: a missing
 /// `clear()` leaves the first assign's stale tail on the skip row
-/// (suffix face dies); a take-without-restore corrupts the third row
-/// (row3 == row1 dies); a wrong-template mutant dies on the prefixes.
+/// (suffix face dies); a take-without-restore is text-invisible —
+/// caught only by the capacity witness below; a wrong-template mutant
+/// dies on the prefixes.
 #[test]
 fn raw_row_buffer_reuse_is_invisible() {
     use crate::path::inserter::CaptureSink;

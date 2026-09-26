@@ -193,7 +193,12 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// holds a RECORDING trace-disabled sink, so the construction can
     /// never be gated on the backend's trace level). The buffer holds
     /// one row at a time; `emit_raw_row` completes before the restore,
-    /// and no row builder re-enters.
+    /// and no row builder re-enters. An engine FIELD, not the epic-index
+    /// scratch pool (`epic-index/src/scratch.rs`; SEAM "T4 slice B" the
+    /// per-thread take/put pool): the engine owns this buffer and is
+    /// its only consumer — one long-lived buffer, no `&self`-immutable
+    /// API to serve, no cross-fn nesting — so a field needs no pool
+    /// machinery and no crate dependency.
     pub(crate) row_buf: String,
 }
 
