@@ -38,7 +38,7 @@ use crate::router_compare::resolve_fresh_epic_cli;
 /// face runs. `master` keeps the T7 vector byte-for-byte (the
 /// committed `t7_ripup.global-golden.json` verifies unchanged). The
 /// empty string in the master row is dropped by [`face_flags`].
-pub const GOLDEN_FACES: [(&str, [&str; 3]); 3] = [
+pub const GOLDEN_FACES: [(&str, [&str; 3]); 4] = [
     ("master", ["--router.congestion_global=on", "", ""]),
     (
         "pattern",
@@ -60,6 +60,16 @@ pub const GOLDEN_FACES: [(&str, [&str; 3]); 3] = [
             "--router.congestion_global.pathfinder=on",
             "",
         ],
+    ),
+    (
+        // M6-T9: the push-and-shove insertion face — a TOP-LEVEL flag
+        // (no master; the family pattern's own flag). The waiver only
+        // rotates bytes where the M3 shove probe answers shoved=true on
+        // an obstacle room the maze would otherwise rip — proven firing
+        // on the t7_ripup world BEFORE capture (the T8 deviation-2
+        // lesson: ON/OFF SES digests differ there).
+        "push_shove",
+        ["--router.push_shove=on", "", ""],
     ),
 ];
 
@@ -254,8 +264,9 @@ fn run_inner(cmd: GlobalGoldenCommand) -> Result<()> {
             false,
         ),
     };
-    let flags = face_flags(&face)
-        .ok_or_else(|| anyhow::anyhow!("unknown face '{face}' (master | pattern | pathfinder)"))?;
+    let flags = face_flags(&face).ok_or_else(|| {
+        anyhow::anyhow!("unknown face '{face}' (master | pattern | pathfinder | push_shove)")
+    })?;
     let dsn = if dsn_rel.is_absolute() {
         dsn_rel
     } else {

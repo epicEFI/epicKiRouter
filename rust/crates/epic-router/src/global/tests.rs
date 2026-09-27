@@ -502,6 +502,16 @@ fn history_decay_increment_boundary_pins() {
         Some(HISTORY_MAX * 3 / 4),
         "the cap value itself decays"
     );
+    // LITERAL faces (the E-2 mutation round caught this pin deriving
+    // its expectation from the const — a HISTORY_MAX + 1 mutant
+    // survived until the literals landed): the tuning value is
+    // exactly 2^20 and its decay exactly 786432.
+    assert_eq!(HISTORY_MAX, 1 << 20, "the tuning value (E-2)");
+    assert_eq!(
+        h_cap.entry(0, 0, 0),
+        Some(786_432),
+        "2^20 * 3 / 4 truncates to 786432"
+    );
 
     // The increments: the closed-form overflow cells.
     let mut h_inc = HistoryCosts::default();
@@ -780,5 +790,51 @@ fn pattern_route_mixed_layer_ordinal_conversion() {
             .any(|(_level, row)| row.starts_with("global_pattern_route net=1")),
         "the fast path must fire at the SIGNAL ORDINAL: {:?}",
         sink.rows
+    );
+}
+
+/// M6-T8 quality Q6 / T9 bank: the congestion-rank re-sort is STABLE
+/// BY CONTRACT ([`crate::pipeline::fanout::sort_by_congestion_rank`])
+/// — equal ranks (including the `usize::MAX` absent-plan tie the call
+/// site feeds via `unwrap_or(usize::MAX)`) keep the order the rows
+/// already carry from the `sort_by(compare)` pass, and the rank alone
+/// reorders. The row count (64) is past the unstable sorts'
+/// insertion-sort floor, so an `sort_unstable_by_key` mutant actually
+/// runs its partitioning on this input instead of coincidentally
+/// stable-inserting; the tie classes are interleaved adversarially
+/// (a partition swap cannot preserve them). The expectation is built
+/// with the std STABLE sort on a fresh copy of the same rows.
+#[test]
+fn fanout_congestion_rank_sort_keeps_java_order_on_ties() {
+    use crate::pipeline::fanout::sort_by_congestion_rank;
+
+    // 64 rows over 4 rank classes (including the absent-plan MAX
+    // class), interleaved so no tie class is contiguous in the input.
+    let mut ranks = Vec::with_capacity(64);
+    for i in 0..16 {
+        ranks.push(7);
+        ranks.push(3);
+        ranks.push(usize::MAX);
+        ranks.push(11);
+        let _ = i;
+    }
+    // (rank, original index) — the payload an unstable partition
+    // would permute within a tie class.
+    let mut rows: Vec<(usize, usize)> = ranks.iter().copied().zip(0..).collect();
+    sort_by_congestion_rank(&mut rows, |row| row.0);
+    let mut expected: Vec<(usize, usize)> = ranks.iter().copied().zip(0..).collect();
+    expected.sort_by_key(|row| row.0);
+    assert_eq!(
+        rows, expected,
+        "ties keep the incoming Java order; only the rank reorders"
+    );
+    // The rank-alone-reorders face: the output IS grouped ascending
+    // by rank (the interleaved input is not).
+    let mut grouped = rows.clone();
+    grouped.sort_by_key(|row| row.0);
+    assert_eq!(rows, grouped, "the re-sort grouped the rows by rank");
+    assert!(
+        rows.windows(2).all(|w| w[0].0 <= w[1].0),
+        "ascending by rank, MAX (absent plan) last"
     );
 }

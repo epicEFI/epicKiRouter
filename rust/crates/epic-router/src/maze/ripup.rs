@@ -16,6 +16,35 @@ use crate::maze::search_engine::{ALREADY_RIPPED_COSTS, MazeSearchEngine};
 /// Java `MazeRipupResolver.FANOUT_COST_CONSTANT`.
 const FANOUT_COST_CONSTANT: f64 = 20000.0;
 
+/// M6-T9 (`router.push_shove`, default OFF — RUST-ONLY, no Java
+/// counterpart): the per-search push-and-shove budget — how many
+/// obstacle rooms may WAIVE their rip-up charge after a successful
+/// shove probe, per maze search (one engine = one connection search =
+/// one insertion). TUNING: 2 keeps the first crossing displacement and
+/// its knock-on neighbor cheap while bounding the shove cascade a
+/// single route can trigger; the exact-exhaustion face is pinned at
+/// this value (DNR-16) and every load-bearing constant here is killed
+/// by its pin in the T9 mutation round.
+pub(crate) const PUSH_SHOVE_ROOM_BUDGET: i32 = 2;
+
+/// M6-T9: the shove-before-rip composition predicate — pure, all
+/// inputs read at the call site, no hidden state (the budget is
+/// threaded explicitly so the pin worlds can hit the exact boundaries
+/// DNR-16 demands). Fires only when the flag is ON, the shove probe
+/// just verified the room shovable, a rip-up charge is actually
+/// pending (`> 0` — `ALREADY_RIPPED_COSTS` and the unrippable `-1`
+/// never waive), and the per-search budget holds. The OFF path answers
+/// false on its first clause and the caller keeps `ripup_costs`
+/// untouched — the default decision tree is byte-identical.
+pub(crate) fn push_shove_waive_ripup(
+    push_shove_on: bool,
+    shoved: bool,
+    ripup_costs: i32,
+    budget_left: i32,
+) -> bool {
+    push_shove_on && shoved && ripup_costs > 0 && budget_left > 0
+}
+
 /// The CHECK_RIPUP observability payload — the fields of the Java
 /// `FRLogger.trace("CHECK_RIPUP ...")` line (`MazeRipupResolver.java
 /// :173-195`), carried to the capture pins. Java logs on EVERY
@@ -390,4 +419,74 @@ pub(crate) fn calc_fanout_via_ripup_cost_factor<E: DrillEngine>(
         }
     }
     1.0
+}
+
+#[cfg(test)]
+mod push_shove_tests {
+    //! The M6-T9 waiver-predicate pins: every conjunction clause at its
+    //! exact closed-form boundary, both directions (DNR-16) — the
+    //! killing mutants of the T9 mutation round (M-PRED-*).
+
+    use super::{PUSH_SHOVE_ROOM_BUDGET, push_shove_waive_ripup};
+
+    /// The flag clause: OFF answers false even with everything else
+    /// maximally favorable — the default-off byte-identity face.
+    #[test]
+    fn push_shove_waive_flag_off_never_fires() {
+        assert!(
+            !push_shove_waive_ripup(false, true, 100, PUSH_SHOVE_ROOM_BUDGET),
+            "OFF: the first clause gates the whole waiver"
+        );
+    }
+
+    /// The shoved clause: an unsuccessful probe never waives.
+    #[test]
+    fn push_shove_waive_requires_shoved() {
+        assert!(!push_shove_waive_ripup(true, false, 100, 2));
+    }
+
+    /// The charge clause at its exact boundary ±1: `ripup_costs == 0`
+    /// (nothing to waive — ALREADY_RIPPED_COSTS and the unrippable -1
+    /// never reach the predicate anyway) does not waive; `1` does.
+    /// A `>= 0` mutant dies on the 0 row; dropping the clause dies on
+    /// the 0 row too (waive would fire with no charge pending).
+    #[test]
+    fn push_shove_waive_charge_boundary() {
+        assert!(
+            !push_shove_waive_ripup(true, true, 0, 2),
+            "zero charge: nothing to waive"
+        );
+        assert!(
+            push_shove_waive_ripup(true, true, 1, 2),
+            "one unit of charge: waives"
+        );
+        assert!(
+            !push_shove_waive_ripup(true, true, -1, 2),
+            "the unrippable -1 never waives"
+        );
+        assert!(!push_shove_waive_ripup(true, true, -99, 2));
+    }
+
+    /// The budget clause at its exact boundary ±1: `budget_left == 0`
+    /// (exhausted) does not waive; `1` (the last unit) does. A `>= 0`
+    /// mutant dies on the 0 row.
+    #[test]
+    fn push_shove_waive_budget_boundary() {
+        assert!(
+            !push_shove_waive_ripup(true, true, 100, 0),
+            "exhausted budget: no waiver"
+        );
+        assert!(
+            push_shove_waive_ripup(true, true, 100, 1),
+            "the last budget unit waives"
+        );
+    }
+
+    /// The budget CONST literal (the tuning value): the ±1 mutation
+    /// round (M-BUDGET) kills here and at the engine pin's
+    /// conservation face.
+    #[test]
+    fn push_shove_room_budget_literal() {
+        assert_eq!(PUSH_SHOVE_ROOM_BUDGET, 2, "the T9 tuning value");
+    }
 }

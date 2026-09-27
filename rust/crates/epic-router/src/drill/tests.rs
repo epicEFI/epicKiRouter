@@ -815,6 +815,7 @@ fn test_ctrl(via_upper_bound: i32, via_infos: Vec<ViaMask>) -> AutorouteControl 
         fanout_start_pin_center: None,
         fanout_start_pin_layer: -1,
         remove_unconnected_vias: true,
+        push_shove: false,
         via_rule: None,
         net_number: 1,
         via_clearance_class: 2,

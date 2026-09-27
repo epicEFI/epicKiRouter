@@ -54,7 +54,14 @@
 //! Pure functions of (board state at the pass boundary, the persisted
 //! history): the map build is the M6-T7 pure face; history entries live
 //! in a BTreeMap walked in ascending key order; integer arithmetic with
-//! saturating clamps only; no HashMap, no float, no wall clock. The
+//! saturating clamps only; no HashMap, no wall clock. The ONE f64 face
+//! is the guides-consumption bias ([`apply_preferred_layer_bias`],
+//! [`GUIDE_LAYER_RANK_STEP`]): a per-layer scaling of the ctrl cost
+//! vector in a FIXED layer order (never across a reordered iteration),
+//! documented in place (the T8 quality Q1 contradiction fix — the
+//! blanket "no float" claim was wrong while the bias arithmetic is
+//! f64; the carve-out is named rather than moved because the bias
+//! order-independence is structural, not incidental). The
 //! per-pass [`PathfinderPass`] is immutable for the pass's duration and
 //! shared with the partitioned executor through an `Arc` (the executor
 //! serializes every unit, so the read side never races).

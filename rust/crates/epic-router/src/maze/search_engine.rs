@@ -205,6 +205,18 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// restored on the normal exit (early returns drop it — capacity
     /// loss only, the epic-index scratch precedent).
     pub(crate) section_buf: Vec<FloatLine>,
+    /// M6-T9 (`router.push_shove`, default OFF): the remaining
+    /// per-search shove-waiver budget — how many obstacle rooms may
+    /// still WAIVE their rip-up charge after a successful shove probe
+    /// ([`crate::maze::ripup::PUSH_SHOVE_ROOM_BUDGET`]). One engine =
+    /// one connection search = one insertion, so this is the bounded
+    /// "shove budget per insertion". Integer arithmetic, decremented
+    /// in front-pop (deterministic) order; zero when the flag is off
+    /// (the waiver predicate never fires).
+    pub(crate) push_shove_budget_left: i32,
+    /// M6-T9: the count of waivers actually granted this search (the
+    /// exact-budget pins read it; production never does).
+    pub(crate) push_shove_waivers: i32,
 }
 
 impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngine<'a, E, D, V> {
@@ -221,6 +233,8 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         // Java `this.randomGenerator = new Random(ctrl.ripupCosts)` —
         // read the seed BEFORE the struct literal moves `ctrl`.
         let random_seed = i64::from(ctrl.ripup_costs);
+        // M6-T9: read the flag before the move (same discipline).
+        let push_shove_on = ctrl.push_shove;
         MazeSearchEngine {
             ctx,
             ctrl,
@@ -236,6 +250,12 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             trace_sink: None,
             row_buf: String::new(),
             section_buf: Vec::new(),
+            push_shove_budget_left: if push_shove_on {
+                crate::maze::ripup::PUSH_SHOVE_ROOM_BUDGET
+            } else {
+                0
+            },
+            push_shove_waivers: 0,
         }
     }
 
@@ -801,6 +821,34 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                     }
                     if !shoved {
                         return something_expanded;
+                    }
+                    // M6-T9 (`router.push_shove`, default OFF — RUST-ONLY,
+                    // no Java counterpart): the SHOVE-BEFORE-RIP
+                    // composition. Java charges the rip-up cost even
+                    // when the probe just verified the room shovable,
+                    // so `room_ripped` reaches the locator, the
+                    // pipeline DELETES the neighbor connection, and
+                    // the later insertion never gets to displace it.
+                    // WHEN the flag is on and the per-search budget
+                    // holds, the waiver zeroes the charge: the door
+                    // loop passes add_costs 0, `room_ripped` stays
+                    // false, the locator harvests nothing, and
+                    // `insert_found_connection`'s
+                    // `trace_shover::insert` displaces the neighbor
+                    // within clearance (the M3 face the probe already
+                    // verified). OFF path: the predicate is false at
+                    // its first clause and `ripup_costs` keeps its
+                    // checked value — the decision tree is
+                    // byte-identical to the default face.
+                    if crate::maze::ripup::push_shove_waive_ripup(
+                        self.ctrl.push_shove,
+                        shoved,
+                        ripup_costs,
+                        self.push_shove_budget_left,
+                    ) {
+                        ripup_costs = 0;
+                        self.push_shove_budget_left -= 1;
+                        self.push_shove_waivers += 1;
                     }
                 }
             }

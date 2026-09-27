@@ -133,6 +133,23 @@ fn plane_connected_gate(
     plane_in_connected
 }
 
+/// The negotiated-or-linear rip-up base (the M6-T8 scheduler seam; the
+/// M6-T9 Q5 dedup — this expression was previously duplicated verbatim
+/// at the primary [`route`] seam and the necked-retry seam): the
+/// pass's per-net negotiated base when the PathFinder stage is on and
+/// the net carries a guide entry, else Java's linear
+/// `start_ripup_costs * pass` ladder.
+fn negotiated_or_linear_ripup_costs(
+    pathfinder: Option<&crate::global::history::PathfinderPass>,
+    route_net_no: i32,
+    settings: &BatchSettings,
+    ripup_pass_no: i32,
+) -> i32 {
+    pathfinder
+        .and_then(|pass| pass.bases.get(&route_net_no).copied())
+        .unwrap_or_else(|| settings.start_ripup_costs.wrapping_mul(ripup_pass_no))
+}
+
 #[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
 pub fn route(
     manager: &mut SearchTreeManager,
@@ -171,10 +188,12 @@ pub fn route(
     // pass's per-net negotiated base (present + history mix over the
     // net's guide region, `global/history.rs` docs). Absent nets (no
     // guide) fall back to the linear face.
-    ctrl.ripup_costs = pathfinder
-        .and_then(|pass| pass.bases.get(&route_net_no).copied())
-        .unwrap_or_else(|| settings.start_ripup_costs.wrapping_mul(ripup_pass_no));
+    ctrl.ripup_costs =
+        negotiated_or_linear_ripup_costs(pathfinder, route_net_no, settings, ripup_pass_no);
     ctrl.remove_unconnected_vias = settings.remove_unconnected_vias;
+    // M6-T9: the push-and-shove insertion flag (default OFF) — the
+    // maze's shove-before-rip waiver (`maze/ripup.rs`).
+    ctrl.push_shove = settings.push_shove;
     // The guides consumption (M6-T8, the T7 preferred-layers
     // residual): the net's guide preference order biases the maze's
     // per-layer trace costs (a cost bias, not a geometric clamp — the
@@ -471,11 +490,13 @@ fn retry_connection_necked(
         &settings.trace_costs,
     );
     neck_ctrl.ripup_allowed = true;
-    // The scheduler seam (the primary arm's face, mirrored).
-    neck_ctrl.ripup_costs = pathfinder
-        .and_then(|pass| pass.bases.get(&route_net_no).copied())
-        .unwrap_or_else(|| settings.start_ripup_costs.wrapping_mul(ripup_pass_no));
+    // The scheduler seam (the primary arm's face, mirrored through the
+    // shared helper — the M6-T9 Q5 dedup).
+    neck_ctrl.ripup_costs =
+        negotiated_or_linear_ripup_costs(pathfinder, route_net_no, settings, ripup_pass_no);
     neck_ctrl.remove_unconnected_vias = settings.remove_unconnected_vias;
+    // M6-T9: the primary arm's face, mirrored.
+    neck_ctrl.push_shove = settings.push_shove;
     for i in 0..neck_ctrl.layer_count {
         // Java int arithmetic — `wrapping_*` keeps the overflow face.
         let compensation =

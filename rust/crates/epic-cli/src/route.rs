@@ -752,6 +752,9 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     // M6-T8: the negotiated scheduler sub-flag (default OFF — dead
     // code at defaults; the settings-ON faces are beyond-Java).
     batch.congestion_global_pathfinder = resolved.congestion_global_pathfinder;
+    // M6-T9: the push-and-shove insertion flag (default OFF — dead
+    // code at defaults; the settings-ON faces are beyond-Java).
+    batch.push_shove = resolved.push_shove;
     // The via-cost pair: the merged scoring box (DefaultSettings seeds
     // 50/5; the CLI/DSN layers can override).
     let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();

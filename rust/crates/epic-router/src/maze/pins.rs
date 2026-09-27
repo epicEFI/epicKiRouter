@@ -5864,6 +5864,103 @@ fn t7_shove_seam_force_contract() {
     );
 }
 
+// ---- the M6-T9 push-and-shove waiver pins ----
+
+/// The waiver's engine wiring, both flag faces on the t7 world (the
+/// same harness the shove-seam contract uses). Two harness knobs make
+/// the site REACHABLE — both faces run the IDENTICAL world, the flag
+/// bit is the only difference:
+///
+/// * the compensation force (1250): the harness's default stub
+///   answers 0, which keeps `room_shape_is_thick` false for the
+///   same-width NET_B traces; production answers 1250 on this exact
+///   fixture (it is the compensation folded into
+///   `ctrl.compensated_trace_half_width` 11250 = 10000 + 1250 — the
+///   T7 ctrl rows pin that table), so the forced value mirrors
+///   production, not an invention.
+/// * the ripup seed 2_000_000 (capture phase 1 used 2): `check_ripup`
+///   clamps its result to `.max(1)`, and 1 COLLIDES with
+///   `ALREADY_RIPPED_COSTS` — the t7 NET_B maze traces are
+///   OPEN-ENDED connections, so their detour is
+///   `DETOUR_OPEN_ENDED` (2147483647.0) and every low-seed row
+///   computes exactly 1 (`seed * half_width / i32::MAX` truncates to
+///   0), leaving the shove block (whose first gate is
+///   `ripup_costs != ALREADY_RIPPED_COSTS`) permanently skipped. The
+///   raised seed makes the charge real (~9) without touching the
+///   engine.
+///
+/// With those set, the default `shove_trace_check` seam (0.0 → the
+/// probe answers shoved=true) puts every thick obstacle encounter at
+/// the waiver site. Assertions:
+///
+/// * OFF (the default): the budget arms at 0 and NO waiver ever fires
+///   over the whole drain — the inertness face of the default-off
+///   byte-identity contract.
+/// * ON: the budget arms at [`PUSH_SHOVE_ROOM_BUDGET`], the waiver
+///   fires, and the CONSERVATION face holds exactly:
+///   `waivers + budget_left == PUSH_SHOVE_ROOM_BUDGET` — integer
+///   arithmetic, decremented once per granted waiver, in front-pop
+///   order. The t7 world's opportunities exceed the budget, so the
+///   drain saturates at waivers == BUDGET (the exact-exhaustion face;
+///   the M-BUDGET −1 mutant dies on conservation here).
+#[test]
+fn t9_push_shove_waiver_budget_bounds_and_off_inertness() {
+    let drain = |push_shove_on: bool| -> (i32, i32, i32, usize) {
+        let (mut harness, mut ctrl, mut distance, mut checker, mut pages) =
+            t7_make_run(2_000_000, false);
+        harness.force_clearance_compensation(Some(1250));
+        ctrl.push_shove = push_shove_on;
+        let mut engine = MazeSearchEngine::new(
+            &mut harness,
+            &mut ctrl,
+            &mut distance,
+            &mut checker,
+            &mut pages,
+        );
+        assert!(engine.init(&[T7_PIN], &[T7_PIN]), "init ok");
+        let armed = engine.push_shove_budget_left;
+        let mut steps = 0usize;
+        while !engine.front.is_empty() && steps < 4096 {
+            let _ = engine.occupy_next_element();
+            steps += 1;
+        }
+        (
+            armed,
+            engine.push_shove_waivers,
+            engine.push_shove_budget_left,
+            steps,
+        )
+    };
+    let (off_armed, off_waivers, _off_budget, off_steps) = drain(false);
+    assert_eq!(off_armed, 0, "OFF: the budget arms at zero");
+    assert_eq!(off_waivers, 0, "OFF: no waiver ever fires");
+    assert!(off_steps > 0, "the drain ran");
+    let (on_armed, on_waivers, on_budget, _on_steps) = drain(true);
+    assert_eq!(
+        on_armed,
+        super::ripup::PUSH_SHOVE_ROOM_BUDGET,
+        "ON arms at the per-search const"
+    );
+    assert!(
+        on_waivers > 0,
+        "ON: the waiver fires in the t7 world (else the pin judges nothing)"
+    );
+    assert!(
+        on_waivers <= super::ripup::PUSH_SHOVE_ROOM_BUDGET,
+        "ON: bounded by the per-search budget"
+    );
+    assert_eq!(
+        on_waivers + on_budget,
+        super::ripup::PUSH_SHOVE_ROOM_BUDGET,
+        "conservation: every granted waiver spends exactly one unit"
+    );
+    assert_eq!(
+        on_waivers,
+        super::ripup::PUSH_SHOVE_ROOM_BUDGET,
+        "exact exhaustion: the t7 world's opportunities exceed the budget"
+    );
+}
+
 // ---- the T17a buglog-170 pin ----
 
 /// The via-match craft (PURE_DSN shape): net MINE carries W1

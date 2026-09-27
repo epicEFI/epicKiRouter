@@ -381,6 +381,21 @@ pub struct FanoutState {
     pub(crate) deadline_ms: Option<i64>,
 }
 
+/// M6-T8 ordering face / M6-T9 bank (T8 quality Q6): the
+/// congestion-rank re-sort of a component's pin rows — STABLE BY
+/// CONTRACT: equal ranks (including the `usize::MAX` absent-plan tie)
+/// keep the Java order the rows already carry from the
+/// `sort_by(compare)` pass at the call site; the rank alone reorders.
+/// Pinned by `fanout_congestion_rank_sort_keeps_java_order_on_ties`
+/// (`global/tests.rs`) with a past-the-insertion-sort-floor row count,
+/// where an `sort_unstable_by_key` mutant genuinely reorders ties.
+pub(crate) fn sort_by_congestion_rank<T, F>(rows: &mut [T], rank_of: F)
+where
+    F: Fn(&T) -> usize,
+{
+    rows.sort_by_key(rank_of);
+}
+
 impl FanoutState {
     /// Java `BatchFanout(board, settings, thread)` ctor (`:35-78`):
     /// the sorting order, the netted SMD pin rows, the component
@@ -541,7 +556,9 @@ impl FanoutState {
                 .collect();
             pins.sort_by(|a, b| a.compare(b, sorting_order));
             if let Some(plan) = &congestion_plan {
-                pins.sort_by_key(|row| plan.rank_of(row.net_number).unwrap_or(usize::MAX));
+                sort_by_congestion_rank(&mut pins, |row| {
+                    plan.rank_of(row.net_number).unwrap_or(usize::MAX)
+                });
             }
             components.push(ComponentFanout {
                 component_id,

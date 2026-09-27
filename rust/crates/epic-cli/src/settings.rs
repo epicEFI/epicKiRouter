@@ -114,6 +114,14 @@ pub struct CliLayer {
     /// negotiated bases replace the linear pass ladder WHEN ON
     /// (`global/history.rs` docs).
     pub congestion_global_pathfinder: Option<bool>,
+    /// `router.push_shove` — the M6-T9 push-and-shove insertion
+    /// flag (RUST-ONLY, no Java counterpart; a top-level flag on the
+    /// family pattern — no master). When ON, a maze obstacle room the
+    /// shove probe has verified shovable may WAIVE its rip-up charge
+    /// within a bounded per-search budget, so the insertion displaces
+    /// the neighbor trace (M3 `trace_shover::insert`) instead of
+    /// ripping it. Default OFF; the default path stays byte-identical.
+    pub push_shove: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -542,6 +550,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.congestion_global_pathfinder = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "push_shove" => match parse_on_off(value) {
+            Some(v) => layer.push_shove = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -883,6 +895,9 @@ pub struct MergedSettings {
     /// `router.congestion_global.pathfinder` — the M6-T8 scheduler
     /// sub-flag (absent = OFF; requires the master).
     pub congestion_global_pathfinder: Option<bool>,
+    /// `router.push_shove` — the M6-T9 push-and-shove insertion flag
+    /// (absent = OFF; top-level, no master).
+    pub push_shove: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -986,6 +1001,7 @@ impl Default for MergedSettings {
             congestion_global: None,
             congestion_global_pattern: None,
             congestion_global_pathfinder: None,
+            push_shove: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1125,6 +1141,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.congestion_global_pathfinder {
         merged.congestion_global_pathfinder = Some(v);
+    }
+    if let Some(v) = cli.push_shove {
+        merged.push_shove = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1454,6 +1473,9 @@ pub struct ResolvedRouteSettings {
     /// (`router.congestion_global.pathfinder`, default OFF; requires
     /// the master).
     pub congestion_global_pathfinder: bool,
+    /// The M6-T9 push-and-shove insertion flag
+    /// (`router.push_shove`, default OFF; top-level, no master).
+    pub push_shove: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1563,6 +1585,7 @@ impl ResolvedRouteSettings {
             congestion_global: merged.congestion_global.unwrap_or(false),
             congestion_global_pattern: merged.congestion_global_pattern.unwrap_or(false),
             congestion_global_pathfinder: merged.congestion_global_pathfinder.unwrap_or(false),
+            push_shove: merged.push_shove.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2527,6 +2550,7 @@ mod tests {
             congestion_global: Some(true),
             congestion_global_pattern: Some(true),
             congestion_global_pathfinder: Some(true),
+            push_shove: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),

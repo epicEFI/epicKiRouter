@@ -377,6 +377,16 @@ pub struct BatchSettings {
     /// arm (the history is the convergence memory). Dead code at
     /// defaults.
     pub congestion_global_pathfinder: bool,
+    /// M6-T9 RUST-ONLY: the push-and-shove insertion flag
+    /// (`router.push_shove`, default OFF — no Java counterpart; a
+    /// top-level flag on the family pattern, no master). When ON, a
+    /// maze obstacle room the M3 shove probe has verified shovable may
+    /// WAIVE its rip-up charge within the bounded per-search shove
+    /// budget (`maze/ripup.rs` `PUSH_SHOVE_ROOM_BUDGET`), so the
+    /// detail insertion displaces the neighbor trace
+    /// (`epic_board::trace_shover::insert`) instead of ripping it.
+    /// Dead code at defaults.
+    pub push_shove: bool,
 }
 
 impl BatchSettings {
@@ -415,6 +425,7 @@ impl BatchSettings {
             congestion_global: false,
             congestion_global_pattern: false,
             congestion_global_pathfinder: false,
+            push_shove: false,
         }
     }
 }
@@ -761,7 +772,13 @@ impl<'a> BatchDriver<'a> {
                 // M6-T8: the negotiated stage replaces the
                 // snapshot-restore oscillation dampener with the
                 // persisted history (module docs at `global/history.rs`)
-                // — the restore arm is skipped when it is on.
+                // — the restore arm is skipped when it is on. Every
+                // OTHER stop face in this gate still runs unchanged
+                // (the T8 quality Q4 naming): the stagnation window
+                // (`STOP_AT_PASS_MINIMUM` / `STOP_AT_PASS_MODULO`),
+                // the stop-flag arm, and the restore-exhausted break
+                // below are untouched — only the
+                // `history.restore_board` arm is gated off.
                 && !pathfinder_active
             {
                 // Strict `>` so equally-scored boards do NOT

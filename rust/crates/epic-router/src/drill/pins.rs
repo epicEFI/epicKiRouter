@@ -316,6 +316,17 @@ pub(crate) struct Harness {
     /// the captured values (mutation-verifiable at these fields).
     check_trace_segment_result: Option<f64>,
     shove_trace_check_result: Option<f64>,
+    /// The M6-T9 force point for
+    /// [`DrillEngine::clearance_compensation_value`]: the default stub
+    /// answers 0 ("the fixture routes at the default class, no
+    /// compensation"), which keeps `room_shape_is_thick` FALSE for
+    /// same-width traces in this harness. PRODUCTION answers the
+    /// tree-compensated value (on t7_ripup: class 1 -> 1250, exactly
+    /// the compensation folded into
+    /// `ctrl.compensated_trace_half_width` 11250), and THAT face is
+    /// where the push-and-shove waiver's thick gate opens — the T9
+    /// waiver pin forces the production value so it opens here too.
+    clearance_compensation_result: Option<i32>,
     /// The stale-index override for the T7 shove probes: the RipupSpike
     /// stale rows construct a SYNTHETIC `ObstacleExpansionRoom` carrying
     /// a stale `indexInItem`; the Rust room is a registry key, so the
@@ -406,6 +417,7 @@ impl Harness {
             obstacle_doors_calculated: std::collections::BTreeSet::new(),
             check_trace_segment_result: None,
             shove_trace_check_result: None,
+            clearance_compensation_result: None,
             forced_obstacle_index: None,
             trace_angle_restriction: restriction,
         };
@@ -628,6 +640,12 @@ impl Harness {
     /// `None` restores the default.
     pub(crate) fn force_shove_trace_check(&mut self, value: Option<f64>) {
         self.shove_trace_check_result = value;
+    }
+
+    /// Forces the [`DrillEngine::clearance_compensation_value`] answer
+    /// (M6-T9): `None` restores the 0 default stub.
+    pub(crate) fn force_clearance_compensation(&mut self, value: Option<i32>) {
+        self.clearance_compensation_result = value;
     }
 
     /// Forces the [`NeighbourEngine::room_obstacle_index_in_item`]
@@ -1479,7 +1497,9 @@ impl DrillEngine for Harness {
     }
 
     fn clearance_compensation_value(&self, _clearance_class: i32, _layer: i32) -> i32 {
-        0 // the fixture routes at the default class, no compensation
+        // Forced (M6-T9) or the 0 stub: the fixture routes at the
+        // default class, no compensation.
+        self.clearance_compensation_result.unwrap_or(0)
     }
 
     fn item_shape_layer(&self, item_key: u64, shape_index: u32) -> i32 {

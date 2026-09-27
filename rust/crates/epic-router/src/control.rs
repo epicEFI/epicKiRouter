@@ -283,6 +283,15 @@ pub struct AutorouteControl {
     /// true, if the autorouter contains no fanout pass".
     pub remove_unconnected_vias: bool,
 
+    /// M6-T9 RUST-ONLY (`router.push_shove`, default false — no Java
+    /// field): when true, the maze expansion may WAIVE the rip-up
+    /// charge of an obstacle room the shove probe has verified
+    /// shovable, within the per-search shove budget
+    /// (`maze/ripup.rs::PUSH_SHOVE_ROOM_BUDGET`), so the detail
+    /// insertion displaces the neighbor trace instead of ripping it.
+    /// The OFF path never consults it (byte-identical decisions).
+    pub push_shove: bool,
+
     /// Java `viaRule` — the net class's via rule (or the null-net
     /// first-rule fallback). Java's field is null until `initNet`;
     /// `Option` mirrors that. `None` after construction is impossible
@@ -357,6 +366,7 @@ impl AutorouteControl {
             fanout_start_pin_center: None,
             fanout_start_pin_layer: -1,
             remove_unconnected_vias: true,
+            push_shove: false,
             via_rule: None,
             net_number: 0,
             via_clearance_class: 0,

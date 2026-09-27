@@ -14,7 +14,7 @@ clearance counting), the M4 fanout + batch-optimizer stages with the
 assembled full pipeline (`pipeline/full.rs`, the `RoutingPipeline.run()`
 equivalent), the deterministic per-net partitioned executor with
 `--threads`, and `epic-cli` (headless route: `epicrouter -de
-board.dsn -do out.ses`); **1,489 workspace tests green**. The M6-T3 battery re-faces — the
+board.dsn -do out.ses`); **1,497 workspace tests green**. The M6-T3 battery re-faces — the
 first tier-aware full batteries (full flow, default settings;
 `--tier A|B|C`, default A byte-identical) — read: Tier A
 **10 green / 1 red** (bm01 killed at the 1800.2 s tier on the
@@ -195,7 +195,7 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # CI posture (M4-T13, refreshed at M5-T9, re-refreshed at M6-T4 to the
 # M6-T3 hold): --report-only prints every verdict and exits 0. The
 # battery is now TIER-AWARE (`--tier A|B|C`, default A byte-identical —
-# the T3 chore commit 62c417a38) and the workspace census is 1,489
+# the T3 chore commit 62c417a38) and the workspace census is 1,497
 # passed / 0 failed / 17 ignored. The flip stays HELD after M6-T3 —
 # both preconditions fail: the Tier A battery verdict face is 10 green
 # / 1 red (bm01's 1800.2 s INTEGRITY-gate tier kill — routing complete

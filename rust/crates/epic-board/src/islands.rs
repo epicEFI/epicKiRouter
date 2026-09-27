@@ -1349,14 +1349,31 @@ mod world_tests {
             !pour_fully_floating(&board, pour),
             "difference face: the pour-level verdict says the pour is seeded"
         );
+
+        // M6-T9 bank (T8 quality MINOR-Q2): the COVERED world — the
+        // one face where the pour-level and region-level verdicts
+        // genuinely diverge. The covering pin is OBSTACLE copper: it
+        // carves its region out of the pour metal, so a fully covered
+        // pour carries NO regions at all and the region-level
+        // predicate answers FALSE (the fn doc above, `:823-824`)
+        // even though `pour_fully_floating` calls the pour seeded.
+        // The T8 form of this arm re-selected the gap0 board (a stale
+        // `fixture` binding) and asserted TRUE with an inverted
+        // message — the erratum of record is the T8 report's quality
+        // block.
+        let (board, _face) = fixture("t11_island_covered.dsn");
         let covered_pour = board
             .iter_ascending()
             .find(|entry| matches!(entry.data, ItemData::ConductionArea { .. }))
             .map(|entry| entry.id)
             .expect("covered world has a pour");
         assert!(
-            pour_region_seeded_by(&board, covered_pour, &[pin_covered(&board)]),
-            "the covered pour answers through its covering pin (seed-only regions)"
+            !pour_region_seeded_by(&board, covered_pour, &[pin_covered(&board)]),
+            "the covering pin CARVES its region out of the pour — a covered pour has no seeded region (false)"
+        );
+        assert!(
+            !pour_fully_floating(&board, covered_pour),
+            "divergence face: the pour-level verdict still calls the covered pour seeded"
         );
     }
 
@@ -1374,7 +1391,10 @@ mod world_tests {
         (pour.expect("pour"), pin.expect("pin"))
     }
 
-    /// The covered world's (pour, pin) ids.
+    /// The covered world's COVERING pin — the pin whose metal overlays
+    /// (and carves) the pour. It is OBSTACLE copper for the region
+    /// predicate, not seed copper: `pour_region_seeded_by` answers
+    /// false through it (the covered arm above).
     fn pin_covered(board: &Board) -> ItemId {
         board
             .iter_ascending()
