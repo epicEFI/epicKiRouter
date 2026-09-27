@@ -8,7 +8,7 @@
 //! Eligibility (deterministic, conservative): no plane on the net, the
 //! attempt connects exactly two single-layer pins that share one
 //! signal layer, and that layer is routing-active. Candidates in FIXED
-//! order — L1 `[a, (ax,by), b]`, L2 `[a, (bx,ay), 2b]`, then Z1/Z2 at
+//! order — L1 `[a, (ax,by), b]`, L2 `[a, (bx,ay), b]`, then Z1/Z2 at
 //! the mid-coordinate (mid = (a.y + b.y) / 2, integer division toward
 //! zero; a Z degenerating to a tried L is skipped) — first corridor
 //! clears on the current board's congestion map (the coarse filter)
@@ -99,10 +99,15 @@ pub fn try_pattern_route(
     }
 
     // The congestion-map corridor filter (a fresh map — the current
-    // board state, already-routed occupancy included).
+    // board state, already-routed occupancy included). The map is
+    // signal-ORDINAL-indexed (every map-build site converts via
+    // `signal_ordinal`); the pin layer is a PHYSICAL index and MUST be
+    // converted too — on a board with a non-signal layer below, the raw
+    // index skips the map's ordinal rows entirely (R-M3 bank, fixed at
+    // M6-T8 with its mixed-layer crafted-world pin).
     let map = super::map::CongestionMap::build(board);
-    let layer_usize = start_layer.max(0) as usize;
-    let corners = candidate_corners(&map, layer_usize, ctrl.net_number, a, b)?;
+    let signal_layer = super::map::CongestionMap::signal_ordinal(board, start_layer)?;
+    let corners = candidate_corners(&map, signal_layer, ctrl.net_number, a, b)?;
 
     // The locator (single item, same layer — the inserter's
     // same-layer via no-op covers it, `path/inserter.rs`).

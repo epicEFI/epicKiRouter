@@ -394,6 +394,27 @@ impl FanoutState {
         let fanout = &settings.router_settings.fanout;
         let sorting_order = PinSortingOrder::parse(&fanout.pin_sorting_order);
 
+        // M6-T8 (design :69): the congestion-aware pin order — the map
+        // feeds fanout's pin order when the NEGOTIATED stage is on
+        // (`congestion_global` + `congestion_global_pathfinder`,
+        // default OFF). Gating note: the plan row says the order "rides
+        // this setting"; it rides the negotiated STAGE's flag, not the
+        // master alone — a master-only gate would rotate the committed
+        // T7 master-face golden (`t7_ripup.global-golden.json`,
+        // immutable), which is the binding constraint. A pin's PRIMARY
+        // key is its net's planned rank (most-congested guide first,
+        // the GlobalPlan order); ties keep the Java order below (the
+        // sort is stable over the already-Java-sorted rows). This is
+        // the adjacent-QFP mutual-blocking fix: pins of contested nets
+        // get their escapes BEFORE the easy nets monopolize the
+        // channels.
+        let congestion_plan = if settings.congestion_global && settings.congestion_global_pathfinder
+        {
+            Some(crate::global::plan::GlobalPlan::build(board))
+        } else {
+            None
+        };
+
         // Java getSmdPins() then the netCount() > 0 filter — both in
         // itemList order (= ascending id).
         let netted_pin_ids: Vec<ItemId> = board
@@ -519,6 +540,9 @@ impl FanoutState {
                 })
                 .collect();
             pins.sort_by(|a, b| a.compare(b, sorting_order));
+            if let Some(plan) = &congestion_plan {
+                pins.sort_by_key(|row| plan.rank_of(row.net_number).unwrap_or(usize::MAX));
+            }
             components.push(ComponentFanout {
                 component_id,
                 smd_pin_count: pin_count,

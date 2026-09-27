@@ -368,6 +368,15 @@ pub struct BatchSettings {
     /// (`router.congestion_global.pattern`, default OFF; requires the
     /// master ON). Dead code at defaults.
     pub congestion_global_pattern: bool,
+    /// M6-T8 RUST-ONLY: the PathFinder negotiated-congestion scheduler
+    /// (`router.congestion_global.pathfinder`, default OFF; requires
+    /// the master ON). When ON, the pass loop derives per-net
+    /// negotiated rip-up bases (present + history congestion mix,
+    /// `global/history.rs`) that REPLACE the linear
+    /// `start_ripup_costs * pass` ladder, and skips the snapshot-restore
+    /// arm (the history is the convergence memory). Dead code at
+    /// defaults.
+    pub congestion_global_pathfinder: bool,
 }
 
 impl BatchSettings {
@@ -405,6 +414,7 @@ impl BatchSettings {
             plane_island_clamp: false,
             congestion_global: false,
             congestion_global_pattern: false,
+            congestion_global_pathfinder: false,
         }
     }
 }
@@ -445,6 +455,11 @@ pub struct BatchDriver<'a> {
     /// (default-OFF stage — `Some` only when
     /// `BatchSettings::congestion_global` is ON).
     pub global_plan: Option<crate::global::plan::GlobalPlan>,
+    /// M6-T8: the PathFinder scheduler (default OFF — `Some` only when
+    /// `congestion_global` AND `congestion_global_pathfinder` are ON).
+    /// Carries the per-resource history across passes
+    /// (`global/history.rs` docs).
+    pub pathfinder: Option<crate::global::history::PathFinder>,
 }
 
 /// The stage-boundary statistics Java `AutorouteBatchLoop` captures for
@@ -494,6 +509,7 @@ impl<'a> BatchDriver<'a> {
             fanout_timed_out: false,
             phase_boundaries: StageBoundaries::default(),
             global_plan: None,
+            pathfinder: None,
         }
     }
 
@@ -643,6 +659,15 @@ impl<'a> BatchDriver<'a> {
             self.global_plan = Some(crate::global::plan::GlobalPlan::build(self.board));
         }
 
+        // M6-T8: the PathFinder scheduler (default OFF; requires the
+        // master + the `.pathfinder` sub-flag — the `.pattern`
+        // precedent for sub-flag gating).
+        let pathfinder_active =
+            self.settings.congestion_global && self.settings.congestion_global_pathfinder;
+        if pathfinder_active {
+            self.pathfinder = Some(crate::global::history::PathFinder::new());
+        }
+
         let mut current_pass: i32 = 1;
         let mut consecutive_no_improvement_passes: i32 = 0;
         let mut last_best_score = f32::NEG_INFINITY;
@@ -685,6 +710,16 @@ impl<'a> BatchDriver<'a> {
                     "BatchAutorouter.autoroute_pass #{current_pass} on board '{current_board_hash}'"
                 ));
             }
+            // The scheduler seam: the pass's negotiated bases derive
+            // from the pass-START board + the persisted history
+            // (`global/history.rs` docs); `None` = the linear ladder.
+            let pathfinder_pass = match self.pathfinder.as_mut() {
+                Some(scheduler) => {
+                    let start_costs = self.settings.start_ripup_costs;
+                    Some(scheduler.begin_pass(self.board, start_costs))
+                }
+                None => None,
+            };
             continue_autorouting = run_pass(
                 self.manager,
                 self.board,
@@ -694,7 +729,11 @@ impl<'a> BatchDriver<'a> {
                 &mut self.progress_items_since_statistics,
                 &mut self.stop,
                 sink,
+                pathfinder_pass.as_ref(),
             );
+            if let Some(scheduler) = self.pathfinder.as_mut() {
+                scheduler.end_pass(self.board);
+            }
             if sink.is_trace_enabled() {
                 sink.trace(&format!(
                     "BatchAutorouter.autoroute_pass #{current_pass} on board '{current_board_hash}'"
@@ -719,6 +758,11 @@ impl<'a> BatchDriver<'a> {
                 && ((current_pass % STOP_AT_PASS_MODULO == 0
                     && current_pass >= STOP_AT_PASS_MINIMUM)
                     || self.stop.is_requested())
+                // M6-T8: the negotiated stage replaces the
+                // snapshot-restore oscillation dampener with the
+                // persisted history (module docs at `global/history.rs`)
+                // — the restore arm is skipped when it is on.
+                && !pathfinder_active
             {
                 // Strict `>` so equally-scored boards do NOT
                 // trigger a restore (Java `:338-343` comment).

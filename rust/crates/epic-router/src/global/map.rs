@@ -422,7 +422,7 @@ impl CongestionMap {
 
     /// The signal-layer ordinal of a physical layer index (None when
     /// the layer is not a signal layer).
-    fn signal_ordinal(board: &Board, layer_index: i32) -> Option<usize> {
+    pub(crate) fn signal_ordinal(board: &Board, layer_index: i32) -> Option<usize> {
         if layer_index < 0 {
             return None;
         }

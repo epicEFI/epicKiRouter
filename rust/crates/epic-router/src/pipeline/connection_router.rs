@@ -96,11 +96,11 @@ impl InserterEventSink for SinkBridge<'_> {
 /// Java `:57-63` — the CONNECTED_TO_PLANE gate: any ConductionArea in
 /// the connected set answers CONNECTED_TO_PLANE before any engine
 /// work. The M6-T6 clamp (`router.plane_island_clamp`, default OFF —
-/// dead code at defaults) excludes FULLY-FLOATING pours: a pour whose
-/// every metal region is unreachable from the net's pins/vias
-/// (`epic_board::islands::pour_fully_floating`) does not answer the
-/// gate when the flag is on. With the flag OFF this is the Java face
-/// verbatim (the detector never runs).
+/// dead code at defaults), REGION-LEVEL as of M6-T8: a pour answers the
+/// gate only through a REGION carrying the net's seed copper — the
+/// connected set's own pins/vias/traces overlapping uncarved pour metal
+/// (`epic_board::islands::pour_region_seeded_by`). With the flag OFF
+/// this is the Java face verbatim (the detector never runs).
 fn plane_connected_gate(
     board: &Board,
     connected_set: &BTreeSet<Reverse<ItemId>>,
@@ -112,10 +112,21 @@ fn plane_connected_gate(
             .is_some_and(|entry| matches!(entry.data, ItemData::ConductionArea { .. }))
     });
     if plane_in_connected && island_clamp {
+        // The connected set's own seed copper (every non-pour member:
+        // pins/vias/traces of the net).
+        let seed_items: Vec<ItemId> = connected_set
+            .iter()
+            .map(|id| id.0)
+            .filter(|id| {
+                board
+                    .get(*id)
+                    .is_some_and(|entry| !matches!(entry.data, ItemData::ConductionArea { .. }))
+            })
+            .collect();
         plane_in_connected = connected_set.iter().any(|id| {
             board.get(id.0).is_some_and(|entry| {
                 matches!(entry.data, ItemData::ConductionArea { .. })
-                    && !epic_board::islands::pour_fully_floating(board, id.0)
+                    && epic_board::islands::pour_region_seeded_by(board, id.0, &seed_items)
             })
         });
     }
@@ -134,6 +145,7 @@ pub fn route(
     ripup_pass_no: i32,
     stoppable_flag: Option<&Arc<AtomicBool>>,
     sink: &mut dyn DriverSink,
+    pathfinder: Option<&crate::global::history::PathfinderPass>,
 ) -> AutorouteAttemptResult {
     let contains_plane = board
         .rules()
@@ -154,10 +166,23 @@ pub fn route(
         &settings.trace_costs,
     );
     ctrl.ripup_allowed = true;
-    // Java `router.getStartRipupCosts() * ripupPassNo` — int
-    // arithmetic; `wrapping_mul` keeps the overflow face exact.
-    ctrl.ripup_costs = settings.start_ripup_costs.wrapping_mul(ripup_pass_no);
+    // The scheduler seam (design :70): Java's linear ladder
+    // `start * pass` is replaced WHEN the negotiated stage is on — the
+    // pass's per-net negotiated base (present + history mix over the
+    // net's guide region, `global/history.rs` docs). Absent nets (no
+    // guide) fall back to the linear face.
+    ctrl.ripup_costs = pathfinder
+        .and_then(|pass| pass.bases.get(&route_net_no).copied())
+        .unwrap_or_else(|| settings.start_ripup_costs.wrapping_mul(ripup_pass_no));
     ctrl.remove_unconnected_vias = settings.remove_unconnected_vias;
+    // The guides consumption (M6-T8, the T7 preferred-layers
+    // residual): the net's guide preference order biases the maze's
+    // per-layer trace costs (a cost bias, not a geometric clamp — the
+    // containment relaxation documented in the module docs and the
+    // task report). `None` pathfinder = the Java cost face verbatim.
+    if let Some(layers) = pathfinder.and_then(|pass| pass.preferred_layers.get(&route_net_no)) {
+        crate::global::history::apply_preferred_layer_bias(&mut ctrl.trace_costs, layers);
+    }
 
     let unconnected_set = item_unconnected_set(manager, board, item_id, route_net_no);
     if unconnected_set.is_empty() {
@@ -220,31 +245,15 @@ pub fn route(
         &dest_items,
         sink,
     ) {
-        let max_item_id_before_opt = board.max_generated_id();
-        sink.trace(&format!(
-            "compare_trace_opt_changed_area_before net={route_net_no}, maxItemId={max_item_id_before_opt}"
-        ));
-        let tightener_trace_costs: Vec<TraceCostFactor> =
-            ctrl.trace_costs.iter().map(Into::into).collect();
-        opt_changed_area(
+        routed_postlude(
             manager,
             board,
-            &mut TraceTightenerSeam,
-            &[],
-            None,
-            settings.pull_tight_accuracy,
-            None,
-            0,
-            Some(&tightener_trace_costs),
+            settings,
+            route_net_no,
+            &ctrl,
             stoppable_flag,
-            TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
-            settings.deterministic_budgets,
+            sink,
         );
-        let max_item_id_after_opt = board.max_generated_id();
-        sink.trace(&format!(
-            "compare_trace_opt_changed_area_after net={route_net_no}, maxItemId={max_item_id_after_opt}, delta={}",
-            max_item_id_after_opt.wrapping_sub(max_item_id_before_opt)
-        ));
         if let Some(strict_result) = apply_strict_drc_after_route(
             manager,
             board,
@@ -285,39 +294,18 @@ pub fn route(
     drop(engine);
 
     if autoroute_result.state == AutorouteAttemptState::Routed {
-        // Java `:99-125` — the id-watermark rows around the
-        // pull-tight consumption (live since M4-T3: the tightener may
-        // move corners, split traces and — T5 — relocate vias, so the
-        // id delta is no longer structurally 0).
-        let max_item_id_before_opt = board.max_generated_id();
-        sink.trace(&format!(
-            "compare_trace_opt_changed_area_before net={route_net_no}, maxItemId={max_item_id_before_opt}"
-        ));
-        // Java `:107-113`: `optChangedArea(new int[0], null,
-        // tracePullTightAccuracy, autorouteControl.traceCosts,
-        // router.thread, TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP)` — the
-        // clip is null (unbounded), the nets empty (all).
-        let tightener_trace_costs: Vec<TraceCostFactor> =
-            ctrl.trace_costs.iter().map(Into::into).collect();
-        opt_changed_area(
+        // Java `:99-125` — the id-watermark rows + the pull-tight
+        // consumption (the shared postlude; the pattern arm returns
+        // through the same helper — C1-1).
+        routed_postlude(
             manager,
             board,
-            &mut TraceTightenerSeam,
-            &[],
-            None,
-            settings.pull_tight_accuracy,
-            None,
-            0,
-            Some(&tightener_trace_costs),
+            settings,
+            route_net_no,
+            &ctrl,
             stoppable_flag,
-            TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
-            settings.deterministic_budgets,
+            sink,
         );
-        let max_item_id_after_opt = board.max_generated_id();
-        sink.trace(&format!(
-            "compare_trace_opt_changed_area_after net={route_net_no}, maxItemId={max_item_id_after_opt}, delta={}",
-            max_item_id_after_opt.wrapping_sub(max_item_id_before_opt)
-        ));
     }
 
     if (autoroute_result.state == AutorouteAttemptState::Failed
@@ -339,6 +327,7 @@ pub fn route(
             retry_budget,
             stoppable_flag.cloned(),
             sink,
+            pathfinder,
         );
         if let Some(necked_result) = necked_result {
             if let Some(strict_result) = apply_strict_drc_after_route(
@@ -375,6 +364,56 @@ pub fn route(
     autoroute_result
 }
 
+/// The Routed postlude (C1-1): the id-watermark rows + the pull-tight
+/// consumption the PATTERN arm and the MAZE arm both run after a
+/// successful route. Extracted verbatim from the maze arm's inline
+/// block (Java `:99-125` — the cite the maze arm carried): the tightener
+/// may move corners, split traces and relocate vias, so the id delta is
+/// no longer structurally 0. The pattern arm previously carried a
+/// verbatim hand-copy of this block minus the provenance (the C1-1
+/// bank) — one helper now serves both arms; the default-settings gates
+/// are the byte-identity proof.
+#[allow(clippy::too_many_arguments)] // the extracted block's face
+fn routed_postlude(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    settings: &BatchSettings,
+    route_net_no: i32,
+    ctrl: &AutorouteControl,
+    stoppable_flag: Option<&Arc<AtomicBool>>,
+    sink: &mut dyn DriverSink,
+) {
+    let max_item_id_before_opt = board.max_generated_id();
+    sink.trace(&format!(
+        "compare_trace_opt_changed_area_before net={route_net_no}, maxItemId={max_item_id_before_opt}"
+    ));
+    // Java `:107-113`: `optChangedArea(new int[0], null,
+    // tracePullTightAccuracy, autorouteControl.traceCosts,
+    // router.thread, TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP)` — the
+    // clip is null (unbounded), the nets empty (all).
+    let tightener_trace_costs: Vec<TraceCostFactor> =
+        ctrl.trace_costs.iter().map(Into::into).collect();
+    opt_changed_area(
+        manager,
+        board,
+        &mut TraceTightenerSeam,
+        &[],
+        None,
+        settings.pull_tight_accuracy,
+        None,
+        0,
+        Some(&tightener_trace_costs),
+        stoppable_flag,
+        TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+        settings.deterministic_budgets,
+    );
+    let max_item_id_after_opt = board.max_generated_id();
+    sink.trace(&format!(
+        "compare_trace_opt_changed_area_after net={route_net_no}, maxItemId={max_item_id_after_opt}, delta={}",
+        max_item_id_after_opt.wrapping_sub(max_item_id_before_opt)
+    ));
+}
+
 /// The Java `:72-74` ladder value in isolation:
 /// `(long) min(100000 * 2^(ripupPassNo - 1), Integer.MAX_VALUE)`.
 #[must_use]
@@ -402,6 +441,7 @@ fn retry_connection_necked(
     budget: Option<RouteBudget>,
     stoppable_flag: Option<Arc<AtomicBool>>,
     sink: &mut dyn DriverSink,
+    pathfinder: Option<&crate::global::history::PathfinderPass>,
 ) -> Option<AutorouteAttemptResult> {
     let communication = board.communication();
     let board_resolution = communication.resolution.max(1);
@@ -431,7 +471,10 @@ fn retry_connection_necked(
         &settings.trace_costs,
     );
     neck_ctrl.ripup_allowed = true;
-    neck_ctrl.ripup_costs = settings.start_ripup_costs.wrapping_mul(ripup_pass_no);
+    // The scheduler seam (the primary arm's face, mirrored).
+    neck_ctrl.ripup_costs = pathfinder
+        .and_then(|pass| pass.bases.get(&route_net_no).copied())
+        .unwrap_or_else(|| settings.start_ripup_costs.wrapping_mul(ripup_pass_no));
     neck_ctrl.remove_unconnected_vias = settings.remove_unconnected_vias;
     for i in 0..neck_ctrl.layer_count {
         // Java int arithmetic — `wrapping_*` keeps the overflow face.
@@ -943,6 +986,7 @@ mod tests {
             1,
             None,
             &mut sink,
+            None,
         );
         assert_eq!(
             result.state,

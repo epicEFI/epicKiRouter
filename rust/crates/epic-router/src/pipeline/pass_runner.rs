@@ -337,6 +337,7 @@ fn run_attempt(
     stop_flag: Option<&std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pass_no: i32,
     unit: &PassUnit,
+    pathfinder: Option<&crate::global::history::PathfinderPass>,
 ) -> AttemptTally {
     #[cfg(test)]
     if FORCE_ATTEMPT_PANIC.load(std::sync::atomic::Ordering::SeqCst) && pass_no == 777 {
@@ -360,6 +361,7 @@ fn run_attempt(
         pass_no,
         stop_flag,
         sink,
+        pathfinder,
     );
 
     log_ripped_items(
@@ -617,6 +619,7 @@ pub fn run_single_thread(
     progress_items_since_statistics: &mut i32,
     stop: &mut StopFace,
     sink: &mut dyn DriverSink,
+    pathfinder: Option<&crate::global::history::PathfinderPass>,
 ) -> bool {
     let autoroute_item_list = begin_pass(manager, board, settings, sink, pass_no);
     if autoroute_item_list.is_empty() {
@@ -659,7 +662,16 @@ pub fn run_single_thread(
                 simple_name,
                 items_remaining: items_to_go_count,
             };
-            let tally = run_attempt(manager, board, settings, sink, stop.flag(), pass_no, &unit);
+            let tally = run_attempt(
+                manager,
+                board,
+                settings,
+                sink,
+                stop.flag(),
+                pass_no,
+                &unit,
+                pathfinder,
+            );
             match tally {
                 AttemptTally { routed: true, .. } => routed += 1,
                 AttemptTally { skipped: true, .. } => skipped += 1,
@@ -721,6 +733,10 @@ struct UnitEnv<'a> {
     manager: &'a mut SearchTreeManager,
     board: &'a mut Board,
     sink: &'a mut dyn DriverSink,
+    /// The M6-T8 negotiated pass state (immutable during the pass; a
+    /// shared read, never mutated by any worker — the scheduler reads
+    /// are pure).
+    pathfinder: Option<&'a crate::global::history::PathfinderPass>,
 }
 
 /// The [`Send`] wrapper for the hand-off.
@@ -788,6 +804,7 @@ pub fn run_partitioned<'a>(
     stop: &mut StopFace,
     sink: &'a mut (dyn DriverSink + 'a),
     threads: usize,
+    pathfinder: Option<&'a crate::global::history::PathfinderPass>,
 ) -> bool {
     let autoroute_item_list = begin_pass(manager, board, settings, sink, pass_no);
     if autoroute_item_list.is_empty() {
@@ -811,6 +828,7 @@ pub fn run_partitioned<'a>(
         manager,
         board,
         sink,
+        pathfinder,
     });
     let stop_flag = stop.flag().cloned();
     std::thread::scope(|scope| {
@@ -845,15 +863,18 @@ pub fn run_partitioned<'a>(
                                 manager,
                                 board,
                                 sink,
+                                pathfinder,
                             }) = env;
                             let tally = run_attempt(
                                 manager, board, settings, sink, stop_flag, pass_no, &unit,
+                                pathfinder,
                             );
                             let reply = (
                                 SendUnitEnv(UnitEnv {
                                     manager,
                                     board,
                                     sink,
+                                    pathfinder,
                                 }),
                                 tally,
                             );
@@ -953,6 +974,7 @@ pub fn run_partitioned<'a>(
         manager,
         board,
         sink,
+        ..
     } = env
         .take()
         .expect("env returned after the worker fleet drains");
@@ -988,6 +1010,7 @@ pub fn run_pass(
     progress_items_since_statistics: &mut i32,
     stop: &mut StopFace,
     sink: &mut dyn DriverSink,
+    pathfinder: Option<&crate::global::history::PathfinderPass>,
 ) -> bool {
     let threads = usize::try_from(settings.max_threads.max(0)).unwrap_or(0);
     if threads <= 1 {
@@ -1000,6 +1023,7 @@ pub fn run_pass(
             progress_items_since_statistics,
             stop,
             sink,
+            pathfinder,
         )
     } else {
         run_partitioned(
@@ -1012,6 +1036,7 @@ pub fn run_pass(
             stop,
             sink,
             threads,
+            pathfinder,
         )
     }
 }
@@ -1225,6 +1250,7 @@ mod tests {
             &mut progress,
             &mut stop,
             &mut sink,
+            None,
         );
         assert!(!any_progress, "an empty queue is no progress");
         assert_eq!(total, 0, "no attempts");
@@ -1466,6 +1492,7 @@ mod tests {
             &mut progress,
             &mut stop,
             &mut sink,
+            None,
         );
         assert!(any_progress, "failures ARE progress (Java :329)");
         assert_eq!(total, 7, "one attempt per queued (item, net) pair");
@@ -1717,6 +1744,7 @@ mod tests {
                 &mut progress,
                 &mut stop,
                 &mut sink,
+                None,
             );
             let hash = crate::pipeline::board_hash::board_hash(&board);
             let rows = sink.inner.rows.clone();
@@ -1772,6 +1800,7 @@ mod tests {
             &mut progress,
             &mut stop,
             &mut sink,
+            None,
         );
         assert!(any_progress);
         // The world's attempt nets under threads=3, max_net=98 span
@@ -1806,6 +1835,7 @@ mod tests {
             &mut progress,
             &mut stop,
             &mut sink,
+            None,
         );
         let distinct_1: std::collections::HashSet<std::thread::ThreadId> =
             sink.thread_ids.iter().copied().collect();
@@ -1897,6 +1927,7 @@ mod tests {
             &mut progress,
             &mut stop,
             &mut sink,
+            None,
         );
         panic!("the forced-panic attempt did not propagate");
     }

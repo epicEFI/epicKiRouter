@@ -1404,6 +1404,10 @@ impl<'a> BatchOptimizerStage<'a> {
                 &mut 0, // its progress counter
                 self.stop,
                 sink,
+                // The optimizer's inline reroute passes stay on the
+                // linear ladder (the negotiated scheduler is the batch
+                // pass loop's seam).
+                None,
             );
             reroute_pass_no += 1;
         }

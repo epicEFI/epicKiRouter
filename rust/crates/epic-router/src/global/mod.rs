@@ -9,6 +9,7 @@
 //! byte-identity of the recurring gates alone; every settings-ON face
 //! is beyond-Java.
 
+pub mod history;
 pub mod map;
 pub mod pattern;
 pub mod plan;

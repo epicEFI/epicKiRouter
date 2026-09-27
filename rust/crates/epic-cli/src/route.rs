@@ -749,6 +749,9 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     // defaults; the settings-ON faces are beyond-Java).
     batch.congestion_global = resolved.congestion_global;
     batch.congestion_global_pattern = resolved.congestion_global_pattern;
+    // M6-T8: the negotiated scheduler sub-flag (default OFF — dead
+    // code at defaults; the settings-ON faces are beyond-Java).
+    batch.congestion_global_pathfinder = resolved.congestion_global_pathfinder;
     // The via-cost pair: the merged scoring box (DefaultSettings seeds
     // 50/5; the CLI/DSN layers can override).
     let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();

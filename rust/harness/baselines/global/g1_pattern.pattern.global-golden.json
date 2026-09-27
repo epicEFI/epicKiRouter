@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "dsn": "g1_pattern.dsn",
+  "dsn_sha256": "650af341dcaf39997ace4ad50853680c11a557dc3ad7b277a7431d3f000d67c9",
+  "flags": [
+    "--router.congestion_global=on",
+    "--router.congestion_global.pattern=on",
+    "--router.fanout.enabled=false"
+  ],
+  "ses_sha256": "dad0135c0288d022b50b9ffca57e368e089fbc40e802896cd311e43bd99d3568",
+  "manifest_sha256": "83554e593bfdc7d381dfba3e20eac40ac82e78065801825f28ba94c72dbd08d3"
+}

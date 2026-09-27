@@ -1,9 +1,12 @@
-//! The M6-T7 golden pin: the committed settings-ON golden
+//! The M6-T7 golden pin: the committed MASTER-face settings-ON golden
 //! (`rust/harness/baselines/global/t7_ripup.global-golden.json`) must
-//! VERIFY against a fresh settings-ON run. Drift in the congestion
-//! map, the guides, the planned order, the pattern fast path, or the
-//! engine's settings-ON route rotates the SES/manifest digests and
-//! this pin dies.
+//! VERIFY against a fresh MASTER-face settings-ON run. Drift in the
+//! congestion map, the guides, the planned order, or the engine's
+//! settings-ON route rotates the SES/manifest digests and this pin
+//! dies. This pin never executes pattern.rs or the pathfinder
+//! scheduler (the master face does not enable their flags — the C5-1
+//! overclaim correction, M6-T8; the pattern/pathfinder faces carry
+//! their own goldens and pins).
 //!
 //! Bin freshness by construction: `CARGO_BIN_EXE_epic-harness` makes
 //! cargo build the exact bin the test runs (the DNR-17 stale-bin

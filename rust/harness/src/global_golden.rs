@@ -9,9 +9,16 @@
 //! `global_plan` face — map digest, guides, planned order). Two runs
 //! must agree byte-for-byte at capture time (the determinism
 //! self-gate), and `verify` re-runs and compares against the committed
-//! golden — a drift in the map, the guides, the ordering, the pattern
-//! fast path, or the engine's settings-ON route rotates the digest and
-//! fails loudly.
+//! golden — a drift in the map, the guides, the ordering, or the
+//! engine's settings-ON route rotates the digest and fails loudly.
+//! FACE COVERAGE (C5-1, corrected at M6-T8): a face only exercises the
+//! code its FLAGS gate — the master-only face never executes
+//! pattern.rs or the pathfinder scheduler; drift in THOSE does not
+//! rotate a master-face golden. The `--face` selector (M6-T8) grows the
+//! population: `pattern` and `pathfinder` faces run their sub-flags,
+//! and `verify` asserts the golden's `flags` against the flags the face
+//! actually runs BEFORE comparing digests (a golden captured under one
+//! face can never silently verify under another).
 //!
 //! Exit-printing by construction (the T6-close rider): the command
 //! prints its own invocation echo and ends with an `exit=N` line.
@@ -27,9 +34,49 @@ use crate::baseline::sha256_file;
 use crate::oracle::{find_repo_root, wait_with_timeout};
 use crate::router_compare::resolve_fresh_epic_cli;
 
-/// The extra argv the settings-ON face runs under (the harness never
-/// passes Java-parity flags; these are Rust-only).
-pub const CONGESTION_GLOBAL_FLAGS: [&str; 1] = ["--router.congestion_global=on"];
+/// The named settings-ON faces (M6-T8): the flag vector each golden
+/// face runs. `master` keeps the T7 vector byte-for-byte (the
+/// committed `t7_ripup.global-golden.json` verifies unchanged). The
+/// empty string in the master row is dropped by [`face_flags`].
+pub const GOLDEN_FACES: [(&str, [&str; 3]); 3] = [
+    ("master", ["--router.congestion_global=on", "", ""]),
+    (
+        "pattern",
+        [
+            "--router.congestion_global=on",
+            "--router.congestion_global.pattern=on",
+            // The fanout stage escapes every SMD pin with a via, so the
+            // two-pin pattern eligibility can never fire in the full-flow
+            // face (the M-PAT mutant round proved byte-identity there).
+            // The face disables fanout — the fast path's reachable regime,
+            // and the deviation is named in the task report.
+            "--router.fanout.enabled=false",
+        ],
+    ),
+    (
+        "pathfinder",
+        [
+            "--router.congestion_global=on",
+            "--router.congestion_global.pathfinder=on",
+            "",
+        ],
+    ),
+];
+
+/// The flag vector of a named face (None = unknown face name).
+#[must_use]
+pub fn face_flags(face: &str) -> Option<Vec<String>> {
+    GOLDEN_FACES
+        .iter()
+        .find(|(name, _)| *name == face)
+        .map(|(_, flags)| {
+            flags
+                .iter()
+                .filter(|f| !f.is_empty())
+                .map(|f| (*f).to_string())
+                .collect()
+        })
+}
 
 /// The golden schema (v1): digest face only — no wall clocks.
 const GOLDEN_SCHEMA_VERSION: u32 = 1;
@@ -46,9 +93,17 @@ pub enum GlobalGoldenCommand {
         /// Where the golden JSON is written.
         #[arg(long)]
         out: PathBuf,
+        /// The named settings-ON face (`master` | `pattern` |
+        /// `pathfinder`; default `master` — the T7 capture face).
+        #[arg(long, default_value = "master")]
+        face: String,
         /// Work-root override (default `rust/harness/runs/global-golden`).
         #[arg(long)]
         work_root: Option<PathBuf>,
+        /// Per-run timeout in seconds (default 120; raise for fixtures
+        /// whose settings-ON face routes longer).
+        #[arg(long, default_value_t = 120)]
+        timeout_secs: u64,
     },
     /// Run the settings-ON face once and compare against the committed
     /// golden (exit nonzero on any drift).
@@ -59,9 +114,17 @@ pub enum GlobalGoldenCommand {
         /// The committed golden JSON.
         #[arg(long)]
         golden: PathBuf,
+        /// The named settings-ON face the golden was captured under
+        /// (default `master`); asserted against the golden's `flags`
+        /// BEFORE the digest compare (C5-1).
+        #[arg(long, default_value = "master")]
+        face: String,
         /// Work-root override.
         #[arg(long)]
         work_root: Option<PathBuf>,
+        /// Per-run timeout in seconds (default 120).
+        #[arg(long, default_value_t = 120)]
+        timeout_secs: u64,
     },
 }
 
@@ -100,7 +163,13 @@ fn echo_invocation(argv: &[String]) {
 }
 
 /// Runs the settings-ON face once into `work_dir`.
-fn run_face(cli_bin: &Path, dsn: &Path, work_dir: &Path, timeout: Duration) -> Result<RunDigests> {
+fn run_face(
+    cli_bin: &Path,
+    dsn: &Path,
+    work_dir: &Path,
+    timeout: Duration,
+    flags: &[String],
+) -> Result<RunDigests> {
     let ses_path = work_dir.join("out.ses");
     let manifest_path = work_dir.join("manifest.json");
     std::fs::create_dir_all(work_dir)
@@ -119,8 +188,8 @@ fn run_face(cli_bin: &Path, dsn: &Path, work_dir: &Path, timeout: Duration) -> R
         manifest_path.to_string_lossy().into_owned(),
     ]
     .to_vec();
-    for flag in CONGESTION_GLOBAL_FLAGS {
-        argv.push((*flag).to_string());
+    for flag in flags {
+        argv.push(flag.clone());
     }
     echo_invocation(&argv);
 
@@ -161,18 +230,32 @@ pub fn run(cmd: GlobalGoldenCommand) -> Result<()> {
 /// Runs the command.
 fn run_inner(cmd: GlobalGoldenCommand) -> Result<()> {
     let repo_root = find_repo_root()?;
-    let (dsn_rel, out_path, golden_flag, work_root, capture) = match cmd {
+    let (dsn_rel, out_path, golden_flag, face, work_root, timeout_secs, capture) = match cmd {
         GlobalGoldenCommand::Capture {
             dsn,
             out,
+            face,
             work_root,
-        } => (dsn, Some(out), None, work_root, true),
+            timeout_secs,
+        } => (dsn, Some(out), None, face, work_root, timeout_secs, true),
         GlobalGoldenCommand::Verify {
             dsn,
             golden,
+            face,
             work_root,
-        } => (dsn, None, Some(golden), work_root, false),
+            timeout_secs,
+        } => (
+            dsn,
+            None,
+            Some(golden),
+            face,
+            work_root,
+            timeout_secs,
+            false,
+        ),
     };
+    let flags = face_flags(&face)
+        .ok_or_else(|| anyhow::anyhow!("unknown face '{face}' (master | pattern | pathfinder)"))?;
     let dsn = if dsn_rel.is_absolute() {
         dsn_rel
     } else {
@@ -191,8 +274,20 @@ fn run_inner(cmd: GlobalGoldenCommand) -> Result<()> {
     let dsn_sha = sha256_file(&dsn).with_context(|| format!("hashing {}", dsn.display()))?;
 
     let exit_code = if capture {
-        let run1 = run_face(&cli_bin, &dsn, &work.join("run1"), Duration::from_secs(120))?;
-        let run2 = run_face(&cli_bin, &dsn, &work.join("run2"), Duration::from_secs(120))?;
+        let run1 = run_face(
+            &cli_bin,
+            &dsn,
+            &work.join("run1"),
+            Duration::from_secs(timeout_secs),
+            &flags,
+        )?;
+        let run2 = run_face(
+            &cli_bin,
+            &dsn,
+            &work.join("run2"),
+            Duration::from_secs(timeout_secs),
+            &flags,
+        )?;
         if !run1.both_present() || !run2.both_present() {
             bail!("a run produced no SES/manifest (run1={run1:?} run2={run2:?})");
         }
@@ -213,10 +308,7 @@ fn run_inner(cmd: GlobalGoldenCommand) -> Result<()> {
                 .unwrap_or("fixture.dsn")
                 .to_string(),
             dsn_sha256: dsn_sha,
-            flags: CONGESTION_GLOBAL_FLAGS
-                .iter()
-                .map(|f| (*f).to_string())
-                .collect(),
+            flags: flags.clone(),
             ses_sha256: run1.ses_sha.expect("checked above"),
             manifest_sha256: run1.manifest_sha.expect("checked above"),
         };
@@ -250,11 +342,22 @@ fn run_inner(cmd: GlobalGoldenCommand) -> Result<()> {
                 sha256_file(&dsn).ok()
             );
         }
+        // C5-1: the golden's recorded flags must equal the flags the
+        // face actually runs — a golden captured under one face can
+        // never silently verify under another.
+        if golden.flags != flags {
+            bail!(
+                "the golden's flags {:?} do not match the '{face}' face's flags {:?}",
+                golden.flags,
+                flags
+            );
+        }
         let run1 = run_face(
             &cli_bin,
             &dsn,
             &work.join("verify"),
-            Duration::from_secs(120),
+            Duration::from_secs(timeout_secs),
+            &flags,
         )?;
         if !run1.both_present() {
             bail!("the run produced no SES/manifest (run1={run1:?})");

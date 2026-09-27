@@ -19,13 +19,22 @@
 //!   — the `Area::contains_point` face) and no foreign copper carve
 //!   covers it. Foreign = an on-board item on the SAME LAYER with nets
 //!   disjoint from the pour's: traces, pins, vias, obstacle areas
-//!   (keepouts carve regardless of net), and other pours. The carve is
+//!   (keepouts), and other pours — every FOREIGN area carves; a
+//!   same-net area never carves (the `copper_sources` net filter —
+//!   reconciled with the code at M6-T8, E-10). The carve is
 //!   RAW COPPER — no clearance halo (documented v1 face).
 //! * stroke model: an axis-aligned trace segment carves its EXACT
 //!   rectangle face (half-width h: rows [y1-h, y2+h], columns
 //!   [x1-h, x2+h] per orientation); a diagonal segment carves the
 //!   per-row band [x(y)-h, x(y)+h] over the segment's own rows,
 //!   WITHOUT cap extensions beyond them.
+//! * CORNER ASYMMETRY (documented, E-12): the polygon scanline
+//!   carries rational corners through an exact-rational (or, mixed,
+//!   f64) crossing arithmetic, while the stroke model truncates a
+//!   rational trace corner to i64 BEFORE the sweep (`trace_source`)
+//!   — a rational corner is thus exact in the area face and
+//!   truncating in the stroke face. Parsed boards carry `Int`
+//!   corners end to end, so both faces agree there.
 //! * regions = 4-CONNECTED components of the metal lattice, built as
 //!   an interval union-find over rows. Two consecutive rows bridge
 //!   where their metal intervals overlap by at least MIN_BRIDGE_WIDTH
@@ -37,7 +46,10 @@
 //! * seeds = same-net pin/via/trace copper overlapping a region; a
 //!   metal region without any seed is a FLOATING ISLAND (unreachable
 //!   from the net's pins/vias and same-net routing). A component made
-//!   only of seed copper outside the pour metal is not a region.
+//!   only of seed copper outside the pour metal is a SEED-ONLY region:
+//!   it carries `has_seed` in the digest, but `region_count` counts
+//!   METAL regions only (the digest-includes / region_count-excludes
+//!   nuance, E-12).
 //!
 //! The per-pour digest is the SHA-256 of the canonically ordered
 //! region rows (regions in scan order — row ascending, left-to-right;
@@ -440,7 +452,9 @@ fn trace_row_intervals(xs: &[i64], ys: &[i64], half_width: i64, y: i64) -> Vec<I
 /// One copper source resolved for a pour scan (foreign obstacles carve,
 /// same-net pins/vias/traces seed).
 struct CopperSource {
-    /// Bounding box (for the active-set sweep).
+    /// Bounding box — the pre-filter against the pour's scan range
+    /// (`detect_pour_islands_for`'s `ordered` step; E-12 doc: there is
+    /// no active-set sweep, the bbox is the only pre-filter).
     x_lo: i64,
     y_lo: i64,
     x_hi: i64,
@@ -498,14 +512,22 @@ fn shape_bbox(shape: &BoardShape) -> (i64, i64, i64, i64) {
 }
 
 /// Collects the drill/padstack shapes of a pin/via on `layer`
-/// (absolute shapes; the index walk mirrors the padstack span).
+/// (absolute shapes). COUNT-BASED (the E-12 fix of the hard `0..256`
+/// cap): a padstack's shape count is its drill span `last - first + 1`
+/// — read through `item_shape_layer_read`, whose pin/via arm CLAMPS
+/// the index into `[0, last - first]` (it never answers None for a
+/// drill item, so any unbounded walk is wrong; index 0 answers
+/// `first`, `i32::MAX` answers `last`).
 fn drill_shapes_on_layer(board: &Board, id: ItemId, layer: i32) -> Vec<BoardShape> {
+    let Some(first) = board.item_shape_layer_read(id, 0) else {
+        return Vec::new();
+    };
+    let Some(last) = board.item_shape_layer_read(id, i32::MAX) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
-    for index in 0..256 {
-        let Some(shape_layer) = board.item_shape_layer_read(id, index) else {
-            break;
-        };
-        if shape_layer == layer
+    for index in 0..=(last - first) {
+        if board.item_shape_layer_read(id, index) == Some(layer)
             && let Some(shape) = board.drill_shape(id, index)
         {
             out.push(shape);
@@ -520,14 +542,18 @@ fn is_same_net(entry: &ItemEntry, pour_nets: &[i32]) -> bool {
 }
 
 /// Builds the copper sources for a pour scan: foreign copper carves,
-/// same-net pins/vias/traces seed. Outline items are deliberately NOT
-/// sources (the v1 contract: generated outline keepouts are a router
-/// action, not parse state).
+/// same-net pins/vias/traces seed. `seed_filter` = `Some(ids)` restricts
+/// the SEED face to those items (a same-net item outside the filter is
+/// ignored entirely — neither seed nor carve; foreign copper carves
+/// regardless). Outline items are deliberately NOT sources (the v1
+/// contract: generated outline keepouts are a router action, not parse
+/// state).
 fn copper_sources(
     board: &Board,
     pour_id: ItemId,
     pour_nets: &[i32],
     layer: i32,
+    seed_filter: Option<&[ItemId]>,
 ) -> Vec<CopperSource> {
     let mut sources = Vec::new();
     for entry in board.iter_ascending() {
@@ -538,6 +564,11 @@ fn copper_sources(
         let foreign = !same_net;
         match &entry.data {
             ItemData::Trace { .. } => {
+                let in_seed_filter =
+                    seed_filter.is_none() || seed_filter.is_some_and(|ids| ids.contains(&entry.id));
+                if same_net && !in_seed_filter {
+                    continue;
+                }
                 if let Some(source) = trace_source(board, entry, layer, same_net) {
                     sources.push(source);
                 }
@@ -561,6 +592,11 @@ fn copper_sources(
                 }
             }
             ItemData::Pin { .. } | ItemData::Via { .. } => {
+                let in_seed_filter =
+                    seed_filter.is_none() || seed_filter.is_some_and(|ids| ids.contains(&entry.id));
+                if same_net && !in_seed_filter {
+                    continue;
+                }
                 let shapes = drill_shapes_on_layer(board, entry.id, layer);
                 if !shapes.is_empty() {
                     sources.push(drill_source(shapes, same_net));
@@ -743,7 +779,8 @@ pub fn detect_pour_islands(board: &Board) -> Vec<PourIslands> {
             is_filled: true,
             ..
         } = &entry.data
-            && let Some(face) = detect_pour_islands_for(board, entry.id, *layer, area)
+            && let Some((face, _seeded)) =
+                detect_pour_islands_for(board, entry.id, *layer, area, None)
         {
             out.push(face);
         }
@@ -752,8 +789,9 @@ pub fn detect_pour_islands(board: &Board) -> Vec<PourIslands> {
 }
 
 /// True when the pour has metal regions and EVERY region is floating
-/// (the clamp's predicate). A covered pour (no regions), a pour with
-/// at least one seeded region, and a non-pour id are all `false`.
+/// (the M6-T6 pour-level clamp predicate; the REGION-LEVEL gate lives
+/// in [`pour_region_seeded_by`]). A covered pour (no regions), a pour
+/// with at least one seeded region, and a non-pour id are all `false`.
 #[must_use]
 pub fn pour_fully_floating(board: &Board, pour_id: ItemId) -> bool {
     let Some(entry) = board.get(pour_id) else {
@@ -771,20 +809,51 @@ pub fn pour_fully_floating(board: &Board, pour_id: ItemId) -> bool {
     if !is_filled {
         return false;
     }
-    let Some(face) = detect_pour_islands_for(board, pour_id, *layer, area) else {
+    let Some((face, _seeded)) = detect_pour_islands_for(board, pour_id, *layer, area, None) else {
         return false;
     };
     face.region_count > 0 && face.island_count == face.region_count
 }
 
+/// The REGION-LEVEL clamp predicate (M6-T8): true when at least one of
+/// the pour's regions carries seed copper FROM `seed_items` — the
+/// connected set's own pins/vias/traces overlapping uncarved pour
+/// metal. A pour REGION not carrying the net's seed copper cannot
+/// answer CONNECTED_TO_PLANE (`connection_router::plane_connected_gate`,
+/// behind `router.plane_island_clamp`). A covered pour (no regions at
+/// all), an unfilled area, and a non-pour id answer `false`.
+pub fn pour_region_seeded_by(board: &Board, pour_id: ItemId, seed_items: &[ItemId]) -> bool {
+    let Some(entry) = board.get(pour_id) else {
+        return false;
+    };
+    let ItemData::ConductionArea {
+        layer,
+        area,
+        is_filled: true,
+        ..
+    } = &entry.data
+    else {
+        return false;
+    };
+    let Some((_face, seeded)) =
+        detect_pour_islands_for(board, pour_id, *layer, area, Some(seed_items))
+    else {
+        return false;
+    };
+    seeded > 0
+}
+
 /// The per-pour scan: the row sweep + interval union-find + the
-/// canonical digest.
+/// canonical digest. Returns the face plus the number of regions
+/// carrying seed copper (seed-only regions included; the M6-T8
+/// region-level clamp's input).
 fn detect_pour_islands_for(
     board: &Board,
     pour_id: ItemId,
     layer: i32,
     area: &Area,
-) -> Option<PourIslands> {
+    seed_filter: Option<&[ItemId]>,
+) -> Option<(PourIslands, usize)> {
     let entry = board.get(pour_id)?;
     let pour_nets = entry.nets.clone();
     let net_name = pour_nets
@@ -797,7 +866,7 @@ fn detect_pour_islands_for(
     if x_min > x_max || y_min > y_max {
         return None;
     }
-    let sources = copper_sources(board, pour_id, &pour_nets, layer);
+    let sources = copper_sources(board, pour_id, &pour_nets, layer, seed_filter);
     let mut ordered: Vec<&CopperSource> = sources
         .iter()
         .filter(|source| source.x_hi >= x_min && source.x_lo <= x_max)
@@ -870,14 +939,18 @@ struct RegionAcc {
 /// Classifies the union-find into regions and builds the canonical
 /// digest (regions in scan order; seed-only components included).
 /// Node k in `nodes_meta` was the k-th union-find push, so its
-/// uf index is k.
+/// uf index is k. The digest input carries the `v1` schema prefix
+/// (E-11: the version token — verified rotation-free for the gate set
+/// at M6-T8: both gate fixtures' manifests carry an EMPTY pour_islands
+/// face, and no committed baseline or events-golden carries any islands
+/// digest).
 fn classify_and_digest(
     pour_id: ItemId,
     net_name: &str,
     layer: i32,
     uf: &mut Uf,
     nodes_meta: Vec<(Interval, bool, i64)>,
-) -> PourIslands {
+) -> (PourIslands, usize) {
     let mut root_to_region: BTreeMap<usize, usize> = BTreeMap::new();
     let mut regions: Vec<RegionAcc> = Vec::new();
     for (node_idx, (interval, seed, y)) in nodes_meta.iter().enumerate() {
@@ -919,7 +992,7 @@ fn classify_and_digest(
         })
         .collect();
     let mut digest_input = format!(
-        "pour={} net={net_name} layer={layer} regions={region_count}\n",
+        "v1\npour={} net={net_name} layer={layer} regions={region_count}\n",
         pour_id.get()
     );
     for (idx, r) in regions.iter().enumerate() {
@@ -929,15 +1002,19 @@ fn classify_and_digest(
         ));
     }
     let digest = format!("{:x}", Sha256::digest(digest_input.as_bytes()));
-    PourIslands {
-        pour_item_id: pour_id.get(),
-        net: net_name.to_string(),
-        layer,
-        region_count,
-        island_count: islands.len(),
-        islands,
-        digest,
-    }
+    let seeded_regions = regions.iter().filter(|r| r.has_seed).count();
+    (
+        PourIslands {
+            pour_item_id: pour_id.get(),
+            net: net_name.to_string(),
+            layer,
+            region_count,
+            island_count: islands.len(),
+            islands,
+            digest,
+        },
+        seeded_regions,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -1224,5 +1301,85 @@ mod world_tests {
         let (_, b) = fixture("t11_island_gap0.dsn");
         assert_eq!(a[0].digest, b[0].digest);
         assert_eq!(a[0].digest.len(), 64, "sha256 hex");
+    }
+
+    /// E-11 (M6-T8): the gap0 digest LITERAL pin, with the `v1` schema
+    /// prefix in the digest input (the version token — verified
+    /// rotation-free for the gate set: bm08/bm06 manifests carry an
+    /// EMPTY pour_islands face, and no committed artifact carries any
+    /// islands digest). A mutant dropping the token rotates the literal
+    /// and dies here.
+    #[test]
+    fn island_gap0_digest_v1_literal_pin() {
+        let (_, face) = fixture("t11_island_gap0.dsn");
+        assert_eq!(
+            face[0].digest, "640decf3eccedf8d9a5165eaa667fb654a760864952fb92e128dc3b9578d8c5d",
+            "the v1-prefixed gap0 digest literal (probe-captured)"
+        );
+    }
+
+    /// The M6-T8 REGION-LEVEL clamp helper (`pour_region_seeded_by`):
+    /// seeds are the GIVEN set's copper, not the board's same-net
+    /// population. Faces: the floating world's pin (outside the pour
+    /// metal) seeds nothing; the gap0 pin seeds the slab region; the
+    /// EMPTY set seeds nothing even though the board-wide population
+    /// does (the difference face vs the old pour-level verdict — the
+    /// mutant reverting to `pour_fully_floating` answers true here and
+    /// dies); and the covered pour answers false.
+    #[test]
+    fn region_seeded_helper_faces_and_difference() {
+        let (board, _face) = fixture("t11_island_floating.dsn");
+        let (pour, pin) = pour_pin_ids(&board);
+        assert!(
+            !pour_region_seeded_by(&board, pour, &[pin]),
+            "the floating world's pin sits outside the pour metal"
+        );
+
+        let (board, _face) = fixture("t11_island_gap0.dsn");
+        let (pour, pin) = pour_pin_ids(&board);
+        assert!(
+            pour_region_seeded_by(&board, pour, &[pin]),
+            "the gap0 pin overlaps the seeded slab region"
+        );
+        assert!(
+            !pour_region_seeded_by(&board, pour, &[]),
+            "the EMPTY set seeds nothing — region-level, not pour-level"
+        );
+        assert!(
+            !pour_fully_floating(&board, pour),
+            "difference face: the pour-level verdict says the pour is seeded"
+        );
+        let covered_pour = board
+            .iter_ascending()
+            .find(|entry| matches!(entry.data, ItemData::ConductionArea { .. }))
+            .map(|entry| entry.id)
+            .expect("covered world has a pour");
+        assert!(
+            pour_region_seeded_by(&board, covered_pour, &[pin_covered(&board)]),
+            "the covered pour answers through its covering pin (seed-only regions)"
+        );
+    }
+
+    /// The floating/gap0 worlds' (pour, pin) id pair.
+    fn pour_pin_ids(board: &Board) -> (ItemId, ItemId) {
+        let mut pour = None;
+        let mut pin = None;
+        for entry in board.iter_ascending() {
+            match &entry.data {
+                ItemData::ConductionArea { .. } if pour.is_none() => pour = Some(entry.id),
+                ItemData::Pin { .. } if pin.is_none() => pin = Some(entry.id),
+                _ => {}
+            }
+        }
+        (pour.expect("pour"), pin.expect("pin"))
+    }
+
+    /// The covered world's (pour, pin) ids.
+    fn pin_covered(board: &Board) -> ItemId {
+        board
+            .iter_ascending()
+            .find(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.id)
+            .expect("covered world has a pin")
     }
 }

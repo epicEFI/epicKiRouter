@@ -320,10 +320,14 @@ fn plan_is_parse_deterministic() {
 }
 
 /// End to end: with the master + pattern flags ON, routing NA's pair
-/// goes through the pattern fast path — the board carries ONE new
-/// trace whose bend sits at L1's corner (a.x, b.y). Mutating the
-/// candidate order (L1<->L2) flips the bend coordinate and kills this
-/// pin (see the mutation log).
+/// goes through the pattern fast path. The pin holds the SEAM ROW
+/// (the `global_pattern_route` observability row) plus CONNECTIVITY —
+/// NOT the bend geometry: the inserted L is post-pull-tight, so the
+/// 1-2-bend shape need not survive (the guides-contract note). The
+/// mutant that kills this pin is the MAZE-FALLBACK face
+/// (`try_pattern_route` hardwired to None — it never emits the seam
+/// row); the candidate-ORDER mutant (L1<->L2) is killed by the
+/// `pattern_candidate_order_l1_wins_on_clear_map` pin instead.
 #[test]
 fn pattern_route_end_to_end_routed_at_l1() {
     use crate::pipeline::connection_router;
@@ -375,6 +379,7 @@ fn pattern_route_end_to_end_routed_at_l1() {
         1,
         None,
         &mut sink,
+        None,
     );
     assert!(
         matches!(result.state, crate::engine::AutorouteAttemptState::Routed),
@@ -418,4 +423,362 @@ fn pattern_route_end_to_end_routed_at_l1() {
         "KB endpoint present: {endpoints:?}"
     );
     assert!(!endpoints.is_empty(), "NA copper exists");
+}
+
+// ---------------------------------------------------------------------------
+// M6-T8 pins — the PathFinder scheduler, the fanout congestion order,
+// the region-level clamp, the digest literal (E-11), and the R-M3
+// mixed-layer face.
+// ---------------------------------------------------------------------------
+
+/// The negotiated-base formula's DNR-16 boundary pins (the closed-form
+/// boundary is `pressure == PRESSURE_SCALE * k` per `+start` of base,
+/// and the RELATIVE cap `2 * start` — the fanout-protection-preserving
+/// ceiling): the exact cap edge and one step either side, the
+/// per-start scaling, and the RIPUP_CAP ceiling arm.
+#[test]
+fn negotiated_base_formula_boundary_pins() {
+    use crate::global::history::negotiated_base;
+    // start = 100 (the CLI default): the full band resolves.
+    assert_eq!(negotiated_base(0, 100), 100, "no pressure = the bare start");
+    assert_eq!(negotiated_base(49, 100), 149, "one below the +50% edge");
+    assert_eq!(negotiated_base(50, 100), 150, "the exact +50% edge");
+    assert_eq!(negotiated_base(51, 100), 151, "one above the +50% edge");
+    assert_eq!(negotiated_base(99, 100), 199, "one below the cap edge");
+    assert_eq!(negotiated_base(100, 100), 200, "the exact cap edge");
+    assert_eq!(negotiated_base(101, 100), 200, "one above the cap edge");
+    assert_eq!(negotiated_base(i64::MAX, 100), 200, "cap saturation");
+    // start = 1: the band is [1, 2] in unit steps.
+    assert_eq!(negotiated_base(0, 1), 1);
+    assert_eq!(negotiated_base(99, 1), 1, "one below the flip");
+    assert_eq!(negotiated_base(100, 1), 2, "the exact flip at the cap");
+    assert_eq!(negotiated_base(i64::MAX, 1), 2, "cap saturation");
+    // start = 3: integer-division steps of the start.
+    assert_eq!(negotiated_base(0, 3), 3);
+    assert_eq!(negotiated_base(50, 3), 4, "3 + 150/100 = 4");
+    assert_eq!(negotiated_base(100, 3), 6, "the exact cap edge");
+    assert_eq!(negotiated_base(0, 0), 0, "start 0 = the linear 0 face");
+    assert_eq!(
+        negotiated_base(i64::MAX, i64::MAX),
+        i32::MAX / 100,
+        "the RIPUP_CAP absolute ceiling (overflow arm)"
+    );
+}
+
+/// The history update's decay + increment boundaries on the G3 map
+/// (the overflow cells are closed-form: (19,31) overflows 1, (22,34)
+/// overflows 2 — the T7 pins). Decay: 4*3/4 = 3 EXACT, 3*3/4 = 2
+/// (truncation), 1*3/4 = 0 (sub-threshold forgetting), and the
+/// HISTORY_MAX clamp decays 786432.
+#[test]
+fn history_decay_increment_boundary_pins() {
+    use crate::global::history::{HISTORY_DECAY_DEN, HISTORY_DECAY_NUM, HISTORY_MAX, HistoryCosts};
+    assert_eq!(HISTORY_DECAY_NUM, 3);
+    assert_eq!(HISTORY_DECAY_DEN, 4);
+    let (_m, mut board) = parse(G3);
+    let map = crate::global::map::CongestionMap::build(&mut board);
+
+    // The decay ladder at a NON-overflow cell (0,0,0).
+    let mut h_exact = HistoryCosts::default();
+    h_exact.entries.insert((0, 0, 0), 4);
+    h_exact.update(&map);
+    assert_eq!(h_exact.entry(0, 0, 0), Some(3), "4*3/4 = 3 exact");
+
+    let mut h_trunc = HistoryCosts::default();
+    h_trunc.entries.insert((0, 0, 0), 3);
+    h_trunc.update(&map);
+    assert_eq!(h_trunc.entry(0, 0, 0), Some(2), "3*3/4 truncates to 2");
+
+    let mut h_forget = HistoryCosts::default();
+    h_forget.entries.insert((0, 0, 0), 1);
+    h_forget.update(&map);
+    assert_eq!(h_forget.entry(0, 0, 0), None, "1*3/4 = 0: forgotten");
+
+    let mut h_cap = HistoryCosts::default();
+    h_cap.entries.insert((0, 0, 0), HISTORY_MAX);
+    h_cap.update(&map);
+    assert_eq!(
+        h_cap.entry(0, 0, 0),
+        Some(HISTORY_MAX * 3 / 4),
+        "the cap value itself decays"
+    );
+
+    // The increments: the closed-form overflow cells.
+    let mut h_inc = HistoryCosts::default();
+    h_inc.update(&map);
+    assert_eq!(h_inc.entry(0, 19, 31), Some(1), "overflow 1 adds 1");
+    assert_eq!(h_inc.entry(0, 22, 34), Some(2), "overflow 2 adds 2");
+    assert_eq!(h_inc.entry(1, 19, 31), None, "layer 1 carries no overflow");
+    assert_eq!(
+        h_inc.len(),
+        21,
+        "21 DISTINCT over-capacity cells (the T7 25 is the overflow-UNIT sum)"
+    );
+}
+
+/// The guides-consumption face (the T7 preferred-layers residual):
+/// the pass state carries each net's guide preference order in
+/// PHYSICAL indices (G3: layer 0 carries all 25 overflow units, so the
+/// preference is [1, 0]), and the maze's per-layer cost rows take the
+/// `1 + rank * 0.5` bias (exact f64 literals). Mutant:
+/// GUIDE_LAYER_RANK_STEP = 0 restores the identity and dies here.
+#[test]
+fn guides_preferred_layers_computed_and_consumed() {
+    use crate::global::history::PathFinder;
+    use crate::global::history::apply_preferred_layer_bias;
+
+    let (_m, mut board) = parse(G3);
+    let mut scheduler = PathFinder::new();
+    let pass = scheduler.begin_pass(&mut board, 100);
+    assert_eq!(
+        pass.preferred_layers.get(&1),
+        Some(&vec![1, 0]),
+        "NA's guide preference: ordinal 1 (clear) before ordinal 0 (25 overflow units)"
+    );
+
+    // The bias on the standard 2-layer cost table: physical 0 sits at
+    // preference rank 1 (x1.5), physical 1 at rank 0 (x1.0).
+    let mut costs = vec![
+        crate::control::ExpansionCostFactor {
+            horizontal: 1.0,
+            vertical: 2.7,
+        },
+        crate::control::ExpansionCostFactor {
+            horizontal: 1.6,
+            vertical: 1.0,
+        },
+    ];
+    apply_preferred_layer_bias(&mut costs, &[1, 0]);
+    assert_eq!(costs[0].horizontal, 1.5, "rank 1 -> x1.5");
+    assert_eq!(
+        costs[0].vertical,
+        2.7 * 1.5,
+        "2.7 * 1.5 (exact f64 product)"
+    );
+    assert_eq!(costs[1].horizontal, 1.6, "rank 0 -> x1.0");
+    assert_eq!(costs[1].vertical, 1.0);
+
+    // The exact step boundary: rank 2 -> x2.0 (1 + 2*0.5).
+    let mut costs3 = vec![
+        crate::control::ExpansionCostFactor {
+            horizontal: 1.0,
+            vertical: 1.0,
+        },
+        crate::control::ExpansionCostFactor {
+            horizontal: 1.0,
+            vertical: 1.0,
+        },
+        crate::control::ExpansionCostFactor {
+            horizontal: 1.0,
+            vertical: 1.0,
+        },
+    ];
+    apply_preferred_layer_bias(&mut costs3, &[2, 1, 0]);
+    assert_eq!(costs3[0].horizontal, 2.0, "rank 2 -> x2.0");
+    assert_eq!(costs3[1].horizontal, 1.5, "rank 1 -> x1.5");
+    assert_eq!(costs3[2].horizontal, 1.0, "rank 0 -> x1.0");
+}
+
+/// The scheduler across a pass boundary on G3 (start = 100): pass 1
+/// runs on present congestion only; end_pass folds the same congestion
+/// into the history and pass 2's bases mix present + history 1:1 (150
+/// = 100 + 50). Mutants: HISTORY_MIX = 0 (history ignored) keeps pass
+/// 2 at pass 1's value; DECAY 4/4, INCREMENT 2, and PRESSURE_SCALE
+/// drift all rotate the literals.
+#[test]
+fn pathfinder_bases_present_then_history_mixed() {
+    use crate::global::history::PathFinder;
+    let (_m, mut board) = parse(G3);
+    let mut scheduler = PathFinder::new();
+    let pass1 = scheduler.begin_pass(&mut board, 100);
+    assert_eq!(
+        pass1.bases.get(&1),
+        Some(&125),
+        "NA: pressure 25 (all cluster units) -> 100 + 25*100/100 = 125"
+    );
+    assert_eq!(
+        pass1.bases.get(&2),
+        Some(&118),
+        "NB: pressure 18 (its region stops at row 34) -> 100 + 18 = 118"
+    );
+    assert_eq!(pass1.bases.len(), 2, "NC routes last (no guide)");
+
+    scheduler.end_pass(&mut board);
+    let pass2 = scheduler.begin_pass(&mut board, 100);
+    assert_eq!(
+        pass2.bases.get(&1),
+        Some(&150),
+        "NA: 25 present + 25 history = 50 -> 100 + 50 = 150 (the 1:1 mix)"
+    );
+    assert_eq!(
+        pass2.bases.get(&2),
+        Some(&136),
+        "NB: 18 present + 18 history = 36 -> 100 + 36 = 136"
+    );
+}
+
+/// Design :69 rides the negotiated stage's flag: with
+/// `congestion_global` + `congestion_global_pathfinder` ON the map
+/// feeds fanout's pin order — the QFP component's pins sort by the
+/// nets' planned ranks (NA's jammed guide first: the adjacent-QFP
+/// mutual-blocking fix), and the Java outer-first order holds at
+/// defaults and at master-only (the committed T7 golden's face).
+/// Mutant: dropping the congestion key restores the Java order and
+/// kills the ON arm.
+#[test]
+fn fanout_pin_order_congestion_primary_key() {
+    use crate::pipeline::batch::BatchSettings;
+    use crate::pipeline::board_statistics::RouterSettingsScoring;
+    use crate::pipeline::fanout::FanoutState;
+
+    const G4: &str = include_str!("../../../../harness/fixtures/global-spike/g4_fanout.dsn");
+
+    let settings = |master: bool, pathfinder: bool| {
+        let mut settings = BatchSettings::new(
+            crate::control::RouterSettingsIr {
+                trace_costs: vec![
+                    crate::control::ExpansionCostFactor {
+                        horizontal: 1.0,
+                        vertical: 2.7,
+                    },
+                    crate::control::ExpansionCostFactor {
+                        horizontal: 1.6,
+                        vertical: 1.0,
+                    },
+                ],
+                via_costs: 1,
+                vias_allowed: true,
+                bend_costs: vec![0.0, 0.0],
+                layer_active: vec![true, true],
+                automatic_neckdown: false,
+                start_ripup_costs: 1,
+                fanout: Default::default(),
+            },
+            RouterSettingsScoring::default(),
+        );
+        settings.congestion_global = master;
+        settings.congestion_global_pathfinder = pathfinder;
+        settings
+    };
+    let pin_names = |master: bool, pathfinder: bool| -> Vec<String> {
+        let (mut manager, mut board) = parse(G4);
+        let state = FanoutState::new(&mut manager, &mut board, &settings(master, pathfinder));
+        assert_eq!(state.components.len(), 3, "QFP + RMT + JAM (all netted)");
+        state
+            .components
+            .iter()
+            .find(|c| c.pins.len() == 3 && c.component_id == 1)
+            .expect("the QFP component row")
+            .pins
+            .iter()
+            .map(|row| row.full_name.clone())
+            .collect()
+    };
+
+    // Defaults: Java outer-first over the QFP gravity (600000, 413333):
+    // QC (106667) > QA (93333) > QB (13333). The MASTER-ONLY face is
+    // pinned identical (the committed T7 golden's face — the fanout
+    // order must not ride the master alone).
+    assert_eq!(
+        pin_names(false, false),
+        vec!["QFP1-QC", "QFP1-QA", "QFP1-QB"],
+        "the Java outer-first order at defaults"
+    );
+    assert_eq!(
+        pin_names(true, false),
+        vec!["QFP1-QC", "QFP1-QA", "QFP1-QB"],
+        "master-only keeps the Java order (the T7 golden's face)"
+    );
+    // Negotiated stage ON: NA's guide is jammed by the JAM pad
+    // (severity > 0) -> rank(NA)=0 first; NB/NC tie at 0 severity ->
+    // net-number order QB before QC.
+    assert_eq!(
+        pin_names(true, true),
+        vec!["QFP1-QA", "QFP1-QB", "QFP1-QC"],
+        "the congestion-aware order"
+    );
+}
+
+/// The R-M3 fix face: on a board whose physical layer 1 is a POWER
+/// plane (signal ordinals 0/1 map to physical 0/2), the B.Cu pair's
+/// pattern candidates are evaluated at ORDINAL 1 — with the fix
+/// reverted (the raw physical index 2) every corridor check lands past
+/// the map's layer rows, answers false, and the fast path never fires.
+/// The pin: with master + pattern ON, routing NA's pair emits the
+/// `global_pattern_route` seam row.
+#[test]
+fn pattern_route_mixed_layer_ordinal_conversion() {
+    use crate::pipeline::connection_router;
+    use std::collections::{BTreeMap, HashMap};
+
+    const G5: &str = include_str!("../../../../harness/fixtures/global-spike/g5_mixedlayer.dsn");
+
+    let (mut manager, mut board) = parse(G5);
+    let mut settings = crate::pipeline::batch::BatchSettings::new(
+        crate::control::RouterSettingsIr {
+            trace_costs: vec![
+                crate::control::ExpansionCostFactor {
+                    horizontal: 1.0,
+                    vertical: 2.7,
+                },
+                crate::control::ExpansionCostFactor {
+                    horizontal: 1.6,
+                    vertical: 1.0,
+                },
+                crate::control::ExpansionCostFactor {
+                    horizontal: 1.0,
+                    vertical: 1.0,
+                },
+            ],
+            via_costs: 1,
+            vias_allowed: true,
+            bend_costs: vec![0.0, 0.0, 0.0],
+            layer_active: vec![true, true, true],
+            automatic_neckdown: false,
+            start_ripup_costs: 1,
+            fanout: Default::default(),
+        },
+        crate::pipeline::board_statistics::RouterSettingsScoring::default(),
+    );
+    settings.congestion_global = true;
+    settings.congestion_global_pattern = true;
+
+    let net = 1;
+    let items = board.get_connectable_items(net);
+    assert_eq!(items.len(), 2, "the g5 pair");
+    let item_id = items[0];
+
+    // Rig precondition: the pins sit on physical layer 2 (B.Cu), whose
+    // SIGNAL ORDINAL is 1 — the physical != ordinal board face.
+    assert_eq!(board.layers().signal_layer_count(), 2, "2 signal layers");
+    assert!(!board.layers().layers[1].is_signal, "physical 1 is POWER");
+
+    let mut ripped = BTreeMap::new();
+    let mut ripup_costs = HashMap::new();
+    let mut sink = crate::pipeline::event_sink::CaptureDriverSink::default();
+    let result = connection_router::route(
+        &mut manager,
+        &mut board,
+        &settings,
+        item_id,
+        net,
+        &mut ripped,
+        &mut ripup_costs,
+        1,
+        None,
+        &mut sink,
+        None,
+    );
+    assert!(
+        matches!(result.state, crate::engine::AutorouteAttemptState::Routed),
+        "the mixed-layer pair must route: {:?}",
+        result.details
+    );
+    assert!(
+        sink.rows
+            .iter()
+            .any(|(_level, row)| row.starts_with("global_pattern_route net=1")),
+        "the fast path must fire at the SIGNAL ORDINAL: {:?}",
+        sink.rows
+    );
 }

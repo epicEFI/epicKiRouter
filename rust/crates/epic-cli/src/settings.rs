@@ -108,6 +108,12 @@ pub struct CliLayer {
     /// fast path sub-flag (RUST-ONLY). Requires the master ON; default
     /// OFF. Documented per the dispatch charter.
     pub congestion_global_pattern: Option<bool>,
+    /// `router.congestion_global.pathfinder` — the M6-T8 PathFinder
+    /// negotiated-congestion scheduler sub-flag (RUST-ONLY, no Java
+    /// counterpart). Requires the master ON; default OFF. The
+    /// negotiated bases replace the linear pass ladder WHEN ON
+    /// (`global/history.rs` docs).
+    pub congestion_global_pathfinder: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -532,6 +538,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.congestion_global_pattern = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "congestion_global.pathfinder" => match parse_on_off(value) {
+            Some(v) => layer.congestion_global_pathfinder = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -870,6 +880,9 @@ pub struct MergedSettings {
     /// `router.congestion_global.pattern` — the pattern sub-flag
     /// (absent = OFF).
     pub congestion_global_pattern: Option<bool>,
+    /// `router.congestion_global.pathfinder` — the M6-T8 scheduler
+    /// sub-flag (absent = OFF; requires the master).
+    pub congestion_global_pathfinder: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -972,6 +985,7 @@ impl Default for MergedSettings {
             plane_island_clamp: None,
             congestion_global: None,
             congestion_global_pattern: None,
+            congestion_global_pathfinder: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1108,6 +1122,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.congestion_global_pattern {
         merged.congestion_global_pattern = Some(v);
+    }
+    if let Some(v) = cli.congestion_global_pathfinder {
+        merged.congestion_global_pathfinder = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1433,6 +1450,10 @@ pub struct ResolvedRouteSettings {
     /// (`router.congestion_global.pattern`, default OFF; requires the
     /// master).
     pub congestion_global_pattern: bool,
+    /// The M6-T8 PathFinder scheduler sub-flag
+    /// (`router.congestion_global.pathfinder`, default OFF; requires
+    /// the master).
+    pub congestion_global_pathfinder: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1541,6 +1562,7 @@ impl ResolvedRouteSettings {
             plane_island_clamp: merged.plane_island_clamp.unwrap_or(false),
             congestion_global: merged.congestion_global.unwrap_or(false),
             congestion_global_pattern: merged.congestion_global_pattern.unwrap_or(false),
+            congestion_global_pathfinder: merged.congestion_global_pathfinder.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2504,6 +2526,7 @@ mod tests {
             plane_island_clamp: Some(true),
             congestion_global: Some(true),
             congestion_global_pattern: Some(true),
+            congestion_global_pathfinder: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
@@ -3207,5 +3230,42 @@ mod tests {
         let resolved_pattern = ResolvedRouteSettings::resolve(&merged_pattern, None);
         assert!(resolved_pattern.congestion_global_pattern);
         assert!(!resolved_pattern.congestion_global, "master stays OFF");
+
+        // World 4 (M6-T8): the pathfinder sub-flag — same chain, same
+        // inert-without-the-master face.
+        let defaults = parse_route_args(&args(&[])).expect("parses");
+        assert!(
+            defaults.layer.congestion_global_pathfinder.is_none(),
+            "no initializer"
+        );
+        let merged_defaults = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &defaults.layer,
+        );
+        assert!(merged_defaults.congestion_global_pathfinder.is_none());
+        let resolved_defaults = ResolvedRouteSettings::resolve(&merged_defaults, None);
+        assert!(
+            !resolved_defaults.congestion_global_pathfinder,
+            "default OFF"
+        );
+
+        let pf_on =
+            parse_route_args(&args(&["--router.congestion_global.pathfinder=on"])).expect("parses");
+        assert!(pf_on.layer.congestion_global_pathfinder == Some(true));
+        assert!(
+            pf_on.layer.warnings.is_empty(),
+            "no warns on the Rust-only flag: {:?}",
+            pf_on.layer.warnings
+        );
+        let merged_pf = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &pf_on.layer,
+        );
+        assert_eq!(merged_pf.congestion_global_pathfinder, Some(true));
+        let resolved_pf = ResolvedRouteSettings::resolve(&merged_pf, None);
+        assert!(resolved_pf.congestion_global_pathfinder);
+        assert!(!resolved_pf.congestion_global, "master stays OFF");
     }
 }
