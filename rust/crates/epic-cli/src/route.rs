@@ -259,6 +259,26 @@ pub struct ManifestPourIslands {
     pub digest: String,
 }
 
+/// The M6-T7 settings-ON manifest face: the global plan (map + guides
+/// + planned order), condensed to deterministic scalars and digests.
+#[derive(Serialize, Clone, Debug)]
+pub struct ManifestGlobalPlan {
+    /// The congestion map's square cell side (board units).
+    pub cell: i64,
+    /// The cell capacity per signal layer.
+    pub capacity: Vec<i64>,
+    /// The overflow vector per signal layer.
+    pub overflow: Vec<u64>,
+    /// SHA-256 over the canonical occupancy rows.
+    pub map_digest: String,
+    /// The guide count.
+    pub guide_count: usize,
+    /// The planned-order count.
+    pub order_count: usize,
+    /// SHA-256 over the canonical planned-order rows.
+    pub order_digest: String,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -276,6 +296,10 @@ pub struct RouteManifest<'a> {
     /// pour-free boards (the schema-evolution face).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub pour_islands: Vec<ManifestPourIslands>,
+    /// The M6-T7 settings-ON global-plan face. Absent at defaults
+    /// (skip-if-None — the byte-identity face).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_plan: Option<ManifestGlobalPlan>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -331,6 +355,9 @@ pub struct RouteTelemetry {
     /// The M6-T6 advisory pour-islands face (empty = no filled pours;
     /// absent from the rendered manifest then).
     pub pour_islands: Vec<ManifestPourIslands>,
+    /// The M6-T7 settings-ON global-plan face (None = OFF; absent from
+    /// the rendered manifest then).
+    pub global_plan: Option<ManifestGlobalPlan>,
 }
 
 /// The final-state mapping (module docs for the Java-scheduler rule).
@@ -563,6 +590,7 @@ pub fn render_manifest(
             }),
         },
         pour_islands: telemetry.pour_islands.clone(),
+        global_plan: telemetry.global_plan.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -717,12 +745,33 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     // M6-T6: the Rust-only connectivity clamp (default OFF — dead code
     // at defaults; its route effect is measured at T8/T9, not here).
     batch.plane_island_clamp = resolved.plane_island_clamp;
+    // M6-T7: the global-planning family (default OFF — dead code at
+    // defaults; the settings-ON faces are beyond-Java).
+    batch.congestion_global = resolved.congestion_global;
+    batch.congestion_global_pattern = resolved.congestion_global_pattern;
     // The via-cost pair: the merged scoring box (DefaultSettings seeds
     // 50/5; the CLI/DSN layers can override).
     let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();
     batch.via_costs = scoring_box.via_costs.unwrap_or(50);
     batch.plane_via_costs = scoring_box.plane_via_costs.unwrap_or(5);
     batch
+}
+
+/// The M6-T7 plan -> manifest-face projection (deterministic scalars
+/// + digests only).
+fn manifest_global_plan(plan: &epic_router::global::plan::GlobalPlan) -> ManifestGlobalPlan {
+    let map = plan.map();
+    ManifestGlobalPlan {
+        cell: map.cell_size(),
+        capacity: (0..map.total_overflow().len())
+            .map(|layer| map.capacity(layer))
+            .collect(),
+        overflow: map.total_overflow().to_vec(),
+        map_digest: map.occupancy_digest(),
+        guide_count: plan.guides().len(),
+        order_count: plan.net_order().len(),
+        order_digest: plan.order_digest(),
+    }
 }
 
 /// Java `BoardFileDetails.getFilenameWithoutExtension`
@@ -1141,6 +1190,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         scoring: Some(resolved.scoring.clone()),
         final_optimizer_score: Some(final_optimizer_score),
         pour_islands,
+        global_plan: outcome.global_plan.as_ref().map(manifest_global_plan),
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1235,6 +1285,7 @@ mod tests {
         let mut telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            global_plan: None,
             last_counters: Some(counters),
             ..RouteTelemetry::default()
         };
@@ -1297,6 +1348,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            global_plan: None,
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
         };
@@ -1329,6 +1381,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            global_plan: None,
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
         };
@@ -1487,6 +1540,7 @@ mod tests {
         let telemetry_with = |phases: PipelinePhases| RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            global_plan: None,
             last_counters: None,
             connections: Some(ManifestConnections {
                 incomplete_count: 0,
@@ -1586,6 +1640,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            global_plan: None,
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
                 incomplete_count: 2,
@@ -1838,6 +1893,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            global_plan: None,
             last_counters: Some(counters),
             connections: Some(ManifestConnections {
                 incomplete_count: 1,
@@ -2998,5 +3054,24 @@ mod tests {
         };
         let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
         assert!(batch_on.plane_island_clamp);
+    }
+
+    /// The M6-T7 seam: build_batch_settings carries the master + the
+    /// pattern sub-flag, both default OFF.
+    #[test]
+    fn build_batch_settings_carries_congestion_global() {
+        let merged = MergedSettings::default();
+        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
+        assert!(!default_batch.congestion_global, "default OFF");
+        assert!(!default_batch.congestion_global_pattern, "default OFF");
+
+        let merged_on = MergedSettings {
+            congestion_global: Some(true),
+            congestion_global_pattern: Some(true),
+            ..MergedSettings::default()
+        };
+        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
+        assert!(batch_on.congestion_global);
+        assert!(batch_on.congestion_global_pattern);
     }
 }

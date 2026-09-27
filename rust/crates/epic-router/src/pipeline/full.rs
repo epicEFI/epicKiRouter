@@ -162,6 +162,9 @@ pub struct PipelineOutcome {
     /// Java `job.stage` transitions in order. The final entry is Idle
     /// unless the routing stage aborted (Java's throw skips it).
     pub stage_transitions: Vec<RoutingStage>,
+    /// M6-T7: the global plan (default-OFF stage — `Some` only when
+    /// `congestion_global` is ON).
+    pub global_plan: Option<crate::global::plan::GlobalPlan>,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -235,6 +238,9 @@ pub struct RoutingStageResult {
     pub stop_full: bool,
     /// The stage-boundary captures.
     pub boundaries: StageBoundaries,
+    /// M6-T7: the driver's global plan (default-OFF stage — `Some`
+    /// only when `congestion_global` is ON).
+    pub global_plan: Option<crate::global::plan::GlobalPlan>,
 }
 
 impl RoutingStageResult {
@@ -245,6 +251,7 @@ impl RoutingStageResult {
             stop_requested: driver.stop.is_requested(),
             stop_full: driver.stop.is_full_stop_requested(),
             boundaries: std::mem::take(&mut driver.phase_boundaries),
+            global_plan: driver.global_plan.take(),
         }
     }
 
@@ -255,6 +262,7 @@ impl RoutingStageResult {
             stop_requested,
             stop_full,
             boundaries: StageBoundaries::default(),
+            global_plan: None,
         }
     }
 }
@@ -367,6 +375,7 @@ pub fn run(
         boundaries: stage.boundaries,
         optimizer,
         stage_transitions: transitions,
+        global_plan: stage.global_plan,
     }
 }
 

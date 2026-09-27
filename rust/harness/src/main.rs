@@ -38,6 +38,7 @@ mod drc_corpus;
 // Index parity corpus (M2 Task 9): tier + stressor fixtures replayed
 // through the landed search-tree surface, Java goldens, java-free CI
 // compare.
+mod global_golden;
 mod index_corpus;
 mod islands_face;
 mod manifest;
@@ -165,6 +166,14 @@ enum Command {
         #[arg(long)]
         dsn: PathBuf,
     },
+    /// The M6-T7 settings-ON golden face (java-free): capture/verify
+    /// the `router.congestion_global=on` route of a crafted fixture
+    /// (determinism self-gate + digest comparison against the
+    /// committed golden).
+    GlobalGolden {
+        #[command(subcommand)]
+        cmd: global_golden::GlobalGoldenCommand,
+    },
     /// Route event-stream corpus (M3 Task 16): the Java probe capture
     /// (double-run byte-identical) into the committed golden, and the
     /// java-free kind-ordinal field-level compare of the Rust engine's
@@ -210,6 +219,11 @@ fn run() -> Result<()> {
     }
     if let Command::Islands { dsn } = cli.command {
         return islands_face::run(&dsn);
+    }
+    if let Command::GlobalGolden { cmd } = cli.command {
+        // The M6-T7 settings-ON golden face: java-free, resolves
+        // epic-cli itself (the router-compare shape).
+        return global_golden::run(cmd);
     }
     if let Command::Dsn { cmd } = cli.command {
         // The dsn pipeline resolves tiers.yaml itself (manifest
@@ -260,6 +274,7 @@ fn run() -> Result<()> {
         Command::Undo { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Drc { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Router { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::GlobalGolden { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::Events { .. } => unreachable!("handled before tier/JVM resolution"),
         #[cfg(feature = "alloc-profile")]
         Command::AllocRoute { .. } => unreachable!("handled before tier/JVM resolution"),

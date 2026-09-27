@@ -358,6 +358,16 @@ pub struct BatchSettings {
     /// `epic_board::islands`) cannot answer CONNECTED_TO_PLANE. Dead
     /// code at defaults; its route effect is measured at T8/T9.
     pub plane_island_clamp: bool,
+    /// M6-T7 RUST-ONLY: the global-planning master switch
+    /// (`router.congestion_global`, default OFF). When ON, the pass
+    /// queue is reordered by the congestion-aware plan
+    /// (`pass_runner::begin_pass`) and the plan face lands in the
+    /// manifest (`epic-cli` route.rs). Dead code at defaults.
+    pub congestion_global: bool,
+    /// M6-T7 RUST-ONLY: the L/Z pattern-routing fast path
+    /// (`router.congestion_global.pattern`, default OFF; requires the
+    /// master ON). Dead code at defaults.
+    pub congestion_global_pattern: bool,
 }
 
 impl BatchSettings {
@@ -393,6 +403,8 @@ impl BatchSettings {
             retain_autoroute_database: false,
             trace_costs,
             plane_island_clamp: false,
+            congestion_global: false,
+            congestion_global_pattern: false,
         }
     }
 }
@@ -429,6 +441,10 @@ pub struct BatchDriver<'a> {
     /// The stage-boundary statistics the pipeline's per-phase manifest
     /// faces read (M4-T10; see [`StageBoundaries`]).
     pub phase_boundaries: StageBoundaries,
+    /// M6-T7: the global plan captured at the pass loop's opening
+    /// (default-OFF stage — `Some` only when
+    /// `BatchSettings::congestion_global` is ON).
+    pub global_plan: Option<crate::global::plan::GlobalPlan>,
 }
 
 /// The stage-boundary statistics Java `AutorouteBatchLoop` captures for
@@ -477,6 +493,7 @@ impl<'a> BatchDriver<'a> {
             fanout_recovery_applied: false,
             fanout_timed_out: false,
             phase_boundaries: StageBoundaries::default(),
+            global_plan: None,
         }
     }
 
@@ -618,6 +635,13 @@ impl<'a> BatchDriver<'a> {
             ));
         }
         let mut continue_autorouting = is_router_enabled;
+
+        // M6-T7: the global-planning stage (default OFF) — the plan
+        // face the manifest carries (map + guides + the planned order)
+        // captures the post-fanout board state, before the pass loop.
+        if self.settings.congestion_global {
+            self.global_plan = Some(crate::global::plan::GlobalPlan::build(self.board));
+        }
 
         let mut current_pass: i32 = 1;
         let mut consecutive_no_improvement_passes: i32 = 0;

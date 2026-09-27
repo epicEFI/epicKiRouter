@@ -207,6 +207,59 @@ pub fn route(
         None
     };
 
+    // M6-T7 (default OFF): the pattern-routing fast path — easy nets
+    // (two single-layer pins on one active signal layer) attempt an
+    // L/Z candidate BEFORE the maze search; success returns through
+    // the SAME Routed postlude (the pull-tight + strict-DRC faces).
+    if let Some(pattern_result) = crate::global::pattern::try_pattern_route(
+        manager,
+        board,
+        settings,
+        &ctrl,
+        &start_items,
+        &dest_items,
+        sink,
+    ) {
+        let max_item_id_before_opt = board.max_generated_id();
+        sink.trace(&format!(
+            "compare_trace_opt_changed_area_before net={route_net_no}, maxItemId={max_item_id_before_opt}"
+        ));
+        let tightener_trace_costs: Vec<TraceCostFactor> =
+            ctrl.trace_costs.iter().map(Into::into).collect();
+        opt_changed_area(
+            manager,
+            board,
+            &mut TraceTightenerSeam,
+            &[],
+            None,
+            settings.pull_tight_accuracy,
+            None,
+            0,
+            Some(&tightener_trace_costs),
+            stoppable_flag,
+            TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+            settings.deterministic_budgets,
+        );
+        let max_item_id_after_opt = board.max_generated_id();
+        sink.trace(&format!(
+            "compare_trace_opt_changed_area_after net={route_net_no}, maxItemId={max_item_id_after_opt}, delta={}",
+            max_item_id_after_opt.wrapping_sub(max_item_id_before_opt)
+        ));
+        if let Some(strict_result) = apply_strict_drc_after_route(
+            manager,
+            board,
+            settings,
+            route_net_no,
+            max_item_id_before_route,
+            &snapshot,
+            ripup_pass_no,
+            sink,
+        ) {
+            return strict_result;
+        }
+        return pattern_result;
+    }
+
     let mut engine = init_autoroute(
         manager,
         board,

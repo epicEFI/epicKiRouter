@@ -476,13 +476,39 @@ fn max_items_gate(
 fn begin_pass(
     manager: &mut SearchTreeManager,
     board: &mut Board,
+    settings: &BatchSettings,
     sink: &mut dyn DriverSink,
     pass_no: i32,
 ) -> Vec<ItemId> {
-    let autoroute_item_list = get_autoroute_items(manager, board, sink);
+    let mut autoroute_item_list = get_autoroute_items(manager, board, sink);
     if autoroute_item_list.is_empty() {
         // Java `router.airLine = null` — banked GUI seam.
         return Vec::new();
+    }
+    // M6-T7 (default OFF): the congestion-aware planned order — the
+    // queue sorted by the plan rank of the item's most urgent net
+    // (stable sort; equal ranks keep the DSN/item-id order).
+    if settings.congestion_global {
+        let plan = crate::global::plan::GlobalPlan::build(board);
+        let mut keyed: Vec<(usize, ItemId)> = autoroute_item_list
+            .iter()
+            .map(|item_id| {
+                let rank = board
+                    .get(*item_id)
+                    .map(|entry| {
+                        entry
+                            .nets
+                            .iter()
+                            .filter_map(|net| plan.rank_of(*net))
+                            .min()
+                            .unwrap_or(usize::MAX)
+                    })
+                    .unwrap_or(usize::MAX);
+                (rank, *item_id)
+            })
+            .collect();
+        keyed.sort_by_key(|(rank, _item_id)| *rank);
+        autoroute_item_list = keyed.into_iter().map(|(_rank, item_id)| item_id).collect();
     }
     let items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
     let mut counters = RouterCounters {
@@ -592,7 +618,7 @@ pub fn run_single_thread(
     stop: &mut StopFace,
     sink: &mut dyn DriverSink,
 ) -> bool {
-    let autoroute_item_list = begin_pass(manager, board, sink, pass_no);
+    let autoroute_item_list = begin_pass(manager, board, settings, sink, pass_no);
     if autoroute_item_list.is_empty() {
         return false;
     }
@@ -763,7 +789,7 @@ pub fn run_partitioned<'a>(
     sink: &'a mut (dyn DriverSink + 'a),
     threads: usize,
 ) -> bool {
-    let autoroute_item_list = begin_pass(manager, board, sink, pass_no);
+    let autoroute_item_list = begin_pass(manager, board, settings, sink, pass_no);
     if autoroute_item_list.is_empty() {
         return false;
     }

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "dsn": "t7_ripup.dsn",
+  "dsn_sha256": "8c3924ed8e628b57c7f5e3ad970aed5f7fcbe3149d261ea23761e43facb545cd",
+  "flags": [
+    "--router.congestion_global=on"
+  ],
+  "ses_sha256": "d27ab1dec29808a038de7286ee29c42241b56e4926bdc06010132b38a3a67638",
+  "manifest_sha256": "3c189a9116068a37ced9f9839d8c78a2fe049df26f713ad5536633f99d42f643"
+}

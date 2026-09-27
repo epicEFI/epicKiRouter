@@ -309,12 +309,16 @@ pub fn route_argv_threads(
     manifest_path: &Path,
     profile: CompareProfile,
     max_threads: Option<usize>,
+    extra_args: &[String],
 ) -> Vec<String> {
     let mut argv = route_argv(cli_bin, dsn, ses_path, manifest_path, profile);
     if let Some(n) = max_threads {
         argv.push("-mt".to_string());
         argv.push(n.to_string());
     }
+    // The M6-T7 extension: extra router flags appended VERBATIM (the
+    // settings-ON faces; empty = the historical faces, byte-identical).
+    argv.extend(extra_args.iter().cloned());
     argv
 }
 
@@ -400,6 +404,11 @@ pub enum RouterCommand {
         /// Tier A board (`DAC2020_boards/DAC2020_bm08.dsn`).
         #[arg(long)]
         fixture: Option<String>,
+        /// Extra `--router.*` flags appended verbatim to BOTH run
+        /// argvs (the M6-T7 settings-ON faces; empty = the historical
+        /// face, byte-identical argv).
+        #[arg(long)]
+        extra_router_arg: Vec<String>,
         /// Work-root override (default `harness/runs/router-determinism`).
         #[arg(long)]
         work_root: Option<PathBuf>,
@@ -421,6 +430,11 @@ pub enum RouterCommand {
         /// The odd thread count (default 3).
         #[arg(long, default_value_t = 3)]
         odd_threads: usize,
+        /// Extra `--router.*` flags appended verbatim to ALL THREE
+        /// run argvs (the M6-T7 settings-ON witness face; empty = the
+        /// historical face).
+        #[arg(long)]
+        extra_router_arg: Vec<String>,
         /// Work-root override (default `harness/runs/router-threads`).
         #[arg(long)]
         work_root: Option<PathBuf>,
@@ -446,19 +460,23 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
             detail,
             work_root,
         ),
-        RouterCommand::Determinism { fixture, work_root } => {
-            determinism_cmd(&repo_root, fixture.as_deref(), work_root)
-        }
+        RouterCommand::Determinism {
+            fixture,
+            extra_router_arg,
+            work_root,
+        } => determinism_cmd(&repo_root, fixture.as_deref(), &extra_router_arg, work_root),
         RouterCommand::ThreadsInvariance {
             fixture,
             even_threads,
             odd_threads,
+            extra_router_arg,
             work_root,
         } => threads_invariance_cmd(
             &repo_root,
             fixture.as_deref(),
             even_threads,
             odd_threads,
+            &extra_router_arg,
             work_root,
         ),
     }
@@ -743,7 +761,7 @@ pub fn run_cli(
     timeout: Duration,
     profile: CompareProfile,
 ) -> Result<CliRun> {
-    run_cli_threads(cli_bin, dsn, work_dir, timeout, profile, None)
+    run_cli_threads(cli_bin, dsn, work_dir, timeout, profile, None, &[])
 }
 
 /// [`run_cli`] with the T7 threads face (`-mt <n>` when `max_threads`
@@ -755,6 +773,7 @@ pub fn run_cli_threads(
     timeout: Duration,
     profile: CompareProfile,
     max_threads: Option<usize>,
+    extra_args: &[String],
 ) -> Result<CliRun> {
     let ses_path = work_dir.join(RUN_SES_FILE);
     let manifest_path = work_dir.join(RUN_MANIFEST_FILE);
@@ -772,6 +791,7 @@ pub fn run_cli_threads(
         &manifest_path,
         profile,
         max_threads,
+        extra_args,
     );
     let stdout_file = std::fs::File::create(work_dir.join("stdout.log"))
         .with_context(|| format!("creating {}", work_dir.join("stdout.log").display()))?;
@@ -1609,6 +1629,7 @@ pub fn determinism_digests(pair: &DeterminismPair) -> Result<DeterminismDigests>
 fn determinism_cmd(
     repo_root: &Path,
     fixture: Option<&str>,
+    extra_router_args: &[String],
     work_root: Option<PathBuf>,
 ) -> Result<()> {
     let started = Instant::now();
@@ -1642,19 +1663,23 @@ fn determinism_cmd(
     // Trap 5: SEPARATE output paths — run1/ and run2/ never share a file.
     let run1_dir = work.join("run1");
     let run2_dir = work.join("run2");
-    let run1 = run_cli(
+    let run1 = run_cli_threads(
         &cli_bin,
         &dsn,
         &run1_dir,
         Duration::from_secs(entry.timeout_seconds),
         CompareProfile::RouterOnly,
+        None,
+        extra_router_args,
     )?;
-    let run2 = run_cli(
+    let run2 = run_cli_threads(
         &cli_bin,
         &dsn,
         &run2_dir,
         Duration::from_secs(entry.timeout_seconds),
         CompareProfile::RouterOnly,
+        None,
+        extra_router_args,
     )?;
     // The digest sources are a STRUCTURAL run1/run2 pair (review OW-M3 +
     // MINOR-A hardening): the construction is the pinned `pair_from_runs`
@@ -1764,6 +1789,7 @@ fn threads_invariance_cmd(
     fixture: Option<&str>,
     even_threads: usize,
     odd_threads: usize,
+    extra_router_args: &[String],
     work_root: Option<PathBuf>,
 ) -> Result<()> {
     let started = Instant::now();
@@ -1819,6 +1845,7 @@ fn threads_invariance_cmd(
                 Duration::from_secs(entry.timeout_seconds),
                 CompareProfile::RouterOnly,
                 Some(*threads),
+                extra_router_args,
             )?;
             let ses_digest = std::fs::File::open(&run.ses_path)
                 .ok()
@@ -3145,8 +3172,15 @@ mod pins {
             !plain.iter().any(|arg| arg == "-mt"),
             "the plain face must not carry -mt"
         );
-        let threaded =
-            route_argv_threads(cli, dsn, ses, manifest, CompareProfile::RouterOnly, Some(3));
+        let threaded = route_argv_threads(
+            cli,
+            dsn,
+            ses,
+            manifest,
+            CompareProfile::RouterOnly,
+            Some(3),
+            &[],
+        );
         let mt_position = threaded
             .iter()
             .position(|arg| arg == "-mt")

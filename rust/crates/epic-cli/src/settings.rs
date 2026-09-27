@@ -98,6 +98,16 @@ pub struct CliLayer {
     /// by prefix). Default OFF: the clamp is dead code at defaults and
     /// its route effect is measured at T8/T9, not here.
     pub plane_island_clamp: Option<bool>,
+    /// `router.congestion_global` — the M6-T7 global-planning master
+    /// switch (RUST-ONLY, no Java counterpart): the congestion map +
+    /// per-net guides + the planned net order. Default OFF (the T6
+    /// seam precedent): at defaults the stage never runs and the
+    /// recurring gate set stays byte-identical.
+    pub congestion_global: Option<bool>,
+    /// `router.congestion_global.pattern` — the L/Z pattern-routing
+    /// fast path sub-flag (RUST-ONLY). Requires the master ON; default
+    /// OFF. Documented per the dispatch charter.
+    pub congestion_global_pattern: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -514,6 +524,14 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.plane_island_clamp = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "congestion_global" => match parse_on_off(value) {
+            Some(v) => layer.congestion_global = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "congestion_global.pattern" => match parse_on_off(value) {
+            Some(v) => layer.congestion_global_pattern = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -846,6 +864,12 @@ pub struct MergedSettings {
     /// `router.plane_island_clamp` — the M6-T6 Rust-only clamp flag.
     /// No Java/DSN source writes it (CLI source only); absent = OFF.
     pub plane_island_clamp: Option<bool>,
+    /// `router.congestion_global` — the M6-T7 master switch (absent =
+    /// OFF; the T6 seam precedent).
+    pub congestion_global: Option<bool>,
+    /// `router.congestion_global.pattern` — the pattern sub-flag
+    /// (absent = OFF).
+    pub congestion_global_pattern: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -946,6 +970,8 @@ impl Default for MergedSettings {
             max_items: Some(i32::MAX),
             max_threads: None,
             plane_island_clamp: None,
+            congestion_global: None,
+            congestion_global_pattern: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1076,6 +1102,12 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.plane_island_clamp {
         merged.plane_island_clamp = Some(v);
+    }
+    if let Some(v) = cli.congestion_global {
+        merged.congestion_global = Some(v);
+    }
+    if let Some(v) = cli.congestion_global_pattern {
+        merged.congestion_global_pattern = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1394,6 +1426,13 @@ pub struct ResolvedRouteSettings {
     /// The M6-T6 Rust-only clamp flag (`router.plane_island_clamp`,
     /// default OFF — dead code at defaults).
     pub plane_island_clamp: bool,
+    /// The M6-T7 global-planning master switch
+    /// (`router.congestion_global`, default OFF).
+    pub congestion_global: bool,
+    /// The M6-T7 pattern-routing sub-flag
+    /// (`router.congestion_global.pattern`, default OFF; requires the
+    /// master).
+    pub congestion_global_pattern: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1500,6 +1539,8 @@ impl ResolvedRouteSettings {
             max_passes: merged.max_passes,
             max_items: merged.max_items,
             plane_island_clamp: merged.plane_island_clamp.unwrap_or(false),
+            congestion_global: merged.congestion_global.unwrap_or(false),
+            congestion_global_pattern: merged.congestion_global_pattern.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2461,6 +2502,8 @@ mod tests {
             max_items: Some(44),
             max_threads: Some(2),
             plane_island_clamp: Some(true),
+            congestion_global: Some(true),
+            congestion_global_pattern: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
@@ -3108,5 +3151,61 @@ mod tests {
             )
             .plane_island_clamp
         );
+    }
+
+    /// The M6-T7 seam: default OFF through the whole chain, uptake via
+    /// the explicit CLI face, the sub-flag independent of the master.
+    #[test]
+    fn congestion_global_default_off_and_uptake() {
+        fn args(flags: &[&str]) -> Vec<String> {
+            let mut argv = vec![
+                "-de".to_string(),
+                "a.dsn".to_string(),
+                "-do".to_string(),
+                "b.ses".to_string(),
+            ];
+            argv.extend(flags.iter().map(|flag| (*flag).to_string()));
+            argv
+        }
+
+        // World 1: defaults — OFF everywhere.
+        let defaults = parse_route_args(&args(&[])).expect("parses");
+        assert!(defaults.layer.congestion_global.is_none(), "no initializer");
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &defaults.layer,
+        );
+        assert!(merged.congestion_global.is_none());
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.congestion_global, "default OFF");
+        assert!(!resolved.congestion_global_pattern, "default OFF");
+
+        // World 2: master uptake.
+        let on = parse_route_args(&args(&["--router.congestion_global=on"])).expect("parses");
+        assert!(on.layer.congestion_global == Some(true));
+        assert!(
+            on.layer.warnings.is_empty(),
+            "no warns on the Rust-only flag: {:?}",
+            on.layer.warnings
+        );
+        let merged_on = merge(&MergedSettings::default(), &DsnLayer::default(), &on.layer);
+        assert_eq!(merged_on.congestion_global, Some(true));
+        assert!(ResolvedRouteSettings::resolve(&merged_on, None).congestion_global);
+
+        // World 3: the sub-flag parses; without the master the RESOLVED
+        // pair is (true pattern, false master) — the sub-flag is inert
+        // in the engine without the master (batch.rs ctor + uptake).
+        let pattern_only =
+            parse_route_args(&args(&["--router.congestion_global.pattern=on"])).expect("parses");
+        assert!(pattern_only.layer.congestion_global_pattern == Some(true));
+        let merged_pattern = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &pattern_only.layer,
+        );
+        let resolved_pattern = ResolvedRouteSettings::resolve(&merged_pattern, None);
+        assert!(resolved_pattern.congestion_global_pattern);
+        assert!(!resolved_pattern.congestion_global, "master stays OFF");
     }
 }
