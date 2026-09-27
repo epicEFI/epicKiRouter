@@ -14,30 +14,32 @@ clearance counting), the M4 fanout + batch-optimizer stages with the
 assembled full pipeline (`pipeline/full.rs`, the `RoutingPipeline.run()`
 equivalent), the deterministic per-net partitioned executor with
 `--threads`, and `epic-cli` (headless route: `epicrouter -de
-board.dsn -do out.ses`); **1,444 workspace tests green**. The M5-T8
-full-face battery (fanout → router → optimizer vs the M0 full-flow jar
-records) reads **8 pass / 3 red** with the failure composition CHANGED
-from M4: bm01's routing now COMPLETES 0/0/1000.00 in ~276 s (M4:
-kill-at-plateau 668.8 s) and the red is the optimizer stage — killed
-at the 1800 s tier on a non-improvable 0.00-score incumbent (not a
-search regression); bm06 3-vs-2 and bm11 4-vs-3 incompletes are the
-buglog-181 completion residuals (owner M6). All seven standing
+board.dsn -do out.ses`); **1,449 workspace tests green**. The M6-T3 battery re-faces — the
+first tier-aware full batteries (full flow, default settings;
+`--tier A|B|C`, default A byte-identical) — read: Tier A
+**10 green / 1 red** (bm01 killed at the 1800.2 s tier on the
+INTEGRITY gate — routing complete 0/0/1000.00, the optimizer stage is
+the wall; the completion-only reading is 11/11), Tier B
+**4 green / 5 red**, Tier C **1 green / 2 red**; the BEFORE-face
+tables live in `logs/M6-T3/report-t3.md`. All seven standing
 compares stay green (corpus 5000/5000; DSN 1,332; SES 20; ses-snap 5;
 index 33; undo 33; drc 17), the events compare is green (3,520
 golden rows, exit 0 since M4-T6), determinism canaries are unrotated
 (ses `dc271114…` / manifest `cf607714…`), and the in-tree
 threads-invariance gate is green (bm06 SES `77caf2099a2f…` / manifest
 `90f08ad2…` byte-identical across `-mt 1/3/4`). The CI router gate
-stays in `--report-only`: the M5-T8 close adjudicated the flip
-NO-GO on BOTH preconditions (battery 8/11 ≠ 11/11; suite wall
-2286.1 s harness-elapsed ≈ 38.1 min > the CI compare step's 30-min
-budget — 2.02× Σ-Java 1130.39 s vs the ≤0.5× target, like-for-like
-per-fixture excl-bm01 256.7 s = 2.42×; basis labels per the T8
-report). M6 flip conditions: the wall work — the bm01 optimizer-entry
-question + the 1800 s tier bound + the bm06/bm11 completion levers
-(buglog 181) — until the full battery reads 11/11 AND its wall fits
-the budget (the design doc §6 M4/M5 notes and the rust-check.yml
-comment).
+stays in `--report-only`: the M6-T3 close adjudicated the flip
+NO-GO (honest hold) on BOTH preconditions — the Tier A battery
+verdict face reads 10 green / 1 red ≠ 11 green / 0 red (the
+completion-only reading is 11/11; both faces named per the plan's
+corrected precondition wording), and Σ Tier A 2089.5 s > the compare
+step's 30-min budget (over by 289.5 s = 16.1%). Reopen bound: the
+other ten Tier A walls sum 289.3 s — the flip reopens when bm01
+completes < 1510.7 s; the named lever is deterministic candidate
+parallelism (buglog 197), recorded not attempted. The bound does not
+rise — the wall must drop (the rust-check.yml comment records the
+adjudication). Threads-gate CI wiring lands WITH the flip
+(re-deferred with cause: the preconditions failed at M6-T3).
 Port ledger: `crates/epic-router/SEAM.md`.
 
 ## Layout
@@ -190,27 +192,61 @@ cargo run -q -p epic-harness --release -- router compare
 # victim-choice family; bm11 wall-integrity red with the engine AT
 # Java's exact 975.00/3/0 face at the kill) — T12's face.
 cargo run -q -p epic-harness --release -- router compare --profile full
-# CI posture (M4-T13, refreshed at M5-T9): --report-only prints every
-# verdict and exits 0. The flip to a hard gate stays HELD after M5 —
-# both preconditions unmet for a second consecutive milestone, with
-# the failure composition changed (the maze-search wall collapsed;
-# bm01's red is now the optimizer stage under the 1800 s tier on a
-# non-improvable 0.00-score incumbent; bm06/bm11 are the buglog-181
-# completion residuals): the milestone full-face battery reads 8 pass
-# / 3 red (logs/M5-T8/evidence/battery_full_t8.log) and its suite wall
-# (2286.1 s harness-elapsed ≈ 38.1 min) exceeds the compare step's
-# 30-min budget. The in-tree threads-invariance gate stays pinned
-# in-tree only (green, hashed) — its CI wiring is RE-DEFERRED to the
-# M6 flip-adjacent moment, so no CI step additions ride the T9
-# docs-only commit. M6 flip conditions: the wall work — the bm01
-# optimizer-entry question + the 1800 s tier bound + the bm06/bm11
-# completion levers (buglog 181) — until the full battery reads 11/11
-# AND the wall fits the
-# budget — then drop --report-only, update BOTH ci_tripwire.rs pins in
+# CI posture (M4-T13, refreshed at M5-T9, re-refreshed at M6-T4 to the
+# M6-T3 hold): --report-only prints every verdict and exits 0. The
+# battery is now TIER-AWARE (`--tier A|B|C`, default A byte-identical —
+# the T3 chore commit 62c417a38) and the workspace census is 1,449
+# passed / 0 failed / 17 ignored. The flip stays HELD after M6-T3 —
+# both preconditions fail: the Tier A battery verdict face is 10 green
+# / 1 red (bm01's 1800.2 s INTEGRITY-gate tier kill — routing complete
+# 0/0/1000.00, optimizer P1 571.93 s REJECTED, incumbent restored; the
+# completion-only reading is 11/11, both faces named) and Σ Tier A =
+# 2089.5 s > the compare step's 30-min budget (over by 289.5 s =
+# 16.1%). The per-tier BEFORE-face tables (A 10/1, B 4/9, C 1/3) live
+# in logs/M6-T3/report-t3.md. REOPEN BOUND: the other ten Tier A walls
+# sum 289.3 s — the flip reopens exactly when bm01's total completes
+# < 1510.7 s. Named lever, recorded NOT attempted: deterministic
+# candidate parallelism (buglog 197; Java DefaultSettings.java:182
+# optimizer.maxThreads = cores−1 vs Rust's mandated 1-thread face).
+# The bound does not rise; the wall must drop (the rust-check.yml
+# comment records the bound-rise adjudication: NOT taken — bounds are
+# never raised to fit walls, the same discipline as tiers.yaml
+# timeouts).
+#
+# RESIDUALS LEDGER (the standing record): the B/C completion reds are
+# the T8/T9 tuning population (bm05 29 vs 18, interf_u 1 vs 0, 1Bitsy
+# 2 vs 1, bm04 3 vs 2); kill faces bm01 (Tier A) and bm10 / StickHub /
+# LimeSDR (Tiers B/C); the FANOUT-FULL-FLOW GATE GAP — the events
+# fixtures are capture replays that never exercise the changed fanout
+# arm and the router-only/ses/det gates run fanout-disabled, so the
+# buglog-181 fix carries ZERO byte-invariance coverage until a
+# fanout-full-flow golden exists (guards meanwhile: the ci_tripwire
+# pins + sanctioned faces + the batteries); the Σ-decomposition
+# battery print is BANKED as a harness improvement for the first
+# harness touch (not implemented in the M6-T4 docs-only task); the
+# banked quality-r2 NITs (shared no-extras sweep helper, bail! idiom
+# consistency, multi-concern walk pin) share that same first-touch
+# owner; T5's pour worklist: 43 parse-time plane-induced rows on
+# multichannel_mixer-unrouted / CM5_MINIMA_3 (the Java post-route
+# real-walk instrument is T5's first item).
+#
+# EVIDENCE CONVENTION (the DNR-14 lesson; quality-r1 finding 6, closed
+# in practice by the T3 fix round): gate evidence logs open with the
+# exact invocation line, so the log alone proves the flags.
+#
+# B/C SUM COMPOSITION (spec finding 3 / NOTE-8): the battery's printed
+# Σ includes the completing reds' detail-pass re-burns, so the
+# per-fixture wall columns do NOT re-sum to it; Tier A (the
+# adjudicated Σ) sums exactly.
+#
+# At the flip: drop --report-only, update BOTH ci_tripwire.rs pins in
 # the SAME commit, add the events-compare step (java-free, green since
 # M4-T6) with its own pin, and refresh the posture prose (this file's
 # status block and this comment, plus the design doc §6 note's CI
-# paragraph); the rust-check.yml comment records the condition.
+# paragraph, SEAM posture rows); the rust-check.yml comment records
+# the condition. The threads-gate CI wiring lands WITH the flip
+# (re-deferred with cause at M6-T4: the flip preconditions failed at
+# M6-T3).
 cargo run -q -p epic-harness -- router compare --report-only
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
 # manifest (canaries at the M5-T3 fix: ses dc271114… / manifest

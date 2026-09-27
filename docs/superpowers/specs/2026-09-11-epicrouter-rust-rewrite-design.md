@@ -200,7 +200,35 @@ entered at all on a 1000.00/0/0 incumbent, Java's preflight guard —
 plus the tier-bound question) → M6; bm06 3>2 and bm11 4>3
 incompletes: the buglog-181 completion residuals → M6. The
 threads-gate CI wiring is RE-DEFERRED to the M6 flip-adjacent moment
-(the gate stays pinned in-tree, green and hashed).)
+(the gate stays pinned in-tree, green and hashed.) (M6 UPDATE, T4:
+the HOLD continues — adjudicated NO-GO (honest hold) on both
+preconditions at the M6-T3 close (`logs/M6-T3/report-t3.md`): the
+Tier A battery fails the harness verdict face — **10 green / 1 red**
+(bm01's 1800.2 s tier kill on the INTEGRITY gate: harness timeout, no
+manifest, exit None; NOT a completion failure — pre-kill router face
+0-unrouted/1000.00, optimizer P1 571.93 s REJECTED
+`OPTIMIZER_SCORE_NOT_IMPROVED`, incumbent restored) — while the
+completion-only reading passes it (**11/11**; both faces are named
+because the flip precondition is judged on both, closing the plan's
+"expect 11/11" self-contradiction); and Σ Tier A = **2089.5 s** >
+the compare step's 30-min budget (`timeout-minutes: 30`), over by
+289.5 s = 16.1%. Either failing ⇒ NO-GO; both fail. Reopen bound:
+the other ten walls sum 289.3 s — the flip reopens exactly when bm01
+completes < **1510.7 s**; the named lever is deterministic candidate
+parallelism (buglog 197; `DefaultSettings.java:182`
+`optimizer.maxThreads = cores−1` vs Rust's mandated 1-thread face),
+recorded NOT attempted. The bound-rise option (the prior comment's
+"or this bound to rise") is adjudicated NOT taken — the wall drops,
+the bound does not rise, the same discipline as the tiers.yaml
+timeouts. The threads-gate CI wiring is re-deferred WITH CAUSE — it
+lands with the flip commit; the cause is that the flip preconditions
+failed at M6-T3. The full hold record lives in the rust-check.yml
+compare-step comment (refreshed by this task — the M5 note's `:139`
+timeout anchors are pre-refresh numbering) and the SEAM M6 hold
+posture table. Post-refresh line anchor (verify at the committed
+tree): the compare step's run line is `rust-check.yml:169`, its
+`timeout-minutes: 30` at `:170` — the M5 note's `:139` anchors are
+pre-refresh numbering.)
 
 M4 exit note (T13, adjudicated 2026-09-24 at tree `6a0dbd00b`):
 **M4_EXIT_WITH_DEVIATIONS**, adjudicated on this row's own faces.

@@ -166,3 +166,16 @@
 - [ ] The M6 exit note: criterion verdicts with cited evidence (the T3/T10 tables), deviations table if any red remains (face/root-cause/owner/buglog), carry-forwards (every line traces to a dossier/buglog), the verdict slot left open.
 - [ ] Architecture map + README at the M6 face (the intelligence stages, the settings family, the flip outcome); SEAM M6 criterion map (zero deletions above).
 - [ ] Gates (cheap set) + ONE docs commit. Then the coordinator dispatches the MILESTONE ADJUDICATION (fresh opus, the M4-T17d/M5 pattern, report-only) — this plan's terminal act.
+
+## AMENDMENT 3 (2026-09-27, post-T3 — the "expect 11/11" erratum)
+
+Task 3's "expect 11/11" bullet contradicted the Task 1b outcome it
+referenced (per AMENDMENT 2, bm01 is still killed at the 1800.2 s
+tier wall ⇒ the expected VERDICT face was 10 green / 1 red, with
+11/11 reachable only under the completion-only reading; spec-review
+PLAN-LEVEL finding 1). The precondition wording is corrected in the
+durable record — the rust-check.yml compare-step comment (the M6-T4
+hold commit) names BOTH faces explicitly: verdict face 11 green /
+0 red AND completion face 11/11. The T3 adjudication itself is
+unaffected (the NO-GO is invariant under either reading: precondition
+2 failed regardless on Σ 2089.5 s > 1800 s).
