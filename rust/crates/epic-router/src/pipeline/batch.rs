@@ -352,6 +352,12 @@ pub struct BatchSettings {
     pub retain_autoroute_database: bool,
     /// Java `getTraceCosts()` (`:130-137` — resolved once per run).
     pub trace_costs: Vec<ExpansionCostFactor>,
+    /// M6-T6 RUST-ONLY: the connectivity clamp (`router.plane_island_clamp`,
+    /// default OFF — no Java counterpart). When ON, a fully-floating
+    /// pour (every metal region unreachable from the net's pins/vias,
+    /// `epic_board::islands`) cannot answer CONNECTED_TO_PLANE. Dead
+    /// code at defaults; its route effect is measured at T8/T9.
+    pub plane_island_clamp: bool,
 }
 
 impl BatchSettings {
@@ -386,6 +392,7 @@ impl BatchSettings {
             plane_via_costs: 5,
             retain_autoroute_database: false,
             trace_costs,
+            plane_island_clamp: false,
         }
     }
 }

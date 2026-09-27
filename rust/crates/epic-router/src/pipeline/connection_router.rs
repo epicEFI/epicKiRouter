@@ -36,6 +36,7 @@
 //!   [`epic_board::trace_tightener`] module docs).
 
 use std::cell::Cell;
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -92,11 +93,35 @@ impl InserterEventSink for SinkBridge<'_> {
     }
 }
 
-/// Java `AutorouteConnectionRouter.route` (`:30-161`). `route_net_no`
-/// arrives from the caller (the pass runner's per-net loop); the
-/// ripped-list maps are the caller-owned accumulators the locator
-/// fills and the ripup block drains.
-#[allow(clippy::too_many_lines)] // the Java body is one flat walk
+/// Java `:57-63` — the CONNECTED_TO_PLANE gate: any ConductionArea in
+/// the connected set answers CONNECTED_TO_PLANE before any engine
+/// work. The M6-T6 clamp (`router.plane_island_clamp`, default OFF —
+/// dead code at defaults) excludes FULLY-FLOATING pours: a pour whose
+/// every metal region is unreachable from the net's pins/vias
+/// (`epic_board::islands::pour_fully_floating`) does not answer the
+/// gate when the flag is on. With the flag OFF this is the Java face
+/// verbatim (the detector never runs).
+fn plane_connected_gate(
+    board: &Board,
+    connected_set: &BTreeSet<Reverse<ItemId>>,
+    island_clamp: bool,
+) -> bool {
+    let mut plane_in_connected = connected_set.iter().any(|id| {
+        board
+            .get(id.0)
+            .is_some_and(|entry| matches!(entry.data, ItemData::ConductionArea { .. }))
+    });
+    if plane_in_connected && island_clamp {
+        plane_in_connected = connected_set.iter().any(|id| {
+            board.get(id.0).is_some_and(|entry| {
+                matches!(entry.data, ItemData::ConductionArea { .. })
+                    && !epic_board::islands::pour_fully_floating(board, id.0)
+            })
+        });
+    }
+    plane_in_connected
+}
+
 #[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
 pub fn route(
     manager: &mut SearchTreeManager,
@@ -140,17 +165,8 @@ pub fn route(
     }
 
     let connected_set = item_connected_set(manager, board, item_id, route_net_no);
-    if contains_plane {
-        // Java `:57-63`: any ConductionArea in the connected set
-        // answers CONNECTED_TO_PLANE before any engine work.
-        let plane_in_connected = connected_set.iter().any(|id| {
-            board
-                .get(id.0)
-                .is_some_and(|entry| matches!(entry.data, ItemData::ConductionArea { .. }))
-        });
-        if plane_in_connected {
-            return AutorouteAttemptResult::new(AutorouteAttemptState::ConnectedToPlane);
-        }
+    if contains_plane && plane_connected_gate(board, &connected_set, settings.plane_island_clamp) {
+        return AutorouteAttemptResult::new(AutorouteAttemptState::ConnectedToPlane);
     }
     let (start_set, dest_set): (BTreeSet<_>, BTreeSet<_>) = if contains_plane {
         (connected_set, unconnected_set)
@@ -949,6 +965,55 @@ mod tests {
                 .count(),
             1,
             "the handled-marked net-94 pin never seeds: {debug}"
+        );
+    }
+    /// M6-T6 settings-ON smoke (interpretation 2): the clamp gate
+    /// helper, both arms. The `t11_island_floating` crafted world's
+    /// pour is fully floating (its only pin sits OUTSIDE the pour, so
+    /// no region carries a same-net seed). Clamp OFF = the Java face
+    /// verbatim (any pour in the set answers); clamp ON = the gate
+    /// stays shut. The connected set is constructed directly — the
+    /// helper is a pure function of (board, set, flag); the T8/T9
+    /// wiring replaces the coarse pour-level verdict with region-level
+    /// target filtering.
+    #[test]
+    fn t11_island_clamp_gate_smoke_off_and_on() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../harness/fixtures/island-spike/t11_island_floating.dsn");
+        let text = std::fs::read_to_string(&path).expect("floating world present");
+        let mut ses = epic_dsn::ses_board::SesBoard::new();
+        assert!(matches!(
+            epic_dsn::reader::read_board(text.as_bytes(), &mut ses),
+            epic_dsn::reader::DsnReadResult::Success { .. }
+        ));
+        let board = epic_board::board::Board::from_ses_board(&ses);
+        let (pour_id, pin_id) =
+            board
+                .iter_ascending()
+                .fold((None, None), |acc, entry| match (&entry.data, acc) {
+                    (ItemData::ConductionArea { .. }, (_, pin)) => (Some(entry.id), pin),
+                    (ItemData::Pin { .. }, (pour, _)) => (pour, Some(entry.id)),
+                    _ => acc,
+                });
+        let pour_id = pour_id.expect("floating world has a pour");
+        let pin_id = pin_id.expect("floating world has a pin");
+        assert!(
+            epic_board::islands::pour_fully_floating(&board, pour_id),
+            "rig precondition: the floating world's pour has zero seeded regions"
+        );
+        let mut connected = BTreeSet::new();
+        connected.insert(Reverse(pour_id));
+        connected.insert(Reverse(pin_id));
+
+        // Clamp OFF: the Java face — the pour answers the gate.
+        assert!(
+            plane_connected_gate(&board, &connected, false),
+            "clamp OFF: any pour answers CONNECTED_TO_PLANE (Java verbatim)"
+        );
+        // Clamp ON: the pour is fully floating -> the gate stays shut.
+        assert!(
+            !plane_connected_gate(&board, &connected, true),
+            "clamp ON: a fully-floating pour cannot answer the gate"
         );
     }
 }

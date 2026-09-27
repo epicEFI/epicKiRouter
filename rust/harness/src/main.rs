@@ -39,6 +39,7 @@ mod drc_corpus;
 // through the landed search-tree surface, Java goldens, java-free CI
 // compare.
 mod index_corpus;
+mod islands_face;
 mod manifest;
 mod oracle;
 // The ONE home for the process-global panic-hook swap (quality-review
@@ -156,6 +157,14 @@ enum Command {
         #[command(subcommand)]
         cmd: router_compare::RouterCommand,
     },
+    /// The M6-T6 pour-island detector face (advisory, java-free): parse
+    /// the DSN and print the per-pour region/island rows. Never a gate;
+    /// the fixture-evidence instrument for the detector population.
+    Islands {
+        /// The DSN file to analyze.
+        #[arg(long)]
+        dsn: PathBuf,
+    },
     /// Route event-stream corpus (M3 Task 16): the Java probe capture
     /// (double-run byte-identical) into the committed golden, and the
     /// java-free kind-ordinal field-level compare of the Rust engine's
@@ -198,6 +207,9 @@ fn run() -> Result<()> {
     if let Command::Corpus { cmd } = cli.command {
         // The corpus pipeline needs no tier file or eager JVM resolution.
         return corpus::run(cmd);
+    }
+    if let Command::Islands { dsn } = cli.command {
+        return islands_face::run(&dsn);
     }
     if let Command::Dsn { cmd } = cli.command {
         // The dsn pipeline resolves tiers.yaml itself (manifest
@@ -251,6 +263,7 @@ fn run() -> Result<()> {
         Command::Events { .. } => unreachable!("handled before tier/JVM resolution"),
         #[cfg(feature = "alloc-profile")]
         Command::AllocRoute { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::Islands { .. } => unreachable!("handled before tier/JVM resolution"),
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {

@@ -234,6 +234,31 @@ pub struct ManifestClearanceViolations {
     pub router_introduced_count: i64,
 }
 
+/// The M6-T6 ADVISORY pour-islands face (one row per filled pour) —
+/// beyond-Java (upstream has no island face at all; design :14). The
+/// detector (`epic_board::islands`) is pure analysis: it changes NO
+/// route decision, NO SES byte, NO verdict face. Emitted ONLY for
+/// boards that carry at least one filled pour (`skip_serializing_if`)
+/// — pour-free boards keep byte-identical manifests, so the manifest
+/// determinism canary does NOT rotate (the charter's anticipated
+/// rotation is designed AWAY; verified at the bm08 determinism run).
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestPourIslands {
+    /// The ConductionArea item id.
+    pub item_id: u32,
+    /// The pour's net name.
+    pub net: String,
+    /// The pour's 0-based layer.
+    pub layer: i32,
+    /// Connected metal regions (0 = fully covered pour).
+    pub region_count: usize,
+    /// Floating islands (regions unreachable from the net's pins/vias).
+    pub island_count: usize,
+    /// SHA-256 over the canonical per-region rows (deterministic,
+    /// thread-count-invariant).
+    pub digest: String,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -246,6 +271,11 @@ pub struct RouteManifest<'a> {
     pub phases: ManifestPhases,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub board_statistics: Option<ManifestBoardStats>,
+    /// The M6-T6 advisory pour-islands face (additive, version-tolerant:
+    /// the harness manifest mirror ignores unknown fields). Absent for
+    /// pour-free boards (the schema-evolution face).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pour_islands: Vec<ManifestPourIslands>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -298,6 +328,9 @@ pub struct RouteTelemetry {
     /// the manifest's final `BoardStatistics`); EMISSION is gated on
     /// the optimizer phase faces in the renderer (the `:200-202` iff).
     pub final_optimizer_score: Option<f64>,
+    /// The M6-T6 advisory pour-islands face (empty = no filled pours;
+    /// absent from the rendered manifest then).
+    pub pour_islands: Vec<ManifestPourIslands>,
 }
 
 /// The final-state mapping (module docs for the Java-scheduler rule).
@@ -529,6 +562,7 @@ pub fn render_manifest(
                 clearance_violations: telemetry.clearance_violations.clone(),
             }),
         },
+        pour_islands: telemetry.pour_islands.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -680,6 +714,9 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     batch.strict_drc = resolved.strict_drc;
     batch.run_router = resolved.run_router;
     batch.deterministic_budgets = resolved.deterministic_budgets;
+    // M6-T6: the Rust-only connectivity clamp (default OFF — dead code
+    // at defaults; its route effect is measured at T8/T9, not here).
+    batch.plane_island_clamp = resolved.plane_island_clamp;
     // The via-cost pair: the merged scoring box (DefaultSettings seeds
     // 50/5; the CLI/DSN layers can override).
     let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();
@@ -1035,6 +1072,20 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         stats.clearance_violations.total_count,
         board.pre_existing_clearance_violations_count,
     ));
+    // The M6-T6 advisory detector face: pure post-route analysis (no
+    // board mutation, no route effect at any setting). Emitted into the
+    // manifest ONLY when the board carries a filled pour.
+    let pour_islands: Vec<ManifestPourIslands> = epic_board::islands::detect_pour_islands(&board)
+        .into_iter()
+        .map(|pour| ManifestPourIslands {
+            item_id: pour.pour_item_id,
+            net: pour.net,
+            layer: pour.layer,
+            region_count: pour.region_count,
+            island_count: pour.island_count,
+            digest: pour.digest,
+        })
+        .collect();
     let last_counters = sink.last_counters_by_phase.get("autoroute").cloned();
     // The pipeline's per-phase faces (the render builds the snapshot
     // rows from the raw boundary pairs).
@@ -1089,6 +1140,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         pre_existing_violations: board.pre_existing_clearance_violations_count,
         scoring: Some(resolved.scoring.clone()),
         final_optimizer_score: Some(final_optimizer_score),
+        pour_islands,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1182,6 +1234,7 @@ mod tests {
         };
         let mut telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
+            pour_islands: Vec::new(),
             last_counters: Some(counters),
             ..RouteTelemetry::default()
         };
@@ -1243,6 +1296,7 @@ mod tests {
         };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
+            pour_islands: Vec::new(),
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
         };
@@ -1274,6 +1328,7 @@ mod tests {
         };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
+            pour_islands: Vec::new(),
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
         };
@@ -1431,6 +1486,7 @@ mod tests {
         };
         let telemetry_with = |phases: PipelinePhases| RouteTelemetry {
             final_state: "COMPLETED".to_string(),
+            pour_islands: Vec::new(),
             last_counters: None,
             connections: Some(ManifestConnections {
                 incomplete_count: 0,
@@ -1529,6 +1585,7 @@ mod tests {
         };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
+            pour_islands: Vec::new(),
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
                 incomplete_count: 2,
@@ -1780,6 +1837,7 @@ mod tests {
         };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
+            pour_islands: Vec::new(),
             last_counters: Some(counters),
             connections: Some(ManifestConnections {
                 incomplete_count: 1,
@@ -2869,5 +2927,76 @@ mod tests {
             -1,
             "no class appended"
         );
+    }
+
+    /// The M6-T6 advisory pour-islands face: ABSENT for a pour-free
+    /// board (the schema-evolution face — pour-free manifests keep
+    /// their bytes), PRESENT with the count+digest rows when pours
+    /// exist.
+    #[test]
+    fn manifest_pour_islands_face_absent_without_pours_present_with() {
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            pour_islands: vec![ManifestPourIslands {
+                item_id: 17,
+                net: "GND".to_string(),
+                layer: 1,
+                region_count: 2,
+                island_count: 1,
+                digest: "a".repeat(64),
+            }],
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        let row = value.pointer("/pour_islands/0").expect("the face rides");
+        assert_eq!(
+            row.pointer("/net").and_then(serde_json::Value::as_str),
+            Some("GND")
+        );
+        assert_eq!(
+            row.pointer("/region_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            row.pointer("/island_count")
+                .and_then(serde_json::Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            row.pointer("/digest")
+                .and_then(serde_json::Value::as_str)
+                .map(str::len),
+            Some(64)
+        );
+
+        // Pour-free: the key is ABSENT (the byte-invariance face).
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert!(
+            value.pointer("/pour_islands").is_none(),
+            "pour-free manifests keep their bytes: the key must not ride"
+        );
+    }
+
+    /// The clamp flag flows into BatchSettings through
+    /// `build_batch_settings` (default OFF; explicit ON survives).
+    #[test]
+    fn build_batch_settings_carries_plane_island_clamp() {
+        let merged = MergedSettings::default();
+        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
+        assert!(!default_batch.plane_island_clamp, "default OFF");
+
+        let merged_on = MergedSettings {
+            plane_island_clamp: Some(true),
+            ..MergedSettings::default()
+        };
+        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
+        assert!(batch_on.plane_island_clamp);
     }
 }

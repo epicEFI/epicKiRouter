@@ -93,6 +93,11 @@ pub struct CliLayer {
     pub via_costs: Option<i32>,
     /// `router.plane_via_costs`.
     pub plane_via_costs: Option<i32>,
+    /// `router.plane_island_clamp` — the M6-T6 RUST-ONLY intelligence
+    /// flag (no Java counterpart; the `router.*` guard path accepts it
+    /// by prefix). Default OFF: the clamp is dead code at defaults and
+    /// its route effect is measured at T8/T9, not here.
+    pub plane_island_clamp: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -505,6 +510,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Ok(v) => layer.plane_via_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
         },
+        "plane_island_clamp" => match parse_on_off(value) {
+            Some(v) => layer.plane_island_clamp = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -834,6 +843,9 @@ pub struct MergedSettings {
     /// face into `BatchSettings.max_threads`, not this post-validate
     /// value (M5-T7).
     pub max_threads: Option<i32>,
+    /// `router.plane_island_clamp` — the M6-T6 Rust-only clamp flag.
+    /// No Java/DSN source writes it (CLI source only); absent = OFF.
+    pub plane_island_clamp: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -933,6 +945,7 @@ impl Default for MergedSettings {
             max_passes: Some(0),
             max_items: Some(i32::MAX),
             max_threads: None,
+            plane_island_clamp: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1060,6 +1073,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.max_threads {
         merged.max_threads = Some(v);
+    }
+    if let Some(v) = cli.plane_island_clamp {
+        merged.plane_island_clamp = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1375,6 +1391,9 @@ pub struct ResolvedRouteSettings {
     pub pull_tight_accuracy: i32,
     /// `--deterministic-budgets` (default ON — anchors §6).
     pub deterministic_budgets: bool,
+    /// The M6-T6 Rust-only clamp flag (`router.plane_island_clamp`,
+    /// default OFF — dead code at defaults).
+    pub plane_island_clamp: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1480,6 +1499,7 @@ impl ResolvedRouteSettings {
             },
             max_passes: merged.max_passes,
             max_items: merged.max_items,
+            plane_island_clamp: merged.plane_island_clamp.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2440,6 +2460,7 @@ mod tests {
             max_passes: Some(3),
             max_items: Some(44),
             max_threads: Some(2),
+            plane_island_clamp: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
@@ -3017,6 +3038,75 @@ mod tests {
         assert!(
             !ResolvedRouteSettings::resolve(&disabled, None).run_optimizer,
             "enabled == null reads as FALSE (not the default-true face)",
+        );
+    }
+
+    /// The M6-T6 Rust-only clamp flag: default OFF, `on|off` uptake
+    /// through the `router.*` guard path, and the resolved product
+    /// carries it into BatchSettings' seam.
+    #[test]
+    fn plane_island_clamp_default_off_and_uptake() {
+        // World 1: silence = OFF at every layer.
+        let parsed = parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses"])).expect("parses");
+        let merged = merge(
+            &MergedSettings::default(),
+            &DsnLayer::default(),
+            &parsed.layer,
+        );
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.plane_island_clamp, "default OFF");
+
+        // World 2: explicit uptake both spellings of the boolean.
+        let on = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.plane_island_clamp=on",
+        ]))
+        .expect("parses");
+        assert!(on.layer.plane_island_clamp == Some(true));
+        assert!(
+            on.layer.warnings.is_empty(),
+            "no warns on the Rust-only flag: {:?}",
+            on.layer.warnings
+        );
+        let merged_on = merge(&MergedSettings::default(), &DsnLayer::default(), &on.layer);
+        assert_eq!(merged_on.plane_island_clamp, Some(true));
+        assert!(ResolvedRouteSettings::resolve(&merged_on, None).plane_island_clamp);
+
+        let off = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.plane_island_clamp=off",
+        ]))
+        .expect("parses");
+        assert!(
+            !ResolvedRouteSettings::resolve(
+                &merge(&MergedSettings::default(), &DsnLayer::default(), &off.layer),
+                None
+            )
+            .plane_island_clamp
+        );
+
+        // World 3: a malformed value WARNs and leaves OFF in place.
+        let bad = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.plane_island_clamp=yes-please",
+        ]))
+        .expect("parses");
+        assert!(!bad.layer.warnings.is_empty(), "the malformed value warns");
+        assert!(
+            !ResolvedRouteSettings::resolve(
+                &merge(&MergedSettings::default(), &DsnLayer::default(), &bad.layer),
+                None
+            )
+            .plane_island_clamp
         );
     }
 }

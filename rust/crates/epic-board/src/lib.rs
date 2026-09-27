@@ -42,6 +42,7 @@ pub mod failure_log;
 pub mod forced_pad_router;
 pub mod forced_via_inserter;
 pub mod id;
+pub mod islands;
 pub mod items;
 pub mod layers;
 pub mod normalize_all;

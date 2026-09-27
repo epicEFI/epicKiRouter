@@ -202,7 +202,8 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # 0/0/1000.00, optimizer P1 571.93 s REJECTED, incumbent restored; the
 # completion-only reading is 11/11, both faces named) and Σ Tier A =
 # 2089.5 s > the compare step's 30-min budget (over by 289.5 s =
-# 16.1%). The per-tier BEFORE-face tables (A 10/1, B 4/9, C 1/3) live
+# 16.1%). The per-tier BEFORE-face tables (A 10 green / 1 red, B 4/5,
+# C 1/2 green/red) live
 # in logs/M6-T3/report-t3.md. REOPEN BOUND: the other ten Tier A walls
 # sum 289.3 s — the flip reopens exactly when bm01's total completes
 # < 1510.7 s. Named lever, recorded NOT attempted: deterministic
@@ -230,8 +231,8 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # end-to-end `contains_plane` audit found every Java plane face already
 # ported Java-exactly (connection_router.rs:113-158, batch.rs:1105-1116,
 # contacts.rs stop_at_plane, drill isDrillable, fanout escape arms) and
-# the NEW Java post-route real-walk instrument
-# (logs/M6-T5/scratch/PostRoutePlaneOracle.java, production headless
+# the NEW Java post-route real-walk instrument (git-ignored scratch:
+# logs/M6-T5/scratch/PostRoutePlaneOracle.java; production headless
 # flow + getAllClearanceViolations) shows Java's own router introduces
 # ZERO violations on all 10 pour fixtures (row-level: post == parse on
 # all 332 rows) — the Issue093-class router-introduced face is 0 on
@@ -242,9 +243,27 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # identical in both engines, and stay the recorded contrast face (NOT
 # drivable to 0 without editing input boards; Java's post-route
 # StickHub walk: 1 violation, 0 introduced — Rust's kill face is the
-# wall, not a divergence). Pour-fragmentation avoidance is beyond-Java
-# (upstream has no split/island face at all; rides T6/T8 per design
-# :14/:72).
+# wall, not a divergence). Pour-fragmentation AVOIDANCE is beyond-Java
+# (upstream has no split/island face at all); the T6 DETECTOR half of
+# the design :14/:72 work is DONE (M6-T6): `epic-board/src/islands.rs`
+# partitions each filled pour into 4-connected metal regions over a
+# 1-unit integer lattice (foreign copper carves; same-net pins/vias/
+# traces seed; boundary constant MIN_BRIDGE_WIDTH=1 mutation-verified
+# BOTH directions on the `island-spike` crafted worlds) and reports
+# region/island counts + a SHA-256 geometry digest as an ADDITIVE
+# ADVISORY manifest face (`pour_islands`, emitted only for boards with
+# pours — pour-free manifests keep their bytes, so the determinism
+# canaries are UNROTATED: ses dc271114… / manifest cf607714… verified
+# post-change). Parse-time population face (10 pour fixtures):
+# ecc83-pp 3 regions/2 islands, ecc83-pp_v2 5/4, multichannel_mixer
+# GND 3/2 (+ a fully-covered vbias pour), CM5_MINIMA_3 18 pours
+# (1 island, +5V layer 3), the remaining pours clean — NO Java
+# contrast exists (upstream detects nothing; this is the milestone's
+# first beyond-Java capability, no oracle, NOT parity-checked by
+# construction). The
+# connectivity CLAMP half rides `router.plane_island_clamp` (Rust-only,
+# default OFF, dead code at defaults; the settings-ON gate seam +
+# smoke pin landed, its route effect is T8/T9 work).
 #
 # EVIDENCE CONVENTION (the DNR-14 lesson; quality-r1 finding 6, closed
 # in practice by the T3 fix round): gate evidence logs open with the

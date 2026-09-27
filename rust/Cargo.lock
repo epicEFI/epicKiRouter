@@ -161,6 +161,7 @@ dependencies = [
  "epic-dsn",
  "epic-geometry",
  "epic-index",
+ "sha2",
 ]
 
 [[package]]

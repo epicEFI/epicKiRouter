@@ -1,0 +1,54 @@
+(PCB t11_island_clean.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  30000 0  30000 15000  0 15000  0 0)
+    )
+    (plane PLANE (polygon F.Cu 0  0 0  20000 0  20000 10000  0 10000  0 0))
+  )
+  (placement
+    (component "CP"
+      (place "KP" 5000 2500 Front 0.000000)
+    )
+  )
+  (library
+    (image "CP"
+      (pin "PADP" "PP" 0 0)
+    )
+(padstack "PADP"
+      (shape (circle F.Cu 800 0 0))
+      (attach off)
+    )
+(padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "PLANE"
+      (pins "KP"-"PP")
+    )
+  )
+  (wiring
+  )
+)
