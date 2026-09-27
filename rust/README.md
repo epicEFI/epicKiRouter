@@ -226,9 +226,25 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # harness touch (not implemented in the M6-T4 docs-only task); the
 # banked quality-r2 NITs (shared no-extras sweep helper, bail! idiom
 # consistency, multi-concern walk pin) share that same first-touch
-# owner; T5's pour worklist: 43 parse-time plane-induced rows on
-# multichannel_mixer-unrouted / CM5_MINIMA_3 (the Java post-route
-# real-walk instrument is T5's first item).
+# owner; T5's pour worklist CLOSED (M6-T5, zero divergences): the
+# end-to-end `contains_plane` audit found every Java plane face already
+# ported Java-exactly (connection_router.rs:113-158, batch.rs:1105-1116,
+# contacts.rs stop_at_plane, drill isDrillable, fanout escape arms) and
+# the NEW Java post-route real-walk instrument
+# (logs/M6-T5/scratch/PostRoutePlaneOracle.java, production headless
+# flow + getAllClearanceViolations) shows Java's own router introduces
+# ZERO violations on all 10 pour fixtures (row-level: post == parse on
+# all 332 rows) — the Issue093-class router-introduced face is 0 on
+# BOTH engines, the plan-level STOP fork never fired; Rust re-runs of
+# the pour population are byte-identical (9/9 SES sha equal, StickHub
+# killed at the same 900.1 s wall); the 43 parse-time plane-induced
+# rows (mixer-unrouted 30, CM5_MINIMA_3 13) are input-board conditions,
+# identical in both engines, and stay the recorded contrast face (NOT
+# drivable to 0 without editing input boards; Java's post-route
+# StickHub walk: 1 violation, 0 introduced — Rust's kill face is the
+# wall, not a divergence). Pour-fragmentation avoidance is beyond-Java
+# (upstream has no split/island face at all; rides T6/T8 per design
+# :14/:72).
 #
 # EVIDENCE CONVENTION (the DNR-14 lesson; quality-r1 finding 6, closed
 # in practice by the T3 fix round): gate evidence logs open with the
