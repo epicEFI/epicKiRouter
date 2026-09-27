@@ -5,7 +5,7 @@
 //! records (`baselines/router-only/A/`); no oracle is ever spawned here
 //! (record verification is T14's `verify` path, not this one).
 //!
-//! ## The gates (per Tier A fixture, anchors §2)
+//! ## The gates (per tier fixture, anchors §2)
 //!
 //! - RUN INTEGRITY (precondition): the epic-cli subprocess must finish
 //!   inside the tiers.yaml timeout, produce a parseable manifest, end
@@ -357,11 +357,12 @@ pub fn profile_banner_phrase(profile: CompareProfile, argv: &[String]) -> String
 
 #[derive(Subcommand)]
 pub enum RouterCommand {
-    /// Per Tier A fixture: run `epic-cli route` under ONE compare profile —
+    /// Per tier fixture: run `epic-cli route` under ONE compare profile —
     /// `--profile router-only` (the default; BOTH comparability flags, the
     /// committed T14 records) or `--profile full` (NO flags, the assembled
     /// fanout → router → optimizer pipeline, the M0 full-flow jar records
-    /// in `baselines/java`). Every Tier A fixture gets an explicit verdict.
+    /// in `baselines/java`). Every fixture in the walked tier gets an
+    /// explicit verdict.
     Compare {
         /// Only run fixtures whose tiers.yaml path contains this substring
         /// (the rest still appear, marked filtered-out).
@@ -1869,15 +1870,21 @@ fn compare_cmd(
     force_detail: bool,
     work_root: Option<PathBuf>,
 ) -> Result<()> {
-    // The tier guard fires BEFORE any bin resolution or walk: a B/C
-    // battery without the full-flow records is a loud bail, never a
-    // silent 9-RED "missing baseline record" walk (the M6-T3 chore).
-    if tier != "A" && profile == CompareProfile::RouterOnly {
-        bail!("--tier {tier} requires --profile full (router-only records exist for Tier A only)");
-    }
     let started = Instant::now();
-    let cli_bin = resolve_fresh_epic_cli(repo_root)?;
+    // Tier validation comes FIRST (the walk errors on an unknown tier
+    // name): a typo'd --tier gets the "tier {t} missing from
+    // tiers.yaml" diagnostic under BOTH profiles, before the guard
+    // below and before any bin resolution (MINOR-4, quality round).
     let fixtures = tier_fixtures(repo_root, profile, tier)?;
+    // The profile guard fires AFTER tier validation and BEFORE bin
+    // resolution: a B/C battery without the full-flow records is a
+    // loud bail, never a silent 9-RED "missing baseline record" walk
+    // (the M6-T3 chore). Valid tiers only — a typo'd tier never
+    // reaches this arm (the walk above bailed first).
+    if tier != "A" && profile == CompareProfile::RouterOnly {
+        bail!(tier_profile_guard_bail(tier));
+    }
+    let cli_bin = resolve_fresh_epic_cli(repo_root)?;
     let work = work_root
         .map(|p| {
             if p.is_absolute() {
@@ -1906,17 +1913,19 @@ fn compare_cmd(
         ),
     );
     println!(
-        "router compare[{}]: {} Tier {} fixture(s); gates: incomplete<=J, violations<=J, score>=J-{}%*J (one relative policy); runs: epic-cli {} ; mode: {}",
-        profile.name(),
-        fixtures.len(),
-        tier,
-        (SCORE_RELATIVE_EPSILON * 100.0),
-        banner_comparability,
-        if report_only {
-            "report (exit 0)"
-        } else {
-            "gate"
-        }
+        "{}",
+        battery_banner(
+            profile.name(),
+            fixtures.len(),
+            tier,
+            SCORE_RELATIVE_EPSILON * 100.0,
+            &banner_comparability,
+            if report_only {
+                "report (exit 0)"
+            } else {
+                "gate"
+            },
+        )
     );
     let mut red = 0usize;
     let mut green = 0usize;
@@ -2058,10 +2067,44 @@ fn compare_cmd(
     if let Some(filter) = fixture_filter
         && green + red == 0
     {
-        bail!("--fixture {filter:?} matched no Tier {tier} fixture");
+        bail!("{}", empty_filter_bail(filter, tier));
     }
     // The exit ladder, extracted pure for the pin (MINOR-3).
     battery_exit(report_only, red)
+}
+
+/// The battery banner's single line, ONE template for every tier (the
+/// profile name, fixture count, and tier letter interpolate; the
+/// default A face is byte-identical to the pre-M6-T3 literal). Pure so
+/// the pin can hold the exact rendered strings (quality-round MINOR-2,
+/// the `battery_exit` extraction discipline).
+fn battery_banner(
+    profile_name: &str,
+    fixture_count: usize,
+    tier: &str,
+    epsilon_pct: f64,
+    comparability_phrase: &str,
+    mode: &str,
+) -> String {
+    format!(
+        "router compare[{profile_name}]: {fixture_count} Tier {tier} fixture(s); gates: \
+         incomplete<=J, violations<=J, score>=J-{epsilon_pct}%*J (one relative policy); \
+         runs: epic-cli {comparability_phrase} ; mode: {mode}"
+    )
+}
+
+/// The empty-`--fixture`-filter bail (the empty-battery guard), pure
+/// for the pin. The default A rendering is byte-identical to the
+/// pre-M6-T3 literal the `#[ignore]` e2e asserts.
+fn empty_filter_bail(filter: &str, tier: &str) -> String {
+    format!("--fixture {filter:?} matched no Tier {tier} fixture")
+}
+
+/// The router-only+non-A-tier guard bail, pure for the pin (the
+/// message is sanctioned verbatim — the M6-T3 chore kept it, the
+/// quality round only pins it).
+fn tier_profile_guard_bail(tier: &str) -> String {
+    format!("--tier {tier} requires --profile full (router-only records exist for Tier A only)")
 }
 
 /// The battery's exit ladder — THE T17 flip face (CI drops
@@ -2645,13 +2688,17 @@ mod pins {
         }
     }
 
-    /// THE tier-filter walk pin (M6-T3 chore): `tier_fixtures` walks
-    /// tiers B and C in tiers.yaml order against the REAL repo tree,
-    /// every full-flow record present, and the router-only+B battery is
-    /// a LOUD bail (the compare_cmd tier guard), never a silent RED
-    /// walk. The default A face stays byte-identical —
-    /// `tier_a_fixture_enum_is_complete_against_tiers_and_records`
-    /// holds it.
+    /// THE tier-filter walk pin (M6-T3 chore, extended at the quality
+    /// round): `tier_fixtures` walks tiers B and C in tiers.yaml order
+    /// against the REAL repo tree, every full-flow record present, the
+    /// no-extras record sweep per tier (the trap-2 complement — every
+    /// committed record under `baselines/java/{B,C}` maps back to a
+    /// walked fixture), the router-only+B battery is a LOUD bail (the
+    /// compare_cmd profile guard), and a typo'd tier gets the
+    /// tiers.yaml diagnostic. The default A WALK face is held by
+    /// `tier_a_fixture_enum_is_complete_against_tiers_and_records`;
+    /// the banner/bail STRINGS are held by
+    /// `battery_banner_and_bail_literals_are_pinned`.
     #[test]
     fn tier_fixture_walk_covers_b_and_c_against_full_records() {
         let root = crate::oracle::find_repo_root().expect("repo root");
@@ -2696,9 +2743,48 @@ mod pins {
                 );
                 assert!(fixture.timeout_seconds > 0);
             }
+            // The no-extras sweep (the A-enum pin's trap-2 complement,
+            // per tier): every committed full-flow record under
+            // `baselines/java/{tier}` maps back to a walked fixture —
+            // a stale or misnamed record the battery silently ignores
+            // is the finding class this kills (quality MINOR-3).
+            let walked: std::collections::BTreeSet<String> = fixtures
+                .iter()
+                .map(|f| format!("{}.baseline.json", f.tier_path))
+                .collect();
+            let tier_baselines = profile_tier_baselines_dir(&root, CompareProfile::Full, tier_name);
+            let mut extras: Vec<String> = Vec::new();
+            let mut stack = vec![tier_baselines.clone()];
+            while let Some(dir) = stack.pop() {
+                for entry in std::fs::read_dir(&dir).expect("record dir") {
+                    let entry = entry.expect("dir entry");
+                    let path = entry.path();
+                    if path.is_dir() {
+                        stack.push(path);
+                    } else if path.extension().is_some_and(|ext| ext == "json") {
+                        let name = entry.file_name().into_string().expect("utf8");
+                        if !name.ends_with(".baseline.json") {
+                            continue;
+                        }
+                        let rel = path
+                            .strip_prefix(&tier_baselines)
+                            .expect("under the tier record dir")
+                            .to_string_lossy()
+                            .into_owned();
+                        if !walked.contains(&rel) {
+                            extras.push(rel);
+                        }
+                    }
+                }
+            }
+            assert!(
+                extras.is_empty(),
+                "records without a tier {tier_name} fixture: {extras:?}"
+            );
         }
-        // The B/C router-only face is the loud bail (before any bin
-        // resolution or walk).
+        // The B/C router-only face is the loud bail — AFTER tier
+        // validation (the guard can only see valid tiers) and BEFORE
+        // bin resolution (the pin never touches a bin).
         let err = compare_cmd(
             &root,
             None,
@@ -2712,6 +2798,99 @@ mod pins {
         assert!(
             err.to_string().contains("requires --profile full"),
             "the bail must name the profile requirement: {err}"
+        );
+        // A typo'd tier bails at the walk with the tiers.yaml
+        // diagnostic, under BOTH profiles (quality MINOR-4). The
+        // router-only arm DISCRIMINATES the walk-before-guard order —
+        // the pre-round order (guard first) returned the guard's
+        // "requires --profile full" here, failing this assert; the
+        // walk-before-BIN-resolution order is witnessed by code read
+        // (the walk is compare_cmd's first fallible statement).
+        for (profile_face, profile_desc) in [
+            (CompareProfile::Full, "full"),
+            (CompareProfile::RouterOnly, "router-only"),
+        ] {
+            let err = compare_cmd(&root, None, profile_face, "D", true, false, None)
+                .expect_err("a typo'd tier must bail");
+            assert!(
+                err.to_string().contains("tier D missing from"),
+                "the typo'd tier must get the tiers.yaml diagnostic under {profile_desc}: {err}"
+            );
+        }
+    }
+
+    /// THE banner/bail literal pin (quality-round MINOR-2): the three
+    /// pure helpers render EXACTLY the pre-M6-T3 default-A literals
+    /// plus the B/C interpolation. Kills any template or guard-message
+    /// drift: a changed banner template, bail wording, epsilon face,
+    /// or interpolation breaks the assert_eq!s below.
+    #[test]
+    fn battery_banner_and_bail_literals_are_pinned() {
+        let phrase = "<comparability>";
+        // The default A banner face, byte-identical to the pre-M6-T3
+        // literal (the same line the e2e smokes substring-match).
+        assert_eq!(
+            battery_banner(
+                "router-only",
+                11,
+                "A",
+                SCORE_RELATIVE_EPSILON * 100.0,
+                phrase,
+                "report (exit 0)",
+            ),
+            format!(
+                "router compare[router-only]: 11 Tier A fixture(s); gates: incomplete<=J, \
+                 violations<=J, score>=J-2%*J (one relative policy); runs: epic-cli {phrase} ; \
+                 mode: report (exit 0)"
+            ),
+        );
+        // The B/C interpolation (the M6-T3 B/C batteries' faces).
+        assert_eq!(
+            battery_banner(
+                "full",
+                9,
+                "B",
+                SCORE_RELATIVE_EPSILON * 100.0,
+                phrase,
+                "gate",
+            ),
+            format!(
+                "router compare[full]: 9 Tier B fixture(s); gates: incomplete<=J, violations<=J, \
+                 score>=J-2%*J (one relative policy); runs: epic-cli {phrase} ; mode: gate"
+            ),
+        );
+        assert_eq!(
+            battery_banner(
+                "full",
+                3,
+                "C",
+                SCORE_RELATIVE_EPSILON * 100.0,
+                phrase,
+                "gate",
+            ),
+            format!(
+                "router compare[full]: 3 Tier C fixture(s); gates: incomplete<=J, violations<=J, \
+                 score>=J-2%*J (one relative policy); runs: epic-cli {phrase} ; mode: gate"
+            ),
+        );
+        // The guard bail, sanctioned verbatim.
+        assert_eq!(
+            tier_profile_guard_bail("B"),
+            "--tier B requires --profile full (router-only records exist for Tier A only)"
+        );
+        assert_eq!(
+            tier_profile_guard_bail("C"),
+            "--tier C requires --profile full (router-only records exist for Tier A only)"
+        );
+        // The empty-filter bail: the default A rendering byte-identical
+        // to the literal the #[ignore] e2e asserts, plus the C face.
+        assert_eq!(
+            empty_filter_bail("zzz", "A"),
+            "--fixture \"zzz\" matched no Tier A fixture"
+        );
+        assert_eq!(
+            empty_filter_bail("foo", "C"),
+            "--fixture \"foo\" matched no Tier C fixture"
         );
     }
 
