@@ -1039,6 +1039,25 @@ impl Board {
         self.mirror_node(id);
     }
 
+    /// M7-T4: the tuning MEANDER stage's geometry-write face — the
+    /// tree-replacement core
+    /// ([`crate::trace_ops::replace_geometry`], Java
+    /// `PolylineTraceSearchTreeAdapter.replaceGeometry`) exposed to
+    /// the pipeline: tree remove → set polyline → clear derived data →
+    /// tree re-insert. The endpoints (the connection faces) are the
+    /// caller's invariant — the meander wave preserves every original
+    /// polyline corner outside the spliced window, so connectivity
+    /// cannot change; no clearance CHECK fires here (the stage's
+    /// candidate probe owns the acceptance face —
+    /// `epic_router::pipeline::tuning`).
+    pub fn replace_trace_geometry(
+        &mut self,
+        manager: &mut crate::tree_manager::SearchTreeManager,
+        trace_id: ItemId,
+        lines: Polyline,
+    ) {
+        crate::trace_ops::replace_geometry(manager, self, trace_id, lines);
+    }
     /// Java `DrillItem.translateBy`'s center write (`DrillItem.java
     /// :55-65`): replaces the stored center of a pin/via and nothing
     /// else — `clear_derived_data` is the CALLER's job in Java

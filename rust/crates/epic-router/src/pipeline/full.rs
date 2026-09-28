@@ -89,6 +89,7 @@ use crate::pipeline::batch::{
 use crate::pipeline::board_statistics::BoardStatistics;
 use crate::pipeline::event_sink::DriverSink;
 use crate::pipeline::optimizer::{BatchOptimizerStage, OptimizerOutcome, OptimizerSettingsIr};
+use crate::pipeline::tuning;
 
 /// Java `core.RoutingStage` — the job's stage field. Field writes in
 /// Java (no event); the port records them for the stage-order pins.
@@ -165,6 +166,10 @@ pub struct PipelineOutcome {
     /// M6-T7: the global plan (default-OFF stage — `Some` only when
     /// `congestion_global` is ON).
     pub global_plan: Option<crate::global::plan::GlobalPlan>,
+    /// M7-T4: the meander stage's outcome rows (empty unless the stage
+    /// ran and processed an under-min net — the stage-ordering pins'
+    /// witness).
+    pub meander_report: Vec<crate::pipeline::tuning::MeanderNetOutcome>,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -347,6 +352,7 @@ pub fn run(
 ) -> PipelineOutcome {
     let mut transitions = Vec::new();
     let mut settings = settings;
+    let meander_active = settings.meander_active;
     let stage = run_routing_stage(manager, board, &mut settings, &stop, sink, &mut transitions);
     let routing = stage.routing;
     let optimizer = if routing.is_err() {
@@ -364,6 +370,21 @@ pub fn run(
             &mut transitions,
         )
     };
+    // M7-T4: the tuning MEANDER stage — the beyond-Java post-
+    // optimization face, AFTER the tightener's last pass (a meandered
+    // trace survives every later pass because there IS no later pass
+    // in the flow; the T3 honoring gate protects a meandered net
+    // against any default-ON shortener that would run after it, and
+    // the stage-ordering pin owns that face). Emits NO stage
+    // transition (Java's stage enum is the frozen parity surface —
+    // the events corpus cannot rotate) and NO events. Inert at
+    // `meander_active == false` (the default — the byte-invariance
+    // regime).
+    let meander_report = if routing.is_ok() && meander_active {
+        tuning::run_meander_stage(manager, board, sink)
+    } else {
+        Vec::new()
+    };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
         transitions.push(RoutingStage::Idle);
@@ -376,6 +397,7 @@ pub fn run(
         optimizer,
         stage_transitions: transitions,
         global_plan: stage.global_plan,
+        meander_report,
     }
 }
 

@@ -396,6 +396,14 @@ pub struct BatchSettings {
     /// resolved tri-state. Dead code at defaults (no declaration ⇒
     /// false).
     pub tuning_active: bool,
+    /// M7-T4 RUST-ONLY: the MEANDER stage's resolved activation —
+    /// `router.tuning.meander` resolved against the board seam in
+    /// route.rs (`None` = rides [`Self::tuning_active`]; `on` forces
+    /// the stage on a tuning-inert board, where the stage is a
+    /// natural no-op — no declaration, no deficit rows; `off` kills
+    /// the meander stage ALONE, the honoring gate stays). Dead code
+    /// at defaults.
+    pub meander_active: bool,
 }
 
 impl BatchSettings {
@@ -436,6 +444,7 @@ impl BatchSettings {
             congestion_global_pathfinder: false,
             push_shove: false,
             tuning_active: false,
+            meander_active: false,
         }
     }
 }

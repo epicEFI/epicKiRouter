@@ -1,0 +1,86 @@
+(PCB meander_multi_tuning.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0))
+      (rule (clearance 200)))
+    (layer B.Cu (type signal) (property (index 1))
+      (rule (clearance 200)))
+    (boundary (rect pcb 0 0 100000 60000))
+    (keepout (rect F.Cu 44000 0 46000 60000))
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "CA1"
+      (place "PA1" 10000 40000 Front 0.000000)
+    )
+    (component "CA2"
+      (place "PA2" 80000 40000 Front 0.000000)
+    )
+    (component "CB1"
+      (place "PB1" 10000 20000 Front 0.000000)
+    )
+    (component "CB1B"
+      (place "PB2" 80000 20000 Front 0.000000)
+    )
+    (component "CC1"
+      (place "PC1" 10000 8000 Front 0.000000)
+    )
+    (component "CC2"
+      (place "PC2" 60000 8000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA1"
+      (pin "PADH" "P" 0 0)
+    )
+    (image "CA2"
+      (pin "PADH" "P" 0 0)
+    )
+    (image "CB1"
+      (pin "PADH" "P" 0 0)
+    )
+    (image "CB1B"
+      (pin "PADH" "P" 0 0)
+    )
+    (image "CC1"
+      (pin "PADH" "P" 0 0)
+    )
+    (image "CC2"
+      (pin "PADH" "P" 0 0)
+    )
+    (padstack "PADH"
+      (shape (circle F.Cu 300 0 0))
+      (shape (circle B.Cu 300 0 0))
+      (attach off)
+    )
+    (padstack "VIA_PAD"
+      (shape (circle F.Cu 300 0 0))
+      (shape (circle B.Cu 300 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_PAD kicad_default)
+    (net "N1"
+      (pins "PA1"-"P" "PA2"-"P")
+    )
+    (net "N2"
+      (pins "PB1"-"P" "PB2"-"P")
+    )
+    (net "NF"
+      (pins "PC1"-"P" "PC2"-"P")
+    )
+    (class tuned "N1" "N2"
+      (circuit (length -1 75000))
+      (rule (clearance 200))
+    )
+    (class kicad_default "NF" (rule (clearance 200))
+    )
+  )
+  (wiring)
+)

@@ -847,6 +847,22 @@ fn manifest_global_plan(plan: &epic_router::global::plan::GlobalPlan) -> Manifes
     }
 }
 
+/// The M7-T4 meander sub-flag ACTIVATION (the separated-wiring
+/// convention: the predicate directly pinnable, not folded into
+/// `build_batch_settings`). `None` rides the resolved tuning
+/// activation (input-driven — a declaration activates both); `on`
+/// forces the stage (a natural no-op on a constraint-free board — no
+/// declaration, no deficit rows); `off` kills the meander stage ALONE
+/// (the T3 honoring gate stays armed off the resolved
+/// `tuning_active`, which this function does NOT touch).
+pub fn apply_meander_activation(batch: &mut BatchSettings, resolved: &ResolvedRouteSettings) {
+    batch.meander_active = match resolved.tuning_meander {
+        Some(false) => false,
+        Some(true) => true,
+        None => batch.tuning_active,
+    };
+}
+
 /// The M7-T3 meander-need report assembly (T4's input contract). Walks
 /// the nets in NUMBER order (the deterministic row order), keeps the
 /// constrained ones (`min > 0 || max > 0` — the T1 delivery gate), and
@@ -1180,9 +1196,15 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // declaration anywhere on the board), with `router.tuning` as the
     // explicit override/kill-switch on top.
     apply_tuning_activation(&mut batch, &resolved, board.rules());
+    // M7-T4: the MEANDER stage's tri-state — `None` rides the resolved
+    // tuning activation (input-driven); `on` forces (a no-op on a
+    // constraint-free board — no declaration, no deficit rows); `off`
+    // kills the meander stage ALONE (the T3 honoring gate stays armed
+    // off `tuning_active`).
+    apply_meander_activation(&mut batch, &resolved);
     // M7-T3: the honoring faces read the RESOLVED activation off the
-    // board (never the CLI tri-state) — one write here, before any
-    // routing/optimization pass runs.
+    // board (never the CLI tri-state) — one write here, next to the
+    // tuning activation — before any routing/optimization pass runs.
     board.set_tuning_active(batch.tuning_active);
     // M5-T7: the executor thread count. The DEFAULT is 1 — the golden
     // sequential path — even though the merged surface resolves Java's
@@ -3549,5 +3571,342 @@ mod tests {
         assert_eq!(row.max_length, 0.0);
         assert_eq!(row.trace_length, 480_000.0);
         assert_eq!(row.violation, -20_000.0);
+    }
+
+    // ------------------------------------------------------------------
+    // M7-T4: the meander activation + the fixture golden faces
+    // ------------------------------------------------------------------
+
+    /// The meander tri-state resolution (the separated predicate):
+    /// None rides the resolved tuning activation; `on` forces the
+    /// stage on a tuning-inert board; `off` kills the stage alone
+    /// while `tuning_active` (the gate's flag) stays true.
+    #[test]
+    fn meander_activation_tri_state_faces() {
+        let rules_free = tuning_world(0.0, 0.0);
+        let rules_declared = tuning_world(10.0, 0.0);
+        // None + free board: rides the (false) activation.
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_none(), &rules_free);
+        apply_meander_activation(&mut batch, &resolved_none());
+        assert!(!batch.meander_active, "None rides input-driven OFF");
+        // None + declared board: rides the (true) activation.
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_none(), &rules_declared);
+        apply_meander_activation(&mut batch, &resolved_none());
+        assert!(batch.meander_active, "None rides input-driven ON");
+        // `on` forces on a constraint-free board.
+        let merged_on = MergedSettings {
+            tuning_meander: Some(true),
+            ..MergedSettings::default()
+        };
+        let resolved_on = ResolvedRouteSettings::resolve(&merged_on, None);
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_on, &rules_free);
+        apply_meander_activation(&mut batch, &resolved_on);
+        assert!(batch.meander_active, "on forces");
+        // `off` kills the stage alone.
+        let merged_off = MergedSettings {
+            tuning_meander: Some(false),
+            ..MergedSettings::default()
+        };
+        let resolved_off = ResolvedRouteSettings::resolve(&merged_off, None);
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_off, &rules_declared);
+        apply_meander_activation(&mut batch, &resolved_off);
+        assert!(!batch.meander_active, "off kills the stage alone");
+        assert!(batch.tuning_active, "the honoring gate's flag stays armed");
+    }
+
+    /// The committed tuning fixtures' route through the real flow
+    /// (the in-tree golden faces; the DSN files are the committed
+    /// capture, the pins re-run it in-process).
+    fn run_tuning_fixture(
+        tag: &str,
+        name: &str,
+        extra: &[&str],
+    ) -> (i32, std::path::PathBuf, std::path::PathBuf) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../harness/fixtures/tuning/")
+            .join(format!("{name}.dsn"));
+        let tmp =
+            std::env::temp_dir().join(format!("m7t4_{}_{}_{}", name, tag, std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).expect("the pin world invariant");
+        let ses_path = tmp.join("out.ses");
+        let manifest_path = tmp.join("manifest.json");
+        let argv = vec![
+            "route".to_string(),
+            "-de".to_string(),
+            path.to_string_lossy().into_owned(),
+            "-do".to_string(),
+            ses_path.to_string_lossy().into_owned(),
+            "--result-json".to_string(),
+            manifest_path.to_string_lossy().into_owned(),
+        ];
+        let mut argv: Vec<String> = argv;
+        argv.extend(extra.iter().map(|s| s.to_string()));
+        let args = parse_route_args(&argv).expect("args parse");
+        let exit = run_route(&args).expect("route run");
+        (exit, ses_path, manifest_path)
+    }
+
+    /// PIN F3 (the mixed-invariance world, criterion 3): the
+    /// constraint-free net's emitted wiring is BYTE-IDENTICAL between
+    /// the tuning-ON and tuning-OFF runs of the SAME board, while the
+    /// two tuned nets get their deficits filled in flow (the ON run's
+    /// length_report is EMPTY — violation 0 — and the OFF run keeps
+    /// both honest rows). Determinism x2 (two ON runs byte-identical)
+    /// and the -mt 1/3 threads witness ride the same fixture.
+    #[test]
+    fn meander_multi_fixture_invariance_and_flow() {
+        let (exit_on, ses_on, man_on) = run_tuning_fixture("on1", "meander_multi_tuning", &[]);
+        assert_eq!(exit_on, 0);
+        let (exit_on2, ses_on2, man_on2) = run_tuning_fixture("on2", "meander_multi_tuning", &[]);
+        assert_eq!(exit_on2, 0);
+        let (exit_gate, ses_gate, man_gate) = run_tuning_fixture(
+            "gate",
+            "meander_multi_tuning",
+            &["--router.tuning.meander=off"],
+        );
+        assert_eq!(exit_gate, 0);
+        let (exit_mt3, ses_mt3, man_mt3) =
+            run_tuning_fixture("mt3", "meander_multi_tuning", &["-mt 3"]);
+        assert_eq!(exit_mt3, 0);
+        let (exit_mt1, ses_mt1, man_mt1) =
+            run_tuning_fixture("mt1", "meander_multi_tuning", &["-mt 1"]);
+        assert_eq!(exit_mt1, 0);
+        // Determinism x2 + threads: all ON runs byte-identical.
+        let ses_on_bytes = std::fs::read(&ses_on).expect("the pin world invariant");
+        assert_eq!(
+            ses_on_bytes,
+            std::fs::read(&ses_on2).expect("the pin world invariant"),
+            "determinism x2"
+        );
+        assert_eq!(
+            ses_on_bytes,
+            std::fs::read(&ses_mt1).expect("the pin world invariant"),
+            "-mt 1 invariance"
+        );
+        assert_eq!(
+            ses_on_bytes,
+            std::fs::read(&ses_mt3).expect("the pin world invariant"),
+            "-mt 3 invariance"
+        );
+        assert_eq!(
+            std::fs::read(&man_on).expect("the pin world invariant"),
+            std::fs::read(&man_on2).expect("the pin world invariant"),
+            "manifest determinism x2"
+        );
+        assert_eq!(
+            std::fs::read(&man_on).expect("the pin world invariant"),
+            std::fs::read(&man_mt3).expect("the pin world invariant"),
+            "manifest -mt invariance"
+        );
+        assert_eq!(
+            std::fs::read(&man_on).expect("the pin world invariant"),
+            std::fs::read(&man_mt1).expect("the pin world invariant"),
+            "manifest -mt 1 invariance"
+        );
+        // ON: both deficits filled -> no length_report key.
+        let man_text = std::fs::read_to_string(&man_on).expect("the pin world invariant");
+        assert!(
+            !man_text.contains("length_report"),
+            "both deficits filled in flow: no honest row stands"
+        );
+        // The mixed-invariance face: the FREE net's wiring bytes are
+        // identical ON vs OFF.
+        let nf = |ses: &std::path::Path| -> Vec<u8> {
+            let text = std::fs::read_to_string(ses).expect("the pin world invariant");
+            let mut out = Vec::new();
+            for line in text.lines() {
+                if line.contains("net NF") {
+                    out.extend_from_slice(line.as_bytes());
+                    out.push(b'\n');
+                }
+            }
+            out
+        };
+        // The kill-switch-alone face: tuning stays ON (the honoring
+        // gate armed) while the meander stage is dead — both honest
+        // rows stand in net-number order, and the free net is STILL
+        // byte-identical.
+        let man_gate = std::fs::read_to_string(&man_gate).expect("the pin world invariant");
+        assert!(
+            man_gate.contains("length_report"),
+            "the meander kill-switch leaves the deficits standing"
+        );
+        assert!(man_gate.contains("750000"), "the resolved min");
+        assert!(
+            man_gate.contains("-50000"),
+            "the N1 deficit (world-derived)"
+        );
+        assert!(
+            man_gate.contains("-13052"),
+            "the N2 deficit (world-derived)"
+        );
+        assert_eq!(
+            nf(&ses_on),
+            nf(&ses_gate),
+            "the constraint-free net is byte-identical with the stage killed too"
+        );
+        // The REGIME-off face (router.tuning=off): no tuning at all.
+        let (exit_off, ses_off, man_off) =
+            run_tuning_fixture("off", "meander_multi_tuning", &["--router.tuning=off"]);
+        assert_eq!(exit_off, 0);
+        assert!(
+            !std::fs::read_to_string(&man_off)
+                .expect("the pin world invariant")
+                .contains("length_report"),
+            "the regime-off run emits no report (tuning_active false)"
+        );
+        assert_eq!(
+            nf(&ses_on),
+            nf(&ses_off),
+            "the constraint-free net is byte-identical ON vs OFF"
+        );
+        assert!(!nf(&ses_on).is_empty(), "the free net routed in both runs");
+    }
+
+    /// PIN F1 (the easy-accordion world, `meander_room_tuning.dsn`):
+    /// the pre-routed 700000 straight run with min 740000 — the
+    /// deficit 40000 is filled IN FLOW (A=10000, 2 dents, window
+    /// 40000), so the manifest carries NO length_report key and the
+    /// run completes. The world's values are the committed DSN's.
+    #[test]
+    fn meander_room_fixture_fills_deficit_in_flow() {
+        let (exit, ses, man) = run_tuning_fixture("room", "meander_room_tuning", &[]);
+        assert_eq!(exit, 0);
+        let man_text = std::fs::read_to_string(&man).expect("the pin world invariant");
+        assert!(
+            !man_text.contains("length_report"),
+            "the deficit is filled in flow: no honest row stands"
+        );
+        assert!(man_text.contains("COMPLETED"));
+        // The SES carries the wave: the emitted N1 wiring is longer
+        // than the pre-route (700000) by exactly one window (40000).
+        // The emitted coordinates are BOARD DBU (the x10 um scale).
+        let ses_text = std::fs::read_to_string(&ses).expect("the pin world invariant");
+        let mut in_n1_path = false;
+        let mut pts: Vec<i64> = Vec::new();
+        for line in ses_text.lines() {
+            if line.contains("(net N1") {
+                in_n1_path = true;
+                continue;
+            }
+            if in_n1_path {
+                if line.contains("(path F.Cu") {
+                    continue;
+                }
+                let trimmed = line.trim();
+                if trimmed == ")" {
+                    break;
+                }
+                for token in trimmed.split_whitespace() {
+                    if let Ok(v) = token.parse::<i64>() {
+                        pts.push(v);
+                    }
+                }
+            }
+        }
+        assert!(pts.len() >= 6, "the wave added corners");
+        let mut manhattan = 0i64;
+        let mut i = 0;
+        while i + 3 < pts.len() {
+            manhattan += (pts[i + 2] - pts[i]).abs() + (pts[i + 3] - pts[i + 1]).abs();
+            i += 2;
+        }
+        assert_eq!(
+            manhattan, 740_000,
+            "min reached exactly in flow (board DBU)"
+        );
+    }
+
+    /// PIN F2 (the partially-blocked world, `meander_blocked_tuning.dsn`):
+    /// the keepout fence sits at the exact height that blocks EVERY
+    /// legal amplitude (A=10000 teeth cross it; A=5000 teeth top face
+    /// 256000, gap to the fence face 258000 is 2000 < the probe's
+    /// clearance + 16 safety margin), so the HONEST STOP is the flow
+    /// face: the run completes with the deficit row standing, exact
+    /// world-derived values (min 740000, routed 700000, violation
+    /// -40000), and the trace unmeandered.
+    #[test]
+    fn meander_blocked_fixture_honest_row_in_flow() {
+        let (exit, ses, man) = run_tuning_fixture("blocked", "meander_blocked_tuning", &[]);
+        assert_eq!(exit, 0);
+        let man_text = std::fs::read_to_string(&man).expect("the pin world invariant");
+        assert!(man_text.contains("length_report"), "the honest row stands");
+        assert!(man_text.contains("740000"), "the resolved min");
+        assert!(man_text.contains("700000"), "the unmeandered length");
+        assert!(man_text.contains("-40000"), "the exact deficit");
+        // The SES: the emitted N1 wiring is the UNCHANGED straight run
+        // (two corners only — no wave landed). Board DBU out.
+        let ses_text = std::fs::read_to_string(&ses).expect("the pin world invariant");
+        let mut in_n1_path = false;
+        let mut pts: Vec<i64> = Vec::new();
+        for line in ses_text.lines() {
+            if line.contains("(net N1") {
+                in_n1_path = true;
+                continue;
+            }
+            if in_n1_path {
+                if line.contains("(path F.Cu") {
+                    continue;
+                }
+                let trimmed = line.trim();
+                if trimmed == ")" {
+                    break;
+                }
+                for token in trimmed.split_whitespace() {
+                    if let Ok(v) = token.parse::<i64>() {
+                        pts.push(v);
+                    }
+                }
+            }
+        }
+        assert_eq!(pts.len(), 4, "the straight run only: no wave landed");
+    }
+
+    /// M7-T4 (the AMENDMENT-3 bank): the min_stair input-violation
+    /// PAIR, named. The committed fixture's input board carries ONE
+    /// parse-time clearance violation; this pin holds the exact pair
+    /// (the instrument face of the T3 spec-review MINOR-3 fold) so
+    /// the T7 DRC table can cite it as an INPUT condition.
+    #[test]
+    fn min_stair_tuning_input_violation_pair_is_named() {
+        // The pair derivation (world-exact): the N2 pins PB1/PB2 sit
+        // 2000 DSN apart (y 20000 vs 18000) with +-2000-DSN half-size
+        // square pads -> the pads OVERLAP (half the pad height), the
+        // 0.0 actual of a shape-pair already overlapping in 2D. Item
+        // ids at the committed tree: outline 1, pins 2-5 (PA1, PA2,
+        // PB1, PB2), pre-routed wires 6 (N1) and 7 (N2).
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../harness/fixtures/tuning/min_stair_tuning.dsn");
+        let bytes = std::fs::read(&path).expect("the pin world invariant");
+        let mut ses = SesBoard::new();
+        match read_board(&bytes, &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("parse {other:?}"),
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        let (total, depths) =
+            epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
+        println!("PAIR total={total} depths={depths:?}");
+        let mut pairs: Vec<String> = Vec::new();
+        for d in &depths {
+            pairs.push(format!(
+                "item {} vs item {} (layer {}, expected {} / actual {})",
+                d.a, d.b, d.layer, d.expected_clearance, d.actual_clearance
+            ));
+        }
+        assert_eq!(total, 1, "exactly one input violation");
+        assert_eq!(
+            pairs[0], "item 4 vs item 5 (layer 0, expected 2000 / actual 0)",
+            "the NAMED pair: the N2 pins PB1/PB2 overlapping pads"
+        );
+        assert!(pairs.len() == 1);
     }
 }

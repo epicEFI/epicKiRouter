@@ -133,6 +133,16 @@ pub struct CliLayer {
     /// default) = input-driven. Default settings + no declaration ⇒
     /// tuning never fires — the constraint-free zero-rotation face.
     pub tuning: Option<bool>,
+    /// `router.tuning.meander` — the M7-T4 MEANDER stage sub-flag
+    /// (RUST-ONLY; a second top-level tri-state on the `router.tuning`
+    /// family pattern — the sub-flag does NOT require the master).
+    /// `None` (the default) = input-driven: the meander stage rides
+    /// the resolved `tuning_active` (a declaration activates both).
+    /// `on` forces the stage even on constraint-free input (a natural
+    /// no-op there — no declaration, no deficit rows). `off` kills the
+    /// meander stage ALONE: the min-length honoring gate (T3) stays
+    /// armed, deficits stand and are reported honestly.
+    pub tuning_meander: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -569,6 +579,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.tuning = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "tuning.meander" => match parse_on_off(value) {
+            Some(v) => layer.tuning_meander = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -917,6 +931,11 @@ pub struct MergedSettings {
     /// activation; `on` = force ON; `off` = kill-switch). CLI-only —
     /// no DSN/default source writes it (the Default seed is `None`).
     pub tuning: Option<bool>,
+    /// `router.tuning.meander` — the M7-T4 meander sub-flag (absent =
+    /// rides the resolved tuning activation; `on` = force the stage;
+    /// `off` = kill the stage alone). CLI-only — no DSN/default source
+    /// writes it (the Default seed is `None`).
+    pub tuning_meander: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1022,6 +1041,7 @@ impl Default for MergedSettings {
             congestion_global_pathfinder: None,
             push_shove: None,
             tuning: None,
+            tuning_meander: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1167,6 +1187,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.tuning {
         merged.tuning = Some(v);
+    }
+    if let Some(v) = cli.tuning_meander {
+        merged.tuning_meander = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1506,6 +1529,13 @@ pub struct ResolvedRouteSettings {
     /// default must survive resolution for the board-seam predicate to
     /// answer it.
     pub tuning: Option<bool>,
+    /// The M7-T4 meander sub-flag (`router.tuning.meander`),
+    /// resolved VERBATIM (absent = rides the resolved tuning
+    /// activation at the board seam in route.rs; `on` = force the
+    /// stage; `off` = kill the stage alone). NOT a plain bool: the
+    /// input-driven default must survive resolution for the board-seam
+    /// predicate to answer it.
+    pub tuning_meander: Option<bool>,
 }
 
 impl ResolvedRouteSettings {
@@ -1617,6 +1647,7 @@ impl ResolvedRouteSettings {
             congestion_global_pathfinder: merged.congestion_global_pathfinder.unwrap_or(false),
             push_shove: merged.push_shove.unwrap_or(false),
             tuning: merged.tuning,
+            tuning_meander: merged.tuning_meander,
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2583,6 +2614,7 @@ mod tests {
             congestion_global_pathfinder: Some(true),
             push_shove: Some(true),
             tuning: Some(true),
+            tuning_meander: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),

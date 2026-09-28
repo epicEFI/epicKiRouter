@@ -16,3 +16,4 @@ pub mod fanout;
 pub mod full;
 pub mod optimizer;
 pub mod pass_runner;
+pub mod tuning;
