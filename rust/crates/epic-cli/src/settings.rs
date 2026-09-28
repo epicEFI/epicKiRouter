@@ -152,6 +152,26 @@ pub struct CliLayer {
     /// engine owns, documented here per the T2/T4 named-constant
     /// family pattern).
     pub tuning_meander: Option<bool>,
+    /// `router.tuning.pairs` — the M7-T6 DIFFERENTIAL-PAIR declaration
+    /// list (RUST-ONLY; the third activation input). Grammar: a
+    /// comma-separated list of `NET_A:NET_B` net-name pairs, e.g.
+    /// `usb_p:usb_n,clk_p:clk_n` (names case-preserved, trimmed; a
+    /// malformed pair fails the whole value with the standard
+    /// warn-and-continue face). Absent (the default) = no declared
+    /// pairs = the pair face is structurally inert (byte-identical).
+    /// Declaring pairs activates: the pass leader-first order, the
+    /// follower's maze coupling preference, and the post-routing pair
+    /// match stage. The pair face owns its own TIGHTER delta, the
+    /// named engine constant
+    /// `epic_router::pipeline::pairs::PAIR_DELTA_DBU` (20_000 DBU —
+    /// deliberately tighter than the T5 match tolerance
+    /// MATCH_TOLERANCE_DBU's 40_000, never inherited from a class
+    /// min–max window; AMENDMENT 5 §6), documented here per the T2/T4
+    /// named-constant family pattern. A name resolving to several
+    /// subnet nets (a fromto split) or to none stays UNRESOLVED and is
+    /// recorded in the manifest's advisory `pair_unresolved` rows —
+    /// never guessed.
+    pub tuning_pairs: Option<Vec<(String, String)>>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -592,6 +612,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.tuning_meander = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "tuning.pairs" => match parse_pairs(value) {
+            Some(v) => layer.tuning_pairs = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -765,6 +789,27 @@ pub fn is_deprecated_flat_autorouter_path(router_relative_path: &str) -> bool {
 
 /// The on/off/true/false/1/0 value face (`DsnFile.readOnOffScope`-
 /// adjacent + `ReflectionUtil.convertValue`'s "0"/"1" bool arm).
+/// The M7-T6 pair-declaration grammar: comma-separated `NET_A:NET_B`
+/// net-name pairs (each name trimmed, non-empty). `None` = malformed
+/// (the caller warns and continues).
+fn parse_pairs(value: &str) -> Option<Vec<(String, String)>> {
+    let mut pairs = Vec::new();
+    for entry in value.split(',') {
+        let entry = entry.trim();
+        let (name_a, name_b) = entry.split_once(':')?;
+        let name_a = name_a.trim();
+        let name_b = name_b.trim();
+        if name_a.is_empty() || name_b.is_empty() {
+            return None;
+        }
+        pairs.push((name_a.to_string(), name_b.to_string()));
+    }
+    if pairs.is_empty() {
+        return None;
+    }
+    Some(pairs)
+}
+
 fn parse_on_off(value: &str) -> Option<bool> {
     match value.trim().to_lowercase().as_str() {
         "on" | "true" | "1" => Some(true),
@@ -945,6 +990,9 @@ pub struct MergedSettings {
     /// `off` = kill the stage alone). CLI-only — no DSN/default source
     /// writes it (the Default seed is `None`).
     pub tuning_meander: Option<bool>,
+    /// `router.tuning.pairs` — the M7-T6 pair declaration list
+    /// (absent = no pairs; CLI-only, the Default seed is `None`).
+    pub tuning_pairs: Option<Vec<(String, String)>>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1051,6 +1099,7 @@ impl Default for MergedSettings {
             push_shove: None,
             tuning: None,
             tuning_meander: None,
+            tuning_pairs: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1199,6 +1248,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.tuning_meander {
         merged.tuning_meander = Some(v);
+    }
+    if let Some(v) = cli.tuning_pairs.clone() {
+        merged.tuning_pairs = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1545,6 +1597,11 @@ pub struct ResolvedRouteSettings {
     /// input-driven default must survive resolution for the board-seam
     /// predicate to answer it.
     pub tuning_meander: Option<bool>,
+    /// The M7-T6 pair declaration list, resolved VERBATIM (absent =
+    /// no declared pairs — the pair face's activation input is this
+    /// list alone). The name→number resolution happens at the board
+    /// seam in route.rs where the netlist exists.
+    pub tuning_pairs: Option<Vec<(String, String)>>,
 }
 
 impl ResolvedRouteSettings {
@@ -1657,6 +1714,7 @@ impl ResolvedRouteSettings {
             push_shove: merged.push_shove.unwrap_or(false),
             tuning: merged.tuning,
             tuning_meander: merged.tuning_meander,
+            tuning_pairs: merged.tuning_pairs.clone(),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2624,6 +2682,10 @@ mod tests {
             push_shove: Some(true),
             tuning: Some(true),
             tuning_meander: Some(true),
+            tuning_pairs: Some(vec![
+                ("PA".to_string(), "PB".to_string()),
+                ("PC".to_string(), "PD".to_string()),
+            ]),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),

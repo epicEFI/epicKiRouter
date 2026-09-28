@@ -3255,6 +3255,34 @@
         "sanctioned-recapture",
         "closed"
       ]
+    },
+    {
+      "id": 211,
+      "date": "2026-09-28",
+      "task": "M7-T6 (the pair face) — the match-stage anchor inversion; caught by the pins BEFORE landing, outcome CLOSED (fixed in the same task's landing)",
+      "error_message": "P1's pair world ended delta 92867.69 with the pair stage reporting landed:false added:0 — the shorter member was never meandered. When the FOLLOWER was the longer member, run_pair_stage's else-arm anchored on the LEADER's current length and 'meandered' the leader toward its own length (goal == current), so the insertion loop broke immediately and the delta stood.",
+      "root_cause": "The (anchor, meandered-member) tuple was written copy-armed: the if-arm (leader longer) was right (anchor=leader, rise=follower), but the else-arm repeated anchor=leader instead of anchor=follower — the longer member anchors, the shorter member rises, whichever side is longer.",
+      "fix": "pairs.rs run_pair_stage: the else arm now anchors on the FOLLOWER (the longer member) and meanders the LEADER up to the follower's length. P1/P1b/P2/P6 pins green; the M-E mutant (stage dropped) kills P1 (mutation log).",
+      "tags": [
+        "m7-t6",
+        "pair-face",
+        "anchor-semantics",
+        "caught-by-pins"
+      ]
+    },
+    {
+      "id": 212,
+      "date": "2026-09-28",
+      "task": "M7-T6 mutation log (M-F first run) — a pin TAUTOLOGY: the coupling-window boundary pin constructed its window from a literal, so the constant could never be mutation-reached; outcome CLOSED (pin strengthened, mutant killed on redo)",
+      "error_message": "MUTANT M-F (COUPLING_WINDOW_DBU 50_000.0 -> 49_999.0) SURVIVED its targeted pin (coupling_window_boundary_inclusive_plus_one_out) with exit=0 — the pin built CouplingPreference { window: 50_000.0 } from a LITERAL, so the mutated constant never fed the asserted predicate.",
+      "root_cause": "Pin-side constant shadowing: the world used the same numeric value as the constant instead of the constant itself — the exact drift DNR-16 mutation-verification exists to catch, present in the PIN rather than the engine.",
+      "fix": "The pin now reads window: COUPLING_WINDOW_DBU (doc comment names the M-F/M-G mutants as its killers); M-F redo kills (exit=101) and M-G (+1 direction) kills. Both errata are retained verbatim in logs/M7-T6/evidence/mutation_log.log.",
+      "tags": [
+        "m7-t6",
+        "pin-tautology",
+        "dnr-16",
+        "mutation-log"
+      ]
     }
   ]
 }

@@ -404,6 +404,15 @@ pub struct BatchSettings {
     /// the meander stage ALONE, the honoring gate stays). Dead code
     /// at defaults.
     pub meander_active: bool,
+    /// M7-T6 RUST-ONLY: the RESOLVED differential-pair declarations
+    /// (`router.tuning.pairs` — net names resolved to numbers at the
+    /// route.rs board seam; `pipeline/pairs.rs`). The pair face's
+    /// activation input is this list ALONE (the third activation
+    /// input; it does NOT require [`Self::tuning_active`]): non-empty
+    /// ⇒ the pass leader-first order, the follower maze coupling
+    /// preference, and the post-routing match stage arm; empty (the
+    /// Default) ⇒ zero activation, byte-identical routing.
+    pub pairs: Vec<crate::pipeline::pairs::PairSpec>,
 }
 
 impl BatchSettings {
@@ -445,6 +454,7 @@ impl BatchSettings {
             push_shove: false,
             tuning_active: false,
             meander_active: false,
+            pairs: Vec::new(),
         }
     }
 }

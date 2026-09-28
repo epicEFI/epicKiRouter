@@ -1336,14 +1336,27 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
         }
 
         let costs = &self.ctrl.trace_costs[layer as usize];
-        let expansion_value = from_element.expansion_value
-            + f64::from(add_costs)
-            + bend_cost_penalty
-            + shape_entry_middle.weighted_distance(
-                &mid_of(&from_element.shape_entry),
-                costs.horizontal,
-                costs.vertical,
-            );
+        // M7-T6: the pair COUPLING preference (RUST-ONLY, `None` at
+        // default — the follower-only face): a section middle point
+        // within the coupling window of the leader's copper on this
+        // layer costs a fraction of its incremental weighted-distance
+        // step (the discount), biasing the follower's maze search
+        // toward the shared corridor. A multiplier — not a subtracted
+        // bonus — keeps every step non-negative and the best-first
+        // order well-formed; the `None` path never touches the term,
+        // so the default cost face is bit-identical.
+        let mut distance_step = shape_entry_middle.weighted_distance(
+            &mid_of(&from_element.shape_entry),
+            costs.horizontal,
+            costs.vertical,
+        );
+        if let Some(coupling) = self.ctrl.coupling.as_ref()
+            && coupling.in_corridor(shape_entry_middle.x, shape_entry_middle.y, layer)
+        {
+            distance_step *= 1.0 - coupling.discount;
+        }
+        let expansion_value =
+            from_element.expansion_value + f64::from(add_costs) + bend_cost_penalty + distance_step;
         let sorting_value = expansion_value
             + self
                 .destination_distance

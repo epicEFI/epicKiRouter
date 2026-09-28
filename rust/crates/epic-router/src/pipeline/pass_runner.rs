@@ -512,6 +512,30 @@ fn begin_pass(
         keyed.sort_by_key(|(rank, _item_id)| *rank);
         autoroute_item_list = keyed.into_iter().map(|(_rank, item_id)| item_id).collect();
     }
+    // M7-T6 (default OFF — an empty declaration list): the pair
+    // LEADER-FIRST order. The declared pairs' leader items move to the
+    // FRONT of the pass queue (stable — the leader items keep their
+    // relative order, and every undeclared net keeps its place after
+    // them), so the leader routes first and the follower's coupling
+    // preference always finds leader copper on the pass (the
+    // deterministic lead rule: the lower net number leads). Gated on
+    // `settings.pairs` being non-empty: the default queue is
+    // untouched, byte-for-byte.
+    if !settings.pairs.is_empty() {
+        let leader_nets: std::collections::BTreeSet<i32> =
+            settings.pairs.iter().map(|pair| pair.leader).collect();
+        let mut keyed: Vec<(bool, ItemId)> = autoroute_item_list
+            .iter()
+            .map(|item_id| {
+                let is_leader_item = board
+                    .get(*item_id)
+                    .is_some_and(|entry| entry.nets.iter().any(|net| leader_nets.contains(net)));
+                (is_leader_item, *item_id)
+            })
+            .collect();
+        keyed.sort_by_key(|(is_leader_item, _item_id)| std::cmp::Reverse(*is_leader_item));
+        autoroute_item_list = keyed.into_iter().map(|(_flag, item_id)| item_id).collect();
+    }
     let items_to_go_count = i32::try_from(autoroute_item_list.len()).unwrap_or(i32::MAX);
     let mut counters = RouterCounters {
         phase: "autoroute".to_string(),

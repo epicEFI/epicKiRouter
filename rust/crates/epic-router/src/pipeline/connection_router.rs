@@ -202,6 +202,12 @@ pub fn route(
     if let Some(layers) = pathfinder.and_then(|pass| pass.preferred_layers.get(&route_net_no)) {
         crate::global::history::apply_preferred_layer_bias(&mut ctrl.trace_costs, layers);
     }
+    // M7-T6: the pair COUPLING preference (default inert — an empty
+    // declaration list, or this net is no declared pair's follower,
+    // or the leader has no routed copper yet). The follower's maze
+    // steps toward the leader's corridor then cost half (`pairs.rs`
+    // constants); every other net's cost face is bit-identical.
+    ctrl.coupling = crate::pipeline::pairs::coupling_preference(board, settings, route_net_no);
 
     let unconnected_set = item_unconnected_set(manager, board, item_id, route_net_no);
     if unconnected_set.is_empty() {
@@ -497,6 +503,9 @@ fn retry_connection_necked(
     neck_ctrl.remove_unconnected_vias = settings.remove_unconnected_vias;
     // M6-T9: the primary arm's face, mirrored.
     neck_ctrl.push_shove = settings.push_shove;
+    // M7-T6: the pair coupling preference, mirrored (the necked retry
+    // routes the same follower against the same leader corridors).
+    neck_ctrl.coupling = crate::pipeline::pairs::coupling_preference(board, settings, route_net_no);
     for i in 0..neck_ctrl.layer_count {
         // Java int arithmetic — `wrapping_*` keeps the overflow face.
         let compensation =

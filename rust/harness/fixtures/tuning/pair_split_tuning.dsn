@@ -1,0 +1,45 @@
+(pcb pair_split_tuning.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 60000 60000))
+    (keepout ""
+      (polygon F.Cu 0  20000 20400  22000 20400  22000 36000  20000 36000  20000 20400)
+    )
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "CA1" (place "PA1" 2000 20000 Front 0.000000))
+    (component "CA2" (place "PA2" 48000 20000 Front 0.000000))
+    (component "CB1" (place "PB1" 2000 24000 Front 0.000000))
+    (component "CB2" (place "PB2" 48000 24000 Front 0.000000))
+  )
+  (library
+    (image "CA1" (pin "PAD" "P" 0 0))
+    (image "CA2" (pin "PAD" "P" 0 0))
+    (image "CB1" (pin "PAD" "P" 0 0))
+    (image "CB2" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 300 0 0))
+      (shape (circle B.Cu 300 0 0))
+      (attach off)
+    )
+    (padstack "VIA_PAD"
+      (shape (circle F.Cu 300 0 0))
+      (shape (circle B.Cu 300 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_PAD kicad_default)
+    (net "pa" (pins "PA1"-"P" "PA2"-"P"))
+    (net "pb" (pins "PB1"-"P" "PB2"-"P"))
+    (class kicad_default "pa" "pb" (rule (clearance 200)))
+  )
+)

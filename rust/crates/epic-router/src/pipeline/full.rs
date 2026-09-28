@@ -170,6 +170,11 @@ pub struct PipelineOutcome {
     /// the T5 match-group rows; empty/default unless the stage ran —
     /// the stage-ordering pins' witness).
     pub meander_report: crate::pipeline::tuning::MeanderStageReport,
+    /// M7-T6: the pair stage's outcomes (one row per RESOLVED pair,
+    /// (leader, follower) ASC; empty when the declaration list is
+    /// empty — the zero-activation face — or the routing stage
+    /// aborted).
+    pub pair_stage: Vec<crate::pipeline::pairs::PairStageOutcome>,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -353,6 +358,7 @@ pub fn run(
     let mut transitions = Vec::new();
     let mut settings = settings;
     let meander_active = settings.meander_active;
+    let pairs = settings.pairs.clone();
     let stage = run_routing_stage(manager, board, &mut settings, &stop, sink, &mut transitions);
     let routing = stage.routing;
     let optimizer = if routing.is_err() {
@@ -385,6 +391,16 @@ pub fn run(
     } else {
         crate::pipeline::tuning::MeanderStageReport::default()
     };
+    // M7-T6: the pair MATCH stage — the post-meander face (the class
+    // faces own the class goals first; the pair face tops the pair
+    // delta up). Gated on the RESOLVED declaration list alone (the
+    // third activation input): empty ⇒ inert, byte-identical. Emits
+    // NO stage transition and NO events (the meander-stage precedent).
+    let pair_stage = if routing.is_ok() && !pairs.is_empty() {
+        crate::pipeline::pairs::run_pair_stage(manager, board, &pairs, sink)
+    } else {
+        Vec::new()
+    };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
         transitions.push(RoutingStage::Idle);
@@ -398,6 +414,7 @@ pub fn run(
         stage_transitions: transitions,
         global_plan: stage.global_plan,
         meander_report,
+        pair_stage,
     }
 }
 

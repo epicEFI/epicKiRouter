@@ -103,6 +103,30 @@
 //! already pins-verified. Declined on measurement (the honest-stop
 //! discipline), not dropped: a future milestone that charts
 //! shared-corridor groups inherits this note.
+//!
+//! **MSDTW disposition at T6 (reopened per AMENDMENT 5 §5, declined
+//! again on measurement).** The T6 pair face DID create a
+//! shared-corridor population (the declared pairs). Measured on it:
+//! a pair is a TWO-member population — the median of two traces is
+//! not defined as a central tendency distinct from the members
+//! themselves, and the pair contract anchors the match on the LONGER
+//! member (the `target_net` pattern of [`MatchGroupReport
+//! ::target_net`], carried by [`crate::pipeline::pairs
+//! ::PairStageOutcome::anchor_net`]) — a per-net deterministic anchor,
+//! not a median. On every pair world the median-trace accommodation
+//! either coincides with the per-net one (the anchor IS the longer
+//! member) or is undefined (two-member groups); the benefit set
+//! remains EMPTY. Declined on measurement again, with the pair face
+//! as the recorded reopening candidate: a future charter with
+//! ≥3-member shared corridors (bus groups) is the population where a
+//! median could differ.
+//!
+//! **M7-T6: the PAIR delta.** The pair face charters its own tighter
+//! delta ([`crate::pipeline::pairs::PAIR_DELTA_DBU`], 20_000 DBU —
+//! deliberately tighter than [`MATCH_TOLERANCE_DBU`], never inherited
+//! from a class window; AMENDMENT 5 §6) and drives this module's
+//! insertion engine directly ([`meander_net`], the per-net loop, with
+//! goal = the anchor member's length).
 
 use std::collections::BTreeMap;
 
@@ -216,9 +240,14 @@ pub struct MeanderStageReport {
 }
 
 /// One group's resolved contract: the per-net GOAL length plus the
-/// report row.
+/// report row. The T5 closure shape (`goal_of: Box<dyn Fn>`) is
+/// COLLAPSED (the T6 bank discharge, AMENDMENT 5 §7a): both arms were
+/// current-independent, and the T6 pair face drives the per-net loop
+/// directly with a plain goal too ([`crate::pipeline::pairs
+/// ::run_pair_stage`] → [`meander_net`]) — no per-net goal consumer
+/// exists, so the closure is dead weight.
 struct GroupContract {
-    goal_of: Box<dyn Fn(f64) -> f64>,
+    goal: f64,
     report: MatchGroupReport,
 }
 
@@ -237,7 +266,7 @@ fn resolve_group_contract(
         // bit (deficit toward min; headroom = max − current; the
         // equality landing AT max allowed).
         GroupContract {
-            goal_of: Box::new(move |_current| min),
+            goal: min,
             report: MatchGroupReport {
                 class_index,
                 class_name,
@@ -263,7 +292,7 @@ fn resolve_group_contract(
         }
         let goal_floor = (target - MATCH_TOLERANCE_DBU).max(min);
         GroupContract {
-            goal_of: Box::new(move |_current| goal_floor),
+            goal: goal_floor,
             report: MatchGroupReport {
                 class_index,
                 class_name,
@@ -299,7 +328,11 @@ pub fn run_meander_stage(
             .filter_map(|(net_number, net)| {
                 let (min, max) = rules.net_class_length_bounds(net_number);
                 (min > 0.0).then(|| {
-                    let class_index = rules.nets.get(net_number).map_or(0, |n| n.net_class);
+                    // The T6 bank discharge (AMENDMENT 5 §7c): the old
+                    // `rules.nets.get(net_number).map_or(0, …)` fallback
+                    // was DEAD — every walked net answers `get`, so the
+                    // class index reads off the iteration face directly.
+                    let class_index = net.net_class;
                     (net_number, net.name.clone(), min, max, class_index)
                 })
             })
@@ -331,7 +364,7 @@ pub fn run_meander_stage(
         report.match_groups.push(contract.report);
         for (net_number, net_name, _min, max) in &members {
             let current = board.net_trace_length(*net_number);
-            let goal = (contract.goal_of)(current);
+            let goal = contract.goal;
             if current >= goal {
                 // At or above the GOAL: nothing to add (and above-max
                 // is the report-only face — never truncated, never
@@ -362,9 +395,11 @@ pub fn run_meander_stage(
 }
 
 /// The per-net insertion loop (the budget face:
-/// [`MAX_MEANDER_INSERTIONS_PER_NET`]).
+/// [`MAX_MEANDER_INSERTIONS_PER_NET`]). `pub(crate)` for the T6 pair
+/// stage ([`crate::pipeline::pairs::run_pair_stage`]), which drives
+/// the same loop with the pair anchor as the goal.
 #[allow(clippy::too_many_arguments)] // the stage's per-net frame, kept flat
-fn meander_net(
+pub(crate) fn meander_net(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     net_number: i32,

@@ -335,6 +335,16 @@ pub struct AutorouteControl {
 
     /// Java `minCheapViaCost` — `0.8 * min_normal_via_cost`.
     pub min_cheap_via_cost: f64,
+
+    /// M7-T6 RUST-ONLY: the differential-pair COUPLING preference
+    /// (`pipeline/pairs.rs`; no Java counterpart — the improvement
+    /// face, Default absent). `Some` only while routing a declared
+    /// pair's FOLLOWER whose leader already has routed copper: the
+    /// maze's cost model then discounts the follower's in-corridor
+    /// steps (`search_engine.rs::expand_to_door_section`). The `None`
+    /// path never consults the term — the cost face is bit-identical
+    /// (the two-regime discipline).
+    pub coupling: Option<crate::pipeline::pairs::CouplingPreference>,
 }
 
 impl AutorouteControl {
@@ -380,6 +390,7 @@ impl AutorouteControl {
             max_shove_via_recursion_depth: 5,
             max_spring_over_recursion_depth: 5,
             min_cheap_via_cost: 0.0,
+            coupling: None,
         };
         // Java ctor loop 1 (`:145-147`): bend costs per layer. The
         // settings array is expected layer-sized; a short IR degrades

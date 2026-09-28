@@ -38,7 +38,18 @@ use crate::router_compare::resolve_fresh_epic_cli;
 /// face runs. `master` keeps the T7 vector byte-for-byte (the
 /// committed `t7_ripup.global-golden.json` verifies unchanged). The
 /// empty string in the master row is dropped by [`face_flags`].
-pub const GOLDEN_FACES: [(&str, [&str; 3]); 5] = [
+pub const GOLDEN_FACES: [(&str, [&str; 3]); 7] = [
+    // M7-T6: the DIFFERENTIAL-PAIR faces — the declared pair routes
+    // coupled (leader-first pass order + the follower's maze coupling
+    // preference + the post-routing match stage) and the manifest
+    // carries the advisory `pair_report` rows. The declaration is the
+    // fixture's own net pair (`pa:pb` — the face is fixture-bound, the
+    // table's fixed flag-vector shape). The goldens pin the settings-ON
+    // faces byte-for-byte; the default (no `router.tuning.pairs`) face
+    // of the same fixtures stays covered by the recurring compares'
+    // byte-invariance (the pair face is inert at default).
+    ("pair_coupled", ["--router.tuning.pairs=pa:pb", "", ""]),
+    ("pair_split", ["--router.tuning.pairs=pa:pb", "", ""]),
     // M7-T4: the FANOUT-FULL-FLOW face (the M6 carry-forward — the
     // fanout-full-flow GATE GAP): NO flags — the default pipeline with
     // the fanout stage LIVE. This is the first committed byte golden

@@ -303,6 +303,45 @@ pub struct ManifestLengthNeed {
     pub violation: f64,
 }
 
+/// The M7-T6 advisory PAIR report row (one per RESOLVED declaration,
+/// (leader, follower) ASC). Advisory by construction: pure post-route
+/// board reads (the M6-T6 island-detector pattern) — no route change
+/// rides the key; the route-change face (the coupling preference + the
+/// match stage) is gated separately on the resolved declaration list.
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestPairRow {
+    /// The declaration's 0-based index in the resolved list.
+    pub pair_id: usize,
+    pub leader_net_number: i32,
+    pub leader_net_name: String,
+    pub follower_net_number: i32,
+    pub follower_net_name: String,
+    /// The anchor: the LONGER member's net number at the match stage.
+    pub anchor_net_number: i32,
+    /// Final routed lengths (board DBU).
+    pub leader_length: f64,
+    pub follower_length: f64,
+    /// `|leader − follower|` at the final board.
+    pub delta: f64,
+    /// `delta <= PAIR_DELTA_DBU` (equality allowed).
+    pub matched: bool,
+    /// The shared-corridor measure (parallel-within-window length).
+    pub coupled_length: f64,
+    /// Whether the match stage landed a wave on the shorter member.
+    pub matched_by_meander: bool,
+    pub added_length: f64,
+    pub dent_count: i64,
+}
+
+/// The M7-T6 advisory UNRESOLVED-declaration row (a name resolving to
+/// several subnet nets — a fromto split — or to none). Recorded, never
+/// guessed.
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestPairUnresolved {
+    pub name_a: String,
+    pub name_b: String,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -331,6 +370,14 @@ pub struct RouteManifest<'a> {
     /// vanishes entirely).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub length_report: Vec<ManifestLengthNeed>,
+    /// The M7-T6 advisory pair report (empty = absent from the
+    /// rendered manifest — the zero-rotation face; no declared pairs,
+    /// no key).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pair_report: Vec<ManifestPairRow>,
+    /// The M7-T6 advisory unresolved-declaration rows (skip-if-empty).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pair_unresolved: Vec<ManifestPairUnresolved>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -392,6 +439,10 @@ pub struct RouteTelemetry {
     /// The M7-T3 meander-need report (empty = absent from the rendered
     /// manifest — the zero-rotation face).
     pub length_report: Vec<ManifestLengthNeed>,
+    /// The M7-T6 advisory pair report (empty = absent).
+    pub pair_report: Vec<ManifestPairRow>,
+    /// The M7-T6 advisory unresolved-declaration rows (empty = absent).
+    pub pair_unresolved: Vec<ManifestPairUnresolved>,
 }
 
 /// The final-state mapping (module docs for the Java-scheduler rule).
@@ -626,6 +677,8 @@ pub fn render_manifest(
         pour_islands: telemetry.pour_islands.clone(),
         global_plan: telemetry.global_plan.clone(),
         length_report: telemetry.length_report.clone(),
+        pair_report: telemetry.pair_report.clone(),
+        pair_unresolved: telemetry.pair_unresolved.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -876,6 +929,88 @@ pub fn apply_meander_activation(batch: &mut BatchSettings, resolved: &ResolvedRo
         Some(true) => true,
         None => batch.tuning_active,
     };
+}
+
+/// The M7-T6 pair ACTIVATION (the separated-wiring convention — the
+/// predicate directly pinnable, next to the tuning/meander faces): the
+/// declaration list resolves at the board seam (names → numbers; the
+/// conservative resolver: a name resolving to several subnet nets or
+/// to none leaves the pair UNRESOLVED — recorded in the advisory
+/// rows, never guessed). The resolved specs ride
+/// [`BatchSettings::pairs`] (the pass leader-first order, the maze
+/// coupling preference, and the post-routing match stage read it);
+/// Default empty = zero activation, byte-identical.
+pub fn apply_pairs_activation(
+    batch: &mut BatchSettings,
+    resolved: &ResolvedRouteSettings,
+    board: &epic_board::board::Board,
+) -> (
+    Vec<epic_router::pipeline::pairs::PairSpec>,
+    Vec<ManifestPairUnresolved>,
+) {
+    let Some(declarations) = resolved.tuning_pairs.clone() else {
+        return (Vec::new(), Vec::new());
+    };
+    let (specs, unresolved) = epic_router::pipeline::pairs::resolve_pairs(board, &declarations);
+    batch.pairs = specs.clone();
+    (
+        specs,
+        unresolved
+            .into_iter()
+            .map(|(name_a, name_b)| ManifestPairUnresolved { name_a, name_b })
+            .collect(),
+    )
+}
+
+/// The M7-T6 advisory pair-report assembly (the M6-T6
+/// island-detector pattern: pure post-route board reads, NO route
+/// change rides the rows). Per resolved pair: the final lengths, the
+/// delta, the matched verdict against
+/// `PAIR_DELTA_DBU`, the shared-corridor measure, and the match
+/// stage's outcome (same (leader, follower) ASC order as the specs).
+pub fn pair_report_rows(
+    board: &mut epic_board::board::Board,
+    specs: &[epic_router::pipeline::pairs::PairSpec],
+    stage: &[epic_router::pipeline::pairs::PairStageOutcome],
+) -> Vec<ManifestPairRow> {
+    let mut rows = Vec::new();
+    for (index, spec) in specs.iter().enumerate() {
+        let leader_length = board.net_trace_length(spec.leader);
+        let follower_length = board.net_trace_length(spec.follower);
+        let delta = (leader_length - follower_length).abs();
+        let rules = board.rules();
+        let name = |net: i32| -> String {
+            rules
+                .nets
+                .get(net)
+                .map_or_else(|| format!("net#{net}"), |net_row| net_row.name.clone())
+        };
+        let stage_row = stage
+            .iter()
+            .find(|row| row.leader == spec.leader && row.follower == spec.follower);
+        rows.push(ManifestPairRow {
+            pair_id: index,
+            leader_net_number: spec.leader,
+            leader_net_name: name(spec.leader),
+            follower_net_number: spec.follower,
+            follower_net_name: name(spec.follower),
+            anchor_net_number: stage_row.map_or(spec.leader, |row| row.anchor_net),
+            leader_length,
+            follower_length,
+            delta,
+            matched: delta <= epic_router::pipeline::pairs::PAIR_DELTA_DBU,
+            coupled_length: epic_router::pipeline::pairs::coupled_length(
+                board,
+                spec.leader,
+                spec.follower,
+                epic_router::pipeline::pairs::COUPLING_WINDOW_DBU,
+            ),
+            matched_by_meander: stage_row.is_some_and(|row| row.landed),
+            added_length: stage_row.map_or(0.0, |row| row.added_length),
+            dent_count: stage_row.map_or(0, |row| row.dent_count),
+        });
+    }
+    rows
 }
 
 /// The M7-T3 meander-need report assembly (T4's input contract). Walks
@@ -1217,6 +1352,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // kills the meander stage ALONE (the T3 honoring gate stays armed
     // off `tuning_active`).
     apply_meander_activation(&mut batch, &resolved);
+    // M7-T6: the PAIR activation — the resolved declaration list (the
+    // third activation input) resolved at the board seam; the
+    // unresolved rows ride the advisory report.
+    let (pair_specs, unresolved_pairs) = apply_pairs_activation(&mut batch, &resolved, &board);
     // M7-T3: the honoring faces read the RESOLVED activation off the
     // board (never the CLI tri-state) — one write here, next to the
     // tuning activation — before any routing/optimization pass runs.
@@ -1303,6 +1442,15 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     } else {
         Vec::new()
     };
+    // The M7-T6 advisory pair report (empty = no declared pairs, no
+    // key — the zero-rotation face). The match stage's outcomes ride
+    // the pipeline outcome; the rows are computed from the FINAL
+    // board.
+    let pair_report: Vec<ManifestPairRow> = if pair_specs.is_empty() {
+        Vec::new()
+    } else {
+        pair_report_rows(&mut board, &pair_specs, &outcome.pair_stage)
+    };
     let last_counters = sink.last_counters_by_phase.get("autoroute").cloned();
     // The pipeline's per-phase faces (the render builds the snapshot
     // rows from the raw boundary pairs).
@@ -1360,6 +1508,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         pour_islands,
         global_plan: outcome.global_plan.as_ref().map(manifest_global_plan),
         length_report,
+        pair_report,
+        pair_unresolved: unresolved_pairs,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1455,6 +1605,8 @@ mod tests {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
             length_report: Vec::new(),
+            pair_report: Vec::new(),
+            pair_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             ..RouteTelemetry::default()
@@ -1519,6 +1671,8 @@ mod tests {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
             length_report: Vec::new(),
+            pair_report: Vec::new(),
+            pair_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
@@ -1553,6 +1707,8 @@ mod tests {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
             length_report: Vec::new(),
+            pair_report: Vec::new(),
+            pair_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
@@ -1713,6 +1869,8 @@ mod tests {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
             length_report: Vec::new(),
+            pair_report: Vec::new(),
+            pair_unresolved: Vec::new(),
             global_plan: None,
             last_counters: None,
             connections: Some(ManifestConnections {
@@ -1814,6 +1972,8 @@ mod tests {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
             length_report: Vec::new(),
+            pair_report: Vec::new(),
+            pair_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
@@ -2068,6 +2228,8 @@ mod tests {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
             length_report: Vec::new(),
+            pair_report: Vec::new(),
+            pair_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             connections: Some(ManifestConnections {
@@ -2691,6 +2853,16 @@ mod tests {
     /// Block-walking sexpr (buglog 206: no single-line regex): the
     /// N1 scope is delimited by its `(net N1` opener and the balanced
     /// close, and every `(wire` block inside is counted.
+    ///
+    /// COUPLING DISCLOSURE (the AMENDMENT-5 §7b bank, discharged at the
+    /// M7-T6 route.rs touch): this pin's walker parses the
+    /// `write_session` OUTPUT TEXT and is therefore coupled to the
+    /// writer's line layout — a `write_session` reformat (line breaks,
+    /// indentation, sexpr folding) can break the walker WITHOUT any
+    /// semantic change, and this pin failing is a REASONABLE response
+    /// to that (the pin guards the emitted face's shape as well as its
+    /// content); it does NOT guard `write_session` correctness in
+    /// isolation.
     #[test]
     fn projection_supersedes_input_wiring_one_wire_per_on_board_trace() {
         use epic_dsn::sink::NetIr;

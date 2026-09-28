@@ -829,6 +829,7 @@ fn test_ctrl(via_upper_bound: i32, via_infos: Vec<ViaMask>) -> AutorouteControl 
         max_shove_via_recursion_depth: 5,
         max_spring_over_recursion_depth: 5,
         min_cheap_via_cost: 0.0,
+        coupling: None,
     }
 }
 
