@@ -1,74 +1,49 @@
----
-description: session handoff, regenerate with /handoff when a quest finishes
-budget_tokens: 1000
----
-# STATUS — EpicRouter
+# STATUS — session handoff
 
-> Single source of truth for resuming work. Read this FIRST when starting a session.
-> Update this file at the end of every work phase so the next `/clear` resumes in 1 read.
-> Last updated: 2026-09-15 (M2 complete)
-
----
+Last updated: 2026-09-22 (M3 complete)
 
 ## ✅ Done
 
-- **M0 complete** (2026-09-12): Rust workspace, 23 golden baselines (A=11/B=9/C=3), CI, docs.
-- **M1a complete** (2026-09-13): `epic-geometry` bit-parity port, 5000/5000 differential corpus green (java-free CI).
-- **M1b complete** (2026-09-14): `epic-dsn` full parse parity — 1,332/1,332 fixtures byte-identical digests; SES writer byte-equal on 20/20 (T40 snap deferred to M2 per D11).
-- **M2 complete** (2026-09-15, plan `8b6e1cc1`, 16/16 tasks closed, range `8b6e1cc1..f9685cba`): `epic-board` (arena board, undoable containers, rules/placement, item geometry, tree-manager seam, contacts, trace combine/split/normalize, `normalize_all_traces`, undo facade, session-contacts provider) + `epic-index` (ShapeTree/MinAreaTree, ShapeSearchTree config/manager/compensation, tree-shapes, query family). **All six compares green**: corpus 5000/5000, dsn 1,332/1,332 ledger EMPTY (D22 retired at T13), ses-compare 20/20 byte-stable, index 33/33, undo 33/33, ses-snap 5/5 (snapFired=0 canary — snap output-arm provably dead upstream, spec-adjudicated). **927 workspace tests**. Exit docs (`9f6c9a33`) + milestone review round (`f9685cba`). Final milestone review: spec SPEC_COMPLIANT, quality APPROVED_WITH_MINORS→APPROVED.
-- M2 deferred items (recorded, NOT debt): dsn-0151 ledger retired; T40 snap landed with the dead-arm finding; write_net `Emittable` enum done (D24).
-- Baseline truths (M0): `multichannel_mixer` 160/203 incomplete (score 141.22) = improvement target; DRC violations on 7 boards (worst 285).
-
----
+- **M0–M2** (unchanged — see git history and `docs/architecture.md`): 9-crate scaffold, tier matrix, oracle runner; M1a geometry pure-ports 5000/5000; M1b DSN read/SES write parity; M2 searchtree + index/undo corpora.
+- **M3 — Detail routing core + epic-cli: COMPLETE (2026-09-22, verdict `M3_EXIT_WITH_DEVIATIONS`).**
+  - Plan `77dcaedb`, tasks **#42–#60** (19) all closed under the two-stage review protocol (spec → quality → fix rounds by original implementer → scoped re-review).
+  - Final chain through **`c4bcf69ad`** (epic/main, never pushed). Landmarks: T11 autoroute E2E (`d9b216905`), T12 batch pipeline (`c1b66070f`), T13 `epic-cli route` (`f7f4b7db8`), T16 events corpus (`d283f4210`, golden sha `cc50216c…`), T17a panic fixes 169/170 (`91440a937`), T17b bugs 176/177 (`d2f35e228`), T17c battery truth + CI tripwire pins (`cc275b5a5`…`a4c072430`), T17d docs close (`f8f8734e8`, `c4bcf69ad`).
+  - **Adjudication** (`logs/M3-T17/milestone-review-m3.md`): criterion 1 MET_WITH_DEVIATIONS (kernel pin suites + E2E captures + events corpus; deviation = events divergence #61), criterion 2 NOT_MET 8/11 (all three reds root-caused non-parity: bm06 TUNING buglog 181, bm01 WALL-LIMITED buglog 175, bm11 red-by-1-at-truth), criterion 3 MET (zero regressions on all six M2 compares). Deviations table red→root cause→M4 lever embedded in design §6 M3 note.
+  - **Gates at HEAD**: fmt/clippy clean; bare suite **1305 / 0 / 15** (15 ignored = 9 capture replays + 6 harness slow/e2e); **seven compares** green — corpus 5000/5000, dsn 1332, ses 20, ses-snap 5, index 33, undo 33, drc 17; determinism digests `96ba7300…`/`16714d5e…` byte-identical; battery **8 PASS / 3 RED** (every red root-caused, zero router-introduced violations on all 11); `events compare` exit 1 honest-red (#61).
+  - **CI flip = HOLD** (adjudicated): flip is ONE commit when 11/11 battery AND wall-resolved profile (Σ tier ≈5160s vs 30-min CI step) — drop `--report-only`, update both `ci_tripwire.rs` pins same-commit, refresh the three prose posture sites (rust/README.md:19 status block, :159 gates comment, design doc:158 CI paragraph).
 
 ## 🚀 Next quest
 
-**Goal:** M3 — Detail routing core + `epic-cli` (design §6 M3 row). Exit criteria: single-net quality ≥ Java; Tier A per-fixture completion ≥ Java and violations ≤ Java.
-
-First step: write the M3 plan (writing-plans skill, from design §5/§6 + recon of `autoroute/` Java sources: `autoroute.maze`, `autoroute.expansion`, `autoroute.drill`, `autoroute.path`, pipeline orchestration).
-
-**M3 carry-forwards (from the M2 milestone review, priority order):**
-1. Extract `harness/src/corpus_common.rs` (manifest entry, strict JSONL load, alignment, sha-hex) BEFORE the routing corpus is born — the shell is triplicated across dsn/index/undo corpora with visible drift (truncate caps 120 vs 160).
-2. The four cut pub items (`Component::is_placed`, `NetClass::is_active_routing_layer`, `BoardRules::default_net_class`, `BoardRules::via_rule_by_id`) return with their first M3 consumer, pinned at that point.
-3. If M3 adds a second tree to the undo replay, the undo-digest topology blind spot (documented in `undo_corpus.rs` coverage boundary) must be closed first.
-
-### Acceptance criteria (M3, from design)
-1. Single-net routing quality ≥ Java on the differential set.
-2. Tier A per-fixture completion ≥ Java and violations ≤ Java.
-3. Gates green; zero regressions on all six M2 compares.
-
+**Goal:** M4 — Full pipeline: fanout + detail + optimizer (design §6 M4 row). Exit criterion: **zero-regression moment** — all fixtures ≥ Java on completion/violations/score.
+First step: write the M4 plan (writing-plans skill, from design §5/§6 M4 + recon of the Java `autoroute.pipeline` fanout/optimizer orchestration and `board.optimize`).
+**M4 carry-forwards (from the M3 adjudication, priority order):**
+1. **#61 events-divergence close FIRST** (task #61; Classes A/B/C, buglog 172–174; exit = `events compare` exits 0). Class B door-slicing first — hypothesized causal ancestor of the bm06/bm11 victim-choice drift (reasoning in design §6 M3 note bm06 lever cell).
+2. The three completion reds are M4's own exit criteria: bm06/bm11 tuning levers (buglog 181), bm01 per-pass search cost (natural end ≈8.5–13.4h must shrink; M5 arena/parallelism as backstop).
+3. CI flip at M4's moment, per the one-commit protocol above; stale rust-check.yml compare-step comment (pre-adjudication bm11 framing) refreshed at the FIRST workflow-touching M4 commit.
+4. M2 leftovers still open: the four cut pub items return with their first consumer, pinned then.
+5. Banked inert mutants (hoist-if-third-copy `item_is_drillable` twins; QR-2/QR-3b/QR-7/Q2/Q3/Q7, MIN-3, buglog 178, ViaOptimizer POINTS sites) — revisit opportunistically; chore(wolf) banked commit (cerebrum consolidation, buglog ids >95 unstaged) when convenient.
+### Acceptance criteria (M4, from design §6)
+1. Full pipeline (fanout + detail + optimizer) runs on the fixture set.
+2. All fixtures ≥ Java on completion / violations / score — the zero-regression moment.
+3. Gates green; zero regressions on all M2/M3 compares.
 ### Open decisions
-- None blocking; routing-engine decomposition (maze core seam vs expansion strategy) resolved during planning.
-
----
+- None blocking; optimizer decomposition (pull-tight → shove → via opt staging) resolved during planning from the Java pass structure.
 
 ## 📁 Active architecture
 
-- **Stack:** Rust 1.93.0 workspace in `rust/`; Java 25 oracle (`~/.jdks/jdk-25.0.4.1+1`, system java is 21); Gradle 9 via `./gradlew`.
-- **Key crates:** `epic-geometry`/`epic-dsn`/`epic-board`/`epic-index` (done), `epic-{drc,router,engine,cli,gui}` (later) + `rust/harness` (corpus/dsn/ses_compare/index_corpus/undo_corpus/oracle/tiers/baseline + the four spike oracles).
-- **Patterns:** parity gates compare digests/canonical bytes, never wall time; goldens are committed artifacts, regenerate only via the harness subcommands with justification; broken environments fail LOUD; pins follow the cerebrum rules (jar-captured, non-degenerate, branch-covering, anchor-blind-aware; modes 6-9: memoized-accessor, equality-contrast, literal-capture-rows, winner-selection).
+- `rust/` workspace (run cargo from `rust/`): `epic-geometry`, `epic-dsn`, `epic-board`, `epic-rules`, `epic-drc`, `epic-search`, `epic-router` (maze/expansion/drill/path/ripup + SEAM.md), `epic-engine` (13-line M4 scaffold), `epic-cli`, `harness` (epic-harness: corpus/compare/battery/determinism/events/tripwire).
+- Oracle: Java tree frozen at `e7f9bdf1` (`src/` read-only), jar run via JDK 25 `~/.jdks/jdk-25.0.4.1+1/bin/java`; `EPIC_SKIP_GRADLE=1` for compares.
+- Committed artifacts never modified: `rust/harness/baselines/**`, corpus dirs, events-golden (`cc50216c…`), `tiers.yaml`.
+- CI: `.github/workflows/rust-check.yml` (fmt + clippy `-D warnings` + tests + java-free corpus compare `--report-only`); flip guarded by `rust/harness/src/ci_tripwire.rs` pins.
+- Records: `rust/crates/epic-router/SEAM.md` (differential ledger + milestone-criterion map), `.wolf/buglog.json` (181 entries; committed file tops out at id 95 — working tree is authoritative), `logs/M3-T17/` (T17 review chain + milestone adjudication + bm06/bm01/bm11 evidence).
 
----
+## ⚠️ External blockers
 
-## ⚠️ External blockers (don't block coding)
-
-- Oracle runs need the jar (`./gradlew -q executableJar`) + JDK 25 (harness auto-resolves; `EPIC_ORACLE_JAVA` overrides; `EPIC_SKIP_GRADLE=1` skips build).
-- Never push to `upstream`; never modify `src/` Java sources (frozen at `e7f9bdf1`; `rust/harness/oracle/*.java` is harness-side, editable); never touch other Claude instances/global `~/.claude`.
-
----
+- None. (Watchdog: never kill/modify processes that are not ours — another Claude instance runs on this machine.)
 
 ## 🔧 Useful commands
 
-```bash
-cd rust
-cargo test --workspace                                   # unit tests, no Java needed (927)
-EPIC_SKIP_GRADLE=1 cargo run -q -p epic-harness -- corpus compare    # 5000/5000
-EPIC_SKIP_GRADLE=1 cargo run -q -p epic-harness -- dsn compare       # 1332/1332, ~200s
-EPIC_SKIP_GRADLE=1 cargo run -q -p epic-harness -- dsn ses-compare   # 20/20 byte-equal
-EPIC_SKIP_GRADLE=1 cargo run -q -p epic-harness -- index compare     # 33/33
-EPIC_SKIP_GRADLE=1 cargo run -q -p epic-harness -- undo compare      # 33/33
-EPIC_SKIP_GRADLE=1 cargo run -q -p epic-harness -- dsn ses-snap-compare  # 5/5
-./gradlew test                                           # Java suite ~6 min (Display8DigitRoutingTest load-flaky; rerun solo)
-```
-
----
+- Gates (from `rust/`): `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace` → **1305/0/15**.
+- Compares (repo root, harness bin, `EPIC_SKIP_GRADLE=1`, explicit command lines, real exit codes — never pipe a gate in fish): corpus / dsn / ses / ses-snap / index / undo / drc; `router determinism` digests; `events compare` (currently exit 1 = #61).
+- Battery: release profile, CHEAP subset only for probes (bm08, ecc83-pp, ecc83-pp_v2); NEVER bm01/bm11 unbounded, never bm06 in debug; never re-run the one-off captures (evidence on disk in `logs/M3-T17/`).
+- JDK 25 for oracles; `cd` every Bash call (fish); commits end with `Co-Authored-By: Claude Code <noreply@anthropic.com>`; never push (no remote on epic/main).
