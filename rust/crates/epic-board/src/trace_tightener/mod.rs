@@ -1123,8 +1123,27 @@ pub(crate) fn polyline_trace_pull_tight(
     // fresh object (the only way value and reference disagree) is
     // unreachable.
     if new_lines != lines {
-        change_trace_geometry(manager, board, trace_id, new_lines);
-        return true;
+        // M7-T3 (beyond-Java): the min-length honoring gate — when the
+        // tuning regime is ON (`Board::tuning_active`), a constrained
+        // net's trace (resolved `min > 0` via
+        // `BoardRules::net_class_length_bounds`, the T2 query surface)
+        // is never shortened below `min` by the tightener: a candidate
+        // polyline shorter than `min` is rejected WHOLE (the old
+        // geometry stands; the fixpoint then behaves exactly like the
+        // no-change path — it falls through to the pin tail). The gate
+        // is INERT when the flag is false or the net carries no `min`
+        // (`min <= 0.0` — the T1 delivery gate), so the parity regime
+        // is untouched (the byte-invariance rule). Java has no
+        // counterpart: the oracle shortens unconstrained. Both tightener
+        // change-acceptance faces gate here or at the pin tail
+        // (`pin_tail::pin_connection_tail` — the module's only other
+        // `change_trace_geometry` site); the via arm re-lands
+        // length-preserving split pieces through this same function, so
+        // the gate covers it too.
+        if min_length_gate_allows(board, trace_id, &new_lines) {
+            change_trace_geometry(manager, board, trace_id, new_lines);
+            return true;
+        }
     }
     // Java `:840-855`: the swap/correct pin-connection tail —
     // `angleRestriction != NINETY_DEGREE && pinEdgeToTurnDist > 0`.
@@ -1134,6 +1153,40 @@ pub(crate) fn polyline_trace_pull_tight(
     // `Structure.java:667-668`, and no tier fixture carries
     // `smd_to_turn_gap`); inert on 90° boards by the first gate half.
     pin_tail::pin_connection_tail(state, manager, board, trace_id)
+}
+
+/// M7-T3 (beyond-Java): the min-length honoring gate — the single
+/// predicate every tightener change-acceptance face consults. TRUE when
+/// the candidate polyline may land: either the tuning regime is OFF
+/// (the parity regime, `Board::tuning_active` false — the derived
+/// board Default), the net carries no `min` (the T1 delivery gate,
+/// `min <= 0.0`), or the candidate is not a shortening below `min`
+/// (NEW length `>= min`; landing AT `min` is allowed — the contract is
+/// "never below", the `min + ε → min` tightening face). The old
+/// geometry always stands on a forbidden candidate (a WHOLE-candidate
+/// rejection, never a partial adjust — deterministic and order-stable,
+/// a pure function of the board state and the candidate).
+#[must_use]
+pub(crate) fn min_length_gate_allows(
+    board: &Board,
+    trace_id: ItemId,
+    new_lines: &Polyline,
+) -> bool {
+    if !board.tuning_active() {
+        return true;
+    }
+    let Some(first_net) = board
+        .get(trace_id)
+        .map(|entry| entry.nets.first().copied())
+        .unwrap_or(None)
+    else {
+        return true;
+    };
+    let (min, _max) = board.rules().net_class_length_bounds(first_net);
+    if min <= 0.0 {
+        return true;
+    }
+    new_lines.length_approx_total() >= min
 }
 
 /// The fixpoint's per-via relocation seam (Java `ViaOptimizer.

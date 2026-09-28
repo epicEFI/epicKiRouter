@@ -279,6 +279,30 @@ pub struct ManifestGlobalPlan {
     pub order_digest: String,
 }
 
+/// The M7-T3 meander-need report row (T4's input contract) — one row
+/// per constrained net whose routed length violates its resolved
+/// net-class bounds, ordered by net number ascending. Machine-readable
+/// by construction: T4's engine consumes the rows as its deficit list.
+/// Lengths are raw f64 board-DBU (NOT the manifest's `%.2f` Java
+/// adapter face — these rows are an epic-side contract, not a Java
+/// mirror face, and T4 needs the full precision).
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestLengthNeed {
+    /// The 1-based net number (the deterministic row key).
+    pub net_number: i32,
+    /// The net name (the DSN-declared name, case-preserved).
+    pub net_name: String,
+    /// The resolved `min` bound (0.0 = unconstrained on that side).
+    pub min_length: f64,
+    /// The resolved `max` bound (0.0 = unconstrained on that side).
+    pub max_length: f64,
+    /// The net's routed trace length (`Board::net_trace_length`).
+    pub trace_length: f64,
+    /// The `calcLengthViolation` port's verdict: positive = over-max
+    /// excess, negative = under-min deficit (never 0 on a present row).
+    pub violation: f64,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -300,6 +324,13 @@ pub struct RouteManifest<'a> {
     /// (skip-if-None — the byte-identity face).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_plan: Option<ManifestGlobalPlan>,
+    /// The M7-T3 meander-need report (T4's input contract). Absent on
+    /// constraint-free boards AND when no constrained net violates its
+    /// bounds (skip-if-empty — the zero-rotation face; the empty-Vec
+    /// face is the contract's "nothing to meander" answer, so the key
+    /// vanishes entirely).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub length_report: Vec<ManifestLengthNeed>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -358,6 +389,9 @@ pub struct RouteTelemetry {
     /// The M6-T7 settings-ON global-plan face (None = OFF; absent from
     /// the rendered manifest then).
     pub global_plan: Option<ManifestGlobalPlan>,
+    /// The M7-T3 meander-need report (empty = absent from the rendered
+    /// manifest — the zero-rotation face).
+    pub length_report: Vec<ManifestLengthNeed>,
 }
 
 /// The final-state mapping (module docs for the Java-scheduler rule).
@@ -591,6 +625,7 @@ pub fn render_manifest(
         },
         pour_islands: telemetry.pour_islands.clone(),
         global_plan: telemetry.global_plan.clone(),
+        length_report: telemetry.length_report.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -810,6 +845,46 @@ fn manifest_global_plan(plan: &epic_router::global::plan::GlobalPlan) -> Manifes
         order_count: plan.net_order().len(),
         order_digest: plan.order_digest(),
     }
+}
+
+/// The M7-T3 meander-need report assembly (T4's input contract). Walks
+/// the nets in NUMBER order (the deterministic row order), keeps the
+/// constrained ones (`min > 0 || max > 0` — the T1 delivery gate), and
+/// emits a row per net whose `calcLengthViolation` port verdict is
+/// non-zero: net number/name, resolved bounds, routed length, and the
+/// signed violation (positive = over-max excess, negative = under-min
+/// deficit). Present only when the tuning regime is ON — the CALLER
+/// gates on `board.tuning_active()` (an empty return on a
+/// constraint-free board and the caller gate are the same face: no key
+/// in the manifest at all, the zero-rotation pin). Deterministic by
+/// construction: pure board reads, net-number order, no float search.
+pub fn length_needs(manager: &SearchTreeManager, board: &mut Board) -> Vec<ManifestLengthNeed> {
+    let mut rows = Vec::new();
+    let incompletes = epic_drc::incompletes::all_incompletes(manager, board).1;
+    let rules = board.rules();
+    for (net_number, net) in rules.nets.iter() {
+        let (min, max) = rules.net_class_length_bounds(net_number);
+        if min <= 0.0 && max <= 0.0 {
+            continue;
+        }
+        let trace_length = board.net_trace_length(net_number);
+        let net_has_incompletes = incompletes
+            .iter()
+            .any(|row| row.net_no == net_number && row.incomplete_count > 0);
+        let violation = rules.length_violation(net_number, trace_length, net_has_incompletes);
+        if violation == 0.0 {
+            continue;
+        }
+        rows.push(ManifestLengthNeed {
+            net_number,
+            net_name: net.name.clone(),
+            min_length: min,
+            max_length: max,
+            trace_length,
+            violation,
+        });
+    }
+    rows
 }
 
 /// Java `BoardFileDetails.getFilenameWithoutExtension`
@@ -1105,6 +1180,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // declaration anywhere on the board), with `router.tuning` as the
     // explicit override/kill-switch on top.
     apply_tuning_activation(&mut batch, &resolved, board.rules());
+    // M7-T3: the honoring faces read the RESOLVED activation off the
+    // board (never the CLI tri-state) — one write here, before any
+    // routing/optimization pass runs.
+    board.set_tuning_active(batch.tuning_active);
     // M5-T7: the executor thread count. The DEFAULT is 1 — the golden
     // sequential path — even though the merged surface resolves Java's
     // `max(1, cores-1)` parity default in validate(): the executor
@@ -1177,6 +1256,16 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             digest: pour.digest,
         })
         .collect();
+    // The M7-T3 meander-need report (T4's input contract): present only
+    // when the tuning regime resolved ON (the input-driven activation —
+    // a constraint-free board never emits the key, the zero-rotation
+    // face), and only rows for constrained nets whose routed length
+    // violates their bounds.
+    let length_report: Vec<ManifestLengthNeed> = if board.tuning_active() {
+        length_needs(&manager, &mut board)
+    } else {
+        Vec::new()
+    };
     let last_counters = sink.last_counters_by_phase.get("autoroute").cloned();
     // The pipeline's per-phase faces (the render builds the snapshot
     // rows from the raw boundary pairs).
@@ -1233,6 +1322,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         final_optimizer_score: Some(final_optimizer_score),
         pour_islands,
         global_plan: outcome.global_plan.as_ref().map(manifest_global_plan),
+        length_report,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1327,6 +1417,7 @@ mod tests {
         let mut telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            length_report: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             ..RouteTelemetry::default()
@@ -1390,6 +1481,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            length_report: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
@@ -1423,6 +1515,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            length_report: Vec::new(),
             global_plan: None,
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
@@ -1582,6 +1675,7 @@ mod tests {
         let telemetry_with = |phases: PipelinePhases| RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            length_report: Vec::new(),
             global_plan: None,
             last_counters: None,
             connections: Some(ManifestConnections {
@@ -1682,6 +1776,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            length_report: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
@@ -1935,6 +2030,7 @@ mod tests {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
+            length_report: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             connections: Some(ManifestConnections {
@@ -3234,5 +3330,224 @@ mod tests {
             batch.tuning_active,
             "the override fires on constraint-free input"
         );
+    }
+
+    // ---- M7-T3: the meander-need report face (T4's input contract) ----
+
+    /// A SesBoard world for the report pins: nets slow(1)/free(2)/
+    /// long(3)/short(4); class 1 "tuned" carries (min, max), class 0
+    /// "default" is unconstrained. Traces: net 1 = 60000 (in range),
+    /// net 2 = 10000 (unconstrained), net 3 = 150000, net 4 = 30000.
+    fn length_report_board(min: f64, max: f64) -> Board {
+        use epic_dsn::sink::NetClassIr;
+        let class = NetClassIr {
+            name: "tuned".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1500],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: min,
+            max_trace_length: max,
+            nets: Vec::new(),
+        };
+        let mut ses = two_layer_ses();
+        ses.net_classes.push(class);
+        ses.nets = vec![
+            epic_dsn::sink::NetIr {
+                name: "slow".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 1,
+            },
+            epic_dsn::sink::NetIr {
+                name: "free".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+            epic_dsn::sink::NetIr {
+                name: "long".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 1,
+            },
+            epic_dsn::sink::NetIr {
+                name: "short".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 1,
+            },
+        ];
+        let trace = |id: i32, net: i32, x: i32| ItemIr::Trace {
+            id,
+            trace: TraceIr {
+                layer_no: 0,
+                half_width: 500,
+                corners: vec![IntPoint::new(0, 0), IntPoint::new(x, 0)],
+                polyline: TraceIr::polyline_of_corners(&[IntPoint::new(0, 0), IntPoint::new(x, 0)]),
+                nets: vec![net],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        };
+        ses.push_routed_item(trace(500, 1, 60_000));
+        ses.push_routed_item(trace(501, 2, 10_000));
+        ses.push_routed_item(trace(502, 3, 150_000));
+        ses.push_routed_item(trace(503, 4, 30_000));
+        Board::from_ses_board(&ses)
+    }
+
+    /// The report contract: only constrained nets whose routed length
+    /// violates the resolved bounds get rows, in NET-NUMBER order, with
+    /// the signed violation (positive = over-max excess, negative =
+    /// under-min deficit; the pinless world guarantees no incompletes,
+    /// so the under-min arm fires). In-range and unconstrained nets
+    /// stay silent. Values derive from the world: slow 60000 in
+    /// [50000, 100000] -> no row; free 10000 unconstrained -> no row;
+    /// long 150000 > max 100000 -> +50000; short 30000 < min 50000 ->
+    /// -20000.
+    #[test]
+    fn length_needs_reports_violating_constrained_nets_in_number_order() {
+        let mut board = length_report_board(50_000.0, 100_000.0);
+        board.set_tuning_active(true);
+        let manager = SearchTreeManager::new();
+        let rows = length_needs(&manager, &mut board);
+        assert_eq!(rows.len(), 2, "long + short only");
+        assert_eq!(rows[0].net_number, 3);
+        assert_eq!(rows[0].net_name, "long");
+        assert_eq!(rows[0].min_length, 50_000.0);
+        assert_eq!(rows[0].max_length, 100_000.0);
+        assert_eq!(rows[0].trace_length, 150_000.0);
+        assert_eq!(rows[0].violation, 50_000.0, "positive = over-max excess");
+        assert_eq!(rows[1].net_number, 4);
+        assert_eq!(rows[1].net_name, "short");
+        assert_eq!(rows[1].trace_length, 30_000.0);
+        assert_eq!(rows[1].violation, -20_000.0, "negative = under-min deficit");
+    }
+
+    /// The zero-rotation negative: a CONSTRAINT-FREE board (all class
+    /// bounds 0.0) yields no rows even with the tuning flag on, and a
+    /// fresh board reads tuning_active() = false (the parity regime
+    /// default). The manifest face: the empty report leaves NO key in
+    /// the rendered JSON (the byte-identity face).
+    #[test]
+    fn length_report_absent_on_constraint_free_board() {
+        let mut board = length_report_board(0.0, 0.0);
+        board.set_tuning_active(true);
+        let manager = SearchTreeManager::new();
+        assert!(
+            length_needs(&manager, &mut board).is_empty(),
+            "constraint-free: nothing to report"
+        );
+        let fresh = Board::default();
+        assert!(!fresh.tuning_active(), "the parity-regime default");
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        assert!(
+            value.get("length_report").is_none(),
+            "no violations = no key = the zero-rotation face"
+        );
+    }
+
+    /// The manifest row shape (machine-readable, T4's input): the
+    /// rendered /length_report rows carry every field verbatim.
+    #[test]
+    fn manifest_length_report_rows_render_machine_readably() {
+        let telemetry = RouteTelemetry {
+            final_state: "COMPLETED".to_string(),
+            length_report: vec![ManifestLengthNeed {
+                net_number: 7,
+                net_name: "clk".to_string(),
+                min_length: 100.5,
+                max_length: 0.0,
+                trace_length: 40.25,
+                violation: -60.25,
+            }],
+            ..RouteTelemetry::default()
+        };
+        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
+        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
+        let row = value.pointer("/length_report/0").expect("the face rides");
+        assert_eq!(
+            row.pointer("/net_number")
+                .and_then(serde_json::Value::as_i64),
+            Some(7)
+        );
+        assert_eq!(
+            row.pointer("/net_name").and_then(serde_json::Value::as_str),
+            Some("clk")
+        );
+        assert_eq!(
+            row.pointer("/min_length")
+                .and_then(serde_json::Value::as_f64),
+            Some(100.5)
+        );
+        assert_eq!(
+            row.pointer("/max_length")
+                .and_then(serde_json::Value::as_f64),
+            Some(0.0)
+        );
+        assert_eq!(
+            row.pointer("/trace_length")
+                .and_then(serde_json::Value::as_f64),
+            Some(40.25)
+        );
+        assert_eq!(
+            row.pointer("/violation")
+                .and_then(serde_json::Value::as_f64),
+            Some(-60.25)
+        );
+    }
+
+    /// The FIRST committed tuning fixture's golden face (`rust/harness/
+    /// fixtures/tuning/min_stair_tuning.dsn` — the corpus's first
+    /// input-driven-activation fixture): parse -> deliver -> activate ->
+    /// report, all from the COMMITTED file. The N1 class declares
+    /// `(circuit (length -1 50000))` = min 500000 board DBU (x10); the
+    /// pre-routed N1 staircase is 480000, so `apply_tuning_activation`
+    /// must resolve the flag ON from the declaration alone and the
+    /// report must carry the honest under-min deficit row (derived:
+    /// 480000 - 500000 = -20000). N2 (class kicad_default, no
+    /// declaration) never gets a row.
+    #[test]
+    fn tuning_fixture_golden_face_activation_and_report_row() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../rust/harness/fixtures/tuning/min_stair_tuning.dsn");
+        let bytes = std::fs::read(&path).expect("committed fixture");
+        let mut ses = SesBoard::new();
+        match read_board(&bytes, &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("parse {other:?}"),
+        }
+        let mut board = Board::from_ses_board(&ses);
+        // The flow's board prefix (route.rs step 2): tree + normalize.
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        assert!(
+            board.rules().has_length_constraints(),
+            "the committed fixture declares a length rule"
+        );
+        let resolved = ResolvedRouteSettings::resolve(&MergedSettings::default(), None);
+        let mut batch = build_batch_settings(&resolved);
+        apply_tuning_activation(&mut batch, &resolved, board.rules());
+        assert!(batch.tuning_active, "the declaration activates (None)");
+        board.set_tuning_active(batch.tuning_active);
+        let rows = length_needs(&manager, &mut board);
+        assert_eq!(rows.len(), 1, "N1 only");
+        let row = &rows[0];
+        assert_eq!(row.net_number, 1);
+        assert_eq!(row.net_name, "N1");
+        assert_eq!(row.min_length, 500_000.0);
+        assert_eq!(row.max_length, 0.0);
+        assert_eq!(row.trace_length, 480_000.0);
+        assert_eq!(row.violation, -20_000.0);
     }
 }

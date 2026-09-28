@@ -422,6 +422,17 @@ pub(crate) fn correct_connection_to_pin(
     } else {
         changed_polyline.reverse()
     };
+    // M7-T3 (beyond-Java): the min-length honoring gate (the same
+    // predicate the pull-tight acceptance consults — see
+    // `trace_tightener::min_length_gate_allows`). The tail rebuild is a
+    // shortening-or-not rebuild; a candidate below the constrained
+    // net's `min` is rejected WHOLE: the trace keeps its old geometry
+    // and the smoothen face reports no-change (the fixpoint's
+    // termination face is untouched). Inert when the tuning regime is
+    // OFF or the net carries no `min` (the parity regime).
+    if !super::min_length_gate_allows(board, trace_id, &changed_polyline) {
+        return false;
+    }
     change_trace_geometry(manager, board, trace_id, changed_polyline);
 
     // Create a shoveFixed exit line (Java `:1231-1243`).

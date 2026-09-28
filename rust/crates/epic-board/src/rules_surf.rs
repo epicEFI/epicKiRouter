@@ -448,6 +448,16 @@ impl Nets {
         self.nets.len() as i32
     }
 
+    /// M7-T3: the net-table iteration face — `(net_number, net)` pairs
+    /// in number order (1-based number = index + 1, Java 同构). The
+    /// meander-need report assembly (route.rs `length_needs`) walks it.
+    pub fn iter(&self) -> impl Iterator<Item = (i32, &Net)> {
+        self.nets
+            .iter()
+            .enumerate()
+            .map(|(index, net)| (index as i32 + 1, net))
+    }
+
     /// Java `get(int netNumber)` (`:64-74`): the 1-based positional
     /// lookup, `None` outside `[1, size]`.
     #[must_use]
@@ -794,6 +804,42 @@ impl BoardRules {
             self.net_class(net.net_class)
                 .is_some_and(|class| class.min_trace_length > 0.0 || class.max_trace_length > 0.0)
         })
+    }
+
+    /// M7-T3: the `calcLengthViolation` predicate port (the T1-Q3
+    /// adoption, NARROW — the pure predicate for the honest-report face,
+    /// NOT Java's DRC-report machinery: no markers, no
+    /// `lengthViolation` field, no `|new - old| > 0.1` change tracking —
+    /// the port is stateless). Java `drc/NetIncompletes.
+    /// calcLengthViolation` (`NetIncompletes.java:257-271`), verbatim:
+    /// both bounds absent (`<= 0`) ⇒ 0; `max > 0 && length > max` ⇒
+    /// the over-max EXCESS (positive, too long); `min > 0 && length <
+    /// min && no incompletes` ⇒ the under-min DEFICIT (negative, too
+    /// short; a net with incompletes is still being routed — Java's
+    /// gate). The ifs SEQUENCE (the second overwrites, never
+    /// else-ifs) — the Java-exact malformed-declaration face where
+    /// `min > max`. Positive = over-max excess, negative = under-min
+    /// deficit, `0.0` = valid. The net's routed length is a parameter
+    /// (the caller walks the board via [`Board::net_trace_length`]).
+    #[must_use]
+    pub fn length_violation(
+        &self,
+        net_number: i32,
+        net_trace_length: f64,
+        net_has_incompletes: bool,
+    ) -> f64 {
+        let (min, max) = self.net_class_length_bounds(net_number);
+        if max <= 0.0 && min <= 0.0 {
+            return 0.0;
+        }
+        let mut new_violation = 0.0;
+        if max > 0.0 && net_trace_length > max {
+            new_violation = net_trace_length - max;
+        }
+        if min > 0.0 && net_trace_length < min && !net_has_incompletes {
+            new_violation = net_trace_length - min;
+        }
+        new_violation
     }
 
     /// The IR conversion — [`ClearanceMatrix::from_ir`] for the matrix,
@@ -1347,5 +1393,51 @@ mod tests {
         max_only.net_classes[1].max_trace_length = 20.0;
         assert!(max_only.has_length_constraints(), "max-only activates");
         assert_eq!(max_only.net_class_length_bounds(2), (0.0, 20.0));
+    }
+
+    /// M7-T3: the `calcLengthViolation` predicate port
+    /// (`NetIncompletes.java:257-271`) — every branch and both exact
+    /// boundaries, values derived from the world (bounds 100.0/20.0
+    /// world: min 10.0/max 20.0 scaled by 10 for readability below).
+    #[test]
+    fn length_violation_predicate_matches_java_calc_length_violation() {
+        let mut rules = length_bounds_world();
+        // World bounds on net 2's class: min 100 / max 200.
+        rules.net_classes[1].min_trace_length = 100.0;
+        rules.net_classes[1].max_trace_length = 200.0;
+
+        // Both bounds absent -> 0 regardless of length (the early-out).
+        let mut none = length_bounds_world();
+        none.net_classes[1].min_trace_length = 0.0;
+        none.net_classes[1].max_trace_length = 0.0;
+        assert_eq!(none.length_violation(2, 9_999.0, false), 0.0);
+
+        // Over-max fires with the POSITIVE excess (too long).
+        assert_eq!(rules.length_violation(2, 350.0, true), 150.0);
+        // EXACT max boundary: length == max is VALID (strict >), one
+        // unit above fires with exactly 1.0 (DNR-16 both directions).
+        assert_eq!(rules.length_violation(2, 200.0, true), 0.0);
+        assert_eq!(rules.length_violation(2, 201.0, true), 1.0);
+
+        // Under-min fires with the NEGATIVE deficit ONLY with no
+        // incompletes (Java's incompletes.isEmpty() gate).
+        assert_eq!(rules.length_violation(2, 60.0, false), -40.0);
+        assert_eq!(rules.length_violation(2, 60.0, true), 0.0);
+        // EXACT min boundary: length == min is VALID (strict <), one
+        // unit below fires with exactly -1.0 (DNR-16 both directions).
+        assert_eq!(rules.length_violation(2, 100.0, false), 0.0);
+        assert_eq!(rules.length_violation(2, 99.0, false), -1.0);
+
+        // In-range length: no violation either side.
+        assert_eq!(rules.length_violation(2, 150.0, false), 0.0);
+
+        // The Java-exact malformed face: BOTH ifs run in sequence and
+        // the SECOND (under-min) OVERWRITES (Java `newViolation` is
+        // assigned, not else-if'd) — min 200 > max 100 with length 150
+        // reads -50, not +50.
+        let mut malformed = length_bounds_world();
+        malformed.net_classes[1].min_trace_length = 200.0;
+        malformed.net_classes[1].max_trace_length = 100.0;
+        assert_eq!(malformed.length_violation(2, 150.0, false), -50.0);
     }
 }

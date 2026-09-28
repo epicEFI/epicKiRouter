@@ -269,6 +269,18 @@ pub struct Board {
     /// router-introduced against it. A plain field gives the identical
     /// snapshot/restore semantics as Java's non-transient member.
     pub pre_existing_clearance_violations_count: i32,
+    /// M7-T3 (beyond-Java — no Java counterpart): the tuning-regime
+    /// flag. The pipeline resolves it once from
+    /// `BatchSettings::tuning_active` (the input-driven activation — a
+    /// net-class length declaration anywhere on the board, with
+    /// `router.tuning` as the explicit override/kill-switch) and writes
+    /// it here via [`Board::set_tuning_active`]; the honoring faces (the
+    /// tightener's min-length gate) read it plus
+    /// [`BoardRules::net_class_length_bounds`], never the CLI tri-state.
+    /// `false` (the derived-Default) = the parity regime: every honoring
+    /// gate is inert and all engine faces stay byte-identical. A plain
+    /// field so board clones/restores carry the regime with them.
+    pub tuning_active: bool,
 }
 
 impl Board {
@@ -276,6 +288,42 @@ impl Board {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// M7-T3: the tuning-regime write face — the pipeline resolves the
+    /// activation once (input-driven + the `router.tuning` override) and
+    /// writes it here before any routing/optimization pass runs.
+    pub fn set_tuning_active(&mut self, tuning_active: bool) {
+        self.tuning_active = tuning_active;
+    }
+
+    /// M7-T3: the honoring faces' read face — `true` only when the
+    /// pipeline resolved the tuning regime ON (the derived Default is
+    /// `false`, so crafted worlds and any direct construction stay in
+    /// the byte-identical parity regime).
+    #[must_use]
+    pub fn tuning_active(&self) -> bool {
+        self.tuning_active
+    }
+
+    /// M7-T3: Java `Net.getTraceLength` (`rules/Net.java:130-140`) —
+    /// the sum of every trace's `lengthApprox` (the port's
+    /// `length_approx_total`) over the net's connectable items (the
+    /// traces carrying the net). The meander-need report's length
+    /// source and the [`BoardRules::length_violation`] predicate's
+    /// caller-side input.
+    #[must_use]
+    pub fn net_trace_length(&self, net_number: i32) -> f64 {
+        self.items
+            .values()
+            .filter(|entry| {
+                matches!(entry.data, ItemData::Trace { .. }) && entry.nets.contains(&net_number)
+            })
+            .map(|entry| {
+                self.trace_polyline(entry.id)
+                    .map_or(0.0, epic_geometry::polyline::Polyline::length_approx_total)
+            })
+            .sum()
     }
 
     /// Allocates the next item id — the item-CONSTRUCTION counterpart

@@ -1900,3 +1900,224 @@ fn t6_dyadic45_integer_terminal_jar_literal() {
          no Rational corner survives to the final"
     );
 }
+
+// ------------------------------------------------------------------
+// M7-T3 - the min-length honoring pins (beyond-Java contract)
+// ------------------------------------------------------------------
+
+/// Inline DSN for the honoring worlds: the 6-corner 90-degree
+/// staircase on N1 (length 160000+60000+120000+60000+80000 =
+/// 480000 board DBU) under class `cmin` with a `(circuit (length
+/// -1 MIN))` declaration, plus the unconstrained N2 cup witness
+/// (class kicad_default). Unconstrained, the tightener folds the
+/// staircase to the L `(200000,400000),(200000,280000),
+/// (160000,280000)` in ONE candidate (length exactly 160000 - the
+/// t3 stair pin's final), which makes the min boundary
+/// hand-checkable at 160000.
+fn m7t3_min_stair_dsn(min_dsn: &str) -> String {
+    format!(
+        r#"(PCB min_stair.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 120000 60000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (library
+    (padstack "VIA_PAD"
+      (shape (circle F.Cu 300 0 0))
+      (shape (circle B.Cu 300 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_PAD kicad_default)
+    (net "N1")
+    (net "N2")
+    (class cmin "N1"
+      (circuit (length {min_dsn}))
+      (rule (clearance 200)))
+    (class kicad_default "N2" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 20000 40000 36000 40000 36000 34000 24000 34000 24000 28000 16000 28000) (net N1))
+    (wire (path F.Cu 200 100000 20000 106000 20000 106000 18000 100000 18000) (net N2))
+  )
+)"#
+    )
+}
+
+/// One honoring world: parse (the `(circuit (length ...))`
+/// declaration rides the T1 read/deliver chain), tree + normalize,
+/// the tuning flag, then the changed-area tightener run over
+/// `joins` behind the PRODUCTION seam.
+fn m7t3_min_stair_world(
+    min_dsn: &str,
+    tuning_active: bool,
+    joins: &[(i32, i32)],
+) -> crate::board::Board {
+    let mut board = crate::test_util::parse_board_from_text(&m7t3_min_stair_dsn(min_dsn));
+    let mut manager = SearchTreeManager::new();
+    manager.reinsert_tree_items(&mut board);
+    crate::normalize_all::normalize_all_traces(&mut manager, &mut board);
+    board.set_tuning_active(tuning_active);
+    start_marking_changed_area(&mut board);
+    for (x, y) in joins {
+        join_changed_area(
+            &mut board,
+            &FloatPoint::new(f64::from(*x), f64::from(*y)),
+            0,
+        );
+    }
+    opt_changed_area(
+        &mut manager,
+        &mut board,
+        &mut TraceTightenerSeam,
+        &[],
+        None,
+        100,
+        None,
+        0,
+        None,
+        None,
+        0,
+        false,
+    );
+    board
+}
+
+/// The N1 staircase's corner chain.
+fn m7t3_stair_corners(board: &crate::board::Board) -> Vec<(i64, i64)> {
+    for entry in board.iter_descending() {
+        let ItemData::Trace {
+            layer: 0, lines, ..
+        } = &entry.data
+        else {
+            continue;
+        };
+        if !entry.nets.contains(&1) {
+            continue;
+        }
+        return (0..lines.corner_count())
+            .map(|i| {
+                let c = lines.corner_approx(i as i32);
+                (c.x as i64, c.y as i64)
+            })
+            .collect();
+    }
+    Vec::new()
+}
+
+const M7T3_STAIR_JOINS: [(i32, i32); 6] = [
+    (200000, 400000),
+    (360000, 400000),
+    (360000, 340000),
+    (240000, 340000),
+    (240000, 280000),
+    (160000, 280000),
+];
+const M7T3_STAIR_BEFORE: [(i64, i64); 6] = [
+    (200000, 400000),
+    (360000, 400000),
+    (360000, 340000),
+    (240000, 340000),
+    (240000, 280000),
+    (160000, 280000),
+];
+/// The unconstrained fold terminal (the t3 stair pin's final): the
+/// staircase collapses to this L, length exactly 160000.
+const M7T3_STAIR_FOLDED: [(i64, i64); 3] = [(200000, 400000), (200000, 280000), (160000, 280000)];
+
+/// A constrained net at EXACTLY its `min` (= current trace length
+/// 480000): the tightener leaves it byte-stable - every fold
+/// candidate would go below `min`, so the gate rejects WHOLE.
+/// Kills the gate-removed mutant (the trace would fold to the L).
+#[test]
+fn m7t3_min_honored_at_exact_length_tightener_leaves_it() {
+    // DSN 48000 x10 = 480000 board DBU = the trace's own length.
+    let board = m7t3_min_stair_world("-1 48000", true, M7T3_STAIR_JOINS.as_slice());
+    assert_eq!(
+        m7t3_stair_corners(&board),
+        M7T3_STAIR_BEFORE.to_vec(),
+        "trace at exactly min: no optimization pass may shorten it"
+    );
+}
+
+/// The EXACT boundary row (DNR-16, both directions): the fold
+/// candidate is length 160000, so
+/// * min = 160000 - the candidate lands AT min exactly (allowed:
+///   the contract is "never below"), final = the folded L;
+/// * min = 160001 (one DBU above) - the candidate is rejected
+///   WHOLE, final = the untouched staircase.
+///
+/// The `<=` mutant (reject at exactly min) dies on the first arm, the
+/// `< min - 1` (accept below min) mutant on the second.
+#[test]
+fn m7t3_min_boundary_exact_tightens_to_min_both_directions() {
+    // DSN 16000 x10 = 160000 = the candidate length exactly.
+    let at_min = m7t3_min_stair_world("-1 16000", true, M7T3_STAIR_JOINS.as_slice());
+    assert_eq!(
+        m7t3_stair_corners(&at_min),
+        M7T3_STAIR_FOLDED.to_vec(),
+        "tightens TO min exactly (160000), never below"
+    );
+    // DSN 16000.1 x10 = 160001: one DBU above the boundary.
+    let above = m7t3_min_stair_world("-1 16000.1", true, M7T3_STAIR_JOINS.as_slice());
+    assert_eq!(
+        m7t3_stair_corners(&above),
+        M7T3_STAIR_BEFORE.to_vec(),
+        "one DBU above min: the fold is forbidden whole"
+    );
+}
+
+/// The isolation pin: on the SAME board, the unconstrained
+/// neighbor (N2 cup) still tightens normally while the constrained
+/// staircase is protected.
+#[test]
+fn m7t3_unconstrained_neighbor_still_tightens() {
+    let board = m7t3_min_stair_world(
+        "-1 48000",
+        true,
+        &[
+            (200000, 400000),
+            (360000, 400000),
+            (360000, 340000),
+            (240000, 340000),
+            (240000, 280000),
+            (160000, 280000),
+            (994000, 180000),
+        ],
+    );
+    assert_eq!(
+        m7t3_stair_corners(&board),
+        M7T3_STAIR_BEFORE.to_vec(),
+        "constrained N1 protected"
+    );
+    // The cup folds to the west bar exactly as in the unconstrained
+    // t3 region pin (join (994000,180000)).
+    assert_corners(
+        &board,
+        trace_by_net(&board, 2, 3),
+        &[(1000000, 200000), (1000000, 180000)],
+    );
+}
+
+/// The INERT face (the two-regime rule): with the `(length)`
+/// declaration PRESENT but the tuning flag OFF, the gate is inert
+/// and the staircase folds normally. Kills the always-gate mutant.
+#[test]
+fn m7t3_gate_inert_without_tuning_flag() {
+    let board = m7t3_min_stair_world("-1 48000", false, M7T3_STAIR_JOINS.as_slice());
+    assert_eq!(
+        m7t3_stair_corners(&board),
+        M7T3_STAIR_FOLDED.to_vec(),
+        "flag off = parity regime: the gate never fires"
+    );
+}
