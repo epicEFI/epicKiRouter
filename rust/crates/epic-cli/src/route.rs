@@ -994,6 +994,11 @@ pub fn pair_report_rows(
             leader_net_name: name(spec.leader),
             follower_net_number: spec.follower,
             follower_net_name: name(spec.follower),
+            // DISPLAY DEFAULT, not an anchored verdict: when the pair
+            // stage did not run (no stage row — the face inert/OFF),
+            // the row's anchor defaults to the LEADER for display;
+            // `matched` above is computed from the LENGTHS, never from
+            // this field.
             anchor_net_number: stage_row.map_or(spec.leader, |row| row.anchor_net),
             leader_length,
             follower_length,

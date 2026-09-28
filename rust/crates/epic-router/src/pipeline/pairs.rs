@@ -188,7 +188,10 @@ impl CouplingPreference {
 /// the FOLLOWER of a resolved pair whose LEADER has on-board routed
 /// traces (the leader's geometry is the corridor source). An unrouted
 /// leader answers `None` — inert (the preference never fabricates
-/// geometry).
+/// geometry). MULTI-FOLLOWER edge: a leader with SEVERAL declared
+/// followers couples each of them INDEPENDENTLY (the first matching
+/// pair spec supplies the corridor; there is no leader-side cap and
+/// no follower-to-follower effect — the discount is per-follower).
 #[must_use]
 pub fn coupling_preference(
     board: &Board,
@@ -327,7 +330,8 @@ pub struct PairStageOutcome {
     pub leader_length: f64,
     pub follower_length: f64,
     /// The anchor: the LONGER member's net number (the `target_net`
-    /// pattern; a tie answers the leader — no work either way).
+    /// pattern; a tie answers the FOLLOWER — no work either way:
+    /// deficit 0).
     pub anchor_net: i32,
     /// Whether a match wave landed on the shorter member.
     pub landed: bool,
@@ -428,8 +432,12 @@ pub fn run_pair_stage(
 /// netlist: exact case-sensitive name → number; a name resolving to
 /// MULTIPLE nets (a fromto subnet split) or to NONE leaves the pair
 /// unresolved (recorded honestly, never guessed); a resolved pair
-/// orders (leader, follower) = (min, max) of the two numbers. Returns
-/// the resolved specs in (leader, follower) ASC order (deduplicated)
+/// orders (leader, follower) = (min, max) of the two numbers. A
+/// declared SELF-pair (`NET_A:NET_A` — the same net on both sides) is
+/// silently DROPPED here: never resolved, never a report row (a
+/// one-net "pair" has no delta to match — the honest face is the
+/// absence, not a row). Returns the resolved specs in (leader,
+/// follower) ASC order (deduplicated)
 /// plus the unresolved rows in declaration order (the advisory face).
 #[must_use]
 pub fn resolve_pairs(
