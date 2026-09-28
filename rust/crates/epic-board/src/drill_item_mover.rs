@@ -784,4 +784,149 @@ mod tests {
             Point::Rational(_) => panic!("integer center expected"),
         }
     }
+
+    // ------------------------------------------------------------------
+    // M7-T3 — buglog 205 disposition witness (the crafted SPLIT WORLD)
+    // ------------------------------------------------------------------
+
+    /// Inline DSN for the split world: one horizontal N1 trace through
+    /// (600000, 300000) (hw 1000 board DBU), one N2 net for the foreign
+    /// via. Class clearance 200 DSN → 2000 board DBU.
+    fn split_world_dsn() -> String {
+        r#"(PCB split205.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 120000 60000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (library
+    (padstack "VIA_PAD"
+      (shape (circle F.Cu 300 0 0))
+      (shape (circle B.Cu 300 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_PAD kicad_default)
+    (net "N1")
+    (net "N2")
+    (class kicad_default "N1" "N2" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 40000 30000 80000 30000) (net N1))
+  )
+)"#
+        .to_string()
+    }
+
+    fn build_split_world() -> (SearchTreeManager, Board) {
+        let mut board = crate::test_util::parse_board_from_text(&split_world_dsn());
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        crate::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        (manager, board)
+    }
+
+    /// The N1 traces on layer 0 as (first, last) corner pairs (straight
+    /// pieces only — the world guarantees straight pieces).
+    fn n1_trace_spans(board: &Board) -> Vec<((i64, i64), (i64, i64))> {
+        let mut spans = Vec::new();
+        for entry in board.iter_descending() {
+            let ItemData::Trace {
+                layer: 0, lines, ..
+            } = &entry.data
+            else {
+                continue;
+            };
+            if !entry.nets.contains(&1) {
+                continue;
+            }
+            let first = lines.corner_approx(0);
+            let last = lines.corner_approx(lines.corner_count() as i32 - 1);
+            spans.push((
+                (first.x as i64, first.y as i64),
+                (last.x as i64, last.y as i64),
+            ));
+        }
+        spans.sort_unstable();
+        spans
+    }
+
+    /// Buglog 205 (M7-T3): the crafted SPLIT WORLD — the post-split DRC
+    /// state of the tightener via-arm's re-split face, checkable by
+    /// hand. World: N1 trace (400000,300000)-(800000,300000), hw 1000;
+    /// FOREIGN N2 via (pad radius 3000) already at (605000,300000) —
+    /// its copper overlaps the trace corridor (center distance 5000 <
+    /// 3000+1000+2000 = 6000 required), a pre-existing violation. Then
+    /// an OWN-NET via lands on the trace path via `insert_via` — the
+    /// BasicBoard.insertVia face — whose internal `split_traces` cuts
+    /// the trace at (600000,300000) and re-lands the pieces through
+    /// `insert_trace_without_cleaning`, exactly the face T2's ITWC
+    /// backtrace pinned (bm10 origin). Contract pinned (JAVA PARITY,
+    /// `PolylineTrace.split(int,Line)` → `removeItem` + 2x
+    /// `insertTraceWithoutCleaning`, no clearance check anywhere in the
+    /// chain; the port mirrors it — `split_at_line`/`insert_trace_
+    /// without_cleaning`): the split pieces LAND even though their
+    /// geometry runs through the foreign via's clearance zone (a
+    /// checked landing would have rejected them). Both engines land
+    /// split pieces unchecked — bm10's ri=1 is parity behavior, not a
+    /// port divergence (outcome ii, PARITY-CONFIRMED-NOTED).
+    #[test]
+    fn m7t3_split_world_re_lands_pieces_without_a_clearance_check() {
+        let (mut manager, mut board) = build_split_world();
+        assert_eq!(
+            n1_trace_spans(&board),
+            vec![((400000, 300000), (800000, 300000))]
+        );
+        // The foreign violating via first (insertion is unchecked —
+        // Java-parity insertVia).
+        let via_padstack_no = board
+            .library()
+            .padstacks
+            .iter()
+            .position(|p| p.name == "VIA_PAD")
+            .map(|i| i as i32 + 1)
+            .expect("VIA_PAD padstack");
+        insert_via(
+            &mut manager,
+            &mut board,
+            via_padstack_no,
+            IntPoint::new(605000, 300000),
+            &[2],
+            0,
+            FixedState::Unfixed,
+            false,
+        );
+        // Own-net via lands ON the trace path → insert_via's internal
+        // split_traces cuts the N1 trace at the via location.
+        insert_via(
+            &mut manager,
+            &mut board,
+            via_padstack_no,
+            IntPoint::new(600000, 300000),
+            &[1],
+            0,
+            FixedState::Unfixed,
+            false,
+        );
+        // The trace is split into TWO pieces landing at the split point
+        // — the pieces tile the ORIGINAL path (no clearance check fired
+        // on the re-landing): (400000..600000) + (600000..800000).
+        assert_eq!(
+            n1_trace_spans(&board),
+            vec![
+                ((400000, 300000), (600000, 300000)),
+                ((600000, 300000), (800000, 300000)),
+            ],
+            "split pieces re-land unchecked through the foreign via's clearance zone",
+        );
+    }
 }
