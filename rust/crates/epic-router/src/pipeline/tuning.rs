@@ -1417,7 +1417,8 @@ mod tests {
     /// 260000) -> WITHIN the group tolerance -> untouched, no row (the
     /// inclusive skip). World B: one unit below (259999) -> OUTSIDE ->
     /// processed: 1 dent A=10000 (+20000, the granularity overshoot)
-    /// -> 280000, inside tolerance (20000 <= 40000). The
+    /// -> 279999 (259999 + one 20000 dent), inside tolerance
+    /// (20001 <= 40000). The
     /// tolerance+1/−1 mutants and the skip-comparison mutant each die
     /// on the world whose arm they bend (documented in the mutation
     /// log).
