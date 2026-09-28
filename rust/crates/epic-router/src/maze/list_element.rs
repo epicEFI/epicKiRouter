@@ -657,6 +657,69 @@ mod tests {
         front.add(element, layer, drill)
     }
 
+    /// NIT-Q2 (M7-T2): the DIRECT front-pop-order pin the T9 review
+    /// banked. The docs (three sites: `Front::pop_first` here,
+    /// `search_engine.rs`'s budget field, the pins.rs conservation
+    /// doc) say pops run in ASCENDING `compare` order (sorting_value
+    /// primary, expansion_value tie-break, door id, section) INDEPENDENT
+    /// of insertion order; the original pin set corroborated this only
+    /// transitively. This pin drives the REAL `Front` (BTreeSet over
+    /// `FrontOrder`) with a scrambled insertion and reads back the
+    /// exact pop sequence, including the tie-break pair and the
+    /// duplicate-dedup row.
+    #[test]
+    fn front_pop_order_is_ascending_compare_independent_of_insertion_order() {
+        // Door ids 10..13, all distinct sorting/expansion values chosen
+        // so INSERTION order is the REVERSE of compare order for the
+        // first three; the last two tie on sorting_value and separate
+        // on expansion_value.
+        let elem = |door_id: i32, sort: f64, exp: f64| MazeListElement {
+            door: ExpandableObject::DrillPage {
+                row: 0,
+                column: 0,
+                id: door_id,
+            },
+            section_no_of_door: 0,
+            backtrack_door: None,
+            section_no_of_backtrack_door: 0,
+            expansion_value: exp,
+            sorting_value: sort,
+            next_room_key: None,
+            shape_entry: FloatLine::new(FloatPoint::ZERO, FloatPoint::ZERO),
+            room_ripped: false,
+            adjustment: Adjustment::None,
+            already_checked: false,
+            ripup_cost: 0,
+        };
+        let mut front = Front::default();
+        // Insertion order: (40, s=3) (30, s=2) (20, s=1) — reverse
+        // order — then the tie pair (12, s=0, exp=9) (11, s=0, exp=5)
+        // inserted BIGGER-tie first, then an exact duplicate of the
+        // first insert (the set dedups it).
+        for (id, sort, exp) in [(40, 3.0, 0.0), (30, 2.0, 0.0), (20, 1.0, 0.0)] {
+            assert!(front.gated_add(elem(id, sort, exp), None, None));
+        }
+        assert!(front.gated_add(elem(12, 0.0, 9.0), None, None));
+        assert!(front.gated_add(elem(11, 0.0, 5.0), None, None));
+        assert!(
+            !front.gated_add(elem(40, 3.0, 0.0), None, None),
+            "the exact duplicate is a set-dedup false"
+        );
+        // The pops: ascending sorting_value; the tie pair comes out
+        // expansion_value-ascending (11 before 12) despite being
+        // inserted the other way.
+        let mut popped = Vec::new();
+        while let Some(element) = front.pop_first() {
+            popped.push(element.door.id());
+        }
+        assert_eq!(
+            popped,
+            vec![11, 12, 20, 30, 40],
+            "pop order is ascending compare (sort, then exp tie-break), \
+             independent of insertion order"
+        );
+    }
+
     /// The max arm at its EXACT boundary (cerebrum 16): Java rejects
     /// on the STRICT `dist > maxLen * resolution` — the boundary
     /// distance itself is KEPT, one unit beyond is REJECTED, one

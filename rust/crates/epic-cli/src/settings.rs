@@ -122,6 +122,17 @@ pub struct CliLayer {
     /// the neighbor trace (M3 `trace_shover::insert`) instead of
     /// ripping it. Default OFF; the default path stays byte-identical.
     pub push_shove: Option<bool>,
+    /// `router.tuning` — the M7-T2 tuning OVERRIDE/KILL-SWITCH
+    /// (RUST-ONLY, no Java counterpart; a top-level tri-state — the
+    /// flag is NOT needed for activation). The tuning regime is
+    /// INPUT-DRIVEN: it activates when any net resolves a non-zero
+    /// net-class length bound (`BoardRules::has_length_constraints`).
+    /// The flag only bends that: `on` forces tuning ON even on
+    /// constraint-free input, `off` is the kill-switch (tuning stays
+    /// OFF even where a declaration activates it). Absent (the
+    /// default) = input-driven. Default settings + no declaration ⇒
+    /// tuning never fires — the constraint-free zero-rotation face.
+    pub tuning: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -554,6 +565,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.push_shove = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "tuning" => match parse_on_off(value) {
+            Some(v) => layer.tuning = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -898,6 +913,10 @@ pub struct MergedSettings {
     /// `router.push_shove` — the M6-T9 push-and-shove insertion flag
     /// (absent = OFF; top-level, no master).
     pub push_shove: Option<bool>,
+    /// `router.tuning` — the M7-T2 tri-state (absent = input-driven
+    /// activation; `on` = force ON; `off` = kill-switch). CLI-only —
+    /// no DSN/default source writes it (the Default seed is `None`).
+    pub tuning: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1002,6 +1021,7 @@ impl Default for MergedSettings {
             congestion_global_pattern: None,
             congestion_global_pathfinder: None,
             push_shove: None,
+            tuning: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1144,6 +1164,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.push_shove {
         merged.push_shove = Some(v);
+    }
+    if let Some(v) = cli.tuning {
+        merged.tuning = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1476,6 +1499,13 @@ pub struct ResolvedRouteSettings {
     /// The M6-T9 push-and-shove insertion flag
     /// (`router.push_shove`, default OFF; top-level, no master).
     pub push_shove: bool,
+    /// The M7-T2 tuning tri-state, resolved VERBATIM (absent =
+    /// input-driven activation — the effective face is computed at the
+    /// board seam in `route.rs` where the board exists; `on` = force
+    /// ON; `off` = kill-switch). NOT a plain bool: the input-driven
+    /// default must survive resolution for the board-seam predicate to
+    /// answer it.
+    pub tuning: Option<bool>,
 }
 
 impl ResolvedRouteSettings {
@@ -1586,6 +1616,7 @@ impl ResolvedRouteSettings {
             congestion_global_pattern: merged.congestion_global_pattern.unwrap_or(false),
             congestion_global_pathfinder: merged.congestion_global_pathfinder.unwrap_or(false),
             push_shove: merged.push_shove.unwrap_or(false),
+            tuning: merged.tuning,
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2551,6 +2582,7 @@ mod tests {
             congestion_global_pattern: Some(true),
             congestion_global_pathfinder: Some(true),
             push_shove: Some(true),
+            tuning: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),

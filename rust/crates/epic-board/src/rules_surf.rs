@@ -746,6 +746,56 @@ impl BoardRules {
         self.hole_clearance = value.max(0);
     }
 
+    /// M7-T2: the per-net resolved length bounds — the net's class
+    /// `getMinimumTraceLength()`/`getMaximumTraceLength()` pair
+    /// (`NetClass.java` min/max fields, delivered through the
+    /// `> 0` gates of `Network.insertNetClasses` `:466-471`, ported at
+    /// `epic-dsn/src/scope/network.rs:1009-1015`). The house-idiomatic
+    /// read, on the [`Self::trace_half_width`] pattern: `nets.get`
+    /// (the 1-based number) then the net's 0-based class index.
+    ///
+    /// **`0.0` = no constraint** on either slot (T1's delivery-gate
+    /// fact: an absent declaration or the `-1`/`0` write-side
+    /// sentinels never survive delivery — the field stays 0.0
+    /// downstream).
+    ///
+    /// CLASS INHERITANCE AUDIT (M7-T2): there is none to walk. Java
+    /// `Net.getNetClass()` is a direct object reference — one class
+    /// per net, no class hierarchy, no per-net overrides of the class
+    /// bounds (`rules/Net.java`/`rules/NetClass.java` carry no
+    /// length-inheritance face; the default class is just class 0 in
+    /// the same flat table). The resolution is exactly net → its
+    /// class → that class's own fields. An ABSENT net or an
+    /// out-of-range class index resolves `(0.0, 0.0)` — the same
+    /// Java-null-shy answer [`Self::trace_half_width`] gives (callers
+    /// guard; the read never panics).
+    #[must_use]
+    pub fn net_class_length_bounds(&self, net_number: i32) -> (f64, f64) {
+        self.nets
+            .get(net_number)
+            .and_then(|net| self.net_class(net.net_class))
+            .map_or((0.0, 0.0), |class| {
+                (class.min_trace_length, class.max_trace_length)
+            })
+    }
+
+    /// M7-T2: the constraint-ACTIVATION predicate — the board-level
+    /// "tuning-active" check. TRUE when ANY net resolves a non-zero
+    /// length bound (`> 0.0` on either slot; 0.0 = no constraint per
+    /// T1's delivery gate — negative write-side sentinels never
+    /// survive delivery, and the `> 0.0` test keeps even a hand-built
+    /// negative from counting, so the predicate is total over the raw
+    /// field domain). Input-driven by construction: no declaration ⇒
+    /// false ⇒ the tuning regime never fires (the constraint-free
+    /// zero-rotation face; pinned in the tests).
+    #[must_use]
+    pub fn has_length_constraints(&self) -> bool {
+        self.nets.nets.iter().any(|net| {
+            self.net_class(net.net_class)
+                .is_some_and(|class| class.min_trace_length > 0.0 || class.max_trace_length > 0.0)
+        })
+    }
+
     /// The IR conversion — [`ClearanceMatrix::from_ir`] for the matrix,
     /// 1:1 field copies for everything else. The net/class/via tables
     /// come from the `SesBoard` fields (they live beside `rules` there).
@@ -1124,5 +1174,178 @@ mod tests {
         // A second append with the same name: false, no growth.
         assert!(!matrix.append_class("BOARD_EDGE"), "case-insensitive dedup");
         assert_eq!(matrix.class_count(), 4);
+    }
+
+    // ------------------------------------------------------------------
+    // M7-T2: the resolved length-constraint query surface
+    // ------------------------------------------------------------------
+
+    /// The M7-T2 world: class 0 the unconstrained default, class 1
+    /// "constrained" carrying `min 10.0 / max 20.0`, two nets (1 →
+    /// class 0, 2 → class 1). Built as `BoardRules::default()` + direct
+    /// field pushes (the same-crate test convention; `Nets::from_ir`
+    /// for the table).
+    fn length_bounds_world() -> BoardRules {
+        let mut rules = BoardRules::default();
+        rules.net_classes.push(NetClass {
+            name: "default".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1500],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            ignore_cycles_with_areas: false,
+        });
+        rules.net_classes.push(NetClass {
+            name: "constrained".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1500],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 10.0,
+            max_trace_length: 20.0,
+            ignore_cycles_with_areas: false,
+        });
+        rules.nets = Nets::from_ir(&[
+            NetIr {
+                name: "plain".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+            NetIr {
+                name: "matched".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 1,
+            },
+        ]);
+        rules
+    }
+
+    /// Declared + the class-indirection face + the absent faces. The
+    /// declared net resolves its OWN class's bounds verbatim; a net in
+    /// the unconstrained default class and every out-of-table number
+    /// resolve `(0.0, 0.0)` (0.0 = no constraint, T1's delivery-gate
+    /// semantics).
+    #[test]
+    fn net_class_length_bounds_declared_and_absent() {
+        let rules = length_bounds_world();
+        assert_eq!(
+            rules.net_class_length_bounds(2),
+            (10.0, 20.0),
+            "the declared net resolves its class's bounds verbatim"
+        );
+        assert_eq!(
+            rules.net_class_length_bounds(1),
+            (0.0, 0.0),
+            "a net in the unconstrained default class resolves no bound"
+        );
+        assert_eq!(
+            rules.net_class_length_bounds(0),
+            (0.0, 0.0),
+            "out-of-table net number 0: Java-null-shy, no constraint"
+        );
+        assert_eq!(
+            rules.net_class_length_bounds(99),
+            (0.0, 0.0),
+            "out-of-table net number 99: no constraint"
+        );
+    }
+
+    /// The DIVERGENCE-discriminating pin for the class indirection: a
+    /// port that resolved the DEFAULT class for every net fails — the
+    /// declared net's class 1 bounds differ from class 0's in both
+    /// slots. (There is no class HIERARCHY to inherit through — the fn
+    /// docs — so the pin names the net→class indirection the only
+    /// inheritance face.)
+    #[test]
+    fn net_class_length_bounds_follow_the_nets_own_class() {
+        let rules = length_bounds_world();
+        let (min, max) = rules.net_class_length_bounds(2);
+        assert_ne!(
+            (min, max),
+            rules.net_class_length_bounds(1),
+            "the net's own class answers, not the default class"
+        );
+        assert_eq!(min, 10.0);
+        assert_eq!(max, 20.0);
+    }
+
+    /// The predicate: TRUE exactly when a resolvable `> 0.0` bound
+    /// exists; the zero-rotation negative face (no declaration ⇒
+    /// false) plus the sentinel/negative defensive rows.
+    #[test]
+    fn has_length_constraints_gates_on_positive_bounds_only() {
+        // The world above: net 2's class carries 10.0/20.0.
+        let rules = length_bounds_world();
+        assert!(rules.has_length_constraints(), "a declared bound activates");
+        assert!(
+            !BoardRules::default().has_length_constraints(),
+            "the empty world (no nets, no classes) is constraint-free"
+        );
+        // The constraint-free-invariance negative face: every net in
+        // the unconstrained default class ⇒ false.
+        let mut plain = BoardRules::default();
+        plain.net_classes.push(NetClass {
+            name: "default".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1500],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            ignore_cycles_with_areas: false,
+        });
+        plain.nets = Nets::from_ir(&[NetIr {
+            name: "plain".to_string(),
+            subnet_number: 1,
+            contains_plane: false,
+            net_class: 0,
+        }]);
+        assert!(
+            !plain.has_length_constraints(),
+            "declared class with 0.0/0.0 bounds: the zero-rotation face"
+        );
+
+        // The sentinel/defensive rows: the delivered domain is
+        // non-negative (the > 0 delivery gates), but a hand-built
+        // negative must not count either.
+        let mut negative = length_bounds_world();
+        negative.net_classes[1].min_trace_length = -5.0;
+        negative.net_classes[1].max_trace_length = -1.0;
+        assert!(
+            !negative.has_length_constraints(),
+            "negative bounds (the write-side sentinel domain) never activate"
+        );
+        assert_eq!(
+            negative.net_class_length_bounds(2),
+            (-5.0, -1.0),
+            "the QUERY mirrors the stored fields verbatim (the delivery \
+             gate upstream guarantees they are never negative; the \
+             predicate, not the query, carries the > 0 semantics)"
+        );
+
+        // One-sided activation: min-only and max-only classes.
+        let mut min_only = length_bounds_world();
+        min_only.net_classes[1].min_trace_length = 10.0;
+        min_only.net_classes[1].max_trace_length = 0.0;
+        assert!(min_only.has_length_constraints(), "min-only activates");
+        assert_eq!(min_only.net_class_length_bounds(2), (10.0, 0.0));
+        let mut max_only = length_bounds_world();
+        max_only.net_classes[1].min_trace_length = 0.0;
+        max_only.net_classes[1].max_trace_length = 20.0;
+        assert!(max_only.has_length_constraints(), "max-only activates");
+        assert_eq!(max_only.net_class_length_bounds(2), (0.0, 20.0));
     }
 }

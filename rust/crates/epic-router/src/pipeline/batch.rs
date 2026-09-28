@@ -387,6 +387,15 @@ pub struct BatchSettings {
     /// (`epic_board::trace_shover::insert`) instead of ripping it.
     /// Dead code at defaults.
     pub push_shove: bool,
+    /// M7-T2 RUST-ONLY: the effective tuning activation
+    /// (`router.tuning` tri-state resolved against the board at the
+    /// route.rs seam — input-driven: a net-class length declaration
+    /// anywhere on the board activates; `Some(false)` keeps it off
+    /// even there). The M7 tuning faces (min-length honoring T3,
+    /// meander T4, match T5, pairs T6) read THIS field, never the
+    /// resolved tri-state. Dead code at defaults (no declaration ⇒
+    /// false).
+    pub tuning_active: bool,
 }
 
 impl BatchSettings {
@@ -426,6 +435,7 @@ impl BatchSettings {
             congestion_global_pattern: false,
             congestion_global_pathfinder: false,
             push_shove: false,
+            tuning_active: false,
         }
     }
 }

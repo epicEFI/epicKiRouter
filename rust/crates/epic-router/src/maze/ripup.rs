@@ -450,6 +450,16 @@ mod push_shove_tests {
     /// never reach the predicate anyway) does not waive; `1` does.
     /// A `>= 0` mutant dies on the 0 row; dropping the clause dies on
     /// the 0 row too (waive would fire with no charge pending).
+    ///
+    /// NIT-Q3 note (M7-T2): the `1` row is UNREACHABLE IN PRODUCTION —
+    /// `ALREADY_RIPPED_COSTS == 1` short-circuits the enclosing block
+    /// (`search_engine.rs`: `if ripup_costs != ALREADY_RIPPED_COSTS &&
+    /// next_room_is_thick`) before the waiver site, so the smallest
+    /// charge that can reach the predicate is 2. The row stays in the
+    /// pin as the clause's unit-level boundary (the predicate, not the
+    /// call site, owns the `> 0` semantics); it is NOT an observed
+    /// engine state — a capture row showing charge `1` at the waiver
+    /// would indicate a call-site regression, not a working engine.
     #[test]
     fn push_shove_waive_charge_boundary() {
         assert!(

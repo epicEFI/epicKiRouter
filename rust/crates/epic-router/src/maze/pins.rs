@@ -5897,15 +5897,17 @@ fn t7_shove_seam_force_contract() {
 ///   over the whole drain — the inertness face of the default-off
 ///   byte-identity contract.
 /// * ON: the budget arms at [`PUSH_SHOVE_ROOM_BUDGET`], the waiver
-///   fires, and the CONSERVATION face holds exactly:
-///   `waivers + budget_left == PUSH_SHOVE_ROOM_BUDGET` — integer
-///   arithmetic, decremented once per granted waiver, in front-pop
-///   order. The t7 world's opportunities exceed the budget, so the
-///   drain saturates at waivers == BUDGET (the exact-exhaustion face;
-///   the M-BUDGET −1 mutant dies on conservation here).
+///   fires, and the budget is EXACTLY EXHAUSTED by the drain — the
+///   t7 world's shove opportunities exceed the budget, so
+///   `budget_left` reaches 0 and the DERIVED waiver count
+///   (`armed − budget_left`; NIT-Q1, M7-T2: the stored
+///   `push_shove_waivers` counter was dropped as derivable from
+///   exactly this subtraction) equals BUDGET. The M-BUDGET ±1 mutant
+///   dies on `armed` (the const is read verbatim) and on exhaustion
+///   (a larger budget leaves `budget_left > 0`).
 #[test]
 fn t9_push_shove_waiver_budget_bounds_and_off_inertness() {
-    let drain = |push_shove_on: bool| -> (i32, i32, i32, usize) {
+    let drain = |push_shove_on: bool| -> (i32, i32, usize) {
         let (mut harness, mut ctrl, mut distance, mut checker, mut pages) =
             t7_make_run(2_000_000, false);
         harness.force_clearance_compensation(Some(1250));
@@ -5924,23 +5926,19 @@ fn t9_push_shove_waiver_budget_bounds_and_off_inertness() {
             let _ = engine.occupy_next_element();
             steps += 1;
         }
-        (
-            armed,
-            engine.push_shove_waivers,
-            engine.push_shove_budget_left,
-            steps,
-        )
+        (armed, engine.push_shove_budget_left, steps)
     };
-    let (off_armed, off_waivers, _off_budget, off_steps) = drain(false);
+    let (off_armed, off_budget, off_steps) = drain(false);
     assert_eq!(off_armed, 0, "OFF: the budget arms at zero");
-    assert_eq!(off_waivers, 0, "OFF: no waiver ever fires");
+    assert_eq!(off_budget, 0, "OFF: no waiver ever fires");
     assert!(off_steps > 0, "the drain ran");
-    let (on_armed, on_waivers, on_budget, _on_steps) = drain(true);
+    let (on_armed, on_budget, _on_steps) = drain(true);
     assert_eq!(
         on_armed,
         super::ripup::PUSH_SHOVE_ROOM_BUDGET,
         "ON arms at the per-search const"
     );
+    let on_waivers = on_armed - on_budget;
     assert!(
         on_waivers > 0,
         "ON: the waiver fires in the t7 world (else the pin judges nothing)"
@@ -5948,11 +5946,6 @@ fn t9_push_shove_waiver_budget_bounds_and_off_inertness() {
     assert!(
         on_waivers <= super::ripup::PUSH_SHOVE_ROOM_BUDGET,
         "ON: bounded by the per-search budget"
-    );
-    assert_eq!(
-        on_waivers + on_budget,
-        super::ripup::PUSH_SHOVE_ROOM_BUDGET,
-        "conservation: every granted waiver spends exactly one unit"
     );
     assert_eq!(
         on_waivers,

@@ -763,6 +763,38 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     batch
 }
 
+/// The M7-T2 tuning ACTIVATION: the effective face of the
+/// `router.tuning` tri-state resolved against the BOARD (the
+/// input-driven regime). The tuning regime exists as data (the
+/// net-class length bounds, `epic_board::rules_surf`) plus this
+/// predicate; the M7 honoring/meander/match/pair faces (T3+) read the
+/// resolved [`BatchSettings::tuning_active`], never the tri-state.
+///
+/// - `Some(false)` — the kill-switch: OFF even where a declaration
+///   would activate.
+/// - `Some(true)` — the override: ON even on constraint-free input
+///   (the flag family's explicit face).
+/// - `None` (the default) — input-driven: ON iff the board resolves
+///   ANY non-zero length bound (`BoardRules::has_length_constraints`).
+///
+/// Default settings + no declaration ⇒ false ⇒ zero behavior change
+/// (the constraint-free zero-rotation negative face; pinned).
+///
+/// Separated from [`build_batch_settings`] so the predicate is
+/// directly pinnable (the M6-T6 separated-wiring convention) — the
+/// board does not exist at the plain-settings assembly site.
+pub fn apply_tuning_activation(
+    batch: &mut BatchSettings,
+    resolved: &ResolvedRouteSettings,
+    rules: &epic_board::rules_surf::BoardRules,
+) {
+    batch.tuning_active = match resolved.tuning {
+        Some(false) => false,
+        Some(true) => true,
+        None => rules.has_length_constraints(),
+    };
+}
+
 /// The M6-T7 plan -> manifest-face projection (deterministic scalars
 /// + digests only).
 fn manifest_global_plan(plan: &epic_router::global::plan::GlobalPlan) -> ManifestGlobalPlan {
@@ -1069,6 +1101,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     //    (`pipeline/full.rs`); the stage-boundary captures ride the
     //    outcome for the manifest's per-phase faces.
     let mut batch = build_batch_settings(&resolved);
+    // M7-T2: the tuning activation — input-driven (a net-class length
+    // declaration anywhere on the board), with `router.tuning` as the
+    // explicit override/kill-switch on top.
+    apply_tuning_activation(&mut batch, &resolved, board.rules());
     // M5-T7: the executor thread count. The DEFAULT is 1 — the golden
     // sequential path — even though the merged surface resolves Java's
     // `max(1, cores-1)` parity default in validate(): the executor
@@ -3079,5 +3115,124 @@ mod tests {
         let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
         assert!(batch_on.congestion_global);
         assert!(batch_on.congestion_global_pattern);
+    }
+
+    // ------------------------------------------------------------------
+    // M7-T2: the tuning activation seam
+    // ------------------------------------------------------------------
+
+    /// The M7-T2 pin world: a `BoardRules` with one unconstrained
+    /// default class + one constrained class, two nets (1 plain, 2 in
+    /// the constrained class). Assembled through the pub IR face
+    /// (`BoardRules::from_ir`) — the same construction the parse uses.
+    fn tuning_world(min: f64, max: f64) -> epic_board::rules_surf::BoardRules {
+        use epic_dsn::sink::{BoardRulesIr, NetClassIr, NetIr};
+        let class = NetClassIr {
+            name: "constrained".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1500],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: min,
+            max_trace_length: max,
+            nets: Vec::new(),
+        };
+        let default = NetClassIr {
+            name: "default".to_string(),
+            ..class.clone()
+        };
+        let rules_ir = BoardRulesIr {
+            clearance: epic_dsn::sink::ClearanceIr::default_instance(1),
+            trace_angle_restriction: epic_dsn::state::AngleRestriction::FortyfiveDegree,
+            default_trace_half_widths: vec![1500],
+            min_trace_half_width: 1500,
+            max_trace_half_width: 1500,
+            pin_edge_to_turn_dist: 0.0,
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+        };
+        epic_board::rules_surf::BoardRules::from_ir(
+            &rules_ir,
+            &[
+                NetIr {
+                    name: "plain".to_string(),
+                    subnet_number: 1,
+                    contains_plane: false,
+                    net_class: 0,
+                },
+                NetIr {
+                    name: "matched".to_string(),
+                    subnet_number: 1,
+                    contains_plane: false,
+                    net_class: 1,
+                },
+            ],
+            &[default, class],
+            &[],
+            &[],
+        )
+    }
+
+    /// Helper: a `ResolvedRouteSettings` with the default tri-state.
+    fn resolved_none() -> ResolvedRouteSettings {
+        ResolvedRouteSettings::resolve(&MergedSettings::default(), None)
+    }
+
+    /// The constraint-free ZERO-ROTATION negative face: default
+    /// settings + no declaration ⇒ the predicate is false ⇒ tuning
+    /// never fires.
+    #[test]
+    fn tuning_activation_default_and_unconstrained_is_off() {
+        let mut batch = build_batch_settings(&resolved_none());
+        let rules = tuning_world(0.0, 0.0);
+        apply_tuning_activation(&mut batch, &resolved_none(), &rules);
+        assert!(
+            !batch.tuning_active,
+            "no declaration + default tri-state (None): input-driven OFF"
+        );
+    }
+
+    /// The tri-state faces: the declaration alone (tri-state None)
+    /// activates; the kill-switch silences a declared board; the
+    /// override fires on constraint-free input. The M2 mutant (the
+    /// kill-switch arm answering true) dies here; the M1 mutant
+    /// (`>= 0.0` in the board predicate) dies in the epic-board pins.
+    #[test]
+    fn tuning_activation_tri_state_faces() {
+        let rules = tuning_world(10.0, 20.0);
+
+        // Input-driven ON.
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_none(), &rules);
+        assert!(batch.tuning_active, "a declaration activates (None)");
+
+        // Kill-switch: Some(false) silences a declared board.
+        let merged_kill = MergedSettings {
+            tuning: Some(false),
+            ..MergedSettings::default()
+        };
+        let resolved_kill = ResolvedRouteSettings::resolve(&merged_kill, None);
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_kill, &rules);
+        assert!(
+            !batch.tuning_active,
+            "the kill-switch silences a declared board"
+        );
+
+        // Override: Some(true) fires on constraint-free input.
+        let rules_free = tuning_world(0.0, 0.0);
+        let merged_on = MergedSettings {
+            tuning: Some(true),
+            ..MergedSettings::default()
+        };
+        let resolved_on = ResolvedRouteSettings::resolve(&merged_on, None);
+        let mut batch = build_batch_settings(&resolved_none());
+        apply_tuning_activation(&mut batch, &resolved_on, &rules_free);
+        assert!(
+            batch.tuning_active,
+            "the override fires on constraint-free input"
+        );
     }
 }

@@ -214,9 +214,6 @@ pub struct MazeSearchEngine<'a, E: DrillEngine, D: DestinationDistance, V: ViaLa
     /// in front-pop (deterministic) order; zero when the flag is off
     /// (the waiver predicate never fires).
     pub(crate) push_shove_budget_left: i32,
-    /// M6-T9: the count of waivers actually granted this search (the
-    /// exact-budget pins read it; production never does).
-    pub(crate) push_shove_waivers: i32,
 }
 
 impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchEngine<'a, E, D, V> {
@@ -255,7 +252,6 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
             } else {
                 0
             },
-            push_shove_waivers: 0,
         }
     }
 
@@ -848,7 +844,6 @@ impl<'a, E: DrillEngine, D: DestinationDistance, V: ViaLayerChecker> MazeSearchE
                     ) {
                         ripup_costs = 0;
                         self.push_shove_budget_left -= 1;
-                        self.push_shove_waivers += 1;
                     }
                 }
             }
