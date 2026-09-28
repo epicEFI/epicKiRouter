@@ -43,10 +43,12 @@
 //! extension covers the miter zone) and the probe must answer that the
 //! FULL extended piece is insertable at the trace's own half width and
 //! clearance class. The probe skips same-net obstacles (the wave may
-//! touch the net's own copper), so the wave's SELF-interference is
-//! guaranteed geometrically instead: the amplitude must be at least
-//! the self-clear distance `2·half_width + clearance(class, class,
-//! layer)` (adjacent parallel teeth are `A` apart center-to-center).
+//! touch — even land ON TOP of — the net's own pin pads and traces,
+//! invisibly to the probe; by design: same net is one conductor), so
+//! the wave's SELF-interference is guaranteed geometrically instead:
+//! the amplitude must be at least the self-clear distance
+//! `2·half_width + clearance(class, class, layer)` (adjacent parallel
+//! teeth are `A` apart center-to-center).
 //!
 //! **Budgets.** Named constants, all documented here: the amplitude
 //! table (the granularity ladder), the per-site dent cap, the per-net

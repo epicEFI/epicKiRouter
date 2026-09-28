@@ -3217,6 +3217,22 @@
     "word-splitting",
     "gate-lap"
    ]
- }
+  },
+  {
+   "id": 209,
+   "date": "2026-09-28",
+   "task": "M7-T4 fix round (spec-review r1 MINOR-1)",
+   "error_message": "The -mt 1/3 threads-invariance witness in the F3 flow pin was VACUOUS: the extras were passed as SINGLE argv elements ('-mt 3'), which the short-flag parser reads as the flag token 'mt 3' — no arm matches, and the Java-parity SILENT unknown-flag skip (settings.rs:395-398) drops it, leaving the effective argv identical to the plain run. The witness restated determinism and never varied the thread axis (the coordinator's false-green family, cerebrum 17 / DNR-17, one level up: test-argv tokenization, not bin freshness).",
+   "root_cause": "Argv-tokenization trap in test extras: short flags of the '-f value' shape must be PRE-TOKENIZED as two elements ('-mt', '3') because the value is read from the NEXT argv element (settings.rs:390-391; the tokenized form is the settings.rs:1780-1800 parse pin's own shape). A silent unknown-flag skip turns a tokenization slip into a false green instead of an error.",
+   "fix": "Pre-tokenized both extras (&['-mt', '3'], &['-mt', '1']) with the trap documented at the call site (route.rs, the F3 pin); re-ran the witness (byte-identical, now real); logged here as the sibling class to 206.",
+   "tags": [
+    "m7-t4",
+    "fix-round",
+    "pins",
+    "argv-tokenization",
+    "false-green",
+    "trap"
+   ]
+  }
  ]
 }

@@ -3671,10 +3671,17 @@ mod tests {
         );
         assert_eq!(exit_gate, 0);
         let (exit_mt3, ses_mt3, man_mt3) =
-            run_tuning_fixture("mt3", "meander_multi_tuning", &["-mt 3"]);
+            // PRE-TOKENIZED (the false-green fix, buglog 209): the
+            // short-flag parser matches the flag TOKEN "mt" and reads
+            // the value from the NEXT argv element (settings.rs:390) —
+            // a single "-mt 3" element is the unknown-flag "mt 3" and
+            // falls into the Java-parity SILENT skip, leaving the
+            // effective argv identical to the plain run (the vacuous
+            // first-round witness).
+            run_tuning_fixture("mt3", "meander_multi_tuning", &["-mt", "3"]);
         assert_eq!(exit_mt3, 0);
         let (exit_mt1, ses_mt1, man_mt1) =
-            run_tuning_fixture("mt1", "meander_multi_tuning", &["-mt 1"]);
+            run_tuning_fixture("mt1", "meander_multi_tuning", &["-mt", "1"]);
         assert_eq!(exit_mt1, 0);
         // Determinism x2 + threads: all ON runs byte-identical.
         let ses_on_bytes = std::fs::read(&ses_on).expect("the pin world invariant");
