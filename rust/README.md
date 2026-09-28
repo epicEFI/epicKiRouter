@@ -14,7 +14,23 @@ clearance counting), the M4 fanout + batch-optimizer stages with the
 assembled full pipeline (`pipeline/full.rs`, the `RoutingPipeline.run()`
 equivalent), the deterministic per-net partitioned executor with
 `--threads`, and `epic-cli` (headless route: `epicrouter -de
-board.dsn -do out.ses`); **1,497 workspace tests green**. The M6-T3 battery re-faces — the
+board.dsn -do out.ses`); **1,497 workspace tests green**. M6
+executed on top (the routing-intelligence family, ALL default-OFF —
+at defaults every output stayed byte-identical, canaries unrotated):
+floating-island detection (advisory `pour_islands` manifest face +
+the region-level clamp behind `router.plane_island_clamp`), the
+global-planning stage `epic-router/src/global/` (congestion map,
+per-net guides + planned net order, pattern routing, PathFinder
+history costs) behind `router.congestion_global` (+ `.pattern` /
+`.pathfinder`), and push-and-shove insertion behind
+`router.push_shove`. The Tier B/C AFTER-face (T10) measured the
+milestone's strictly> criterion at 2/12 with the ALL-ON regime
+net-harmful — the measured best-known regime is **default +
+push_shove-only** (1-Wire-Wing 0<1, bm04 0<2, StickHub's standing
+kill face flipped to completion at exact Java parity); Issue093-class
+router-introduced violations = 0 on every completing pour fixture
+(real counter, both faces), and island detection re-confirmed with
+zero divergence. The M6-T3 battery re-faces — the
 first tier-aware full batteries (full flow, default settings;
 `--tier A|B|C`, default A byte-identical) — read: Tier A
 **10 green / 1 red** (bm01 killed at the 1800.2 s tier on the
@@ -52,18 +68,26 @@ Port ledger: `crates/epic-router/SEAM.md`.
 - `crates/epic-board` — arena board model (M2 done: ItemId arena +
   undoable containers, rules/structure/placement, item geometry, the
   tree-manager seam, trace combine/split/normalize, and the undo facade —
-  33/33 snapshot/undo replay parity vs the Java oracle)
+  33/33 snapshot/undo replay parity vs the Java oracle; M6: the
+  floating-island detector `src/islands.rs` — advisory `pour_islands`
+  manifest face, plus the region-seeded clamp helper behind
+  `router.plane_island_clamp`)
 - `crates/epic-index` — incremental spatial index (M2 done: ShapeTree +
   MinAreaTree with tree-shape precalc and compensation — 33/33
   query-set parity vs the Java oracle)
 - `crates/epic-drc` — exact incremental DRC (M3 done: incompletes +
   clearance violations vs the Java oracle, 17-fixture compare; the
-  incremental DRC engine remains M6)
+  full incremental-DRC engine remains future work — it was not an M6
+  deliverable)
 - `crates/epic-router` — routing core (M3: the detail-routing core —
   expansion → maze → ripup/shove → locator → forced insertion → batch
   driver; M4: the fanout stage, the batch optimizer, and the
-  full-pipeline assembly `pipeline/full.rs`; global routing stays M6+;
-  `SEAM.md` in the crate is the port ledger)
+  full-pipeline assembly `pipeline/full.rs`; M6: the global-planning
+  stage `src/global/` — congestion map, per-net guides + planned net
+  order, pattern routing, PathFinder history costs — behind
+  `router.congestion_global` (+ `.pattern`/`.pathfinder`), plus the
+  push-and-shove insertion arm behind `router.push_shove`, all
+  default-OFF; `SEAM.md` in the crate is the port ledger)
 - `crates/epic-engine` — 13-line scaffold, still unlanded (the layered
   settings face lives in `epic-cli/src/settings.rs`; jobs/seeds have no
   consumer yet)
@@ -214,10 +238,14 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # never raised to fit walls, the same discipline as tiers.yaml
 # timeouts).
 #
-# RESIDUALS LEDGER (the standing record): the B/C completion reds are
-# the T8/T9 tuning population (bm05 29 vs 18, interf_u 1 vs 0, 1Bitsy
-# 2 vs 1, bm04 3 vs 2); kill faces bm01 (Tier A) and bm10 / StickHub /
-# LimeSDR (Tiers B/C); the FANOUT-FULL-FLOW GATE GAP — the events
+# RESIDUALS LEDGER (the standing record; the B/C faces are the T10
+# AFTER-face unless noted): the B/C completion reds after the
+# sanctioned tuning are bm05 27 vs 18, bm10 3 vs 1 (+ the one
+# router-introduced violation, ri=1, flag-independent, buglog 205,
+# owner M7), interf_u 3 vs 0, and the 1Bitsy / CM5 / LimeSDR tier
+# kills, with mm / mm-u exact-parity floors (byte-stable across flag
+# faces — engine-capability gaps, not settings gaps); kill faces
+# bm01 (Tier A) and bm10 / StickHub / LimeSDR (Tiers B/C); the FANOUT-FULL-FLOW GATE GAP — the events
 # fixtures are capture replays that never exercise the changed fanout
 # arm and the router-only/ses/det gates run fanout-disabled, so the
 # buglog-181 fix carries ZERO byte-invariance coverage until a

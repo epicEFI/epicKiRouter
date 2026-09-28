@@ -2024,3 +2024,57 @@ the yml comment is the primary durable record.
 | Threads-gate CI wiring | **RE-DEFERRED WITH CAUSE** (the M5-T8 decision (2) deferral continues): the wiring lands WITH the flip commit; the cause of the continued deferral is that the flip preconditions failed at M6-T3. The gate stays pinned in-tree (green, hashed, argv + verdict + override-naming pins) | the rust-check.yml comment (THREADS-GATE paragraph); the T7 dossier above |
 | Suite census | **1449/0/17 at the T3 quality round `358e56e7f`** (carried to this T4 record — the T4 docs commit adds no tests, so the census is unchanged; commit-anchored, never "at HEAD"); both `ci_tripwire` pins ok inside the bare suite | `logs/M6-T3/evidence/gate-cargo-test-t3fix.log` (1449 attested at `358e56e7f`); `logs/M6-T4/evidence/gate-cargo-test.log` |
 | Residuals | B/C completion reds = the T8/T9 tuning population (bm05 29v18, interf_u 1v0, 1Bitsy 2v1, bm04 3v2); kill faces bm01 (A) + bm10/StickHub/LimeSDR (B/C); the **fanout-full-flow gate gap** — the events fixtures are capture replays that never exercise the changed fanout arm and the router-only/ses/det gates run fanout-disabled ⇒ zero byte-invariance coverage for the buglog-181 fix until a fanout-full-flow golden exists (guards: the pins + sanctioned faces + batteries) — a standing exposure until then; the Σ-decomposition battery print and the banked quality-r2 NITs (shared no-extras sweep helper, bail! idiom consistency, multi-concern walk pin) wait on the first harness touch; T5's pour worklist: 43 parse-time plane-induced rows on multichannel_mixer-unrouted / CM5_MINIMA_3 (the Java post-route real-walk instrument is T5's first item) | `logs/M6-T3/spec-review-t3-1.md` PLAN-LEVEL findings 3/4; `quality-review-t3-2.md` Q2; the README CI-posture comment (the ledger's home) |
+
+## M6 milestone-criterion map (appended by M6-T11; successor to the M5 map above — adjudication input)
+
+The M5 map above stays exactly as landed (HISTORICAL), as do the M5
+hold-posture (T9) and M6 hold-posture (T4) tables. Criteria read the
+design §6 M6 row and the M6 plan's "Milestone exit criteria" faces.
+Batteries of record: `logs/M6-T3/evidence/battery-{A,B,C}-full.log`
+(the BEFORE-faces, measured at `62c417a38`) and
+`logs/M6-T10/evidence/battery-{B,C}-on.log` +
+`battery-A-default.log` (the AFTER-faces, measured at `7b1b44c36`);
+the engine tree is frozen at census 1497/0/17 across the close-out.
+The verdict slot in the design doc §6 M6 exit note stays OPEN for the
+milestone adjudicator — this map records the measured faces only.
+
+| Criterion | Verdict (the measured face; the adjudicator writes the verdict) | Evidence + citation |
+|---|---|---|
+| 1 — Tier B/C completion strictly > Java (12 B/C fixtures) | **NOT MET on the measured faces** — 2/12 strictly after the sanctioned tuning (1-Wire-Wing 0<1 via the empty flag subset; bm04 0<2 via push_shove + max_passes=6), 4/12 exact parity (complex after tuning, mm, mm-u, StickHub after tuning), 6/12 red; ALL-ON measured NET-HARMFUL vs default (B 7-vs-5 red, C 3-vs-2; 1-Wire win→loss, complex parity→+3, CM5 complete→kill); best-known regime **default + push_shove-only** (the two strictly wins + StickHub kill→completion @321.5 s at exact Java parity 4=4/1=1/976.85=976.85). Both faces recorded | `logs/M6-T10/report-t10.md` criterion-1 table + tuning-iteration records; BEFORE-face `logs/M6-T3/report-t3.md` |
+| 2 — Issue093-class violations = 0 (pour population, REAL counter) | **MET** — router-introduced = 0 on every completing pour fixture on BOTH faces (T3 census 10 fixtures; T10 both arms; counter = `router_introduced_count` ← `all_clearance_violation_depths`, the `getAllClearanceViolations` class — never the outline-only `BoardStatistics` face); post-route totals equal parse-time input counts (16/1/285/29) = Java's committed counts; two honest kill-absences (StickHub both faces, CM5 ON) + StickHub's tuning-face completion 4/1/ri 0; bm10's ri=1 is NOT a criterion-2 breach (no pour) — deviations row, buglog 205 | `logs/M6-T10/report-t10.md` criterion-2 section; T5 audit `fa8654edb` (zero plane-face divergences, both engines 0 introduced) |
+| 3 — island detection works | **MET** — T6 detector landed (`epic-board/src/islands.rs`, 4-connected regions, MIN_BRIDGE_WIDTH boundary mutation-verified both directions, advisory `pour_islands` face, pour-free manifests byte-unchanged); T8 region-level clamp (`pour_region_seeded_by`, islands.rs:825, behind `router.plane_island_clamp`); T10 zero-divergence re-confirmation at HEAD (all 10 pour-fixture counts match T6 exactly) | `logs/M6-T10/report-t10.md` criterion-3 section; the T6/T8 dossiers above |
+| 4 — inherited residuals (196 / 181 / flip / threads-gate) | **DISCHARGED AS RECORDED** — 196 CLOSED `e0ccffb74` (premise falsified, AMENDMENT 1: Java enters its optimizer on bm01 too); 181 CLOSED `c63fc9610` + `ea5bdbe4f` (BRANCH A: corner-count off-by-one, a violated Java rule; bm06 1/8/985.24 beats Java 2/8/971.63, bm11 at Java's exact 3/0/975.00); 197 PARTIAL `f842c3ea2` (semantics PARITY; wall target honestly missed; successor lever unchartered); flip **NO-GO held** `caa3115fa` (third consecutive hold; both preconditions fail); threads-gate wiring re-deferred WITH CAUSE | `logs/M6-T1/report-t1.md` (not filed — T1's record lives in the plan amendments + buglog 196); `logs/M6-T2/report-t2.md`; `logs/M6-T3/report-t3.md`; the M6 hold-posture table above |
+| 5 — zero regressions at default | **MET** — T10 gate lap 13/13 at the unchanged engine tree: seven compares green (corpus 5000/5000; dsn 1,332/0; ses 20; ses-snap 5; index 33; undo 33; drc 17), events 3,520 exit 0, determinism canaries IMMOVABLE/UNROTATED (ses `dc271114…` / manifest `cf607714…`) + settings-ON byte-stable at its own digests, census 1497/0/17 (additions only across the milestone), Tier A at its held face (10 green / 1 red; completion-only reading 11/11). The close-out re-ran the CHEAP set only; T10's lap at the same tree is the full evidence of record | `logs/M6-T10/report-t10.md` gate-lap table; the close-out's own gate logs `logs/M6-T11/evidence/` |
+
+**Wall claims — the fixture-wall face (the two-face convention, named
+once):** the battery-total Σ covers the per-fixture subprocess walls
+PLUS the in-process detail-localizer re-routes on red non-killed
+fixtures (`router_compare.rs`: subprocess wall `started :801` /
+`wall_seconds :809`, loop total `started :1900` / `elapsed :2088`,
+red-non-killed guard `:2159-2160`); cross-milestone
+wall claims quote the fixture-wall face. Fixture-wall Σs: T3-B default
+**2632.5 s = 3.10×** Σ-Java 850.4 s; B-ON **3041.0 s = 3.58×**; T3-C
+default **3387.5 s = 3.36×** Σ-Java 1009.3 s; C-ON **5400.3 s =
+5.35×**; Tier A **2075.7 s = 1.84×** Σ-Java 1130.39 s (A and C-ON
+identical under both faces — A ran no detail passes, C-ON killed all
+three). The 0.5× Σ goal stays far on every tier under either face;
+ALL-ON worsens both B and C.
+
+**Reopen bound — EXPLICIT form (bound = tier cap 1800.0 s − the
+ten-wall strip):** canonical bound 1800.0 − 289.3 = **1510.7 s**
+(T3-era strip); at T10 the measured bm01 wall was 1800.2 s (kill), the
+this-run strip 275.5 s, this-run bound 1524.5 s — 1800.2 ≫ 1510.7, the
+flip does NOT reopen, the bound does not rise.
+
+**Pointer rows into the task dossiers:** criterion-1 before/after +
+tuning → T3 (`logs/M6-T3/report-t3.md`) + T10
+(`logs/M6-T10/report-t10.md`); the bm01 optimizer wall → buglog 197 +
+T1b (the plan AMENDMENT 2 record; commit `f842c3ea2`); the 181 close →
+T2 (`logs/M6-T2/report-t2.md`, commits `c63fc9610`/`ea5bdbe4f`); the
+plane audit → T5 (`fa8654edb`); island detection → T6
+(`d6a9d835f`) + the T8 clamp (`7a7d6e529`); the intelligence family →
+T7 (`5d4199884`) + T8 (`7a7d6e529`) + T9 (`b670bbc28`), all
+default-OFF with the byte-invariance contract (default settings
+byte-identical outputs; settings-ON faces are NEW goldens); the flip
+hold → the M6 hold-posture table above + the rust-check.yml
+compare-step comment; bm10's ri=1 → buglog 205 (NEW, owner M7).

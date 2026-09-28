@@ -300,16 +300,23 @@ the Java packages above stay the frozen parity oracle until the rewrite's
 final milestone. Crates enter this map as their milestones complete
 (M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS; M5 executed on top:
 arena/SoA allocation slices + deterministic per-net parallelism, closed
-M5_EXIT_WITH_DEVIATIONS — Σ wall 2286.1 s harness-elapsed =
-2.02× Σ-Java vs the ≤0.5× target and the full-face battery 8/11, so
-the CI router gate stays in `--report-only`; crafted DSNs stay
-comment-free pending bug-186 (M1b-reopen); design §6 M4/M5 exit
-notes, `logs/M5-T8/report-t8.md`;
+M5_EXIT_WITH_DEVIATIONS; M6 executed on top: the routing-intelligence
+family — congestion map + global planning, PathFinder negotiated
+congestion, push-and-shove insertion, floating-island detection + the
+plane-island clamp, the plane-routing parity audit — all behind
+default-off settings, with byte-invariance at defaults held throughout
+(census 1497/0/17, canaries unrotated); the CI router gate stays in
+`--report-only` after the M6-T3 NO-GO (Tier A 10 green / 1 red,
+Σ 2089.5 s > the compare step's 30-min budget); crafted DSNs stay
+comment-free pending bug-186 (M1b-reopen); design §6 M4/M5/M6 exit
+notes, `logs/M6-T10/report-t10.md`;
 commands and parity gates: [rust/README.md](../rust/README.md)).
 
 - `rust/crates/epic-board` — arena board model: ItemId/undoable-object
   storage, item geometry, trace combine/split/normalize, and the
-  snapshot/undo facade (33/33 replay parity vs the Java oracle).
+  snapshot/undo facade (33/33 replay parity vs the Java oracle); the
+  M6 floating-island detector (`src/islands.rs`, advisory manifest
+  face + the region-seeded clamp helper).
 - `rust/crates/epic-index` — incremental spatial index (ShapeTree,
   MinAreaTree, tree-shape precalc) — the Rust counterpart of
   `board.searchtree` (33/33 query-set parity).
@@ -317,9 +324,12 @@ commands and parity gates: [rust/README.md](../rust/README.md)).
   rooms/doors, maze search, ripup/shove, found-connection locator,
   forced insertion, batch driver, fanout and optimizer stages, and the
   full-pipeline assembly (`pipeline/full.rs`, the
-  `RoutingPipeline.run()` equivalent) — the Rust counterpart of
-  `autoroute.*`; port ledger in
-  [SEAM.md](../rust/crates/epic-router/SEAM.md).
+  `RoutingPipeline.run()` equivalent); the M6 global-planning stage
+  (`src/global/`: congestion map, per-net guides + planned net order,
+  pattern routing, PathFinder history costs) and the push-and-shove
+  insertion arm ride default-off settings — the Rust counterpart of
+  `autoroute.*` plus the beyond-Java M6 intelligence family; port
+  ledger in [SEAM.md](../rust/crates/epic-router/SEAM.md).
 - `rust/crates/epic-drc` — incompletes + clearance counting — the Rust
   counterpart of `drc`.
 - `rust/crates/epic-cli` — headless `route` command (`epicrouter -de
@@ -348,6 +358,37 @@ flip outcome is an honest hold (second consecutive; composition
 changed — the maze-search wall collapsed, the residual is the bm01
 optimizer stage under the 1800 s tier plus the buglog-181 completion
 residuals): design §6 M5 exit note and `logs/M5-T8/report-t8.md`.
+
+M6 intelligence face (landed on top of the M5 engine, default-off
+throughout — at DEFAULT settings every output stayed byte-identical:
+census 1497/0/17 with additions only, canaries unrotated): the
+congestion map + global planning stage
+(`epic-router/src/global/` — `map.rs` distinct-net occupancy grid,
+`plan.rs` per-net guides + planned net order, `pattern.rs` L/Z
+cheap-net fast path, `history.rs` PathFinder per-resource history
+costs with negotiated bases replacing the linear pass-cost ladder)
+behind `router.congestion_global` (+ `.pattern` / `.pathfinder`);
+push-and-shove insertion in the maze's obstacle-room arm behind
+`router.push_shove` (shove-verified room rip-up charge waived,
+bounded budget, deterministic order — no Java counterpart);
+floating-island detection as an advisory manifest face
+(`epic-board/src/islands.rs`) with the region-level connectivity
+clamp behind `router.plane_island_clamp`; and the plane-routing
+parity audit (T5, zero divergences — every Java plane face already
+ported Java-exactly). The settings family follows the `-mt` seam
+precedent: all five flags default-OFF, so settings-ON faces are NEW
+goldens while the parity regime is untouched. The Tier B/C AFTER-face
+(T10) measured criterion 1 at 2/12 strictly-better with the ALL-ON
+regime net-harmful — the measured best-known regime is **default +
+push_shove-only**; criteria 2 (Issue093-class router-introduced
+violations = 0 on every completing pour fixture, real counter) and 3
+(island detection, zero divergence re-confirmation) are met on the
+T10 record. The CI flip stays HELD (third consecutive NO-GO at
+M6-T3: Tier A 10 green / 1 red + Σ 2089.5 s > the 30-min budget;
+reopen bound: the flip reopens exactly when bm01's total completes
+< 1510.7 s): design §6 M6 exit note (verdict slot OPEN for the
+milestone adjudicator), `logs/M6-T10/report-t10.md`, and the M6
+criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
 
 ## How The Code Fits Together
 
