@@ -2951,4 +2951,174 @@ mod tests {
         assert_eq!(m[3][4], 9000);
         assert_eq!(m[4][3], 9000);
     }
+
+    // ---- M7-T1: the `(circuit (length max min))` parity pins ------------
+    //
+    // Java faces (re-verified 2026-09-28 at f32f99bd3):
+    // - `Circuit.readLengthScope` (`Circuit.java:64-110`): exactly two
+    //   number tokens (Double OR Integer), `lengthArr[0]` -> maxLength
+    //   (FIRST number is MAX), `lengthArr[1]` -> minLength; a non-number
+    //   aborts the read with an FRLogger warn (log-only — NOT in the
+    //   `ReadScopeParameter.warnings` list) and returns null WITHOUT
+    //   consuming the rest of the length scope, so the circuit loop then
+    //   swallows the trailing tokens and the length scope's `)` closes
+    //   the CIRCUIT scope.
+    // - `NetClass.readScope` CIRCUIT arm (`NetClass.java:103-112`): the
+    //   lengths are ASSIGNED per circuit scope (LAST circuit scope wins)
+    //   while use_via/use_layer ACCUMULATE (`addAll`); within one circuit
+    //   scope, `Circuit.readScope` re-assigns per `(length` scope (last
+    //   wins) and a null read keeps the previous values.
+    // - Delivery `Network.insertNetClass` (`Network.java:449-452`): only
+    //   `> 0` values are delivered (dsnToBoard-transformed) — the `-1`
+    //   "no maximum" sentinel (and 0) stay at the ctor default 0
+    //   (`rules/NetClass.java:36-37`). The writer half of the sentinel
+    //   contract (`Network.writeCircuit`, `:150-193`: emit
+    //   `(length max min)` only when min>0||max>0, max<=0 -> -1,
+    //   min<=0 -> 0) has NO Rust counterpart because the Rust workspace
+    //   has no DSN writer at all (SES-only) — see the T1 report, the
+    //   round-trip face is structurally absent, not divergent.
+    // Units: run_board fixes unit=um resolution=10 -> dsn_to_board x10.
+
+    /// The delivery-gate boundary: below (-1, the sentinel), exactly at
+    /// (0), and above (1) the `> 0` turn-on; int vs double token
+    /// acceptance; the max-first/min-second field order; the x10
+    /// transform.
+    #[test]
+    fn m7_t1_length_boundary_sentinel_order_and_tokens() {
+        let (ok, state, board) = run_board(
+            TWO_LAYERS,
+            None,
+            None,
+            None,
+            "(net NA) (net NB) (net NC) (net ND) \
+             (class CLA NA (circuit (length 1 0))) \
+             (class CLB NB (circuit (length -1 0))) \
+             (class CLC NC (circuit (length 0 0))) \
+             (class CLD ND (circuit (length 2.5 0.5)))",
+        );
+        assert!(ok, "parse Success");
+        // Java's circuit warns are FRLogger-only; the warnings LIST stays
+        // empty (only Wiring feeds it).
+        assert!(state.warnings.is_empty());
+        assert_eq!(board.net_classes.len(), 5, "default + CLA..CLD");
+        // CLA: max 1 delivered x10, min at the exact boundary 0 gated out;
+        // the length delivery does NOT disturb the (empty use_layer)
+        // active-layer face — CLA keeps the ctor default.
+        assert_eq!(board.net_classes[1].name, "CLA");
+        assert_eq!(board.net_classes[1].max_trace_length, 10.0);
+        assert_eq!(board.net_classes[1].min_trace_length, 0.0);
+        assert_eq!(board.net_classes[1].active_routing_layers, [true, true]);
+        assert_eq!(board.net_classes[1].trace_half_widths, [1500, 1500]);
+        // CLB: the -1 max sentinel is NOT delivered (stays ctor 0) — an
+        // unconditional delivery would land -10 here.
+        assert_eq!(board.net_classes[2].name, "CLB");
+        assert_eq!(board.net_classes[2].max_trace_length, 0.0);
+        assert_eq!(board.net_classes[2].min_trace_length, 0.0);
+        // CLC: both tokens at the exact boundary — both gated out.
+        assert_eq!(board.net_classes[3].name, "CLC");
+        assert_eq!(board.net_classes[3].max_trace_length, 0.0);
+        assert_eq!(board.net_classes[3].min_trace_length, 0.0);
+        // CLD: double tokens accepted, both delivered x10.
+        assert_eq!(board.net_classes[4].name, "CLD");
+        assert_eq!(board.net_classes[4].max_trace_length, 25.0);
+        assert_eq!(board.net_classes[4].min_trace_length, 5.0);
+    }
+
+    /// Last-wins for lengths (across circuit scopes AND across `(length`
+    /// scopes in one circuit) versus ACCUMULATION for use_layer — the two
+    /// faces the Java circuit arm treats differently in the same
+    /// statement block (`NetClass.java:106-111`).
+    #[test]
+    fn m7_t1_length_last_wins_but_use_layer_accumulates() {
+        let (ok, state, board) = run_board(
+            TWO_LAYERS,
+            None,
+            None,
+            None,
+            "(net N1) (net N2) \
+             (class CLM N1 (circuit (length 100 40) (use_layer F.Cu)) \
+                        (circuit (length 200 90) (use_layer B.Cu))) \
+             (class CLN N2 (circuit (length 100 40) (length 300 70)))",
+        );
+        assert!(ok, "parse Success");
+        assert!(state.warnings.is_empty());
+        assert_eq!(board.net_classes[1].name, "CLM");
+        // Last circuit scope wins for the lengths...
+        assert_eq!(board.net_classes[1].max_trace_length, 2000.0);
+        assert_eq!(board.net_classes[1].min_trace_length, 900.0);
+        // ...but the use_layer lists ADD UP: both layers active. A
+        // last-wins mutant would leave F.Cu inactive with hw 0.
+        assert_eq!(board.net_classes[1].active_routing_layers, [true, true]);
+        assert_eq!(board.net_classes[1].trace_half_widths, [1500, 1500]);
+        // Last `(length` scope wins inside ONE circuit scope.
+        assert_eq!(board.net_classes[2].name, "CLN");
+        assert_eq!(board.net_classes[2].max_trace_length, 3000.0);
+        assert_eq!(board.net_classes[2].min_trace_length, 700.0);
+    }
+
+    /// The error face: a non-number where `(length` expects one aborts
+    /// THAT read (null, values kept), and the misalignment CASCADES —
+    /// each enclosing scope then consumes the next-inner `)` as its own
+    /// close: the length scope's `)` ends the CIRCUIT scope, the
+    /// circuit's `)` ends the CLASS scope, the class's `)` ends the
+    /// NETWORK scope (cursor-verified at f32f99bd3: the closes at bytes
+    /// 77/78/79 of the world are consumed by circuit/class/network
+    /// respectively), so any class AFTER the failed one is swallowed —
+    /// the same degenerate mis-consumption family as
+    /// `t8_deg2_swallowed_class`, jar-parity. The parse still SUCCEEDS
+    /// (a Close break runs the insertion tail), the earlier length
+    /// survives, and the warnings list stays empty (the Java warn is
+    /// FRLogger-only).
+    #[test]
+    fn m7_t1_length_non_number_keeps_previous_and_recovers() {
+        let (ok, state, board) = run_board(
+            TWO_LAYERS,
+            None,
+            None,
+            None,
+            "(net NE) (net NF) \
+             (class CLE NE (circuit (length 100 40) (length X 9))) \
+             (class CLF NF (circuit (use_layer B.Cu)))",
+        );
+        assert!(ok, "parse recovers");
+        assert!(state.warnings.is_empty(), "FRLogger warn is log-only");
+        // The failed second read kept the first `(length 100 40)`.
+        assert_eq!(board.net_classes[1].name, "CLE");
+        assert_eq!(board.net_classes[1].max_trace_length, 1000.0);
+        assert_eq!(board.net_classes[1].min_trace_length, 400.0);
+        // CLF is swallowed by the mis-consumption cascade (Java parity):
+        // the network scope ends at CLE's own closing bracket.
+        assert_eq!(board.net_classes.len(), 2);
+        assert_eq!(board.net_classes[1].min_trace_length, 400.0);
+    }
+
+    /// The no-circuit face stays byte-stable at the ctor zeros: a class
+    /// without any circuit scope, and a class whose circuit scope carries
+    /// only `(use_layer ...)` (the independent face) — both keep
+    /// min/max 0; the use_layer delivery (active layers + the inactive-hw
+    /// zeroing) is unaffected by the length absence.
+    #[test]
+    fn m7_t1_no_circuit_and_lengthless_circuit_default_to_zero() {
+        let (ok, state, board) = run_board(
+            TWO_LAYERS,
+            None,
+            None,
+            None,
+            "(net NG) (net NH) \
+             (class CLG NG (pull_tight on)) \
+             (class CLH NH (circuit (use_layer F.Cu)))",
+        );
+        assert!(ok, "parse Success");
+        assert!(state.warnings.is_empty());
+        assert_eq!(board.net_classes[1].name, "CLG");
+        assert_eq!(board.net_classes[1].max_trace_length, 0.0);
+        assert_eq!(board.net_classes[1].min_trace_length, 0.0);
+        assert_eq!(board.net_classes[2].name, "CLH");
+        assert_eq!(board.net_classes[2].max_trace_length, 0.0);
+        assert_eq!(board.net_classes[2].min_trace_length, 0.0);
+        // The lengthless circuit still delivers its use_layer face:
+        // B.Cu inactive (and its hw zeroed by the inactive-hw pass).
+        assert_eq!(board.net_classes[2].active_routing_layers, [true, false]);
+        assert_eq!(board.net_classes[2].trace_half_widths, [1500, 0]);
+    }
 }
