@@ -39,6 +39,25 @@
 //! gates on the resolved list being non-empty (the `meander_active`
 //! pattern, Default empty), and the maze cost term additionally
 //! requires the follower's per-attempt preference to be `Some`.
+//!
+//! **Dubins A\* disposition (design :73, DECLINED on measurement +
+//! realizability at T6; the MSDTW precedent shape).** The design
+//! charters the pose-based A\* with Dubins heuristic as the pair
+//! corridor's QUALITY mechanism; the plan's honest either-or let the
+//! simpler coupled-maze face go first. Measured on the committed pair
+//! population, the simple face already meets the contract: the coupled
+//! fixture's advisory row reads `coupled_length` 381 482 DBU of shared
+//! corridor, delta 10 270 ≤ [`PAIR_DELTA_DBU`], REAL-DRC 0, and the
+//! split world still matches through a hair-gap squeeze the cost model
+//! found on its own — no quality gap for a better corridor search to
+//! close. The realizability premise fails independently: the maze
+//! emits ANGLE-RESTRICTED polylines (45°/90°; the
+//! `expand_to_door`/section face in `maze/search_engine.rs`) with no
+//! arc primitive, and a Dubins path is G1-continuous arc geometry —
+//! the heuristic's output cannot be landed by this engine. Re-charter
+//! trigger: a geometry milestone that adds continuous-curvature
+//! (arc-bearing) route output inherits this note and may re-face the
+//! pair corridor search on it.
 
 use std::collections::BTreeMap;
 
@@ -518,15 +537,16 @@ mod tests {
 )
 "#;
 
-    /// The P2 SPLIT world: the pair world plus an F.Cu keepout wall
-    /// across the follower's in-corridor span (x ∈ [180000, 200000],
-    /// y ∈ [240000, 360000]) — the follower MUST leave the corridor
-    /// (above y 360000 is off-board, so the wall forces the detour
-    /// through y > 360000's… no: the wall top is 360000 and the board
-    /// is 400000 tall, so the follower detours OVER the wall top at
-    /// y ∈ [360000, 400000]); the decoupled segment is recorded
-    /// honestly in the coupled-length measure and the lengths still
-    /// match.
+    /// The P2 SPLIT world: the pair world plus an F.Cu keepout wall,
+    /// x ∈ [20000, 22000], y from 20400 up to 36000 (all DSN um;
+    /// internal DBU are ×10). The wall bottom sits 4000 internal DBU
+    /// above the leader's y = 20000 center line — a gap the follower
+    /// (hw 1000 + clearance 2016 to the leader, 3016 to the wall)
+    /// cannot route through — so across the wall's x-span the follower
+    /// must leave its y = 24000 pin line (the engine's route squeezes
+    /// below, between the leader and the wall). The decoupled segment
+    /// is recorded honestly in the coupled-length measure and the
+    /// lengths still match.
     const SPLIT_WORLD: &str = r#"
 (pcb split_world.dsn
   (parser (string_quote ") (space_in_quoted_tokens on))
@@ -755,18 +775,36 @@ mod tests {
             "the split pair still matches: delta {delta} within the constant"
         );
         let coupled = coupled_length(&board, 1, 2, COUPLING_WINDOW_DBU);
+        // The bound is world-derived, not magic: the follower's un-split
+        // in-corridor face is its straight pin-to-pin span
+        // (48000 - 2000 DSN x 10 = 460000 internal DBU), and across the
+        // wall's own x-span ([200000, 220000] internal = 20000 DBU) the
+        // follower is OFF the corridor (climbing over the wall /
+        // squeezing below it), so the coupled overlap cannot cover it.
+        // Bound = 460000 - 20000; a wall-free straight world measures
+        // the full 460000 and dies on this assert (the split/coupled
+        // discriminator). The measured value sits well under the bound
+        // (the squeeze's vertical work is uncounted by the measure).
+        const P2_STRAIGHT_SPAN_DBU: f64 = 460_000.0;
+        const P2_WALL_SPAN_DBU: f64 = 20_000.0;
         assert!(
-            coupled < 420_000.0,
-            "the wall decouples a segment: coupled {coupled} below the full-span face"
+            coupled <= P2_STRAIGHT_SPAN_DBU - P2_WALL_SPAN_DBU,
+            "the wall decouples a segment: coupled {coupled} must sit at or below \
+             the straight face {P2_STRAIGHT_SPAN_DBU} minus the wall span {P2_WALL_SPAN_DBU}"
         );
         assert!(coupled > 0.0, "the un-split spans still share the corridor");
     }
 
     /// **P3** — the invariance face: the UNDECLARED net's routes are
-    /// byte-identical with the pair face ON vs OFF on the same board
-    /// world.
+    /// GEOMETRY-identical with the pair face ON vs OFF on the same
+    /// board world. Geometry-level is the correct contract, deliberately
+    /// NOT byte-level: the SES carries no item ids, and wire order
+    /// follows the internal insert-order ids — which the pair
+    /// leader-first reorder legitimately shifts — so byte equality
+    /// would pin incidental ordering, not routing behavior (the spec
+    /// review's Q2 answer, adopted).
     #[test]
-    fn p3_undeclared_net_byte_identical_on_vs_off() {
+    fn p3_undeclared_net_geometry_identical_on_vs_off() {
         let run_sol = |pairs: Vec<PairSpec>| -> Vec<String> {
             let (mut manager, mut board) = parse(PAIR_WORLD);
             let _outcome = run_pipeline(&mut manager, &mut board, pairs);
