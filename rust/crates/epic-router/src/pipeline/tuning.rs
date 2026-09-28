@@ -62,12 +62,49 @@
 //! manifest's `length_report` (computed AFTER the pipeline) still
 //! carries the row — the report says so.
 //!
-//! **MSDTW median-trace disposition.** The design :73 median-trace
-//! technique (meanders keyed off the median trace of a corridor-
-//! sharing net group) needs the GROUP face — the match-group model
-//! lands in T5. T4's committed face is the per-net deterministic
-//! accommodation; the technique ports (or is declined on measurement)
-//! at T5 where the group exists. Recorded, not silently dropped.
+//! **M7-T5: the MATCH contract (match groups).** The stage's work list
+//! is grouped by NET CLASS — a MATCH GROUP is the nets of one
+//! constrained class (the flat net→class table; T2's no-inheritance
+//! audit). Per group a TARGET and a TOLERANCE are resolved:
+//!
+//! - **Both bounds declared** (`min > 0 && max > 0`): target = `max`,
+//!   tolerance = `max − min`, and the per-net GOAL is `min` exactly
+//!   (the window arithmetic `max − (max − min)` collapses) — the T4
+//!   face bit for bit: deficit toward min, headroom `max − current`,
+//!   the equality landing AT max allowed, so the declared-window
+//!   worlds behave exactly as before.
+//! - **Min-only** (`min > 0`, `max == 0`): target = the LONGEST routed
+//!   length among the group's members, ties broken deterministically
+//!   by net number ASC (the walk order — the first of a tie wins);
+//!   tolerance = [`MATCH_TOLERANCE_DBU`]. The per-net GOAL is
+//!   `max(min, target − tolerance)` — the floor keeps the honoring
+//!   contract (no net is driven to less than its own min).
+//!
+//! Every net ends within the group tolerance of the target, or the
+//! honest-stop face records the deficit; a net already AT or ABOVE its
+//! goal is untouched (never shortened — the T3 honoring contract
+//! holds; above-`max` nets are the report-only face, never truncated).
+//! A max-only class (`min == 0`) forms no group: the work list is the
+//! under-min population, so nothing is actionable there — the
+//! over-max rows belong to the report face alone.
+//!
+//! **MSDTW median-trace disposition (design :73, DECLINED on
+//! measurement at T5).** The technique keys a corridor-sharing group's
+//! meanders off the group's median trace. Measured on the committed
+//! population it would face: all four tuning fixtures route each
+//! tuned net on its OWN corridor (separate pin pairs, no shared
+//! corridor between members of any class), and the pin worlds are the
+//! same shape — a median trace does not exist for them (single-member
+//! groups) or coincides with each member's own straight run (the
+//! multi fixture's members are parallel, non-adjacent runs). With no
+//! population case where a median differs from the per-net
+//! accommodation, the technique's benefit set is EMPTY here; the
+//! per-net deterministic accommodation is strictly simpler and
+//! already pins-verified. Declined on measurement (the honest-stop
+//! discipline), not dropped: a future milestone that charts
+//! shared-corridor groups inherits this note.
+
+use std::collections::BTreeMap;
 
 use epic_board::board::Board;
 use epic_board::id::ItemId;
@@ -100,6 +137,18 @@ pub const MAX_MEANDER_DENTS_PER_SITE: i64 = 32;
 /// multi-insertion fallback).
 pub const MAX_MEANDER_INSERTIONS_PER_NET: usize = 4;
 
+/// The M7-T5 group MATCH tolerance, in board DBU: when a constrained
+/// class declares NO max (a min-only class), the group's target is the
+/// longest routed member length and every member must end within this
+/// distance of that target. NAMED CONSTANT by design (the T2/T4
+/// family): the class's own min–max window owns the tolerance when
+/// both bounds are declared; this constant owns it otherwise. Value:
+/// 40_000 DBU — four coarsest-dent lengths (the amplitude ladder's
+/// granularity is 2·A per dent with A up to 10_000), comfortably above
+/// one wave granularity so the ladder's own step size alone cannot
+/// strand a landed net outside tolerance.
+pub const MATCH_TOLERANCE_DBU: f64 = 40_000.0;
+
 /// The wave-piece probe extension, in half-widths, on BOTH ends of
 /// every probed piece: the corner-miter allowance. The 90°-corner
 /// offset polygons of the wave stick out diagonally beyond the
@@ -131,56 +180,185 @@ pub struct MeanderNetOutcome {
     pub dent_count: i64,
 }
 
+/// One MATCH GROUP's report row (the stage's group face, in
+/// class-index ASC order). `target_net` is `Some` only on the
+/// min-only target derivation (the routed-length target has a
+/// DEFINING net; the declared-max target does not).
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatchGroupReport {
+    /// The class index (the flat net→class table's key).
+    pub class_index: i32,
+    /// The class name.
+    pub class_name: String,
+    /// The group's member net numbers (net-number ASC — the walk
+    /// order).
+    pub members: Vec<i32>,
+    /// The group target length (board DBU): the declared `max`, or the
+    /// longest routed member length on a min-only class.
+    pub target: f64,
+    /// The group tolerance (board DBU): `max − min` when both bounds
+    /// are declared, else [`MATCH_TOLERANCE_DBU`].
+    pub tolerance: f64,
+    /// The net that DEFINES the target (`None` when the target is the
+    /// declared `max`).
+    pub target_net: Option<i32>,
+}
+
+/// The meander stage's full report: the per-net outcomes (the T4 face,
+/// in group-then-member order — one group per constrained class,
+/// members in net-number order) plus the T5 match-group rows.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MeanderStageReport {
+    /// One row per processed under-goal net (the T4 outcome face).
+    pub outcomes: Vec<MeanderNetOutcome>,
+    /// One row per match group (class-index ASC).
+    pub match_groups: Vec<MatchGroupReport>,
+}
+
+/// One group's resolved contract: the per-net GOAL length plus the
+/// report row.
+struct GroupContract {
+    goal_of: Box<dyn Fn(f64) -> f64>,
+    report: MatchGroupReport,
+}
+
+/// Resolves one match group's contract (the target/tolerance/goal
+/// semantics; the module docs own the derivation).
+fn resolve_group_contract(
+    board: &Board,
+    class_index: i32,
+    class_name: String,
+    members: &[(i32, String, f64, f64)],
+) -> GroupContract {
+    let (_, _, min, max) = members[0];
+    if max > 0.0 {
+        // Both bounds declared: the window owns the tolerance and the
+        // per-net goal is exactly `min` — the T4 arithmetic, bit for
+        // bit (deficit toward min; headroom = max − current; the
+        // equality landing AT max allowed).
+        GroupContract {
+            goal_of: Box::new(move |_current| min),
+            report: MatchGroupReport {
+                class_index,
+                class_name,
+                members: members.iter().map(|(net, _, _, _)| *net).collect(),
+                target: max,
+                tolerance: max - min,
+                target_net: None,
+            },
+        }
+    } else {
+        // Min-only: the target is the longest routed member length,
+        // ties broken by net number ASC (the walk order — the FIRST of
+        // a tie wins, so `>` is strict: an equal later member never
+        // displaces the incumbent).
+        let mut target_net = members[0].0;
+        let mut target = board.net_trace_length(target_net);
+        for (net, _, _, _) in &members[1..] {
+            let length = board.net_trace_length(*net);
+            if length > target {
+                target = length;
+                target_net = *net;
+            }
+        }
+        let goal_floor = (target - MATCH_TOLERANCE_DBU).max(min);
+        GroupContract {
+            goal_of: Box::new(move |_current| goal_floor),
+            report: MatchGroupReport {
+                class_index,
+                class_name,
+                members: members.iter().map(|(net, _, _, _)| *net).collect(),
+                target,
+                tolerance: MATCH_TOLERANCE_DBU,
+                target_net: Some(target_net),
+            },
+        }
+    }
+}
+
 /// The meander stage (the pipeline's post-optimization face). INERT
 /// unless `board.tuning_active()` (the caller resolves the flag; the
 /// stage re-checks so direct callers cannot bypass the regime gate).
-/// Returns one [`MeanderNetOutcome`] per processed under-min net, in
-/// net-number order.
+/// Returns the stage report: one [`MeanderNetOutcome`] per processed
+/// under-goal net and one [`MatchGroupReport`] per constrained class.
 pub fn run_meander_stage(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     sink: &mut dyn DriverSink,
-) -> Vec<MeanderNetOutcome> {
+) -> MeanderStageReport {
     if !board.tuning_active() {
-        return Vec::new();
+        return MeanderStageReport::default();
     }
     // Snapshot the work list first (the rules borrow must not span the
     // mutable landing work). Number order — `Nets::iter`.
-    let targets: Vec<(i32, String, f64, f64)> = {
+    let targets: Vec<(i32, String, f64, f64, i32)> = {
         let rules = board.rules();
         rules
             .nets
             .iter()
             .filter_map(|(net_number, net)| {
                 let (min, max) = rules.net_class_length_bounds(net_number);
-                (min > 0.0).then(|| (net_number, net.name.clone(), min, max))
+                (min > 0.0).then(|| {
+                    let class_index = rules.nets.get(net_number).map_or(0, |n| n.net_class);
+                    (net_number, net.name.clone(), min, max, class_index)
+                })
             })
             .collect()
     };
+    // The MATCH GROUPS: one per constrained class (class-index ASC —
+    // the BTreeMap order), members in net-number order (the walk
+    // order). A member tuple: (net number, name, min, max).
+    let mut groups: BTreeMap<i32, Vec<(i32, String, f64, f64)>> = BTreeMap::new();
+    for (net_number, net_name, min, max, class_index) in targets {
+        groups
+            .entry(class_index)
+            .or_default()
+            .push((net_number, net_name, min, max));
+    }
     // Java's `calcLengthViolation` incompletes gate: a net with
     // incompletes is not a meander target (still being routed).
     let incompletes = all_incompletes(manager, board).1;
-    let mut outcomes = Vec::new();
-    for (net_number, net_name, min, max) in targets {
-        let current = board.net_trace_length(net_number);
-        if current >= min {
-            // At or above `min`: nothing to add (and above-max is T5's
-            // report-only face — never truncated, never touched).
-            continue;
+    let mut report = MeanderStageReport::default();
+    for (class_index, members) in groups {
+        let class_name = {
+            let rules = board.rules();
+            rules.net_class(class_index).map_or_else(
+                || format!("class {class_index}"),
+                |class| class.name.clone(),
+            )
+        };
+        let contract = resolve_group_contract(board, class_index, class_name, &members);
+        report.match_groups.push(contract.report);
+        for (net_number, net_name, _min, max) in &members {
+            let current = board.net_trace_length(*net_number);
+            let goal = (contract.goal_of)(current);
+            if current >= goal {
+                // At or above the GOAL: nothing to add (and above-max
+                // is the report-only face — never truncated, never
+                // touched).
+                continue;
+            }
+            if incompletes
+                .iter()
+                .any(|row| row.net_no == *net_number && row.incomplete_count > 0)
+            {
+                continue;
+            }
+            let deficit = goal - current;
+            let outcome = meander_net(
+                manager,
+                board,
+                *net_number,
+                net_name,
+                deficit,
+                goal,
+                *max,
+                sink,
+            );
+            report.outcomes.push(outcome);
         }
-        if incompletes
-            .iter()
-            .any(|row| row.net_no == net_number && row.incomplete_count > 0)
-        {
-            continue;
-        }
-        let deficit = min - current;
-        let outcome = meander_net(
-            manager, board, net_number, &net_name, deficit, min, max, sink,
-        );
-        outcomes.push(outcome);
     }
-    outcomes
+    report
 }
 
 /// The per-net insertion loop (the budget face:
@@ -192,7 +370,7 @@ fn meander_net(
     net_number: i32,
     net_name: &str,
     deficit: f64,
-    min: f64,
+    goal: f64,
     max: f64,
     sink: &mut dyn DriverSink,
 ) -> MeanderNetOutcome {
@@ -206,10 +384,10 @@ fn meander_net(
     };
     for _ in 0..MAX_MEANDER_INSERTIONS_PER_NET {
         let current = board.net_trace_length(net_number);
-        if current >= min {
+        if current >= goal {
             break;
         }
-        let remaining = min - current;
+        let remaining = goal - current;
         // The never-exceed-max guard: the headroom a candidate must
         // respect (the i64/2 sentinel when `max` is undeclared — the
         // arithmetic can never reach it).
@@ -705,15 +883,15 @@ mod tests {
     /// The stage run + the real-DRC counter (correctness by
     /// construction: every landing world also asserts ZERO clearance
     /// violations on the REAL counter).
-    fn run_stage(world: &mut WaveWorld) -> Vec<MeanderNetOutcome> {
+    fn run_stage(world: &mut WaveWorld) -> MeanderStageReport {
         let mut sink = CaptureDriverSink::default();
-        let outcomes = run_meander_stage(&mut world.manager, &mut world.board, &mut sink);
+        let report = run_meander_stage(&mut world.manager, &mut world.board, &mut sink);
         let (violations, _) = all_clearance_violation_depths(&mut world.manager, &mut world.board);
         assert_eq!(
             violations, 0,
             "the REAL DRC counter: a meander landing must be clearance-clean"
         );
-        outcomes
+        report
     }
 
     /// The exact expected wave corners for deficit 40000 on the
@@ -749,7 +927,7 @@ mod tests {
     #[test]
     fn wave_straight_run_lands_exact_geometry() {
         let mut world = wave_world(460_000.0, 0.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert_eq!(outcomes.len(), 1);
         assert!(outcomes[0].landed);
         assert_eq!(outcomes[0].added_length, 40_000.0);
@@ -784,7 +962,7 @@ mod tests {
             .trace_polyline(ItemId::new(500))
             .expect("the pin world invariant")
             .corners();
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert_eq!(outcomes.len(), 1);
         assert!(!outcomes[0].landed, "the honest stop");
         assert_eq!(outcomes[0].added_length, 0.0);
@@ -806,18 +984,21 @@ mod tests {
     /// 7985 the floor reads 10001 -> NO table entry passes -> the
     /// honest stop. The `>=`->`>` mutant dies on the first arm, the
     /// floor-formula-weakened mutant (dropping the +16/declared term,
-    /// floor = 2·hw = 2000) on the second (every table entry would
-    /// pass and A=10000 would land with teeth at 7985 − 2000 − 2000·?
-    /// ... — concretely the second arm's blocked assertion dies).
+    /// floor = 2·hw = 2000) on the second: every table entry would
+    /// pass the filter and the 7985 world's teeth would land with an
+    /// edge-to-edge gap of 10000 − 2·1000 = 8000 against the expected
+    /// 7985 + 16 = 8001 — a 1-unit shortfall the stage's real-DRC-clean
+    /// assertion catches (run_stage asserts zero violations on every
+    /// landing world).
     #[test]
     fn wave_self_clear_boundary_both_directions() {
         // Equality: floor 10000, first table entry 10000 -> lands.
         let mut world = wave_world(460_000.0, 0.0, 7984, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(outcomes[0].landed, "floor == table amplitude is allowed");
         // One unit above: floor 10001, no table entry passes -> stop.
         let mut world = wave_world(460_000.0, 0.0, 7985, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(!outcomes[0].landed, "one unit above the floor blocks");
     }
 
@@ -837,7 +1018,7 @@ mod tests {
     fn wave_never_exceed_max_boundary_both_directions() {
         // Headroom EXACTLY the added length: lands AT max exactly.
         let mut world = wave_world(460_000.0, 460_000.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(outcomes[0].landed);
         assert_eq!(
             world.board.net_trace_length(1),
@@ -846,7 +1027,7 @@ mod tests {
         );
         // Headroom one DBU short: every amplitude overshoots max.
         let mut world = wave_world(460_000.0, 459_999.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(!outcomes[0].landed, "the honest stop above max");
         assert_eq!(world.board.net_trace_length(1), 420_000.0, "untouched");
     }
@@ -859,12 +1040,12 @@ mod tests {
     #[test]
     fn wave_granularity_ceil_boundary() {
         let mut world = wave_world(440_000.0, 0.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(outcomes[0].landed);
         assert_eq!(outcomes[0].dent_count, 1, "deficit == one dent");
         assert_eq!(world.board.net_trace_length(1), 440_000.0, "exactly min");
         let mut world = wave_world(440_001.0, 0.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(outcomes[0].landed);
         assert_eq!(outcomes[0].dent_count, 2, "ceil: one unit more needs 2");
         assert_eq!(
@@ -882,11 +1063,11 @@ mod tests {
     fn wave_untouched_faces() {
         // min == the trace's own length: the at-min skip.
         let mut world = wave_world(420_000.0, 0.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(outcomes.is_empty(), "at-min: no row, no touch");
         // Above-min is expressed via min < current — same skip arm.
         let mut world = wave_world(100_000.0, 500_000.0, 2000, false);
-        let outcomes = run_stage(&mut world);
+        let outcomes = run_stage(&mut world).outcomes;
         assert!(outcomes.is_empty(), "above-min: no truncation (T5's face)");
     }
 
@@ -898,7 +1079,7 @@ mod tests {
         let mut world = wave_world(460_000.0, 0.0, 2000, false);
         world.board.set_tuning_active(false);
         let mut sink = CaptureDriverSink::default();
-        let outcomes = run_meander_stage(&mut world.manager, &mut world.board, &mut sink);
+        let outcomes = run_meander_stage(&mut world.manager, &mut world.board, &mut sink).outcomes;
         assert!(outcomes.is_empty(), "the regime gate is the stage's own");
         assert_eq!(world.board.net_trace_length(1), 420_000.0);
     }
@@ -915,7 +1096,7 @@ mod tests {
         use epic_board::trace_tightener::TraceTightenerSeam;
         let mut world = wave_world(460_000.0, 0.0, 2000, false);
         let mut sink = CaptureDriverSink::default();
-        let outcomes = run_meander_stage(&mut world.manager, &mut world.board, &mut sink);
+        let outcomes = run_meander_stage(&mut world.manager, &mut world.board, &mut sink).outcomes;
         assert!(outcomes[0].landed);
         let before = world
             .board
@@ -947,5 +1128,413 @@ mod tests {
             .corners();
         assert_eq!(before, after, "the gate protects the meandered net");
         assert_eq!(world.board.net_trace_length(1), 460_000.0);
+    }
+
+    // ------------------------------------------------------------------
+    // M7-T5: the MATCH pins (the group face; the wave worlds above own
+    // the per-net arithmetic — these own the target/tolerance/group
+    // semantics)
+    // ------------------------------------------------------------------
+
+    /// The match world: `tuned.len()` tuned-class nets (class 1, the
+    /// ONE constrained class) each carrying a straight trace of the
+    /// requested length at its own row (row i at y = i·40000 — the
+    /// spacing clears every legal tooth: neighbor teeth top out at
+    /// y + 11000 < 40000 − clearance), plus the OPTIONAL free net
+    /// (class 2) and the OPTIONAL row-0 blocker (net free+1, the W2
+    /// wall shape at y = 7000). All values world-derived; the
+    /// clearance matrix / widths are the W-world's.
+    fn match_world(
+        min: f64,
+        max: f64,
+        tuned: &[f64],
+        free: Option<f64>,
+        blocker: bool,
+    ) -> WaveWorld {
+        let mut ses = SesBoard::new();
+        ses.create_board(CreateBoardIr {
+            bounding_box: IntBox::new(IntPoint::new(0, 0), IntPoint::new(600_000, 300_000)),
+            layer_structure: LayerStructure::new(vec![
+                Layer::new("F.Cu", 0, true),
+                Layer::new("B.Cu", 1, true),
+            ]),
+            outline_shapes: Vec::new(),
+            outline_clearance_class: Some("null".to_string()),
+            rules: BoardRulesIr {
+                clearance: clearance_matrix_2layer(2000),
+                trace_angle_restriction: epic_dsn::state::AngleRestriction::NinetyDegree,
+                default_trace_half_widths: vec![1000],
+                min_trace_half_width: 1000,
+                max_trace_half_width: 1000,
+                pin_edge_to_turn_dist: 0.0,
+                default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            },
+            transform: CoordinateTransform::new(10.0, 0.0, 0.0),
+        });
+        ses.net_classes.push(NetClassIr {
+            name: "tuned".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1000],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: min,
+            max_trace_length: max,
+            nets: Vec::new(),
+        });
+        ses.net_classes.push(NetClassIr {
+            name: "free".to_string(),
+            trace_clearance_class: 1,
+            trace_half_widths: vec![1000],
+            active_routing_layers: vec![true],
+            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
+            via_rule: None,
+            pull_tight: true,
+            shove_fixed: false,
+            min_trace_length: 0.0,
+            max_trace_length: 0.0,
+            nets: Vec::new(),
+        });
+        let mut nets = Vec::new();
+        for i in 0..tuned.len() {
+            nets.push(NetIr {
+                name: format!("m{}", i + 1),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 1,
+            });
+        }
+        if free.is_some() {
+            nets.push(NetIr {
+                name: "free".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 2,
+            });
+        }
+        if blocker {
+            nets.push(NetIr {
+                name: "wall".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 2,
+            });
+        }
+        ses.nets = nets;
+        let trace = |id: i32, net: i32, y: i32, length: i32| ItemIr::Trace {
+            id,
+            trace: TraceIr {
+                layer_no: 0,
+                half_width: 1000,
+                corners: vec![IntPoint::new(0, y), IntPoint::new(length, y)],
+                polyline: TraceIr::polyline_of_corners(&[
+                    IntPoint::new(0, y),
+                    IntPoint::new(length, y),
+                ]),
+                nets: vec![net],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        };
+        let mut next_id = 500;
+        for (i, length) in tuned.iter().enumerate() {
+            let y = 40_000 * i as i32;
+            ses.push_routed_item(trace(next_id, i as i32 + 1, y, *length as i32));
+            next_id += 1;
+        }
+        if let Some(free_length) = free {
+            let y = 40_000 * tuned.len() as i32;
+            ses.push_routed_item(trace(
+                next_id,
+                tuned.len() as i32 + 1,
+                y,
+                free_length as i32,
+            ));
+            next_id += 1;
+        }
+        if blocker {
+            // The W2 wall shape, overlapping ROW 0's tooth band
+            // (y = 7000: the row-0 trace itself (y ∈ [-1000, 1000])
+            // stays 5000 clear of it; every row-0 wave candidate
+            // overlaps it). Own net (the last one), own row-free
+            // geometry.
+            let wall_net = ses.nets.len() as i32;
+            ses.push_routed_item(trace(next_id, wall_net, 7_000, 600_000));
+        }
+        let mut board = Board::from_ses_board(&ses);
+        board.set_tuning_active(true);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        WaveWorld { manager, board }
+    }
+
+    /// PIN M1 — the 3-net class world, target = the declared max: two
+    /// under-min nets meander toward the target (goal = min, the
+    /// window arithmetic), the third sits AT the target -> untouched.
+    /// Exact outcomes per net on world-derived values:
+    /// m1 420000: deficit 40000 -> 2 dents A=10000 -> +40000 -> AT
+    /// goal/min 460000 exactly. m2 430000: deficit 30000 ->
+    /// ceil(30000/20000) = 2 dents -> +40000 -> 470000 (inside the
+    /// window [460000, 500000]). m3 500000 == target -> no row, no
+    /// touch. The group row: target 500000, tolerance max−min = 40000,
+    /// target_net None (declared, not derived).
+    #[test]
+    fn match_three_net_class_meanders_to_the_declared_max_target() {
+        let mut world = match_world(
+            460_000.0,
+            500_000.0,
+            &[420_000.0, 430_000.0, 500_000.0],
+            None,
+            false,
+        );
+        let report = run_stage(&mut world);
+        assert_eq!(report.match_groups.len(), 1, "one constrained class");
+        let group = &report.match_groups[0];
+        assert_eq!(group.class_name, "tuned");
+        assert_eq!(group.members, vec![1, 2, 3]);
+        assert_eq!(group.target, 500_000.0, "target = the declared max");
+        assert_eq!(group.tolerance, 40_000.0, "tolerance = max − min");
+        assert_eq!(
+            group.target_net, None,
+            "declared target has no defining net"
+        );
+        assert_eq!(report.outcomes.len(), 2, "only the two under-goal nets");
+        let m1 = &report.outcomes[0];
+        assert_eq!(m1.net_number, 1);
+        assert!(m1.landed);
+        assert_eq!(m1.deficit, 40_000.0);
+        assert_eq!(m1.added_length, 40_000.0);
+        assert_eq!(m1.dent_count, 2);
+        let m2 = &report.outcomes[1];
+        assert_eq!(m2.net_number, 2);
+        assert!(m2.landed);
+        assert_eq!(m2.deficit, 30_000.0);
+        assert_eq!(world.board.net_trace_length(1), 460_000.0);
+        assert_eq!(world.board.net_trace_length(2), 470_000.0);
+        assert_eq!(world.board.net_trace_length(3), 500_000.0);
+        // The at-target net: byte-stable geometry (never touched).
+        let corners: Vec<_> = world
+            .board
+            .trace_polyline(ItemId::new(502))
+            .expect("the pin world invariant")
+            .corners()
+            .to_vec();
+        assert_eq!(
+            corners,
+            vec![
+                Point::Int(IntPoint::new(0, 80_000)),
+                Point::Int(IntPoint::new(500_000, 80_000))
+            ]
+        );
+    }
+
+    /// PIN M2 — the min-only class world + the TIE-BREAK pin: two
+    /// members tie at the longest routed length (300000) -> the
+    /// deterministic net-id-ASC target choice (target_net = 1, the
+    /// FIRST of the tie — a `>=` mutant flips it to 2 and dies); the
+    /// short member (200000) meanders to the goal
+    /// max(min, 300000 − 40000) = 260000 exactly (3 dents A=10000,
+    /// +60000; AT the goal — the inclusive skip boundary allows it).
+    #[test]
+    fn match_min_only_tie_break_and_longest_target() {
+        let mut world = match_world(
+            50_000.0,
+            0.0,
+            &[300_000.0, 300_000.0, 200_000.0],
+            None,
+            false,
+        );
+        let report = run_stage(&mut world);
+        assert_eq!(report.match_groups.len(), 1);
+        let group = &report.match_groups[0];
+        assert_eq!(
+            group.target, 300_000.0,
+            "target = the longest routed length"
+        );
+        assert_eq!(
+            group.target_net,
+            Some(1),
+            "the tie breaks to the LOWER net id (walk order: first of a tie wins)"
+        );
+        assert_eq!(group.tolerance, 40_000.0, "the named constant");
+        assert_eq!(group.tolerance, MATCH_TOLERANCE_DBU);
+        assert_eq!(report.outcomes.len(), 1, "only the short member");
+        let m3 = &report.outcomes[0];
+        assert_eq!(m3.net_number, 3);
+        assert!(m3.landed);
+        assert_eq!(m3.deficit, 60_000.0);
+        assert_eq!(m3.added_length, 60_000.0);
+        assert_eq!(m3.dent_count, 3);
+        assert_eq!(world.board.net_trace_length(3), 260_000.0);
+        // The tied members: untouched, byte-stable.
+        assert_eq!(world.board.net_trace_length(1), 300_000.0);
+        assert_eq!(world.board.net_trace_length(2), 300_000.0);
+    }
+
+    /// PIN M3 — the impossible world: the short member (200000, row 0)
+    /// sits under the blocker wall — EVERY candidate is rejected, so
+    /// the match goal (260000) is unreachable. Honest report: the
+    /// outcome row stands with the deficit and zero added; the
+    /// geometry is byte-stable; no forced insertion.
+    #[test]
+    fn match_impossible_world_honest_stop() {
+        let mut world = match_world(50_000.0, 0.0, &[200_000.0, 300_000.0], None, true);
+        let before = world
+            .board
+            .trace_polyline(ItemId::new(500))
+            .expect("the pin world invariant")
+            .corners()
+            .to_vec();
+        let report = run_stage(&mut world);
+        let group = &report.match_groups[0];
+        assert_eq!(group.target, 300_000.0);
+        assert_eq!(
+            group.target_net,
+            Some(2),
+            "the other member defines the target"
+        );
+        assert_eq!(report.outcomes.len(), 1);
+        let row = &report.outcomes[0];
+        assert_eq!(row.net_number, 1);
+        assert!(!row.landed, "the honest stop: no candidate landed");
+        assert_eq!(row.deficit, 60_000.0);
+        assert_eq!(row.added_length, 0.0);
+        assert_eq!(row.dent_count, 0);
+        let after = world
+            .board
+            .trace_polyline(ItemId::new(500))
+            .expect("the pin world invariant")
+            .corners()
+            .to_vec();
+        assert_eq!(before, after, "geometry byte-stable under the honest stop");
+    }
+
+    /// PIN M4 — the tolerance boundary (DNR-16, both directions): the
+    /// goal is target − tolerance (floor min). World A: the short
+    /// member sits EXACTLY at target − tolerance (300000 − 40000 =
+    /// 260000) -> WITHIN the group tolerance -> untouched, no row (the
+    /// inclusive skip). World B: one unit below (259999) -> OUTSIDE ->
+    /// processed: 1 dent A=10000 (+20000, the granularity overshoot)
+    /// -> 280000, inside tolerance (20000 <= 40000). The
+    /// tolerance+1/−1 mutants and the skip-comparison mutant each die
+    /// on the world whose arm they bend (documented in the mutation
+    /// log).
+    #[test]
+    fn match_tolerance_boundary_both_directions() {
+        // World A: exactly AT the tolerance boundary -> untouched.
+        let mut world = match_world(50_000.0, 0.0, &[300_000.0, 260_000.0], None, false);
+        let report = run_stage(&mut world);
+        assert!(
+            report.outcomes.is_empty(),
+            "AT target − tolerance is WITHIN the group tolerance: no row, no touch"
+        );
+        assert_eq!(world.board.net_trace_length(2), 260_000.0);
+        // World B: one unit below the boundary -> processed.
+        let mut world = match_world(50_000.0, 0.0, &[300_000.0, 259_999.0], None, false);
+        let report = run_stage(&mut world);
+        assert_eq!(report.outcomes.len(), 1, "one unit below is outside");
+        let row = &report.outcomes[0];
+        assert_eq!(row.net_number, 2);
+        assert!(row.landed);
+        assert_eq!(row.deficit, 1.0);
+        assert_eq!(row.added_length, 20_000.0, "one dent at the coarsest A");
+        assert_eq!(
+            world.board.net_trace_length(2),
+            279_999.0,
+            "259999 + one 20000 dent: the granularity overshoot, 20001 inside tolerance"
+        );
+    }
+
+    /// PIN M5 — the over-max/above-target REPORT-ONLY face: a net
+    /// ABOVE the declared max is never truncated (no row, geometry
+    /// byte-stable) while the T3 report face carries its POSITIVE
+    /// violation row; the other member meanders normally.
+    #[test]
+    fn match_over_max_never_truncated_reported_only() {
+        let mut world = match_world(400_000.0, 500_000.0, &[550_000.0, 380_000.0], None, false);
+        let report = run_stage(&mut world);
+        assert_eq!(report.outcomes.len(), 1, "only the under-min member");
+        assert_eq!(report.outcomes[0].net_number, 2);
+        assert!(report.outcomes[0].landed);
+        assert_eq!(
+            world.board.net_trace_length(1),
+            550_000.0,
+            "never truncated"
+        );
+        assert_eq!(
+            world.board.net_trace_length(2),
+            400_000.0,
+            "deficit 20000 -> one dent -> AT min exactly"
+        );
+        // The report face (T3's calcLengthViolation port): net 1's row
+        // is POSITIVE (over-max), net 2's is zero (within the window).
+        let rules = world.board.rules();
+        assert_eq!(
+            rules.length_violation(1, 550_000.0, false),
+            50_000.0,
+            "the honest over-max row"
+        );
+        assert_eq!(rules.length_violation(2, 400_000.0, false), 0.0);
+    }
+
+    /// PIN M6 — the mixed-board byte-invariance face (criterion 3, at
+    /// the engine level): the constraint-free net's geometry is
+    /// byte-identical across tuning ON/OFF on the SAME board, while
+    /// the tuned member lands its wave under ON.
+    #[test]
+    fn match_mixed_board_free_net_byte_identical_on_off() {
+        let build = || match_world(460_000.0, 0.0, &[420_000.0], Some(150_000.0), false);
+        let mut on = build();
+        let report = run_stage(&mut on);
+        assert!(report.outcomes[0].landed, "the tuned member lands under ON");
+        let mut off = build();
+        off.board.set_tuning_active(false);
+        let mut sink = CaptureDriverSink::default();
+        let report_off = run_meander_stage(&mut off.manager, &mut off.board, &mut sink);
+        assert!(report_off.outcomes.is_empty(), "OFF: the stage is inert");
+        let free_corners = |world: &WaveWorld| -> Vec<Point> {
+            world
+                .board
+                .trace_polyline(ItemId::new(501))
+                .expect("the pin world invariant")
+                .corners()
+                .to_vec()
+        };
+        assert_eq!(
+            free_corners(&on),
+            free_corners(&off),
+            "the free net byte-identical ON vs OFF"
+        );
+        assert_eq!(on.board.net_trace_length(2), off.board.net_trace_length(2),);
+    }
+
+    /// PIN M7 — determinism x2 on a match-heavy world: two freshly
+    /// built M1-shaped worlds run the stage and agree on the full
+    /// report AND the final geometry, byte for byte.
+    #[test]
+    fn match_stage_determinism_times_two() {
+        let run = || {
+            let mut world = match_world(
+                460_000.0,
+                500_000.0,
+                &[420_000.0, 430_000.0, 500_000.0],
+                Some(150_000.0),
+                false,
+            );
+            let report = run_stage(&mut world);
+            let corners = |world: &WaveWorld| -> Vec<String> {
+                (0..4)
+                    .filter_map(|net| world.board.trace_polyline(ItemId::new(500 + net)))
+                    .map(|lines| format!("{:?}", lines.corners()))
+                    .collect()
+            };
+            (report, corners(&world))
+        };
+        let (report_a, corners_a) = run();
+        let (report_b, corners_b) = run();
+        assert_eq!(report_a, report_b, "the full report is deterministic");
+        assert_eq!(corners_a, corners_b, "the final geometry is deterministic");
     }
 }

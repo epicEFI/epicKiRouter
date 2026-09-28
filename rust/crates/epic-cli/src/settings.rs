@@ -141,7 +141,16 @@ pub struct CliLayer {
     /// `on` forces the stage even on constraint-free input (a natural
     /// no-op there — no declaration, no deficit rows). `off` kills the
     /// meander stage ALONE: the min-length honoring gate (T3) stays
-    /// armed, deficits stand and are reported honestly.
+    /// armed, deficits stand and are reported honestly. The M7-T5
+    /// MATCH face rides the same activation: constrained nets match
+    /// to their class target (the declared max, else the group's
+    /// longest routed length, tie net-id ASC) within the group
+    /// tolerance — the class's own min–max window when both bounds
+    /// are declared, else the NAMED ENGINE CONSTANT
+    /// `epic_router::pipeline::tuning::MATCH_TOLERANCE_DBU` (40_000
+    /// DBU — deliberately not a setting: a tolerance the routing
+    /// engine owns, documented here per the T2/T4 named-constant
+    /// family pattern).
     pub tuning_meander: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,

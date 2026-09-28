@@ -166,10 +166,10 @@ pub struct PipelineOutcome {
     /// M6-T7: the global plan (default-OFF stage — `Some` only when
     /// `congestion_global` is ON).
     pub global_plan: Option<crate::global::plan::GlobalPlan>,
-    /// M7-T4: the meander stage's outcome rows (empty unless the stage
-    /// ran and processed an under-min net — the stage-ordering pins'
-    /// witness).
-    pub meander_report: Vec<crate::pipeline::tuning::MeanderNetOutcome>,
+    /// M7-T4/T5: the meander stage's report (the T4 outcome rows plus
+    /// the T5 match-group rows; empty/default unless the stage ran —
+    /// the stage-ordering pins' witness).
+    pub meander_report: crate::pipeline::tuning::MeanderStageReport,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -383,7 +383,7 @@ pub fn run(
     let meander_report = if routing.is_ok() && meander_active {
         tuning::run_meander_stage(manager, board, sink)
     } else {
-        Vec::new()
+        crate::pipeline::tuning::MeanderStageReport::default()
     };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
