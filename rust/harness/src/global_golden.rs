@@ -38,7 +38,17 @@ use crate::router_compare::resolve_fresh_epic_cli;
 /// face runs. `master` keeps the T7 vector byte-for-byte (the
 /// committed `t7_ripup.global-golden.json` verifies unchanged). The
 /// empty string in the master row is dropped by [`face_flags`].
-pub const GOLDEN_FACES: [(&str, [&str; 3]); 4] = [
+pub const GOLDEN_FACES: [(&str, [&str; 3]); 5] = [
+    // M7-T4: the FANOUT-FULL-FLOW face (the M6 carry-forward — the
+    // fanout-full-flow GATE GAP): NO flags — the default pipeline with
+    // the fanout stage LIVE. This is the first committed byte golden
+    // that exercises the changed fanout arm (the events fixtures are
+    // capture replays; the router-only/ses/det gates run
+    // fanout-disabled — the buglog-181 fix carried zero byte-invariance
+    // coverage until this face exists). Capture it ONLY on a fixture
+    // whose fanout stage actually fires (SMD pins needing fanout > 0 —
+    // DAC2020_bm08: 30 of 36).
+    ("fanout_full_flow", ["", "", ""]),
     ("master", ["--router.congestion_global=on", "", ""]),
     (
         "pattern",
@@ -272,6 +282,26 @@ fn run_inner(cmd: GlobalGoldenCommand) -> Result<()> {
     } else {
         repo_root.join(&dsn_rel)
     };
+    // Buglog 201's path-joining asymmetry, CLOSED (the first-harness-
+    // touch bank): `--out` (capture) and `--golden` (verify) now join
+    // the repo root exactly like `--dsn` and `--work-root` — a
+    // repo-root-relative path from any CWD. (Previously `--out` was
+    // used AS-GIVEN: a `rust/`-CWD capture with `--out
+    // rust/harness/...` wrote `rust/rust/harness/...`.)
+    let out_path = out_path.map(|p| {
+        if p.is_absolute() {
+            p
+        } else {
+            repo_root.join(p)
+        }
+    });
+    let golden_flag = golden_flag.map(|p| {
+        if p.is_absolute() {
+            p
+        } else {
+            repo_root.join(p)
+        }
+    });
     let work = work_root
         .map(|p| {
             if p.is_absolute() {

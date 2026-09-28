@@ -396,6 +396,14 @@ pub enum RouterCommand {
         /// Work-root override (default `harness/runs/router-compare`).
         #[arg(long)]
         work_root: Option<PathBuf>,
+        /// Extra `--router.*` flags appended VERBATIM to every walked
+        /// fixture's run argv (the M6-T10 carry-forward, design :413 —
+        /// the clean settings-ON battery face: the compare verdicts
+        /// fall out against the COMMITTED records, so an ON walk over
+        /// a population whose records were captured at defaults will
+        /// red wherever the flag matters — that IS the instrument).
+        #[arg(long)]
+        extra_router_arg: Vec<String>,
     },
     /// Java-free determinism self-gate: one DSN, two epic-cli runs to
     /// SEPARATE output paths, byte-identical SES + manifest expected.
@@ -451,6 +459,7 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
             report_only,
             detail,
             work_root,
+            extra_router_arg,
         } => compare_cmd(
             &repo_root,
             fixture.as_deref(),
@@ -459,6 +468,7 @@ pub fn run(cmd: RouterCommand) -> Result<()> {
             report_only,
             detail,
             work_root,
+            &extra_router_arg,
         ),
         RouterCommand::Determinism {
             fixture,
@@ -753,19 +763,10 @@ pub struct CliRun {
 /// Runs `epic-cli route` under the profile's flag face into `work_dir`
 /// (`out.ses`, `manifest.json`, `stdout.log`, `stderr.log`) with a harness
 /// timeout. Stale outputs are deleted BEFORE the spawn so a run that dies
-/// early never reads the previous run's files as its own.
-pub fn run_cli(
-    cli_bin: &Path,
-    dsn: &Path,
-    work_dir: &Path,
-    timeout: Duration,
-    profile: CompareProfile,
-) -> Result<CliRun> {
-    run_cli_threads(cli_bin, dsn, work_dir, timeout, profile, None, &[])
-}
-
-/// [`run_cli`] with the T7 threads face (`-mt <n>` when `max_threads`
-/// is `Some`).
+/// early never reads the previous run's files as its own. (The T7 threads
+/// face: `-mt <n>` when `max_threads` is `Some`; the M7-T4 extras face
+/// appends `extra_args` VERBATIM — the ONE argv source for every
+/// spawned run.)
 pub fn run_cli_threads(
     cli_bin: &Path,
     dsn: &Path,
@@ -1888,6 +1889,42 @@ fn threads_invariance_cmd(
 // `router compare`
 // ---------------------------------------------------------------------------
 
+/// The no-extras RECORD SWEEP, shared (the M6 banked harness NIT —
+/// formerly two hand-rolled walk loops in the tier pins): walks
+/// `baselines_dir` RECURSIVELY and returns the relative paths of every
+/// committed `.baseline.json` record that maps to NO entry of
+/// `walked` — a stale or misnamed record the battery silently ignores
+/// is the finding class this kills (quality MINOR-3).
+#[cfg(test)]
+fn record_extras(baselines_dir: &Path, walked: &std::collections::BTreeSet<String>) -> Vec<String> {
+    let mut extras: Vec<String> = Vec::new();
+    let mut stack = vec![baselines_dir.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("record dir") {
+            let entry = entry.expect("dir entry");
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|ext| ext == "json") {
+                let name = entry.file_name().into_string().expect("utf8");
+                if !name.ends_with(".baseline.json") {
+                    continue;
+                }
+                let rel = path
+                    .strip_prefix(baselines_dir)
+                    .expect("under the record dir")
+                    .to_string_lossy()
+                    .into_owned();
+                if !walked.contains(&rel) {
+                    extras.push(rel);
+                }
+            }
+        }
+    }
+    extras
+}
+
+#[allow(clippy::too_many_arguments)] // the Java-comparable battery face, kept flat
 fn compare_cmd(
     repo_root: &Path,
     fixture_filter: Option<&str>,
@@ -1896,6 +1933,7 @@ fn compare_cmd(
     report_only: bool,
     force_detail: bool,
     work_root: Option<PathBuf>,
+    extra_router_args: &[String],
 ) -> Result<()> {
     let started = Instant::now();
     // Tier validation comes FIRST (the walk errors on an unknown tier
@@ -1957,6 +1995,14 @@ fn compare_cmd(
     let mut red = 0usize;
     let mut green = 0usize;
     let mut filtered = 0usize;
+    // The Σ-decomposition accumulator (the M6 banked harness NIT):
+    // the summary's elapsed is WHOLE-LOOP wall (detail re-runs, record
+    // loads, printing included) — the Σ of the SUBPROCESS RUN walls is
+    // the reconcilable constituent face (DNR-18: every adopted
+    // aggregate is reconciled against its constituents; the printed
+    // pair makes the gap a first-class row instead of an undisclosed
+    // difference).
+    let mut subprocess_run_wall_sum = 0f64;
     for entry in &fixtures {
         if let Some(filter) = fixture_filter
             && !entry.tier_path.contains(filter)
@@ -1983,14 +2029,17 @@ fn compare_cmd(
         };
         let dsn = repo_root.join(&entry.repo_rel_dsn);
         let work_dir = work.join(&entry.tier_path);
-        let run = run_cli(
+        let run = run_cli_threads(
             &cli_bin,
             &dsn,
             &work_dir,
             Duration::from_secs(entry.timeout_seconds),
             profile,
+            None,
+            extra_router_args,
         )
         .with_context(|| format!("spawning the run for {}", entry.tier_path))?;
+        subprocess_run_wall_sum += run.wall_seconds;
         let outcome = RustOutcome::from_run(&run);
         let failures = compare_directional(&java, &outcome);
         let mut report = extract_report_only(&java, &run);
@@ -2084,8 +2133,10 @@ fn compare_cmd(
         }
     }
     println!(
-        "router compare: {green} green, {red} red, {filtered} filtered-out in {:.1}s (mode: {})",
+        "router compare: {green} green, {red} red, {filtered} filtered-out in {:.1}s \
+         (Σ subprocess run walls {:.1}s, mode: {})",
         started.elapsed().as_secs_f64(),
+        subprocess_run_wall_sum,
         if report_only { "report" } else { "gate" }
     );
     // A filter that matched NOTHING must not false-green: gate mode's
@@ -2648,7 +2699,7 @@ mod pins {
     #[test]
     fn tier_a_fixture_enum_is_complete_against_tiers_and_records() {
         let root = crate::oracle::find_repo_root().expect("repo root");
-        for (profile, tier_dirs) in [
+        for (profile, _tier_dirs) in [
             (
                 CompareProfile::RouterOnly,
                 vec!["DAC2020_boards", "KiCad_10_demos"],
@@ -2686,28 +2737,13 @@ mod pins {
                     "the tiers.yaml timeout must ride"
                 );
             }
-            // No extras: every committed record maps back to a walked fixture.
+            // No extras (the shared sweep): every committed record
+            // maps back to a walked fixture.
             let walked: std::collections::BTreeSet<String> = fixtures
                 .iter()
                 .map(|f| format!("{}.baseline.json", f.tier_path))
                 .collect();
-            let mut extras = Vec::new();
-            let baselines = profile_tier_baselines_dir(&root, profile, "A");
-            for tier_dir in tier_dirs {
-                let dir = baselines.join(tier_dir);
-                for entry in std::fs::read_dir(&dir).expect("record dir") {
-                    let name = entry
-                        .expect("dir entry")
-                        .file_name()
-                        .into_string()
-                        .expect("utf8");
-                    if name.ends_with(".baseline.json")
-                        && !walked.contains(&format!("{tier_dir}/{name}"))
-                    {
-                        extras.push(format!("{tier_dir}/{name}"));
-                    }
-                }
-            }
+            let extras = record_extras(&profile_tier_baselines_dir(&root, profile, "A"), &walked);
             assert!(
                 extras.is_empty(),
                 "records without a Tier A fixture ({profile:?}): {extras:?}"
@@ -2770,40 +2806,17 @@ mod pins {
                 );
                 assert!(fixture.timeout_seconds > 0);
             }
-            // The no-extras sweep (the A-enum pin's trap-2 complement,
-            // per tier): every committed full-flow record under
-            // `baselines/java/{tier}` maps back to a walked fixture —
-            // a stale or misnamed record the battery silently ignores
-            // is the finding class this kills (quality MINOR-3).
+            // The no-extras sweep (the shared helper): every committed
+            // full-flow record under `baselines/java/{tier}` maps back
+            // to a walked fixture.
             let walked: std::collections::BTreeSet<String> = fixtures
                 .iter()
                 .map(|f| format!("{}.baseline.json", f.tier_path))
                 .collect();
-            let tier_baselines = profile_tier_baselines_dir(&root, CompareProfile::Full, tier_name);
-            let mut extras: Vec<String> = Vec::new();
-            let mut stack = vec![tier_baselines.clone()];
-            while let Some(dir) = stack.pop() {
-                for entry in std::fs::read_dir(&dir).expect("record dir") {
-                    let entry = entry.expect("dir entry");
-                    let path = entry.path();
-                    if path.is_dir() {
-                        stack.push(path);
-                    } else if path.extension().is_some_and(|ext| ext == "json") {
-                        let name = entry.file_name().into_string().expect("utf8");
-                        if !name.ends_with(".baseline.json") {
-                            continue;
-                        }
-                        let rel = path
-                            .strip_prefix(&tier_baselines)
-                            .expect("under the tier record dir")
-                            .to_string_lossy()
-                            .into_owned();
-                        if !walked.contains(&rel) {
-                            extras.push(rel);
-                        }
-                    }
-                }
-            }
+            let extras = record_extras(
+                &profile_tier_baselines_dir(&root, CompareProfile::Full, tier_name),
+                &walked,
+            );
             assert!(
                 extras.is_empty(),
                 "records without a tier {tier_name} fixture: {extras:?}"
@@ -2820,6 +2833,7 @@ mod pins {
             true,
             false,
             None,
+            &[],
         )
         .expect_err("router-only + tier B must bail");
         assert!(
@@ -2837,7 +2851,7 @@ mod pins {
             (CompareProfile::Full, "full"),
             (CompareProfile::RouterOnly, "router-only"),
         ] {
-            let err = compare_cmd(&root, None, profile_face, "D", true, false, None)
+            let err = compare_cmd(&root, None, profile_face, "D", true, false, None, &[])
                 .expect_err("a typo'd tier must bail");
             assert!(
                 err.to_string().contains("tier D missing from"),

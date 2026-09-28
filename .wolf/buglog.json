@@ -3096,7 +3096,7 @@
    "task": "M6-T9 (push-and-shove insertion)",
    "error_message": "`epic-harness global-golden capture` run from rust/ with `--out rust/harness/baselines/global/...` wrote the golden to rust/rust/harness/... (and a later verify against the intended path failed with exit=1 'No such file', which first looked like a golden rotation).",
    "root_cause": "Path-joining asymmetry in the global-golden subcommand: `--dsn` and `--golden` are joined to find_repo_root() so they accept repo-root-relative paths from any CWD, but `--out` is used AS-GIVEN (CWD-relative).",
-   "fix": "Run capture from rust/ with the CWD-relative form `--out harness/baselines/global/<name>.json` (or an absolute path); moved the stray file, removed the rust/rust/ tree, recaptured - digests identical. Cited in the T9 report as a deviation note.\\n\\nM6-T11 SWEEP (2026-09-28): the --out as-given path-joining asymmetry remains UNFIXED in the harness (global_golden.rs joins --dsn/--golden/--work-root to the repo root but takes --out as-given); the workaround stands (CWD-relative or absolute --out). Open, owner: the first harness touch.",
+   "fix": "Run capture from rust/ with the CWD-relative form `--out harness/baselines/global/<name>.json` (or an absolute path); moved the stray file, removed the rust/rust/ tree, recaptured - digests identical. Cited in the T9 report as a deviation note.\\n\\nM6-T11 SWEEP (2026-09-28): the --out as-given path-joining asymmetry remains UNFIXED in the harness (global_golden.rs joins --dsn/--golden/--work-root to the repo root but takes --out as-given); the workaround stands (CWD-relative or absolute --out). Open, owner: the first harness touch.\n\nM7-T4 CLOSE (2026-09-28): the asymmetry is FIXED (the first harness touch): global_golden.rs now joins --out AND --golden to the repo root exactly like --dsn/--work-root (absolute paths pass through). Witnessed: logs/M7-T4/evidence/golden_fanout_{capture,verify}.log run the repo-root-relative --out/--golden form from rust/ against rust/harness/baselines/global/bm08_fanout_full_flow.json; the pre-fix CWD-as-given face was witnessed once (a rust/-CWD capture with harness/baselines/... wrote EpicRouter/harness/...) and the stray tree was removed. Closed.",
    "tags": [
     "epic-harness",
     "global-golden",
@@ -3172,6 +3172,51 @@
     "parity-confirmed-noted",
     "closed"
    ]
-  }
+  },
+  {
+   "id": 206,
+   "date": "2026-09-28",
+   "task": "M7-T4 (meander engine pins)",
+   "error_message": "The F1/F2 flow pins first parsed the emitted N1 wiring as a SINGLE SES line (split on '(path F.Cu 200 ') and got 'path body' panics: the SES writer emits each wire's coordinate list as a MULTI-LINE block (one coordinate pair per line, board DBU = x10 the DSN um input), so line-oriented parsing finds no path body.",
+   "root_cause": "Pin-authoring trap: the routes/network_out wire blocks are multi-line sexprs; any pin that string-matches wiring must walk the BLOCK (collect numeric tokens from lines until the closing paren) and must know the emitted coordinate scale.",
+   "fix": "Both pins rewritten as block walkers (state machine over lines: enter on '(net N1', skip the '(path F.Cu' line, collect integer tokens until ')'). F1 then asserts the exact post-meander Manhattan length 740000 board DBU; F2 asserts the unchanged 2-corner straight run.",
+   "tags": [
+    "m7-t4",
+    "pins",
+    "ses-format",
+    "multi-line",
+    "trap"
+   ]
+  },
+  {
+   "id": 207,
+   "date": "2026-09-28",
+   "task": "M7-T4 (engine implementation)",
+   "error_message": "The first wave landing produced a 45-degree ZIGZAG (length 470710.68 instead of 460000.00): the wave corners were emitted with offsets relative to the dent BASE point only, so 'across at the tooth top' and 'down' collapsed onto the axis and Polygon/Polyline normalization turned the residual segments into diagonals.",
+   "root_cause": "Corner-arithmetic trap in the accordion builder: each per-dent corner must carry BOTH terms (2*i*A along d for the base, plus its own up/across terms in d and p); offsets relative to the base alone made consecutive corners collinear/coincident, which Polygon::new dedupes and Polyline construction re-intersects into diagonals. Related trap face: the wave's final axis corner is COLLINEAR with the remaining tail and is legitimately normalized away (the committed W1 pin asserts the post-normalization corner string).",
+   "fix": "build_wave emits per dent: base + A*p (up), base + A*d + A*p (across at top), base + A*d (down to axis), base + 2A*d (across to next base). All 8 engine pins green; the mutation round (M5 ceil->floor) re-derived the geometry independently.",
+   "tags": [
+    "m7-t4",
+    "engine",
+    "polyline",
+    "corner-arithmetic",
+    "trap"
+   ]
+  },
+  {
+   "id": 208,
+   "date": "2026-09-28",
+   "task": "M7-T4 (gate lap, machine)",
+   "error_message": "Eight batched gate invocations all failed with clap 'Usage' errors (exit 2): the fish-shell loop passed the subcommand string 'corpus compare' as ONE argument because fish does NOT word-split unquoted variables.",
+   "root_cause": "fish word-splitting: unlike POSIX shells, $var expands to a single argument. Batched gate loops must either enumerate the commands explicitly or use fish's explicit splitting.",
+   "fix": "Every gate re-run as an explicit, fully-written-out invocation (the evidence logs carry the literal commands). Machine-rule candidate: on this box, evidence-log loops never expand command strings from variables.",
+   "tags": [
+    "m7-t4",
+    "machine",
+    "fish",
+    "word-splitting",
+    "gate-lap"
+   ]
+ }
  ]
 }

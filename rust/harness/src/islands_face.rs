@@ -7,6 +7,7 @@
 use anyhow::Result;
 use std::path::Path;
 
+use anyhow::bail;
 use epic_board::board::Board;
 use epic_dsn::reader::{DsnReadResult, read_board};
 
@@ -24,10 +25,10 @@ pub fn run(dsn: &Path) -> Result<()> {
             }
         }
         DsnReadResult::ParseError { location, detail } => {
-            return Err(anyhow::anyhow!("parse error at {location}: {detail}"));
+            bail!("parse error at {location}: {detail}");
         }
         DsnReadResult::IoError => {
-            return Err(anyhow::anyhow!("I/O error reading {}", dsn.display()));
+            bail!("I/O error reading {}", dsn.display());
         }
     }
     let board = Board::from_ses_board(&ses);
