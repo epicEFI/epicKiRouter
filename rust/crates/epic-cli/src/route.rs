@@ -676,7 +676,22 @@ fn fixed_to_ir(fixed: FixedState) -> FixedStateIr {
 /// `BoardSink::insert_trace` face: those apply parse drop guards and
 /// fresh ids; the projection preserves the LIVE item's id verbatim
 /// (`SesBoard::push_routed_item`).
+///
+/// Buglog 210 (M7-T5, Java-exactness): the emitted session's wiring is
+/// the LIVE board's wiring — Java's `SesWriter.writeNet` walks
+/// `board.getConnectableItems(netNumber)` and emits ONE `(wire` per
+/// on-board `PolylineTrace` (instrumented: the jar's session on a
+/// pre-routed input carries one wire per net). The parse board retains
+/// the input `(wiring` items alongside the projection, so a pre-routed
+/// input would emit the pre-route copy NEXT TO the live copy (the
+/// duplication the T4 capture showed). The live board's trace/via
+/// population is the complete truth — survivors keep their parse ids,
+/// ripped-up items are gone — so the parse routed items are drained
+/// before the projection. Pins/keepouts/conduction areas are parse
+/// items the projection never supplies and stay.
 fn project_routed_items(board: &Board, ses: &mut SesBoard) {
+    ses.items
+        .retain(|item| !matches!(item, ItemIr::Trace { .. } | ItemIr::Via { .. }));
     for entry in board.iter_ascending() {
         if !entry.on_the_board {
             // Java's item walks see live items only.
@@ -2666,6 +2681,142 @@ mod tests {
             "id and fixed state survive the projection verbatim"
         );
     }
+    /// PIN W-210 (buglog 210, the disposition witness): a PRE-ROUTED
+    /// input emits ONE `(wire` per on-board trace — the Java oracle's
+    /// own session on the same world shape carries one wire per net
+    /// (the instrument, logs/M7-T5/evidence/): Java's
+    /// `SesWriter.writeNet` walks the live board only. The regression
+    /// face is the flow's own shape: the parse board retains the input
+    /// `(wiring` items and the projection runs into THAT board.
+    /// Block-walking sexpr (buglog 206: no single-line regex): the
+    /// N1 scope is delimited by its `(net N1` opener and the balanced
+    /// close, and every `(wire` block inside is counted.
+    #[test]
+    fn projection_supersedes_input_wiring_one_wire_per_on_board_trace() {
+        use epic_dsn::sink::NetIr;
+        use epic_geometry::polyline::Polyline;
+        let mut ses_in = two_layer_ses();
+        ses_in.nets = vec![
+            NetIr {
+                name: "N1".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+            NetIr {
+                name: "N2".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+        ];
+        // The input wiring: trace 500 (net N1) and via-less trace 501
+        // (net N2) — a PRE-ROUTED design.
+        let trace = |id: i32, net: i32, y: i32| ItemIr::Trace {
+            id,
+            trace: TraceIr {
+                layer_no: 0,
+                half_width: 500,
+                corners: vec![IntPoint::new(0, y), IntPoint::new(40_000, y)],
+                polyline: TraceIr::polyline_of_corners(&[
+                    IntPoint::new(0, y),
+                    IntPoint::new(40_000, y),
+                ]),
+                nets: vec![net],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        };
+        ses_in.push_routed_item(trace(500, 1, 10_000));
+        ses_in.push_routed_item(trace(501, 2, 20_000));
+        // The live board, then a geometry change on trace 500 (the
+        // meander stage's write face) — the pre-route copy the parse
+        // board still holds is now STALE.
+        let mut board = Board::from_ses_board(&ses_in);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let wave: Vec<Point> = vec![
+            Point::Int(IntPoint::new(0, 10_000)),
+            Point::Int(IntPoint::new(0, 12_000)),
+            Point::Int(IntPoint::new(4_000, 12_000)),
+            Point::Int(IntPoint::new(4_000, 10_000)),
+            Point::Int(IntPoint::new(40_000, 10_000)),
+        ];
+        board.replace_trace_geometry(&mut manager, ItemId::new(500), Polyline::from_points(&wave));
+        // The flow's own shape: project into the parse board itself.
+        project_routed_items(&board, &mut ses_in);
+        let ses_text = write_session(&ses_in, "w210");
+        // The walk (multi-line sexpr, scope-balanced — buglog 206): a
+        // net scope opens with `(net <name>` and closes when the paren
+        // depth (counted from the opener's line) returns to zero. Per
+        // net: the `(wire` block count; for N1 also the path corner
+        // lines (pure `x y` integer lines).
+        let mut counts: Vec<(String, usize)> = Vec::new();
+        let mut n1_path_tokens: Vec<String> = Vec::new();
+        let mut current: Option<usize> = None;
+        let mut depth = 0usize;
+        for line in ses_text.lines() {
+            let trimmed = line.trim();
+            if current.is_none() {
+                if let Some(rest) = trimmed.strip_prefix("(net ") {
+                    let name = rest.trim().to_string();
+                    counts.push((name, 0));
+                    current = Some(counts.len() - 1);
+                    depth = 1;
+                }
+                continue;
+            }
+            let index = current.expect("the pin world invariant");
+            if trimmed == "(wire" {
+                counts[index].1 += 1;
+            }
+            if !trimmed.contains('(') && !trimmed.contains(')') {
+                let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+                if tokens.len() == 2
+                    && tokens.iter().all(|t| t.parse::<i64>().is_ok())
+                    && counts[index].0 == "N1"
+                {
+                    n1_path_tokens.push(trimmed.to_string());
+                }
+            }
+            depth += trimmed.matches('(').count();
+            depth -= trimmed.matches(')').count();
+            if depth == 0 {
+                current = None;
+            }
+        }
+        assert_eq!(counts.len(), 2, "both nets emit their scope");
+        assert_eq!(
+            counts[0],
+            ("N1".to_string(), 1),
+            "one wire for the on-board trace — the stale pre-route copy is superseded"
+        );
+        assert_eq!(
+            counts[1],
+            ("N2".to_string(), 1),
+            "net N2's unchanged trace emits once"
+        );
+        assert_eq!(
+            n1_path_tokens,
+            vec![
+                "0 100000",
+                "0 120000",
+                "40000 120000",
+                "40000 100000",
+                "400000 100000"
+            ],
+            "the emitted N1 wire is the LIVE geometry (the wave), not the stale \
+             pre-route (DSN space: the session transform's x10 um scale)"
+        );
+        // The board-level population: exactly two trace items survive.
+        let trace_items = ses_in
+            .items
+            .iter()
+            .filter(|item| matches!(item, ItemIr::Trace { .. }))
+            .count();
+        assert_eq!(trace_items, 2, "no parse copy rides next to the projection");
+    }
+
     /// The M4-T8 jar-anchored END-TO-END score pin: the production
     /// flow THROUGH THE ROUTING STAGE (parse -> normalize -> load-time
     /// violation seed -> settings resolution -> fanout stage -> batch
