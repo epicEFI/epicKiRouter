@@ -3233,6 +3233,23 @@
     "false-green",
     "trap"
    ]
+  },
+  {
+   "id": 210,
+   "date": "2026-09-28",
+   "task": "M7-T4 quality review r1 (NIT-1, REAL discovery — pre-existing, NOT a T4 regression)",
+   "error_message": "The tuning capture SES files emit INPUT-wiring wires DUPLICATED: room_out.ses net N1 carries BOTH the meander wave wire AND the original straight pre-route wire (the (100000,250000)->(800000,250000) path appears as its own wire alongside the wave), and N2's single wire appears twice identically. Board statistics prove ONE copy each on the live board (the F1 flow pin asserts the emitted N1 Manhattan 740000 exactly — a doubled board would read 1140000). Present in T3's tuning_fixture_out.ses as well: PRE-EXISTING in the input-wiring projection face.",
+   "root_cause": "UNINVESTIGATED (scope): the SES writer's input-wiring projection (pre-routed DSN wiring and routed/optimized traces both emitted?) — parity status vs the frozen Java writer unverified. Real consequence: an SES consumer taking BOTH wires double-counts the net length; one taking the straight wire DEFEATS the meander (reads the pre-tuning length).",
+   "fix": "NOT FIXED in the T4 round (scope). Owner: the milestone/coordinator, to charter (jar-oracle diff of the input-wiring emission on a pre-routed fixture, then fix or parity-confirm). Witnesses: logs/M7-T4/evidence/room_out.ses, logs/M7-T3/evidence/tuning_fixture_out.ses; the one-copy proof: the F1 pin (route.rs meander_room_fixture_fills_deficit_in_flow, Manhattan 740000 exact) + the F1 capture log (meander landed, deficit 40000, added 40000, dents 2).",
+   "tags": [
+    "m7-t4",
+    "quality-review",
+    "ses-writer",
+    "input-wiring",
+    "duplication",
+    "pre-existing",
+    "open"
+   ]
   }
  ]
 }

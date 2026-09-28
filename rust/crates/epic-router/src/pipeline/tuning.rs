@@ -293,7 +293,9 @@ fn insert_one_wave(
             ) {
                 continue; // try the next geometry
             }
-            land_wave(manager, board, site, &wave);
+            if !land_wave(manager, board, site, &wave) {
+                continue; // a phantom landing is not a landing: next candidate
+            }
             return Some((added, wave.dent_count));
         }
     }
@@ -509,10 +511,21 @@ fn wave_is_clear(
 /// polyline (the trace's own corners elsewhere are preserved
 /// verbatim) and write the geometry through the tree-replacement
 /// face. When the wave ends exactly ON the site's to-corner, the
-/// duplicate is dropped.
-fn land_wave(manager: &mut SearchTreeManager, board: &mut Board, site: &MeanderSite, wave: &Wave) {
+/// duplicate is dropped. Returns TRUE when the geometry was actually
+/// written: the two early-return arms are defensive (an absent
+/// trace; a collapsed Polyline construction) and unreachable on the
+/// ladder's own candidates — but a silent no-op there would let the
+/// caller report a PHANTOM landing (added length credited, no
+/// geometry), so the outcome is observable and the caller continues
+/// its ladder on `false`.
+fn land_wave(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    site: &MeanderSite,
+    wave: &Wave,
+) -> bool {
     let Some(lines) = board.trace_polyline(site.trace_id) else {
-        return;
+        return false;
     };
     let old_corners = lines.corners();
     let last_wave_corner = wave.corners.last().copied();
@@ -535,9 +548,10 @@ fn land_wave(manager: &mut SearchTreeManager, board: &mut Board, site: &MeanderS
     }
     let new_lines = Polyline::from_points(&points);
     if new_lines.lines.len() < 3 {
-        return; // a collapsed construction is not a landing
+        return false; // a collapsed construction is not a landing
     }
     board.replace_trace_geometry(manager, site.trace_id, new_lines);
+    true
 }
 
 /// The `Point::Int` extractor (a rational corner cannot anchor integer
