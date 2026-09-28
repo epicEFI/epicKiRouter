@@ -386,8 +386,8 @@ violations = 0 on every completing pour fixture, real counter) and 3
 T10 record. The CI flip stays HELD (third consecutive NO-GO at
 M6-T3: Tier A 10 green / 1 red + Σ 2089.5 s > the 30-min budget;
 reopen bound: the flip reopens exactly when bm01's total completes
-< 1510.7 s): design §6 M6 exit note (verdict slot OPEN for the
-milestone adjudicator), `logs/M6-T10/report-t10.md`, and the M6
+< 1510.7 s): design §6 M6 exit note (VERDICT: M6_EXIT_WITH_DEVIATIONS,
+adjudicated 2026-09-28 at tree `a6d6ac38c`), `logs/M6-T10/report-t10.md`, and the M6
 criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
 
 ## How The Code Fits Together
