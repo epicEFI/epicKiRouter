@@ -418,7 +418,26 @@ measurement is T7's, measured at tree `6165ac7aa` (`logs/M7-T7/report-t7.md`
 + 33 evidence files; two post-review rounds, coordinator-verified at source
 each round); the engine tree came out of the close-out identical, census
 1547/0/17):
-**VERDICT: <per milestone adjudication>**
+**VERDICT: M7_EXIT_WITH_DEVIATIONS**, adjudicated 2026-09-28 at tree
+`8dcd776f3` (fresh-eyes adjudicator): all five criteria MET / DISCHARGED
+AS RECORDED — criterion 1 (constraints honored: delivery Java-exact, the
+never-shorten gate at exactly the two tightener acceptance faces, meander
+to min, match-to-target, the honest max report) MET on the crafted worlds
++ the six committed fixtures; criterion 2 (tuning DRC-clean) MET with
+ri = 0 across the tuning population under the REAL counter, bm10's ri=1
+honestly owned parity-confirmed-noted (205 CLOSED `b7b174859`/
+`349a192df`) within the criterion's letter; criterion 3 (zero
+regressions) MET — Tier A 11/11 held row-for-row, census exactly
+1547/0/17, canaries unrotated, constraint-free invariance structural and
+pinned; criterion 4 DISCHARGED AS RECORDED (205/210/201/211/212 CLOSED
+with pins, 197 OPEN owner-M8+ with its lever recorded not attempted, the
+B/C re-faces reduced to bm10 + 1Bitsy by the zero-declaration census);
+criterion 5 MET — the T7 14/14 gate lap at the unchanged tree plus the
+close-out cheap set, the additions ledger matching the span exactly, the
+two sanctioned t7_ripup re-captures the only baseline modifications,
+nothing pushed — with every still-standing red (bm01/197, the B/C
+capability floors, bm10 completion, 1Bitsy) owned by M8 via the
+deviations table.
 
 M7's arc, honestly stated: the milestone chartered the design's tuning
 pillar (§4 :73 — length-constraint honoring, clearance-aware meander
@@ -608,6 +627,19 @@ reading.
 The engine tree is frozen at census 1547/0/17 across the close-out; the
 verdict slot above stays OPEN for the milestone adjudication (the
 M4-T17d/M5/M6 pattern; the deviations table above is its input).
+
+ERRATUM (adjudication): the closing line above predates the adjudication —
+the slot is now FILLED (`M7_EXIT_WITH_DEVIATIONS`, above). Criterion 5's
+"ses-snap 5" is a per-task gate face (T3/T4/T5/T6, all green — the
+artifact-verified list), not re-run at T7's 14/14 lap; the lap-covered
+compares are the other six plus events (listed separately).
+
+ERRATUM (adjudication, extends the Finding-1 correction): the `pairs.rs`
+module doc's Dubins note (:48-50) carries the same swapped `coupled_length`
+attribution Finding 1 corrected in the T6 report and AMENDMENT 6 §3 —
+381 482.0 / delta 10 270 belong to the SPLIT fixture; the source comment
+fixes at the first `pairs.rs` touch (M8). The measurement verdicts are
+unaffected.
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
