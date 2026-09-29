@@ -361,9 +361,12 @@ pub struct BatchSettings {
     /// `item_id mod n`, evaluate against the STABLE pass-start base
     /// (each on its own worker-board deep copy — the sequential face's
     /// own `:1234` clone), and reduce in candidate order, so the final
-    /// board state is thread-count-invariant BY CONSTRUCTION: the
-    /// winner rule is `ItemRouteResult::compare`, a total order whose
-    /// final rung is the unique `item_id` — the fold's argmin is
+    /// board state is thread-count-invariant BY CONSTRUCTION — under
+    /// deterministic budgets with none of the executor's three racy
+    /// faces (wall deadline / external stop / an in-candidate max-items
+    /// raise) live, see the executor's residual note in optimizer.rs:
+    /// the winner rule is `ItemRouteResult::compare`, a total order
+    /// whose final rung is the unique `item_id` — the fold's argmin is
     /// unique and grouping-invariant (the argument recorded in
     /// `logs/M8-T7/investigation.md` §2). The DEFAULT is 1.
     pub optimizer_threads: usize,

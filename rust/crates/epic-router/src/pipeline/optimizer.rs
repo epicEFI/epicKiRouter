@@ -31,10 +31,12 @@
 //!
 //! ## Banks (SEAM carries the dossier)
 //!
-//! * **The thread pool is banked** (`:656-686`): `maxThreads` is parsed
-//!   (settings-surface parity) but the port evaluates candidates in a
-//!   single walk — the deterministic analog of `maxThreads = 1` (the
-//!   pool floor Java itself computes for a 1-core host).
+//! * **The thread pool is IMPLEMENTED as the RUST-ONLY
+//!   `optimizer.threads` opt-in** (M8-T7; Java `:656-686` pools
+//!   `maxThreads` workers): the default OFF = the single deterministic
+//!   walk (the `maxThreads = 1` analog — the pool floor Java itself
+//!   computes for a 1-core host); `n >= 2` = the partitioned candidate
+//!   executor in this file (its doc carries the contract + residual).
 //! * **`resultMap` + the PRIORITIZED strategy arm are banked**
 //!   (`:583-619`): `itemSelectionStrategy` is a `transient` field only
 //!   the GUI writes (`GuiBoardManager`); the headless flow always sees
@@ -1280,14 +1282,35 @@ impl<'a> BatchOptimizerStage<'a> {
             // loop, so unlike the M5-T7 batch walk there are no
             // conflicted points to serialize. Results reduce in
             // candidate-walk order (the golden order below), so the
-            // board state is thread-count-invariant by construction:
-            // the winner is `argmin ItemRouteResult::compare` over the
-            // included improved candidates, and `compare` is a total
-            // order whose final rung is the unique `item_id` — unique
-            // minimum, grouping-invariant (logs/M8-T7/investigation.md
-            // §2). Sink rows ride per-candidate buffers and are
-            // flushed (or discarded, past an early break) in the same
-            // walk, reproducing the sequential stream.
+            // board state is thread-count-invariant by construction —
+            // UNDER DETERMINISTIC BUDGETS with none of the three racy
+            // faces below live (see the residual note): the winner is
+            // `argmin ItemRouteResult::compare` over the included
+            // improved candidates, and `compare` is a total order whose
+            // final rung is the unique `item_id` — unique minimum,
+            // grouping-invariant (logs/M8-T7/investigation.md §2).
+            // Sink rows ride per-candidate buffers and are flushed (or
+            // discarded, past an early break) in the same walk,
+            // reproducing the sequential stream.
+            //
+            // STOP/DEADLINE RESIDUAL (the racy faces — condensed from
+            // investigation.md §2, what the carry-back and body-doc
+            // pointers promise): three faces consult stop/deadline at
+            // EVALUATION time on the worker — a live wall-clock
+            // deadline, an external stop on the shared flag, and a
+            // max-items gate raised INSIDE a candidate's reroute. Under
+            // any of them worker results are evaluation-time racy; the
+            // worst case: a worker-side `request_full` STORES THE
+            // SHARED flag (`StopFace::request` writes it, batch.rs),
+            // which mid-flight workers consult — so the perturbation is
+            // scheduling-dependent and not even run-to-run stable. The
+            // pinned and gated faces run deadline-free with no stop
+            // (deterministic budgets), where all three faces are
+            // constant and this face is byte-identical to the
+            // sequential one. Java's own worker pool races the same
+            // faces (`OptimizeCandidateTask` holds `thread` +
+            // `deadlineMs`); this is ported parity, not a port
+            // invention.
             let partition_count = threads;
             let mut partitions: Vec<Vec<(usize, ItemId)>> =
                 (0..partition_count).map(|_| Vec::new()).collect();
@@ -1318,14 +1341,13 @@ impl<'a> BatchOptimizerStage<'a> {
             // stays valid: the bm01 N=4 run peaked at 467.4 MiB.
             let mut partition_best_rxs = Vec::with_capacity(partition_count);
             std::thread::scope(|scope| {
-                let mut handles = Vec::with_capacity(partition_count);
                 for part in &partitions {
                     let (result_tx, result_rx) = std::sync::mpsc::channel::<Vec<CandidateRecord>>();
                     let (best_tx, best_rx) =
                         std::sync::mpsc::channel::<Option<(ItemRouteResult, Board)>>();
                     result_rxs.push(result_rx);
                     partition_best_rxs.push(best_rx);
-                    handles.push(scope.spawn(move || {
+                    scope.spawn(move || {
                         let mut records: Vec<CandidateRecord> = Vec::with_capacity(part.len());
                         let mut best: Option<(ItemRouteResult, Board)> = None;
                         for &(idx, item_id) in part {
@@ -1382,7 +1404,7 @@ impl<'a> BatchOptimizerStage<'a> {
                         }
                         let _ = result_tx.send(records);
                         let _ = best_tx.send(best);
-                    }));
+                    });
                 }
             });
             let mut all_records: Vec<CandidateRecord> = Vec::new();
@@ -1393,17 +1415,25 @@ impl<'a> BatchOptimizerStage<'a> {
                     Ok(records) => {
                         partition_boards[p] = match partition_best_rxs[p].recv() {
                             Ok(best) => best.map(|(_result, board)| board),
+                            // Unreachable backstop: a worker PANIC
+                            // propagates at the scope JOIN before any
+                            // drain runs (the real fail-fast, the
+                            // M5-T7 discipline); this arm guards a
+                            // worker exiting without sending —
+                            // impossible in the closure's straight-line
+                            // shape (every path ends in both sends).
                             Err(_) => panic!(
-                                "optimizer partition worker did not finish (panic propagation, \
-                                 the M5-T7 fail-fast discipline)"
+                                "optimizer partition worker exited without sending its results"
                             ),
                         };
                         all_records.extend(records);
                     }
-                    Err(_) => panic!(
-                        "optimizer partition worker did not finish (panic propagation, \
-                         the M5-T7 fail-fast discipline)"
-                    ),
+                    // Unreachable backstop — same face as the inner
+                    // arm above (the scope join fails fast on a real
+                    // worker panic before the drains run).
+                    Err(_) => {
+                        panic!("optimizer partition worker exited without sending its results")
+                    }
                 }
             }
 
@@ -1593,7 +1623,11 @@ fn deadline_passed_at(deadline_ms: Option<i64>) -> bool {
 /// the shipped key has ONE form — the invariance contract holds under
 /// any fixed key, but this exact one is what the fixed-key pin guards.
 fn optimizer_partition_of(item_id: ItemId, n: usize) -> usize {
-    usize::try_from(item_id.get()).unwrap_or(0) % n
+    // NIT-5 erratum: the fix-round charter's `usize::from(item_id.get())`
+    // does not exist — std provides `From<u32>` only for u64/u128 (usize's
+    // width is target-dependent). The widening `as` is lossless wherever
+    // the engine runs (64-bit) and carries no tolerance arm.
+    item_id.get() as usize % n
 }
 
 /// Java `optRouteItemOnBoard` (`:842-925`): rip the connection
@@ -3164,6 +3198,7 @@ mod tests {
     fn run_via_costly_world_at_threads(
         world: (&SearchTreeManager, &Board),
         threads: usize,
+        tweak: impl FnOnce(&mut BatchSettings, &mut OptimizerSettingsIr),
     ) -> (OptimizerOutcome, CaptureDriverSink, String) {
         let mut board = world.1.clone();
         let mut manager = SearchTreeManager::new();
@@ -3177,10 +3212,50 @@ mod tests {
         let mut opt = opt_settings();
         opt.enable_preflight_guards = Some(true);
         opt.max_passes = Some(1);
+        tweak(&mut batch, &mut opt);
         let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
         let outcome = stage.run_batch_loop(&mut sink);
         let hash = board_hash(&board);
         (outcome, sink, hash)
+    }
+
+    /// The shared stream normalizer for the M8-T7 pins: drops exactly
+    /// the three wall-clock/temporal families — the pass-elapsed info
+    /// row ("was completed in"), the temporal stage-END row
+    /// ("Optimization stage … completed in") — and rewrites the
+    /// pass-entry trace row's thread count to a constant. EVERYTHING
+    /// else, including the non-temporal stage-START row (board hash +
+    /// baseline scores), flows through and must be byte-identical.
+    fn normalize_stream_rows(sink: &CaptureDriverSink) -> Vec<(&'static str, String)> {
+        sink.rows
+            .iter()
+            .filter(|(_, row)| {
+                !(row.contains("was completed in")
+                    || (row.contains("Optimization stage") && row.contains("completed in")))
+            })
+            .map(|(tag, row)| {
+                let normalized = if let Some(rest) =
+                    row.strip_prefix("BatchOptRoute.opt_route_pass #")
+                {
+                    if let Some(items_at) = rest.find(" items, ") {
+                        let head = format!("BatchOptRoute.opt_route_pass #{}", &rest[..items_at]);
+                        if let Some(tail_from) = rest.find(" running on ") {
+                            format!(
+                                "{head}{} running on N thread(s).",
+                                &rest[items_at..tail_from]
+                            )
+                        } else {
+                            row.clone()
+                        }
+                    } else {
+                        row.clone()
+                    }
+                } else {
+                    row.clone()
+                };
+                (*tag, normalized)
+            })
+            .collect()
     }
 
     /// THE THREADS-INVARIANCE PIN (the charter's acceptance gate, the
@@ -3205,43 +3280,19 @@ mod tests {
         let mut faces: Vec<FaceRecord> = Vec::new();
         for threads in [1usize, 2, 3, 4] {
             let (outcome, sink, hash) =
-                run_via_costly_world_at_threads((&manager, &board), threads);
+                run_via_costly_world_at_threads((&manager, &board), threads, |_, _| {});
             let raw_rows: Vec<(&'static str, String)> = sink.rows.clone();
             assert_eq!(outcome.passes_completed, 1, "threads={threads}");
-            // Two faces are EXPECTED to differ across partition counts
-            // and are normalized for the comparison: the pass-entry
-            // trace row's thread count (Java prints its resolved pool
-            // size) and the elapsed-seconds rows (the only wall-clock
-            // faces). Everything else must be byte-identical.
-            let rows: Vec<(&'static str, String)> = sink
-                .rows
-                .iter()
-                .filter(|(_, row)| {
-                    !row.contains("was completed in") && !row.contains("Optimization stage")
-                })
-                .map(|(tag, row)| {
-                    let normalized =
-                        if let Some(rest) = row.strip_prefix("BatchOptRoute.opt_route_pass #") {
-                            if let Some(items_at) = rest.find(" items, ") {
-                                let head =
-                                    format!("BatchOptRoute.opt_route_pass #{}", &rest[..items_at]);
-                                if let Some(tail_from) = rest.find(" running on ") {
-                                    format!(
-                                        "{head}{} running on N thread(s).",
-                                        &rest[items_at..tail_from]
-                                    )
-                                } else {
-                                    row.clone()
-                                }
-                            } else {
-                                row.clone()
-                            }
-                        } else {
-                            row.clone()
-                        };
-                    (*tag, normalized)
-                })
-                .collect();
+            // Three faces are EXPECTED to differ across partition
+            // counts and are normalized for the comparison: the
+            // pass-elapsed info row ("was completed in" — embeds the
+            // pass wall), the temporal stage-END row ("Optimization
+            // stage … completed in" — embeds the stage wall), and the
+            // pass-entry trace row's thread count (the strip_prefix
+            // normalization). Everything else — INCLUDING the
+            // stage-START row (the non-temporal hash + baseline-scores
+            // face) — must be byte-identical.
+            let rows: Vec<(&'static str, String)> = normalize_stream_rows(&sink);
             faces.push((outcome, rows, raw_rows, hash));
         }
         let (outcome_1, rows_1, _raw_rows_1, hash_1) = &faces[0];
@@ -3303,6 +3354,92 @@ mod tests {
         for id in [123u32, 152, 132] {
             assert_eq!(assignment(id, 1), 0);
         }
+    }
+
+    /// THE REPLAY-ARM PIN (quality r1 MINOR-3): the `raised_stop`
+    /// carry-back and the discard-past-early-break arm, pinned at
+    /// N=1 vs N≥2 with a DETERMINISTIC mid-candidate stop raise — the
+    /// reroute's COUNTED max-items gate (`BatchSettings.max_items =
+    /// Some(1)`, no wall clock): the net-98 reroute queue is the pin
+    /// pair's two pins, so the gate fires inside EVERY candidate's
+    /// reroute exactly at its second net-attempt, on the candidate's
+    /// worker-private face (the test faces carry no shared flag). At
+    /// every N the walk must truncate after the FIRST candidate — its
+    /// raise replays at its reduction position, the loop-top consults
+    /// then break — so:
+    /// (a) the normalized event streams are identical at 1/2/3 (Fix
+    ///     B's narrowed normalization — the stage-start row included);
+    /// (b) the outcome faces are identical (no winner adopted, board
+    ///     restored; the batch loop ends at pass 1 BY THE STOP —
+    ///     `max_passes` is `None`, so `passes_completed == 1` at every
+    ///     N proves the carry-back raise reached the loop's own
+    ///     consults exactly as in the sequential face);
+    /// (c) the discard arm: the post-raise candidates are evaluated at
+    ///     N≥2 but contribute NO rows — their own max-items raise rows
+    ///     would each be visible, so EXACTLY ONE "Max items limit
+    ///     reached" row at every N is the discard face.
+    #[test]
+    fn t7_stop_replay_carry_back_and_discard_identical() {
+        let (manager, board) = via_costly_routed_world();
+        let baseline_hash = board_hash(&board);
+        let run = |threads: usize| {
+            let (outcome, sink, hash) = run_via_costly_world_at_threads(
+                (&manager, &board),
+                threads,
+                // The deterministic raise knobs: the counted reroute
+                // gate + an unbounded batch pass loop (so the STOP, not
+                // a pass cap, is what ends it).
+                |batch, opt| {
+                    batch.max_items = Some(1);
+                    opt.max_passes = None;
+                },
+            );
+            (outcome, normalize_stream_rows(&sink), hash)
+        };
+        let (outcome_1, rows_1, hash_1) = run(1);
+        assert_eq!(
+            outcome_1.passes_completed, 1,
+            "threads=1: the carry-back raise (not a pass cap) ended the batch loop"
+        );
+        for threads in [2usize, 3] {
+            let (outcome, rows, hash) = run(threads);
+            assert_eq!(
+                rows, rows_1,
+                "stop-world event stream identical at threads={threads}"
+            );
+            assert_eq!(
+                hash, hash_1,
+                "stop-world final board hash identical at threads={threads}"
+            );
+            assert_eq!(
+                outcome.passes_completed, 1,
+                "threads={threads}: the carry-back raise (not a pass cap) ended the batch loop"
+            );
+            assert!(!outcome.is_timed_out);
+        }
+        // (c) the discard arm at every N (the raise rows of the
+        // truncated candidates are discarded).
+        let raise_rows = rows_1
+            .iter()
+            .filter(|(_, row)| row.contains("Max items limit reached"))
+            .count();
+        assert_eq!(
+            raise_rows, 1,
+            "exactly the FIRST candidate's raise survives the truncation: {rows_1:?}"
+        );
+        // No winner adopted — the raised candidate's verdict is
+        // unimproved and the walk truncates: the incumbent board stands.
+        assert_eq!(hash_1, baseline_hash, "no adoption in the stop world");
+        // (b) corollary: the batch loop's stop is visible in the stream
+        // through the interrupt-free completion face — the stage ended
+        // with the pass count 1 (asserted above) and the world shows
+        // the max-items stop's own info row family.
+        assert!(
+            rows_1
+                .iter()
+                .any(|(_, row)| row.contains("Stopping auto-router")),
+            "the max-items gate's stop raise is in the stream"
+        );
     }
 
     // -----------------------------------------------------------------------

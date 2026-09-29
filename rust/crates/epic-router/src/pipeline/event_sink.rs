@@ -156,11 +156,6 @@ impl BufferedDriverSink {
             rows: Vec::new(),
         }
     }
-
-    /// Replays the rows through `sink` in emission order.
-    pub fn flush_to(&self, sink: &mut dyn DriverSink) {
-        BufferedSinkRow::flush_rows(&self.rows, sink);
-    }
 }
 
 impl BufferedSinkRow {
