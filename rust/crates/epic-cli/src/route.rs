@@ -863,6 +863,10 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();
     batch.via_costs = scoring_box.via_costs.unwrap_or(50);
     batch.plane_via_costs = scoring_box.plane_via_costs.unwrap_or(5);
+    // M8-T3: the gloss-bus activation (the resolved flag is the only
+    // gate — no board seam needed, the pass is post-route). Default
+    // OFF: the stage never runs, byte-identical.
+    batch.bus_active = resolved.gloss_bus;
     batch
 }
 
@@ -1462,6 +1466,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     let PipelineOutcome {
         boundaries,
         optimizer,
+        gloss_report,
         ..
     } = outcome;
     let phases = PipelinePhases {
@@ -1550,7 +1555,42 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         // with the goldens' `println!` face (nothing pins sidecar
         // bytes; the smoke's byte-identity was run-to-run, which a
         // constant suffix preserves).
-        let json = format!("{}\n", epic_board::aesthetics::render_json(&metrics));
+        // M8-T3: the gloss `bus_groups` block rides THIS sidecar only
+        // (serde-skip-when-empty — default runs and the parse-only
+        // reference door never carry it: the 24 committed reference
+        // goldens and every default-run sidecar stay byte-identical).
+        // NEVER the manifest (the canary cf607714 pins manifest
+        // bytes).
+        let mut sidecar = epic_board::aesthetics::render_json_value(&metrics);
+        if !gloss_report.is_empty() {
+            let groups: Vec<serde_json::Value> = gloss_report
+                .groups
+                .iter()
+                .map(|group| {
+                    serde_json::json!({
+                        "horizontal": group.horizontal,
+                        "layer": group.layer,
+                        "member_names": group.member_names,
+                        "members": group.members,
+                        "moves_landed": group.moves_landed,
+                        "moves_rejected": group.moves_rejected,
+                        "rows": group.rows.iter().map(|row| serde_json::json!({
+                            "from_pos": row.from_pos,
+                            "landed": row.landed,
+                            "net": row.net,
+                            "net_name": row.net_name,
+                            "target_pos": row.target_pos,
+                        })).collect::<Vec<serde_json::Value>>(),
+                    })
+                })
+                .collect();
+            sidecar["bus_groups"] = serde_json::Value::Array(groups);
+        }
+        let json = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&sidecar)
+                .expect("serde_json Value serialization cannot fail")
+        );
         if let Err(error) = std::fs::write(aesthetics_path, json) {
             eprintln!("Error: cannot write aesthetics sidecar {aesthetics_path}: {error}");
         }
@@ -3582,6 +3622,22 @@ mod tests {
         let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
         assert!(batch_on.congestion_global);
         assert!(batch_on.congestion_global_pattern);
+    }
+
+    /// The M8-T3 seam: build_batch_settings carries the gloss-bus flag
+    /// (default OFF — the two-regime law; explicit ON survives).
+    #[test]
+    fn build_batch_settings_carries_gloss_bus() {
+        let merged = MergedSettings::default();
+        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
+        assert!(!default_batch.bus_active, "default OFF");
+
+        let merged_on = MergedSettings {
+            gloss_bus: Some(true),
+            ..MergedSettings::default()
+        };
+        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
+        assert!(batch_on.bus_active, "explicit ON survives");
     }
 
     // ------------------------------------------------------------------

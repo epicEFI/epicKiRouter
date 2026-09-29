@@ -175,6 +175,11 @@ pub struct PipelineOutcome {
     /// empty — the zero-activation face — or the routing stage
     /// aborted).
     pub pair_stage: Vec<crate::pipeline::pairs::PairStageOutcome>,
+    /// M8-T3: the gloss BUS stage's report (the group rows + the
+    /// hug/spread moves; empty/default unless `router.gloss.bus` is ON
+    /// — the flag is the only gate, the two-regime law). Rides the
+    /// aesthetics SIDECAR via epic-cli, NEVER the manifest.
+    pub gloss_report: crate::pipeline::gloss::GlossBusReport,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -359,6 +364,7 @@ pub fn run(
     let mut settings = settings;
     let meander_active = settings.meander_active;
     let pairs = settings.pairs.clone();
+    let bus_active = settings.bus_active;
     let stage = run_routing_stage(manager, board, &mut settings, &stop, sink, &mut transitions);
     let routing = stage.routing;
     let optimizer = if routing.is_err() {
@@ -401,6 +407,22 @@ pub fn run(
     } else {
         Vec::new()
     };
+    // M8-T3: the gloss BUS stage — the parallel-bus group detector +
+    // the hug/spread re-spacing pass (`pipeline/gloss.rs`), the
+    // post-tuning, pre-report slot (after the meander and pair
+    // stages). Gated on `router.gloss.bus` ALONE (the resolved
+    // `bus_active`; default OFF — an OFF run never reaches the stage,
+    // the two-regime byte-invariance law). Emits NO stage transition
+    // (Java's stage enum is the frozen parity surface — the events
+    // corpus cannot rotate) and NO events (the meander-stage
+    // precedent). The report rides the aesthetics SIDECAR via
+    // epic-cli, NEVER the manifest (the cf607714 canary pins manifest
+    // bytes).
+    let gloss_report = if routing.is_ok() && bus_active {
+        crate::pipeline::gloss::run_gloss_bus_stage(manager, board)
+    } else {
+        crate::pipeline::gloss::GlossBusReport::default()
+    };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
         transitions.push(RoutingStage::Idle);
@@ -415,6 +437,7 @@ pub fn run(
         global_plan: stage.global_plan,
         meander_report,
         pair_stage,
+        gloss_report,
     }
 }
 

@@ -172,6 +172,21 @@ pub struct CliLayer {
     /// recorded in the manifest's advisory `pair_unresolved` rows —
     /// never guessed.
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// `router.gloss.bus` — the M8-T3 GLOSS BUS tri-state (RUST-ONLY,
+    /// no Java counterpart; the gloss family block beside the
+    /// `router.tuning` family). `None` (the default) = OFF: the gloss
+    /// stage never runs — the two-regime law's byte-invariance face.
+    /// `on` = the post-tuning gloss stage runs the parallel-bus group
+    /// detector + the hug/spread re-spacing pass
+    /// (`epic_router::pipeline::gloss`; the report rides the
+    /// `--dump-aesthetics` SIDECAR as the `bus_groups` block — never
+    /// the manifest). `off` = the explicit kill face (identical to
+    /// absent: the pass has no input-driven activation). The named
+    /// engine constants (`BUS_SPAN_THRESHOLD_DBU` 100_000 DBU strict,
+    /// `BUS_MAX_LENGTH_GAIN_DBU` 40_000 DBU, the tied coupling window
+    /// 50_000 DBU) live in gloss.rs per the T2/T4 named-constant
+    /// family pattern.
+    pub gloss_bus: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -632,6 +647,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.tuning_pairs = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "gloss.bus" => match parse_on_off(value) {
+            Some(v) => layer.gloss_bus = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -1009,6 +1028,10 @@ pub struct MergedSettings {
     /// `router.tuning.pairs` — the M7-T6 pair declaration list
     /// (absent = no pairs; CLI-only, the Default seed is `None`).
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// `router.gloss.bus` — the M8-T3 gloss-bus tri-state (absent =
+    /// OFF; CLI-only — no DSN/default source writes it, the Default
+    /// seed is `None`).
+    pub gloss_bus: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1116,6 +1139,7 @@ impl Default for MergedSettings {
             tuning: None,
             tuning_meander: None,
             tuning_pairs: None,
+            gloss_bus: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1267,6 +1291,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.tuning_pairs.clone() {
         merged.tuning_pairs = Some(v);
+    }
+    if let Some(v) = cli.gloss_bus {
+        merged.gloss_bus = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1618,6 +1645,11 @@ pub struct ResolvedRouteSettings {
     /// list alone). The name→number resolution happens at the board
     /// seam in route.rs where the netlist exists.
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// The M8-T3 gloss-bus flag (`router.gloss.bus`), resolved to its
+    /// effective face: ON only when explicitly `on` (the pass has no
+    /// input-driven activation — absent and `off` are both OFF, the
+    /// two-regime law's default face).
+    pub gloss_bus: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1731,6 +1763,7 @@ impl ResolvedRouteSettings {
             tuning: merged.tuning,
             tuning_meander: merged.tuning_meander,
             tuning_pairs: merged.tuning_pairs.clone(),
+            gloss_bus: merged.gloss_bus.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2702,6 +2735,7 @@ mod tests {
                 ("PA".to_string(), "PB".to_string()),
                 ("PC".to_string(), "PD".to_string()),
             ]),
+            gloss_bus: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
@@ -2855,6 +2889,65 @@ mod tests {
         ]))
         .expect("parses");
         assert_eq!(parsed.result_json.as_deref(), Some("m.json"));
+    }
+
+    /// The M8-T3 gloss-bus tri-state faces (parse -> merge -> resolve):
+    /// `on` resolves ON; absent and `off` both resolve OFF (the pass
+    /// has no input-driven activation — the two-regime default face);
+    /// a malformed value WARNs and stays OFF.
+    #[test]
+    fn gloss_bus_tri_state_parse_merge_resolve() {
+        // `on` = ON.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.bus=on",
+        ]))
+        .expect("parses");
+        assert!(parsed.layer.warnings.is_empty());
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        assert_eq!(merged.gloss_bus, Some(true));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(resolved.gloss_bus, "on resolves ON");
+        // Absent = OFF.
+        let parsed = parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses"])).expect("parses");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        assert_eq!(merged.gloss_bus, None);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_bus, "absent resolves OFF");
+        // `off` = OFF (explicit kill face).
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.bus=off",
+        ]))
+        .expect("parses");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_bus, "off resolves OFF");
+        // Malformed = WARN and OFF.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.bus=maybe",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.layer.warnings.len(), 1, "the warn-and-continue face");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_bus, "malformed stays OFF");
+    }
+
+    /// A neutral DSN layer (no metadata, one layer) for the merge
+    /// helpers.
+    fn dsn_quiet() -> DsnLayer {
+        DsnLayer::from_metadata(None, 0)
     }
 
     /// The M4-T7 fanout group's UPTAKE face: every CLI flag rides

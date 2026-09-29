@@ -14,6 +14,7 @@ pub mod connection_router;
 pub mod event_sink;
 pub mod fanout;
 pub mod full;
+pub mod gloss;
 pub mod optimizer;
 pub mod pairs;
 pub mod pass_runner;

@@ -45,12 +45,18 @@
 //! charters the pose-based A\* with Dubins heuristic as the pair
 //! corridor's QUALITY mechanism; the plan's honest either-or let the
 //! simpler coupled-maze face go first. Measured on the committed pair
-//! population, the simple face already meets the contract: the coupled
-//! fixture's advisory row reads `coupled_length` 381 482 DBU of shared
-//! corridor, delta 10 270 ≤ [`PAIR_DELTA_DBU`], REAL-DRC 0, and the
-//! split world still matches through a hair-gap squeeze the cost model
-//! found on its own — no quality gap for a better corridor search to
-//! close. The realizability premise fails independently: the maze
+//! population, the simple face already meets the contract: the
+//! pair_SPLIT fixture's advisory row reads `coupled_length` 381 482.0
+//! DBU of shared corridor, delta 10 270.24 ≤ [`PAIR_DELTA_DBU`], and
+//! the pair_COUPLIED row reads `coupled_length` 0.0 — no
+//! within-window parallel span at all, the advisory honestly reporting
+//! the decoupled face while the members still match by meander, delta
+//! 15 147.19 ≤ [`PAIR_DELTA_DBU`] — both matched, REAL-DRC 0. No
+//! quality gap for a better corridor search to close. (ERRATUM
+//! APPLIED, design `:637-642`: the pre-fix text attributed the 381 482
+//! / 10 270 row to the coupled fixture and split world — the two rows
+//! were label-swapped; the committed goldens were always right.) The
+//! realizability premise fails independently: the maze
 //! emits ANGLE-RESTRICTED polylines (45°/90°; the
 //! `expand_to_door`/section face in `maze/search_engine.rs`) with no
 //! arc primitive, and a Dubins path is G1-continuous arc geometry —
@@ -87,10 +93,19 @@ pub const PAIR_DELTA_DBU: f64 = 20_000.0;
 
 /// The COUPLING WINDOW, in board DBU: a follower maze step counts as
 /// IN-corridor when its section middle point lies within this distance
-/// of the leader's routed copper (same layer). The window is a
+/// of the leader's routed real copper (same layer). The window is a
 /// preference radius, never a clamp — geometry outside it routes
 /// normally (the split-world face).
-pub const COUPLING_WINDOW_DBU: f64 = 50_000.0;
+///
+/// The T1 window-constant TIE (the T1 quality-review bank, discharged
+/// by AM2 to this task): this is the DERIVED face — the SINGLE
+/// definition of the number lives in
+/// [`epic_board::aesthetics::AESTHETICS_PARALLELISM_WINDOW_DBU`]
+/// (epic-router may import from epic-board; the reverse may not, so
+/// the definition sits in the lower crate), and both sites cite it.
+/// Value unchanged: 50_000 board DBU.
+pub const COUPLING_WINDOW_DBU: f64 =
+    epic_board::aesthetics::AESTHETICS_PARALLELISM_WINDOW_DBU as f64;
 
 /// The COUPLING DISCOUNT: the fraction of the maze's incremental
 /// weighted-distance step cost waived while in-corridor. A discount —

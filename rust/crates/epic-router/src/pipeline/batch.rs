@@ -413,6 +413,14 @@ pub struct BatchSettings {
     /// preference, and the post-routing match stage arm; empty (the
     /// Default) ⇒ zero activation, byte-identical routing.
     pub pairs: Vec<crate::pipeline::pairs::PairSpec>,
+    /// M8-T3 RUST-ONLY: the GLOSS BUS stage's resolved activation
+    /// (`router.gloss.bus`, default OFF — no Java counterpart). When
+    /// ON, the post-tuning gloss stage runs the parallel-bus group
+    /// detector + the hug/spread re-spacing pass
+    /// (`pipeline/gloss.rs`); the report rides the aesthetics SIDECAR,
+    /// never the manifest. Dead code at defaults (the two-regime law:
+    /// an OFF run never reaches the stage — byte-identical).
+    pub bus_active: bool,
 }
 
 impl BatchSettings {
@@ -455,6 +463,7 @@ impl BatchSettings {
             tuning_active: false,
             meander_active: false,
             pairs: Vec::new(),
+            bus_active: false,
         }
     }
 }

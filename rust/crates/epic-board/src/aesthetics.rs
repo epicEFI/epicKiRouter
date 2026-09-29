@@ -74,12 +74,12 @@ use crate::rules_surf::BoardRules;
 
 /// The parallelism window, in board DBU: a trace segment counts as
 /// coupled when a DIFFERENT net's same-layer trace lies within this
-/// distance of it. Named constant carrying the VALUE of
-/// `COUPLING_WINDOW_DBU` (`epic-router/src/pipeline/pairs.rs:93`,
-/// 50_000) generalized into epic-board — epic-board cannot depend on
-/// epic-router (it is a dependency OF it), so the constant is
-/// re-declared here, not imported; the pairs.rs file keeps its own
-/// (the two must move together by review, not by construction).
+/// distance of it. THE SINGLE DEFINITION of the number (the M8-T3
+/// window-constant TIE): this is the definition site — epic-router's
+/// `COUPLING_WINDOW_DBU` (pipeline/pairs.rs) and the gloss group
+/// detector's window are DERIVED from it (epic-router may import from
+/// epic-board; the reverse may not, so the definition lives in the
+/// lower crate). Value 50_000 board DBU.
 pub const AESTHETICS_PARALLELISM_WINDOW_DBU: i64 = 50_000;
 
 /// The four M8 aesthetics metrics plus the reconciliation faces. The
@@ -480,20 +480,31 @@ pub fn aesthetics_metrics(board: &Board, rules: &BoardRules) -> AestheticsMetric
     }
 }
 
+/// The serialization VALUE face (the gloss sidecar's insertion face):
+/// the four metrics as a `serde_json::Value` object, 3-decimal
+/// rounding applied HERE only. The M8-T3 `bus_groups` block is
+/// inserted into this object by epic-cli when the gloss report is
+/// non-empty (serde-skip-when-empty — the default face carries the
+/// four keys alone, byte-identical to the T1 goldens).
+#[must_use]
+pub fn render_json_value(metrics: &AestheticsMetrics) -> serde_json::Value {
+    fn round3(value: f64) -> f64 {
+        (value * 1000.0).round() / 1000.0
+    }
+    serde_json::json!({
+        "bend_to_length_ratio": round3(metrics.bend_to_length_ratio),
+        "mean_length_excess": round3(metrics.mean_length_excess),
+        "parallelism_ratio": round3(metrics.parallelism_ratio),
+        "via_density": round3(metrics.via_density),
+    })
+}
+
 /// The serialization edge (the ONLY one): the four metrics, 3-decimal
 /// rounding applied HERE only, serde_json pretty with the BTreeMap
 /// (alphabetical) key order — byte-stable for a fixed value set.
 #[must_use]
 pub fn render_json(metrics: &AestheticsMetrics) -> String {
-    fn round3(value: f64) -> f64 {
-        (value * 1000.0).round() / 1000.0
-    }
-    let object = serde_json::json!({
-        "bend_to_length_ratio": round3(metrics.bend_to_length_ratio),
-        "mean_length_excess": round3(metrics.mean_length_excess),
-        "parallelism_ratio": round3(metrics.parallelism_ratio),
-        "via_density": round3(metrics.via_density),
-    });
+    let object = render_json_value(metrics);
     // Infallible in practice (serializing a `serde_json::Value` of
     // finite f64s and string keys cannot fail — no IO, no non-string
     // map keys, no NaN guards needed at these values); loud if the
