@@ -171,3 +171,20 @@ Not-clean face: 7 of 20 (arf154 inc=1/cv=2, bms inc=2/cv=1, newer-motor cv=4, na
 - The AM2 attribution note stands: gloss-ON vs gloss-OFF is measured post-optimizer; the optimizer runs upstream of gloss in both ablation faces, so attribution stays clean.
 
 **Pins landed this cycle that T8 inherits:** P10 (gated face), P11 (corridor tie faces incl. (1,horiz)-beats-(0,vert)), P12 (sweep net-order vs position-order, 4-participant even-n world — partial closure of T3 residual 1: anchor even-n remains predicate-level but now executes implicitly in an integration world). Degenerate-path reporting is count-only by design (documented on `BusGroupOutcome::moves_rejected`).
+
+---
+
+## AMENDMENT 4 — Task 4 outcome banked: flow pass landed, POST-tightener + F3-declined + resume-j−3 decisions, census 1599, T5 via-audit requirement (coordinator, 2026-09-29)
+
+**T4 CLOSED** — three commits: `4c622b4d5` (the flow pass, 12 files +2143, 6/6 DNR-16 mutants, census 1598/0/17), `48e4d84b6` (spec fix round, comment-only, mutants re-witnessed at the committed tree), `c627758cc` (quality fix round: F13 plane-net pin, restart resume at j−3, gate hoist, locator contract, census **1599/0/17** — the new per-task baseline). Review cycle: spec r1 SPEC_COMPLIANT_WITH_MINORS (1 MINOR + 2 NITs), quality r1 APPROVED_WITH_NITS (1 MINOR + 5 NITs) — all findings coordinator-verified at source and ADOPTED; both fix rounds coordinator-verified item-by-item with scoped gates (comment-only / default-off-stage deltas; full compare battery stays T8-held). Full record in `logs/M8-T4/report-t4.md`.
+
+**Decisions banked:**
+- **POST-TIGHTENER placement** (the `:13` audit item): the flow pass cleans what `trace_tightener` LEAVES — hooking the tightener's route-time parity seams mid-flow would be an invasive edit to oracle-pinned geometry; the tightener never manufactures a 45° bridge across a 90° jog pair. Stage order: bus → flow (`full.rs`).
+- **F3 DECLINED** (45°-diagonal parallel bus grouping): axis-projection semantics is a re-derivation, not an extension; no committed measurement shows diagonal buses in the sample; AM2's parallelism face is direction-gated (speculative win). **REOPEN TRIGGER: a T8 measurement face showing ≥1 diagonal-parallel bus group in the sample corpus AND bend/length headroom on the same boards** — T8's charter carries the trigger check.
+- **Restart resume at j−3** (quality round): a landing at window j changes only corners [j, j+2]; the sweep resumes at `j.saturating_sub(3)` — the latent O(C³) re-probe face and the duplicate `landed:false` row face are eliminated, provably behavior-preserving (both flow goldens re-derived byte-identically).
+
+**The bend lever is landed; attribution stays T8's.** The flow pass is the milestone's primary `bend_to_length_ratio` lever (each landing removes exactly one corner; the fixture face measures 7.491→3.804) — but the AM2 criterion (|AFTER−15.1677| < 2.6488, intermediates never increase) is judged ONLY on the T8 battery, and the ablation table owns bus-vs-flow-vs-baseline attribution. No per-task claim of the target.
+
+**Banks to T8's charter (this cycle):** the `gloss_flow_gated` reader key (same machine-clean ablation reading as `bus_groups_gated`); the F-series world set (restart/window-index/kind-label/plane-net discrimination); Tier A wall Σ **250.1s** at the gate face for the AM3 wall-clock column (with T3's pre-flow Σ for the trend line).
+
+**T5 requirement (the ViaOptimizer audit):** the via pass opens with a RECORDED audit decision against `epic-board/src/trace_tightener/via_optimizer.rs` (the ported Java `ViaOptimizer`: cost-driven, changed-area fixpoint, route-time; NO plane-proximity and NO alignment objective; its plane arm is the M6 containment gate) — T5's pass must state the overlap face and its distinct objectives (return-path continuity + in-line alignment), not silently duplicate the cost arm. The write primitive is `Board::set_via_center` (board.rs:1068 — the RAW center write, caller owns acceptance, the `replace_trace_geometry` analog). Census baseline for T5's additions-only gate: **1599/0/17**.
