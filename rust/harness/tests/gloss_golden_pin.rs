@@ -60,10 +60,10 @@ fn run_flow(dsn: &Path, tag: &str, gloss_on: bool, max_threads: Option<i32>) -> 
     if gloss_on {
         argv.push("--router.gloss.bus=on".to_string());
     }
-    let mut args: ParsedRouteArgs = parse_route_args(&argv).expect("argv parses");
-    if gloss_on {
-        args.layer.gloss_bus = Some(true);
-    }
+    // The argv IS the production path (quality-r1 NIT: no manual
+    // layer override beside it — the parsed flag rides parse ->
+    // merge -> resolve -> build_batch_settings unaided).
+    let args: ParsedRouteArgs = parse_route_args(&argv).expect("argv parses");
     let exit = run_route(&args).expect("run_route succeeds");
     assert_eq!(exit, 0, "the fixture completes cleanly");
     (

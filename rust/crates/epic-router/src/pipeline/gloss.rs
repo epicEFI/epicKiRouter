@@ -10,7 +10,8 @@
 //! participate): two nets GROUP when their traces share at least one
 //! same-layer AXIS-ALIGNED parallel span — same orientation (both
 //! horizontal or both vertical), perpendicular offset within the
-//! coupling window ([`COUPLING_WINDOW_DBU`], the tied constant,
+//! coupling window ([`epic_board::aesthetics::AESTHETICS_PARALLELISM_WINDOW_DBU`],
+//! the tied constant's definition site,
 //! inclusive), and an axis-projection overlap STRICTLY longer than
 //! [`BUS_SPAN_THRESHOLD_DBU`]. Transitively closed over union-find;
 //! deterministic: nets iterate in number order, pairs in (a, b)
@@ -20,6 +21,15 @@
 //! qualifies — pinned. Scope limit, documented honestly: the detector
 //! and the pass are AXIS-ALIGNED only; 45-degree-diagonal parallel
 //! runs are T4 flow territory — neither grouped nor moved.
+//!
+//! **Complexity (quality-r1 MINOR-2 note).** The detector is a brute
+//! O(N^2 * S^2) net-pair x segment-pair scan with a same-component
+//! skip (an already-connected pair never re-scans); there is NO
+//! spatial prefilter — a SegmentIndex-style bucket pass was considered
+//! and REJECTED for this round (an optimization with its own bucket-
+//! boundary correctness surface needs measured justification first):
+//! the gloss-ON battery's wall-clock column at T8 decides whether it
+//! becomes an M9+ carry-forward.
 //!
 //! **The hug/spread pass (per detected group).** CORRIDOR vote: per
 //! (layer, orientation) key, the distinct member nets holding a
@@ -89,8 +99,6 @@ use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::polyline::Polyline;
 
-use crate::pipeline::pairs::COUPLING_WINDOW_DBU;
-
 /// The bus SPAN THRESHOLD, in board DBU: two nets group only when they
 /// share a parallel span STRICTLY longer than this (the plan's
 /// "longer than a named threshold" — equality does NOT group; the
@@ -138,7 +146,10 @@ fn qualifying_overlap(a: &AxisSegment, b: &AxisSegment) -> Option<i64> {
         return None;
     }
     let offset = (a.perp - b.perp).abs();
-    if offset as f64 > COUPLING_WINDOW_DBU {
+    // The integer-domain compare (quality-r1 NIT): both magnitudes are
+    // exact either way — this keeps the predicate in the domain it
+    // reasons about (the i64 window constant's own type).
+    if offset > epic_board::aesthetics::AESTHETICS_PARALLELISM_WINDOW_DBU {
         return None;
     }
     let overlap = a.hi.min(b.hi) - a.lo.max(b.lo);
@@ -226,7 +237,13 @@ pub struct BusGroupOutcome {
     /// Members whose relocation LANDED (full or half step).
     pub moves_landed: u32,
     /// Members whose ladder ended with NO landing (both candidates
-    /// rejected, or no movable candidate existed).
+    /// rejected, or no movable candidate existed). ASYMMETRY NOTE
+    /// (quality-r1 NIT): the sweep's rejections each carry a
+    /// [`BusMoveRow`], but the DEGENERATE paths (no corridor, fewer
+    /// than two participants, a pitch <= 0 ladder) bump this counter
+    /// with ZERO rows — synthetic rows would need a fabricated
+    /// `target_pos` for members that never got a participant frame,
+    /// so the count-only form is the honest one.
     pub moves_rejected: u32,
     /// Per-moved-member rows (net order ascending; members already at
     /// their target do not appear — no candidate, no row).
@@ -252,6 +269,14 @@ pub struct BusMoveRow {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GlossBusReport {
     pub groups: Vec<BusGroupOutcome>,
+    /// The INCOMPLETES-GATE marker (quality-r1 F6): true when the
+    /// stage short-circuited because some net still has incompletes.
+    /// Byte-identical to "nothing grouped" in the `bus_groups` array,
+    /// but the sidecar can then distinguish the honest hold (still
+    /// routing) from a genuinely group-free board via the sibling
+    /// `bus_groups_gated` key epic-cli emits for this face. Default
+    /// false = the OFF/default semantics unchanged.
+    pub gated: bool,
 }
 
 impl GlossBusReport {
@@ -289,6 +314,21 @@ pub fn detect_bus_groups(board: &Board) -> Vec<Vec<i32>> {
     let mut parent: Vec<usize> = (0..routed.len()).collect();
     for a in 0..routed.len() {
         for b in (a + 1)..routed.len() {
+            // Same-component skip (quality-r1 MINOR-2): once a and b
+            // share a root, the union would be a no-op (attach-larger-
+            // root-to-smaller is idempotent) — skip the whole segment
+            // scan. Semantics-free.
+            let mut ra = a;
+            while parent[ra] != ra {
+                ra = parent[ra];
+            }
+            let mut rb = b;
+            while parent[rb] != rb {
+                rb = parent[rb];
+            }
+            if ra == rb {
+                continue;
+            }
             let qualifies = segments[a].1.iter().any(|sa| {
                 segments[b]
                     .1
@@ -296,20 +336,10 @@ pub fn detect_bus_groups(board: &Board) -> Vec<Vec<i32>> {
                     .any(|sb| qualifying_overlap(sa, sb).is_some())
             });
             if qualifies {
-                let mut ra = a;
-                while parent[ra] != ra {
-                    ra = parent[ra];
-                }
-                let mut rb = b;
-                while parent[rb] != rb {
-                    rb = parent[rb];
-                }
-                if ra != rb {
-                    if ra < rb {
-                        parent[rb] = ra;
-                    } else {
-                        parent[ra] = rb;
-                    }
+                if ra < rb {
+                    parent[rb] = ra;
+                } else {
+                    parent[ra] = rb;
                 }
             }
         }
@@ -345,16 +375,12 @@ fn run_group_pass(
     board: &mut Board,
     members: &[i32],
 ) -> BusGroupOutcome {
-    let net_name = |board: &Board, net: i32| -> String {
-        board
-            .rules()
-            .nets
-            .get(net)
-            .map_or_else(|| format!("net {net}"), |row| row.name.clone())
-    };
     let mut outcome = BusGroupOutcome {
         members: members.to_vec(),
-        member_names: members.iter().map(|net| net_name(board, *net)).collect(),
+        member_names: members
+            .iter()
+            .map(|net| participant_name(board, *net))
+            .collect(),
         layer: 0,
         horizontal: true,
         moves_landed: 0,
@@ -389,32 +415,58 @@ fn run_group_pass(
         }
     }
     // Pick the corridor: most distinct nets; horizontal breaks count
-    // ties; the lowest layer survives full ties (scan order).
-    let mut corridor: Option<((i32, bool), usize)> = None;
-    for (key, nets) in &votes {
-        let better = match &corridor {
-            None => true,
-            Some((best_key, best_count)) => {
-                nets.len() > *best_count || (nets.len() == *best_count && key.1 && !best_key.1)
-            }
-        };
-        if better {
-            corridor = Some((*key, nets.len()));
-        }
-    }
-    let Some((corridor_key, _)) = corridor else {
+    // ties; the lowest layer survives full ties (scan order). The
+    // pure-fn extraction (quality-r1 MINOR-3a) is the pin surface.
+    let Some(corridor_key) = corridor_pick(&votes) else {
         outcome.moves_rejected = member_reject_count(members.len());
         return outcome;
     };
     outcome.layer = corridor_key.0;
     outcome.horizontal = corridor_key.1;
-    build_participants_and_sweep(manager, board, &member_segments, corridor_key, &mut outcome);
+    // The corridor's voter nets, derived from the vote map (quality-r1
+    // NIT fold — no second overlap walk), sorted ASC.
+    let mut voter_list = votes.get(&corridor_key).cloned().unwrap_or_default();
+    voter_list.sort_unstable();
+    build_participants_and_sweep(
+        manager,
+        board,
+        &member_segments,
+        corridor_key,
+        &voter_list,
+        &mut outcome,
+    );
     outcome
 }
 
 /// The degenerate-ladder reject count (saturating).
 fn member_reject_count(members: usize) -> u32 {
     u32::try_from(members).unwrap_or(u32::MAX)
+}
+
+/// The CORRIDOR PICK over the vote map: the (layer, orientation) key
+/// with the most distinct member nets; a count tie breaks to the
+/// horizontal orientation — INCLUDING across layers ((1, horizontal)
+/// beats (0, vertical) at equal count); a full tie (same orientation,
+/// different layers) survives on the LOWEST layer (the BTreeMap scan
+/// is (layer ASC, false < true), and only a strictly-better key
+/// replaces the incumbent). The `anchor_index_of` precedent: a pure
+/// fn so the tie faces pin without a board (quality-r1 MINOR-3a; the
+/// M-TIE mutant dies on the cross-layer face).
+#[must_use]
+fn corridor_pick(votes: &std::collections::BTreeMap<(i32, bool), Vec<i32>>) -> Option<(i32, bool)> {
+    let mut best: Option<((i32, bool), usize)> = None;
+    for (key, nets) in votes {
+        let better = match &best {
+            None => true,
+            Some((best_key, best_count)) => {
+                nets.len() > *best_count || (nets.len() == *best_count && key.1 && !best_key.1)
+            }
+        };
+        if better {
+            best = Some((*key, nets.len()));
+        }
+    }
+    best.map(|(key, _)| key)
 }
 
 /// The participants, the position ladder, and the relocation sweep
@@ -424,12 +476,13 @@ fn build_participants_and_sweep(
     board: &mut Board,
     member_segments: &[(i32, Vec<AxisSegment>)],
     corridor_key: (i32, bool),
+    voter_list: &[i32],
     outcome: &mut BusGroupOutcome,
 ) {
     // Participants: voters in net order; each contributes its longest
     // qualifying-on-the-key segment (tie: trace id, then start).
     let mut participants: Vec<Participant> = Vec::new();
-    for net_number in voter_nets(member_segments, corridor_key) {
+    for &net_number in voter_list {
         let own: Vec<AxisSegment> = member_segments
             .iter()
             .find(|(member, _)| *member == net_number)
@@ -489,11 +542,10 @@ fn build_participants_and_sweep(
     sweep.sort_by_key(|index| participants[*index].net);
     for index in sweep {
         let participant = &participants[index];
-        let sorted_index = participants
-            .iter()
-            .position(|p| p.net == participant.net)
-            .unwrap_or(0);
-        let target = anchor_pos + (sorted_index as i64 - anchor_index as i64) * median_pitch;
+        // `index` IS the participant's position in the position-sorted
+        // ladder (participants are unique by net, so the sweep holds
+        // each exactly once — quality-r1 NIT: no O(n) re-lookup).
+        let target = anchor_pos + (index as i64 - anchor_index as i64) * median_pitch;
         let delta = target - participant.span.perp;
         if delta == 0 {
             continue;
@@ -526,32 +578,6 @@ fn participant_name(board: &Board, net: i32) -> String {
         .nets
         .get(net)
         .map_or_else(|| format!("net {net}"), |row| row.name.clone())
-}
-
-/// The corridor's voter nets (ASC).
-fn voter_nets(member_segments: &[(i32, Vec<AxisSegment>)], corridor_key: (i32, bool)) -> Vec<i32> {
-    let mut nets: Vec<i32> = Vec::new();
-    for (a, sa_set) in member_segments {
-        for (b, sb_set) in member_segments {
-            if a >= b {
-                continue;
-            }
-            if sa_set.iter().any(|sa| {
-                sa.layer == corridor_key.0
-                    && sa.horizontal == corridor_key.1
-                    && sb_set.iter().any(|sb| qualifying_overlap(sa, sb).is_some())
-            }) {
-                if !nets.contains(a) {
-                    nets.push(*a);
-                }
-                if !nets.contains(b) {
-                    nets.push(*b);
-                }
-            }
-        }
-    }
-    nets.sort_unstable();
-    nets
 }
 
 /// The ANCHOR of the re-spacing ladder: index (n-1)/2 of the
@@ -710,7 +736,10 @@ pub fn run_gloss_bus_stage(manager: &mut SearchTreeManager, board: &mut Board) -
     // incompletes is not a gloss target (still being routed).
     let incompletes = epic_drc::incompletes::all_incompletes(manager, board).1;
     if incompletes.iter().any(|row| row.incomplete_count > 0) {
-        return GlossBusReport::default();
+        return GlossBusReport {
+            gated: true,
+            ..Default::default()
+        };
     }
     let mut report = GlossBusReport::default();
     for members in detect_bus_groups(board) {
@@ -745,6 +774,7 @@ pub fn length_guard_ok(old_len: f64, new_len: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::parse;
     use epic_dsn::ses_board::{ItemIr, SesBoard};
     use epic_dsn::sink::{ClearanceIr, CreateBoardIr, FixedStateIr, NetClassIr, NetIr, TraceIr};
     use epic_geometry::int_box::IntBox;
@@ -1331,11 +1361,230 @@ mod tests {
         manager.reinsert_tree_items(&mut board);
         let report = run_stage(&mut manager, &mut board);
         let group = &report.groups[0];
-        let row1 = group.rows.iter().find(|row| row.net == 1);
+        // Net 1's delta is nonzero in this world (100_000 -> 97_500),
+        // so the row MUST exist — a dropped row is a regression, not a
+        // pass (quality-r1: the disjunctive form could mask it).
+        let row1 = group
+            .rows
+            .iter()
+            .find(|row| row.net == 1)
+            .expect("net 1 row must exist (its delta is nonzero)");
         assert!(
-            row1.is_none() || row1.expect("row").landed.is_none(),
-            "the fixed member never lands"
+            row1.landed.is_none(),
+            "the fixed member never lands: {row1:?}"
         );
         assert!(net_traces(&board, 1)[0].contains("100000"));
+    }
+
+    /// **P10 (the gated marker, quality-r1 F6)** — a world with an
+    /// incomplete net at stage entry (the routed bus + an open net):
+    /// the stage returns `gated == true` with EMPTY groups — the
+    /// honest hold is distinguishable from a genuinely group-free
+    /// board via the marker (and epic-cli's sibling sidecar key).
+    #[test]
+    fn p10_gated_world_marks_the_hold() {
+        let (mut manager, mut board) = parse(GATED_WORLD);
+        let report = run_stage(&mut manager, &mut board);
+        assert!(report.gated, "the hold is marked");
+        assert!(
+            report.groups.is_empty(),
+            "the gate short-circuits before the detector"
+        );
+        // The OFF/default face is unchanged: the marker is false.
+        assert!(!GlossBusReport::default().gated);
+    }
+
+    /// The GATED world: the routed 3-net bus + an open net (two pins,
+    /// no wire) — an incomplete at stage entry. The pass never runs
+    /// (the gate fires first); the DSN string exercises the
+    /// test_util parse face.
+    const GATED_WORLD: &str = r#"
+(pcb gated_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 500000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 1500 3000 Front 0.000000))
+    (component "IA" (place "A2" 54500 3000 Front 0.000000))
+    (component "IB" (place "B1" 1500 6000 Front 0.000000))
+    (component "IB" (place "B2" 54500 6000 Front 0.000000))
+    (component "IC" (place "C1" 1500 9000 Front 0.000000))
+    (component "IC" (place "C2" 54500 9000 Front 0.000000))
+    (component "IO" (place "O1" 2000 24000 Front 0.000000))
+    (component "IO" (place "O2" 50000 24000 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (image "IB" (pin "PAD" "P" 0 0))
+    (image "IC" (pin "PAD" "P" 0 0))
+    (image "IO" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 500 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "bus_a" (pins "A1"-"P" "A2"-"P"))
+    (net "bus_b" (pins "B1"-"P" "B2"-"P"))
+    (net "bus_c" (pins "C1"-"P" "C2"-"P"))
+    (net "open" (pins "O1"-"P" "O2"-"P"))
+    (class kicad_default "bus_a" "bus_b" "bus_c" "open" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 1500 3000 3200 3000 3200 10000 51000 10000 51000 3000 54500 3000) (net "bus_a"))
+    (wire (path F.Cu 200 1500 6000 2600 6000 2600 14000 52000 14000 52000 6000 54500 6000) (net "bus_b"))
+    (wire (path F.Cu 200 1500 9000 1800 9000 1800 18500 53000 18500 53000 9000 54500 9000) (net "bus_c"))
+  )
+)
+"#;
+
+    /// **P11 (the corridor PICK tie faces, quality-r1 MINOR-3a)** —
+    /// the pure-fn surface: count beats horizontal preference;
+    /// horizontal beats vertical ACROSS layers at equal count (the
+    /// M-TIE kill face); the lowest layer survives a full
+    /// same-orientation tie.
+    #[test]
+    fn p11_corridor_pick_tie_faces() {
+        let votes = |entries: Vec<((i32, bool), Vec<i32>)>| {
+            entries
+                .into_iter()
+                .collect::<std::collections::BTreeMap<_, _>>()
+        };
+        // Strictly-greater count beats the horizontal preference.
+        assert_eq!(
+            corridor_pick(&votes(vec![
+                ((0, true), vec![1, 2]),
+                ((1, false), vec![1, 2, 3]),
+            ])),
+            Some((1, false)),
+            "count wins over the horizontal tie-break"
+        );
+        // Count tie: horizontal beats vertical ACROSS layers — (1,
+        // true) beats (0, false). The M-TIE mutant (preference
+        // negated) flips this verdict.
+        assert_eq!(
+            corridor_pick(&votes(vec![
+                ((0, false), vec![1, 2]),
+                ((1, true), vec![1, 2]),
+            ])),
+            Some((1, true)),
+            "the horizontal preference crosses layers"
+        );
+        // Full tie (same orientation, different layers): the lowest
+        // layer survives (both orientations pinned).
+        assert_eq!(
+            corridor_pick(&votes(vec![
+                ((0, true), vec![1, 2]),
+                ((1, true), vec![1, 2]),
+            ])),
+            Some((0, true)),
+            "lowest layer on a horizontal tie"
+        );
+        assert_eq!(
+            corridor_pick(&votes(vec![
+                ((0, false), vec![1, 2]),
+                ((1, false), vec![1, 2]),
+            ])),
+            Some((0, false)),
+            "lowest layer on a vertical tie"
+        );
+        // Empty vote map: no corridor.
+        assert_eq!(corridor_pick(&votes(vec![])), None);
+    }
+
+    /// **P12 (the sweep-order world, quality-r1 MINOR-3b)** — net
+    /// order != position order AND the outcome depends on the order:
+    /// the four-member ladder 92_000 / 100_000 / 116_000 / 124_000
+    /// carries nets (1, 2, 4, 3) — the member at the TOP rung (net 3)
+    /// moves DOWN into net 4's CURRENT slot (116_000, distance zero),
+    /// so the NET-ordered sweep rejects it (and its half step sits at
+    /// the exact-clearance edge, also rejected) while net 4 lands
+    /// first and vacates. A POSITION-ordered sweep moves net 4 out of
+    /// the way first and net 3 LANDS — the assertions fail under the
+    /// mutant (M-SWEEP's kill face). Literal geometry throughout.
+    #[test]
+    fn p12_sweep_order_outcome_depends_on_net_order() {
+        let (mut manager, mut board) = sweep_order_world();
+        let report = run_stage(&mut manager, &mut board);
+        assert_eq!(report.groups.len(), 1);
+        let group = &report.groups[0];
+        assert_eq!(group.members, vec![1, 2, 3, 4]);
+        assert_eq!(group.moves_landed, 1, "only net 4 lands");
+        assert_eq!(group.moves_rejected, 1, "net 3 is the honest stop");
+        let row3 = group
+            .rows
+            .iter()
+            .find(|row| row.net == 3)
+            .expect("net 3 row");
+        assert_eq!(row3.from_pos, 124_000);
+        assert_eq!(row3.target_pos, 116_000);
+        assert_eq!(row3.landed, None, "net 3 is blocked by net 4's slot");
+        let row4 = group
+            .rows
+            .iter()
+            .find(|row| row.net == 4)
+            .expect("net 4 row");
+        assert_eq!(row4.from_pos, 116_000);
+        assert_eq!(row4.target_pos, 108_000);
+        assert_eq!(row4.landed, Some(108_000), "net 4 lands first (net order)");
+        let (violations, _) =
+            epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
+        assert_eq!(violations, 0, "the post-sweep board is DRC-clean");
+    }
+
+    /// The sweep-order world: the Z template, four members, nets
+    /// (1, 2, 4, 3) at spans (92_000, 100_000, 116_000, 124_000) —
+    /// pitches 8_000 / 16_000 / 8_000, median 8_000, anchor net 2.
+    fn sweep_order_world() -> (SearchTreeManager, Board) {
+        let mut ses = base_ses();
+        register_nets(
+            &mut ses,
+            &[
+                ("bus_a", false),
+                ("bus_b", false),
+                ("bus_c", false),
+                ("bus_d", false),
+            ],
+        );
+        let member = |ses: &mut SesBoard, id: i32, net: i32, py: i64, s: i64, xl: i64, xr: i64| {
+            let p = |x: i64, y: i64| IntPoint::new(x as i32, y as i32);
+            straight_trace(
+                ses,
+                id,
+                net,
+                vec![
+                    p(0, py),
+                    p(xl, py),
+                    p(xl, s),
+                    p(xr, s),
+                    p(xr, py),
+                    p(540_000, py),
+                ],
+            );
+        };
+        member(&mut ses, 500, 1, 30_000, 92_000, 32_000, 510_000);
+        member(&mut ses, 501, 2, 60_000, 100_000, 26_000, 520_000);
+        // NOTE the swapped net assignment: net 4 at 116_000, net 3 at
+        // 124_000 — the ladder's top two rungs carry DESCENDING nets.
+        member(&mut ses, 503, 4, 90_000, 116_000, 18_000, 530_000);
+        member(&mut ses, 502, 3, 120_000, 124_000, 10_000, 540_000);
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        (manager, board)
     }
 }

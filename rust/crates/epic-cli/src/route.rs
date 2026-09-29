@@ -1586,6 +1586,14 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
                 .collect();
             sidecar["bus_groups"] = serde_json::Value::Array(groups);
         }
+        if gloss_report.gated {
+            // The quality-r1 F6 sibling key: the stage short-circuited
+            // on incompletes (the bus_groups array is empty by
+            // construction here) — the sidecar can tell the honest
+            // hold from a genuinely group-free board. Default runs
+            // never reach the stage; nothing pinned changes.
+            sidecar["bus_groups_gated"] = serde_json::Value::Bool(true);
+        }
         let json = format!(
             "{}\n",
             serde_json::to_string_pretty(&sidecar)
