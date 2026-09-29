@@ -7,8 +7,17 @@
 //! teardrop anatomy); the blocked world adds net "other", a foreign
 //! run hovering over BOTH junctions' taper spans at bottom-edge gap
 //! exactly equal to the 2_000-DBU clearance — the REAL counter's
-//! blocked face (all four rows honest `"landed": false`), with the
-//! world itself violation-free. The ON face is
+//! blocked face (all four rows honest `"landed": false`). The blocked
+//! world additionally carries 4 PRE-EXISTING foreign pad-pad clearance
+//! overlaps (A1–B1 ≈ 5 682 and A2–B2 ≈ 3 599 board DBU — the 2_000-DSN
+//! circle pads are 20_000 DBU in DIAMETER, the buglog-218
+//! diameter-not-radius trap), recorded at capture
+//! (logs/M8-T6/evidence/10-capture.log:11: `score 957.50 (0 unrouted
+//! and 4 violations)`). They pre-date the teardrop stage and affect NO
+//! pin here: no pin asserts this world's cleanliness — the DRC-clean
+//! law is pinned by td3 on clean unit worlds — and the blocked face's
+//! pins assert byte-identity plus the four honest `"landed": false`
+//! rows. The ON face is
 //! `--router.gloss.teardrops=on` with the optimizer DISABLED (the
 //! buglog-213 capture trap: the crafted 90° geometry is outside the
 //! enabled-optimizer's reshape-and-panic scope — the capture face

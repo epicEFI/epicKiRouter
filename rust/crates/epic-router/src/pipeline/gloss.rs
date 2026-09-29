@@ -2365,7 +2365,12 @@ pub const TEARDROP_STEP_DBU: i64 = 4_000;
 /// rather than by a ±1 constant mutation: 1024 vs 1023 is
 /// behaviorally identical on every board with fewer than 1023
 /// junctions — there is no discriminating world at that edge, and the
-/// budgeted-entry pins own the boundary behavior itself.
+/// budgeted-entry pins own the boundary behavior itself. The budget
+/// counts inserted WIRES (`*landings` increments once per graded wire
+/// at the landing loop), so a full taper costs
+/// [`TEARDROP_WIRE_COUNT`] (3) and the effective per-board taper cap
+/// is 1024/3 ≈ 341 — the budgeted-entry pins (0/1) own the
+/// junction-level boundary behavior and are unaffected.
 pub const TEARDROP_BUDGET_PER_BOARD: usize = 1024;
 
 /// The ANATOMY admitter, pinnable in isolation (the DNR-16 exact edge:
@@ -5524,11 +5529,6 @@ mod tests {
             0,
             "the landed taper introduces no violation"
         );
-        assert_eq!(
-            epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0,
-            0,
-            "blocked world stays clean"
-        );
         // The BLOCKED face: one DSN grid step tighter (gap ==
         // clearance + 10 board DBU).
         let (mut manager, mut board) = td_world(Some(15_901));
@@ -5580,7 +5580,11 @@ mod tests {
 
     /// **TD6 (the gated marker).** An open net at stage entry
     /// short-circuits into the DISTINCT gated hold (the T3 sibling-key
-    /// lesson) — no rows, the pass never runs.
+    /// lesson) — no rows, the pass never runs. (There is no unit td5:
+    /// the flag-OFF board-level byte-invariance face is folded into the
+    /// harness pin `teardrop_default_face_rotates_nothing` plus the
+    /// seven default-face compares — a stronger witness than a unit
+    /// pin.)
     #[test]
     fn td6_gated_world_marks_the_hold() {
         let (mut manager, mut board) = parse(TD_GATED_WORLD);
