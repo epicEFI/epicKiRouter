@@ -190,6 +190,11 @@ pub struct PipelineOutcome {
     /// is the only caller gate, the two-regime law). Rides the
     /// aesthetics SIDECAR via epic-cli, NEVER the manifest.
     pub via_place_report: crate::pipeline::gloss::GlossViaPlaceReport,
+    /// M8-T6: the gloss TEARDROPS stage's report (the per-junction
+    /// rows; empty/default unless `router.gloss.teardrops` is ON — the
+    /// flag is the only caller gate, the two-regime law). Rides the
+    /// aesthetics SIDECAR via epic-cli, NEVER the manifest.
+    pub teardrops_report: crate::pipeline::gloss::GlossTeardropsReport,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -377,6 +382,7 @@ pub fn run(
     let bus_active = settings.bus_active;
     let flow_active = settings.flow_active;
     let via_place_active = settings.via_place_active;
+    let teardrops_active = settings.teardrops_active;
     let stage = run_routing_stage(manager, board, &mut settings, &stop, sink, &mut transitions);
     let routing = stage.routing;
     let optimizer = if routing.is_err() {
@@ -469,6 +475,22 @@ pub fn run(
     } else {
         crate::pipeline::gloss::GlossViaPlaceReport::default()
     };
+    // M8-T6: the gloss TEARDROPS stage — the graded-width teardrop
+    // pass (`pipeline/gloss.rs`), the slot AFTER the via-place stage
+    // (the terminal slot — the recorded slot decision in gloss.rs:
+    // via-place moves vias, teardrops attach at the moved positions).
+    // Gated on `router.gloss.teardrops` ALONE (the resolved
+    // `teardrops_active`; default OFF — an OFF run never reaches the
+    // stage, the two-regime byte-invariance law) plus the stage's own
+    // incompletes gate. Emits NO stage transition (the parity stage
+    // enum cannot rotate) and NO events (the meander-stage
+    // precedent). The report rides the aesthetics SIDECAR via
+    // epic-cli, NEVER the manifest.
+    let teardrops_report = if routing.is_ok() && teardrops_active {
+        crate::pipeline::gloss::run_gloss_teardrops_stage(manager, board)
+    } else {
+        crate::pipeline::gloss::GlossTeardropsReport::default()
+    };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
         transitions.push(RoutingStage::Idle);
@@ -486,6 +508,7 @@ pub fn run(
         gloss_report,
         flow_report,
         via_place_report,
+        teardrops_report,
     }
 }
 

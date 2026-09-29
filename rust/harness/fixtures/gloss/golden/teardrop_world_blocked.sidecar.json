@@ -1,0 +1,44 @@
+{
+  "bend_to_length_ratio": 0.0,
+  "gloss_teardrops": [
+    {
+      "at_x": 30000,
+      "at_y": 150000,
+      "landed": false,
+      "net": 1,
+      "net_name": "sig",
+      "pad_diameter": 20000,
+      "trace_id": 6
+    },
+    {
+      "at_x": 450000,
+      "at_y": 150000,
+      "landed": false,
+      "net": 1,
+      "net_name": "sig",
+      "pad_diameter": 20000,
+      "trace_id": 6
+    },
+    {
+      "at_x": 36000,
+      "at_y": 163000,
+      "landed": false,
+      "net": 2,
+      "net_name": "other",
+      "pad_diameter": 20000,
+      "trace_id": 7
+    },
+    {
+      "at_x": 440000,
+      "at_y": 163000,
+      "landed": false,
+      "net": 2,
+      "net_name": "other",
+      "pad_diameter": 20000,
+      "trace_id": 7
+    }
+  ],
+  "mean_length_excess": 0.0,
+  "parallelism_ratio": 1.0,
+  "via_density": 0.0
+}

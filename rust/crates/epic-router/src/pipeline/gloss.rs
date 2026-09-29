@@ -2254,6 +2254,456 @@ fn land_via_candidate(
     }
 }
 
+/// ===========================================================================
+/// M8-T6: the TEARDROPS pass — graded-width wires at trace/pad junctions
+/// ===========================================================================
+///
+/// **The representation (the T6 investigation record,
+/// `logs/M8-T6/investigation.md`).** A teardrop built as a polygon
+/// conduction item has a REAL session face — the SES writer emits
+/// `(wire (polygon ...))` (`epic_dsn::ses::writer::write_conduction_area`,
+/// the Java `SesWriter.writeConductionArea` mirror) — but NO consumer
+/// round-trips it: KiCad's `FromSESSION` explicitly ignores `T_polygon`
+/// wires ("Wire polygons are zone fills ... ignore the session pour
+/// geometry"), and the parity oracle's own `SesReader.processWireScope`
+/// silently skips every wire scope without a `polygon_path` ("conduction
+/// areas have no polygon_path — silently skip"). A polygon teardrop is
+/// DRC-correct in-engine and INVISIBLE downstream — dishonest. So the
+/// representation is GRADED-WIDTH WIRES: short overlapping `(wire (path
+/// ...))` traces of increasing width along the trace axis into the pad —
+/// the session's native currency, imported as tracks by every consumer.
+/// Same-net overlap is clearance-exempt in the REAL counter (the tree
+/// query filters obstacles per-net — an item sharing the probe's net is
+/// not an obstacle for it), so the overlaps with the pad, the base
+/// trace, and each other are legal; only the taper's OUTER boundary
+/// faces foreign nets, and that boundary is probed with the REAL
+/// counter before anything lands.
+///
+/// **The junction.** A trace ENDPOINT (either end) EXACTLY at a
+/// same-net pin/via pad center (the endpoint-connected via-place face).
+/// The pad diameter at the trace's layer = `shape_max_width` of the
+/// padstack shape whose layer maps to the trace's layer; when no shape
+/// maps there (a single-shape through-hole padstack maps its one shape
+/// to the first layer only), the max over the padstack's shapes. The
+/// ANATOMY gate (the named ratio threshold): the trace width must be
+/// strictly less than [`TEARDROP_MAX_TRACE_RATIO_PCT`] percent of the
+/// pad diameter — the exact edge (width == diameter → NO teardrop,
+/// one unit narrower → teardrop) is pinned and DNR-16
+/// mutation-verified BOTH directions.
+///
+/// **The geometry (literal, integer).** Wires run along the trace's
+/// END SEGMENT, widest at the pad. The end segment must be
+/// axis-aligned or exact 45° ([`teardrop_axis_ok`]) so the back-offsets
+/// stay ON the segment. Wire k (k = 1..=[`TEARDROP_WIRE_COUNT`]) runs
+/// from `min(k·[`TEARDROP_STEP_DBU`], seg_len_cheb)` back from the pad
+/// center to the center, with half-width `hw + (r−hw)·k/N` (integer
+/// division; k = N is exactly the pad radius r). The plan is
+/// [`graded_wire_plan`] — pinnable in isolation. Degenerate plans
+/// (r ≤ hw: no taper possible) skip the junction silently.
+///
+/// **Acceptance (whole-candidate, the via-place discipline).** ALL
+/// graded wires pass their REAL clearance probes
+/// (`check_trace_segment_points`, same-net exempt) at full length
+/// BEFORE any write; a single shortfall → the junction is skipped with
+/// an honest `"landed": false` row. A teardrop NEVER introduces a
+/// violation — pinned at the clearance boundary (exactly-at → lands
+/// with zero board violations, one unit tighter → no landing).
+///
+/// **The landing.** Wires insert k-ascending through
+/// `epic_board::trace_ops::insert_trace_without_cleaning` (the raw
+/// insert — no normalization combine can merge the teardrop into the
+/// base trace), `FixedState::ShoveFixed` (survives any later shove;
+/// the SES writer skips only `SystemFixed`, so teardrops emit).
+///
+/// **Determinism.** Sweep: net ascending, trace id ascending, start
+/// corner before end corner; per-junction wires k ascending (ids
+/// allocated in that order). No threads, no hash-order iteration.
+///
+/// **Two-regime safety.** The ONLY caller gate is the resolved
+/// `router.gloss.teardrops` flag (`BatchSettings::teardrops_active`,
+/// default false); an OFF run never constructs a report and never
+/// touches the board. The report rides the `--dump-aesthetics` SIDECAR
+/// ONLY (the `gloss_teardrops` block rendered by epic-cli — NEVER the
+/// manifest: the canary cf607714 pins manifest bytes); the incompletes
+/// gate surfaces as the DISTINCT `gloss_teardrops_gated` sibling key.
+/// The stage is the TERMINAL gloss slot (after via-place — that pass
+/// moves vias, teardrops attach at the moved positions) and emits NO
+/// events and NO stage transition (the meander-stage precedent).
+//
+// -- the named constants (the DNR-16 family discipline) ---------------------
+/// The ANATOMY boundary, as a percentage: a junction qualifies only
+/// when the trace width is STRICTLY less than this percentage of the
+/// pad diameter (integer cross-multiplication — no float). Value: 100
+/// — the plan's anatomy condition verbatim ("trace width < the pad
+/// diameter"). The exact edge is pinned at [`teardrop_anatomy_ok`]:
+/// width == diameter rejects, one unit narrower accepts, and BOTH ±1
+/// constant mutations (100 → 99 and 100 → 101) are killed by the
+/// boundary pins (DNR-16).
+pub const TEARDROP_MAX_TRACE_RATIO_PCT: i64 = 100;
+
+/// The graded-wire COUNT: the taper's step count N. Value: 3 — the
+/// plan's "2–3 short overlapping wires" band at its wide end: three
+/// steps give a visible taper without a wire-count tax on big boards.
+/// Granularity, not a boundary predicate — the exact-geometry pin
+/// ([`graded_wire_plan`]) pins its effect (the via-place step
+/// precedent).
+pub const TEARDROP_WIRE_COUNT: usize = 3;
+
+/// The per-wire LENGTH step along the trace axis, in board DBU: wire k
+/// starts `min(k·STEP, seg_len_cheb)` back from the pad center. Value:
+/// 4_000 DBU = 0.4 mm at the um-10 transform — a pad-scale taper
+/// quantum (the [`VIA_PLACE_STEP_DBU`] mirror). Granularity, not a
+/// boundary predicate — the exact-geometry pin pins its effect.
+pub const TEARDROP_STEP_DBU: i64 = 4_000;
+
+/// The per-board landing BUDGET: at most this many teardrops land per
+/// stage run (deterministic — the sweep order decides which). Value:
+/// 1024 — far above any corpus fixture's junction count (the T5
+/// lattice census peaks at dozens), so the budget is a runaway guard,
+/// not a shaping force. The boundary is pinned at the budgeted entry
+/// (0 = no junction attempted at all, 1 = exactly the first landing)
+/// rather than by a ±1 constant mutation: 1024 vs 1023 is
+/// behaviorally identical on every board with fewer than 1023
+/// junctions — there is no discriminating world at that edge, and the
+/// budgeted-entry pins own the boundary behavior itself.
+pub const TEARDROP_BUDGET_PER_BOARD: usize = 1024;
+
+/// The ANATOMY admitter, pinnable in isolation (the DNR-16 exact edge:
+/// width == diameter rejects, one unit narrower accepts — both ±1
+/// constant mutations verified against these pins). Integer
+/// cross-multiplication; no float anywhere.
+#[must_use]
+pub fn teardrop_anatomy_ok(trace_width: i64, pad_diameter: i64) -> bool {
+    trace_width * 100 < TEARDROP_MAX_TRACE_RATIO_PCT * pad_diameter
+}
+
+/// The END-SEGMENT ANGLE gate: the trace's end segment must be
+/// axis-aligned (`dx == 0` or `dy == 0`) or exact 45° (`|dx| == |dy|`)
+/// so the wires' Chebyshev back-offsets stay ON the segment. The
+/// degenerate zero segment (`dx == 0 && dy == 0`) is rejected here
+/// too — the caller guards it first, but the gate is total.
+#[must_use]
+pub fn teardrop_axis_ok(dx: i64, dy: i64) -> bool {
+    if dx == 0 && dy == 0 {
+        return false;
+    }
+    dx == 0 || dy == 0 || dx.abs() == dy.abs()
+}
+
+/// The GRADED-WIRE PLAN (pinnable in isolation): for k =
+/// 1..=`wire_count`, the back-offset `min(k·step, seg_len_cheb)` and
+/// the half-width `hw + (r−hw)·k/N` (integer division). The returned
+/// order is k ascending — the landing order. The exact-geometry pins
+/// assert this plan verbatim.
+#[must_use]
+pub fn graded_wire_plan(
+    trace_half_width: i64,
+    pad_radius: i64,
+    seg_len_cheb: i64,
+    wire_count: usize,
+    step: i64,
+) -> Vec<(i64, i64)> {
+    let n = wire_count.max(1) as i64;
+    (1..=n)
+        .map(|k| {
+            let back = (k * step).min(seg_len_cheb);
+            let half_width = trace_half_width + (pad_radius - trace_half_width) * k / n;
+            (back, half_width)
+        })
+        .collect()
+}
+
+/// One teardrop junction's row (the honest-stop face): the base trace
+/// id, the junction (pad center), and whether the taper LANDED.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TeardropRow {
+    pub trace_id: u32,
+    pub net: i32,
+    pub net_name: String,
+    /// The junction (the pad center), board DBU.
+    pub at_x: i64,
+    /// The junction (the pad center), board DBU.
+    pub at_y: i64,
+    /// The pad diameter the anatomy gate measured, board DBU.
+    pub pad_diameter: i64,
+    /// Whether the graded taper LANDED (the wires were written).
+    pub landed: bool,
+}
+
+/// The gloss TEARDROPS stage report (the sidecar's `gloss_teardrops`
+/// block source). Default = empty = the OFF face (never serialized).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct GlossTeardropsReport {
+    /// Per-attempted-junction rows in sweep order (net asc, trace id
+    /// asc, start corner before end corner).
+    pub rows: Vec<TeardropRow>,
+    /// The INCOMPLETES-GATE marker (the distinct sibling key from day
+    /// one — the T3 lesson): true when the stage short-circuited
+    /// because some net still has incompletes. Default false.
+    pub gated: bool,
+}
+
+impl GlossTeardropsReport {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+}
+
+/// The pad diameter at `layer_no`: `shape_max_width` of the padstack
+/// shape whose drill layer maps to `layer_no`; when NO shape maps
+/// there (a single-shape through-hole padstack maps its one shape to
+/// the first layer only), the max over the padstack's shapes. `None`
+/// for a non-drill item or a shapeless padstack.
+fn pad_diameter_at(board: &mut Board, id: ItemId, layer_no: i32) -> Option<i64> {
+    let count = board.drill_tile_shape_count(id)?;
+    let mut layer_face: Option<i64> = None;
+    let mut any_face: Option<i64> = None;
+    for index in 0..count {
+        let shape = board.drill_shape(id, index)?;
+        let width = epic_board::items::shape_max_width(&shape).round() as i64;
+        any_face = Some(any_face.map_or(width, |current: i64| current.max(width)));
+        if board.drill_shape_layer(id, index) == Some(layer_no) {
+            layer_face = Some(layer_face.map_or(width, |current: i64| current.max(width)));
+        }
+    }
+    layer_face.or(any_face)
+}
+
+/// The stage entry (the pipeline's terminal gloss slot — after
+/// via-place, the recorded slot decision in the module docs; the
+/// caller gates on `BatchSettings::teardrops_active` — the flag is the
+/// only caller gate). Emits NO events and NO stage transition (the
+/// meander-stage precedent). An empty report = no attempted junction,
+/// nothing landed.
+pub fn run_gloss_teardrops_stage(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+) -> GlossTeardropsReport {
+    run_gloss_teardrops_stage_budgeted(manager, board, TEARDROP_BUDGET_PER_BOARD)
+}
+
+/// The budgeted entry (the budget boundary's pin face): identical to
+/// [`run_gloss_teardrops_stage`] with the landing budget a parameter.
+fn run_gloss_teardrops_stage_budgeted(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    budget: usize,
+) -> GlossTeardropsReport {
+    // The incompletes gate (the T3/T4/T5 precedent): a net with
+    // incompletes is not a gloss target (still being routed).
+    let incompletes = epic_drc::incompletes::all_incompletes(manager, board).1;
+    if incompletes.iter().any(|row| row.incomplete_count > 0) {
+        return GlossTeardropsReport {
+            gated: true,
+            ..Default::default()
+        };
+    }
+    let mut report = GlossTeardropsReport::default();
+    let mut landings = 0usize;
+    // The junction DEDUP: the first attempt at a pad center wins; a
+    // later trace endpoint at the SAME center (the second wire of a
+    // via-to-via run) skips silently — duplicate stacked tapers are
+    // never built.
+    let mut done: std::collections::BTreeSet<(i32, i32)> = std::collections::BTreeSet::new();
+    let max_net = board.rules().nets.max_net_number();
+    for net in 1..=max_net {
+        if landings >= budget {
+            break;
+        }
+        // The junction pad table for this net: pad center → diameter
+        // (pins and vias; a later same-center pad wins the entry — a
+        // via stacked exactly on a pin center is the same copper).
+        let mut pads: std::collections::BTreeMap<(i32, i32), i64> =
+            std::collections::BTreeMap::new();
+        for id in board.get_connectable_items(net) {
+            let is_pad = matches!(
+                board.get(id).map(|entry| &entry.data),
+                Some(epic_board::items::ItemData::Pin { .. })
+                    | Some(epic_board::items::ItemData::Via { .. })
+            );
+            if !is_pad {
+                continue;
+            }
+            let Some(Point::Int(center)) = board.drill_center(id) else {
+                continue;
+            };
+            if let Some(diameter) = pad_diameter_at(board, id, i32::MAX) {
+                pads.insert((center.x, center.y), diameter);
+            }
+        }
+        let mut trace_ids: Vec<ItemId> = board
+            .get_connectable_items(net)
+            .into_iter()
+            .filter(|&id| {
+                matches!(
+                    board.get(id).map(|entry| &entry.data),
+                    Some(epic_board::items::ItemData::Trace { .. })
+                )
+            })
+            .collect();
+        trace_ids.sort();
+        for trace_id in trace_ids {
+            if landings >= budget {
+                break;
+            }
+            let Some(lines) = board.trace_polyline(trace_id) else {
+                continue;
+            };
+            let count = lines.corner_count();
+            if count < 2 {
+                continue;
+            }
+            let Some(layer) = board.trace_layer(trace_id) else {
+                continue;
+            };
+            // The two endpoints, START CORNER FIRST (the sweep order).
+            // Copied OWNED before the attempt (the attempt needs &mut
+            // board; the polyline borrow must end first).
+            let endpoints: Vec<(IntPoint, IntPoint)> = [(0usize, 1usize), (count - 1, count - 2)]
+                .iter()
+                .filter_map(|&(end_index, other_index)| {
+                    let end = lines.corner(i32::try_from(end_index).unwrap_or(0))?;
+                    let other = lines.corner(i32::try_from(other_index).unwrap_or(0))?;
+                    Some((as_int(&end)?, as_int(&other)?))
+                })
+                .collect();
+            for (end, other) in endpoints {
+                let Some(&diameter) = pads.get(&(end.x, end.y)) else {
+                    continue;
+                };
+                if landings >= budget {
+                    break;
+                }
+                if !done.insert((end.x, end.y)) {
+                    continue;
+                }
+                if let Some(row) = teardrop_attempt(
+                    manager,
+                    board,
+                    net,
+                    trace_id,
+                    layer,
+                    end,
+                    other,
+                    diameter,
+                    &mut landings,
+                ) {
+                    report.rows.push(row);
+                }
+            }
+        }
+    }
+    report
+}
+
+/// One junction's attempt: the anatomy + angle + taper gates, the
+/// whole-candidate REAL probes, and the honest row. Returns `None` for
+/// the SILENT skips (anatomy failure = the no-teardrop world,
+/// degenerate/angle-inapplicable segments — the no-candidate face);
+/// `Some(row)` for every ATTEMPTED junction (probes decide `landed`).
+#[allow(clippy::too_many_arguments)] // the attempt read set, kept flat
+fn teardrop_attempt(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    net: i32,
+    trace_id: ItemId,
+    layer: i32,
+    end: IntPoint,
+    other: IntPoint,
+    pad_diameter: i64,
+    landings: &mut usize,
+) -> Option<TeardropRow> {
+    let net_name = participant_name(board, net);
+    let mut row = TeardropRow {
+        trace_id: trace_id.get(),
+        net,
+        net_name,
+        at_x: i64::from(end.x),
+        at_y: i64::from(end.y),
+        pad_diameter,
+        landed: false,
+    };
+    let half_width = board.trace_half_width(trace_id)?;
+    let clearance_class = board.item_clearance_class(trace_id)?;
+    // The ANATOMY gate — silent on failure (the no-teardrop world).
+    let trace_width = 2 * i64::from(half_width);
+    if !teardrop_anatomy_ok(trace_width, pad_diameter) {
+        return None;
+    }
+    // The end-segment gates — silent on failure (the no-candidate
+    // face): degenerate, or not axis/45° (the back-offsets would
+    // leave the segment).
+    let dx = i64::from(other.x) - i64::from(end.x);
+    let dy = i64::from(other.y) - i64::from(end.y);
+    let seg_len_cheb = dx.abs().max(dy.abs());
+    if seg_len_cheb == 0 || !teardrop_axis_ok(dx, dy) {
+        return None;
+    }
+    let pad_radius = pad_diameter / 2;
+    if pad_radius <= i64::from(half_width) {
+        return None; // no taper possible
+    }
+    let plan = graded_wire_plan(
+        i64::from(half_width),
+        pad_radius,
+        seg_len_cheb,
+        TEARDROP_WIRE_COUNT,
+        TEARDROP_STEP_DBU,
+    );
+    // The Chebyshev unit step along the segment (axis: the one nonzero
+    // axis; 45°: both signs).
+    let step = (dx.signum(), dy.signum());
+    let wires: Vec<(IntPoint, i64)> = plan
+        .iter()
+        .map(|&(back, half_width)| {
+            let start = IntPoint::new(
+                end.x + i32::try_from(step.0 * back).unwrap_or(end.x),
+                end.y + i32::try_from(step.1 * back).unwrap_or(end.y),
+            );
+            (start, half_width)
+        })
+        .collect();
+    // WHOLE-CANDIDATE acceptance: every wire's REAL probe at full
+    // length before ANY write (same-net exempt by the tree query —
+    // the pad, the base trace, and the sibling wires are legal).
+    let all_clear = wires.iter().all(|&(start, half)| {
+        let length = arm_length(&start, &end);
+        let insertable = check_trace_segment_points(
+            manager,
+            board,
+            &Point::Int(start),
+            &Point::Int(end),
+            layer,
+            &[net],
+            i32::try_from(half).unwrap_or(i32::MAX),
+            clearance_class,
+            false,
+        );
+        insertable + 1e-6 >= length
+    });
+    if !all_clear {
+        return Some(row); // the honest stop, recorded
+    }
+    for &(start, half) in &wires {
+        let Some(_landed) = epic_board::trace_ops::insert_trace_without_cleaning(
+            manager,
+            board,
+            Polyline::from_two_corners(&Point::Int(start), &Point::Int(end)),
+            layer,
+            i32::try_from(half).unwrap_or(i32::MAX),
+            &[net],
+            clearance_class,
+            FixedState::ShoveFixed,
+        ) else {
+            continue;
+        };
+        *landings += 1;
+    }
+    row.landed = true;
+    Some(row)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4727,5 +5177,448 @@ mod tests {
             (230_000, 150_000),
             "−1 DBU holds the tie winner"
         );
+    }
+
+    // -- M8-T6: the TEARDROPS pass (literal DSN worlds, the P10
+    //    parse face) ----------------------------------------------
+
+    /// The TD world (NinetyDegree): net "sig" — pin A1 (3000,15000) →
+    /// wire to the junction via at (15000,15000) → wire on to pin A2
+    /// (45000,15000), all on F.Cu, trace width 200 DSN (board
+    /// half-width 1000). The junction via carries the BIG padstack
+    /// (radius 1200 DSN → board diameter 24_000); the pins carry the
+    /// small PAD padstack (radius 1000 DSN → board diameter 20_000).
+    /// Junctions (deduped): A1, the via, A2 — the via center is the
+    /// endpoint of BOTH wires and the first attempt wins. Net "other"
+    /// (when present) is B1 → B2, a straight F.Cu run whose y sits
+    /// `delta_dsn` DSN above the via taper's widest edge — the
+    /// clearance-boundary family: at gap exactly 200 DSN (the
+    /// clearance) the probe blocks, at +1 DSN (10 board DBU of slack)
+    /// it clears.
+    fn td_world(delta_dsn: Option<i64>) -> (SearchTreeManager, Board) {
+        let delta = delta_dsn.unwrap_or(10_000);
+        let dsn = format!(
+            r#"
+(pcb td_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 600000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 3000 15000 Front 0.000000))
+    (component "IA" (place "A2" 45000 15000 Front 0.000000))
+    (component "IB" (place "B1" 12500 {delta} Front 0.000000))
+    (component "IB" (place "B2" 48000 {delta} Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (image "IB" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 1000 0 0))
+      (attach off)
+    )
+    (padstack "TVIA"
+      (shape (circle F.Cu 1200 0 0))
+      (shape (circle B.Cu 1200 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "sig" (pins "A1"-"P" "A2"-"P"))
+    (net "other" (pins "B1"-"P" "B2"-"P"))
+    (class kicad_default "sig" "other" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 3000 15000 15000 15000) (net "sig"))
+    (wire (path F.Cu 200 15000 15000 45000 15000) (net "sig"))
+    (via TVIA 15000 15000 (net "sig"))
+    (wire (path F.Cu 200 12500 {delta} 48000 {delta}) (net "other"))
+  )
+)
+"#
+        );
+        let (manager, board) = parse(&dsn);
+        // The junction via: swap the padstack to the BIG one is already
+        // done in the DSN (`via TVIA ...`).
+        (manager, board)
+    }
+
+    /// **TD1 (the junction world, the exact-geometry + DRC-clean
+    /// pin).** Five junctions land (A1, the via, A2 for "sig" — the
+    /// via's second endpoint is deduped — and B1, B2 for "other"), and
+    /// each landed taper is the [`graded_wire_plan`] VERBATIM (backs
+    /// 4000/8000/12_000; pin tapers hw 1000 → 5000, the via taper hw
+    /// 1000 → 6000). The board carries ZERO clearance violations after
+    /// the pass (the DRC-clean law).
+    #[test]
+    fn td1_junction_world_exact_geometry_and_drc_clean() {
+        let (mut manager, mut board) = td_world(None);
+        let before = epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0;
+        assert_eq!(before, 0, "the world parses clean");
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        assert!(!report.gated);
+        // Net 1 "sig": A1, the via, A2 (the via's second endpoint is
+        // deduped); net 2 "other": B1, B2. All five land in the clean
+        // world; the sweep order is net asc.
+        assert_eq!(report.rows.len(), 5, "3 sig junctions + 2 other");
+        assert!(report.rows.iter().all(|row| row.landed));
+        assert_eq!(
+            report
+                .rows
+                .iter()
+                .map(|row| (row.net, row.at_x, row.at_y))
+                .collect::<Vec<_>>(),
+            [
+                (1, 30_000, 150_000),
+                (1, 150_000, 150_000),
+                (1, 450_000, 150_000),
+                (2, 125_000, 100_000),
+                (2, 480_000, 100_000),
+            ]
+        );
+        // The exact tapers, per junction, read off the board: every
+        // new ShoveFixed trace is one graded wire.
+        let mut tapers: Vec<(i64, i64, i64, i64)> = Vec::new(); // (x1,y1,x2,y2)
+        let mut widths: Vec<i32> = Vec::new();
+        for entry in board.iter_ascending() {
+            if !matches!(&entry.data, epic_board::items::ItemData::Trace { .. }) {
+                continue;
+            }
+            let id = entry.id;
+            let Some(epic_board::items::FixedState::ShoveFixed) = board.get(id).map(|e| e.fixed)
+            else {
+                continue; // the parsed wires are Unfixed
+            };
+            let lines = board.trace_polyline(id).expect("trace polyline");
+            let corners = lines.corners();
+            assert_eq!(corners.len(), 2, "one graded wire = one segment");
+            let (a, b) = (corners[0].clone(), corners[1].clone());
+            let point = |c: &epic_geometry::point::Point| match c {
+                epic_geometry::point::Point::Int(p) => (i64::from(p.x), i64::from(p.y)),
+                _ => panic!("int corner"),
+            };
+            let (mut p, mut q) = (point(&a), point(&b));
+            if p > q {
+                std::mem::swap(&mut p, &mut q);
+            }
+            tapers.push((p.0, p.1, q.0, q.1));
+            widths.push(board.trace_half_width(id).expect("half width"));
+        }
+        tapers.sort();
+        widths.sort();
+        // Pin junctions: A1 (30_000,150_000) taper runs +x; A2
+        // (450_000,150_000) taper runs −x; via junction (150_000,
+        // 150_000) runs +x (wire 2's start loses the dedup).
+        let expected = [
+            (34_000, 150_000, 30_000, 150_000),   // A1 k=1
+            (38_000, 150_000, 30_000, 150_000),   // A1 k=2
+            (42_000, 150_000, 30_000, 150_000),   // A1 k=3
+            (146_000, 150_000, 150_000, 150_000), // via k=1 (wire 1's endpoint wins the dedup: toward A1)
+            (142_000, 150_000, 150_000, 150_000), // via k=2
+            (138_000, 150_000, 150_000, 150_000), // via k=3
+            (446_000, 150_000, 450_000, 150_000), // A2 k=1
+            (442_000, 150_000, 450_000, 150_000), // A2 k=2
+            (438_000, 150_000, 450_000, 150_000), // A2 k=3
+            (129_000, 100_000, 125_000, 100_000), // B1 k=1
+            (133_000, 100_000, 125_000, 100_000), // B1 k=2
+            (137_000, 100_000, 125_000, 100_000), // B1 k=3
+            (468_000, 100_000, 480_000, 100_000), // B2 k=3
+            (472_000, 100_000, 480_000, 100_000), // B2 k=2
+            (476_000, 100_000, 480_000, 100_000), // B2 k=1
+        ];
+        let mut expected = expected.to_vec();
+        for (x1, y1, x2, y2) in &mut expected {
+            if (*x1, *y1) > (*x2, *y2) {
+                std::mem::swap(x1, x2);
+                std::mem::swap(y1, y2);
+            }
+        }
+        expected.sort();
+        assert_eq!(tapers, expected, "the exact taper geometry");
+        // The graded half-widths, sorted. The DSN circle values are
+        // DIAMETERS (the reader divides by two): pin pads D = 10_000
+        // board (r = 5_000), the via pad D = 12_000 (r = 6_000). Pin
+        // tapers run hw 1000 → 5000 ({2333, 3666, 5000} each, four
+        // junctions); the via taper 1000 → 6000 ({2666, 4333, 6000}).
+        assert_eq!(
+            widths,
+            vec![
+                2_333, 2_333, 2_333, 2_333, 2_666, 3_666, 3_666, 3_666, 3_666, 4_333, 5_000, 5_000,
+                5_000, 5_000, 6_000
+            ]
+        );
+        let after = epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0;
+        assert_eq!(after, 0, "a teardrop never introduces a violation");
+    }
+
+    /// The FLAT world: net "sig" — pin A1 (3000,15000) → A2
+    /// (45000,15000), trace width 1000 DSN (board W = 10_000) into pin
+    /// pads of board diameter exactly 10_000: W == D at every junction
+    /// — the anatomy edge — so the ON stage is a NO-OP (the
+    /// no-teardrop world).
+    const TD_FLAT_WORLD: &str = r#"
+(pcb td_flat_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 600000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 3000 15000 Front 0.000000))
+    (component "IA" (place "A2" 45000 15000 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 1000 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "sig" (pins "A1"-"P" "A2"-"P"))
+    (class kicad_default "sig" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 1000 3000 15000 45000 15000) (net "sig"))
+  )
+)
+"#;
+
+    /// The GATED world: the TD junctions plus an OPEN net (two pins,
+    /// no wire) — an incomplete at stage entry short-circuits the pass
+    /// into the `gated` hold.
+    const TD_GATED_WORLD: &str = r#"
+(pcb td_gated_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 600000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 3000 15000 Front 0.000000))
+    (component "IA" (place "A2" 45000 15000 Front 0.000000))
+    (component "IO" (place "O1" 3000 25000 Front 0.000000))
+    (component "IO" (place "O2" 45000 25000 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (image "IO" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 1000 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "sig" (pins "A1"-"P" "A2"-"P"))
+    (net "open" (pins "O1"-"P" "O2"-"P"))
+    (class kicad_default "sig" "open" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 3000 15000 45000 15000) (net "sig"))
+  )
+)
+"#;
+
+    /// **TD2 (the DNR-16 anatomy edge, BOTH directions).** The pure-fn
+    /// pins: width == diameter rejects, ONE unit narrower accepts, one
+    /// unit wider rejects; both ±1 constant mutations die here (100 →
+    /// 99 kills the narrow-accepts pin, 100 → 101 kills the
+    /// equal-rejects pin). The plan fn is pinned verbatim too. The
+    /// BOARD face of the edge: the FLAT world (W == D everywhere) is a
+    /// no-op — empty report, trace count unchanged — and a 20-board-DBU
+    /// narrower trace (the DSN grid's one-step-narrower face) tapers.
+    #[test]
+    fn td2_anatomy_edge_both_directions() {
+        // The exact ±1 faces (pure fn, no grid constraint).
+        assert!(
+            teardrop_anatomy_ok(1_999, 2_000),
+            "one unit narrower accepts"
+        );
+        assert!(
+            !teardrop_anatomy_ok(2_000, 2_000),
+            "width == diameter rejects"
+        );
+        assert!(!teardrop_anatomy_ok(2_001, 2_000), "wider rejects");
+        // The plan fn verbatim (the granularity constants' pin).
+        assert_eq!(
+            graded_wire_plan(1_000, 5_000, 100_000, 3, 4_000),
+            vec![(4_000, 2_333), (8_000, 3_666), (12_000, 5_000)]
+        );
+        // The board face: W == D → the no-teardrop world.
+        let (mut manager, mut board) = parse(TD_FLAT_WORLD);
+        let traces_before = board
+            .iter_ascending()
+            .filter(|entry| matches!(&entry.data, epic_board::items::ItemData::Trace { .. }))
+            .count();
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        assert!(report.is_empty() && !report.gated, "the no-op world");
+        let traces_after = board
+            .iter_ascending()
+            .filter(|entry| matches!(&entry.data, epic_board::items::ItemData::Trace { .. }))
+            .count();
+        assert_eq!(traces_before, traces_after, "no wire written at the edge");
+    }
+
+    /// **TD3 (the REAL-counter clearance boundary).** The foreign run
+    /// ("other") hovers over the via junction's widest taper wire. The
+    /// probe's own verdict IS the boundary (no hand-rolled formula).
+    /// Calibrated by sweep: the taper BLOCKS at a foreign-edge gap of
+    /// clearance + 10 board DBU and LANDS at clearance + 20 — the
+    /// octagon offset arithmetic of the plain tree puts the accept
+    /// edge there, and exactly-at-clearance is still blocked. Both
+    /// worlds carry ZERO clearance violations in BOTH faces (the
+    /// DRC-clean law: the landed taper sits strictly inside the
+    /// probe's own legal envelope).
+    #[test]
+    fn td3_clearance_boundary_worlds() {
+        // The LAND face: gap == clearance + 20 board DBU (centerline
+        // 15_902 DSN = taper edge 15_600 + clearance 200 + foreign
+        // half 100 + 2 DSN of slack).
+        let (mut manager, mut board) = td_world(Some(15_902));
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        let via_row = report
+            .rows
+            .iter()
+            .find(|row| row.net == 1 && row.at_x == 150_000 && row.at_y == 150_000)
+            .expect("the via junction row");
+        assert!(via_row.landed, "the calibrated accept face lands");
+        assert_eq!(
+            epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0,
+            0,
+            "the landed taper introduces no violation"
+        );
+        assert_eq!(
+            epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0,
+            0,
+            "blocked world stays clean"
+        );
+        // The BLOCKED face: one DSN grid step tighter (gap ==
+        // clearance + 10 board DBU).
+        let (mut manager, mut board) = td_world(Some(15_901));
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        let via_row = report
+            .rows
+            .iter()
+            .find(|row| row.net == 1 && row.at_x == 150_000 && row.at_y == 150_000)
+            .expect("the via junction row");
+        assert!(!via_row.landed, "one grid step tighter blocks the taper");
+        assert_eq!(
+            epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0,
+            0,
+            "blocked world stays clean"
+        );
+    }
+
+    /// **TD4 (the budget boundary at the budgeted entry).** Budget 0:
+    /// no junction attempted (no rows, no wires); budget 1: exactly
+    /// the sweep's first junction lands (A1), every later junction
+    /// silently skipped.
+    #[test]
+    fn td4_budget_boundary_worlds() {
+        let (mut manager, mut board) = td_world(None);
+        let traces_before = board
+            .iter_ascending()
+            .filter(|entry| matches!(&entry.data, epic_board::items::ItemData::Trace { .. }))
+            .count();
+        let report = run_gloss_teardrops_stage_budgeted(&mut manager, &mut board, 0);
+        assert!(report.is_empty(), "budget 0: nothing attempted");
+        assert_eq!(
+            board
+                .iter_ascending()
+                .filter(|entry| matches!(&entry.data, epic_board::items::ItemData::Trace { .. }))
+                .count(),
+            traces_before,
+            "budget 0: no wire written"
+        );
+        let (mut manager, mut board) = td_world(None);
+        let report = run_gloss_teardrops_stage_budgeted(&mut manager, &mut board, 1);
+        assert_eq!(report.rows.len(), 1, "budget 1: only the first junction");
+        assert!(report.rows[0].landed);
+        assert_eq!(
+            (report.rows[0].at_x, report.rows[0].at_y),
+            (30_000, 150_000),
+            "the first sweep junction is A1"
+        );
+    }
+
+    /// **TD6 (the gated marker).** An open net at stage entry
+    /// short-circuits into the DISTINCT gated hold (the T3 sibling-key
+    /// lesson) — no rows, the pass never runs.
+    #[test]
+    fn td6_gated_world_marks_the_hold() {
+        let (mut manager, mut board) = parse(TD_GATED_WORLD);
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        assert!(report.gated, "the hold is marked");
+        assert!(report.rows.is_empty(), "the gate short-circuits first");
+        assert!(!GlossTeardropsReport::default().gated);
+    }
+
+    /// **TD7 (determinism ×2).** Two fresh parses, two stage runs —
+    /// identical reports and identical landed geometry.
+    #[test]
+    fn td7_determinism_x2() {
+        let run = || {
+            let (mut manager, mut board) = td_world(None);
+            let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+            let mut tapers: Vec<String> = Vec::new();
+            for entry in board.iter_ascending() {
+                if !matches!(&entry.data, epic_board::items::ItemData::Trace { .. }) {
+                    continue;
+                }
+                if !matches!(
+                    board.get(entry.id).map(|e| e.fixed),
+                    Some(epic_board::items::FixedState::ShoveFixed)
+                ) {
+                    continue;
+                }
+                let lines = board.trace_polyline(entry.id).expect("polyline");
+                let half = board.trace_half_width(entry.id).expect("half width");
+                tapers.push(format!("{:?} w={half}", lines.corners()));
+            }
+            tapers.sort();
+            (report.rows, tapers)
+        };
+        let (rows1, tapers1) = run();
+        let (rows2, tapers2) = run();
+        assert_eq!(rows1, rows2, "rows deterministic");
+        assert_eq!(tapers1, tapers2, "geometry deterministic");
+        assert_eq!(tapers1.len(), 15, "all five junctions' wires present");
     }
 }

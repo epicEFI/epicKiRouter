@@ -872,6 +872,9 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     // M8-T5: the gloss via-place activation (same seam as the flow
     // flag).
     batch.via_place_active = resolved.gloss_via_place;
+    // M8-T6: the gloss teardrops activation (same seam as the via-place
+    // flag).
+    batch.teardrops_active = resolved.gloss_teardrops;
     batch
 }
 
@@ -1474,6 +1477,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         gloss_report,
         flow_report,
         via_place_report,
+        teardrops_report,
         ..
     } = outcome;
     let phases = PipelinePhases {
@@ -1658,6 +1662,32 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         }
         if via_place_report.gated {
             sidecar["gloss_via_place_gated"] = serde_json::Value::Bool(true);
+        }
+        // M8-T6: the gloss `gloss_teardrops` block — SAME sidecar, same
+        // skip-when-empty law (never the manifest: cf607714). The gated
+        // hold surfaces as the DISTINCT `gloss_teardrops_gated` sibling
+        // key from day one. Row locator contract: at_x/at_y = the
+        // junction (pad center), landed = the taper wrote its wires.
+        if !teardrops_report.is_empty() {
+            let rows: Vec<serde_json::Value> = teardrops_report
+                .rows
+                .iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "at_x": row.at_x,
+                        "at_y": row.at_y,
+                        "landed": row.landed,
+                        "net": row.net,
+                        "net_name": row.net_name,
+                        "pad_diameter": row.pad_diameter,
+                        "trace_id": row.trace_id,
+                    })
+                })
+                .collect();
+            sidecar["gloss_teardrops"] = serde_json::Value::Array(rows);
+        }
+        if teardrops_report.gated {
+            sidecar["gloss_teardrops_gated"] = serde_json::Value::Bool(true);
         }
         let json = format!(
             "{}\n",

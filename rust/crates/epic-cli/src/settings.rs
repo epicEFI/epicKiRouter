@@ -221,6 +221,27 @@ pub struct CliLayer {
     /// `VIA_PLACE_MAX_LENGTH_GAIN_DBU` 40_000 DBU) live in gloss.rs per
     /// the named-constant family pattern.
     pub gloss_via_place: Option<bool>,
+    /// `router.gloss.teardrops` — the M8-T6 GLOSS TEARDROPS tri-state
+    /// (RUST-ONLY, no Java counterpart; the gloss family block beside
+    /// the `router.gloss.via_place` field). `None` (the default) = OFF:
+    /// the gloss stage never runs the teardrop pass — the two-regime
+    /// law's byte-invariance face. `on` = the gloss stage slot runs the
+    /// graded-width teardrop pass AFTER the via-place pass (the
+    /// terminal slot — the recorded slot decision in gloss.rs) at
+    /// trace-to-pad/via junctions whose trace width is strictly below
+    /// the named ratio threshold of the pad diameter, whole-candidate
+    /// acceptance with REAL clearance probes
+    /// (`epic_router::pipeline::gloss`; the report rides the
+    /// `--dump-aesthetics` SIDECAR as the `gloss_teardrops` block —
+    /// never the manifest; a gated hold surfaces as the DISTINCT
+    /// `gloss_teardrops_gated` sibling key). `off` = the explicit kill
+    /// face (identical to absent: the pass has no input-driven
+    /// activation). The named engine constants
+    /// (`TEARDROP_MAX_TRACE_RATIO_PCT` 100 — strictly below, the
+    /// anatomy edge, `TEARDROP_WIRE_COUNT` 3, `TEARDROP_STEP_DBU`
+    /// 4_000 DBU, `TEARDROP_BUDGET_PER_BOARD` 1024) live in gloss.rs
+    /// per the named-constant family pattern.
+    pub gloss_teardrops: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -693,6 +714,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.gloss_via_place = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "gloss.teardrops" => match parse_on_off(value) {
+            Some(v) => layer.gloss_teardrops = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -1082,6 +1107,10 @@ pub struct MergedSettings {
     /// (absent = OFF; CLI-only — no DSN/default source writes it, the
     /// Default seed is `None`).
     pub gloss_via_place: Option<bool>,
+    /// `router.gloss.teardrops` — the M8-T6 gloss teardrops tri-state
+    /// (absent = OFF; CLI-only — no DSN/default source writes it, the
+    /// Default seed is `None`).
+    pub gloss_teardrops: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1192,6 +1221,7 @@ impl Default for MergedSettings {
             gloss_bus: None,
             gloss_flow: None,
             gloss_via_place: None,
+            gloss_teardrops: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1352,6 +1382,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.gloss_via_place {
         merged.gloss_via_place = Some(v);
+    }
+    if let Some(v) = cli.gloss_teardrops {
+        merged.gloss_teardrops = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1716,6 +1749,10 @@ pub struct ResolvedRouteSettings {
     /// resolved to its effective face: ON only when explicitly `on`
     /// (same face as the gloss-bus flag).
     pub gloss_via_place: bool,
+    /// The M8-T6 gloss teardrops flag (`router.gloss.teardrops`),
+    /// resolved to its effective face: ON only when explicitly `on`
+    /// (same face as the gloss-bus flag).
+    pub gloss_teardrops: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1832,6 +1869,7 @@ impl ResolvedRouteSettings {
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
             gloss_via_place: merged.gloss_via_place.unwrap_or(false),
+            gloss_teardrops: merged.gloss_teardrops.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2806,6 +2844,7 @@ mod tests {
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
+            gloss_teardrops: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
@@ -3066,6 +3105,60 @@ mod tests {
         let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
         let resolved = ResolvedRouteSettings::resolve(&merged, None);
         assert!(!resolved.gloss_flow, "malformed stays OFF");
+    }
+
+    /// The M8-T6 gloss-teardrops tri-state faces (parse -> merge ->
+    /// resolve): `on` resolves ON; absent and `off` both resolve OFF
+    /// (no input-driven activation — the two-regime default face); a
+    /// malformed value WARNs and stays OFF. The gloss-bus sibling's
+    /// exact shape.
+    #[test]
+    fn gloss_teardrops_tri_state_parse_merge_resolve() {
+        // `on` = ON.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.teardrops=on",
+        ]))
+        .expect("parses");
+        assert!(parsed.layer.warnings.is_empty());
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        assert_eq!(merged.gloss_teardrops, Some(true));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(resolved.gloss_teardrops, "on resolves ON");
+        // Absent = OFF.
+        let parsed = parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses"])).expect("parses");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        assert_eq!(merged.gloss_teardrops, None);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_teardrops, "absent resolves OFF");
+        // `off` = OFF (explicit kill face).
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.teardrops=off",
+        ]))
+        .expect("parses");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_teardrops, "off resolves OFF");
+        // Malformed = WARN and OFF.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.teardrops=maybe",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.layer.warnings.len(), 1, "the warn-and-continue face");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_teardrops, "malformed stays OFF");
     }
 
     /// A neutral DSN layer (no metadata, one layer) for the merge

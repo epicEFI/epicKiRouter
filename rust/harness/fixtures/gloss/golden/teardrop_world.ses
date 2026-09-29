@@ -1,0 +1,65 @@
+(session "teardrop_world"
+  (base_design "teardrop_world")
+  (placement
+    (resolution um 10)
+    (component IA
+      (place A1 30000 150000 front 0)
+      (place A2 450000 150000 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+    )
+    (library_out 
+    )
+    (network_out 
+      (net sig
+        (wire
+          (path F.Cu 20000
+            438000 150000
+            450000 150000
+          )
+        )
+        (wire
+          (path F.Cu 14000
+            442000 150000
+            450000 150000
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            446000 150000
+            450000 150000
+          )
+        )
+        (wire
+          (path F.Cu 20000
+            42000 150000
+            30000 150000
+          )
+        )
+        (wire
+          (path F.Cu 14000
+            38000 150000
+            30000 150000
+          )
+        )
+        (wire
+          (path F.Cu 8000
+            34000 150000
+            30000 150000
+          )
+        )
+        (wire
+          (path F.Cu 2000
+            30000 150000
+            450000 150000
+          )
+        )
+      )
+    )
+  )
+)

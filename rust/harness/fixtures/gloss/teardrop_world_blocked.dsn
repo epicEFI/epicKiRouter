@@ -1,0 +1,42 @@
+(pcb teardrop_world_blocked.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 600000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 3000 15000 Front 0.000000))
+    (component "IA" (place "A2" 45000 15000 Front 0.000000))
+    (component "IB" (place "B1" 3600 16300 Front 0.000000))
+    (component "IB" (place "B2" 44000 16300 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (image "IB" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 2000 0 0))
+      (shape (circle B.Cu 2000 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "sig" (pins "A1"-"P" "A2"-"P"))
+    (net "other" (pins "B1"-"P" "B2"-"P"))
+    (class kicad_default "sig" "other" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 3000 15000 45000 15000) (net "sig"))
+    (wire (path F.Cu 200 3600 16300 44000 16300) (net "other"))
+  )
+)

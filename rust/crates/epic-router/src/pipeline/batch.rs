@@ -437,6 +437,14 @@ pub struct BatchSettings {
     /// aesthetics SIDECAR, never the manifest. Dead code at defaults
     /// (the two-regime law).
     pub via_place_active: bool,
+    /// M8-T6 RUST-ONLY: the GLOSS TEARDROPS stage's resolved activation
+    /// (`router.gloss.teardrops`, default OFF — no Java counterpart).
+    /// When ON, the gloss stage slot runs the graded-width teardrop
+    /// pass AFTER the via-place pass (the terminal slot — the recorded
+    /// slot decision in gloss.rs); the report rides the aesthetics
+    /// SIDECAR, never the manifest. Dead code at defaults (the
+    /// two-regime law).
+    pub teardrops_active: bool,
 }
 
 impl BatchSettings {
@@ -482,6 +490,7 @@ impl BatchSettings {
             bus_active: false,
             flow_active: false,
             via_place_active: false,
+            teardrops_active: false,
         }
     }
 }
