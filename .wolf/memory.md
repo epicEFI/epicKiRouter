@@ -8296,3 +8296,285 @@ description: chronological action log per session, consolidated weekly
 | 01:30 | Edited docs/architecture.md | 2→2 lines | ~38 |
 | 01:30 | Edited docs/superpowers/plans/2026-09-26-epicrouter-m6-routing-intelligence.md | 1→2 lines | ~178 |
 | 01:31 | Edited logs/M6-T11/report-t11.md | modified docs() | ~268 |
+| 01:37 | Created docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | — | ~6704 |
+| 01:40 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | "feat(m7): clearance-aware" → "feat(m7): clearance-aware" | ~81 |
+| 01:41 | Created logs/M7-T1/dispatch-prompt-t1.md | — | ~2649 |
+| 01:56 | Edited rust/crates/epic-dsn/src/scope/network.rs | modified m7_t1_length_boundary_sentinel_order_and_tokens() | ~2224 |
+| 01:57 | Edited rust/crates/epic-dsn/src/scope/network.rs | 3→3 lines | ~43 |
+| 01:57 | Edited rust/crates/epic-dsn/src/scope/network.rs | 3→3 lines | ~36 |
+| 02:05 | Edited rust/crates/epic-dsn/src/scope/network.rs | 4→9 lines | ~123 |
+| 02:08 | Edited rust/crates/epic-dsn/src/scope/network.rs | 3→2 lines | ~27 |
+| 02:12 | Edited rust/crates/epic-dsn/src/scope/network.rs | 2→3 lines | ~43 |
+| 02:15 | Edited rust/crates/epic-dsn/src/scope/network.rs | modified m7_t1_length_non_number_keeps_previous_and_recovers() | ~492 |
+| 02:36 | Created logs/M7-T1/report-t1.md | — | ~4676 |
+| 02:36 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified fix() | ~618 |
+| 02:37 | Created logs/M7-T1/spec-review-prompt-t1.md | — | ~1608 |
+| 02:43 | Created logs/M7-T1/spec-review-t1-1.md | — | ~3945 |
+| 02:45 | Created logs/M7-T1/quality-review-prompt-t1.md | — | ~1323 |
+| 02:53 | Created logs/M7-T1/quality-review-t1-1.md | — | ~2996 |
+| 02:57 | Created logs/M7-T2/dispatch-prompt-t2.md | — | ~3339 |
+| 03:08 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_hole_clearance() | ~730 |
+| 03:08 | Edited rust/crates/epic-board/src/rules_surf.rs | modified length_bounds_world() | ~1938 |
+| 03:09 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+11 lines) | ~326 |
+| 03:09 | Edited rust/crates/epic-cli/src/settings.rs | modified parse_on_off() | ~91 |
+| 03:09 | Edited rust/crates/epic-cli/src/settings.rs | 3→7 lines | ~104 |
+| 03:09 | Edited rust/crates/epic-cli/src/settings.rs | 2→3 lines | ~28 |
+| 03:09 | Edited rust/crates/epic-cli/src/settings.rs | 3→6 lines | ~41 |
+| 03:10 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+7 lines) | ~144 |
+| 03:10 | Edited rust/crates/epic-cli/src/settings.rs | 2→3 lines | ~51 |
+| 03:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+9 lines) | ~152 |
+| 03:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 3→4 lines | ~33 |
+| 03:10 | Edited rust/crates/epic-cli/src/route.rs | 1→2 lines | ~15 |
+| 03:10 | Edited rust/crates/epic-cli/src/route.rs | 2→1 lines | ~12 |
+| 03:10 | Edited rust/crates/epic-cli/src/route.rs | modified apply_tuning_activation() | ~373 |
+| 03:11 | Edited rust/crates/epic-cli/src/route.rs | 1→5 lines | ~82 |
+| 03:11 | Edited rust/crates/epic-cli/src/route.rs | modified congestion_global_pattern_marker() | ~158 |
+| 03:11 | Edited rust/crates/epic-cli/src/route.rs | modified tuning_world() | ~1427 |
+| 03:12 | Edited rust/crates/epic-cli/src/route.rs | modified tuning_activation_default_and_unconstrained_is_off() | ~147 |
+| 03:12 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~18 |
+| 03:12 | Edited rust/crates/epic-cli/src/route.rs | 3→4 lines | ~30 |
+| 03:13 | Edited rust/crates/epic-cli/src/route.rs | 1→2 lines | ~28 |
+| 03:13 | Edited rust/crates/epic-cli/src/route.rs | inline fix | ~20 |
+| 03:15 | Edited rust/crates/epic-cli/src/route.rs | modified m7t2_scratch_bm10_violation_localizer() | ~1271 |
+| 03:16 | Edited rust/crates/epic-cli/src/route.rs | expanded (+7 lines) | ~586 |
+| 03:17 | Edited rust/crates/epic-cli/src/route.rs | 5→8 lines | ~92 |
+| 03:17 | Edited rust/crates/epic-cli/src/route.rs | unwrap() → expect() | ~108 |
+| 03:18 | Edited rust/crates/epic-cli/src/route.rs | inline fix | ~30 |
+| 03:18 | Edited rust/crates/epic-cli/src/route.rs | modified tuning_world() | ~205 |
+| 03:21 | Edited rust/crates/epic-cli/src/route.rs | expanded (+8 lines) | ~404 |
+| 03:22 | Edited rust/crates/epic-router/src/maze/search_engine.rs | removed 5 lines | ~12 |
+| 03:22 | Edited rust/crates/epic-router/src/maze/search_engine.rs | 7→6 lines | ~48 |
+| 03:22 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified push_shove_waive_ripup() | ~102 |
+| 03:23 | Edited rust/crates/epic-router/src/maze/pins.rs | modified t9_push_shove_waiver_budget_bounds_and_off_inertness() | ~662 |
+| 03:23 | Edited rust/crates/epic-router/src/maze/ripup.rs | modified push_shove_waive_charge_boundary() | ~279 |
+| 03:24 | Edited rust/crates/epic-router/src/maze/list_element.rs | modified admits() | ~980 |
+| 03:35 | Edited rust/crates/epic-board/src/tree_manager.rs | modified insert() | ~434 |
+| 03:35 | Edited rust/crates/epic-board/src/tree_manager.rs | modified remove() | ~198 |
+| 03:35 | Edited rust/crates/epic-board/src/tree_manager.rs | 10→10 lines | ~98 |
+| 03:36 | Edited rust/crates/epic-board/src/tree_manager.rs | 1→4 lines | ~52 |
+| 03:46 | Edited rust/crates/epic-board/src/routing_board_insert.rs | expanded (+20 lines) | ~386 |
+| 03:47 | Edited rust/crates/epic-board/src/routing_board_insert.rs | 8→9 lines | ~109 |
+| 03:47 | Edited rust/crates/epic-board/src/routing_board_insert.rs | 9→5 lines | ~73 |
+| 03:47 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified push_shove_waive_ripup() | ~199 |
+| 04:00 | Edited rust/crates/epic-board/src/trace_shover.rs | modified T2() | ~265 |
+| 04:00 | Edited rust/crates/epic-board/src/trace_shover.rs | modified T2() | ~402 |
+| 04:00 | Edited rust/crates/epic-board/src/trace_shover.rs | modified T2() | ~272 |
+| 04:13 | Edited rust/crates/epic-board/src/trace_shover.rs | expanded (+16 lines) | ~277 |
+| 04:13 | Edited rust/crates/epic-board/src/trace_shover.rs | 11→12 lines | ~135 |
+| 04:25 | Edited rust/crates/epic-board/src/trace_shover.rs | expanded (+12 lines) | ~235 |
+| 04:25 | Edited rust/crates/epic-board/src/trace_shover.rs | 8→7 lines | ~122 |
+| 04:26 | Edited rust/crates/epic-board/src/trace_shover.rs | inline fix | ~19 |
+| 04:39 | Edited rust/crates/epic-board/src/forced_pad_router.rs | modified T2() | ~243 |
+| 04:54 | Edited rust/crates/epic-board/src/routing_board_insert.rs | expanded (+24 lines) | ~267 |
+| 04:54 | Edited rust/crates/epic-board/src/routing_board_insert.rs | expanded (+17 lines) | ~323 |
+| 05:07 | Edited rust/crates/epic-board/src/trace_ops.rs | expanded (+20 lines) | ~238 |
+| 05:19 | Edited rust/crates/epic-board/src/trace_ops.rs | 9→14 lines | ~156 |
+| 05:33 | Edited rust/crates/epic-cli/src/route.rs | 7→9 lines | ~91 |
+| 05:34 | Edited rust/crates/epic-router/src/maze/search_engine.rs | 7→3 lines | ~32 |
+| 05:46 | Edited rust/crates/epic-cli/src/route.rs | modified apply_tuning_activation() | ~407 |
+| 05:46 | Edited rust/crates/epic-cli/src/route.rs | 1→5 lines | ~82 |
+| 05:47 | Edited rust/crates/epic-cli/src/route.rs | modified tuning_world() | ~1325 |
+| 05:47 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_hole_clearance() | ~726 |
+| 05:48 | Edited rust/crates/epic-board/src/rules_surf.rs | modified length_bounds_world() | ~1922 |
+| 06:05 | Created logs/M7-T2/report-t2.md | — | ~1707 |
+| 06:10 | Edited logs/M7-T2/report-t2.md | modified verdict() | ~2014 |
+| 06:11 | Created logs/M7-T2/spec-review-prompt-t2.md | — | ~2042 |
+| 06:24 | Created logs/M7-T2/spec-review-t2-1.md | — | ~4908 |
+| 06:25 | Edited logs/M7-T2/report-t2.md | modified Adoption() | ~1262 |
+| 06:25 | Created logs/M7-T2/quality-review-prompt-t2.md | — | ~1488 |
+| 06:26 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified feat() | ~1063 |
+| 06:26 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified FIRST() | ~340 |
+| 06:35 | Created logs/M7-T2/quality-review-t2-1.md | — | ~4136 |
+| 06:37 | Edited logs/M7-T2/report-t2.md | expanded (+26 lines) | ~1774 |
+| 06:38 | Created logs/M7-T3/dispatch-prompt-t3.md | — | ~3299 |
+| 06:52 | Edited rust/crates/epic-board/src/board.rs | modified T3() | ~220 |
+| 06:52 | Edited rust/crates/epic-board/src/board.rs | modified new() | ~194 |
+| 06:53 | Edited rust/crates/epic-board/src/trace_tightener/mod.rs | modified T3() | ~356 |
+| 06:54 | Edited rust/crates/epic-board/src/trace_tightener/mod.rs | modified of() | ~358 |
+| 06:54 | Edited rust/crates/epic-board/src/trace_tightener/pin_tail.rs | modified T3() | ~221 |
+| 06:54 | Edited rust/crates/epic-cli/src/route.rs | 1→5 lines | ~79 |
+| 06:55 | Edited rust/crates/epic-board/src/rules_surf.rs | modified has_length_constraints() | ~508 |
+| 06:56 | Edited rust/crates/epic-board/src/board.rs | modified tuning_active() | ~244 |
+| 06:56 | Edited rust/crates/epic-cli/src/route.rs | expanded (+24 lines) | ~332 |
+| 06:56 | Edited rust/crates/epic-cli/src/route.rs | expanded (+7 lines) | ~168 |
+| 06:56 | Edited rust/crates/epic-cli/src/route.rs | 4→7 lines | ~87 |
+| 06:57 | Edited rust/crates/epic-cli/src/route.rs | 2→3 lines | ~43 |
+| 06:58 | Edited rust/crates/epic-cli/src/route.rs | modified length_needs() | ~532 |
+| 06:58 | Edited rust/crates/epic-cli/src/route.rs | modified report() | ~236 |
+| 06:58 | Edited rust/crates/epic-cli/src/route.rs | 3→4 lines | ~35 |
+| 06:58 | Edited rust/crates/epic-cli/src/route.rs | 1→2 lines | ~21 |
+| 07:07 | Edited rust/crates/epic-board/src/rules_surf.rs | modified max_net_number() | ~151 |
+| 07:07 | Edited rust/crates/epic-board/src/rules_surf.rs | 3→3 lines | ~57 |
+| 07:07 | Edited rust/crates/epic-cli/src/route.rs | modified iter() | ~13 |
+| 07:10 | Edited rust/crates/epic-board/src/drill_item_mover.rs | modified split_world_dsn() | ~1485 |
+| 07:18 | Edited rust/crates/epic-board/src/rules_surf.rs | modified length_violation_predicate_matches_java_calc_length_violation() | ~685 |
+| 08:12 | Created logs/M7-T3/report-t3.md | — | ~2043 |
+| 08:18 | Edited logs/M7-T3/report-t3.md | modified log() | ~3016 |
+| 08:19 | Created logs/M7-T3/spec-review-prompt-t3.md | — | ~2496 |
+| 08:32 | Created logs/M7-T3/spec-review-t3-1.md | — | ~5577 |
+| 08:34 | Edited logs/M7-T3/report-t3.md | expanded (+23 lines) | ~1181 |
+| 08:34 | Created logs/M7-T3/quality-review-prompt-t3.md | — | ~1264 |
+| 08:42 | Created logs/M7-T3/quality-review-t3-1.md | — | ~3748 |
+| 08:44 | Edited logs/M7-T3/report-t3.md | modified QD3() | ~1662 |
+| 08:44 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified outcome() | ~1055 |
+| 08:45 | Created logs/M7-T4/dispatch-prompt-t4.md | — | ~3168 |
+| 09:09 | Created rust/crates/epic-router/src/pipeline/tuning.rs | — | ~5923 |
+| 09:11 | Created rust/crates/epic-router/src/pipeline/tuning.rs | — | ~5268 |
+| 09:11 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 4→5 lines | ~38 |
+| 09:11 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 9→5 lines | ~40 |
+| 09:11 | Edited rust/crates/epic-board/src/board.rs | modified replace_trace_geometry() | ~255 |
+| 09:11 | Edited rust/crates/epic-board/src/board.rs | modified replace_trace_geometry() | ~63 |
+| 09:11 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+8 lines) | ~130 |
+| 09:11 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 2→3 lines | ~21 |
+| 09:12 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→4 lines | ~58 |
+| 09:12 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified is_ok() | ~252 |
+| 09:12 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified is_ok() | ~324 |
+| 09:12 | Edited rust/crates/epic-router/src/pipeline/full.rs | 4→8 lines | ~107 |
+| 09:13 | Edited rust/crates/epic-router/src/pipeline/mod.rs | 2→3 lines | ~15 |
+| 09:13 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+10 lines) | ~210 |
+| 09:13 | Edited rust/crates/epic-cli/src/settings.rs | modified parse_on_off() | ~93 |
+| 09:13 | Edited rust/crates/epic-cli/src/settings.rs | 4→9 lines | ~144 |
+| 09:13 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~16 |
+| 09:13 | Edited rust/crates/epic-cli/src/settings.rs | 3→6 lines | ~43 |
+| 09:13 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+7 lines) | ~116 |
+| 09:14 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~23 |
+| 09:14 | Edited rust/crates/epic-cli/src/route.rs | expanded (+10 lines) | ~204 |
+| 09:14 | Edited rust/crates/epic-board/src/board.rs | modified replace_trace_geometry() | ~47 |
+| 09:15 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified insert_one_wave() | ~630 |
+| 09:15 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified land_wave() | ~32 |
+| 09:15 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 5→5 lines | ~62 |
+| 09:15 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 5→5 lines | ~60 |
+| 09:15 | Edited rust/crates/epic-router/src/pipeline/full.rs | added 1 import(s) | ~33 |
+| 09:22 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | push() → face() | ~99 |
+| 09:24 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified clearance_matrix_2layer() | ~3741 |
+| 09:24 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | added 2 import(s) | ~139 |
+| 09:24 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 5→5 lines | ~76 |
+| 09:24 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | inline fix | ~18 |
+| 09:28 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | expanded (+6 lines) | ~135 |
+| 09:28 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified expected_w1_corners() | ~247 |
+| 09:29 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | removed 51 lines | ~21 |
+| 09:35 | Created rust/harness/fixtures/tuning/meander_room_tuning.dsn | — | ~421 |
+| 09:35 | Created rust/harness/fixtures/tuning/meander_blocked_tuning.dsn | — | ~435 |
+| 09:35 | Created rust/harness/fixtures/tuning/meander_multi_tuning.dsn | — | ~485 |
+| 09:35 | Edited rust/harness/fixtures/tuning/meander_multi_tuning.dsn | 3→3 lines | ~20 |
+| 09:35 | Edited rust/harness/fixtures/tuning/meander_multi_tuning.dsn | 3→3 lines | ~14 |
+| 09:35 | Edited rust/harness/fixtures/tuning/meander_multi_tuning.dsn | 3→3 lines | ~14 |
+| 09:35 | Edited rust/crates/epic-cli/src/route.rs | Some() → apply_meander_activation() | ~184 |
+| 09:36 | Edited rust/crates/epic-cli/src/route.rs | modified does() | ~228 |
+| 09:37 | Edited rust/crates/epic-cli/src/route.rs | 4→4 lines | ~74 |
+| 09:37 | Edited rust/crates/epic-cli/src/route.rs | expanded (+9 lines) | ~86 |
+| 09:37 | Edited rust/crates/epic-cli/src/route.rs | modified contains() | ~54 |
+| 09:37 | Edited rust/crates/epic-cli/src/settings.rs | 3→4 lines | ~41 |
+| 09:38 | Edited rust/harness/fixtures/tuning/meander_multi_tuning.dsn | 4→3 lines | ~23 |
+| 09:41 | Edited rust/harness/fixtures/tuning/meander_multi_tuning.dsn | 3→4 lines | ~35 |
+| 09:45 | Edited rust/harness/src/router_compare.rs | modified accumulator() | ~158 |
+| 09:45 | Edited rust/harness/src/router_compare.rs | 2→3 lines | ~49 |
+| 09:45 | Edited rust/harness/src/router_compare.rs | 5→7 lines | ~77 |
+| 09:46 | Edited rust/harness/src/router_compare.rs | expanded (+8 lines) | ~208 |
+| 09:46 | Edited rust/harness/src/router_compare.rs | 16→18 lines | ~123 |
+| 09:46 | Edited rust/harness/src/router_compare.rs | modified compare_cmd() | ~66 |
+| 09:46 | Edited rust/harness/src/router_compare.rs | run_cli() → run_cli_threads() | ~112 |
+| 09:46 | Edited rust/harness/src/global_golden.rs | modified is_absolute() | ~185 |
+| 09:51 | Edited rust/harness/src/global_golden.rs | modified face() | ~204 |
+| 10:40 | Created logs/M7-T4/report-t4.md | — | ~7210 |
+| 10:40 | Created logs/M7-T4/spec-review-prompt-t4.md | — | ~1752 |
+| 10:54 | Created logs/M7-T4/spec-review-t4-1.md | — | ~6243 |
+| 11:08 | Edited logs/M7-T4/spec-review-t4-1.md | modified Verdict() | ~1203 |
+| 11:08 | Created logs/M7-T4/quality-review-prompt-t4.md | — | ~1307 |
+| 11:28 | Created logs/M7-T4/quality-review-t4-1.md | — | ~4278 |
+| 11:37 | Edited logs/M7-T4/report-t4.md | modified ERRATUM() | ~197 |
+| 11:40 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified outcome() | ~1317 |
+| 11:41 | Created logs/M7-T5/dispatch-prompt-t5.md | — | ~4362 |
+| 11:50 | Edited rust/crates/epic-cli/src/route.rs | modified project_routed_items() | ~350 |
+| 11:51 | Edited rust/crates/epic-cli/src/route.rs | modified projection_supersedes_input_wiring_one_wire_per_on_board_trace() | ~1391 |
+| 11:52 | Edited rust/crates/epic-cli/src/route.rs | modified walk() | ~894 |
+| 11:53 | Edited rust/crates/epic-cli/src/route.rs | modified walk() | ~740 |
+| 11:54 | Edited rust/crates/epic-cli/src/route.rs | added 2 import(s) | ~53 |
+| 11:54 | Edited rust/crates/epic-cli/src/route.rs | 11→12 lines | ~107 |
+| 12:00 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | expanded (+36 lines) | ~814 |
+| 12:00 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 2→1 lines | ~18 |
+| 12:01 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified design() | ~227 |
+| 12:01 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified resolve_group_contract() | ~2053 |
+| 12:02 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 3→3 lines | ~40 |
+| 12:02 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 5→6 lines | ~103 |
+| 12:02 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 6→7 lines | ~116 |
+| 12:02 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 5→7 lines | ~119 |
+| 12:02 | Edited rust/crates/epic-router/src/pipeline/full.rs | rows() → report() | ~68 |
+| 12:03 | Edited rust/crates/epic-router/src/pipeline/full.rs | 5→5 lines | ~54 |
+| 12:03 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | inline fix | ~16 |
+| 12:03 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified run_stage() | ~56 |
+| 12:04 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified run_stage() | ~124 |
+| 12:09 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+9 lines) | ~322 |
+| 12:09 | Edited rust/crates/epic-cli/src/route.rs | 8→9 lines | ~110 |
+| 13:00 | Created logs/M7-T5/spec-review-prompt-t5.md | — | ~2339 |
+| 13:11 | Created logs/M7-T5/spec-review-t5-1.md | — | ~4838 |
+| 13:13 | Created logs/M7-T5/quality-review-prompt-t5.md | — | ~1431 |
+| 13:20 | Created logs/M7-T5/quality-review-t5-1.md | — | ~4800 |
+| 13:32 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified feat() | ~1160 |
+| 13:34 | Created logs/M7-T6/dispatch-prompt-t6.md | — | ~3204 |
+| 13:53 | Created rust/crates/epic-router/src/pipeline/pairs.rs | — | ~7630 |
+| 13:59 | Created rust/crates/epic-router/src/pipeline/pairs.rs | — | ~12193 |
+| 13:59 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | expanded (+24 lines) | ~474 |
+| 14:00 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified resolve_group_contract() | ~662 |
+| 14:00 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified then() | ~164 |
+| 14:00 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | 5→5 lines | ~80 |
+| 14:00 | Edited rust/crates/epic-router/src/pipeline/tuning.rs | modified meander_net() | ~92 |
+| 14:00 | Edited rust/crates/epic-router/src/pipeline/mod.rs | 2→3 lines | ~15 |
+| 14:00 | Edited rust/crates/epic-router/src/control.rs | expanded (+10 lines) | ~183 |
+| 14:00 | Edited rust/crates/epic-router/src/control.rs | 3→4 lines | ~33 |
+| 14:01 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified ALONE() | ~280 |
+| 14:01 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 3→4 lines | ~30 |
+| 14:01 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified consumption() | ~259 |
+| 14:01 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | 3→7 lines | ~112 |
+| 14:01 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified T6() | ~386 |
+| 14:01 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified preference() | ~328 |
+| 14:02 | Edited rust/crates/epic-router/src/pipeline/full.rs | 5→10 lines | ~144 |
+| 14:02 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→4 lines | ~43 |
+| 14:02 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified alone() | ~195 |
+| 14:02 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→4 lines | ~24 |
+| 14:02 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | modified match() | ~110 |
+| 15:07 | Created logs/M7-T6/report-t6.md | — | ~4253 |
+| 15:09 | Created logs/M7-T6/spec-review-prompt-t6.md | — | ~2314 |
+| 15:22 | Created logs/M7-T6/spec-review-t6-1.md | — | ~6504 |
+| 15:30 | Created logs/M7-T6/quality-review-prompt-t6.md | — | ~1511 |
+| 15:41 | Created logs/M7-T6/quality-review-t6-1.md | — | ~5371 |
+| 15:47 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified feat() | ~989 |
+| 15:47 | Created logs/M7-T7/dispatch-prompt-t7.md | — | ~2395 |
+| 15:57 | Created logs/M7-T7/evidence/t7-time.sh | — | ~82 |
+| 16:04 | Created logs/M7-T7/evidence/t7-det-on.sh | — | ~483 |
+| 18:16 | Created logs/M7-T7/report-t7.md | — | ~5068 |
+| 18:19 | Edited logs/M7-T7/report-t7.md | modified T8() | ~462 |
+| 18:20 | Created logs/M7-T7/spec-review-prompt-t7.md | — | ~2136 |
+| 18:28 | Created logs/M7-T7/spec-review-t7-1.md | — | ~5133 |
+| 18:31 | Edited logs/M7-T7/report-t7.md | modified ERRATUM() | ~893 |
+| 18:31 | Edited logs/M7-T7/report-t7.md | "rust/README.md:36-38" → "rust/README.md:54-55" | ~24 |
+| 18:32 | Created logs/M7-T7/quality-review-prompt-t7.md | — | ~1327 |
+| 18:41 | Created logs/M7-T7/quality-review-t7-1.md | — | ~3808 |
+| 18:45 | Edited logs/M7-T7/report-t7.md | inline fix | ~29 |
+| 18:45 | Edited logs/M7-T7/report-t7.md | inline fix | ~30 |
+| 18:45 | Edited logs/M7-T7/report-t7.md | inline fix | ~30 |
+| 18:45 | Edited logs/M7-T7/report-t7.md | inline fix | ~104 |
+| 18:45 | Edited logs/M7-T7/report-t7.md | modified 1() | ~521 |
+| 18:47 | Edited logs/M7-T7/report-t7.md | expanded (+9 lines) | ~1489 |
+| 18:47 | Edited logs/M7-T7/report-t7.md | inline fix | ~28 |
+| 18:47 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | modified ERRATUM() | ~1061 |
+| 18:49 | Created logs/M7-T8/dispatch-prompt-t8.md | — | ~2102 |
+| 18:57 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified so() | ~3408 |
+| 18:57 | Edited docs/architecture.md | expanded (+30 lines) | ~543 |
+| 18:57 | Edited rust/README.md | inline fix | ~9 |
+| 18:57 | Edited rust/README.md | expanded (+17 lines) | ~323 |
+| 18:57 | Edited rust/README.md | inline fix | ~18 |
+| 18:58 | Edited rust/crates/epic-router/SEAM.md | expanded (+35 lines) | ~1496 |
+| 19:03 | Created logs/M7-T8/report-t8.md | — | ~2476 |
+| 19:05 | Created logs/M7-T8/spec-review-prompt-t8.md | — | ~2085 |
+| 19:13 | Created logs/M7-T8/spec-review-t8-1.md | — | ~3062 |
+| 19:16 | Created logs/M7-T8/quality-review-prompt-t8.md | — | ~1205 |
+| 19:27 | Created logs/M7-T8/quality-review-t8-1.md | — | ~2618 |
+| 19:29 | Edited logs/M7-T8/report-t8.md | expanded (+13 lines) | ~1254 |
+| 19:29 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m7-tuning.md | expanded (+9 lines) | ~777 |
+| 19:30 | Created logs/M7-ADJUDICATION/adjudication-prompt.md | — | ~1760 |
+| 19:40 | Created logs/M7-ADJUDICATION/adjudication-report.md | — | ~6084 |
+| 19:42 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | expanded (+19 lines) | ~359 |
+| 19:43 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified ERRATUM() | ~247 |
+| 20:25 | Created docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | — | ~9419 |
+| 20:25 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | inline fix | ~94 |

@@ -3031,7 +3031,7 @@
       "task": "M6-T1b (the optimizer stage wall slice — buglog 196's successor face)",
       "error_message": "the bm01 optimizer wall: Rust's P1 (~749-800 s) is REJECTED (OPTIMIZER_SCORE_NOT_IMPROVED, score 0.00 unchanged) and the pass loop CONTINUES into P2, burning to the 1800 s tier kill — a continuation whose Java-parity was unverified; the standing premise put Rust's per-pass cost at ~14-16x Java's (912.70 s / '17 passes').",
       "root_cause": "TWO stacked false premises, both from reading the baseline's flat passes_completed field as the OPTIMIZER's count: (a) T1's '17 optimizer passes' — rust/harness/src/baseline.rs:136 maps passes_completed from phases.AUTOROUTER (the ROUTER's pass count); the optimizer's pass count is not in the baseline at all; (b) the derived 14-16x per-pass ratio. Java's BatchOptimizer loop, identically ported in Rust (the :460 increased-ripup flip + the :797 routeImproved==0 flip + the :468 threshold break at the 2.5% default; Rust optimizer.rs :990/:1272/:998), with raw entry optimizer score 0.00 that never moves (baseline optimizer_score 0.0 is exact, never accepted) bounds Java to 1-2 passes => per-pass ~456-913 s vs Rust's 749-857 s SERIAL pass — same order, not 14-16x. The continue-into-P2 IS Java-parity: a rejected P1 that adopted an item-level winner (board hash '579578e8'->'a286910f' in the run log) leaves useIncreasedRipupCosts true at the loop's :460 arm, scoreImprovement stays -1, P2 runs; Java runs P2 too and would break after it via the threshold face. The remaining wall gap's dominant term is most likely CANDIDATE PARALLELISM: Java pools maxThreads=cores-1 candidate workers per pass (BatchOptimizer.java:656-686, chunks drained in submission order) while the Rust pass is a mandated 1-thread sequential face ('running on 1 thread(s)').",
-      "fix": "PARTIAL at M6-T1b (commit f842c3ea2): semantics verdict PARITY — no stop-face change (any Java-parity early stop would have been an invention; the plan's STEP-2 divergent branch does not exist). Profile first: the M5-T1 counting allocator gained a re_arm second-window face and alloc-route now runs the optimization stage at the exact full::run seam (the stage BatchDriver::run never ran — the instrument predated the M5-T1b optimizer entry). bm01 P1 measured: 978.97M allocs / 274.09 GB churn per pass — 4.2x the entire routing run (231.0M / 61.4 GB); top sites = the per-candidate worker deep copy (items arena + the item-undo SLAB residue — the routing history's replace-burned dead nodes, unreachable and outside Java's serialization stream, never copied by Java's deepCopy) then the maze geometry family (simplex/polyline/int_octagon — the M5-T6 not-taken stands). SLICE: UndoableObjects::compact (epic-board undo.rs) — reachability-faithful slab compaction (live map + delete lists + undo/redo chains as roots, link remap; values/levels/scalar faces preserved), called ONCE at optimizer stage entry (optimizer.rs, the Java :316 point) so every per-candidate worker clone is naturally compact; pinned by compact_reachable_graph_preserves_digest_and_undo (digest/visible/level/undo-result equality before-vs-after + the slab-shrink premise; the chain-edge-dropping mutant killed). RESULT: optimizer window 978.97M/274.09 GB -> 816.62M/224.00 GB (-16.6% allocs / -18.3% bytes; P1 per-second rate -11.3%); bm01 face UNCHANGED (killed at the 1800 s tier wall mid-P2, P1 785.15 s post-slice under box jitter; wall delta unresolvable under jitter) — the brief's target (optimizer <= ~1040 s) honestly MISSED (two ~750-860 s passes + ~240 s routing exceed the bound); recorded per the brief's stop clause, T3 adjudicates the flip on the real face. Successor lever: the optimizer candidate-loop executor (the M5-T7 deterministic-partition pattern) — semantics-preserving but architecture-level, needs its own charter.",
+      "fix": "PARTIAL at M6-T1b (commit f842c3ea2): semantics verdict PARITY — no stop-face change (any Java-parity early stop would have been an invention; the plan's STEP-2 divergent branch does not exist). Profile first: the M5-T1 counting allocator gained a re_arm second-window face and alloc-route now runs the optimization stage at the exact full::run seam (the stage BatchDriver::run never ran — the instrument predated the M5-T1b optimizer entry). bm01 P1 measured: 978.97M allocs / 274.09 GB churn per pass — 4.2x the entire routing run (231.0M / 61.4 GB); top sites = the per-candidate worker deep copy (items arena + the item-undo SLAB residue — the routing history's replace-burned dead nodes, unreachable and outside Java's serialization stream, never copied by Java's deepCopy) then the maze geometry family (simplex/polyline/int_octagon — the M5-T6 not-taken stands). SLICE: UndoableObjects::compact (epic-board undo.rs) — reachability-faithful slab compaction (live map + delete lists + undo/redo chains as roots, link remap; values/levels/scalar faces preserved), called ONCE at optimizer stage entry (optimizer.rs, the Java :316 point) so every per-candidate worker clone is naturally compact; pinned by compact_reachable_graph_preserves_digest_and_undo (digest/visible/level/undo-result equality before-vs-after + the slab-shrink premise; the chain-edge-dropping mutant killed). RESULT: optimizer window 978.97M/274.09 GB -> 816.62M/224.00 GB (-16.6% allocs / -18.3% bytes; P1 per-second rate -11.3%); bm01 face UNCHANGED (killed at the 1800 s tier wall mid-P2, P1 785.15 s post-slice under box jitter; wall delta unresolvable under jitter) — the brief's target (optimizer <= ~1040 s) honestly MISSED (two ~750-860 s passes + ~240 s routing exceed the bound); recorded per the brief's stop clause, T3 adjudicates the flip on the real face. Successor lever: the optimizer candidate-loop executor (the M5-T7 deterministic-partition pattern) — semantics-preserving but architecture-level, needs its own charter.\n\nM7-T8 SWEEP (2026-09-28): 197 stays OPEN with the successor lever (deterministic candidate parallelism — the optimizer candidate-loop executor, the M5-T7 deterministic-partition pattern) recorded NOT attempted; it is a WALL lever, not tuning, and was explicitly out of the M7 scope (plan Key-facts bullet). The M7 exit note's deviations table carries the row (owner M8+); the flip's reopen bound (canonical 1510.7 s) is unchanged at T7 (this-run pair 1800.1 s kill / 333.0 s strip / 1467.0 s bound — no reopen, the bound does not rise).",
       "tags": [
         "bm01",
         "optimizer-pass-loop",
@@ -3039,9 +3039,10 @@
         "alloc-profile",
         "undo-slab",
         "m6-t1b",
-        "owner-m6",
-        "closed-m6-t1b",
-        "commit-f842c3ea2"
+        "commit-f842c3ea2",
+        "open",
+        "owner-m8",
+        "m7-t8-sweep"
       ]
     },
     {
@@ -3102,7 +3103,9 @@
         "global-golden",
         "capture",
         "cwd-relative",
-        "paths"
+        "paths",
+        "commit-c9fb800e4",
+        "closed"
       ]
     },
     {
@@ -3170,7 +3173,9 @@
         "m7-t2",
         "m7-t3-disposition",
         "parity-confirmed-noted",
-        "closed"
+        "closed",
+        "commit-b7b174859",
+        "commit-349a192df"
       ]
     },
     {
@@ -3253,7 +3258,8 @@
         "fixed",
         "java-exact",
         "sanctioned-recapture",
-        "closed"
+        "closed",
+        "commit-a7b00639b"
       ]
     },
     {
@@ -3267,7 +3273,9 @@
         "m7-t6",
         "pair-face",
         "anchor-semantics",
-        "caught-by-pins"
+        "caught-by-pins",
+        "commit-36f4570c2",
+        "closed"
       ]
     },
     {
@@ -3281,7 +3289,9 @@
         "m7-t6",
         "pin-tautology",
         "dnr-16",
-        "mutation-log"
+        "mutation-log",
+        "commit-7e772fa2c",
+        "closed"
       ]
     }
   ]
