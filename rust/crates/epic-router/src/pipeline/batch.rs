@@ -429,6 +429,14 @@ pub struct BatchSettings {
     /// the report rides the aesthetics SIDECAR, never the manifest.
     /// Dead code at defaults (the two-regime law).
     pub flow_active: bool,
+    /// M8-T5 RUST-ONLY: the GLOSS VIA-PLACE stage's resolved activation
+    /// (`router.gloss.via_place`, default OFF — no Java counterpart).
+    /// When ON, the gloss stage slot runs the return-path-aware via
+    /// placement pass AFTER the flow pass (the terminal slot — the
+    /// recorded slot decision in gloss.rs); the report rides the
+    /// aesthetics SIDECAR, never the manifest. Dead code at defaults
+    /// (the two-regime law).
+    pub via_place_active: bool,
 }
 
 impl BatchSettings {
@@ -473,6 +481,7 @@ impl BatchSettings {
             pairs: Vec::new(),
             bus_active: false,
             flow_active: false,
+            via_place_active: false,
         }
     }
 }

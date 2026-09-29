@@ -203,6 +203,24 @@ pub struct CliLayer {
     /// `FLOW_MAX_LENGTH_GAIN_DBU` 40_000 DBU) live in gloss.rs per the
     /// named-constant family pattern.
     pub gloss_flow: Option<bool>,
+    /// `router.gloss.via_place` — the M8-T5 GLOSS VIA-PLACE tri-state
+    /// (RUST-ONLY, no Java counterpart; the gloss family block). `None`
+    /// (the default) = OFF: the via stage never runs — the two-regime
+    /// law's byte-invariance face. `on` = the gloss stage slot runs the
+    /// return-path-aware via placement pass AFTER the flow pass (the
+    /// terminal slot — the recorded slot decision in gloss.rs):
+    /// 45°-lattice + alignment-derived candidates ranked by plane
+    /// stitch-distance drop and arm straightening, whole-candidate
+    /// acceptance (`epic_router::pipeline::gloss`; the report rides the
+    /// `--dump-aesthetics` SIDECAR as the `gloss_via_place` block —
+    /// never the manifest; a gated hold surfaces as the DISTINCT
+    /// `gloss_via_place_gated` sibling key). `off` = the explicit kill
+    /// face (identical to absent: the pass has no input-driven
+    /// activation). The named engine constants (`VIA_PLACE_RADIUS_DBU`
+    /// 60_000 DBU inclusive Chebyshev, `VIA_PLACE_STEP_DBU` 10_000 DBU,
+    /// `VIA_PLACE_MAX_LENGTH_GAIN_DBU` 40_000 DBU) live in gloss.rs per
+    /// the named-constant family pattern.
+    pub gloss_via_place: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -671,6 +689,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.gloss_flow = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "gloss.via_place" => match parse_on_off(value) {
+            Some(v) => layer.gloss_via_place = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -1056,6 +1078,10 @@ pub struct MergedSettings {
     /// OFF; CLI-only — no DSN/default source writes it, the Default
     /// seed is `None`).
     pub gloss_flow: Option<bool>,
+    /// `router.gloss.via_place` — the M8-T5 gloss via-place tri-state
+    /// (absent = OFF; CLI-only — no DSN/default source writes it, the
+    /// Default seed is `None`).
+    pub gloss_via_place: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1165,6 +1191,7 @@ impl Default for MergedSettings {
             tuning_pairs: None,
             gloss_bus: None,
             gloss_flow: None,
+            gloss_via_place: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1322,6 +1349,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.gloss_flow {
         merged.gloss_flow = Some(v);
+    }
+    if let Some(v) = cli.gloss_via_place {
+        merged.gloss_via_place = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1682,6 +1712,10 @@ pub struct ResolvedRouteSettings {
     /// its effective face: ON only when explicitly `on` (same face as
     /// the gloss-bus flag).
     pub gloss_flow: bool,
+    /// The M8-T5 gloss via-place flag (`router.gloss.via_place`),
+    /// resolved to its effective face: ON only when explicitly `on`
+    /// (same face as the gloss-bus flag).
+    pub gloss_via_place: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1797,6 +1831,7 @@ impl ResolvedRouteSettings {
             tuning_pairs: merged.tuning_pairs.clone(),
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
+            gloss_via_place: merged.gloss_via_place.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2770,6 +2805,7 @@ mod tests {
             ]),
             gloss_bus: Some(true),
             gloss_flow: Some(true),
+            gloss_via_place: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),

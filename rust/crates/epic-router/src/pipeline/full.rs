@@ -185,6 +185,11 @@ pub struct PipelineOutcome {
     /// the only caller gate, the two-regime law). Rides the aesthetics
     /// SIDECAR via epic-cli, NEVER the manifest.
     pub flow_report: crate::pipeline::gloss::GlossFlowReport,
+    /// M8-T5: the gloss VIA-PLACE stage's report (the per-via rows;
+    /// empty/default unless `router.gloss.via_place` is ON — the flag
+    /// is the only caller gate, the two-regime law). Rides the
+    /// aesthetics SIDECAR via epic-cli, NEVER the manifest.
+    pub via_place_report: crate::pipeline::gloss::GlossViaPlaceReport,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -371,6 +376,7 @@ pub fn run(
     let pairs = settings.pairs.clone();
     let bus_active = settings.bus_active;
     let flow_active = settings.flow_active;
+    let via_place_active = settings.via_place_active;
     let stage = run_routing_stage(manager, board, &mut settings, &stop, sink, &mut transitions);
     let routing = stage.routing;
     let optimizer = if routing.is_err() {
@@ -445,6 +451,24 @@ pub fn run(
     } else {
         crate::pipeline::gloss::GlossFlowReport::default()
     };
+    // M8-T5: the gloss VIA-PLACE stage — the return-path-aware via
+    // placement pass (`pipeline/gloss.rs`), the slot AFTER the flow
+    // stage (the terminal slot — the recorded slot decision in
+    // gloss.rs: the pass's arms land as single segments, so it creates
+    // no flow work, while running before flow would let the pass's
+    // wholesale arm rewrite discard flow landings on those arms).
+    // Gated on `router.gloss.via_place` ALONE (the resolved
+    // `via_place_active`; default OFF — an OFF run never reaches the
+    // stage, the two-regime byte-invariance law) plus the stage's own
+    // incompletes gate. Emits NO stage transition (the parity stage
+    // enum cannot rotate) and NO events (the meander-stage
+    // precedent). The report rides the aesthetics SIDECAR via
+    // epic-cli, NEVER the manifest.
+    let via_place_report = if routing.is_ok() && via_place_active {
+        crate::pipeline::gloss::run_gloss_via_place_stage(manager, board)
+    } else {
+        crate::pipeline::gloss::GlossViaPlaceReport::default()
+    };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
         transitions.push(RoutingStage::Idle);
@@ -461,6 +485,7 @@ pub fn run(
         pair_stage,
         gloss_report,
         flow_report,
+        via_place_report,
     }
 }
 

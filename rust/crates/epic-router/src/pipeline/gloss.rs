@@ -227,6 +227,126 @@
 //! the `--dump-aesthetics` SIDECAR ONLY (the `gloss_flow` block
 //! rendered by epic-cli — NEVER the manifest: the canary cf607714
 //! pins manifest bytes).
+//!
+//! ===========================================================================
+//! M8-T5: the VIA PLACE pass — return-path-aware via placement
+//! ===========================================================================
+//!
+//! **The ViaOptimizer AUDIT (recorded decision — the AMENDMENT 4
+//! requirement).** `epic_board::trace_tightener::via_optimizer` is the
+//! ported Java `ViaOptimizer`: a per-via relocation optimizer that
+//! minimizes the WEIGHTED LAYER-TRACE COST of a via's contact geometry
+//! (`opt_via_location`, recursion depth 10, `DrillItemMover` insertion
+//! budgets 9/9, the four `check_trace_segment_points` POINTS sites),
+//! driven by the changed-area fixpoint at ROUTE time
+//! (`TraceTightener.java:160-165`). Its plane arm is the M6
+//! CONTAINMENT gate (`opt_plane_or_fanout_via` answers false at the
+//! containment point — a legality face, not a score). It has NO
+//! return-path objective, NO alignment objective, and NO whole-board
+//! post-route sweep; it is a frozen parity surface whose outputs the
+//! byte gates pin. THE OVERLAP FACE: both mechanisms relocate an
+//! existing via within clearance legality, and a cost-arm landing can
+//! coincidentally look like an alignment move. THIS PASS IS DISTINCT
+//! on all three axes the audit names: (a) the RETURN-PATH objective —
+//! for a via whose net is a plane net, candidates rank by how much
+//! the stitch distance to the net's OWN conduction region DROPS (the
+//! M6 pour machinery: `rules_surf` plane lookups + the
+//! `ConductionArea` faces; ViaOptimizer's plane arm scores nothing);
+//! (b) the ALIGNMENT objective — a candidate is accepted ONLY when
+//! BOTH adjoining trace arms re-corner to SINGLE angle-legal segments
+//! into the new center (the via-on-the-bend elimination face), ranked
+//! by shorter total arm length (ViaOptimizer MINIMIZES TRACE COST
+//! AROUND the contact geometry, it never requires straightness); (c)
+//! the REGIME — a whole-board POST-route gloss sweep behind
+//! `router.gloss.via_place` (default OFF, honest per-via rows),
+//! whereas ViaOptimizer runs inside the route-time tightener fixpoint.
+//! A pass that merely re-implemented the cost arm would fail this
+//! spec; none of the cost arm is ported here.
+//!
+//! **The pass.** For each via — deterministic order: net number
+//! ascending, item id ascending within the net — with EXACTLY TWO
+//! trace contacts whose polylines END at the via center (the
+//! `drill_normal_contacts` endpoint-equality face; plane contacts of
+//! the via's OWN net do not disqualify — a via sitting on its own
+//! pour is the pass's PRIMARY subject). Candidate relocations = the
+//! 45°-LATTICE points within [`VIA_PLACE_RADIUS_DBU`] of the current
+//! center — displacements that are multiples of [`VIA_PLACE_STEP_DBU`]
+//! on both axes, angle-legal under the board's own restriction, in an
+//! inclusive Chebyshev radius — PLUS the ALIGNMENT-DERIVED points:
+//! the intersections of the two arms' 45°-legal direction lines
+//! through their far anchors (the exact in-line positions; arbitrary
+//! DBU coordinates). Deduplicated; enumerated in the documented order:
+//! Chebyshev displacement ascending, then dx, then dy (both families
+//! merged). Score = (a) return-path continuity — the net's plane
+//! stitch-distance drop (neutral 0 for non-plane nets and plane nets
+//! with no in-span conduction area); (b) alignment — shorter total
+//! re-cornered arm length. Rank: score (a) DESC, (b) ASC, then the
+//! enumeration order. Probe-and-land-FIRST-FIT in rank order: the
+//! first candidate passing ALL of the following lands, nothing
+//! partial: (1) the fixed-state gate (USER/SYSTEM_FIXED via or arm
+//! never moves); (2) both arms angle-legal as single segments; (3)
+//! the net's trace-length budget — the net's total trace length may
+//! grow by at most [`VIA_PLACE_MAX_LENGTH_GAIN_DBU`] (equality
+//! allowed; the T3/T4 length-budget mirror); (4) the REAL via probe —
+//! `drill_item_mover::check` at budgets 0/0, the same
+//! `DrillItemMover.check(via, delta, 0, 0)` legality face ViaOptimizer
+//! itself uses as its pre-check (the via's shape at the candidate; NO
+//! shoving at 0/0; same-net copper is the mover's own-net face) — the
+//! audited existing REAL via-at-a-point check, NOT a new probe; (5)
+//! the REAL arm probes — every new arm segment at full length via
+//! `check_trace_segment_points` (exact corners; same-net exempt by
+//! the tree query, the T3/T4 face). PLUS the IMPROVEMENT gate: a
+//! candidate must IMPROVE the via — a strictly positive return-path
+//! drop, OR a strictly smaller total arm length, OR a strictly
+//! smaller total corner count (a via already in-line with no pour
+//! does not move; the nearest acceptable candidate alone never moves
+//! a via). Landing writes
+//! `Board::set_via_center` (board.rs:1068 — the RAW center write, the
+//! caller owns the acceptance face) inside the tree remove /
+//! `clear_derived_data` / re-insert sequence (the `drill_move_by`
+//! geometry-write face, minus the undo save and the connector-trace
+//! insertion — the gloss family never touches undo and the arms are
+//! rewritten wholesale below), then each arm through
+//! `replace_trace_geometry`. Via COUNT never increases — the pass
+//! only relocates; the pin asserts count invariance across the stage.
+//! Every attempted via records its honest row (`landed:false` when no
+//! candidate passed); vias outside the exactly-two-arm scope record
+//! NO row (the T3 no-candidate face).
+//!
+//! **Stage gates (in order).** (1) the incompletes gate (the T3/T4
+//! precedent): some net still has incompletes → the stage
+//! short-circuits with `gated = true`, surfaced as the DISTINCT
+//! `gloss_via_place_gated` sidecar key (from day one — the T3
+//! fix-round lesson). (2) The ROUTED-BOARD reality: plane nets ARE in
+//! scope — a DELIBERATE divergence from the T3/T4 routed-net filter
+//! (`!net.contains_plane`), because the return-path arm is ABOUT
+//! plane-net vias; the Issue 093/152 precaution covers plane ROUTING
+//! mode (stub+via insertion into a live plane), and this pass neither
+//! routes nor modifies any pour — it only relocates vias over the
+//! STATIC parsed copper. No angle gate: the pass adapts to the
+//! board's own restriction (Ninety/Fortyfive lattice + alignment
+//! families; a None-restriction board gets the full step lattice and
+//! no alignment family — the in-line objective needs directions).
+//!
+//! **Slot decision (recorded, the charter's order question).** The
+//! pass runs in the gloss stage slot AFTER flow. A via relocation
+//! CREATES flow candidates in principle (new arm corners), but the
+//! pass's arms land as SINGLE segments — zero new corners, nothing
+//! for a later flow pass to clean — so via-then-flow composes
+//! identically to flow-then-via on the via side. The reverse order
+//! loses: the pass REPLACES both arm polylines WHOLESALE, so any flow
+//! landing INSIDE an arm of an attempted via is discarded work, and
+//! the flow rows would diverge from the flow-only ablation face
+//! (attribution stays clean only if the earlier pass's geometry is
+//! final before the later pass reads it). Terminal slot wins.
+//!
+//! **Two-regime safety (via_place).** The ONLY caller gate is the
+//! resolved `router.gloss.via_place` flag
+//! (`BatchSettings::via_place_active`, default false); an OFF run
+//! never constructs a report and never touches the board. The report
+//! rides the `--dump-aesthetics` SIDECAR ONLY (the `gloss_via_place`
+//! block rendered by epic-cli — NEVER the manifest: the canary
+//! cf607714 pins manifest bytes).
 
 use epic_board::board::Board;
 use epic_board::id::ItemId;
@@ -1464,6 +1584,659 @@ pub fn run_gloss_flow_stage(manager: &mut SearchTreeManager, board: &mut Board) 
         }
     }
     report
+}
+
+// ===========================================================================
+// M8-T5: the VIA PLACE pass — return-path-aware via placement
+// ===========================================================================
+
+/// The candidate RADIUS, in board DBU: a relocation is enumerated only
+/// when its CHEBYSHEV displacement from the current center
+/// (`max(|dx|, |dy|)`) is at most this (INCLUSIVE — the exact edge is
+/// pinned: a candidate at exactly the radius is enumerated, one at
+/// radius+1 is not; the boundary worlds and the both-direction
+/// mutations pin it at [`via_radius_allows`], DNR-16). Value:
+/// 60_000 DBU = 6 mm at the um-10 transform — a via should reach a
+/// better return-path or in-line slot within a component-pitch
+/// neighborhood, not across the board.
+pub const VIA_PLACE_RADIUS_DBU: i64 = 60_000;
+
+/// The lattice STEP, in board DBU: the 45°-lattice family enumerates
+/// displacements that are integer multiples of this on both axes
+/// (angle-legal ones). Granularity, not a boundary predicate — the
+/// enumeration-order pin ([`via_lattice_candidates`]) pins the step's
+/// effect on the candidate set. Value: 10_000 DBU = 1 mm — a
+/// via-pad-scale move quantum.
+pub const VIA_PLACE_STEP_DBU: i64 = 10_000;
+
+/// The candidate LENGTH-GAIN budget, in board DBU: a relocation whose
+/// NET's total trace length exceeds the net's current total by more
+/// than this is rejected (equality allowed). Value: 40_000 DBU = 4 mm,
+/// the T3 [`BUS_MAX_LENGTH_GAIN_DBU`]/T4 [`FLOW_MAX_LENGTH_GAIN_DBU`]
+/// mirror. The exact edge is pinned at [`via_length_guard_ok`]
+/// (old + GAIN lands, old + GAIN + 1 rejects) with both-direction
+/// mutations (DNR-16).
+pub const VIA_PLACE_MAX_LENGTH_GAIN_DBU: i64 = 40_000;
+
+/// One via relocation's row (the honest-stop face): the via locator
+/// is the item id, `from`/`to` the current/landed center.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ViaPlaceRow {
+    pub via_id: u32,
+    pub net: i32,
+    pub net_name: String,
+    /// The center at stage entry, board DBU.
+    pub from_x: i64,
+    /// The center at stage entry, board DBU.
+    pub from_y: i64,
+    /// The landed center (`from` when no candidate landed), board DBU.
+    pub to_x: i64,
+    /// The landed center (`from` when no candidate landed), board DBU.
+    pub to_y: i64,
+    /// Whether a candidate LANDED (the geometry was written).
+    pub landed: bool,
+}
+
+/// The gloss VIA PLACE stage report (the sidecar's `gloss_via_place`
+/// block source). Default = empty = the OFF face (never serialized).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct GlossViaPlaceReport {
+    /// Per-attempted-via rows in sweep order (net asc, via id asc).
+    pub rows: Vec<ViaPlaceRow>,
+    /// The INCOMPLETES-GATE marker (the T3 `bus_groups_gated` lesson —
+    /// the distinct sibling key exists from day one): true when the
+    /// stage short-circuited because some net still has incompletes.
+    /// Default false = the OFF/default semantics unchanged.
+    pub gated: bool,
+}
+
+impl GlossViaPlaceReport {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+}
+
+/// The displacement ADMITTER, pinnable in isolation: `dx`/`dy` nonzero,
+/// angle-legal under the board's restriction (None: any displacement;
+/// NinetyDegree: axis-aligned only; FortyfiveDegree: axis or exactly
+/// 45° — the [`flow_angle_ok`] face).
+#[must_use]
+pub fn via_displacement_ok(
+    restriction: epic_board::rules_surf::AngleRestriction,
+    dx: i64,
+    dy: i64,
+) -> bool {
+    if dx == 0 && dy == 0 {
+        return false;
+    }
+    match restriction {
+        epic_board::rules_surf::AngleRestriction::None => true,
+        epic_board::rules_surf::AngleRestriction::NinetyDegree => dx == 0 || dy == 0,
+        epic_board::rules_surf::AngleRestriction::FortyfiveDegree => flow_angle_ok(dx, dy),
+    }
+}
+
+/// The RADIUS admitter, pinnable in isolation (the DNR-16 exact edge:
+/// displacement at exactly the radius is admitted, radius+1 is not —
+/// both-direction mutations verified).
+#[must_use]
+pub fn via_radius_allows(dx: i64, dy: i64) -> bool {
+    dx.abs().max(dy.abs()) <= VIA_PLACE_RADIUS_DBU
+}
+
+/// The via LENGTH-GUARD predicate, pinnable in isolation (the DNR-16
+/// exact edge: old + GAIN lands, old + GAIN + 1 rejects —
+/// both-direction mutations verified).
+#[must_use]
+pub fn via_length_guard_ok(old_len: f64, new_len: f64) -> bool {
+    new_len <= old_len + VIA_PLACE_MAX_LENGTH_GAIN_DBU as f64
+}
+
+/// The 45°-LATTICE candidate family: displacements that are integer
+/// multiples of [`VIA_PLACE_STEP_DBU`] on both axes, angle-legal under
+/// `restriction`, nonzero, within [`VIA_PLACE_RADIUS_DBU`] (Chebyshev,
+/// inclusive). The enumeration order of the RETURNED list is
+/// documented and deterministic: Chebyshev displacement ascending,
+/// then dx ascending, then dy ascending (the merged candidate order —
+/// pinned).
+#[must_use]
+pub fn via_lattice_candidates(
+    restriction: epic_board::rules_surf::AngleRestriction,
+) -> Vec<(i64, i64)> {
+    let max_k = VIA_PLACE_RADIUS_DBU / VIA_PLACE_STEP_DBU;
+    let mut out = Vec::new();
+    for da in -max_k..=max_k {
+        for db in -max_k..=max_k {
+            let dx = da * VIA_PLACE_STEP_DBU;
+            let dy = db * VIA_PLACE_STEP_DBU;
+            if !via_radius_allows(dx, dy) || !via_displacement_ok(restriction, dx, dy) {
+                continue;
+            }
+            out.push((dx, dy));
+        }
+    }
+    out.sort_by_key(|&(dx, dy)| (dx.abs().max(dy.abs()), dx, dy));
+    out
+}
+
+/// One arm of an attempted via: the contact trace, its far anchor (the
+/// endpoint NOT at the via center), and the per-probe parameters.
+struct ViaArm {
+    trace_id: ItemId,
+    far: IntPoint,
+    layer: i32,
+    half_width: i32,
+    clearance_class: i32,
+    current_length: f64,
+    corner_count: usize,
+}
+
+/// One scored candidate: the displacement, the new center, and the
+/// ranking key (return-path drop DESC, total arm length ASC, then the
+/// enumeration order).
+struct ViaCandidate {
+    dx: i64,
+    dy: i64,
+    new_center: IntPoint,
+    ret_drop: f64,
+    arm_total: f64,
+}
+
+/// The STITCH DISTANCE from a point to one conduction area: 0 inside
+/// (border points count as contained — the `Area::contains_point`
+/// face), else the distance to the border shape (Tile/Circle exact;
+/// PolygonShape falls back to its bounding-box tile distance — the
+/// documented approximation, the parse census carries no polygon
+/// pours).
+fn stitch_distance(area: &epic_board::items::Area, point: &IntPoint) -> f64 {
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+    use epic_geometry::tile_shape::TileShape;
+    if area.contains_point(&Point::Int(*point)) {
+        return 0.0;
+    }
+    let float = point.to_float();
+    match &area.border {
+        epic_board::items::BoardShape::Tile(tile) => tile.distance(&float),
+        epic_board::items::BoardShape::Circle(circle) => circle.distance(&float),
+        epic_board::items::BoardShape::PolygonShape(polygon) => {
+            TileShape::RegularTileShape(RegularTileShape::IntBox(polygon.bounding_box()))
+                .distance(&float)
+        }
+    }
+}
+
+/// The via's PLANE STITCH distances: `Some` only when the via's net is
+/// a plane net carrying at least one conduction area within the via's
+/// padstack layer span. The value at a point = the MINIMUM stitch
+/// distance over those areas.
+fn plane_stitch(board: &mut Board, via_id: ItemId, net: i32, point: &IntPoint) -> Option<f64> {
+    let rules = board.rules();
+    if !rules.nets.get(net)?.contains_plane {
+        return None;
+    }
+    let first = board.drill_first_layer(via_id)?;
+    let last = board.drill_last_layer(via_id)?;
+    let mut best: Option<f64> = None;
+    for id in board.get_connectable_items(net) {
+        let Some(area) = board.conduction_area(id) else {
+            continue;
+        };
+        let Some(layer) = board.area_layer(id) else {
+            continue;
+        };
+        if layer < first || layer > last {
+            continue;
+        }
+        let distance = stitch_distance(&area, point);
+        best = Some(best.map_or(distance, |current: f64| current.min(distance)));
+    }
+    best
+}
+
+/// The stage entry (the pipeline's post-flow slot — the terminal gloss
+/// pass, the recorded slot decision; the caller gates on
+/// `BatchSettings::via_place_active` — the flag is the only caller
+/// gate). Emits NO events and NO stage transition (the meander-stage
+/// precedent). An empty report = no attempted via, nothing moved.
+pub fn run_gloss_via_place_stage(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+) -> GlossViaPlaceReport {
+    // The incompletes gate (the T3/T4 precedent): a net with
+    // incompletes is not a gloss target (still being routed).
+    let incompletes = epic_drc::incompletes::all_incompletes(manager, board).1;
+    if incompletes.iter().any(|row| row.incomplete_count > 0) {
+        return GlossViaPlaceReport {
+            gated: true,
+            ..Default::default()
+        };
+    }
+    let mut report = GlossViaPlaceReport::default();
+    // The sweep order: net number ascending, via item id ascending
+    // within the net (`get_connectable_items` returns descending ids —
+    // sorted; the seen-set keeps a multi-net via single-visited).
+    let max_net = board.rules().nets.max_net_number();
+    let mut seen: std::collections::BTreeSet<ItemId> = std::collections::BTreeSet::new();
+    for net in 1..=max_net {
+        let mut via_ids: Vec<ItemId> = board
+            .get_connectable_items(net)
+            .into_iter()
+            .filter(|&id| {
+                matches!(
+                    board.get(id).map(|entry| &entry.data),
+                    Some(epic_board::items::ItemData::Via { .. })
+                ) && seen.insert(id)
+            })
+            .collect();
+        via_ids.sort();
+        for via_id in via_ids {
+            via_place_attempt(manager, board, net, via_id, &mut report.rows);
+        }
+    }
+    report
+}
+
+/// One via's attempt: the candidate enumeration, the rank, the
+/// probe-and-land-first-fit sweep, and the honest row.
+fn via_place_attempt(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    net: i32,
+    via_id: ItemId,
+    rows: &mut Vec<ViaPlaceRow>,
+) {
+    let Some(center) = board.drill_center(via_id) else {
+        return;
+    };
+    let center = match center {
+        Point::Int(point) => point,
+        Point::Rational(_) => return,
+    };
+    // The fixed-state gate on the VIA (silent — no row, the no-candidate
+    // face; the arms carry their own gate at acceptance).
+    if board
+        .get(via_id)
+        .is_some_and(|entry| matches!(entry.fixed, FixedState::UserFixed | FixedState::SystemFixed))
+    {
+        return;
+    }
+    // The exactly-two-arm scope: trace contacts whose polylines END at
+    // the center. Plane contacts of the via's OWN net do not
+    // disqualify (a via on its own pour is the pass's subject).
+    let contact_traces: Vec<ItemId> =
+        epic_board::contacts::drill_normal_contacts(manager, board, via_id)
+            .into_iter()
+            .filter(|&id| {
+                matches!(
+                    board.get(id).map(|entry| &entry.data),
+                    Some(epic_board::items::ItemData::Trace { .. })
+                )
+            })
+            .collect();
+    if contact_traces.len() != 2 {
+        return;
+    }
+    let mut arms = Vec::with_capacity(2);
+    for trace_id in contact_traces {
+        let Some(lines) = board.trace_polyline(trace_id) else {
+            return;
+        };
+        let Some(layer) = board.trace_layer(trace_id) else {
+            return;
+        };
+        let Some(half_width) = board.trace_half_width(trace_id) else {
+            return;
+        };
+        let Some(clearance_class) = board.item_clearance_class(trace_id) else {
+            return;
+        };
+        let corner_count = lines.corner_count();
+        if corner_count < 2 {
+            return;
+        }
+        let Some(first) = lines.corner(0) else {
+            return;
+        };
+        let Some(last) = lines.corner(i32::try_from(lines.corner_count() - 1).unwrap_or(0)) else {
+            return;
+        };
+        let (Some(first), Some(last)) = (as_int(&first), as_int(&last)) else {
+            return;
+        };
+        let far = if first == center {
+            last
+        } else if last == center {
+            first
+        } else {
+            return; // not endpoint-connected: outside the scope
+        };
+        if far == center {
+            return; // degenerate closed trace: outside the scope
+        }
+        arms.push(ViaArm {
+            trace_id,
+            far,
+            layer,
+            half_width,
+            clearance_class,
+            current_length: piece_length_sum(&lines.corners()),
+            corner_count,
+        });
+    }
+    // The net's CURRENT total trace length (the budget's base) and the
+    // plane-stitch distance at the CURRENT center.
+    let net_len_before = net_trace_length(board, net);
+    let stitch_before = plane_stitch(board, via_id, net, &center);
+    // The candidate enumeration: the lattice family + the
+    // alignment-derived intersections, deduplicated, in the documented
+    // order.
+    let restriction = board.rules().trace_angle_restriction;
+    let mut candidates: Vec<ViaCandidate> = Vec::new();
+    let mut seen: std::collections::BTreeSet<(i64, i64)> = std::collections::BTreeSet::new();
+    let mut push_candidate =
+        |dx: i64,
+         dy: i64,
+         candidates: &mut Vec<ViaCandidate>,
+         seen: &mut std::collections::BTreeSet<(i64, i64)>| {
+            if !via_radius_allows(dx, dy) || !via_displacement_ok(restriction, dx, dy) {
+                return;
+            }
+            if !seen.insert((dx, dy)) {
+                return;
+            }
+            let new_center = IntPoint::new(
+                i32::try_from(i64::from(center.x) + dx).unwrap_or(center.x),
+                i32::try_from(i64::from(center.y) + dy).unwrap_or(center.y),
+            );
+            let arm_total = arms
+                .iter()
+                .map(|arm| arm_length(&arm.far, &new_center))
+                .sum();
+            let ret_drop = stitch_before.map_or(0.0, |before| {
+                plane_stitch(board, via_id, net, &new_center).map_or(before, |after| before - after)
+            });
+            candidates.push(ViaCandidate {
+                dx,
+                dy,
+                new_center,
+                ret_drop,
+                arm_total,
+            });
+        };
+    for &(dx, dy) in &via_lattice_candidates(restriction) {
+        push_candidate(dx, dy, &mut candidates, &mut seen);
+    }
+    for (dx, dy) in alignment_candidates(&arms, &center, restriction) {
+        push_candidate(dx, dy, &mut candidates, &mut seen);
+    }
+    // The RANK: return-path drop DESC, total arm length ASC, then the
+    // enumeration order (dx, dy ASC — the enumeration order's key).
+    candidates.sort_by(|a, b| {
+        b.ret_drop
+            .total_cmp(&a.ret_drop)
+            .then(a.arm_total.total_cmp(&b.arm_total))
+            .then_with(|| {
+                (a.dx.abs().max(a.dy.abs()), a.dx, a.dy).cmp(&(
+                    b.dx.abs().max(b.dy.abs()),
+                    b.dx,
+                    b.dy,
+                ))
+            })
+    });
+    // The probe-and-land-first-fit sweep.
+    let net_name = participant_name(board, net);
+    let mut row = ViaPlaceRow {
+        via_id: via_id.get(),
+        net,
+        net_name,
+        from_x: i64::from(center.x),
+        from_y: i64::from(center.y),
+        to_x: i64::from(center.x),
+        to_y: i64::from(center.y),
+        landed: false,
+    };
+    for candidate in &candidates {
+        // The IMPROVEMENT gate (the module-doc face): strictly
+        // positive return-path drop, strictly smaller total arm
+        // length, or strictly fewer total corners — else the via
+        // stays.
+        let new_arm_total: f64 = arms
+            .iter()
+            .map(|arm| arm_length(&arm.far, &candidate.new_center))
+            .sum();
+        let new_corner_total: usize = arms.iter().map(|_| 2).sum();
+        let improves = candidate.ret_drop > 0.0
+            || new_arm_total < arms.iter().map(|arm| arm.current_length).sum::<f64>()
+            || new_corner_total < arms.iter().map(|arm| arm.corner_count).sum::<usize>();
+        if !improves {
+            continue;
+        }
+        let delta = epic_geometry::vector::Vector::get_instance(
+            i32::try_from(candidate.dx).unwrap_or(0),
+            i32::try_from(candidate.dy).unwrap_or(0),
+        );
+        if !via_candidate_accepts(
+            manager,
+            board,
+            via_id,
+            net,
+            net_len_before,
+            &arms,
+            &candidate.new_center,
+            &delta,
+        ) {
+            continue;
+        }
+        land_via_candidate(manager, board, via_id, &arms, &candidate.new_center);
+        row.to_x = i64::from(candidate.new_center.x);
+        row.to_y = i64::from(candidate.new_center.y);
+        row.landed = true;
+        break;
+    }
+    rows.push(row);
+}
+
+/// The net's total on-board TRACE length (piece-sum, the T3 face).
+fn net_trace_length(board: &Board, net: i32) -> f64 {
+    board
+        .get_connectable_items(net)
+        .into_iter()
+        .filter_map(|id| board.trace_polyline(id).map(|lines| (id, lines)))
+        .filter(|(id, _)| {
+            matches!(
+                board.get(*id).map(|entry| &entry.data),
+                Some(epic_board::items::ItemData::Trace { .. })
+            )
+        })
+        .map(|(_, lines)| piece_length_sum(&lines.corners()))
+        .sum()
+}
+
+/// The arm length between a far anchor and a candidate center (f64
+/// Euclidean).
+fn arm_length(far: &IntPoint, center: &IntPoint) -> f64 {
+    let dx = i64::from(far.x) - i64::from(center.x);
+    let dy = i64::from(far.y) - i64::from(center.y);
+    ((dx * dx + dy * dy) as f64).sqrt()
+}
+
+/// The ALIGNMENT-DERIVED candidate family: the intersections of the
+/// two arms' 45°-legal direction lines through their far anchors —
+/// the exact in-line positions (arbitrary DBU coordinates). Each arm
+/// contributes the direction set its board restriction allows (4
+/// directions on NinetyDegree, 8 on FortyfiveDegree); an intersection
+/// must be exactly integer. A None-restriction board yields NO
+/// alignment family (the in-line objective needs directions). The
+/// returned displacements are relative to `center`; the radius and
+/// angle filters apply at the push site.
+#[must_use]
+fn alignment_candidates(
+    arms: &[ViaArm],
+    center: &IntPoint,
+    restriction: epic_board::rules_surf::AngleRestriction,
+) -> Vec<(i64, i64)> {
+    use epic_board::rules_surf::AngleRestriction;
+    let directions: Vec<(i64, i64)> = match restriction {
+        AngleRestriction::NinetyDegree => vec![(1, 0), (-1, 0), (0, 1), (0, -1)],
+        AngleRestriction::FortyfiveDegree => vec![
+            (1, 0),
+            (-1, 0),
+            (0, 1),
+            (0, -1),
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+            (-1, -1),
+        ],
+        AngleRestriction::None => return Vec::new(),
+    };
+    if arms.len() != 2 {
+        return Vec::new();
+    }
+    // Opposite direction pairs generate the SAME line, so the raw
+    // double loop yields each intersection multiple times — the
+    // DEDUP+sort makes the family itself deterministic.
+    let mut unique: std::collections::BTreeSet<(i64, i64)> = std::collections::BTreeSet::new();
+    for &(d1x, d1y) in &directions {
+        for &(d2x, d2y) in &directions {
+            let a1 = &arms[0].far;
+            let a2 = &arms[1].far;
+            // p = a1 + t*d1 = a2 + s*d2; solve exactly in i64.
+            let rx = i64::from(a2.x) - i64::from(a1.x);
+            let ry = i64::from(a2.y) - i64::from(a1.y);
+            let det = d1x * d2y - d1y * d2x;
+            if det == 0 {
+                continue; // parallel direction lines: no intersection
+            }
+            // t = cross(r, d2)/det, s = cross(r, d1)/det.
+            let t_num = rx * d2y - ry * d2x;
+            let s_num = rx * d1y - ry * d1x;
+            if t_num % det != 0 || s_num % det != 0 {
+                continue; // non-integer intersection: not a candidate
+            }
+            let t = t_num / det;
+            let px = i64::from(a1.x) + t * d1x;
+            let py = i64::from(a1.y) + t * d1y;
+            unique.insert((px - i64::from(center.x), py - i64::from(center.y)));
+        }
+    }
+    let mut out: Vec<(i64, i64)> = unique.into_iter().collect();
+    out.sort_by_key(|&(dx, dy)| (dx.abs().max(dy.abs()), dx, dy));
+    out
+}
+
+/// The whole-candidate acceptance (nothing partial): the arms' fixed
+/// gates, both arms angle-legal as single segments, the net length
+/// budget, the REAL via probe (`drill_item_mover::check` 0/0 — the
+/// audited ViaOptimizer pre-check face, no shoving), and the REAL arm
+/// probes (`check_trace_segment_points`, same-net exempt).
+#[allow(clippy::too_many_arguments)] // the acceptance read set, kept flat
+fn via_candidate_accepts(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    via_id: ItemId,
+    net: i32,
+    net_len_before: f64,
+    arms: &[ViaArm],
+    new_center: &IntPoint,
+    delta: &epic_geometry::vector::Vector,
+) -> bool {
+    // The arms' fixed-state gate.
+    for arm in arms {
+        if board.get(arm.trace_id).is_some_and(|entry| {
+            matches!(entry.fixed, FixedState::UserFixed | FixedState::SystemFixed)
+        }) {
+            return false;
+        }
+    }
+    // Both arms angle-legal as SINGLE segments into the new center.
+    for arm in arms {
+        let dx = i64::from(new_center.x) - i64::from(arm.far.x);
+        let dy = i64::from(new_center.y) - i64::from(arm.far.y);
+        if !via_displacement_ok(board.rules().trace_angle_restriction, dx, dy) {
+            return false;
+        }
+    }
+    // The net's trace-length budget (equality allowed).
+    let new_arm_total: f64 = arms
+        .iter()
+        .map(|arm| arm_length(&arm.far, new_center))
+        .sum();
+    let old_arm_total: f64 = arms.iter().map(|arm| arm.current_length).sum();
+    if !via_length_guard_ok(
+        net_len_before,
+        net_len_before + new_arm_total - old_arm_total,
+    ) {
+        return false;
+    }
+    // The degenerate-arm guard: an arm of length zero (the candidate
+    // ON a far anchor) is not a landing.
+    if arms
+        .iter()
+        .any(|arm| arm_length(&arm.far, new_center) <= 0.0)
+    {
+        return false;
+    }
+    // The REAL via probe: the mover legality check at budgets 0/0.
+    let mut ignore_items = Vec::new();
+    if !epic_board::drill_item_mover::check(
+        manager,
+        board,
+        via_id,
+        delta,
+        0,
+        0,
+        &mut ignore_items,
+        None,
+    ) {
+        return false;
+    }
+    // The REAL arm probes: each new single-segment arm at full length.
+    for arm in arms {
+        let insertable = check_trace_segment_points(
+            manager,
+            board,
+            &Point::Int(arm.far),
+            &Point::Int(*new_center),
+            arm.layer,
+            &[net],
+            arm.half_width,
+            arm.clearance_class,
+            false,
+        );
+        if insertable + 1e-6 < arm_length(&arm.far, new_center) {
+            return false;
+        }
+    }
+    true
+}
+
+/// The landing write: tree remove → `set_via_center` (board.rs:1068,
+/// the RAW center write — the caller owns the acceptance face, the
+/// `replace_trace_geometry` analog) → `clear_derived_data` → tree
+/// re-insert, then each arm's polyline replaced WHOLESALE with the
+/// single straight segment (the whole-candidate write; no undo save
+/// and no connector-trace insertion — the gloss family never touches
+/// undo, and the arms carry the connection geometry themselves).
+fn land_via_candidate(
+    manager: &mut SearchTreeManager,
+    board: &mut Board,
+    via_id: ItemId,
+    arms: &[ViaArm],
+    new_center: &IntPoint,
+) {
+    manager.remove(board, via_id);
+    board.set_via_center(via_id, *new_center);
+    board.clear_derived_data(via_id);
+    manager.insert(board, via_id);
+    for arm in arms {
+        board.replace_trace_geometry(
+            manager,
+            arm.trace_id,
+            Polyline::from_two_corners(&Point::Int(arm.far), &Point::Int(*new_center)),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -3110,5 +3883,544 @@ mod tests {
         );
         assert!(!report.gated);
         assert_eq!(net_traces(&board, 2), before, "geometry untouched");
+    }
+
+    // -- the VIA PLACE pass (M8-T5) ---------------------------------
+
+    use epic_board::rules_surf::AngleRestriction;
+    use epic_dsn::shape::BoardShape as DsnBoardShape;
+    use epic_dsn::sink::FixedStateIr as DsnFixedStateIr;
+    use epic_dsn::sink::{AreaIr, ConductionAreaIr, KeepoutIr, KeepoutKindIr, PadstackIr, ViaIr};
+    use epic_geometry::circle::Circle as DsnCircle;
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+    use epic_geometry::tile_shape::TileShape;
+
+    /// The via world's VIA padstack (radius-100 circles on both layers).
+    fn via_padstack() -> PadstackIr {
+        PadstackIr {
+            name: "VIA".to_string(),
+            shapes: vec![
+                Some(DsnBoardShape::Circle(DsnCircle::new(
+                    IntPoint::new(0, 0),
+                    100,
+                ))),
+                Some(DsnBoardShape::Circle(DsnCircle::new(
+                    IntPoint::new(0, 0),
+                    100,
+                ))),
+            ],
+            drillable: true,
+            placed_absolute: false,
+        }
+    }
+
+    /// The OFF-BEND VIA world (NinetyDegree): net 1 "sig" — arm 1
+    /// straight F.Cu from (30_000,150_000) to the via at
+    /// (200_000,150_000); arm 2 a STAIRCASE on B.Cu from the via
+    /// (200_000,150_000) → (200_000,250_000) → (260_000,250_000). The
+    /// unique in-radius both-arms-straight position is (260_000,
+    /// 150_000) — a Chebyshev displacement of EXACTLY
+    /// [`VIA_PLACE_RADIUS_DBU`] (60_000): the at-radius boundary world.
+    /// `far2_x` shifts arm 2's far anchor (the radius+1 world sets it
+    /// to 260_001); `pour_min_x` adds a SAME-NET plane pour (net 1 is
+    /// a plane net with a rect conduction area on F.Cu x ≥ pour_min_x)
+    /// when `Some`.
+    fn via_world(far2_x: i64, pour_min_x: Option<i64>) -> (SearchTreeManager, Board) {
+        let mut ses = base_ses();
+        ses.padstacks.push(via_padstack());
+        register_nets(&mut ses, &[("sig", pour_min_x.is_some())]);
+        // arm 1: F.Cu, straight into the via center.
+        straight_trace(
+            &mut ses,
+            3,
+            1,
+            vec![
+                IntPoint::new(30_000, 150_000),
+                IntPoint::new(200_000, 150_000),
+            ],
+        );
+        // arm 2: B.Cu, staircase out of the via center.
+        ses.push_routed_item(staircase_trace(far2_x));
+        // the via at the bend (200_000, 150_000).
+        ses.push_routed_item(ItemIr::Via {
+            id: 5,
+            via: ViaIr {
+                padstack_no: 1,
+                location: IntPoint::new(200_000, 150_000),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: DsnFixedStateIr::Unfixed,
+                attach_smd_allowed: false,
+            },
+        });
+        if let Some(pour_min_x) = pour_min_x {
+            ses.push_routed_item(ItemIr::ConductionArea {
+                id: 6,
+                area: ConductionAreaIr {
+                    layer_no: 0,
+                    area: AreaIr::simple(DsnBoardShape::Tile(TileShape::RegularTileShape(
+                        RegularTileShape::IntBox(IntBox::new(
+                            IntPoint::new(i32::try_from(pour_min_x).unwrap_or(0), 100_000),
+                            IntPoint::new(500_000, 200_000),
+                        )),
+                    ))),
+                    nets: vec![1],
+                    clearance_class: 1,
+                    fixed: DsnFixedStateIr::Unfixed,
+                },
+            });
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        (manager, board)
+    }
+
+    fn staircase_corners(far2_x: i64) -> Vec<IntPoint> {
+        vec![
+            IntPoint::new(200_000, 150_000),
+            IntPoint::new(200_000, 250_000),
+            IntPoint::new(i32::try_from(far2_x).unwrap_or(0), 250_000),
+        ]
+    }
+
+    /// The SPLIT-RUN VIA world: net 1 "sig" (plane when the pour is
+    /// present) — arm 1 F.Cu (30_000,150_000)→(200_000,150_000); arm 2
+    /// B.Cu (200_000,150_000)→(260_000,150_000); the via at
+    /// (200_000,150_000) mid-run. All 12 on-line lattice candidates
+    /// (dx ±10_000..±60_000, dy = 0) are both-arms-straight with a
+    /// constant arm total — the return-path rank alone discriminates.
+    /// `pour_min_x` adds the same-net F.Cu rect pour x ≥ pour_min_x.
+    fn via_world_split(pour_min_x: Option<i64>) -> (SearchTreeManager, Board) {
+        let mut ses = base_ses();
+        ses.padstacks.push(via_padstack());
+        register_nets(&mut ses, &[("sig", pour_min_x.is_some())]);
+        straight_trace(
+            &mut ses,
+            3,
+            1,
+            vec![
+                IntPoint::new(30_000, 150_000),
+                IntPoint::new(200_000, 150_000),
+            ],
+        );
+        straight_trace(
+            &mut ses,
+            4,
+            1,
+            vec![
+                IntPoint::new(200_000, 150_000),
+                IntPoint::new(260_000, 150_000),
+            ],
+        );
+        ses.push_routed_item(ItemIr::Via {
+            id: 5,
+            via: ViaIr {
+                padstack_no: 1,
+                location: IntPoint::new(200_000, 150_000),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: DsnFixedStateIr::Unfixed,
+                attach_smd_allowed: false,
+            },
+        });
+        if let Some(pour_min_x) = pour_min_x {
+            ses.push_routed_item(ItemIr::ConductionArea {
+                id: 6,
+                area: ConductionAreaIr {
+                    layer_no: 0,
+                    area: AreaIr::simple(DsnBoardShape::Tile(TileShape::RegularTileShape(
+                        RegularTileShape::IntBox(IntBox::new(
+                            IntPoint::new(i32::try_from(pour_min_x).unwrap_or(0), 100_000),
+                            IntPoint::new(500_000, 200_000),
+                        )),
+                    ))),
+                    nets: vec![1],
+                    clearance_class: 1,
+                    fixed: DsnFixedStateIr::Unfixed,
+                },
+            });
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        (manager, board)
+    }
+
+    /// The trace IR for arm 2 (a B.Cu staircase polyline).
+    fn staircase_trace(far2_x: i64) -> ItemIr {
+        let corners = staircase_corners(far2_x);
+        ItemIr::Trace {
+            id: 4,
+            trace: TraceIr {
+                layer_no: 1,
+                half_width: 2000,
+                corners: corners.clone(),
+                polyline: TraceIr::polyline_of_corners(&corners),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        }
+    }
+
+    /// The net-1 via count (the COUNT-INVARIANCE face's counter).
+    fn via_count(board: &Board) -> usize {
+        board
+            .get_connectable_items(1)
+            .into_iter()
+            .filter(|&id| {
+                matches!(
+                    board.get(id).map(|entry| &entry.data),
+                    Some(epic_board::items::ItemData::Via { .. })
+                )
+            })
+            .count()
+    }
+
+    /// **V1 (the lattice enumeration order + step/radius granularity).**
+    /// NinetyDegree: the axis-only multiples ±10_000..±60_000, x before
+    /// y, ascending magnitude: the EXACT 24-element list. A step mutant
+    /// of EITHER sign changes the list (the enumeration pin); the
+    /// radius edge keeps ring 6 (`6×10_000 == VIA_PLACE_RADIUS_DBU`,
+    /// the inclusive edge) — an R−1 mutant drops it.
+    #[test]
+    fn v1_lattice_enumeration_order() {
+        let got = via_lattice_candidates(AngleRestriction::NinetyDegree);
+        // LITERAL expectation (the DNR-16 discipline: a pin built from
+        // the constant follows the constant — a step mutant could never
+        // flip it). The 24 axis multiples, x before y, ascending
+        // magnitude.
+        let want: Vec<(i64, i64)> = vec![
+            (-10_000, 0),
+            (0, -10_000),
+            (0, 10_000),
+            (10_000, 0),
+            (-20_000, 0),
+            (0, -20_000),
+            (0, 20_000),
+            (20_000, 0),
+            (-30_000, 0),
+            (0, -30_000),
+            (0, 30_000),
+            (30_000, 0),
+            (-40_000, 0),
+            (0, -40_000),
+            (0, 40_000),
+            (40_000, 0),
+            (-50_000, 0),
+            (0, -50_000),
+            (0, 50_000),
+            (50_000, 0),
+            (-60_000, 0),
+            (0, -60_000),
+            (0, 60_000),
+            (60_000, 0),
+        ];
+        assert_eq!(got, want);
+        // FortyfiveDegree adds the on-diagonal rings (48 total).
+        let got45 = via_lattice_candidates(AngleRestriction::FortyfiveDegree);
+        assert_eq!(got45.len(), 48);
+        // None: the full grid minus the center (168 candidates).
+        let got_none = via_lattice_candidates(AngleRestriction::None);
+        assert_eq!(got_none.len(), 168);
+    }
+
+    /// The alignment-family probe over a plain anchor pair (no board):
+    /// anchors (30_000,150_000) and (260_000,250_000) with the center
+    /// (200_000,150_000) — the at-radius world's frames. The in-radius
+    /// both-arms-straight intersections: EXACTLY the in-line
+    /// (60_000, 0); the other intersection (30_000,250_000) is out of
+    /// radius and the current position is not an anchor-line
+    /// intersection.
+    #[test]
+    fn v1b_alignment_family_world() {
+        let arms = [
+            via_arm(1, IntPoint::new(30_000, 150_000), 0),
+            via_arm(2, IntPoint::new(260_000, 250_000), 1),
+        ];
+        assert_eq!(
+            alignment_candidates(
+                &arms,
+                &IntPoint::new(200_000, 150_000),
+                AngleRestriction::NinetyDegree
+            ),
+            // Deduped and in the family order; the radius filter applies
+            // at the push site, so the out-of-radius intersection is in
+            // the family list (and is dropped before any probe).
+            vec![(60_000, 0), (-170_000, 100_000)]
+        );
+    }
+
+    /// The BLOCKED world builder: the at-radius world plus a plain
+    /// structure keepout covering the in-line landing
+    /// (250_000..270_000 × 140_000..160_000) on F.Cu — the via pad and
+    /// arm 1's extension both collide → every candidate rejected, the
+    /// honest `landed: false` row, geometry verbatim, via count
+    /// invariant.
+    fn via_world_blocked() -> (SearchTreeManager, Board) {
+        let mut ses = base_ses();
+        ses.padstacks.push(via_padstack());
+        register_nets(&mut ses, &[("sig", false)]);
+        straight_trace(
+            &mut ses,
+            3,
+            1,
+            vec![
+                IntPoint::new(30_000, 150_000),
+                IntPoint::new(200_000, 150_000),
+            ],
+        );
+        ses.push_routed_item(staircase_trace(260_000));
+        ses.push_routed_item(ItemIr::Via {
+            id: 5,
+            via: ViaIr {
+                padstack_no: 1,
+                location: IntPoint::new(200_000, 150_000),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: DsnFixedStateIr::Unfixed,
+                attach_smd_allowed: false,
+            },
+        });
+        ses.push_routed_item(ItemIr::Keepout {
+            id: 7,
+            keepout: KeepoutIr {
+                kind: KeepoutKindIr::Keepout,
+                layer_no: 0,
+                area: AreaIr::simple(DsnBoardShape::Tile(TileShape::RegularTileShape(
+                    RegularTileShape::IntBox(IntBox::new(
+                        IntPoint::new(250_000, 140_000),
+                        IntPoint::new(270_000, 160_000),
+                    )),
+                ))),
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+                component_id: 0,
+                rotation: 0.0,
+                side_changed: false,
+                name: None,
+                translation: IntPoint::new(0, 0),
+            },
+        });
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        (manager, board)
+    }
+
+    /// **V6 (the blocked world).** No candidate passes → the honest
+    /// `landed: false` row, the via and both arms VERBATIM, the via
+    /// count invariant.
+    #[test]
+    fn v6_blocked_world_honest_row() {
+        let (mut manager, mut board) = via_world_blocked();
+        let before_center = board.drill_center(ItemId::new(5));
+        let before_arm1 = board
+            .trace_polyline(ItemId::new(3))
+            .map(|l| l.corners().len());
+        let before_arm2 = board
+            .trace_polyline(ItemId::new(4))
+            .map(|l| l.corners().len());
+        let before_count = via_count(&board);
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert_eq!(report.rows.len(), 1);
+        assert!(!report.rows[0].landed, "no candidate passes the keepout");
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (200_000, 150_000),
+            "the row's to == from (the honest stop)"
+        );
+        assert_eq!(board.drill_center(ItemId::new(5)), before_center);
+        assert_eq!(
+            board
+                .trace_polyline(ItemId::new(3))
+                .map(|l| l.corners().len()),
+            before_arm1
+        );
+        assert_eq!(
+            board
+                .trace_polyline(ItemId::new(4))
+                .map(|l| l.corners().len()),
+            before_arm2
+        );
+        assert_eq!(via_count(&board), before_count, "count invariant");
+    }
+
+    /// **V7 (the no-via board).** Flag ON, zero rows — the sweep has
+    /// nothing to attempt.
+    #[test]
+    fn v7_no_via_board_zero_rows() {
+        let (manager, mut board) = world();
+        let mut manager = manager;
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(!report.gated);
+        assert!(report.rows.is_empty(), "no vias, no rows");
+    }
+
+    /// **V8 (determinism ×2).** Fresh worlds, byte-equal reports.
+    #[test]
+    fn v8_determinism_times_two() {
+        let (mut m1, mut b1) = via_world(260_000, Some(240_000));
+        let (mut m2, mut b2) = via_world(260_000, Some(240_000));
+        let r1 = run_gloss_via_place_stage(&mut m1, &mut b1);
+        let r2 = run_gloss_via_place_stage(&mut m2, &mut b2);
+        assert_eq!(r1, r2, "two fresh runs agree");
+    }
+
+    /// **V9 (the gated world).** The GATED_WORLD (an open net at stage
+    /// entry) short-circuits: `gated = true`, zero rows.
+    #[test]
+    fn v9_incompletes_gate_marks_the_hold() {
+        let (mut manager, mut board) = parse(GATED_WORLD);
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(report.gated, "the hold is marked");
+        assert!(report.rows.is_empty());
+    }
+
+    /// A minimal arm frame for the alignment-family pins (no board).
+    fn via_arm(trace_id: u32, far: IntPoint, layer: i32) -> ViaArm {
+        ViaArm {
+            trace_id: ItemId::new(trace_id),
+            far,
+            layer,
+            half_width: 2000,
+            clearance_class: 1,
+            current_length: 0.0,
+            corner_count: 2,
+        }
+    }
+
+    /// **V2 (the pure predicates, the DNR-16 exact edges).**
+    /// Displacement legality per restriction; the radius inclusive edge
+    /// (exactly 60_000 in, 60_001 out); the length-guard exact edge
+    /// (old + GAIN lands, old + GAIN + 1 rejects).
+    #[test]
+    fn v2_predicates_exact_edges() {
+        use epic_board::rules_surf::AngleRestriction as AR;
+        assert!(via_displacement_ok(AR::None, 3, 7));
+        assert!(!via_displacement_ok(AR::None, 0, 0));
+        assert!(via_displacement_ok(AR::NinetyDegree, 60_000, 0));
+        assert!(!via_displacement_ok(AR::NinetyDegree, 60_000, 10_000));
+        assert!(via_displacement_ok(AR::FortyfiveDegree, 30_000, 30_000));
+        assert!(!via_displacement_ok(AR::FortyfiveDegree, 30_000, 60_000));
+        assert!(via_radius_allows(60_000, 0));
+        assert!(via_radius_allows(0, 60_000));
+        assert!(!via_radius_allows(60_001, 0));
+        assert!(!via_radius_allows(0, 60_001));
+        // LITERAL boundary (DNR-16): the guard reads the constant, the
+        // pin reads 40_000/40_001 — a gain mutant of either sign flips
+        // exactly one verdict.
+        assert!(via_length_guard_ok(1_000_000.0, 1_040_000.0));
+        assert!(!via_length_guard_ok(1_000_000.0, 1_040_001.0));
+    }
+
+    /// **V3 (the OFF-BEND world, the at-radius landing).** The in-line
+    /// candidate (260_000, 150_000) — Chebyshev displacement EXACTLY
+    /// [`VIA_PLACE_RADIUS_DBU`] — lands; the exact landing geometry is
+    /// asserted; the via COUNT is invariant.
+    #[test]
+    fn v3_off_bend_lands_at_radius_edge() {
+        let (mut manager, mut board) = via_world(260_000, None);
+        let before = via_count(&board);
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(!report.gated);
+        assert_eq!(report.rows.len(), 1, "exactly one attempted via");
+        let row = &report.rows[0];
+        assert!(row.landed, "the in-line candidate lands");
+        assert_eq!((row.from_x, row.from_y), (200_000, 150_000));
+        assert_eq!((row.to_x, row.to_y), (260_000, 150_000));
+        assert_eq!(
+            board.drill_center(ItemId::new(5)),
+            Some(Point::Int(IntPoint::new(260_000, 150_000))),
+            "the via center moved to the in-line position"
+        );
+        assert_eq!(
+            board
+                .trace_polyline(ItemId::new(3))
+                .map(|lines| lines.corners().len()),
+            Some(2),
+            "arm 1 straightened to a single segment"
+        );
+        let arm2 = board.trace_polyline(ItemId::new(4)).expect("arm 2 live");
+        assert_eq!(arm2.corners().len(), 2, "arm 2 straightened");
+        assert_eq!(via_count(&board), before, "via COUNT never changes");
+    }
+
+    /// **V4 (the radius+1 world).** The in-line position sits ONE DBU
+    /// past the radius — NOT enumerated, no landing, geometry
+    /// verbatim. Kills the R+1 mutant (the candidate becomes
+    /// enumerated and would land); the R−1 mutant is killed by V3.
+    #[test]
+    fn v4_radius_plus_one_not_enumerated() {
+        let (mut manager, mut board) = via_world(260_001, None);
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert_eq!(report.rows.len(), 1);
+        assert!(!report.rows[0].landed, "radius+1 is outside the lattice");
+        assert_eq!(
+            board.drill_center(ItemId::new(5)),
+            Some(Point::Int(IntPoint::new(200_000, 150_000))),
+            "the via did not move"
+        );
+    }
+
+    /// **V5 (the return-path scoring, the strict face + the ±1 DBU
+    /// boundary triple).** The SPLIT-RUN plane world: both anchors on
+    /// y = 150_000 (arm 1 (30_000,150_000)→(200_000,150_000); arm 2
+    /// (200_000,150_000)→(260_000,150_000)), so all 12 on-line lattice
+    /// candidates are both-arms-straight with a CONSTANT arm total
+    /// (230_000) — the return-path rank alone discriminates. Pour left
+    /// edge b (F.Cu rect x ≥ b, y in [100_000, 200_000]): the
+    /// ret_drop of a dx candidate is max(0, b−200_000) when
+    /// 200_000+dx ≥ b, else dx. Strict face (b = 240_000): the
+    /// plane-proximal dx=40_000 wins (ret_drop 40_000) over the
+    /// enumeration-cheb rank that would take dx=10_000 — the scoring
+    /// pin. Tie face (b = 230_000): dx ≥ 30_000 tie at ret_drop
+    /// 30_000 → the Chebyshev tiebreak takes dx=30_000 → (230_000,
+    /// 150_000). +1 face (b = 230_001): dx=30_000's ret_drop drops to
+    /// 30_000, dx ≥ 40_000 tie at 30_001 → the winner FLIPS to
+    /// (240_000, 150_000) — one DBU of pour geometry flips the
+    /// verdict (the DNR-16 exact-boundary triple). −1 face
+    /// (b = 229_999): dx ≥ 30_000 tie at 29_999 → (230_000, 150_000)
+    /// — the tie face's winner holds inside the boundary.
+    #[test]
+    fn v5_return_path_scoring_and_tie_boundary() {
+        // The STRICT face (b = 240_000): the plane-proximal candidate
+        // wins over the nearest candidate.
+        let (mut manager, mut board) = via_world_split(Some(240_000));
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(report.rows[0].landed, "strict face lands");
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (240_000, 150_000),
+            "the plane-proximal candidate wins"
+        );
+        // The TIE face (b = 230_000).
+        let (mut manager, mut board) = via_world_split(Some(230_000));
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(report.rows[0].landed);
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (230_000, 150_000)
+        );
+        // The +1 face (b = 230_001): the winner flips by one DBU of
+        // pour geometry.
+        let (mut manager, mut board) = via_world_split(Some(230_001));
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(report.rows[0].landed);
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (240_000, 150_000),
+            "+1 DBU flips the tie"
+        );
+        // The −1 face (b = 229_999): the tie face's winner holds.
+        let (mut manager, mut board) = via_world_split(Some(229_999));
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(report.rows[0].landed);
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (230_000, 150_000),
+            "−1 DBU holds the tie winner"
+        );
     }
 }

@@ -869,6 +869,9 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     batch.bus_active = resolved.gloss_bus;
     // M8-T4: the gloss-flow activation (same seam as the bus flag).
     batch.flow_active = resolved.gloss_flow;
+    // M8-T5: the gloss via-place activation (same seam as the flow
+    // flag).
+    batch.via_place_active = resolved.gloss_via_place;
     batch
 }
 
@@ -1470,6 +1473,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         optimizer,
         gloss_report,
         flow_report,
+        via_place_report,
         ..
     } = outcome;
     let phases = PipelinePhases {
@@ -1625,6 +1629,35 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         }
         if flow_report.gated {
             sidecar["gloss_flow_gated"] = serde_json::Value::Bool(true);
+        }
+        // M8-T5: the gloss `gloss_via_place` block — SAME sidecar, same
+        // skip-when-empty law (never the manifest: cf607714). The gated
+        // hold surfaces as the DISTINCT `gloss_via_place_gated` sibling
+        // key from day one (the T3 fix-round lesson — no gated-face
+        // conflation). Row locator contract: from_x/from_y = the via
+        // center at stage entry, to_x/to_y = the landed center (equal
+        // to from when no candidate landed).
+        if !via_place_report.is_empty() {
+            let rows: Vec<serde_json::Value> = via_place_report
+                .rows
+                .iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "from_x": row.from_x,
+                        "from_y": row.from_y,
+                        "landed": row.landed,
+                        "net": row.net,
+                        "net_name": row.net_name,
+                        "to_x": row.to_x,
+                        "to_y": row.to_y,
+                        "via_id": row.via_id,
+                    })
+                })
+                .collect();
+            sidecar["gloss_via_place"] = serde_json::Value::Array(rows);
+        }
+        if via_place_report.gated {
+            sidecar["gloss_via_place_gated"] = serde_json::Value::Bool(true);
         }
         let json = format!(
             "{}\n",
