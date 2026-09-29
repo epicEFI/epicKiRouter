@@ -867,6 +867,8 @@ pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
     // gate — no board seam needed, the pass is post-route). Default
     // OFF: the stage never runs, byte-identical.
     batch.bus_active = resolved.gloss_bus;
+    // M8-T4: the gloss-flow activation (same seam as the bus flag).
+    batch.flow_active = resolved.gloss_flow;
     batch
 }
 
@@ -1467,6 +1469,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         boundaries,
         optimizer,
         gloss_report,
+        flow_report,
         ..
     } = outcome;
     let phases = PipelinePhases {
@@ -1593,6 +1596,31 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             // hold from a genuinely group-free board. Default runs
             // never reach the stage; nothing pinned changes.
             sidecar["bus_groups_gated"] = serde_json::Value::Bool(true);
+        }
+        // M8-T4: the gloss `gloss_flow` block — SAME sidecar, same
+        // skip-when-empty law (never the manifest: cf607714). The
+        // gated hold surfaces as the DISTINCT `gloss_flow_gated`
+        // sibling key from day one (the T3 fix-round lesson — no
+        // gated-face conflation).
+        if !flow_report.is_empty() {
+            let rows: Vec<serde_json::Value> = flow_report
+                .rows
+                .iter()
+                .map(|row| {
+                    serde_json::json!({
+                        "corner_x": row.corner_x,
+                        "corner_y": row.corner_y,
+                        "kind": row.kind.label(),
+                        "landed": row.landed,
+                        "net": row.net,
+                        "net_name": row.net_name,
+                    })
+                })
+                .collect();
+            sidecar["gloss_flow"] = serde_json::Value::Array(rows);
+        }
+        if flow_report.gated {
+            sidecar["gloss_flow_gated"] = serde_json::Value::Bool(true);
         }
         let json = format!(
             "{}\n",
@@ -3646,6 +3674,22 @@ mod tests {
         };
         let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
         assert!(batch_on.bus_active, "explicit ON survives");
+    }
+
+    /// The M8-T4 seam: build_batch_settings carries the gloss-flow
+    /// flag (default OFF — the two-regime law; explicit ON survives).
+    #[test]
+    fn build_batch_settings_carries_gloss_flow() {
+        let merged = MergedSettings::default();
+        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
+        assert!(!default_batch.flow_active, "default OFF");
+
+        let merged_on = MergedSettings {
+            gloss_flow: Some(true),
+            ..MergedSettings::default()
+        };
+        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
+        assert!(batch_on.flow_active, "explicit ON survives");
     }
 
     // ------------------------------------------------------------------

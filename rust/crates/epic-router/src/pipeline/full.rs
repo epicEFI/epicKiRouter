@@ -180,6 +180,11 @@ pub struct PipelineOutcome {
     /// — the flag is the only gate, the two-regime law). Rides the
     /// aesthetics SIDECAR via epic-cli, NEVER the manifest.
     pub gloss_report: crate::pipeline::gloss::GlossBusReport,
+    /// M8-T4: the gloss FLOW stage's report (the jog/stub/miter rows;
+    /// empty/default unless `router.gloss.flow` is ON — the flag is
+    /// the only caller gate, the two-regime law). Rides the aesthetics
+    /// SIDECAR via epic-cli, NEVER the manifest.
+    pub flow_report: crate::pipeline::gloss::GlossFlowReport,
 }
 
 /// Java `RoutingPipeline.runRoutingStage` (`:92-119`). Takes the
@@ -365,6 +370,7 @@ pub fn run(
     let meander_active = settings.meander_active;
     let pairs = settings.pairs.clone();
     let bus_active = settings.bus_active;
+    let flow_active = settings.flow_active;
     let stage = run_routing_stage(manager, board, &mut settings, &stop, sink, &mut transitions);
     let routing = stage.routing;
     let optimizer = if routing.is_err() {
@@ -423,6 +429,22 @@ pub fn run(
     } else {
         crate::pipeline::gloss::GlossBusReport::default()
     };
+    // M8-T4: the gloss FLOW stage — 45° jog/stub elimination + the
+    // miter/recorner bridge (`pipeline/gloss.rs`), the slot AFTER the
+    // bus stage (flow after spread — the AM2 composition law:
+    // spread/hug relocations create jogs/corners only the flow pass
+    // cleans). Gated on `router.gloss.flow` ALONE (the resolved
+    // `flow_active`; default OFF — an OFF run never reaches the stage,
+    // the two-regime byte-invariance law) plus the stage's own two
+    // gates (FORTYFIVE_DEGREE angle gate, incompletes gate). Emits NO
+    // stage transition (the parity stage enum cannot rotate) and NO
+    // events (the meander-stage precedent). The report rides the
+    // aesthetics SIDECAR via epic-cli, NEVER the manifest.
+    let flow_report = if routing.is_ok() && flow_active {
+        crate::pipeline::gloss::run_gloss_flow_stage(manager, board)
+    } else {
+        crate::pipeline::gloss::GlossFlowReport::default()
+    };
     if routing.is_ok() {
         // Java `:89` — `this.job.stage = RoutingStage.IDLE;`.
         transitions.push(RoutingStage::Idle);
@@ -438,6 +460,7 @@ pub fn run(
         meander_report,
         pair_stage,
         gloss_report,
+        flow_report,
     }
 }
 

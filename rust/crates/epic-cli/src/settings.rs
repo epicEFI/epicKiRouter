@@ -187,6 +187,22 @@ pub struct CliLayer {
     /// 50_000 DBU) live in gloss.rs per the T2/T4 named-constant
     /// family pattern.
     pub gloss_bus: Option<bool>,
+    /// `router.gloss.flow` — the M8-T4 GLOSS FLOW tri-state
+    /// (RUST-ONLY, no Java counterpart; the gloss family block). `None`
+    /// (the default) = OFF: the flow stage never runs — the two-regime
+    /// law's byte-invariance face. `on` = the gloss stage slot runs the
+    /// 45° flow pass AFTER the bus pass (flow after spread — the AM2
+    /// composition law): jog/stub elimination + the miter/recorner
+    /// bridge (`epic_router::pipeline::gloss`; the report rides the
+    /// `--dump-aesthetics` SIDECAR as the `gloss_flow` block — never
+    /// the manifest; a gated hold surfaces as the DISTINCT
+    /// `gloss_flow_gated` sibling key). `off` = the explicit kill face
+    /// (identical to absent: the pass has no input-driven activation).
+    /// The named engine constants (`JOG_MAX_SEGMENT_FACTOR` 6.0 strict
+    /// against 2×half-width, `MITER_MAX_STUB_DBU` 30_000 DBU strict,
+    /// `FLOW_MAX_LENGTH_GAIN_DBU` 40_000 DBU) live in gloss.rs per the
+    /// named-constant family pattern.
+    pub gloss_flow: Option<bool>,
     /// `router.start_ripup_costs`.
     pub start_ripup_costs: Option<i32>,
     /// `router.automatic_neckdown`.
@@ -651,6 +667,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.gloss_bus = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "gloss.flow" => match parse_on_off(value) {
+            Some(v) => layer.gloss_flow = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "start_ripup_costs" => match value.parse::<i32>() {
             Ok(v) => layer.start_ripup_costs = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -1032,6 +1052,10 @@ pub struct MergedSettings {
     /// OFF; CLI-only — no DSN/default source writes it, the Default
     /// seed is `None`).
     pub gloss_bus: Option<bool>,
+    /// `router.gloss.flow` — the M8-T4 gloss-flow tri-state (absent =
+    /// OFF; CLI-only — no DSN/default source writes it, the Default
+    /// seed is `None`).
+    pub gloss_flow: Option<bool>,
     /// `viasAllowed`.
     pub vias_allowed: Option<bool>,
     /// `automaticNeckdown` — DefaultSettings TRUE (the bare-ctor default
@@ -1140,6 +1164,7 @@ impl Default for MergedSettings {
             tuning_meander: None,
             tuning_pairs: None,
             gloss_bus: None,
+            gloss_flow: None,
             vias_allowed: Some(true),
             automatic_neckdown: Some(true),
             trace_pull_tight_accuracy: Some(500),
@@ -1294,6 +1319,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.gloss_bus {
         merged.gloss_bus = Some(v);
+    }
+    if let Some(v) = cli.gloss_flow {
+        merged.gloss_flow = Some(v);
     }
     if let Some(v) = cli.vias_allowed {
         merged.vias_allowed = Some(v);
@@ -1650,6 +1678,10 @@ pub struct ResolvedRouteSettings {
     /// input-driven activation — absent and `off` are both OFF, the
     /// two-regime law's default face).
     pub gloss_bus: bool,
+    /// The M8-T4 gloss-flow flag (`router.gloss.flow`), resolved to
+    /// its effective face: ON only when explicitly `on` (same face as
+    /// the gloss-bus flag).
+    pub gloss_flow: bool,
 }
 
 impl ResolvedRouteSettings {
@@ -1764,6 +1796,7 @@ impl ResolvedRouteSettings {
             tuning_meander: merged.tuning_meander,
             tuning_pairs: merged.tuning_pairs.clone(),
             gloss_bus: merged.gloss_bus.unwrap_or(false),
+            gloss_flow: merged.gloss_flow.unwrap_or(false),
             fanout_enabled: merged.fanout_enabled.unwrap_or(true),
             strict_drc: merged.strict_drc.unwrap_or(false),
             run_router: merged.autorouter_enabled.unwrap_or(true),
@@ -2736,6 +2769,7 @@ mod tests {
                 ("PC".to_string(), "PD".to_string()),
             ]),
             gloss_bus: Some(true),
+            gloss_flow: Some(true),
             improvement_threshold: Some(7.5),
             router_scoring_version: Some(RouterScoringVersion::V1Legacy),
             optimizer_scoring_version: Some(OptimScoringVersion::V1Legacy),
@@ -2942,6 +2976,60 @@ mod tests {
         let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
         let resolved = ResolvedRouteSettings::resolve(&merged, None);
         assert!(!resolved.gloss_bus, "malformed stays OFF");
+    }
+
+    /// The M8-T4 gloss-flow tri-state faces (parse -> merge ->
+    /// resolve): `on` resolves ON; absent and `off` both resolve OFF
+    /// (no input-driven activation — the two-regime default face); a
+    /// malformed value WARNs and stays OFF. The gloss-bus sibling's
+    /// exact shape.
+    #[test]
+    fn gloss_flow_tri_state_parse_merge_resolve() {
+        // `on` = ON.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.flow=on",
+        ]))
+        .expect("parses");
+        assert!(parsed.layer.warnings.is_empty());
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        assert_eq!(merged.gloss_flow, Some(true));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(resolved.gloss_flow, "on resolves ON");
+        // Absent = OFF.
+        let parsed = parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses"])).expect("parses");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        assert_eq!(merged.gloss_flow, None);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_flow, "absent resolves OFF");
+        // `off` = OFF (explicit kill face).
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.flow=off",
+        ]))
+        .expect("parses");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_flow, "off resolves OFF");
+        // Malformed = WARN and OFF.
+        let parsed = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--router.gloss.flow=maybe",
+        ]))
+        .expect("parses");
+        assert_eq!(parsed.layer.warnings.len(), 1, "the warn-and-continue face");
+        let merged = merge(&MergedSettings::default(), &dsn_quiet(), &parsed.layer);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert!(!resolved.gloss_flow, "malformed stays OFF");
     }
 
     /// A neutral DSN layer (no metadata, one layer) for the merge

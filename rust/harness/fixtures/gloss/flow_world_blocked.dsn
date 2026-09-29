@@ -1,0 +1,72 @@
+(pcb flow_world_blocked.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 500000 300000))
+    (snap_angle fortyfive_degree)
+    (rule (width 200) (clearance 200))
+    (keepout (rect F.Cu 10000 11400 11000 11800))
+  )
+  (placement
+    (component "IA" (place "A1" 2000 20000 Front 0.000000))
+    (component "IA" (place "A2" 48000 20000 Front 0.000000))
+    (component "IB" (place "B1" 2000 10000 Front 0.000000))
+    (component "IB" (place "B2" 42000 11600 Front 0.000000))
+    (component "IC" (place "C1" 2000 30000 Front 0.000000))
+    (component "IC" (place "C2" 20000 30400 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (image "IB" (pin "PAD" "P" 0 0))
+    (image "IC" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 500 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "flow_a" (pins "A1"-"P" "A2"-"P"))
+    (net "flow_b" (pins "B1"-"P" "B2"-"P"))
+    (net "flow_c" (pins "C1"-"P" "C2"-"P"))
+    (class kicad_default "flow_a" "flow_b" "flow_c" (rule (clearance 200))
+      (rule (width 200))
+    )
+  )
+  (wiring
+    (wire (path F.Cu 200
+      2000 20000
+      2400 20000
+      2400 20400
+      2800 20400
+      2800 20000
+      48000 20000
+    ) (net "flow_a"))
+    (wire (path F.Cu 200
+      2000 10000
+      20000 10000
+      20000 11600
+      42000 11600
+    ) (net "flow_b"))
+    (wire (path F.Cu 200
+      2000 30000
+      9600 30000
+      9600 30400
+      10000 30400
+    ) (net "flow_c"))
+    (via VIA 10000 30400 (net "flow_c"))
+    (wire (path B.Cu 200
+      10000 30400
+      20000 30400
+    ) (net "flow_c"))
+  )
+)

@@ -1,0 +1,40 @@
+{
+  "bend_to_length_ratio": 3.804,
+  "gloss_flow": [
+    {
+      "corner_x": 24000,
+      "corner_y": 200000,
+      "kind": "jog",
+      "landed": true,
+      "net": 1,
+      "net_name": "flow_a"
+    },
+    {
+      "corner_x": 28000,
+      "corner_y": 204000,
+      "kind": "stub",
+      "landed": true,
+      "net": 1,
+      "net_name": "flow_a"
+    },
+    {
+      "corner_x": 200000,
+      "corner_y": 100000,
+      "kind": "miter",
+      "landed": true,
+      "net": 2,
+      "net_name": "flow_b"
+    },
+    {
+      "corner_x": 96000,
+      "corner_y": 300000,
+      "kind": "stub",
+      "landed": true,
+      "net": 3,
+      "net_name": "flow_c"
+    }
+  ],
+  "mean_length_excess": 0.011,
+  "parallelism_ratio": 0.0,
+  "via_density": 0.951
+}

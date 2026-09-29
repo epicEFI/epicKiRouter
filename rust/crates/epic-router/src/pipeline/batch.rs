@@ -421,6 +421,14 @@ pub struct BatchSettings {
     /// never the manifest. Dead code at defaults (the two-regime law:
     /// an OFF run never reaches the stage — byte-identical).
     pub bus_active: bool,
+    /// M8-T4 RUST-ONLY: the GLOSS FLOW stage's resolved activation
+    /// (`router.gloss.flow`, default OFF — no Java counterpart). When
+    /// ON, the gloss stage slot runs the 45° flow pass AFTER the bus
+    /// pass (flow after spread — the AM2 composition law): jog/stub
+    /// elimination + the miter/recorner bridge (`pipeline/gloss.rs`);
+    /// the report rides the aesthetics SIDECAR, never the manifest.
+    /// Dead code at defaults (the two-regime law).
+    pub flow_active: bool,
 }
 
 impl BatchSettings {
@@ -464,6 +472,7 @@ impl BatchSettings {
             meander_active: false,
             pairs: Vec::new(),
             bus_active: false,
+            flow_active: false,
         }
     }
 }
