@@ -51,6 +51,7 @@ mod panic_hook;
 // Router quality scoreboard (M3 Task 15): directional Rust-vs-Java-record
 // compare gates (java-free), the Rust-vs-Rust determinism self-gate, and
 // the first-divergence localizer.
+mod aesthetics_face;
 mod router_compare;
 // Route event-stream corpus (M3 Task 16): the maze-level trace stream
 // (RAW_SECTION assign/skip + compare_trace_ripped/route_item) captured
@@ -58,7 +59,6 @@ mod router_compare;
 // batch driver, compared kind-ordinally field-by-field (java-free CI
 // compare; the golden carries the settings witness the Rust world builds
 // from).
-mod aesthetics_face;
 mod route_events;
 // SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
 mod ses_compare;

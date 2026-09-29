@@ -494,7 +494,11 @@ pub fn render_json(metrics: &AestheticsMetrics) -> String {
         "parallelism_ratio": round3(metrics.parallelism_ratio),
         "via_density": round3(metrics.via_density),
     });
-    serde_json::to_string_pretty(&object).unwrap_or_else(|_| "{}".to_string())
+    // Infallible in practice (serializing a `serde_json::Value` of
+    // finite f64s and string keys cannot fail — no IO, no non-string
+    // map keys, no NaN guards needed at these values); loud if the
+    // impossible ever happens, never a silent `"{}"`.
+    serde_json::to_string_pretty(&object).expect("serde_json Value serialization cannot fail")
 }
 
 /// The per-net Euclidean MST length — Prim seeded at terminal 0 with
@@ -549,15 +553,79 @@ fn nets_disjoint(left: &[i32], right: &[i32]) -> bool {
     left.iter().all(|l| !right.contains(l))
 }
 
-/// The min distance between the two segments: the four
-/// endpoint-to-other-segment distances (0 whenever they intersect —
-/// a degenerate endpoint projection lands inside the other segment).
+/// The min distance between the two segments: an EXACT proper-crossing
+/// predicate first (interior-interior X crossings are distance 0 — the
+/// module docs' crossing contract, which the endpoint-distance arms
+/// alone do NOT deliver: all four distances are positive for a proper
+/// X), then the four endpoint-to-other-segment distances as the
+/// fallback (which cover endpoint touches and collinear overlaps —
+/// those land at ~0 through the projection arms).
 fn segment_distance(a: &Segment, b: &Segment) -> f64 {
+    if segments_properly_cross(a, b) {
+        return 0.0;
+    }
     let d1 = point_segment_distance(a.ax, a.ay, b.ax, b.ay, b.bx, b.by);
     let d2 = point_segment_distance(a.bx, a.by, b.ax, b.ay, b.bx, b.by);
     let d3 = point_segment_distance(b.ax, b.ay, a.ax, a.ay, a.bx, a.by);
     let d4 = point_segment_distance(b.bx, b.by, a.ax, a.ay, a.bx, a.by);
     d1.min(d2).min(d3).min(d4)
+}
+
+/// The EXACT orientation of the triangle (o, a, b): positive =
+/// counter-clockwise, negative = clockwise, 0 = collinear. i128
+/// products when every coordinate is an integral f64 in i64 range —
+/// the common face (IntPoint corners land here exactly; the
+/// epic-geometry checked-arithmetic precedent) — the f64 product
+/// otherwise (rational corners; the approximation only affects sign
+/// calls at |cross| within f64 rounding of zero).
+fn orientation(ox: f64, oy: f64, ax: f64, ay: f64, bx: f64, by: f64) -> f64 {
+    let to_i128 = |v: f64| -> Option<i128> {
+        if v.fract() == 0.0 && v.abs() < 9.0e15 {
+            Some(v as i128)
+        } else {
+            None
+        }
+    };
+    if let (Some(ox), Some(oy), Some(ax), Some(ay), Some(bx), Some(by)) = (
+        to_i128(ox),
+        to_i128(oy),
+        to_i128(ax),
+        to_i128(ay),
+        to_i128(bx),
+        to_i128(by),
+    ) {
+        let cross = (ax - ox) * (by - oy) - (ay - oy) * (bx - ox);
+        if cross > 0 {
+            1.0
+        } else if cross < 0 {
+            -1.0
+        } else {
+            0.0
+        }
+    } else {
+        let cross = (ax - ox) * (by - oy) - (ay - oy) * (bx - ox);
+        if cross > 0.0 {
+            1.0
+        } else if cross < 0.0 {
+            -1.0
+        } else {
+            0.0
+        }
+    }
+}
+
+/// The CLRS proper-crossing test: the two segments' endpoints are
+/// STRICTLY on opposite sides of each other's line (all four
+/// orientations nonzero with opposite signs). Endpoint touches and
+/// collinear overlaps need no predicate — the distance fallback arms
+/// already answer ~0 for them.
+fn segments_properly_cross(a: &Segment, b: &Segment) -> bool {
+    let d1 = orientation(b.ax, b.ay, b.bx, b.by, a.ax, a.ay);
+    let d2 = orientation(b.ax, b.ay, b.bx, b.by, a.bx, a.by);
+    let d3 = orientation(a.ax, a.ay, a.bx, a.by, b.ax, b.ay);
+    let d4 = orientation(a.ax, a.ay, a.bx, a.by, b.bx, b.by);
+    ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
+        && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
 }
 
 /// The min distance from the point (px, py) to the segment
@@ -701,6 +769,38 @@ mod tests {
         assert!((metrics.mean_length_excess - 0.2).abs() < 1e-12);
     }
 
+    /// The proper-X world (Q1-1): two same-layer different-net
+    /// segments crossing at interior points, ALL four
+    /// endpoint-to-other-segment distances 65_000-100_000 DBU — OUTSIDE
+    /// the 50_000 window — so the crossing arm is the ONLY coupling
+    /// path. A crossing IS distance 0 (the module docs / the plan's
+    /// contract): both segments couple → the whole routed length
+    /// (330_000 DBU) is coupled → ratio exactly 1.0. Mutation-verified:
+    /// removing the intersection arm rotates this world to 0.0
+    /// (fix2-mutation-crossing.log).
+    #[test]
+    fn t1_proper_x_world_coupled_at_distance_zero() {
+        let board = parse_full(
+            "    (net NET1 (pins CMP_A-P1 CMP_B-P1))\n    (net NET2 (pins CMP_C-P1 CMP_D-P1))\n",
+            r#"(wiring
+    (wire (path F.Cu 200 20000 150000 150000 150000)(net NET1)(type route))
+    (wire (path F.Cu 200 85000 250000 85000 50000)(net NET2)(type route))
+  )
+"#,
+        );
+        let metrics = aesthetics_metrics(&board, board.rules());
+        assert_eq!(metrics.tally.trace_count, 2);
+        // All four endpoint distances sit OUTSIDE the window (the
+        // crossing arm is load-bearing, not redundant):
+        // (85000,50000)→NET1 = 100_000; (85000,250000)→NET1 = 100_000;
+        // (20000,150000)→NET2 = 65_000; (150000,150000)→NET2 = 65_000.
+        assert!(
+            (metrics.parallelism_ratio - 1.0).abs() < 1e-12,
+            "a proper X is distance 0 → both segments couple: {:?}",
+            metrics.parallelism_ratio
+        );
+    }
+
     /// The parallelism boundary (pin b), BOTH directions: two
     /// same-layer traces of different nets at EXACTLY the window
     /// (50_000 DBU apart) are coupled → ratio 1.0; one DBU past the
@@ -784,6 +884,39 @@ mod tests {
         assert_eq!(metrics.tally.bend_ninety, 1);
         assert_eq!(metrics.tally.bend_forty_five, 2);
         assert_eq!(metrics.tally.bend_other, 0);
+    }
+
+    /// The band-edge + 135° world (Q4-1): one trace, five corners — a
+    /// 90° (exact), a 91.2° (OUTSIDE the ninety band by 0.2° → other),
+    /// a 135° exact (the |angle−135| < 1 arm of the forty-five bucket),
+    /// a 44.5° (INSIDE the forty-five band), and a 43.6° (OUTSIDE by
+    /// 1.4° → other). The exact ±1.0° edge itself is f64-unstable at
+    /// the line-intersection rounding scale (~1e-6°), so the edges are
+    /// pinned with a 0.2° margin — a classification mutant that moves
+    /// any band boundary by more than that dies here; a boundary shift
+    /// of exactly 0 (`<` vs `<=` at the edge) is not f64-discriminable,
+    /// and that residual is covered by the 1Bitsy field-equal parity on
+    /// real data.
+    #[test]
+    fn t1_bends_band_edges_and_135() {
+        let board = parse_full(
+            "    (net NET1 (pins CMP_A-P1 CMP_B-P1))\n",
+            r#"(wiring
+    (wire (path F.Cu 200 20000 30000 70000 30000 70000 80000 20011 78952.9 56099 44345.7 106095 44956.6 141880 79877.3)(net NET1)(type route))
+  )
+"#,
+        );
+        let metrics = aesthetics_metrics(&board, board.rules());
+        assert_eq!(metrics.tally.bend_total, 5);
+        assert_eq!(metrics.tally.bend_ninety, 1, "90° exact: ninety");
+        assert_eq!(
+            metrics.tally.bend_forty_five, 2,
+            "135° exact (the 135 arm) + 44.5° (inside)"
+        );
+        assert_eq!(
+            metrics.tally.bend_other, 2,
+            "91.2° and 43.6°: outside their bands"
+        );
     }
 
     /// The DNR-18 reconciliation on a 2-net world: Σ per-net routed ==

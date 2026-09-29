@@ -94,6 +94,11 @@ mod tests {
             );
             checked += 1;
         }
-        assert_eq!(checked, names.len());
+        // The committed sample is 21 + 3 tier-context boards — a
+        // silently truncated golden dir must not verify as complete.
+        assert_eq!(
+            checked, 24,
+            "the committed goldens: 21 sample + 3 tier context"
+        );
     }
 }

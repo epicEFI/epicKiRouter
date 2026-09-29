@@ -1546,7 +1546,11 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         // a fixed run (fixed key order, 3-decimal rounding at the
         // render edge only).
         let metrics = epic_board::aesthetics::aesthetics_metrics(&board, board.rules());
-        let json = epic_board::aesthetics::render_json(&metrics);
+        // The trailing newline: the sidecar becomes byte-compatible
+        // with the goldens' `println!` face (nothing pins sidecar
+        // bytes; the smoke's byte-identity was run-to-run, which a
+        // constant suffix preserves).
+        let json = format!("{}\n", epic_board::aesthetics::render_json(&metrics));
         if let Err(error) = std::fs::write(aesthetics_path, json) {
             eprintln!("Error: cannot write aesthetics sidecar {aesthetics_path}: {error}");
         }

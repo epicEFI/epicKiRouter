@@ -193,3 +193,80 @@ fn t1_tally_equals_stats_1bitsy_reference() {
         "Σ euclid-MST {euclid_mm} mm must be ≤ the bounds Manhattan total {bounds_mm} mm"
     );
 }
+
+/// The via-kind world (Q1-2): a 4-layer crafted board carrying one
+/// through (F..B), TWO BLIND (F..In1), and one BURIED (In1..In2) via —
+/// nonzero values in every ladder arm with blind ≠ buried (the swap
+/// armor), field-equal against the real walk. A transposed arm pair
+/// rotates the blind/buried fields here (fix2-mutation-viakinds.log).
+#[test]
+fn t1_tally_equals_stats_via_kinds_world() {
+    let dsn = r#"(pcb viakinds.dsn
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer In1.Cu (type signal))
+    (layer In2.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 400000 300000))
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component CMP_A (place CMP_A 20000 30000 front 0))
+    (component CMP_B (place CMP_B 120000 30000 front 0))
+  )
+  (library
+    (padstack PAD_SMD (shape (circle F.Cu 600 0 0)))
+    (padstack PAD_TH
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle In1.Cu 800 0 0))
+      (shape (circle In2.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+    )
+    (padstack PAD_BL
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle In1.Cu 800 0 0))
+    )
+    (padstack PAD_BU
+      (shape (circle In1.Cu 800 0 0))
+      (shape (circle In2.Cu 800 0 0))
+    )
+    (image CMP_A (pin PAD_SMD P1 0 0))
+    (image CMP_B (pin PAD_SMD P1 0 0))
+  )
+  (network
+    (via V_TH PAD_TH default)
+    (via V_BL PAD_BL default)
+    (via V_BU PAD_BU default)
+    (via_rule R1 V_TH)
+    (net NET1 (pins CMP_A-P1 CMP_B-P1))
+  )
+  (wiring
+    (via PAD_TH 40000 30000 (net NET1)(type route))
+    (via PAD_BL 70000 30000 (net NET1)(type route))
+    (via PAD_BL 85000 30000 (net NET1)(type route))
+    (via PAD_BU 100000 30000 (net NET1)(type route))
+  )
+)
+"#;
+    let mut board = parse_bytes(dsn.as_bytes());
+    let metrics = epic_board::aesthetics::aesthetics_metrics(&board, board.rules());
+    // blind (2) != buried (1) is LOAD-BEARING: a blind/buried swap with
+    // equal counts is invisible (the first cut of this world had 1/1 and
+    // the swap mutant SURVIVED it — fix2-mutation-viakinds.log round 2).
+    assert_eq!(metrics.tally.via_total, 4);
+    assert_eq!(
+        metrics.tally.via_through, 1,
+        "the F..B padstack spans the full stack: through"
+    );
+    assert_eq!(
+        metrics.tally.via_blind, 2,
+        "the two F..In1 padstacks are exposed at exactly one end: blind"
+    );
+    assert_eq!(
+        metrics.tally.via_buried, 1,
+        "the In1..In2 padstack is exposed at neither end: buried"
+    );
+    assert_tally_equals_stats(&mut board);
+}
