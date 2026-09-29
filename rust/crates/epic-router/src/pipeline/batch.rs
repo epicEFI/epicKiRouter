@@ -238,6 +238,20 @@ impl StopFace {
         self.flag.as_ref()
     }
 
+    /// Whether THIS face object itself was raised (the `local` bit or
+    /// the sticky `full_stop` mark — never the shared flag). The M8-T7
+    /// partitioned candidate executor's carry-back: a worker's private
+    /// face over the shared flag reports a max-items raise it performed
+    /// during its candidate's reroute, which the coordinator replays
+    /// onto its own face at the raising candidate's reduction position
+    /// (the sequential raise timing), while shared-flag raises (an
+    /// external owner) are out of the byte contract (the executor's
+    /// doc).
+    #[must_use]
+    pub fn is_locally_raised(&self) -> bool {
+        self.local || self.full_stop
+    }
+
     /// The pass runner's maxItems face (`AutoroutePassRunner:211-220`)
     /// marks ITSELF here when it raises the stop, so the driver can
     /// attribute [`StopReason::MaxItemsReached`] exactly — an external
@@ -337,6 +351,22 @@ pub struct BatchSettings {
     /// settings surface keeps Java's `max(1, cores-1)` parity default
     /// for its own validation face.
     pub max_threads: i32,
+    /// M8-T7 RUST-ONLY: the OPTIMIZER candidate loop's partition count
+    /// (`optimizer.threads`, default 1 — no Java counterpart: Java's
+    /// `optimizer.maxThreads` face is the settings-surface parity box
+    /// whose pool is the Java worker fleet, ported here as this count).
+    /// 1 (or 0) = the mandated 1-thread sequential face, byte-for-byte
+    /// the pre-T7 walk. `>= 2` = the deterministic partitioned
+    /// candidate executor (M8-T7): candidates partition by
+    /// `item_id mod n`, evaluate against the STABLE pass-start base
+    /// (each on its own worker-board deep copy — the sequential face's
+    /// own `:1234` clone), and reduce in candidate order, so the final
+    /// board state is thread-count-invariant BY CONSTRUCTION: the
+    /// winner rule is `ItemRouteResult::compare`, a total order whose
+    /// final rung is the unique `item_id` — the fold's argmin is
+    /// unique and grouping-invariant (the argument recorded in
+    /// `logs/M8-T7/investigation.md` §2). The DEFAULT is 1.
+    pub optimizer_threads: usize,
     /// The explicit ctor's `withPreferredDirections` — only feeds the
     /// [`Self::trace_costs`] resolution at construction.
     pub with_preferred_directions: bool,
@@ -473,6 +503,7 @@ impl BatchSettings {
             strict_drc: false,
             run_router: true,
             max_threads: 1,
+            optimizer_threads: 1,
             with_preferred_directions: true,
             deterministic_budgets: true,
             via_costs: 50,

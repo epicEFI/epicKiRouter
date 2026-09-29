@@ -64,6 +64,8 @@
 
 use std::cmp::Reverse;
 use std::collections::BTreeSet;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use epic_board::board::Board;
 use epic_board::contacts::{
@@ -88,6 +90,8 @@ use crate::pipeline::batch::{
 use crate::pipeline::board_hash::board_hash;
 use crate::pipeline::board_history::restore_from_snapshot;
 use crate::pipeline::board_statistics::BoardStatistics;
+use crate::pipeline::event_sink::BufferedDriverSink;
+use crate::pipeline::event_sink::BufferedSinkRow;
 use crate::pipeline::event_sink::DriverSink;
 use crate::pipeline::fanout::parse_timespan_string;
 use crate::pipeline::pass_runner::{RouterCounters, run_single_thread};
@@ -717,41 +721,26 @@ impl<'a> BatchOptimizerStage<'a> {
             .is_some_and(|deadline| now_millis() >= deadline)
     }
 
-    /// The candidate ripup costs (`:884-892`): `getStartRipupCosts()`,
-    /// ×`additionalRipupCostFactorAtStart` while the increased face
-    /// holds, then ×`traceRipupCostFactor` (Java `Math.round(double)`)
-    /// for a TRACE candidate. The result feeds the reroute router's
-    /// `startRipupCosts` cache, which every pass multiplies by its own
-    /// pass number (`AutorouteConnectionRouter.java:46`).
-    fn candidate_ripup_costs(&self, is_trace: bool) -> i32 {
-        let mut ripup_costs = self.settings.start_ripup_costs;
-        if self.use_increased_ripup_costs {
-            ripup_costs =
-                ripup_costs.wrapping_mul(self.optimizer.additional_ripup_cost_factor_at_start);
+    /// The M8-T7 per-pass evaluation snapshot: everything the
+    /// per-candidate body needs, extracted so the sequential face and
+    /// the partitioned executor share ONE candidate path. Every field
+    /// is constant during a pass (the sequential face only mutates
+    /// `use_increased_ripup_costs` / `deadline_ms`-adjacent state AFTER
+    /// the candidate loop), so snapshot-at-pass-start is behaviorally
+    /// identical to read-per-candidate.
+    fn eval_base(&self) -> CandidateEvalBase {
+        CandidateEvalBase {
+            settings: self.settings.clone(),
+            additional_ripup_cost_factor_at_start: self
+                .optimizer
+                .additional_ripup_cost_factor_at_start,
+            trace_ripup_cost_factor: self.optimizer.trace_ripup_cost_factor,
+            use_increased_ripup_costs: self.use_increased_ripup_costs,
+            min_cumulative_trace_length: self.min_cumulative_trace_length,
+            max_autoroute_passes: self.optimizer.max_autoroute_passes,
+            stop_flag: self.stop.flag().cloned(),
+            deadline_ms: self.deadline_ms,
         }
-        if is_trace {
-            ripup_costs = i32::try_from(java_round(
-                f64::from(self.optimizer.trace_ripup_cost_factor) * f64::from(ripup_costs),
-            ))
-            .unwrap_or(i32::MAX);
-        }
-        ripup_costs
-    }
-
-    /// The candidate's reroute settings: the driver's face with the
-    /// optimizer ctor's three overrides — `removeUnconnectedVias = true`
-    /// (`BatchAutorouter.java:125-132` called from `:253-261`), the
-    /// per-candidate ripup costs, and the `withPreferredDirections`
-    /// trace-cost resolution (`:138-149`).
-    fn candidate_settings(&self, with_preferred_directions: bool, is_trace: bool) -> BatchSettings {
-        let mut settings = self.settings.clone();
-        settings.remove_unconnected_vias = true;
-        settings.start_ripup_costs = self.candidate_ripup_costs(is_trace);
-        settings.trace_costs = AutorouteControl::resolve_trace_costs(
-            &settings.router_settings,
-            with_preferred_directions,
-        );
-        settings
     }
 
     /// Java `restoreIncumbentBoard` (`:553-557`): the incumbent
@@ -1191,9 +1180,13 @@ impl<'a> BatchOptimizerStage<'a> {
 
         // Java `:662-675` — the trace entry row (the silent perfData
         // timestamp shape is banked; the row rides the trace channel).
+        // M8-T7: Java prints its resolved `threadPoolSize` here
+        // (`BatchOptimizer.java:663-672`); the default face stays the
+        // literal 1.
+        let threads = self.settings.optimizer_threads.max(1);
         sink.trace(&format!(
             "BatchOptRoute.opt_route_pass #{pass_no} with {} items, {} vias and {:.2} trace \
-             length running on 1 thread(s).",
+             length running on {threads} thread(s).",
             candidate_item_ids.len(),
             stats_before.items.via_count,
             stats_before.traces.total_length,
@@ -1205,6 +1198,11 @@ impl<'a> BatchOptimizerStage<'a> {
         } else {
             self.optimizer.max_consecutive_failures.unwrap_or(50)
         };
+
+        // The M8-T7 per-pass candidate evaluation snapshot: every field
+        // is constant during the candidate loop, so one snapshot serves
+        // both faces below.
+        let base = self.eval_base();
 
         // MIN-2 (quality review): Java chunks this loop — the deadline
         // and stop are consulted once per CHUNK of `max(4×pool, 8)`
@@ -1218,55 +1216,255 @@ impl<'a> BatchOptimizerStage<'a> {
         let mut stopped_or_timed_out = false;
         let mut consecutive_failures: i32 = 0;
 
-        for &item_id in &candidate_item_ids {
-            if self.deadline_passed() {
-                sink.info("Optimizer stage timed out.");
-                self.is_timed_out = true;
-                stopped_or_timed_out = true;
-                break;
-            }
-            if self.stop.is_requested() {
-                stopped_or_timed_out = true;
-                break;
-            }
-
-            // Java `:1003` — the worker deep copy.
-            let mut worker_board = self.board.clone();
-            let mut worker_manager = SearchTreeManager::new();
-            worker_manager.reinsert_tree_items(&mut worker_board);
-            if worker_board.get(item_id).is_none() {
-                // Java `:1004-1007` — the defensive missing-item arm.
-                self.total_items_optimized += 1;
-                continue;
-            }
-
-            let result = self.opt_route_item_on_board(
-                &mut worker_manager,
-                &mut worker_board,
-                item_id,
-                with_preferred_directions,
-                sink,
-            );
-            self.total_items_optimized += 1;
-            // Java `:742` resultMap bookkeeping — banked (PRIORITIZED).
-
-            if result.improved() {
-                consecutive_failures = 0;
-                if winning
-                    .as_ref()
-                    .is_none_or(|(best, _)| result.improved_over(best))
-                {
-                    winning = Some((result, worker_board));
-                }
-            } else {
-                consecutive_failures += 1;
-                if consecutive_failures >= max_consecutive_failures {
-                    sink.info(&format!(
-                        "Stopping optimization pass #{pass_no} early after {consecutive_failures} \
-                         consecutive items could not be improved.",
-                    ));
+        if threads <= 1 {
+            // THE GOLDEN PATH: byte-for-byte the pre-T7 candidate walk.
+            for &item_id in &candidate_item_ids {
+                if self.deadline_passed() {
+                    sink.info("Optimizer stage timed out.");
+                    self.is_timed_out = true;
+                    stopped_or_timed_out = true;
                     break;
                 }
+                if self.stop.is_requested() {
+                    stopped_or_timed_out = true;
+                    break;
+                }
+
+                // Java `:1003` — the worker deep copy.
+                let mut worker_board = self.board.clone();
+                let mut worker_manager = SearchTreeManager::new();
+                worker_manager.reinsert_tree_items(&mut worker_board);
+                if worker_board.get(item_id).is_none() {
+                    // Java `:1004-1007` — the defensive missing-item arm.
+                    self.total_items_optimized += 1;
+                    continue;
+                }
+
+                let result = opt_route_item_body(
+                    &base,
+                    self.stop,
+                    &mut worker_manager,
+                    &mut worker_board,
+                    item_id,
+                    with_preferred_directions,
+                    sink,
+                );
+                self.total_items_optimized += 1;
+                // Java `:742` resultMap bookkeeping — banked (PRIORITIZED).
+
+                if result.improved() {
+                    consecutive_failures = 0;
+                    if winning
+                        .as_ref()
+                        .is_none_or(|(best, _)| result.improved_over(best))
+                    {
+                        winning = Some((result, worker_board));
+                    }
+                } else {
+                    consecutive_failures += 1;
+                    if consecutive_failures >= max_consecutive_failures {
+                        sink.info(&format!(
+                            "Stopping optimization pass #{pass_no} early after \
+                             {consecutive_failures} consecutive items could not be improved.",
+                        ));
+                        break;
+                    }
+                }
+            }
+        } else {
+            // THE PARTITIONED FACE (M8-T7): candidates partition by the
+            // FIXED key `item_id mod n` (the charter's key; assignment
+            // is a pure function of `(item_id, n)`); every worker
+            // evaluates its candidates independently against the STABLE
+            // pass-start base — the board is never mutated during the
+            // loop, so unlike the M5-T7 batch walk there are no
+            // conflicted points to serialize. Results reduce in
+            // candidate-walk order (the golden order below), so the
+            // board state is thread-count-invariant by construction:
+            // the winner is `argmin ItemRouteResult::compare` over the
+            // included improved candidates, and `compare` is a total
+            // order whose final rung is the unique `item_id` — unique
+            // minimum, grouping-invariant (logs/M8-T7/investigation.md
+            // §2). Sink rows ride per-candidate buffers and are
+            // flushed (or discarded, past an early break) in the same
+            // walk, reproducing the sequential stream.
+            let partition_count = threads;
+            let mut partitions: Vec<Vec<(usize, ItemId)>> =
+                (0..partition_count).map(|_| Vec::new()).collect();
+            for (idx, &item_id) in candidate_item_ids.iter().enumerate() {
+                let p = usize::try_from(item_id.get()).unwrap_or(0) % partition_count;
+                partitions[p].push((idx, item_id));
+            }
+            let trace_enabled = sink.is_trace_enabled();
+
+            struct CandidateRecord {
+                idx: usize,
+                result: ItemRouteResult,
+                missing: bool,
+                raised_stop: bool,
+                rows: Vec<BufferedSinkRow>,
+            }
+
+            let base_ref: &CandidateEvalBase = &base;
+            let base_board: &Board = self.board;
+            let mut result_rxs = Vec::with_capacity(partition_count);
+            // Per-partition fold results: each worker keeps only ITS
+            // argmin board (one `BatchSettings`-free deep copy in
+            // residency at a time beyond the current candidate), so the
+            // coordinator never holds more than `partition_count`
+            // candidate boards — the global winner is always one of
+            // them (the §2 grouping-invariance argument).
+            let mut partition_best_rxs = Vec::with_capacity(partition_count);
+            std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(partition_count);
+                for part in &partitions {
+                    let (result_tx, result_rx) = std::sync::mpsc::channel::<Vec<CandidateRecord>>();
+                    let (best_tx, best_rx) =
+                        std::sync::mpsc::channel::<Option<(ItemRouteResult, Board)>>();
+                    result_rxs.push(result_rx);
+                    partition_best_rxs.push(best_rx);
+                    handles.push(scope.spawn(move || {
+                        let mut records: Vec<CandidateRecord> = Vec::with_capacity(part.len());
+                        let mut best: Option<(ItemRouteResult, Board)> = None;
+                        for &(idx, item_id) in part {
+                            // Java `:1003` — the worker deep copy (each
+                            // candidate evaluates a private clone of the
+                            // stable base, exactly as the sequential face).
+                            let mut worker_board = base_board.clone();
+                            let mut worker_manager = SearchTreeManager::new();
+                            worker_manager.reinsert_tree_items(&mut worker_board);
+                            if worker_board.get(item_id).is_none() {
+                                // Java `:1004-1007` — the defensive
+                                // missing-item arm.
+                                records.push(CandidateRecord {
+                                    idx,
+                                    result: ItemRouteResult::unimproved(
+                                        i32::try_from(item_id.get()).unwrap_or(i32::MAX),
+                                    ),
+                                    missing: true,
+                                    raised_stop: false,
+                                    rows: Vec::new(),
+                                });
+                                continue;
+                            }
+                            let mut buffer = BufferedDriverSink::new(trace_enabled);
+                            let mut worker_stop = StopFace::from_flag(base_ref.stop_flag.clone());
+                            let result = opt_route_item_body(
+                                base_ref,
+                                &mut worker_stop,
+                                &mut worker_manager,
+                                &mut worker_board,
+                                item_id,
+                                with_preferred_directions,
+                                &mut buffer,
+                            );
+                            // The carry-back of a max-items raise this
+                            // worker's private face performed during the
+                            // candidate's reroute (the shared-flag face is
+                            // out of the byte contract — the executor doc).
+                            let raised_stop = worker_stop.is_locally_raised();
+                            if result.improved()
+                                && best.as_ref().is_none_or(|(best_result, _)| {
+                                    result.improved_over(best_result)
+                                })
+                            {
+                                best = Some((result.clone(), worker_board));
+                            }
+                            records.push(CandidateRecord {
+                                idx,
+                                result,
+                                missing: false,
+                                raised_stop,
+                                rows: buffer.rows,
+                            });
+                        }
+                        let _ = result_tx.send(records);
+                        let _ = best_tx.send(best);
+                    }));
+                }
+            });
+            let mut all_records: Vec<CandidateRecord> = Vec::new();
+            let mut partition_boards: Vec<Option<Board>> =
+                (0..partition_count).map(|_| None).collect();
+            for (p, rx) in result_rxs.iter().enumerate() {
+                match rx.recv() {
+                    Ok(records) => {
+                        partition_boards[p] = match partition_best_rxs[p].recv() {
+                            Ok(best) => best.map(|(_result, board)| board),
+                            Err(_) => panic!(
+                                "optimizer partition worker did not finish (panic propagation, \
+                                 the M5-T7 fail-fast discipline)"
+                            ),
+                        };
+                        all_records.extend(records);
+                    }
+                    Err(_) => panic!(
+                        "optimizer partition worker did not finish (panic propagation, \
+                         the M5-T7 fail-fast discipline)"
+                    ),
+                }
+            }
+
+            // The deterministic reduction: the golden candidate-walk
+            // order (idx unique, so this sort is total), replaying the
+            // sequential loop's consults, counting, flushes, winner
+            // scan and breaks in the same positions.
+            all_records.sort_by_key(|record| record.idx);
+            let mut winning_id: Option<(ItemRouteResult, ItemId)> = None;
+            for record in &all_records {
+                let item_id = candidate_item_ids[record.idx];
+                if self.deadline_passed() {
+                    sink.info("Optimizer stage timed out.");
+                    self.is_timed_out = true;
+                    stopped_or_timed_out = true;
+                    break;
+                }
+                if self.stop.is_requested() {
+                    stopped_or_timed_out = true;
+                    break;
+                }
+                if record.missing {
+                    // Java `:1004-1007` — the defensive missing-item arm.
+                    self.total_items_optimized += 1;
+                    continue;
+                }
+                BufferedSinkRow::flush_rows(&record.rows, sink);
+                self.total_items_optimized += 1;
+                // Java `:742` resultMap bookkeeping — banked (PRIORITIZED).
+
+                let result = &record.result;
+                if result.improved() {
+                    consecutive_failures = 0;
+                    if winning_id
+                        .as_ref()
+                        .is_none_or(|(best, _)| result.improved_over(best))
+                    {
+                        winning_id = Some((result.clone(), item_id));
+                    }
+                } else {
+                    consecutive_failures += 1;
+                    if consecutive_failures >= max_consecutive_failures {
+                        sink.info(&format!(
+                            "Stopping optimization pass #{pass_no} early after \
+                             {consecutive_failures} consecutive items could not be improved.",
+                        ));
+                        break;
+                    }
+                }
+                if record.raised_stop {
+                    // Replay the sequential raise timing: the gate fired
+                    // DURING this candidate's reroute, so subsequent
+                    // candidates' loop-top stop checks must see it.
+                    self.stop.request_full();
+                }
+            }
+            if let Some((result, item_id)) = winning_id {
+                let p = usize::try_from(item_id.get()).unwrap_or(0) % partition_count;
+                let board = partition_boards[p].take().expect(
+                    "the pass winner is its partition's argmin (the grouping-invariance \
+                     argument, logs/M8-T7/investigation.md §2)",
+                );
+                winning = Some((result, board));
             }
         }
 
@@ -1305,155 +1503,248 @@ impl<'a> BatchOptimizerStage<'a> {
         ));
         route_improved
     }
+}
 
-    /// Java `optRouteItemOnBoard` (`:842-925`): rip the connection
-    /// containing `item_id` (plus adjacent unfixed trace contacts for a
-    /// trace candidate), reroute it with the optimizer budget, and
-    /// compare the faces.
-    #[allow(clippy::too_many_lines)] // the Java body is one flat walk
-    fn opt_route_item_on_board(
-        &mut self,
-        worker_manager: &mut SearchTreeManager,
-        worker_board: &mut Board,
-        item_id: ItemId,
-        with_preferred_directions: bool,
-        sink: &mut dyn DriverSink,
-    ) -> ItemRouteResult {
-        // Java `:851-853` — the `null` unit keeps the board factors;
-        // the connections walk stays ON (Java's 3-arg ctor defaults it
-        // to true), though only the via/length faces are read.
-        let stats_before = BoardStatistics::with_options(worker_manager, worker_board, false, true);
-        let incomplete_before = calculate_incomplete_count(worker_manager, worker_board);
+/// The per-pass candidate evaluation snapshot (M8-T7): the shared
+/// inputs of [`opt_route_item_body`] for BOTH the sequential face and
+/// the partitioned executor. `Sync` by construction (plain data + the
+/// `Arc` stop flag), so partition workers can hold it behind `&`.
+struct CandidateEvalBase {
+    /// The stage's driver face (the ctor's settings, unmutated during
+    /// the pass; [`candidate_settings_for`] clones per candidate as the
+    /// pre-T7 method did).
+    settings: BatchSettings,
+    /// Java `optimizer.additionalRipupCostFactorAtStart`.
+    additional_ripup_cost_factor_at_start: i32,
+    /// Java `optimizer.traceRipupCostFactor`.
+    trace_ripup_cost_factor: f32,
+    /// Java `useIncreasedRipupCosts` — constant during the pass (the
+    /// drop fires only after the candidate loop).
+    use_increased_ripup_costs: bool,
+    /// Java `minCumulativeTraceLength` — the candidate baseline.
+    min_cumulative_trace_length: f64,
+    /// The reroute pass budget per candidate.
+    max_autoroute_passes: i32,
+    /// The stage stop face's SHARED flag (an external owner's raise).
+    /// Workers get a private [`StopFace`] over this flag; a raise a
+    /// worker performs itself (the max-items face) is carried back in
+    /// the candidate record, never through the flag.
+    stop_flag: Option<Arc<AtomicBool>>,
+    /// Java `deadlineMs` — wall-profile-only.
+    deadline_ms: Option<i64>,
+}
 
-        let is_trace = worker_board
-            .get(item_id)
-            .is_some_and(|entry| matches!(entry.data, ItemData::Trace { .. }));
+/// The candidate ripup costs (free face of the former
+/// `candidate_ripup_costs` method — a pure function, shared by the
+/// sequential face and the partitioned executor).
+fn candidate_ripup_costs_for(
+    start_ripup_costs: i32,
+    use_increased: bool,
+    additional_factor: i32,
+    trace_factor: f32,
+    is_trace: bool,
+) -> i32 {
+    let mut ripup_costs = start_ripup_costs;
+    if use_increased {
+        ripup_costs = ripup_costs.wrapping_mul(additional_factor);
+    }
+    if is_trace {
+        ripup_costs = i32::try_from(java_round(f64::from(trace_factor) * f64::from(ripup_costs)))
+            .unwrap_or(i32::MAX);
+    }
+    ripup_costs
+}
 
-        // Java `:855-866` — the ripped set: the item itself, plus — for
-        // a trace — each endpoint's contact set when it is all
-        // unfixed traces.
-        let mut ripped_items: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
-        ripped_items.insert(Reverse(item_id));
-        if is_trace {
-            let start = start_contacts(worker_manager, worker_board, item_id);
-            if contains_only_unfixed_traces(worker_board, &start) {
-                ripped_items.extend(start.into_iter().map(Reverse));
-            }
-            let end = end_contacts(worker_manager, worker_board, item_id);
-            if contains_only_unfixed_traces(worker_board, &end) {
-                ripped_items.extend(end.into_iter().map(Reverse));
-            }
+/// The candidate's reroute settings (free face of the former
+/// `candidate_settings` method — see its doc).
+fn candidate_settings_for(
+    settings: &BatchSettings,
+    additional_factor: i32,
+    trace_factor: f32,
+    use_increased: bool,
+    with_preferred_directions: bool,
+    is_trace: bool,
+) -> BatchSettings {
+    let mut settings = settings.clone();
+    settings.remove_unconnected_vias = true;
+    settings.start_ripup_costs = candidate_ripup_costs_for(
+        settings.start_ripup_costs,
+        use_increased,
+        additional_factor,
+        trace_factor,
+        is_trace,
+    );
+    settings.trace_costs =
+        AutorouteControl::resolve_trace_costs(&settings.router_settings, with_preferred_directions);
+    settings
+}
+
+/// The deadline consultation as a free face (former
+/// `BatchOptimizerStage::deadline_passed` body).
+fn deadline_passed_at(deadline_ms: Option<i64>) -> bool {
+    deadline_ms.is_some_and(|deadline| now_millis() >= deadline)
+}
+
+/// Java `optRouteItemOnBoard` (`:842-925`): rip the connection
+/// containing `item_id` (plus adjacent unfixed trace contacts for a
+/// trace candidate), reroute it with the optimizer budget, and
+/// compare the faces. M8-T7: extracted verbatim from the former
+/// `BatchOptimizerStage::opt_route_item_on_board` method (pure code
+/// motion) so the sequential face and the partitioned executor run
+/// the SAME candidate path; the sequential face passes `self.stop`,
+/// a partition worker passes its private [`StopFace`] over the shared
+/// flag (the executor's doc covers the stop-face residual).
+#[allow(clippy::too_many_lines)] // the Java body is one flat walk
+fn opt_route_item_body(
+    base: &CandidateEvalBase,
+    stop: &mut StopFace,
+    worker_manager: &mut SearchTreeManager,
+    worker_board: &mut Board,
+    item_id: ItemId,
+    with_preferred_directions: bool,
+    sink: &mut dyn DriverSink,
+) -> ItemRouteResult {
+    // Java `:851-853` — the `null` unit keeps the board factors;
+    // the connections walk stays ON (Java's 3-arg ctor defaults it
+    // to true), though only the via/length faces are read.
+    let stats_before = BoardStatistics::with_options(worker_manager, worker_board, false, true);
+    let incomplete_before = calculate_incomplete_count(worker_manager, worker_board);
+
+    let is_trace = worker_board
+        .get(item_id)
+        .is_some_and(|entry| matches!(entry.data, ItemData::Trace { .. }));
+
+    // Java `:855-866` — the ripped set: the item itself, plus — for
+    // a trace — each endpoint's contact set when it is all
+    // unfixed traces.
+    let mut ripped_items: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
+    ripped_items.insert(Reverse(item_id));
+    if is_trace {
+        let start = start_contacts(worker_manager, worker_board, item_id);
+        if contains_only_unfixed_traces(worker_board, &start) {
+            ripped_items.extend(start.into_iter().map(Reverse));
         }
+        let end = end_contacts(worker_manager, worker_board, item_id);
+        if contains_only_unfixed_traces(worker_board, &end) {
+            ripped_items.extend(end.into_iter().map(Reverse));
+        }
+    }
 
-        // Java `:868-871` — the containing connections.
-        let mut ripped_connections: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
-        for ripped in &ripped_items {
-            for contact in get_connection_items(
-                worker_manager,
-                worker_board,
-                ripped.0,
-                epic_board::trace_ops::StopConnectionOption::None,
-            ) {
-                ripped_connections.insert(Reverse(contact));
-            }
-        }
-
-        // Java `:873-877` — a user-fixed item anywhere in the set vetoes.
-        if ripped_connections
-            .iter()
-            .any(|contact| worker_board.get(contact.0).is_some_and(is_user_fixed))
-        {
-            return ItemRouteResult::unimproved(i32::try_from(item_id.get()).unwrap_or(i32::MAX));
-        }
-
-        // Java `:879-882` — remove, then re-combine the net.
-        for contact in &ripped_connections {
-            remove_item_through_repository(worker_manager, worker_board, contact.0);
-        }
-        let item_nets = worker_board
-            .get(item_id)
-            .map(|entry| entry.nets.clone())
-            .unwrap_or_default();
-        for net in &item_nets {
-            combine_traces(worker_manager, worker_board, *net);
-        }
-
-        // Java `:884-904` — the reroute (`autoroutePassesForOptimizingItem`,
-        // `BatchAutorouter.java:245-281`): full autoroute passes until
-        // the board is complete or the budget burns, then the
-        // `removeTails(NONE)` sweep.
-        let candidate_settings = self.candidate_settings(with_preferred_directions, is_trace);
-        let mut still_unrouted = true;
-        let mut reroute_pass_no = 1;
-        while still_unrouted
-            && !self.stop.is_requested()
-            // Java `:894-895` — the reroute pass budget (`optimizer !=
-            // null ? maxAutoroutePasses : 1`; the merged flow always
-            // carries the box, so the resolved default 6 is the live face).
-            && reroute_pass_no <= self.optimizer.max_autoroute_passes
-        {
-            // SCOPE (M5-T7): the optimizer's reroute stays on the
-            // sequential face — `run_pass`'s partitioned executor
-            // engages only from the batch driver at this tree.
-            still_unrouted = run_single_thread(
-                worker_manager,
-                worker_board,
-                &candidate_settings,
-                reroute_pass_no,
-                &mut 0, // the reroute router's own totalItemsRouted (fresh per candidate)
-                &mut 0, // its progress counter
-                self.stop,
-                sink,
-                // The optimizer's inline reroute passes stay on the
-                // linear ladder (the negotiated scheduler is the batch
-                // pass loop's seam).
-                None,
-            );
-            reroute_pass_no += 1;
-        }
-        remove_tails(
+    // Java `:868-871` — the containing connections.
+    let mut ripped_connections: BTreeSet<Reverse<ItemId>> = BTreeSet::new();
+    for ripped in &ripped_items {
+        for contact in get_connection_items(
             worker_manager,
             worker_board,
+            ripped.0,
             epic_board::trace_ops::StopConnectionOption::None,
-            candidate_settings.pull_tight_accuracy,
-            &candidate_settings.trace_costs,
-            self.stop.flag(),
-            TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
-            candidate_settings.deterministic_budgets,
-        );
-        // Java returns the pass count from
-        // `autoroutePassesForOptimizingItem` (`:280`). T10's
-        // `phases.optimizer.passes_completed` face is fed from
-        // `OptimizerOutcome.passes_completed` (the BATCH pass count,
-        // Java `BatchOptimizer.java:523`) instead — the reservation in
-        // the T9 comment was mis-scoped: a per-candidate reroute-pass
-        // number was never the right source for a batch pass count.
-        // The value is kept underscore-bound as dead observability.
-        let _reroute_passes = if !still_unrouted {
-            reroute_pass_no - 1
-        } else {
-            reroute_pass_no
-        };
-
-        // Java `:906-918` — the comparison faces.
-        let stats_after = BoardStatistics::with_options(worker_manager, worker_board, false, true);
-        let incomplete_after = calculate_incomplete_count(worker_manager, worker_board);
-        let mut result = ItemRouteResult::new(
-            i32::try_from(item_id.get()).unwrap_or(i32::MAX),
-            stats_before.items.via_count,
-            stats_after.items.via_count,
-            self.min_cumulative_trace_length,
-            f64::from(stats_after.traces.total_length),
-            incomplete_before,
-            incomplete_after,
-        );
-
-        // Java `:919-923` — the stop/deadline gate on the verdict.
-        let route_improved =
-            !self.stop.is_requested() && !self.deadline_passed() && result.improved();
-        result.update_improved(route_improved);
-        result
+        ) {
+            ripped_connections.insert(Reverse(contact));
+        }
     }
+
+    // Java `:873-877` — a user-fixed item anywhere in the set vetoes.
+    if ripped_connections
+        .iter()
+        .any(|contact| worker_board.get(contact.0).is_some_and(is_user_fixed))
+    {
+        return ItemRouteResult::unimproved(i32::try_from(item_id.get()).unwrap_or(i32::MAX));
+    }
+
+    // Java `:879-882` — remove, then re-combine the net.
+    for contact in &ripped_connections {
+        remove_item_through_repository(worker_manager, worker_board, contact.0);
+    }
+    let item_nets = worker_board
+        .get(item_id)
+        .map(|entry| entry.nets.clone())
+        .unwrap_or_default();
+    for net in &item_nets {
+        combine_traces(worker_manager, worker_board, *net);
+    }
+
+    // Java `:884-904` — the reroute (`autoroutePassesForOptimizingItem`,
+    // `BatchAutorouter.java:245-281`): full autoroute passes until
+    // the board is complete or the budget burns, then the
+    // `removeTails(NONE)` sweep.
+    let candidate_settings = candidate_settings_for(
+        &base.settings,
+        base.additional_ripup_cost_factor_at_start,
+        base.trace_ripup_cost_factor,
+        base.use_increased_ripup_costs,
+        with_preferred_directions,
+        is_trace,
+    );
+    let mut still_unrouted = true;
+    let mut reroute_pass_no = 1;
+    while still_unrouted
+        && !stop.is_requested()
+        // Java `:894-895` — the reroute pass budget (`optimizer !=
+        // null ? maxAutoroutePasses : 1`; the merged flow always
+        // carries the box, so the resolved default 6 is the live face).
+        && reroute_pass_no <= base.max_autoroute_passes
+    {
+        // SCOPE (M5-T7): the optimizer's reroute stays on the
+        // sequential face — `run_pass`'s partitioned executor
+        // engages only from the batch driver at this tree.
+        still_unrouted = run_single_thread(
+            worker_manager,
+            worker_board,
+            &candidate_settings,
+            reroute_pass_no,
+            &mut 0, // the reroute router's own totalItemsRouted (fresh per candidate)
+            &mut 0, // its progress counter
+            stop,
+            sink,
+            // The optimizer's inline reroute passes stay on the
+            // linear ladder (the negotiated scheduler is the batch
+            // pass loop's seam).
+            None,
+        );
+        reroute_pass_no += 1;
+    }
+    remove_tails(
+        worker_manager,
+        worker_board,
+        epic_board::trace_ops::StopConnectionOption::None,
+        candidate_settings.pull_tight_accuracy,
+        &candidate_settings.trace_costs,
+        stop.flag(),
+        TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP,
+        candidate_settings.deterministic_budgets,
+    );
+    // Java returns the pass count from
+    // `autoroutePassesForOptimizingItem` (`:280`). T10's
+    // `phases.optimizer.passes_completed` face is fed from
+    // `OptimizerOutcome.passes_completed` (the BATCH pass count,
+    // Java `BatchOptimizer.java:523`) instead — the reservation in
+    // the T9 comment was mis-scoped: a per-candidate reroute-pass
+    // number was never the right source for a batch pass count.
+    // The value is kept underscore-bound as dead observability.
+    let _reroute_passes = if !still_unrouted {
+        reroute_pass_no - 1
+    } else {
+        reroute_pass_no
+    };
+
+    // Java `:906-918` — the comparison faces.
+    let stats_after = BoardStatistics::with_options(worker_manager, worker_board, false, true);
+    let incomplete_after = calculate_incomplete_count(worker_manager, worker_board);
+    let mut result = ItemRouteResult::new(
+        i32::try_from(item_id.get()).unwrap_or(i32::MAX),
+        stats_before.items.via_count,
+        stats_after.items.via_count,
+        base.min_cumulative_trace_length,
+        f64::from(stats_after.traces.total_length),
+        incomplete_before,
+        incomplete_after,
+    );
+
+    // Java `:919-923` — the stop/deadline gate on the verdict.
+    let route_improved =
+        !stop.is_requested() && !deadline_passed_at(base.deadline_ms) && result.improved();
+    result.update_improved(route_improved);
+    result
 }
 
 /// Java `DEFAULT_OPTIMIZER_IMPROVEMENT_THRESHOLD`
@@ -2376,38 +2667,26 @@ mod tests {
     /// the drop to plain costs once the increased face clears.
     #[test]
     fn t9_candidate_ripup_costs_ladder() {
-        let (mut manager, mut board) = parse_fixture();
-        let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
-        settings.start_ripup_costs = 50;
-        let mut stop = StopFace::default();
-        let mut stage = BatchOptimizerStage::new(
-            &mut manager,
-            &mut board,
-            settings,
-            opt_settings(),
-            &mut stop,
-        );
-
-        stage.use_increased_ripup_costs = true;
+        // M8-T7: the ladder now rides the free face shared with the
+        // partitioned executor (`candidate_ripup_costs_for`) — a pure
+        // function of the four inputs, so no stage is needed.
         assert_eq!(
-            stage.candidate_ripup_costs(false),
+            candidate_ripup_costs_for(50, true, 10, 0.6, false),
             500,
             "50 x 10 (via candidate)"
         );
         assert_eq!(
-            stage.candidate_ripup_costs(true),
+            candidate_ripup_costs_for(50, true, 10, 0.6, true),
             300,
             "round(0.6 x 50 x 10) (trace)"
         );
-
-        stage.use_increased_ripup_costs = false;
         assert_eq!(
-            stage.candidate_ripup_costs(false),
+            candidate_ripup_costs_for(50, false, 10, 0.6, false),
             50,
             "dropped: plain costs"
         );
         assert_eq!(
-            stage.candidate_ripup_costs(true),
+            candidate_ripup_costs_for(50, false, 10, 0.6, true),
             30,
             "round(0.6 x 50) — trace discount alone"
         );
@@ -2425,19 +2704,8 @@ mod tests {
         // truncation would cut down. start = 51 -> 30.6000012… -> 31
         // (trunc 30); start = 3 -> 1.8000001… -> 2 (trunc 1).
         for (start, expected) in [(51, 31), (3, 2)] {
-            let mut settings = BatchSettings::new(settings_ir(), v2_scoring());
-            settings.start_ripup_costs = start;
-            let mut stop = StopFace::default();
-            let mut stage = BatchOptimizerStage::new(
-                &mut manager,
-                &mut board,
-                settings,
-                opt_settings(),
-                &mut stop,
-            );
-            stage.use_increased_ripup_costs = false;
             assert_eq!(
-                stage.candidate_ripup_costs(true),
+                candidate_ripup_costs_for(start, false, 10, 0.6, true),
                 expected,
                 "start={start}: java_round rounds the 0.6-fraction UP (trunc would give {})",
                 expected - 1,
@@ -2831,6 +3099,195 @@ mod tests {
             "the adopted candidate still loses the pass gate at an equal score: {info}",
         );
         assert_eq!(board_hash(&board), baseline_hash, "incumbent restored");
+    }
+
+    // -----------------------------------------------------------------------
+    // M8-T7: the deterministic partitioned candidate executor
+    // -----------------------------------------------------------------------
+
+    /// Compile-time feasibility assertion: the partitioned executor
+    /// shares the base board across workers (read-only) and hands the
+    /// adopted winner board back to the coordinator, so `Board` must
+    /// be `Send + Sync`.
+    #[test]
+    fn t7_board_is_send_and_sync() {
+        fn assert_send<T: Send>() {}
+        fn assert_sync<T: Sync>() {}
+        assert_send::<Board>();
+        assert_sync::<Board>();
+    }
+
+    /// The via-costly winner-rule world (the
+    /// `t9_winner_rule_best_overall_not_first_improver` face): 3
+    /// candidates in order `[123, 152, 132]`, the best (152) is NOT
+    /// the first improver (123).
+    fn via_costly_routed_world() -> (SearchTreeManager, Board) {
+        let (manager, mut board) = {
+            let (mut manager, mut board) = parse_fixture();
+            let mut ir = settings_ir();
+            ir.via_costs = 50;
+            let settings = BatchSettings::new(ir, v2_scoring());
+            let mut sink = CaptureDriverSink::default();
+            let mut driver =
+                BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
+            assert_eq!(
+                driver.run(&mut sink),
+                Ok(true),
+                "the via-costly world routes"
+            );
+            (manager, board)
+        };
+        let mut m2 = SearchTreeManager::new();
+        m2.reinsert_tree_items(&mut board);
+        let candidates = read_sorted_route_items(&m2, &mut board);
+        let candidate_ids: Vec<u32> = candidates.iter().map(|id| id.get()).collect();
+        assert_eq!(candidate_ids, vec![123, 152, 132], "candidate order face");
+        (manager, board)
+    }
+
+    /// The stage over a fresh clone of the routed world, configured
+    /// exactly as the t9 winner-rule pin (1 pass, guards on) plus the
+    /// M8-T7 partition count.
+    fn run_via_costly_world_at_threads(
+        world: (&SearchTreeManager, &Board),
+        threads: usize,
+    ) -> (OptimizerOutcome, CaptureDriverSink, String) {
+        let mut board = world.1.clone();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let mut ir = settings_ir();
+        ir.via_costs = 50;
+        let mut batch = BatchSettings::new(ir, v2_scoring());
+        batch.optimizer_threads = threads;
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        let mut opt = opt_settings();
+        opt.enable_preflight_guards = Some(true);
+        opt.max_passes = Some(1);
+        let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
+        let outcome = stage.run_batch_loop(&mut sink);
+        let hash = board_hash(&board);
+        (outcome, sink, hash)
+    }
+
+    /// THE THREADS-INVARIANCE PIN (the charter's acceptance gate, the
+    /// M5-T7 hash-pin pattern): the same ≥3-candidate optimizer world
+    /// at partition counts 1/2/3/4 produces the identical final board
+    /// state and the identical event stream (timing-embedded rows
+    /// filtered). The reduction order — candidate-walk order — is
+    /// unchanged by the partitioning, and the winner
+    /// (`ItemRouteResult::compare`, item-id-final total order) is
+    /// grouping-invariant, so any divergence here is a real break of
+    /// the by-construction identity argument.
+    #[test]
+    fn t7_optimizer_threads_rows_and_hash_identical_across_threads() {
+        let (manager, board) = via_costly_routed_world();
+        let baseline_hash = board_hash(&board);
+        type FaceRecord = (
+            OptimizerOutcome,
+            Vec<(&'static str, String)>,
+            Vec<(&'static str, String)>,
+            String,
+        );
+        let mut faces: Vec<FaceRecord> = Vec::new();
+        for threads in [1usize, 2, 3, 4] {
+            let (outcome, sink, hash) =
+                run_via_costly_world_at_threads((&manager, &board), threads);
+            let raw_rows: Vec<(&'static str, String)> = sink.rows.clone();
+            assert_eq!(outcome.passes_completed, 1, "threads={threads}");
+            // Two faces are EXPECTED to differ across partition counts
+            // and are normalized for the comparison: the pass-entry
+            // trace row's thread count (Java prints its resolved pool
+            // size) and the elapsed-seconds rows (the only wall-clock
+            // faces). Everything else must be byte-identical.
+            let rows: Vec<(&'static str, String)> = sink
+                .rows
+                .iter()
+                .filter(|(_, row)| {
+                    !row.contains("was completed in") && !row.contains("Optimization stage")
+                })
+                .map(|(tag, row)| {
+                    let normalized =
+                        if let Some(rest) = row.strip_prefix("BatchOptRoute.opt_route_pass #") {
+                            if let Some(items_at) = rest.find(" items, ") {
+                                let head =
+                                    format!("BatchOptRoute.opt_route_pass #{}", &rest[..items_at]);
+                                if let Some(tail_from) = rest.find(" running on ") {
+                                    format!(
+                                        "{head}{} running on N thread(s).",
+                                        &rest[items_at..tail_from]
+                                    )
+                                } else {
+                                    row.clone()
+                                }
+                            } else {
+                                row.clone()
+                            }
+                        } else {
+                            row.clone()
+                        };
+                    (*tag, normalized)
+                })
+                .collect();
+            faces.push((outcome, rows, raw_rows, hash));
+        }
+        let (outcome_1, rows_1, _raw_rows_1, hash_1) = &faces[0];
+        for (index, face) in faces.iter().enumerate() {
+            let n = index + 1;
+            assert_eq!(&face.3, hash_1, "final board hash identical at threads={n}");
+            assert_eq!(&face.1, rows_1, "event stream identical at threads={n}");
+            assert_eq!(&face.0.passes_completed, &outcome_1.passes_completed);
+            assert_eq!(&face.0.is_timed_out, &outcome_1.is_timed_out);
+        }
+        // The adopted winner is the BEST candidate (152, not the first
+        // improver 123) at EVERY partition count — the reduction-order
+        // pin: partitioning reorders evaluation, never the winner. The
+        // adopted-board hash rides the pass-completed row (a
+        // wall-clock face, hence checked on the RAW rows).
+        for (n, (_, _, raw_rows, _)) in faces.iter().enumerate() {
+            let n = n + 1;
+            assert!(
+                raw_rows.iter().any(|(_, row)| row.contains(
+                    "Optimizer pass #1 on board \
+                     'a13e3699283d2aa32c7a2e8739531e02d5321b6c3bdf8db9b123b358d65e212d'"
+                )),
+                "threads={n}: the adopted board is candidate 152's (the grouping-invariant \
+                 argmin)",
+            );
+        }
+        // The pass gate rejects at the equal score and the incumbent
+        // is restored at every partition count.
+        for (_, rows, _, hash) in &faces {
+            assert!(
+                rows.iter().any(
+                    |(_, row)| row.contains("candidate rejected: OPTIMIZER_SCORE_NOT_IMPROVED")
+                )
+            );
+            assert_eq!(*hash, baseline_hash, "incumbent restored");
+        }
+    }
+
+    /// The candidate→partition assignment (the charter's FIXED key,
+    /// `item_id mod n`): a pure function of `(item_id, n)`, and the
+    /// three candidates of the pin world split DIFFERENTLY at n=2 vs
+    /// n=3 — the per-worker evaluation order changes with n while the
+    /// reduction order (candidate walk order) does not.
+    #[test]
+    fn t7_partition_assignment_is_fixed_key() {
+        let assignment = |id: u32, n: usize| (id as usize) % n;
+        // n=3: 123→0, 152→2, 132→0 (two workers busy, distinct from
+        // walk order pairing).
+        assert_eq!(assignment(123, 3), 0);
+        assert_eq!(assignment(152, 3), 2);
+        assert_eq!(assignment(132, 3), 0);
+        // n=2 splits differently (152 joins 132).
+        assert_eq!(assignment(123, 2), 1);
+        assert_eq!(assignment(152, 2), 0);
+        assert_eq!(assignment(132, 2), 0);
+        // n=1 is the golden sequential face: one partition holds all.
+        for id in [123u32, 152, 132] {
+            assert_eq!(assignment(id, 1), 0);
+        }
     }
 
     // -----------------------------------------------------------------------

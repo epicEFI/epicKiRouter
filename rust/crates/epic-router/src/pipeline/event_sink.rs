@@ -109,3 +109,112 @@ impl DriverSink for CaptureDriverSink {
         self.rows.push(("board_updated", render_counters(counters)));
     }
 }
+
+/// One buffered sink row (the M8-T7 replay envelope): the TYPED faces
+/// (`task_state` args, `board_updated` counters) are kept structured so
+/// a flush can re-emit them through the real sink's typed methods — a
+/// rendered-string buffer (the [`CaptureDriverSink`] shape) cannot
+/// replay `CliDriverSink.last_counters_by_phase` (the manifest's
+/// phase-counter source).
+#[derive(Debug, Clone)]
+pub enum BufferedSinkRow {
+    /// [`DriverSink::info`].
+    Info(String),
+    /// [`DriverSink::warn`].
+    Warn(String),
+    /// [`DriverSink::debug`].
+    Debug(String),
+    /// [`DriverSink::trace`].
+    Trace(String),
+    /// [`DriverSink::task_state`].
+    TaskState(String, i32, String),
+    /// [`DriverSink::board_updated`].
+    BoardUpdated(RouterCounters),
+}
+
+/// The per-candidate replay sink (M8-T7): records rows TYPED so the
+/// coordinator can flush them to the real sink in candidate order
+/// AFTER the parallel evaluation, reproducing the sequential stream
+/// byte-for-byte (the reduction discards the buffers of candidates
+/// beyond an early break — the sequential face never emitted them).
+/// The trace gate mirrors the real sink's `is_trace_enabled`, captured
+/// at pass start, so the gated emission faces are identical.
+#[derive(Debug)]
+pub struct BufferedDriverSink {
+    /// The real sink's trace gate (captured pre-pass).
+    trace_enabled: bool,
+    /// Rows in emission order.
+    pub rows: Vec<BufferedSinkRow>,
+}
+
+impl BufferedDriverSink {
+    /// A buffer mirroring `trace_enabled`.
+    #[must_use]
+    pub fn new(trace_enabled: bool) -> Self {
+        Self {
+            trace_enabled,
+            rows: Vec::new(),
+        }
+    }
+
+    /// Replays the rows through `sink` in emission order.
+    pub fn flush_to(&self, sink: &mut dyn DriverSink) {
+        BufferedSinkRow::flush_rows(&self.rows, sink);
+    }
+}
+
+impl BufferedSinkRow {
+    /// Replays rows through `sink` in emission order (the M8-T7
+    /// reduction's flush face, shared with [`BufferedDriverSink`]).
+    pub fn flush_rows(rows: &[BufferedSinkRow], sink: &mut dyn DriverSink) {
+        for row in rows {
+            match row {
+                BufferedSinkRow::Info(message) => sink.info(message),
+                BufferedSinkRow::Warn(message) => sink.warn(message),
+                BufferedSinkRow::Debug(message) => sink.debug(message),
+                BufferedSinkRow::Trace(message) => sink.trace(message),
+                BufferedSinkRow::TaskState(state, pass, hash) => {
+                    sink.task_state(state, *pass, hash)
+                }
+                BufferedSinkRow::BoardUpdated(counters) => sink.board_updated(counters),
+            }
+        }
+    }
+}
+
+impl DriverSink for BufferedDriverSink {
+    fn is_trace_enabled(&self) -> bool {
+        self.trace_enabled
+    }
+
+    fn info(&mut self, message: &str) {
+        self.rows.push(BufferedSinkRow::Info(message.to_string()));
+    }
+
+    fn warn(&mut self, message: &str) {
+        self.rows.push(BufferedSinkRow::Warn(message.to_string()));
+    }
+
+    fn debug(&mut self, message: &str) {
+        self.rows.push(BufferedSinkRow::Debug(message.to_string()));
+    }
+
+    fn trace(&mut self, message: &str) {
+        if self.trace_enabled {
+            self.rows.push(BufferedSinkRow::Trace(message.to_string()));
+        }
+    }
+
+    fn task_state(&mut self, state: &str, pass: i32, hash: &str) {
+        self.rows.push(BufferedSinkRow::TaskState(
+            state.to_string(),
+            pass,
+            hash.to_string(),
+        ));
+    }
+
+    fn board_updated(&mut self, counters: &RouterCounters) {
+        self.rows
+            .push(BufferedSinkRow::BoardUpdated(counters.clone()));
+    }
+}

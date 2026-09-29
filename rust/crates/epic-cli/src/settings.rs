@@ -294,6 +294,18 @@ pub struct CliLayer {
     /// `optimizer.max_threads` (`optimizer.maxThreads`) — parsed
     /// (surface parity) but unused: the port is sequential.
     pub optimizer_max_threads: Option<i32>,
+    /// `optimizer.threads` — the M8-T7 RUST-ONLY tri-state: the
+    /// optimizer candidate loop's partition count. `None` (the
+    /// default) = the mandated 1-thread parity face, UNCHANGED code
+    /// (the SettingsMerger-family invariant: no initializer — the
+    /// Default seed is `None`); `Some(n)` with `n >= 2` = the
+    /// deterministic partitioned candidate executor (`n` partitions by
+    /// `item_id mod n`, reduction in candidate order — the final board
+    /// state is thread-count-invariant by construction). `<= 1`
+    /// resolves to the sequential face. No Java counterpart (Java's
+    /// `optimizer.maxThreads` is the separate surface-parity box
+    /// above).
+    pub optimizer_threads: Option<i32>,
     /// `optimizer.enable_preflight_guards`
     /// (`optimizer.enablePreflightGuards`).
     pub optimizer_enable_preflight_guards: Option<bool>,
@@ -809,6 +821,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Ok(v) => layer.optimizer_max_threads = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
         },
+        "optimizer.threads" => match value.parse::<i32>() {
+            Ok(v) => layer.optimizer_threads = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
         "optimizer.enable_preflight_guards" | "optimizer.enablePreflightGuards" => {
             match parse_on_off(value) {
                 Some(v) => layer.optimizer_enable_preflight_guards = Some(v),
@@ -1161,6 +1177,10 @@ pub struct MergedSettings {
     pub optimizer_max_items: Option<i32>,
     /// `optimizer.maxThreads` — parsed but unused (sequential port).
     pub optimizer_max_threads: Option<i32>,
+    /// `optimizer.threads` — the M8-T7 RUST-ONLY tri-state (absent =
+    /// the 1-thread parity face; CLI-only — no DSN/default source
+    /// writes it, the Default seed is `None`).
+    pub optimizer_threads: Option<i32>,
     /// `optimizer.improvementThreshold` — the pass-stop percentage.
     pub improvement_threshold: Option<f32>,
     /// `optimizer.enablePreflightGuards` — only `Some(false)` bypasses
@@ -1254,6 +1274,10 @@ impl Default for MergedSettings {
                     .map_or(1usize, std::num::NonZeroUsize::get);
                 i32::try_from(cores.saturating_sub(1).max(1)).unwrap_or(i32::MAX)
             }),
+            // The M8-T7 tri-state: no default source — absent = the
+            // 1-thread parity face (the SettingsMerger-family invariant;
+            // defaults live only on the resolved faces).
+            optimizer_threads: None,
             improvement_threshold: Some(2.5),
             optimizer_enable_preflight_guards: Some(true),
             optimizer_max_consecutive_failures: Some(50),
@@ -1449,6 +1473,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.optimizer_max_threads {
         merged.optimizer_max_threads = Some(v);
+    }
+    if let Some(v) = cli.optimizer_threads {
+        merged.optimizer_threads = Some(v);
     }
     if let Some(v) = cli.improvement_threshold {
         merged.improvement_threshold = Some(v);
@@ -2853,6 +2880,7 @@ mod tests {
             optimizer_max_passes: Some(21),
             optimizer_max_items: Some(22),
             optimizer_max_threads: Some(23),
+            optimizer_threads: Some(2),
             optimizer_enable_preflight_guards: Some(false),
             optimizer_max_consecutive_failures: Some(24),
             optimizer_max_consecutive_failures_pass1: Some(25),
@@ -2890,6 +2918,11 @@ mod tests {
         assert_eq!(merged.max_passes, Some(3), "cli.max_passes");
         assert_eq!(merged.max_items, Some(44), "cli.max_items");
         assert_eq!(merged.max_threads, Some(2), "cli.max_threads");
+        assert_eq!(
+            merged.optimizer_threads,
+            Some(2),
+            "cli.optimizer_threads (M8-T7)"
+        );
         assert_eq!(
             merged.improvement_threshold,
             Some(7.5),

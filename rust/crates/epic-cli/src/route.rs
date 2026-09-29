@@ -1392,6 +1392,18 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     } else {
         1
     };
+    // M8-T7: the optimizer candidate loop's partition count. The
+    // DEFAULT is 1 — the mandated 1-thread parity face, byte-for-byte
+    // the pre-T7 walk — engaged only on an EXPLICIT
+    // `optimizer.threads` (the tri-state; `<= 1` clamps to the
+    // sequential face). The partitioned path is thread-count-invariant
+    // by construction (the reduction-order argument at
+    // optimizer.rs's executor doc).
+    batch.optimizer_threads = if args.layer.optimizer_threads.is_some() {
+        merged.optimizer_threads.unwrap_or(1).max(1).unsigned_abs() as usize
+    } else {
+        1
+    };
     let mut sink = CliDriverSink::default();
     let outcome = epic_router::pipeline::full::run(
         &mut manager,
