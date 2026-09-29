@@ -1205,6 +1205,15 @@ fn flow_window(
     // factor×width threshold. An angle-INEXACT drop forms NO jog
     // candidate (no row — the window simply is not a jog candidate);
     // the miter face below still gets its own attempt.
+    //
+    // WIDTHLESS-TRACE SEMANTICS (spec-r1 NIT, doc-only): a trace with
+    // NO half width reads as width 0 here, so `stub < 0 × factor` is
+    // never true and the JOG face silently SKIPS the window — while
+    // the MITER face (a DBU threshold, width-independent) stays live.
+    // That asymmetry is the documented behavior, not an oversight:
+    // the jog threshold is meaningless without a width to scale, and
+    // the pin worlds (F1/F4/F12) all carry width-2000 traces, so the
+    // pinned semantics are untouched by this note. No behavior change.
     if jog_threshold_ok(
         stub,
         i64::from(2 * board.trace_half_width(trace_id).unwrap_or(0)),
