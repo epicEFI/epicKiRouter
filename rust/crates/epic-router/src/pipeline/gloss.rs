@@ -4278,6 +4278,123 @@ mod tests {
         assert!(report.rows.is_empty());
     }
 
+    /// **V10 (the ARM_TOTAL rank arm, spec r1 NIT-5).** The 45° world:
+    /// arm 1 F.Cu straight (140_000,200_000)→(200_000,200_000); arm 2
+    /// B.Cu staircase (200_000,200_000)→(260_000,200_000)→(260_000,
+    /// 260_000); the via at cur (200_000,200_000). The alignment
+    /// family yields five in-radius legal candidates; THREE are
+    /// keepout-blocked — (140_000,140_000) (box 130_000..145_000 ²
+    /// covers the via pad and the y=x diagonal arm into it),
+    /// (140_000,260_000) (box 130_000..150_000 × 250_000..270_000
+    /// covers arm 1's vertical extension), and (260_000,200_000) (box
+    /// 250_000..270_000 × 190_000..210_000 covers arm 1's horizontal
+    /// extension; the box also clips arm 2's pre-existing horizontal
+    /// tail — a harmless keepout/trace overlap the pass never probes).
+    /// EXACTLY TWO candidates pass every acceptance gate, both at
+    /// ret_drop 0 (pour-free — the neutral face), with DIFFERENT arm
+    /// totals: P_win = (200_000,260_000) (disp (0,60_000), total
+    /// √2·60_000 + 60_000 ≈ 144_853) and P_short-displacement =
+    /// (170_000,170_000) (disp (−30_000,−30_000), total √2·30_000 +
+    /// √2·150_000 ≈ 254_558). The rank's arm_total arm alone decides:
+    /// P_win lands — the ENUMERATION order would take (170_000,
+    /// 170_000) first (Chebyshev 30_000 < 60_000), which is exactly
+    /// what the rank-swap mutant produces, so the mutant dies on this
+    /// pin's literal to_x/to_y. None of the keepouts touches the two
+    /// survivors' arms or pads.
+    #[test]
+    fn v10_arm_total_rank_discriminates() {
+        let mut ses = base_ses();
+        // The FORTYFIVE_DEGREE restriction: the diagonal candidates of
+        // the alignment family are enumerated on this board.
+        ses.rules.trace_angle_restriction = epic_dsn::state::AngleRestriction::FortyfiveDegree;
+        ses.padstacks.push(via_padstack());
+        register_nets(&mut ses, &[("sig", false)]);
+        straight_trace(
+            &mut ses,
+            3,
+            1,
+            vec![
+                IntPoint::new(140_000, 200_000),
+                IntPoint::new(200_000, 200_000),
+            ],
+        );
+        ses.push_routed_item(ItemIr::Trace {
+            id: 4,
+            trace: TraceIr {
+                layer_no: 1,
+                half_width: 2000,
+                corners: vec![
+                    IntPoint::new(200_000, 200_000),
+                    IntPoint::new(260_000, 200_000),
+                    IntPoint::new(260_000, 260_000),
+                ],
+                polyline: TraceIr::polyline_of_corners(&[
+                    IntPoint::new(200_000, 200_000),
+                    IntPoint::new(260_000, 200_000),
+                    IntPoint::new(260_000, 260_000),
+                ]),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        });
+        ses.push_routed_item(ItemIr::Via {
+            id: 5,
+            via: ViaIr {
+                padstack_no: 1,
+                location: IntPoint::new(200_000, 200_000),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: DsnFixedStateIr::Unfixed,
+                attach_smd_allowed: false,
+            },
+        });
+        for (id, x0, y0, x1, y1) in [
+            (7u32, 130_000i64, 130_000i64, 145_000i64, 145_000i64),
+            (8, 130_000, 250_000, 150_000, 270_000),
+            (9, 250_000, 190_000, 270_000, 210_000),
+        ] {
+            ses.push_routed_item(ItemIr::Keepout {
+                id: i32::try_from(id).unwrap_or(0),
+                keepout: KeepoutIr {
+                    kind: KeepoutKindIr::Keepout,
+                    layer_no: 0,
+                    area: AreaIr::simple(DsnBoardShape::Tile(TileShape::RegularTileShape(
+                        RegularTileShape::IntBox(IntBox::new(
+                            IntPoint::new(
+                                i32::try_from(x0).unwrap_or(0),
+                                i32::try_from(y0).unwrap_or(0),
+                            ),
+                            IntPoint::new(
+                                i32::try_from(x1).unwrap_or(0),
+                                i32::try_from(y1).unwrap_or(0),
+                            ),
+                        )),
+                    ))),
+                    clearance_class: 1,
+                    fixed: FixedStateIr::Unfixed,
+                    component_id: 0,
+                    rotation: 0.0,
+                    side_changed: false,
+                    name: None,
+                    translation: IntPoint::new(0, 0),
+                },
+            });
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert_eq!(report.rows.len(), 1, "exactly one attempted via");
+        assert!(report.rows[0].landed, "a candidate lands");
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (200_000, 260_000),
+            "the SHORTER-arm candidate wins the equal-ret_drop rank"
+        );
+        assert_eq!(via_count(&board), 1, "via count invariant");
+    }
+
     /// A minimal arm frame for the alignment-family pins (no board).
     fn via_arm(trace_id: u32, far: IntPoint, layer: i32) -> ViaArm {
         ViaArm {
