@@ -412,6 +412,203 @@ Deviations (every red still standing, face / root cause / owner / buglog):
 
 Carry-forwards (every line traces to a dossier/buglog entry): the harness finding that `router compare` accepts no settings-flag face (`--extra-router-arg` exists only on determinism/threads-invariance; T10 rode the documented `EPIC_CLI` pass-through wrapper) — adding `--extra-router-arg` to compare is the clean harness face if an ON battery is ever wanted again, owner M7+ harness (T10 deviation 1); buglog 197's successor lever (the optimizer candidate-loop executor, the M5-T7 deterministic-partition pattern — the flip's reopen bound rides it); the unlanded T9 NIT banks (NIT-Q1 derivable `push_shove_waivers` counter; NIT-Q2 front-pop-order pin/doc; NIT-Q3 "1 waives" unreachability note; NIT-Q4 Q6 pin dust) and T8's optional Q2/Q3/Q8 — DECLINED as T11 riders (a docs-only task with no natural engine touch) and BANKED for the first engine touch; the fanout-full-flow golden gap (zero byte-invariance coverage for the 181 fix until one exists — SEAM M6 hold posture) and the banked harness NITs (Σ-decomposition battery print, shared no-extras sweep helper, bail! idiom, multi-concern walk pin) wait on the first harness touch; bug-186's lexer-parity scope stays M1b-reopen; StickHub post-route pour measurement and CM5's ON-face pour count are recorded measurement gaps, no new work.
 
+M7 exit note (T8, 2026-09-28; close-out docs commit as sole child of
+`0741bd728` — the measurement record predates this note: the tuning
+measurement is T7's, measured at tree `6165ac7aa` (`logs/M7-T7/report-t7.md`
++ 33 evidence files; two post-review rounds, coordinator-verified at source
+each round); the engine tree came out of the close-out identical, census
+1547/0/17):
+**VERDICT: <per milestone adjudication>**
+
+M7's arc, honestly stated: the milestone chartered the design's tuning
+pillar (§4 :73 — length-constraint honoring, clearance-aware meander
+insertion, differential pairs) plus the M6-owned residuals (bm10's ri=1,
+the B/C completion reds, the first-touch harness/engine banks). Two plan
+premises were falsified and the record says so (AMENDMENTS 1 and 7): (1)
+T1's audit falsified the dead-reader premise — the length-constraint
+read/deliver chain was ALREADY Java-exact at the pre-T1 tree (the three
+`ses_board.rs` hard-zero sites are `rules/NetClass.java:36-37`
+ctor-parity sites, not divergences; the Rust DSN write face does not
+exist at all), so the parity port became a verification plus four
+boundary pin worlds (`6f6334e51`); (2) AMENDMENT 6 §3's erratum was
+itself label-swapped — the committed goldens are right, the prose wrong
+twice over (the Finding-1 correction below). T2 landed the constraint
+model + 205's localization (`0626ff8a2`); T3 the split-world
+parity-confirmed-noted disposition + the min-length honoring gate
+(`b7b174859` + `349a192df`); T4 the clearance-aware meander engine +
+the harness banks (`514a4d5e0` + `c9fb800e4` + `d87da94b7` +
+`c1478a31d`); T5 the match-to-target face + the buglog-210 drain fix
+with its sanctioned two-golden re-capture (`d6c7bd859` + `758356366` +
+`a7b00639b` + `595049285`); T6 the differential-pair face
+(`36f4570c2` + `bdfd39216` + `7e772fa2c`); T7 the measurement moment
+(no commits — a battery/DRC-clean/disposition task at the unchanged
+tree).
+
+Criterion verdicts (evidence: `logs/M7-T7/report-t7.md` — §1 the
+tuning-population table, §2 the Tier A face, §3 the M6 dispositions +
+the deviations refresh, §4 the 14/14 gate lap; per-task dossiers at the
+pinned commits above):
+
+- **Criterion 1 (DSN-declared constraints honored) MET.** The full
+  chain: parse/deliver verified Java-exact (T1); the resolved-constraint
+  query surface `BoardRules::net_class_length_bounds`
+  (`crates/epic-board/src/rules_surf.rs:783`, 0.0 = no constraint,
+  flat class table — the class-inheritance audit found no hierarchy) +
+  `has_length_constraints` (`:802`); the NEVER-shorten honoring gate
+  `min_length_gate_allows` (`crates/epic-board/src/trace_tightener/mod.rs:1170`),
+  consulted at exactly the two tightener change-acceptance faces
+  (pull-tight acceptance `:1143`; pin-tail rebuild
+  `crates/epic-board/src/trace_tightener/pin_tail.rs:433`) —
+  whole-candidate rejection, landing-at-min allowed, inert when no min
+  is declared; meander insertion to reach min (T4, `pipeline/tuning.rs`:
+  fixed amplitude ladder `:150`, per-site dent cap `:156`, clearance
+  probe fails-safe, honest stop); match-to-target with per-class goals
+  (T5: both-declared goal = min exactly; min-only target = the longest
+  routed member, tolerance `MATCH_TOLERANCE_DBU` `tuning.rs:174`);
+  max-length = the honest report-only face (`length_violation` =
+  Java `calcLengthViolation` verbatim, `rules_surf.rs:825`; over-max is
+  never truncated — meander_blocked's −40 000 `length_report` row is
+  the exercised face). Demonstrated on crafted worlds with
+  mutation-verified pins (T1's four boundary worlds + 9-run mutation
+  record; T3's split world; T4's W1–W8; T5's M1–M7; T6's P1–P6) and
+  the six committed tuning fixtures (T7 §1: every deficit filled or
+  honestly reported).
+- **Criterion 2 (tuning DRC-clean on the fixture set) MET.** ri = 0 on
+  all six tuning fixtures at every `router_introduced_count` block (the
+  REAL counter, `crates/epic-router/src/pipeline/board_statistics.rs:596-598`
+  ← `all_clearance_violation_depths`,
+  `crates/epic-drc/src/clearance.rs:557` — never the outline-only
+  face); min_stair's total of 1 is the fixture's own input pre-existing
+  violation (AMENDMENT-3-known, untouched); every landed meander is
+  DRC-clean; the pair fixtures' default-flag faces are INERT (AMENDMENT
+  6 §4) with both committed ON goldens re-verified green; the P5
+  equality boundary green in-process. The ONE router-introduced
+  violation in the entire measurement remains bm10's pre-dispositioned
+  parity face (below).
+- **Criterion 3 (zero regressions, default + constraint-free) MET.**
+  Tier A 11/11 held row-for-row (10 green / 1 red completion-only; Σ
+  2133.1 summary vs 2133.0 two independent re-sums — print rounding;
+  zero detail runs, so both Σ faces coincide); every PASS row
+  `introduced 0`; the constraint-free-invariance rule held all
+  milestone (the committed corpus declares zero `(length`; the
+  mixed-world pin `p3_undeclared_net_geometry_identical_on_vs_off`,
+  `crates/epic-router/src/pipeline/pairs.rs:815`; canaries
+  `dc271114…`/`cf607714…` UNROTATED throughout); the gate lap 14/14.
+- **Criterion 4 (inherited dispositions) DISCHARGED AS RECORDED.**
+  205 CLOSED — parity-confirmed-noted (T3's crafted split world +
+  chain-complete source read: Java's own tightener re-lands split
+  pieces unchecked; no fix without anti-parity). 210 CLOSED — outcome
+  (i), a real Rust divergence: the SES input-wiring duplication (the
+  parse board retained `(wiring` items next to the live projection);
+  the Java-exact drain fix landed (`a7b00639b`) with the
+  coordinator-sanctioned two-golden re-capture (the goldens pinned the
+  defect's own bytes; canaries proven unaffected). 201 CLOSED — the
+  `--out` path-joining asymmetry fixed at T4's harness touch (the
+  `--out`/`--golden` faces now join the repo root like
+  `--dsn`/`--work-root`). The M6 NIT banks: NIT-Q2/Q3 landed at T2
+  (first engine touch); NIT-Q1 dropped with cause; NIT-Q4 + T8's
+  optional banks declined by name; T4's harness banks landed
+  (`--extra-router-arg` on compare, the fanout-full-flow golden, the
+  Σ-decomposition print, `record_extras`, the `bail!` idiom) or
+  declined with cause (the `git_sha` embed — anti-instrument). 197
+  stays OPEN with its successor lever (deterministic candidate
+  parallelism) recorded NOT attempted — a wall lever, explicitly out of
+  the M7 scope, owner M8+ (the buglog entry carries the sweep note).
+  The B/C reds re-faced: the constraint census found zero `(length`
+  declarations among all twelve fixtures, so the tuning faces could not
+  matter — the re-faces reduce to bm10 (ri=1 REPRODUCED
+  flag-independently, 3/1/979.87, 443.8 s; the run total 1343.8 = 443.8
+  + 900.0 detail-burn, reconciled exactly) and 1Bitsy (re-measured
+  RED completion-only, 2>1, `introduced 0`, 220.9 s, NOT killed — the
+  kill face NOT reproduced; 520.9 = 220.9 + 300.0, reconciled); the
+  held M6 faces stand as the record for the rest.
+- **Criterion 5 (gates green; census additions only; committed
+  artifacts untouched) MET.** Census EXACTLY 1547/0/17 at the
+  unchanged engine tree; the M7 ADDITIONS LEDGER, enumerated: the
+  crafted-world pin sets (T1's four `network.rs` boundary worlds; T3's
+  split world + honoring pins + the 6/6 mutation log; T4's W1–W8 +
+  F1–F3; T5's M1–M7 group pins + the 4/4 mutation log; T6's P1–P6 pair
+  pins), the SIX new committed tuning fixtures
+  (`rust/harness/fixtures/tuning/`: `min_stair_tuning`,
+  `meander_room_tuning`, `meander_blocked_tuning`,
+  `meander_multi_tuning`, `pair_coupled_tuning`, `pair_split_tuning`),
+  and the TWO new pair goldens (`pair_coupled.global-golden.json`,
+  `pair_split.global-golden.json`) — PLUS the two SANCTIONED
+  t7_ripup golden re-captures (buglog 210; the milestone's ONLY
+  committed-baseline modifications, justified per the capture rule);
+  seven compares green (corpus 5000/5000; dsn 1,332/0; ses 20;
+  ses-snap 5; index 33; undo 33; drc 17), events 3,520, canaries
+  unrotated, det-ON digest pair byte-identical.
+
+Deviations (the T7 §3 refresh, verbatim — the M8 adjudication input;
+every still-standing red):
+
+| Red | Face (T7, tree `6165ac7aa`, unless noted) | Root cause | Owner | Buglog |
+|---|---|---|---|---|
+| bm01 (Tier A) | tier-wall kill 1800.1 s, no manifest; unchanged from M6 | per-pass optimizer cost on a completed 0.00-score incumbent; named lever = deterministic candidate parallelism, recorded NOT attempted | M8+ (own charter) | 197 |
+| bm10 ri=1 | reproduced at T7 at the push_shove-only face (3/1/979.87, introduced 1; M6's ON face not re-run — flag-independence already established) | Java's own tightener design: `split_traces` re-lands pieces unchecked (parity-confirmed-noted) | DISPOSED (parity-confirmed-noted; no fix without anti-parity) | 205 (CLOSED) |
+| B/C completion reds — bm05 27>18, interf_u 3>0, mm/mm-u parity floors, CM5 + LimeSDR tier kills | NOT re-faced at T7 (zero `(length` declarations — tuning could not matter; engine unchanged; the M6-T3/T10 faces remain the record) | engine-capability/wall faces at today's maturity | M8 adjudication | — (the T3/T10 tables are the record) |
+| bm10 completion red | 3>1 re-confirmed at T7 | same engine-capability family | M8 adjudication | — |
+| 1Bitsy | re-faced at T7: RED completion-only 2>1 @220.9 s (kill face NOT reproduced; red either way) | completion/bistability family; box-load sensitive pass tail | M8 adjudication | — |
+| StickHub / CM5 pour-face absences | unchanged (measurement gaps, not divergences; no pour battery ran at T7) | — | — | — |
+
+Carry-forwards (every line traces to a dossier/buglog entry): buglog
+197's successor lever (the optimizer candidate-loop executor, the
+M5-T7 deterministic-partition pattern — the flip's reopen bound rides
+it) recorded NOT attempted, unchartered, owner M8+; the banked e2e
+out-of-window decoupled witness (AMENDMENT 6 §5e — not taken at T7; the
+in-process P2 owns the face; an e2e witness is an enhancement);
+the tightener-gate-rejection fixture face (a pre-routed slack +
+min-above-folded-length world) declined by name twice (T4/T5), stays
+banked; the MSDTW median-trace face declined-on-measurement (T5 — all
+four tuning fixtures route tuned nets on separate corridors; reopen
+only for a shared-corridor charter, the natural candidate being a pair
+corridor extension) and the Dubins A* declined on measurement +
+realizability (T6 — the 45°/90° polyline engine cannot land G1 arc
+geometry); both declines live in the module docs with their re-charter
+triggers; the harness usage note that `--extra-router-arg` requires the
+`=`-form (the space-separated form is eaten by clap, exit=2 — T7
+Finding 3); bug-186's lexer-parity scope stays M1b-reopen; the T6/T5
+pair-delta design faces (goal=min, `PAIR_DELTA_DBU` never the class
+window) stand as landed, documented in the module docs.
+
+The Finding-1 correction (AMENDMENT 7 §4 — the erratum-of-the-erratum):
+AMENDMENT 6 §3's erratum is itself label-swapped. The committed
+**pair_SPLIT** golden's ON manifest carries `coupled_length` **381 482.0**
+(delta 10 270.24); **pair_COUPLIED** carries **0.0** (delta 15 147.19) —
+the advisory honestly reporting that its members share no
+within-window parallel span under `COUPLING_WINDOW_DBU`
+(`crates/epic-router/src/pipeline/pairs.rs:93`) while still matching by
+meander. Both `matched:true`, anchor net 2; the goldens pin the correct
+`dsn_sha256`s — committed artifacts right, prose wrong. The corrected
+reproduction (T7 report FIX ROUND 1, with `--work-root`; run from
+`rust/`):
+
+```
+cargo run -q -p epic-harness -- global-golden verify \
+  --dsn rust/harness/fixtures/tuning/pair_<X>_tuning.dsn \
+  --golden rust/harness/baselines/global/pair_<X>.global-golden.json \
+  --face pair_<X> \
+  --work-root /home/tyler/Downloads/EpicRouter/rust/harness/runs/t7-pair_<X>-verify
+```
+
+for X ∈ {coupled, split}, then read
+`harness/runs/t7-pair_<X>-verify/verify/manifest.json`.
+
+The mixer fact (battery reasoning, carried from AMENDMENTS 5 §3 / 6 §5d
+and re-counted exact at T7): Tier B's `multichannel_mixer-unrouted.dsn`
+carries GND pre-routes — 125 `(wire` scopes at the canonical fixture —
+and its post-route session bytes changed under the M7-T5 drain fix
+(buglog 210). Safety rests on the positive attribution: only the two
+sanctioned goldens moved and no committed artifact pins the mixer's
+session bytes. No Tier B/C battery ran at T7, so no mixer face was
+re-measured; the fact rides this note for every future battery
+reading.
+
+The engine tree is frozen at census 1547/0/17 across the close-out; the
+verdict slot above stays OPEN for the milestone adjudication (the
+M4-T17d/M5/M6 pattern; the deviations table above is its input).
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI

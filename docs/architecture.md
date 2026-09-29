@@ -390,6 +390,36 @@ reopen bound: the flip reopens exactly when bm01's total completes
 adjudicated 2026-09-28 at tree `a6d6ac38c`), `logs/M6-T10/report-t10.md`, and the M6
 criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
 
+M7 tuning face (landed on top of the M6 engine, INPUT-DRIVEN — a DSN
+`(circuit (length …))` declaration activates the tuning faces;
+constraint-free input routes byte-identically at defaults throughout,
+census 1547/0/17, canaries unrotated): the length-constraint model
+(`epic-board/src/rules_surf.rs` — `net_class_length_bounds` :783,
+`has_length_constraints` :802, and `length_violation` :825 = Java
+`calcLengthViolation` verbatim); the min-length honoring gate
+(`epic-board/src/trace_tightener/mod.rs:1170` `min_length_gate_allows`,
+consulted at the pull-tight acceptance `:1143` and the pin-tail rebuild
+`epic-board/src/trace_tightener/pin_tail.rs:433`); the clearance-aware
+meander engine (`epic-router/src/pipeline/tuning.rs` — square-wave
+accordion with a fixed amplitude ladder (:150), per-site dent cap
+(:156), `MATCH_TOLERANCE_DBU` (:174), and an honest-stop report face),
+run as a post-optimization/pre-report stage in
+`epic-router/src/pipeline/full.rs:389`; the class-constraint
+match-to-target stage (the same engine, per-class goals); and the
+differential-pair face (`epic-router/src/pipeline/pairs.rs` — declared
+solely via the `router.tuning.pairs` settings list, the KiCad DSN
+export declaring none; `PAIR_DELTA_DBU` :86, the coupling-window
+discount `COUPLING_WINDOW_DBU` :93, the leader/follower match stage,
+and the advisory `pair_report`/`pair_unresolved` manifest keys). The
+settings family `router.tuning.*` (+ `.meander`, `.pairs`) lives in
+`epic-cli/src/settings.rs` and rides the input-driven activation (the
+flags are override/kill-switch only). The tuning population is the six
+committed fixtures under `rust/harness/fixtures/tuning/` plus the two
+pair goldens, measured DRC-clean at the REAL counter (ri=0 on all six,
+T7); Tier A held 11/11 row-for-row at T7. Design §6 M7 exit note
+(verdict pending adjudication), `logs/M7-T7/report-t7.md`, and the M7
+criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
+
 ## How The Code Fits Together
 
 ### Routing Path

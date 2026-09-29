@@ -2080,3 +2080,38 @@ default-OFF with the byte-invariance contract (default settings
 byte-identical outputs; settings-ON faces are NEW goldens); the flip
 hold → the M6 hold-posture table above + the rust-check.yml
 compare-step comment; bm10's ri=1 → buglog 205 (NEW, owner M7).
+
+## M7 milestone-criterion map (appended by M7-T8; successor to the M6 map above — adjudication input)
+
+The M6 map above stays exactly as landed (HISTORICAL), as do the M5
+and M4 maps and all hold-posture tables — ZERO deletions above this
+point. Criteria read the design §6 M7 row and the M7 plan's
+"Milestone exit criteria" faces. Battery of record:
+`logs/M7-T7/evidence/` (the tuning-population table, the Tier A
+battery, and the 14/14 gate lap — all measured at `6165ac7aa`; the
+engine tree is frozen at census 1547/0/17 across the close-out). The
+verdict slot in the design doc §6 M7 exit note stays OPEN — this map
+records the measured faces the adjudication reads.
+
+| Criterion | Verdict (the measured face) | Owning surfaces + evidence |
+|---|---|---|
+| 1 — DSN-declared constraints honored (min / max / match-to-target) | **MET** — the read/deliver chain verified Java-exact (T1: the recon's dead-reader premise falsified; the three `ses_board.rs` zero-sites are ctor-parity); min honored by the tightener gate (whole-candidate rejection, landing-at-min allowed, inert on flag-off/no-min); meander insertion fills deficits with an honest stop; match-to-target with per-class goals (both-declared goal = min exactly; min-only target = the longest routed member); max-length = the honest report-only face (never truncated — `meander_blocked`'s −40 000 `length_report` row); demonstrated on mutation-verified crafted pins + the six committed tuning fixtures | DSN delivery: `epic-dsn/src/scope/network.rs` (`read_circuit_scope` / `read_length_scope` / `insert_net_class`); the settings seam `router.tuning.*` (+ `.meander` / `.pairs`) in `epic-cli/src/settings.rs`; the honoring gate `crates/epic-board/src/trace_tightener/mod.rs:1170`; the meander + match stage `crates/epic-router/src/pipeline/tuning.rs`; the pair face `crates/epic-router/src/pipeline/pairs.rs`; the T7 evidence: `logs/M7-T7/report-t7.md` §1 + the T1–T6 pinned dossiers |
+| 2 — tuning DRC-clean on the fixture set | **MET** — ri = 0 on all six tuning fixtures at every `router_introduced_count` block (the REAL counter: `crates/epic-router/src/pipeline/board_statistics.rs:596-598` ← `all_clearance_violation_depths`, `crates/epic-drc/src/clearance.rs:557` — never the outline-only face); min_stair's total 1 is its own input pre-existing violation; both pair ON goldens re-verified green; bm10's ri=1 dispositioned parity-confirmed-noted (buglog 205 CLOSED — Java's own unchecked split re-landing; no fix without anti-parity) | the REAL-counter manifest face `crates/epic-router/src/pipeline/board_statistics.rs`; `logs/M7-T7/report-t7.md` §1 |
+| 3 — zero regressions, default + constraint-free | **MET** — Tier A 11/11 held row-for-row (10 green / 1 red completion-only; Σ 2133.1 vs 2133.0 re-sums = print rounding; zero detail runs); the constraint-free-invariance rule pinned on the mixed world (`p3_undeclared_net_geometry_identical_on_vs_off`, `pipeline/pairs.rs:815`); canaries `dc271114…`/`cf607714…` UNROTATED all milestone; gate lap 14/14 | `logs/M7-T7/report-t7.md` §2 + §4 |
+| 4 — inherited dispositions (205 / 210 / 201 / the B/C re-faces / 197) | **DISCHARGED AS RECORDED** — 205 CLOSED (parity-confirmed-noted, the T3 crafted split world + chain-complete source read); 210 CLOSED (outcome (i) Rust divergence; the Java-exact drain fix `a7b00639b` + the coordinator-sanctioned two-golden re-capture — the goldens pinned the defect's own bytes); 201 CLOSED (T4's harness touch: `--out`/`--golden` join the repo root); the B/C re-faces reduced to bm10 (ri=1 reproduced flag-independently, 1343.8 = 443.8 + 900.0 reconciled) + 1Bitsy (completion-only red 2>1, kill face NOT reproduced, 520.9 = 220.9 + 300.0); 197 stays OPEN (the successor lever — deterministic candidate parallelism — recorded NOT attempted, owner M8+) | `logs/M7-T7/report-t7.md` §3; the buglog sweep (M7-T8, this task) |
+| 5 — gates green; census additions only; committed artifacts untouched | **MET** — census EXACTLY 1547/0/17; the M7 additions ledger, enumerated: the crafted-world pin sets (T1 four `network.rs` boundary worlds; T3 split world + honoring pins, mutation log 6/6; T4 W1–W8 + F1–F3; T5 M1–M7, mutation log 4/4; T6 P1–P6), the SIX new tuning fixtures (`rust/harness/fixtures/tuning/`), and the TWO new pair goldens — plus the two SANCTIONED t7_ripup re-captures (buglog 210, the milestone's only committed-baseline modifications, justified per the capture rule); seven compares + events 3,520 + canaries unrotated + the det-ON digest pair byte-identical | `logs/M7-T7/report-t7.md` §4 + §1; the T4/T5 sanctioned-capture dossiers |
+
+**Pointer rows into the task dossiers:** the length-constraint
+parity/verification → T1 (`6f6334e51`; AMENDMENT 1's audit ledger); the
+constraint model + the 205 localization → T2 (`0626ff8a2`; AMENDMENT
+2); the split-world disposition + the honoring gate → T3
+(`b7b174859` + `349a192df`; AMENDMENT 3); the meander engine + the
+harness banks (`--extra-router-arg`, buglog 201, the fanout-full-flow
+golden, the Σ-decomposition print) → T4 (`514a4d5e0` + `c9fb800e4` +
+`d87da94b7` + `c1478a31d`; AMENDMENT 4); the match face + the buglog-210
+drain fix → T5 (`d6c7bd859` + `758356366` + `a7b00639b` +
+`595049285`; AMENDMENT 5); the pair face → T6 (`36f4570c2` +
+`bdfd39216` + `7e772fa2c`; AMENDMENT 6); the measurement moment → T7
+(`logs/M7-T7/report-t7.md`, no commits; AMENDMENT 7); the Finding-1
+label correction + the mixer fact (125 `(wire`) ride the design doc §6
+M7 exit note; the close-out (this map, the exit note, the sweep) → T8.

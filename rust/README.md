@@ -14,7 +14,7 @@ clearance counting), the M4 fanout + batch-optimizer stages with the
 assembled full pipeline (`pipeline/full.rs`, the `RoutingPipeline.run()`
 equivalent), the deterministic per-net partitioned executor with
 `--threads`, and `epic-cli` (headless route: `epicrouter -de
-board.dsn -do out.ses`); **1,497 workspace tests green**. M6
+board.dsn -do out.ses`); **1,547 workspace tests green**. M6
 executed on top (the routing-intelligence family, ALL default-OFF —
 at defaults every output stayed byte-identical, canaries unrotated):
 floating-island detection (advisory `pour_islands` manifest face +
@@ -55,7 +55,24 @@ completes < 1510.7 s; the named lever is deterministic candidate
 parallelism (buglog 197), recorded not attempted. The bound does not
 rise — the wall must drop (the rust-check.yml comment records the
 adjudication). Threads-gate CI wiring lands WITH the flip
-(re-deferred with cause: the preconditions failed at M6-T3).
+(re-deferred with cause: the preconditions failed at M6-T3). M7
+executed on top (the tuning family, INPUT-DRIVEN — a DSN
+`(circuit (length …))` declaration activates; constraint-free input
+routes byte-identically at defaults, canaries unrotated): the
+length-constraint model + min-length honoring gate (`epic-board`
+`net_class_length_bounds` / `min_length_gate_allows`), clearance-aware
+meander insertion (`epic-router/src/pipeline/tuning.rs`), class-
+constraint length matching (match-to-target with meander budget), and
+differential pairs (`pipeline/pairs.rs`, declared via
+`router.tuning.pairs` — the KiCad DSN export declares none). The
+tuning population is the six committed fixtures under
+`harness/fixtures/tuning/` (+ the two pair goldens), measured DRC-clean
+at the REAL counter (ri=0 on all six, T7); Tier A held 11/11
+row-for-row (10 green / 1 red completion-only); census 1,547/0/17,
+additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
+the T7 this-run pair 1800.1 s kill / 333.0 s strip / 1467.0 s bound).
+Status: **M7 CLOSED-PENDING-ADJUDICATION** — design §6 M7 exit note,
+`logs/M7-T7/report-t7.md`, the M7 criterion map in SEAM.md.
 Port ledger: `crates/epic-router/SEAM.md`.
 
 ## Layout
@@ -219,7 +236,7 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # CI posture (M4-T13, refreshed at M5-T9, re-refreshed at M6-T4 to the
 # M6-T3 hold): --report-only prints every verdict and exits 0. The
 # battery is now TIER-AWARE (`--tier A|B|C`, default A byte-identical —
-# the T3 chore commit 62c417a38) and the workspace census is 1,497
+# the T3 chore commit 62c417a38) and the workspace census is 1,547
 # passed / 0 failed / 17 ignored. The flip stays HELD after M6-T3 —
 # both preconditions fail: the Tier A battery verdict face is 10 green
 # / 1 red (bm01's 1800.2 s INTEGRITY-gate tier kill — routing complete
