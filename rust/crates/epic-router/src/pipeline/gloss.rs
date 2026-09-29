@@ -300,7 +300,11 @@
 //! drop, OR a strictly smaller total arm length, OR a strictly
 //! smaller total corner count (a via already in-line with no pour
 //! does not move; the nearest acceptable candidate alone never moves
-//! a via). Landing writes
+//! a via). The sweep is an ORDER-DEPENDENT SINGLE-PASS improver, not
+//! a fixed point: a landing never re-examines an earlier-attempted
+//! via; each attempt simply re-reads its arms from the current
+//! polylines at attempt time (the safety face — pinned by V11's
+//! no-restart world). Landing writes
 //! `Board::set_via_center` (board.rs:1068 — the RAW center write, the
 //! caller owns the acceptance face) inside the tree remove /
 //! `clear_derived_data` / re-insert sequence (the `drill_move_by`
@@ -1972,6 +1976,10 @@ fn via_place_attempt(
     }
     // The RANK: return-path drop DESC, total arm length ASC, then the
     // enumeration order (dx, dy ASC — the enumeration order's key).
+    // FLOAT NOTE: with diagonal arms the f64 totals carry √2 factors —
+    // exactly-equal exact-math totals can compare float-distinct and
+    // near-ties float-equal; `total_cmp` then decides by float bits,
+    // deterministically.
     candidates.sort_by(|a, b| {
         b.ret_drop
             .total_cmp(&a.ret_drop)
@@ -2171,7 +2179,14 @@ fn via_candidate_accepts(
         return false;
     }
     // The degenerate-arm guard: an arm of length zero (the candidate
-    // ON a far anchor) is not a landing.
+    // ON a far anchor) is not a landing. DEFENSE-IN-DEPTH, provably
+    // redundant for integer inputs: the angle gate above already
+    // rejects a zero arm (via_displacement_ok answers false for
+    // (0,0), and arm_length <= 0.0 holds iff far == new_center iff
+    // the displacement is (0,0)) — the guard can never be the
+    // decisive rejector; the far-anchor observable is pinned by V11's
+    // anchor-coincident candidate (enumerated, probed, rejected
+    // upstream).
     if arms
         .iter()
         .any(|arm| arm_length(&arm.far, new_center) <= 0.0)
@@ -4295,7 +4310,8 @@ mod tests {
     /// totals: P_win = (200_000,260_000) (disp (0,60_000), total
     /// √2·60_000 + 60_000 ≈ 144_853) and P_short-displacement =
     /// (170_000,170_000) (disp (−30_000,−30_000), total √2·30_000 +
-    /// √2·150_000 ≈ 254_558). The rank's arm_total arm alone decides:
+    /// √2·90_000 = √2·120_000 ≈ 169_706). The rank's arm_total arm
+    /// alone decides:
     /// P_win lands — the ENUMERATION order would take (170_000,
     /// 170_000) first (Chebyshev 30_000 < 60_000), which is exactly
     /// what the rank-swap mutant produces, so the mutant dies on this
@@ -4395,7 +4411,179 @@ mod tests {
         assert_eq!(via_count(&board), 1, "via count invariant");
     }
 
-    /// A minimal arm frame for the alignment-family pins (no board).
+    /// **V11 (the TWO-VIA world: corner-arm sole trigger + the
+    /// no-restart sweep + the far-anchor observable, quality r1 F-3).**
+    /// One CONNECTED net "sig", two vias, sweep order id 5 then id 6:
+    /// - via A (id 5) at (200_000,200_000): arm 1 F.Cu straight
+    ///   (140_000,200_000)->(200_000,200_000); arm 2 B.Cu staircase
+    ///   (200_000,200_000)->(260_000,200_000)->(260_000,260_000).
+    ///   Current total 60_000+120_000 = 180_000, corners 2+3 = 5. A's
+    ///   only angle-passing candidate is (260_000,200_000) (disp
+    ///   (60_000,0)): new total 120_000+60_000 = 180_000 - EQUAL (the
+    ///   arm-total arm does NOT fire), ret_drop 0 (pour-free), corners
+    ///   4 < 5 - the CORNER-COUNT arm is the SOLE improvement trigger.
+    ///   (The anchor-coincident candidate (140_000,200_000) ranks
+    ///   FIRST (total |(120_000,60_000)| ~ 134_164 < 180_000) and is
+    ///   probed first - and rejected at the zero-arm angle gate;
+    ///   via_displacement_ok answers false for (0,0), so the
+    ///   degenerate-arm guard behind it is defense-in-depth, redundant
+    ///   for integer inputs by that ordering - see the guard comment.)
+    ///   A lands at (260_000,200_000), length-neutral.
+    /// - via B (id 6) at (260_000,150_000): arm 1 F.Cu
+    ///   (140_000,200_000)->(140_000,150_000)->(260_000,150_000) (its
+    ///   (140_000,200_000) endpoint is arm 1's far anchor - the world
+    ///   is ONE connected component, so the incompletes gate holds);
+    ///   arm 2 B.Cu (260_000,260_000)->(320_000,260_000)->(320_000,
+    ///   150_000)->(260_000,150_000) (its (260_000,260_000) endpoint is
+    ///   arm 2's far anchor). B's ONLY angle-passing candidate is the
+    ///   SAME position A just landed on - (260_000,200_000) (disp
+    ///   (0,50_000); new total 120_000+60_000 = 180_000 vs current
+    ///   170_000+230_000 = 400_000 - the arm arm fires). A's landed VIA
+    ///   PAD now occupies that point, so B's drill check (copper
+    ///   sharing off - an overlapping via is an obstacle) REJECTS it:
+    ///   B records the honest landed:false with to == from. That is
+    ///   the observable SINGLE-PASS/NO-RESTART semantics: B is
+    ///   attempted AFTER A, reads the post-A board, and its outcome
+    ///   depends on A's landing.
+    #[test]
+    fn v11_two_via_world_sweep_order_and_corner_arm() {
+        let mut ses = base_ses();
+        ses.padstacks.push(via_padstack());
+        register_nets(&mut ses, &[("sig", false)]);
+        // via A's arms.
+        straight_trace(
+            &mut ses,
+            3,
+            1,
+            vec![
+                IntPoint::new(140_000, 200_000),
+                IntPoint::new(200_000, 200_000),
+            ],
+        );
+        ses.push_routed_item(ItemIr::Trace {
+            id: 4,
+            trace: TraceIr {
+                layer_no: 1,
+                half_width: 2000,
+                corners: vec![
+                    IntPoint::new(200_000, 200_000),
+                    IntPoint::new(260_000, 200_000),
+                    IntPoint::new(260_000, 260_000),
+                ],
+                polyline: TraceIr::polyline_of_corners(&[
+                    IntPoint::new(200_000, 200_000),
+                    IntPoint::new(260_000, 200_000),
+                    IntPoint::new(260_000, 260_000),
+                ]),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        });
+        ses.push_routed_item(ItemIr::Via {
+            id: 5,
+            via: ViaIr {
+                padstack_no: 1,
+                location: IntPoint::new(200_000, 200_000),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: DsnFixedStateIr::Unfixed,
+                attach_smd_allowed: false,
+            },
+        });
+        // via B's arms - the shared endpoints (arm 1's far anchor
+        // (140_000,200_000) with via A's arm 1; arm 2's far anchor
+        // (260_000,260_000) with via A's arm 2) keep the net ONE
+        // connected component, so the incompletes gate holds.
+        ses.push_routed_item(ItemIr::Trace {
+            id: 7,
+            trace: TraceIr {
+                layer_no: 0,
+                half_width: 2000,
+                corners: vec![
+                    IntPoint::new(140_000, 200_000),
+                    IntPoint::new(140_000, 150_000),
+                    IntPoint::new(260_000, 150_000),
+                ],
+                polyline: TraceIr::polyline_of_corners(&[
+                    IntPoint::new(140_000, 200_000),
+                    IntPoint::new(140_000, 150_000),
+                    IntPoint::new(260_000, 150_000),
+                ]),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        });
+        ses.push_routed_item(ItemIr::Trace {
+            id: 8,
+            trace: TraceIr {
+                layer_no: 1,
+                half_width: 2000,
+                corners: vec![
+                    IntPoint::new(260_000, 260_000),
+                    IntPoint::new(320_000, 260_000),
+                    IntPoint::new(320_000, 150_000),
+                    IntPoint::new(260_000, 150_000),
+                ],
+                polyline: TraceIr::polyline_of_corners(&[
+                    IntPoint::new(260_000, 260_000),
+                    IntPoint::new(320_000, 260_000),
+                    IntPoint::new(320_000, 150_000),
+                    IntPoint::new(260_000, 150_000),
+                ]),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: FixedStateIr::Unfixed,
+            },
+        });
+        ses.push_routed_item(ItemIr::Via {
+            id: 6,
+            via: ViaIr {
+                padstack_no: 1,
+                location: IntPoint::new(260_000, 150_000),
+                nets: vec![1],
+                clearance_class: 1,
+                fixed: DsnFixedStateIr::Unfixed,
+                attach_smd_allowed: false,
+            },
+        });
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let report = run_gloss_via_place_stage(&mut manager, &mut board);
+        assert!(!report.gated, "the connected world is ungated");
+        assert_eq!(report.rows.len(), 2, "both vias attempted, one row each");
+        // Row 1 = via A (id 5): the corner-count arm is the SOLE
+        // improvement (ret_drop 0, new total == current total), and the
+        // landing is length-neutral.
+        assert_eq!(report.rows[0].via_id, 5, "id-ascending sweep order");
+        assert!(report.rows[0].landed, "A's corners-sole candidate lands");
+        assert_eq!(
+            (report.rows[0].from_x, report.rows[0].from_y),
+            (200_000, 200_000)
+        );
+        assert_eq!(
+            (report.rows[0].to_x, report.rows[0].to_y),
+            (260_000, 200_000),
+            "A lands on the corner-arm alone (equal totals)"
+        );
+        // Row 2 = via B (id 6): its sole candidate is A's landing spot;
+        // the post-A board rejects it (the drill check vs A's pad) -
+        // the honest landed:false, and the no-restart observable.
+        assert_eq!(report.rows[1].via_id, 6, "id-ascending sweep order");
+        assert!(
+            !report.rows[1].landed,
+            "B's sole candidate is occupied by A's landed pad"
+        );
+        assert_eq!(
+            (report.rows[1].to_x, report.rows[1].to_y),
+            (260_000, 150_000),
+            "B's row records to == from (the honest stop)"
+        );
+        assert_eq!(via_count(&board), 2, "via count invariant");
+    }
+
     fn via_arm(trace_id: u32, far: IntPoint, layer: i32) -> ViaArm {
         ViaArm {
             trace_id: ItemId::new(trace_id),
