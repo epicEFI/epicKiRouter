@@ -1292,7 +1292,7 @@ impl<'a> BatchOptimizerStage<'a> {
             let mut partitions: Vec<Vec<(usize, ItemId)>> =
                 (0..partition_count).map(|_| Vec::new()).collect();
             for (idx, &item_id) in candidate_item_ids.iter().enumerate() {
-                let p = usize::try_from(item_id.get()).unwrap_or(0) % partition_count;
+                let p = optimizer_partition_of(item_id, partition_count);
                 partitions[p].push((idx, item_id));
             }
             let trace_enabled = sink.is_trace_enabled();
@@ -1309,11 +1309,13 @@ impl<'a> BatchOptimizerStage<'a> {
             let base_board: &Board = self.board;
             let mut result_rxs = Vec::with_capacity(partition_count);
             // Per-partition fold results: each worker keeps only ITS
-            // argmin board (one `BatchSettings`-free deep copy in
-            // residency at a time beyond the current candidate), so the
-            // coordinator never holds more than `partition_count`
-            // candidate boards — the global winner is always one of
-            // them (the §2 grouping-invariance argument).
+            // argmin board alongside the current candidate's clone —
+            // ~2N+1 boards in flight (each worker: 1 current clone + 1
+            // running partition-argmin; the coordinator drains ≤N
+            // partition-best boards after the scope joins), and the
+            // global winner is always one of them (the §2
+            // grouping-invariance argument). The §3 cap arithmetic
+            // stays valid: the bm01 N=4 run peaked at 467.4 MiB.
             let mut partition_best_rxs = Vec::with_capacity(partition_count);
             std::thread::scope(|scope| {
                 let mut handles = Vec::with_capacity(partition_count);
@@ -1459,7 +1461,7 @@ impl<'a> BatchOptimizerStage<'a> {
                 }
             }
             if let Some((result, item_id)) = winning_id {
-                let p = usize::try_from(item_id.get()).unwrap_or(0) % partition_count;
+                let p = optimizer_partition_of(item_id, partition_count);
                 let board = partition_boards[p].take().expect(
                     "the pass winner is its partition's argmin (the grouping-invariance \
                      argument, logs/M8-T7/investigation.md §2)",
@@ -1583,6 +1585,15 @@ fn candidate_settings_for(
 /// `BatchOptimizerStage::deadline_passed` body).
 fn deadline_passed_at(deadline_ms: Option<i64>) -> bool {
     deadline_ms.is_some_and(|deadline| now_millis() >= deadline)
+}
+
+/// The candidate→partition assignment (the charter's FIXED key,
+/// `item_id mod n`): a pure function of `(item_id, n)`, used at BOTH
+/// executor sites (the partition build and the winner-board lookup) so
+/// the shipped key has ONE form — the invariance contract holds under
+/// any fixed key, but this exact one is what the fixed-key pin guards.
+fn optimizer_partition_of(item_id: ItemId, n: usize) -> usize {
+    usize::try_from(item_id.get()).unwrap_or(0) % n
 }
 
 /// Java `optRouteItemOnBoard` (`:842-925`): rip the connection
@@ -3105,10 +3116,12 @@ mod tests {
     // M8-T7: the deterministic partitioned candidate executor
     // -----------------------------------------------------------------------
 
-    /// Compile-time feasibility assertion: the partitioned executor
-    /// shares the base board across workers (read-only) and hands the
-    /// adopted winner board back to the coordinator, so `Board` must
-    /// be `Send + Sync`.
+    /// The TEST-TIME feasibility assertion (a `#[test]` fn with trait
+    /// bounds — it compiles when the test target builds, not a
+    /// compile-time `const` check): the partitioned executor shares the
+    /// base board across workers (read-only) and hands the adopted
+    /// winner board back to the coordinator, so `Board` must be
+    /// `Send + Sync`.
     #[test]
     fn t7_board_is_send_and_sync() {
         fn assert_send<T: Send>() {}
@@ -3268,13 +3281,15 @@ mod tests {
     }
 
     /// The candidate→partition assignment (the charter's FIXED key,
-    /// `item_id mod n`): a pure function of `(item_id, n)`, and the
-    /// three candidates of the pin world split DIFFERENTLY at n=2 vs
-    /// n=3 — the per-worker evaluation order changes with n while the
-    /// reduction order (candidate walk order) does not.
+    /// `item_id mod n`), pinned at the PRODUCTION fn
+    /// ([`optimizer_partition_of`]) used at both executor sites: a pure
+    /// function of `(item_id, n)`, and the three candidates of the pin
+    /// world split DIFFERENTLY at n=2 vs n=3 — the per-worker evaluation
+    /// order changes with n while the reduction order (candidate walk
+    /// order) does not.
     #[test]
     fn t7_partition_assignment_is_fixed_key() {
-        let assignment = |id: u32, n: usize| (id as usize) % n;
+        let assignment = |id: u32, n: usize| optimizer_partition_of(ItemId::new(id), n);
         // n=3: 123→0, 152→2, 132→0 (two workers busy, distinct from
         // walk order pairing).
         assert_eq!(assignment(123, 3), 0);
