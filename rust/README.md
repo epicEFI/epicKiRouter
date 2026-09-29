@@ -71,7 +71,7 @@ at the REAL counter (ri=0 on all six, T7); Tier A held 11/11
 row-for-row (10 green / 1 red completion-only); census 1,547/0/17,
 additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
 the T7 this-run pair 1800.1 s kill / 333.0 s strip / 1467.0 s bound).
-Status: **M7 CLOSED-PENDING-ADJUDICATION** — design §6 M7 exit note,
+Status: **M7_EXIT_WITH_DEVIATIONS** — design §6 M7 exit note,
 `logs/M7-T7/report-t7.md`, the M7 criterion map in SEAM.md.
 Port ledger: `crates/epic-router/SEAM.md`.
 

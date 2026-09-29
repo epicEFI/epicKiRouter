@@ -127,3 +127,32 @@
 - **The Task 1 §4 sanity-band failure is RESOLVED AS CORPUS-DEFINITIONAL** (ground_truth.json's KiCad-native via/length faces ≠ DSN wiring faces — 1Bitsy 5.943 vs 8.74) and is binding on Task 2: the BEFORE table baselines against the committed reference goldens; `ground_truth.json` is a context row, never the baseline.
 - Task 2 dispatch facts: per-board epic-cli battery at DEFAULT settings with `--result-json` + `--dump-aesthetics`, sequential, 1800 s per-board cap inside the memory-capped scope, kill-face discipline per the M6-T10 pattern; the seven-compare formality lap with `exit=` terminators (the F1 lesson).
 - Residual bank (named): the bends ±1.0° band edge is f64-unstable at line-intersection rounding scale — worlds carry 0.2° margins; the exact-edge `<` vs `<=` face is unpinned.
+
+## AMENDMENT 2 — Task 2 outcome banked: the BEFORE record + criterion-1 direction predicates + the order stands (coordinator, 2026-09-29)
+
+- [x] **Task 2 COMPLETE — zero commits (measurement task by charter; this amendment is the task's commit).** Review cycle: spec r1 **SPEC_COMPLIANT_WITH_MINORS** (`logs/M8-T2/spec-review-t2-1.md`); quality r1 **APPROVED_WITH_MINORS** (`logs/M8-T2/quality-review-t2-1.md`); both verified at source. Report errata fixed in place (pmtoy gt_via 7→47, bms gt_len→1623.1 — §1 now byte-identical to the machine file; "not clean" count corrected 5→7 of 20). 20/21 completed, 1 kill (LMS6002-Pmod `kill@1800s`, optimizer non-termination after router score 1000.00 at pass #5 — **pinned as its permanent row in T8's AFTER table** so denominators match). Walls: min 0 / median 8 / max 1800 / Σ 3291 s = 54.9 min → no T8 shrink. Gate lap 7/7 on expected faces. The full report/evidence live in git-ignored `logs/M8-T2/`; the binding numbers are transcribed here.
+
+**THE BEFORE RECORD (n=20, completed-only; baseline = the committed reference goldens, ground_truth.json demoted to context — the T1 corpus-definitional resolution):**
+
+| metric | BEFORE (default) | GT mean | signed direction | side |
+|---|---|---|---|---|
+| mean_length_excess | 0.1807 | 0.2093 | default BELOW GT (shorter) | **overshoot** |
+| via_density | 1.5891 | 3.1643 | default UNDER GT (≈half the vias) | deficit |
+| bend_to_length_ratio | 17.8165 | 15.1677 | default ABOVE GT (+17.5% bendier) | deficit |
+| parallelism_ratio | 0.9388 (exact 0.93875) | 0.9054 | default ABOVE GT (more parallel) | **overshoot** |
+
+Not-clean face: 7 of 20 (arf154 inc=1/cv=2, bms inc=2/cv=1, newer-motor cv=4, nanoTracer cv=4, Hardware_Playground cv=1, epapercard inc=20, eeg inc=25; `cv_router_intro=0` everywhere) — criterion 2's per-board gates read over these.
+
+**Criterion 1 AMENDED — per-metric regression predicates (the T8 judgment table's law; base = gap-of-means; ε = 0.0005, equality satisfies; every predicate extends to intermediate committed measurements):**
+
+- **Deficit-side metrics keep the two-sided shrinkage letter.** `via_density`: `|AFTER − 3.1643| < 2.4752` — any rise toward GT passes (delivered by T3/T4 denominator shrink; T5's count guard keeps it monotone up); full closure is NOT achievable in-family and the routing-stage via-cost lever is a NAMED M9+ CARRY-FORWARD (outside the gloss family). `bend_to_length_ratio`: `|AFTER − 15.1677| < 2.6488` — any monotone decrease below BEFORE satisfies; intermediates: bend never increases (`AFTER ≤ BEFORE + ε`).
+- **Overshoot-side metrics are direction-gated only** (the GT-anchored formula is pre-rigged — no honest T3/T4 outcome can pass it; spec r1 F3): `mean_length_excess` regression iff `AFTER > 0.1807 + ε` (further shortening is improvement, never regression); `parallelism_ratio` regression iff `AFTER < 0.9388 − ε` (further parallelism toward 1.0 is improvement, never regression).
+- The saturation/clamp form `r(m)=max(0, s·(m−GT))` was considered and REJECTED (it clamps gains and lets gained ground be surrendered silently — parallelism 0.9388→0.908 would not trip).
+
+**Task order: T3 → T4 → T5 → T6 — the PLAN ORDER STANDS.** The implementer's T5-first re-order is REJECTED (spec r1 F2, verified: via relocation cannot add vias — Task 5's "Via COUNT never increases" guard — nor move the six density-0 boards; the pass-to-metric mapping fails). Flow-after-spread governs the ALL-ON composition (quality r1 Q4a): per-pass ablations are order-insensitive by construction; spread/hug relocations create jogs/corners only the flow pass cleans, so T4 must follow T3 or spread-induced jags stay in the judged AFTER geometry.
+
+**Task 5 RE-CHARTERED (F2):** success evidence = return-path continuity + via-on-bend alignment (a modest bend lever) — **NOT via_density**; the count-never-increases guard and the no-via-board invariance world stay. **Task 6 unchanged** (last; pre-admitted decline path; no metric in the measurer scores teardrops — evidence, if implemented, comes from outside the four metrics).
+
+**Banks to T8's charter:** (a) judgment-table base = gap-of-means (spec F4); (b) per-face work roots `work/<face>/<board>/` + `rm -f` of stale outputs pre-run (quality Finding 2 — a stale BEFORE sidecar would silently mask a T8 kill); (c) build-table.py hardening — strict metric-key presence (a partial sidecar fails loudly or is a named exclusion, never a silent n−1 mean), kill-vs-partial distinction, per-metric denominator echo (Finding 1); (d) LMS6002 kill row pinned; (e) `timeout -k` + per-board heartbeat on battery runs; (f) the 7-of-20 not-clean face above. **Banks to T3:** the pairs.rs `:48-50` swap fix (planned), the T1 window-constant tie (`AESTHETICS_PARALLELISM_WINDOW_DBU` ↔ `COUPLING_WINDOW_DBU`, one named constant), and the amended-criterion note: a parallelism RISE from hug/spread is improvement, not a finding.
+
+**M8-opening chore landed early:** `rust/README.md:74` M7 status flipped CLOSED-PENDING-ADJUDICATION → M7_EXIT_WITH_DEVIATIONS (rides this docs commit).
