@@ -1534,6 +1534,23 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             eprintln!("Error: cannot write manifest {result_json}: {error}");
         }
     }
+    if let Some(aesthetics_path) = &args.dump_aesthetics {
+        // The M8-T1 sidecar door: the four aesthetics metrics over the
+        // FINAL board, written at manifest-write time. ROTATION TRAP:
+        // the metrics land in THIS sidecar file, NEVER into the
+        // manifest — the manifest bytes are pinned by the canary
+        // golden (cf607714…), and a new always-on manifest key would
+        // rotate every manifest golden on every board. The same
+        // log-only face as the manifest write: an unwritable sidecar
+        // path never flips the SES-derived exit code. Byte-stable for
+        // a fixed run (fixed key order, 3-decimal rounding at the
+        // render edge only).
+        let metrics = epic_board::aesthetics::aesthetics_metrics(&board, board.rules());
+        let json = epic_board::aesthetics::render_json(&metrics);
+        if let Err(error) = std::fs::write(aesthetics_path, json) {
+            eprintln!("Error: cannot write aesthetics sidecar {aesthetics_path}: {error}");
+        }
+    }
     Ok(exit_code)
 }
 

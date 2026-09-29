@@ -58,6 +58,7 @@ mod router_compare;
 // batch driver, compared kind-ordinally field-by-field (java-free CI
 // compare; the golden carries the settings witness the Rust world builds
 // from).
+mod aesthetics_face;
 mod route_events;
 // SES emission-parity goldens + canonical compare (M1b Task 13 B3/B4).
 mod ses_compare;
@@ -166,6 +167,15 @@ enum Command {
         #[arg(long)]
         dsn: PathBuf,
     },
+    /// The M8-T1 aesthetics reference face (java-free): parse the DSN
+    /// through the drc_corpus parse path and print the four-metric
+    /// JSON (the golden bytes). Never a gate; the golden producer and
+    /// the fixture-evidence instrument for the aesthetics population.
+    Aesthetics {
+        /// The DSN file to measure (a reference-routed board).
+        #[arg(long)]
+        dsn: PathBuf,
+    },
     /// The M6-T7 settings-ON golden face (java-free): capture/verify
     /// the `router.congestion_global=on` route of a crafted fixture
     /// (determinism self-gate + digest comparison against the
@@ -219,6 +229,12 @@ fn run() -> Result<()> {
     }
     if let Command::Islands { dsn } = cli.command {
         return islands_face::run(&dsn);
+    }
+    if let Command::Aesthetics { dsn } = cli.command {
+        // The M8-T1 reference door: java-free, parse-only, no tier
+        // file or JVM resolution needed.
+        aesthetics_face::run(&dsn)?;
+        return Ok(());
     }
     if let Command::GlobalGolden { cmd } = cli.command {
         // The M6-T7 settings-ON golden face: java-free, resolves
@@ -278,7 +294,10 @@ fn run() -> Result<()> {
         Command::Events { .. } => unreachable!("handled before tier/JVM resolution"),
         #[cfg(feature = "alloc-profile")]
         Command::AllocRoute { .. } => unreachable!("handled before tier/JVM resolution"),
-        Command::Islands { .. } => unreachable!("handled before tier/JVM resolution"),
+        Command::Islands { .. } | Command::Aesthetics { .. } => {
+            unreachable!("handled before tier/JVM resolution")
+        }
+
         Command::List => {
             let missing = list_tiers(&tier_file, &fixtures_root);
             if missing.is_empty() {

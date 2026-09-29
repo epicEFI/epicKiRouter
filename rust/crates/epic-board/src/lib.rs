@@ -33,6 +33,7 @@
 //! `splitInsideDrillPadProhibited`) and `normalize` (depth cap 16),
 //! jar-pinned by `rust/harness/oracle/SplitSpike.java`.
 
+pub mod aesthetics;
 pub mod board;
 pub mod changed_area;
 pub mod components;

@@ -9,6 +9,7 @@ rust-version.workspace = true
 epic-dsn = { path = "../epic-dsn" }
 epic-geometry = { path = "../epic-geometry" }
 epic-index = { path = "../epic-index" }
+serde_json = "1"
 sha2 = "0.10"
 
 [lints]

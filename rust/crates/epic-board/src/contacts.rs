@@ -1011,7 +1011,13 @@ mod tests {
         let contacts = end_contacts(&manager, &mut board, y);
         assert_eq!(raw(&contacts), vec![840]);
         assert_eq!(typed(&board, &contacts), vec![(840, BoardItemType::Pin)]);
-        assert_eq!(raw(&start_contacts(&manager, &mut board, x)), vec![]);
+        // `Vec::<u32>::new()` (not `vec![]`): serde_json in the dep
+        // tree adds `PartialEq<Value> for u32`, which alone makes the
+        // empty `vec![]` element type ambiguous to inference.
+        assert_eq!(
+            raw(&start_contacts(&manager, &mut board, x)),
+            Vec::<u32>::new()
+        );
         assert_eq!(raw(&end_contacts(&manager, &mut board, x)), vec![1384]);
 
         // The corner guard at X's own mid corner: empty despite the

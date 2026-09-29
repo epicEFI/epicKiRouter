@@ -279,6 +279,11 @@ pub struct ParsedRouteArgs {
     pub result_json: Option<String>,
     /// `--deterministic-budgets=on|off` (default ON — anchors §6).
     pub deterministic_budgets: Option<bool>,
+    /// `--dump-aesthetics <path>` / `--dump-aesthetics=<path>` — the
+    /// M8-T1 sidecar door: the four aesthetics metrics land in THIS
+    /// file at manifest-write time, never in the manifest (the
+    /// rotation trap named at the write site).
+    pub dump_aesthetics: Option<String>,
     /// The parsed router-settings layer (warnings included).
     pub layer: CliLayer,
 }
@@ -318,6 +323,7 @@ pub fn parse_route_args(args: &[String]) -> Result<ParsedRouteArgs, String> {
                 }
                 match property {
                     "result-json" => parsed.result_json = Some(value.to_string()),
+                    "dump-aesthetics" => parsed.dump_aesthetics = Some(value.to_string()),
                     "deterministic-budgets" => {
                         parsed.deterministic_budgets =
                             Some(parse_on_off(value).ok_or_else(|| {
@@ -339,6 +345,13 @@ pub fn parse_route_args(args: &[String]) -> Result<ParsedRouteArgs, String> {
                 let (value, consumed) = next_value(args, i);
                 i += consumed;
                 parsed.result_json = Some(value.to_string());
+            } else if rest == "dump-aesthetics" {
+                // CLI-owned space form: `--dump-aesthetics <path>` —
+                // the M8-T1 sidecar door (never a `router.*` setting:
+                // it adds NO settings-family field, the T1 invariant).
+                let (value, consumed) = next_value(args, i);
+                i += consumed;
+                parsed.dump_aesthetics = Some(value.to_string());
             }
         } else if let Some(flag) = arg.strip_prefix('-') {
             // The `-flag value` form: the value is the next arg IFF it
@@ -383,6 +396,9 @@ pub fn parse_route_args(args: &[String]) -> Result<ParsedRouteArgs, String> {
                 }
                 "result-json" => {
                     parsed.result_json = Some(value);
+                }
+                "dump-aesthetics" => {
+                    parsed.dump_aesthetics = Some(value);
                 }
                 "oit" => {
                     // The deprecation warn fires EVEN when the flag then
