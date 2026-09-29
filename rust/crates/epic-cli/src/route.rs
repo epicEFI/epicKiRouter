@@ -1603,6 +1603,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         // sibling key from day one (the T3 fix-round lesson — no
         // gated-face conflation).
         if !flow_report.is_empty() {
+            // Row locator contract (quality-r1 NIT; documented on
+            // `FlowCandidateRow`): corner_x/corner_y = the stub's
+            // FIRST corner — stable under the landing (which removes
+            // a corner after it).
             let rows: Vec<serde_json::Value> = flow_report
                 .rows
                 .iter()

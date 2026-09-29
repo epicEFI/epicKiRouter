@@ -192,7 +192,11 @@
 //! short-circuits with `gated = true`, and epic-cli emits the
 //! DISTINCT sibling key `gloss_flow_gated` in the sidecar (the T3
 //! fix-round lesson: never conflate a gated hold with a group-free
-//! board — the distinct marker exists from day one here).
+//! board — the distinct marker exists from day one here); and (3) the
+//! ROUTED-NET filter — plane nets (`contains_plane`) are NEVER flow
+//! targets, the bus-stage/D5 precedent and the Issue 093/152
+//! plane-clearance precaution (plane-routing mode is outside the
+//! gloss family's scope — pinned at F13).
 //!
 //! **F3 DECISION — 45°-diagonal parallel bus grouping: DECLINED.**
 //! `detect_bus_groups` stays axis-aligned-only. Rationale (the M7
@@ -1086,8 +1090,9 @@ fn flow_axis_seg(a: &IntPoint, b: &IntPoint) -> Option<FlowAxisSeg> {
 
 /// The site verdict of one corner-window attempt.
 enum SiteVerdict {
-    /// The candidate landed (the geometry was written).
-    Landed,
+    /// The candidate landed (the geometry was written); `window` is
+    /// the landing's corner-window index for the resume scan.
+    Landed { window: usize },
     /// A face passed its threshold but the candidate was rejected
     /// (angle/guards/clearance) — the honest row.
     Rejected,
@@ -1095,10 +1100,23 @@ enum SiteVerdict {
     None,
 }
 
-/// The per-trace flow pass: corner-window scan with restart-on-
+/// The per-trace flow pass: corner-window scan with RESUME-on-
 /// acceptance (every landing shrinks the corner list by one, so the
 /// scan terminates). `rows` — every RECORDED attempt (landed or
 /// honest-stop) is pushed in scan order.
+///
+/// RESUME SAFETY (quality-r1 Q1a): a landing at window `j` changes
+/// only corners `[j, j+2]` (the drop removes one of `j+1`/`j+2`, the
+/// bridge replaces `j+2`); a window starting at `k` reads corners
+/// `k..=k+3`, so NO window with `k < j - 3` can see a changed corner —
+/// the scan resumes at `j.saturating_sub(3)` instead of restarting at
+/// 0, which provably changes no verdict while eliminating (a) the
+/// O(C) re-probes of unchanged rejected windows per landing (the
+/// latent O(C^3) face) and (b) their DUPLICATE `landed: false` rows
+/// (the sidecar-honesty face: a rejected window's row is recorded
+/// EXACTLY once, at its first encounter — no duplicate rows can reach
+/// the sidecar; the committed flow goldens carry none, which is why
+/// they re-derive byte-identically across this refactor).
 fn flow_trace_pass(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -1106,24 +1124,29 @@ fn flow_trace_pass(
     trace_id: ItemId,
     rows: &mut Vec<FlowCandidateRow>,
 ) {
+    // The loop-invariant fixed-state gate (quality-r1 NIT hoist): a
+    // USER_FIXED / SYSTEM_FIXED trace never moves — identical
+    // zero-rows semantics to the in-window gate this replaces (the
+    // window gate returned `None` before any row push).
+    if board
+        .get(trace_id)
+        .is_some_and(|entry| matches!(entry.fixed, FixedState::UserFixed | FixedState::SystemFixed))
+    {
+        return;
+    }
+    let mut resume = 0;
     'restart: loop {
         let Some(lines) = board.trace_polyline(trace_id) else {
             return;
         };
         let corners = lines.corners();
-        let mut index = 0;
+        let mut index = resume;
         while index + 3 < corners.len() {
-            match flow_window(
-                manager,
-                board,
-                net,
-                trace_id,
-                &corners,
-                index,
-                corners.len(),
-                rows,
-            ) {
-                SiteVerdict::Landed => continue 'restart,
+            match flow_window(manager, board, net, trace_id, &corners, index, rows) {
+                SiteVerdict::Landed { window } => {
+                    resume = window.saturating_sub(3);
+                    continue 'restart;
+                }
                 SiteVerdict::Rejected => index += 1,
                 SiteVerdict::None => index += 1,
             }
@@ -1163,9 +1186,9 @@ fn flow_window(
     trace_id: ItemId,
     corners: &[Point],
     index: usize,
-    corner_count: usize,
     rows: &mut Vec<FlowCandidateRow>,
 ) -> SiteVerdict {
+    let corner_count = corners.len();
     let (Some(c0), Some(c1), Some(c2), Some(c3)) = (
         as_int(&corners[index]),
         as_int(&corners[index + 1]),
@@ -1186,6 +1209,9 @@ fn flow_window(
         return SiteVerdict::None;
     }
     let stub = s2.len();
+    // Defense-in-depth only: PROVABLY UNREACHABLE — `flow_axis_seg`
+    // answers `None` for a degenerate (a == b) corner pair, so every
+    // `Some` segment carries a positive length (quality-r1 NIT).
     if stub <= 0 {
         return SiteVerdict::None;
     }
@@ -1194,13 +1220,6 @@ fn flow_window(
     } else {
         FlowKind::Jog
     };
-    // The fixed-state gate once per window (both faces inherit it).
-    if board
-        .get(trace_id)
-        .is_some_and(|entry| matches!(entry.fixed, FixedState::UserFixed | FixedState::SystemFixed))
-    {
-        return SiteVerdict::None;
-    }
     // The JOG face (exact drop): eligible when the stub clears the
     // factor×width threshold. An angle-INEXACT drop forms NO jog
     // candidate (no row — the window simply is not a jog candidate);
@@ -1228,7 +1247,7 @@ fn flow_window(
                 apply_flow_candidate(manager, board, trace_id, net, corners, drop_index, None);
             rows.push(landed_row(board, net, kind, &c1, landed));
             return if landed {
-                SiteVerdict::Landed
+                SiteVerdict::Landed { window: index }
             } else {
                 SiteVerdict::Rejected
             };
@@ -1298,7 +1317,7 @@ fn flow_window(
         );
         rows.push(landed_row(board, net, FlowKind::Miter, &c1, landed));
         return if landed {
-            SiteVerdict::Landed
+            SiteVerdict::Landed { window: index }
         } else {
             SiteVerdict::Rejected
         };
@@ -1405,9 +1424,11 @@ fn apply_flow_candidate(
 /// manufactures 45° geometry; a documented no-op on 90°/any-angle
 /// boards), then the incompletes gate (the T3 precedent — the hold is
 /// marked via `gated`, surfaced as the DISTINCT `gloss_flow_gated`
-/// sidecar key). Emits NO events and NO stage transition (the
-/// meander-stage precedent). An empty report = nothing eligible,
-/// nothing moved.
+/// sidecar key). The sweep covers ROUTED non-plane nets only — a
+/// `contains_plane` net is never a flow target (the bus-stage/D5
+/// precedent, the Issue 093/152 plane-clearance precaution; pinned at
+/// F13). Emits NO events and NO stage transition (the meander-stage
+/// precedent). An empty report = nothing eligible, nothing moved.
 pub fn run_gloss_flow_stage(manager: &mut SearchTreeManager, board: &mut Board) -> GlossFlowReport {
     if board.rules().trace_angle_restriction
         != epic_board::rules_surf::AngleRestriction::FortyfiveDegree
@@ -3050,5 +3071,44 @@ mod tests {
             2,
             "nets 2 and 3 still land"
         );
+    }
+
+    /// **F13 (the plane-net exclusion, quality-r1 MINOR)** — a
+    /// `contains_plane` net carrying a TEXTBOOK staircase (the exact
+    /// geometry that lands in F1's net 1): ZERO rows and unchanged
+    /// final geometry. The bus stage documents AND pins the identical
+    /// filter (D5, the `plane_net2` world helper); before this pin the
+    /// F-series passed with the filter deleted. Mirrors the D5
+    /// `two_net_world` plane-flag scaffolding.
+    #[test]
+    fn f13_plane_net_is_never_a_flow_target() {
+        let mut ses = flow_base_ses();
+        register_nets(&mut ses, &[("flow_a", false), ("plane_net", true)]);
+        // The plane net's staircase: F1 net 1's exact geometry.
+        trace_on(
+            &mut ses,
+            500,
+            2,
+            0,
+            vec![
+                IntPoint::new(20_000, 200_000),
+                IntPoint::new(24_000, 200_000),
+                IntPoint::new(24_000, 204_000),
+                IntPoint::new(28_000, 204_000),
+                IntPoint::new(28_000, 200_000),
+                IntPoint::new(480_000, 200_000),
+            ],
+        );
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let before = net_traces(&board, 2).clone();
+        let report = run_gloss_flow_stage(&mut manager, &mut board);
+        assert!(
+            report.rows.is_empty(),
+            "a plane net is never a flow target: {report:?}"
+        );
+        assert!(!report.gated);
+        assert_eq!(net_traces(&board, 2), before, "geometry untouched");
     }
 }
