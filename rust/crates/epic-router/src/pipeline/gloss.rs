@@ -2281,10 +2281,11 @@ fn land_via_candidate(
 ///
 /// **The junction.** A trace ENDPOINT (either end) EXACTLY at a
 /// same-net pin/via pad center (the endpoint-connected via-place face).
-/// The pad diameter at the trace's layer = `shape_max_width` of the
-/// padstack shape whose layer maps to the trace's layer; when no shape
-/// maps there (a single-shape through-hole padstack maps its one shape
-/// to the first layer only), the max over the padstack's shapes. The
+/// The pad diameter = the MAX `shape_max_width` over ALL the
+/// padstack's shapes (a circle's is 2·radius) — the T6 investigation's
+/// locked consequence 2. A per-trace-LAYER diameter selection is a
+/// KNOWN DEFERRED improvement (never shipped; the AM6 note) — the
+/// pass's only caller uses the max-over-shapes face. The
 /// ANATOMY gate (the named ratio threshold): the trace width must be
 /// strictly less than [`TEARDROP_MAX_TRACE_RATIO_PCT`] percent of the
 /// pad diameter — the exact edge (width == diameter → NO teardrop,
@@ -2368,9 +2369,12 @@ pub const TEARDROP_STEP_DBU: i64 = 4_000;
 /// budgeted-entry pins own the boundary behavior itself. The budget
 /// counts inserted WIRES (`*landings` increments once per graded wire
 /// at the landing loop), so a full taper costs
-/// [`TEARDROP_WIRE_COUNT`] (3) and the effective per-board taper cap
-/// is 1024/3 ≈ 341 — the budgeted-entry pins (0/1) own the
-/// junction-level boundary behavior and are unaffected.
+/// [`TEARDROP_WIRE_COUNT`] (3) and the nominal per-board taper cap is
+/// 1024/3 ≈ 341 — but the budget check is JUNCTION-level, so the cap
+/// is SOFT: a junction admitted at 1023 landings writes its full 3
+/// wires (up to 1026 wires / 342 tapers at budget 1024). The
+/// budgeted-entry pins (0/1) own the junction-level boundary behavior
+/// and are unaffected.
 pub const TEARDROP_BUDGET_PER_BOARD: usize = 1024;
 
 /// The ANATOMY admitter, pinnable in isolation (the DNR-16 exact edge:
@@ -2398,8 +2402,13 @@ pub fn teardrop_axis_ok(dx: i64, dy: i64) -> bool {
 /// The GRADED-WIRE PLAN (pinnable in isolation): for k =
 /// 1..=`wire_count`, the back-offset `min(k·step, seg_len_cheb)` and
 /// the half-width `hw + (r−hw)·k/N` (integer division). The returned
-/// order is k ascending — the landing order. The exact-geometry pins
-/// assert this plan verbatim.
+/// order is k ascending — the landing order. Degenerate plans, both
+/// documented: (a) the CLAMP COLLAPSE — when `seg_len_cheb < N·step`
+/// the inner wires share the clamped back (duplicate backs, still-
+/// graded widths; the same-net overlap is legal and the silhouette is
+/// still tapered); (b) the DUPLICATE-WIDTH plan — when `r − hw < N`
+/// several wires share widths near the base trace. The exact-geometry
+/// pins assert this plan verbatim (incl. the clamp face).
 #[must_use]
 pub fn graded_wire_plan(
     trace_half_width: i64,
@@ -2455,24 +2464,19 @@ impl GlossTeardropsReport {
     }
 }
 
-/// The pad diameter at `layer_no`: `shape_max_width` of the padstack
-/// shape whose drill layer maps to `layer_no`; when NO shape maps
-/// there (a single-shape through-hole padstack maps its one shape to
-/// the first layer only), the max over the padstack's shapes. `None`
-/// for a non-drill item or a shapeless padstack.
-fn pad_diameter_at(board: &mut Board, id: ItemId, layer_no: i32) -> Option<i64> {
+/// The pad diameter: the MAX `shape_max_width` over ALL the
+/// padstack's shapes (a circle's is 2·radius) — the investigation's
+/// locked consequence 2. `None` for a non-drill item or a shapeless
+/// padstack.
+fn pad_diameter_at(board: &mut Board, id: ItemId) -> Option<i64> {
     let count = board.drill_tile_shape_count(id)?;
-    let mut layer_face: Option<i64> = None;
     let mut any_face: Option<i64> = None;
     for index in 0..count {
         let shape = board.drill_shape(id, index)?;
         let width = epic_board::items::shape_max_width(&shape).round() as i64;
         any_face = Some(any_face.map_or(width, |current: i64| current.max(width)));
-        if board.drill_shape_layer(id, index) == Some(layer_no) {
-            layer_face = Some(layer_face.map_or(width, |current: i64| current.max(width)));
-        }
     }
-    layer_face.or(any_face)
+    any_face
 }
 
 /// The stage entry (the pipeline's terminal gloss slot — after
@@ -2506,10 +2510,12 @@ fn run_gloss_teardrops_stage_budgeted(
     }
     let mut report = GlossTeardropsReport::default();
     let mut landings = 0usize;
-    // The junction DEDUP: the first attempt at a pad center wins; a
-    // later trace endpoint at the SAME center (the second wire of a
-    // via-to-via run) skips silently — duplicate stacked tapers are
-    // never built.
+    // The junction DEDUP: one RECORDED row per pad center. A center
+    // is marked done only when an attempt returns `Some(row)` (landed
+    // OR honest probe-stop); a GATE-REJECTED endpoint (anatomy/angle →
+    // `None`, no row) leaves the junction open for a later qualifying
+    // sibling endpoint at the same center. Duplicate stacked tapers
+    // are never built (the td8 pin).
     let mut done: std::collections::BTreeSet<(i32, i32)> = std::collections::BTreeSet::new();
     let max_net = board.rules().nets.max_net_number();
     for net in 1..=max_net {
@@ -2533,7 +2539,7 @@ fn run_gloss_teardrops_stage_budgeted(
             let Some(Point::Int(center)) = board.drill_center(id) else {
                 continue;
             };
-            if let Some(diameter) = pad_diameter_at(board, id, i32::MAX) {
+            if let Some(diameter) = pad_diameter_at(board, id) {
                 pads.insert((center.x, center.y), diameter);
             }
         }
@@ -2580,7 +2586,7 @@ fn run_gloss_teardrops_stage_budgeted(
                 if landings >= budget {
                     break;
                 }
-                if !done.insert((end.x, end.y)) {
+                if done.contains(&(end.x, end.y)) {
                     continue;
                 }
                 if let Some(row) = teardrop_attempt(
@@ -2594,6 +2600,10 @@ fn run_gloss_teardrops_stage_budgeted(
                     diameter,
                     &mut landings,
                 ) {
+                    // Mark the center consumed ONLY on a RECORDED
+                    // attempt (landed or honest probe-stop); a
+                    // gate-rejected endpoint leaves the junction open.
+                    done.insert((end.x, end.y));
                     report.rows.push(row);
                 }
             }
@@ -2690,6 +2700,7 @@ fn teardrop_attempt(
     if !all_clear {
         return Some(row); // the honest stop, recorded
     }
+    let mut inserted = 0usize;
     for &(start, half) in &wires {
         let Some(_landed) = epic_board::trace_ops::insert_trace_without_cleaning(
             manager,
@@ -2703,8 +2714,15 @@ fn teardrop_attempt(
         ) else {
             continue;
         };
+        inserted += 1;
         *landings += 1;
     }
+    // The landing invariant, self-announcing (the two-crate face:
+    // `from_two_corners` yields a 3-line polyline for distinct
+    // corners; `back >= 1` guarantees distinct corners;
+    // `insert_trace_without_cleaning` fails only on <3 lines / closed
+    // traces — so a recorded landing is ALWAYS a full taper).
+    debug_assert_eq!(inserted, wires.len());
     row.landed = true;
     Some(row)
 }
@@ -2716,6 +2734,9 @@ mod tests {
     use epic_dsn::ses_board::{ItemIr, SesBoard};
     use epic_dsn::sink::{ClearanceIr, CreateBoardIr, FixedStateIr, NetClassIr, NetIr, TraceIr};
     use epic_geometry::int_box::IntBox;
+
+    /// A td10 test-local row: (start, end, half_width) of one taper wire.
+    type DiagWire = ((i64, i64), (i64, i64), i32);
 
     // -- the world builders (SesBoard-built, no routing; the
     //    pairs.rs prerouted-world pattern) --------------------------
@@ -5256,8 +5277,8 @@ mod tests {
 "#
         );
         let (manager, board) = parse(&dsn);
-        // The junction via: swap the padstack to the BIG one is already
-        // done in the DSN (`via TVIA ...`).
+        // The via's BIG padstack comes from the DSN's `via TVIA ...`
+        // line — no in-test padstack swap is needed.
         (manager, board)
     }
 
@@ -5486,6 +5507,14 @@ mod tests {
             graded_wire_plan(1_000, 5_000, 100_000, 3, 4_000),
             vec![(4_000, 2_333), (8_000, 3_666), (12_000, 5_000)]
         );
+        // The CLAMP face: `seg_len_cheb < N·step` collapses the inner
+        // wires' backs to the segment length (duplicate backs,
+        // still-graded widths — the same-net overlap is legal, the
+        // silhouette still tapers).
+        assert_eq!(
+            graded_wire_plan(1_000, 5_000, 5_000, 3, 4_000),
+            vec![(4_000, 2_333), (5_000, 3_666), (5_000, 5_000)]
+        );
         // The board face: W == D → the no-teardrop world.
         let (mut manager, mut board) = parse(TD_FLAT_WORLD);
         let traces_before = board
@@ -5624,5 +5653,240 @@ mod tests {
         assert_eq!(rows1, rows2, "rows deterministic");
         assert_eq!(tapers1, tapers2, "geometry deterministic");
         assert_eq!(tapers1.len(), 15, "all five junctions' wires present");
+    }
+
+    /// The SIBLING world (net "sig"): a WIDE trace (width 2000 DSN →
+    /// board W = 20_000) and a NARROW trace (width 200 DSN → board W =
+    /// 2_000) BOTH run from the empty point (5000,5000) to the junction
+    /// via (15000,15000, TVIA: board D = 12_000); the junction's other
+    /// wire continues to pin A1 (25000,15000). Parse order puts the
+    /// WIDE trace at the LOWER id → the sweep attempts it at the via
+    /// FIRST: its anatomy gate fails SILENTLY (W ≥ D, no row) — and
+    /// with the fix-round-2 semantics a gate-rejected endpoint does
+    /// NOT consume the junction, so the NARROW trace's endpoint at the
+    /// same center still lands. A1 (PAD, board D = 10_000) teardrops
+    /// off the narrow trace too.
+    const TD_SIBLING_WORLD: &str = r#"
+(pcb td_sibling_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 600000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 25000 15000 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 1000 0 0))
+      (attach off)
+    )
+    (padstack "TVIA"
+      (shape (circle F.Cu 1200 0 0))
+      (shape (circle B.Cu 1200 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "sig" (pins "A1"-"P"))
+    (class kicad_default "sig" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 2000 5000 5000 15000 15000) (net "sig"))
+    (wire (path F.Cu 200 5000 5000 15000 15000) (net "sig"))
+    (wire (path F.Cu 200 15000 15000 25000 15000) (net "sig"))
+    (via TVIA 15000 15000 (net "sig"))
+  )
+)
+"#;
+
+    /// **TD8 (the dedup consumes the junction only on a RECORDED
+    /// attempt).** Exactly ONE row at the via center (the narrow
+    /// trace's, landed), plus A1's own row — the wide trace's
+    /// gate-rejected endpoints produced NO rows and consumed NOTHING.
+    /// On the pre-fix semantics this pin dies (the wide attempt's
+    /// done.insert would suppress the narrow landing).
+    #[test]
+    fn td8_gate_fail_sibling_lands() {
+        let (mut manager, mut board) = parse(TD_SIBLING_WORLD);
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        assert_eq!(
+            report.rows.len(),
+            2,
+            "the narrow trace's via + A1 rows — the wide trace silent"
+        );
+        assert!(report.rows.iter().all(|row| row.landed));
+        let via_row = report
+            .rows
+            .iter()
+            .find(|row| row.at_x == 150_000 && row.at_y == 150_000)
+            .expect("the via junction row exists");
+        assert!(via_row.landed, "the sibling landing at the shared center");
+        // The teardrop is the NARROW trace's: via taper hw {2666,
+        // 4333, 6000} (r = 6_000), A1 taper hw {2333, 3666, 5000}.
+        let mut widths: Vec<i32> = Vec::new();
+        for entry in board.iter_ascending() {
+            if !matches!(&entry.data, epic_board::items::ItemData::Trace { .. }) {
+                continue;
+            }
+            if !matches!(
+                board.get(entry.id).map(|e| e.fixed),
+                Some(epic_board::items::FixedState::ShoveFixed)
+            ) {
+                continue;
+            }
+            widths.push(board.trace_half_width(entry.id).expect("half width"));
+        }
+        widths.sort();
+        assert_eq!(
+            widths,
+            vec![2_333, 2_666, 3_666, 4_333, 5_000, 6_000],
+            "the narrow trace's two tapers — nothing from the wide one"
+        );
+    }
+
+    /// **TD9 (the angle gate's edge table, pure fn).** The axis faces
+    /// and BOTH directions of the exact-45° edge, plus sign variants:
+    /// (0,0) rejects (the total gate), axis segments accept, exact
+    /// diagonals accept, ONE-OFF diagonals reject in all four
+    /// quadrants.
+    #[test]
+    fn td9_axis_gate_edges() {
+        assert!(!teardrop_axis_ok(0, 0), "(0,0) rejects");
+        assert!(teardrop_axis_ok(10, 0), "axis accepts");
+        assert!(teardrop_axis_ok(0, 10), "axis accepts");
+        assert!(teardrop_axis_ok(7, 7), "exact diagonal accepts");
+        assert!(!teardrop_axis_ok(7, 8), "one-off diagonal rejects (+,+)");
+        assert!(!teardrop_axis_ok(8, 7), "one-off diagonal rejects (+,+)");
+        assert!(teardrop_axis_ok(-7, 7), "exact diagonal accepts (−,+)");
+        assert!(teardrop_axis_ok(7, -7), "exact diagonal accepts (+,−)");
+        assert!(teardrop_axis_ok(-7, -7), "exact diagonal accepts (−,−)");
+        assert!(!teardrop_axis_ok(-7, -8), "one-off diagonal rejects (−,−)");
+    }
+
+    /// The DIAGONAL world (net "sig"): the wire A1 (5000,15000) →
+    /// (9000,19000) is an EXACT 45° end segment (board dx = dy =
+    /// 40_000); it continues horizontally through the junction via at
+    /// (21000,19000) to A2 (45000,19000). A1's taper steps
+    /// Chebyshev-along the DIAGONAL — both axis signs stepped — and
+    /// lands; zero violations after.
+    const TD_DIAGONAL_WORLD: &str = r#"
+(pcb td_diagonal_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 600000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 5000 15000 Front 0.000000))
+    (component "IA" (place "A2" 45000 19000 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 1000 0 0))
+      (attach off)
+    )
+    (padstack "TVIA"
+      (shape (circle F.Cu 1200 0 0))
+      (shape (circle B.Cu 1200 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "sig" (pins "A1"-"P" "A2"-"P"))
+    (class kicad_default "sig" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200 5000 15000 9000 19000) (net "sig"))
+    (wire (path F.Cu 200 9000 19000 21000 19000) (net "sig"))
+    (wire (path F.Cu 200 21000 19000 45000 19000) (net "sig"))
+    (via TVIA 21000 19000 (net "sig"))
+  )
+)
+"#;
+
+    /// **TD10 (the 45° board world).** A1's taper steps along the
+    /// diagonal — starts at (54_000,154_000), (58_000,158_000),
+    /// (62_000,162_000), all ending at A1 (50_000,150_000), half-widths
+    /// {2333, 3666, 5000} — lands with ZERO clearance violations; the
+    /// via and A2 junctions land too (3 rows).
+    #[test]
+    fn td10_diagonal_world_lands() {
+        let (mut manager, mut board) = parse(TD_DIAGONAL_WORLD);
+        let report = run_gloss_teardrops_stage(&mut manager, &mut board);
+        assert_eq!(report.rows.len(), 3, "A1 (diagonal), the via, A2");
+        assert!(report.rows.iter().all(|row| row.landed));
+        // A1's diagonal taper, corner-verbatim.
+        let mut diag: Vec<DiagWire> = Vec::new();
+        for entry in board.iter_ascending() {
+            if !matches!(&entry.data, epic_board::items::ItemData::Trace { .. }) {
+                continue;
+            }
+            if !matches!(
+                board.get(entry.id).map(|e| e.fixed),
+                Some(epic_board::items::FixedState::ShoveFixed)
+            ) {
+                continue;
+            }
+            let lines = board.trace_polyline(entry.id).expect("polyline");
+            let corners = lines.corners();
+            let p = match &corners[0] {
+                epic_geometry::point::Point::Int(pt) => (i64::from(pt.x), i64::from(pt.y)),
+                _ => panic!("int corner"),
+            };
+            let q = match &corners[1] {
+                epic_geometry::point::Point::Int(pt) => (i64::from(pt.x), i64::from(pt.y)),
+                _ => panic!("int corner"),
+            };
+            let half = board.trace_half_width(entry.id).expect("half width");
+            diag.push(((p.0, p.1), (q.0, q.1), half));
+        }
+        // Expect exactly the three DIAGONAL wires (via/A2 tapers are
+        // axis-aligned — filter to the diagonal faces).
+        let mut diag: Vec<DiagWire> = diag
+            .into_iter()
+            .filter(|(p, q, _)| p.0 != q.0 && p.1 != q.1)
+            .collect();
+        diag.sort();
+        assert_eq!(
+            diag,
+            vec![
+                ((54_000, 154_000), (50_000, 150_000), 2_333),
+                ((58_000, 158_000), (50_000, 150_000), 3_666),
+                ((62_000, 162_000), (50_000, 150_000), 5_000),
+            ],
+            "the diagonal taper, corner-verbatim"
+        );
+        assert_eq!(
+            epic_drc::clearance::all_clearance_violations(&mut manager, &mut board).0,
+            0,
+            "zero violations after the diagonal landing"
+        );
     }
 }
