@@ -703,7 +703,7 @@ mod tests {
 
     /// The parallelism boundary (pin b), BOTH directions: two
     /// same-layer traces of different nets at EXACTLY the window
-    /// (50_000 DBU apart) are coupled → ratio 0.5; one DBU past the
+    /// (50_000 DBU apart) are coupled → ratio 1.0; one DBU past the
     /// window NOTHING couples (ratio 0). DNR-16: the exact edge
     /// inclusive, one step out excluded, mutation-verified both
     /// directions (the report's transcript carries the apply → test →
