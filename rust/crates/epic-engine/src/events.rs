@@ -94,8 +94,14 @@ pub enum EngineEvent {
     },
     /// Typed from every `board_updated` fire (all six pipeline
     /// sites — the pass-begin, pass-finish, fanout and optimizer
-    /// rows alike; the name is the plan's).
-    PassCompleted {
+    /// rows alike; spec-review D4 renamed this from `PassCompleted`:
+    /// the fire happens at pass STARTS too (the golden's doubled
+    /// `pass=1 phase=fanout` rows are begin + finish), so the old
+    /// name overstated the semantics; a boundary field is not viable
+    /// (the tee sees only `&RouterCounters` — no boundary tag exists
+    /// to carry), and version 1 has zero consumers, so the rename is
+    /// free now and costly at T6).
+    PassProgress {
         /// `counters.pass_count`.
         pass: i32,
         /// `counters.phase`.
@@ -151,7 +157,7 @@ const _: fn() = || {
     assert_send::<EngineEvent>();
 };
 
-/// The counters rendering of [`EngineEvent::PassCompleted`] — the
+/// The counters rendering of [`EngineEvent::PassProgress`] — the
 /// tee's own deterministic compact row (`render_counters` is
 /// `pub(crate)` to epic-router, so the tee renders the same fields
 /// in the same order itself; the golden format excludes this text).
@@ -272,7 +278,7 @@ impl DriverSink for TeeDriverSink<'_> {
                 stage: counters.phase.clone(),
             });
         }
-        self.ship(EngineEvent::PassCompleted {
+        self.ship(EngineEvent::PassProgress {
             pass: counters.pass_count,
             phase: counters.phase.clone(),
             counters_summary: counters_summary(counters),

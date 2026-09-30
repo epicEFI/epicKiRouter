@@ -21,6 +21,10 @@
 //!   the snapshot builder must never take),
 //! * `conduction_area` (`:1257`) — the STORED area (parse-time
 //!   conduction areas carry identity placement, the face's own docs),
+//! * `outline_shapes` (`:1268`) — the board outline's shapes
+//!   (`BoardOutline.getShape(i)` backing),
+//! * `rules` (`:472`) — the net table walk (`rules().nets.iter()`,
+//!   the `NetInfo` source),
 //! * `obstacle_area` (`items/obstacle.rs:143`) — the T49
 //!   absolute-area chain for keepout areas (the placement transform
 //!   is applied lazily on the stored area, the snapshot ships the

@@ -84,11 +84,11 @@ fn kind_lines(events: &[EngineEvent]) -> Vec<String> {
                 format!("BoardLoaded revision={revision} item_count={item_count} incomplete_count={incomplete_count}")
             }
             EngineEvent::StageEntered { stage } => format!("StageEntered stage={stage}"),
-            EngineEvent::PassCompleted {
+            EngineEvent::PassProgress {
                 pass,
                 phase,
                 counters_summary: _,
-            } => format!("PassCompleted pass={pass} phase={phase}"),
+            } => format!("PassProgress pass={pass} phase={phase}"),
             EngineEvent::TaskState { state, pass, .. } => {
                 format!("TaskState state={state} pass={pass}")
             }

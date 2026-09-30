@@ -17,115 +17,115 @@ StageEntered stage=STARTED
 TaskState state=STARTED pass=0
 Message level=info
 StageEntered stage=fanout
-PassCompleted pass=1 phase=fanout
+PassProgress pass=1 phase=fanout
 Snapshot revision=141
-PassCompleted pass=1 phase=fanout
+PassProgress pass=1 phase=fanout
 Snapshot revision=1354
 Message level=info
-PassCompleted pass=2 phase=fanout
-PassCompleted pass=2 phase=fanout
+PassProgress pass=2 phase=fanout
+PassProgress pass=2 phase=fanout
 Snapshot revision=1525
 Message level=info
-PassCompleted pass=3 phase=fanout
-PassCompleted pass=3 phase=fanout
+PassProgress pass=3 phase=fanout
+PassProgress pass=3 phase=fanout
 Snapshot revision=1579
 Message level=info
-PassCompleted pass=4 phase=fanout
-PassCompleted pass=4 phase=fanout
+PassProgress pass=4 phase=fanout
+PassProgress pass=4 phase=fanout
 Message level=info
 Message level=info
 Message level=info
 StageEntered stage=RUNNING
 TaskState state=RUNNING pass=1
 StageEntered stage=autoroute
-PassCompleted pass=1 phase=autoroute
-PassCompleted pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
 Snapshot revision=3831
 Message level=info
 TaskState state=RUNNING pass=2
-PassCompleted pass=2 phase=autoroute
-PassCompleted pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
 Snapshot revision=4855
 Message level=info
 TaskState state=RUNNING pass=3
-PassCompleted pass=3 phase=autoroute
-PassCompleted pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
 Snapshot revision=4967
 Message level=info
 TaskState state=RUNNING pass=4
-PassCompleted pass=4 phase=autoroute
-PassCompleted pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
 Snapshot revision=5025
 Message level=info
 TaskState state=RUNNING pass=5
-PassCompleted pass=5 phase=autoroute
-PassCompleted pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
 Snapshot revision=5083
 Message level=info
 TaskState state=RUNNING pass=6
-PassCompleted pass=6 phase=autoroute
-PassCompleted pass=6 phase=autoroute
+PassProgress pass=6 phase=autoroute
+PassProgress pass=6 phase=autoroute
 Snapshot revision=5141
 Message level=info
 TaskState state=RUNNING pass=7
-PassCompleted pass=7 phase=autoroute
-PassCompleted pass=7 phase=autoroute
+PassProgress pass=7 phase=autoroute
+PassProgress pass=7 phase=autoroute
 Snapshot revision=5199
 Message level=info
 TaskState state=RUNNING pass=8
-PassCompleted pass=8 phase=autoroute
-PassCompleted pass=8 phase=autoroute
+PassProgress pass=8 phase=autoroute
+PassProgress pass=8 phase=autoroute
 Snapshot revision=5257
 Message level=info
 TaskState state=RUNNING pass=9
-PassCompleted pass=9 phase=autoroute
-PassCompleted pass=9 phase=autoroute
+PassProgress pass=9 phase=autoroute
+PassProgress pass=9 phase=autoroute
 Snapshot revision=5315
 Message level=info
 TaskState state=RUNNING pass=10
-PassCompleted pass=10 phase=autoroute
-PassCompleted pass=10 phase=autoroute
+PassProgress pass=10 phase=autoroute
+PassProgress pass=10 phase=autoroute
 Snapshot revision=5373
 Message level=info
 TaskState state=RUNNING pass=11
-PassCompleted pass=11 phase=autoroute
-PassCompleted pass=11 phase=autoroute
+PassProgress pass=11 phase=autoroute
+PassProgress pass=11 phase=autoroute
 Snapshot revision=5431
 Message level=info
 TaskState state=RUNNING pass=12
-PassCompleted pass=12 phase=autoroute
+PassProgress pass=12 phase=autoroute
 Snapshot revision=5434
-PassCompleted pass=12 phase=autoroute
+PassProgress pass=12 phase=autoroute
 Snapshot revision=5515
 Message level=info
 TaskState state=RUNNING pass=13
-PassCompleted pass=13 phase=autoroute
-PassCompleted pass=13 phase=autoroute
+PassProgress pass=13 phase=autoroute
+PassProgress pass=13 phase=autoroute
 Snapshot revision=5607
 Message level=info
 TaskState state=RUNNING pass=14
-PassCompleted pass=14 phase=autoroute
-PassCompleted pass=14 phase=autoroute
+PassProgress pass=14 phase=autoroute
+PassProgress pass=14 phase=autoroute
 Snapshot revision=5699
 Message level=info
 TaskState state=RUNNING pass=15
-PassCompleted pass=15 phase=autoroute
-PassCompleted pass=15 phase=autoroute
+PassProgress pass=15 phase=autoroute
+PassProgress pass=15 phase=autoroute
 Snapshot revision=5791
 Message level=info
 TaskState state=RUNNING pass=16
-PassCompleted pass=16 phase=autoroute
-PassCompleted pass=16 phase=autoroute
+PassProgress pass=16 phase=autoroute
+PassProgress pass=16 phase=autoroute
 Snapshot revision=5883
 Message level=info
 TaskState state=RUNNING pass=17
-PassCompleted pass=17 phase=autoroute
-PassCompleted pass=17 phase=autoroute
+PassProgress pass=17 phase=autoroute
+PassProgress pass=17 phase=autoroute
 Snapshot revision=5975
 Message level=info
 TaskState state=RUNNING pass=18
-PassCompleted pass=18 phase=autoroute
-PassCompleted pass=18 phase=autoroute
+PassProgress pass=18 phase=autoroute
+PassProgress pass=18 phase=autoroute
 Snapshot revision=6067
 Message level=info
 Message level=info
