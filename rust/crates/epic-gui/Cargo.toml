@@ -24,3 +24,10 @@ serde_json = "1"
 # default workspace build stays egui/wgpu-free).
 [features]
 default = []
+
+# M9-T5: the routed overlay-golden faces hand `Session::route` a sink —
+# the `DriverSink` trait lives in epic-router, so the TESTS need it.
+# Dev-only: the lib surface stays epic-router-free (the leaf law is
+# about consumers of epic-gui, unchanged).
+[dev-dependencies]
+epic-router = { path = "../epic-router" }

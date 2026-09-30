@@ -21,8 +21,9 @@ use serde::Serialize;
 
 /// The per-layer + per-class color table (u8 RGBA; Java's
 /// `ItemColorTableModel` + `OtherColorTableModel` family, audited
-/// 2026-09-30 at the frozen tree). Class set = the plan's T4 names:
-/// trace / via / pad / outline / violation / background. Per-layer
+/// 2026-09-30 at the frozen tree). Class set = the plan's T4 names
+/// PLUS the T5 ratsnest class: trace / via / pad / outline /
+/// violation / background / ratsnest. Per-layer
 /// entries override the TRACE color on that layer (Java's
 /// front/back trace convention, `ItemColorTableModel.java:33` vs
 /// `:40`); via/pad keep their class colors on every layer.
@@ -52,6 +53,16 @@ pub struct ColorTable {
     /// class extension, not adopted). WHY: Java's pin default
     /// (`ItemColorTableModel.java:32`, `(227, 183, 46)`).
     pub pad: [u8; 4],
+    /// Ratsnest airlines (M9-T5). WHY: Java's incompletes default —
+    /// `OtherColorTableModel.java:20`,
+    /// `currentRow[ColumnNames.INCOMPLETES.ordinal()] = Color.white`
+    /// — and the getter's fallback face repeats white
+    /// (`OtherColorTableModel.java:102`,
+    /// `getColorSafe(ColumnNames.INCOMPLETES, Color.white)`). Java
+    /// draws the airlines with exactly this color
+    /// (`NetIncompletesGraphics.java:26`,
+    /// `graphicsContext.getIncompleteColor()`).
+    pub ratsnest: [u8; 4],
     /// Per-layer TRACE color overrides (BTreeMap — no HashMap anywhere
     /// in the view/projection: the determinism law). Default: Java's
     /// front/back trace pair — layer 0 `(200, 52, 52)`
@@ -73,6 +84,9 @@ impl ColorTable {
             trace: [200, 52, 52, 255],
             via: [227, 183, 46, 255],
             pad: [227, 183, 46, 255],
+            // M9-T5's 7th class: Java's INCOMPLETES white (the field
+            // doc carries the file:line citations).
+            ratsnest: [255, 255, 255, 255],
             per_layer: BTreeMap::from([(0, [200, 52, 52, 255]), (1, [77, 127, 196, 255])]),
         }
     }
@@ -91,11 +105,11 @@ impl Default for ColorTable {
     }
 }
 
-/// The four overlay toggles. T4 ships the FLAGS + their exclusion
-/// plumbing ONLY: `project` reads them at exactly one site (the
-/// marked T5 extension site in `render.rs`) and no overlay op exists
-/// yet — toggling changes nothing in T4 output (pinned,
-/// `render_goldens.rs`). The overlay DATA + ops are T5.
+/// The four overlay toggles. The FLAGS gate the overlay op families
+/// at the single extension site in `render.rs` (the T4 plumbing; the
+/// T5 overlay DATA lives on the snapshot wire, the ops emit only
+/// when a flag is ON — a flags-OFF projection is byte-identical to
+/// the T4 output, pinned).
 /// The default is ALL OFF (the default view shows board geometry
 /// only) — the `bool::default` face the derive ships.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -248,9 +262,9 @@ pub struct ViewModel {
     pub colors: ColorTable,
     /// The pan + zoom transform (world DBU <-> screen px).
     pub transform: ScreenTransform,
-    /// The overlay toggles (T4: plumbing only — the flags gate FUTURE
-    /// ops at the single T5 extension site; toggling changes nothing
-    /// in T4 output).
+    /// The overlay toggles (each ON flag emits exactly its own op
+    /// family at the single extension site in `render.rs`; all OFF
+    /// is byte-identical to the T4 geometry-only output).
     pub overlays: OverlayFlags,
 }
 

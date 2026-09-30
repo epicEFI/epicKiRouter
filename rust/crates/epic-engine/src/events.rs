@@ -74,6 +74,15 @@ use crate::snapshot::{BoardSnapshot, board_snapshot};
 pub const ENGINE_EVENT_STREAM_VERSION: u32 = 1;
 
 /// The GUI-consumable engine event (the plan's shape, verbatim).
+///
+/// `#[allow(clippy::large_enum_variant)]` (M9-T5): the T5 overlay
+/// field grew `BoardSnapshot` past the variant-size threshold vs
+/// `PassProgress`. Boxing `Snapshot`'s payload would keep the lint
+/// quiet at zero wire cost (serde erases the box) but changes the
+/// T3-landed match surface for every consumer; the size is ACCEPTED,
+/// documented — the tee already funnels whole-board snapshots by
+/// design (the AM3 T6 mpsc-drain-policy note owns the memory side).
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EngineEvent {

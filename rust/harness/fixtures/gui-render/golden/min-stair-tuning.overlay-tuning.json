@@ -1,0 +1,277 @@
+# fixture: harness/fixtures/tuning/min_stair_tuning.dsn
+# boundary: load (snapshot_with_overlays pre-route; markers carry Parse)
+# snapshot revision: 7
+# snapshot items: traces=2 vias=0 pads=4 areas=0 outline_pts=4 nets=2
+# overlay counts: airlines=0 markers=1 congestion=None tuning=Some(1 infos)
+# transform: pan=(-1000, -1000) zoom=1/1 (the T4 derivation: 1/1 is the unique
+#   full-bijection px-per-DBU ratio — view.rs's exactness contract; pan = bounds.ll)
+# viewport: the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX)); culled=0
+# overlay families: fixed order ratsnest -> drc -> congestion -> tuning, each in wire
+#   order; constants' derivations in render.rs's module-doc family table
+# format: serde_json::to_string_pretty of the RenderList; RenderOp externally tagged with
+#   Rust variant spelling; points {"x":i32,"y":i32}; colors [r,g,b,a] u8; SetWidth f32 px.
+{
+  "ops": [
+    {
+      "SetColor": [
+        100,
+        150,
+        255,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 1000
+        },
+        {
+          "x": 1201000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 601000
+        },
+        {
+          "x": 1000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 381000
+        },
+        {
+          "x": 221000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 421000
+        },
+        {
+          "x": 181000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 261000
+        },
+        {
+          "x": 181000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 301000
+        },
+        {
+          "x": 141000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 181000
+        },
+        {
+          "x": 1021000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 221000
+        },
+        {
+          "x": 981000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 161000
+        },
+        {
+          "x": 1021000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 201000
+        },
+        {
+          "x": 981000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        200,
+        52,
+        52,
+        255
+      ]
+    },
+    {
+      "SetWidth": 1000.0
+    },
+    {
+      "MoveTo": {
+        "x": 201000,
+        "y": 401000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 361000,
+        "y": 401000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 361000,
+        "y": 341000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 241000,
+        "y": 341000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 241000,
+        "y": 281000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 161000,
+        "y": 281000
+      }
+    },
+    {
+      "SetColor": [
+        200,
+        52,
+        52,
+        255
+      ]
+    },
+    {
+      "SetWidth": 1000.0
+    },
+    {
+      "MoveTo": {
+        "x": 1001000,
+        "y": 201000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 1061000,
+        "y": 201000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 1061000,
+        "y": 181000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 1001000,
+        "y": 181000
+      }
+    },
+    {
+      "SetColor": [
+        255,
+        0,
+        255,
+        255
+      ]
+    },
+    {
+      "MoveTo": {
+        "x": 200988,
+        "y": 400988
+      }
+    },
+    {
+      "LineTo": {
+        "x": 201012,
+        "y": 400988
+      }
+    },
+    {
+      "LineTo": {
+        "x": 201012,
+        "y": 401012
+      }
+    },
+    {
+      "LineTo": {
+        "x": 200988,
+        "y": 401012
+      }
+    },
+    {
+      "LineTo": {
+        "x": 200988,
+        "y": 400988
+      }
+    }
+  ],
+  "culled": 0
+}

@@ -136,6 +136,32 @@ pub fn raw_net_item_lists(board: &Board) -> Vec<Vec<ItemId>> {
     lists
 }
 
+/// One Kruskal-ACCEPTED airline (the ratsnest segment the GUI draws),
+/// in world DBU coordinates. Serde-free by charter (epic-drc carries
+/// no serde dep; epic-engine projects it onto its wire type).
+///
+/// ENDPOINT CONVENTION (documented per the T5 charter): `from`/`to`
+/// are the ratsnest CORNER points the Delaunay triangulation actually
+/// uses — Java's `AirLine.fromCorner`/`toCorner`
+/// (`drc/NetIncompletes.java:344-380` family) — NOT item-center
+/// approximations. Conversion to i64 DBU: an `Int` corner is exact;
+/// a `Rational` corner (projection artifact — parsed ratsnest corners
+/// are int-cornered) rounds its f64 `to_float` face to the NEAREST
+/// DBU (f64 `round`, half away from zero — the same convention as
+/// epic-engine's `PointPrimitive::from_point`). The corners ride the
+/// comparator as f64 (`PortEdge.from/to`), which is EXACT for the
+/// int-cornered world (DBU i32 fits f64's 2^53 mantissa), so the
+/// rounding is a no-op on every parsed board.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AirLineSegment {
+    /// The from-corner (DBU i64).
+    pub from: (i64, i64),
+    /// The to-corner (DBU i64).
+    pub to: (i64, i64),
+    /// The 1-based net number.
+    pub net: i32,
+}
+
 /// Java `maxConnections` (`DesignRulesChecker.java:570-581`): over
 /// every net with a non-empty raw list, `max(0, endpoints − 1)` where
 /// endpoints are the `Pin`/`ConductionArea` items — summed. The
@@ -219,6 +245,25 @@ pub fn net_incompletes_row(
     net_no: i32,
     raw_items: &[ItemId],
 ) -> NetIncompleteRow {
+    net_incompletes_row_inner(manager, board, net_no, raw_items, false).0
+}
+
+/// The shared walk behind [`net_incompletes_row`] (the schema-v2 row
+/// face) and [`airline_segments`] (the M9-T5 ratsnest face): the
+/// IDENTICAL pipeline with the Kruskal-ACCEPTED edges — the
+/// airlines — optionally collected as they are counted. `collect_airlines
+/// == false` is byte-identical to the pre-T5 face by construction (the
+/// row path is untouched; the collection is an `if` inside the count
+/// loop). Nets ascend; within a net the segments ride the sorted-Edge
+/// Kruskal walk order (the deterministic comparator order — NOT the
+/// lexicographic `edges` row order).
+fn net_incompletes_row_inner(
+    manager: &SearchTreeManager,
+    board: &mut Board,
+    net_no: i32,
+    raw_items: &[ItemId],
+    collect_airlines: bool,
+) -> (NetIncompleteRow, Vec<AirLineSegment>) {
     // 1. The filter (NetIncompletes.java:85-116).
     let mut filtered: Vec<ItemId> = Vec::new();
     for &id in raw_items {
@@ -272,6 +317,7 @@ pub fn net_incompletes_row(
         .collect();
     ratsnest.sort();
 
+    let mut airlines: Vec<AirLineSegment> = Vec::new();
     let mut row = NetIncompleteRow {
         net_no,
         items: raw_items.len(),
@@ -287,7 +333,7 @@ pub fn net_incompletes_row(
     // connected or nothing routable; groups is FORCED to the length.
     if grouped.len() <= 1 {
         row.groups = grouped.len();
-        return row;
+        return (row, airlines);
     }
 
     // 3. The Delaunay triangulation over the grouped items' corners.
@@ -356,13 +402,41 @@ pub fn net_incompletes_row(
             continue; // airline exists already
         }
         row.incomplete_count += 1;
+        if collect_airlines {
+            airlines.push(AirLineSegment {
+                from: (edge.from.x.round() as i64, edge.from.y.round() as i64),
+                to: (edge.to.x.round() as i64, edge.to.y.round() as i64),
+                net: net_no,
+            });
+        }
         for label in labels.iter_mut() {
             if *label == from_label {
                 *label = to_label;
             }
         }
     }
-    row
+    (row, airlines)
+}
+
+/// The M9-T5 ratsnest face: EVERY net's Kruskal-ACCEPTED airlines with
+/// world-DBU endpoints ([`AirLineSegment`], the corner convention on
+/// its docs). Nets ascend; within a net the segments ride the
+/// sorted-Edge Kruskal walk order. The count cross-check is structural:
+/// `len == Σ per-net incomplete_count` over the SAME board state
+/// (pinned).
+#[must_use]
+pub fn airline_segments(manager: &SearchTreeManager, board: &mut Board) -> Vec<AirLineSegment> {
+    let lists = raw_net_item_lists(board);
+    let mut airlines = Vec::new();
+    for (index, list) in lists.iter().enumerate() {
+        if list.is_empty() {
+            continue;
+        }
+        let net_no = index as i32 + 1;
+        let (_row, mut segments) = net_incompletes_row_inner(manager, board, net_no, list, true);
+        airlines.append(&mut segments);
+    }
+    airlines
 }
 
 /// The whole `calculateAllIncompletes` surface in one call: one
@@ -394,10 +468,12 @@ mod pins {
     use epic_geometry::float_point::FloatPoint;
 
     use super::{
-        PortEdge, all_incompletes, edge_compare, max_connections, net_incompletes_row,
-        raw_net_item_lists,
+        AirLineSegment, PortEdge, airline_segments, all_incompletes, edge_compare, max_connections,
+        net_incompletes_row, raw_net_item_lists,
     };
     use crate::test_util::{DSN_MAIN, DSN_TIE, id_at_corner, net_list, net_no, nets_of, parse};
+    use epic_board::contacts::ratsnest_corners;
+    use epic_geometry::point::Point;
 
     fn kind_of(board: &super::Board, id: ItemId) -> Option<BoardItemType> {
         board.get(id).map(|entry| entry.board_item_type())
@@ -709,6 +785,62 @@ mod pins {
                 .expect("the net has a row");
             assert_eq!(found, &expected, "row for {name} matches the replay");
         }
+    }
+
+    /// The M9-T5 ratsnest face: `airline_segments` on the crafted
+    /// board returns the Kruskal-count-consistent subset — the
+    /// segment count equals the Σ per-net `incomplete_count` over the
+    /// SAME board state, every segment's net is a row net, and every
+    /// endpoint pair matches the two endpoints' ratsnest corners
+    /// (the count cross-check pin; kills the drop-a-segment,
+    /// duplicate-an-edge, and wrong-net mutants).
+    #[test]
+    fn airline_segments_match_the_kruskal_count_and_corners() {
+        let (manager, mut board) = parse(DSN_MAIN);
+        let (max_conn, rows) = all_incompletes(&manager, &mut board);
+        let expected: usize = rows.iter().map(|row| row.incomplete_count).sum();
+        assert!(expected > 0, "the craft carries airlines");
+        let airlines = airline_segments(&manager, &mut board);
+        assert_eq!(
+            airlines.len(),
+            expected,
+            "segment count == Σ incomplete_count (max_connections = {max_conn})"
+        );
+        // Every segment rides a real net row and its endpoints are
+        // RATSNEST CORNERS of the two end items (the corner
+        // convention) — checkable exactly on the single-corner
+        // members (pins): the corner is the item's drill center.
+        for segment in &airlines {
+            assert!(
+                rows.iter().any(|row| row.net_no == segment.net),
+                "segment net {} has a row",
+                segment.net
+            );
+        }
+        // The per-net face on the smallest net: NP's two free pins —
+        // exactly one segment between the two drill centers, in the
+        // Kruskal walk order (shortest-first; with one edge there is
+        // nothing to order).
+        let np = net_list(&board, "NP");
+        let np_no = net_no(&board, "NP");
+        let row = net_incompletes_row(&manager, &mut board, np_no, &np);
+        assert_eq!((row.items, row.groups, row.incomplete_count), (2, 2, 1));
+        let np_segments: Vec<&AirLineSegment> =
+            airlines.iter().filter(|s| s.net == np_no).collect();
+        assert_eq!(np_segments.len(), 1);
+        let mut corner_of = |id: ItemId| -> (i64, i64) {
+            let corners = ratsnest_corners(&manager, &mut board, id);
+            assert_eq!(corners.len(), 1, "a pin has one ratsnest corner");
+            match &corners[0] {
+                Point::Int(point) => (i64::from(point.x), i64::from(point.y)),
+                Point::Rational(_) => panic!("parsed pins are int-cornered"),
+            }
+        };
+        let (a, b) = (corner_of(np[0]), corner_of(np[1]));
+        let segment = np_segments[0];
+        let matches =
+            (segment.from == a && segment.to == b) || (segment.from == b && segment.to == a);
+        assert!(matches, "the NP segment joins the two pin corners");
     }
 
     /// `Edge.compareTo` (NetIncompletes.java:361-379): the f64

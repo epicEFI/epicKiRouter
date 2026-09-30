@@ -31,6 +31,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use epic_engine::session::Session;
+use epic_engine::settings::CliLayer;
 use epic_engine::settings::SessionLayer;
 use epic_engine::snapshot::{BoardSnapshot, board_snapshot};
 use epic_geometry::int_box::IntBox;
@@ -233,6 +234,7 @@ fn two_layer_snapshot() -> BoardSnapshot {
             ur_y: 1000,
         },
         revision: 0,
+        overlays: epic_engine::snapshot::OverlayData::default(),
     }
 }
 
@@ -344,6 +346,7 @@ fn trace_color_per_layer_override_face() {
             ur_y: 500,
         },
         revision: 0,
+        overlays: epic_engine::snapshot::OverlayData::default(),
     };
     let render = project(
         &snapshot,
@@ -398,6 +401,7 @@ fn cull_boundary_plus_minus_one_dbu() {
             ur_y: 1100,
         },
         revision: 0,
+        overlays: epic_engine::snapshot::OverlayData::default(),
     };
     let view = crafted_view(&snapshot, &[0]);
 
@@ -491,6 +495,7 @@ fn one_via_snapshot() -> BoardSnapshot {
             ur_y: 540,
         },
         revision: 0,
+        overlays: epic_engine::snapshot::OverlayData::default(),
     }
 }
 
@@ -639,6 +644,7 @@ fn trace_half_width_expansion_cull_face() {
             ur_y: 1051,
         },
         revision: 0,
+        overlays: epic_engine::snapshot::OverlayData::default(),
     };
     let view = crafted_view(&snapshot, &[0]);
     let viewport = |ur_x: i32| IntBox::new(IntPoint::new(0, 0), IntPoint::new(ur_x, 5000));
@@ -668,28 +674,218 @@ fn trace_half_width_expansion_cull_face() {
     );
 }
 
-// --- PIN 4 — the overlay flags (T4: plumbing only) -------------------
+// --- PIN 4 (REWRITTEN, M9-T5) — the overlay flags --------------------
 
+/// A fully-populated crafted OVERLAY snapshot (empty geometry, all
+/// four overlay faces populated) for the exact family-arithmetic
+/// proof. Coordinates are screen px (pan = bounds.ll = (0,0), zoom
+/// 1:1). Airlines: A from (0,0) to (5,0) — 5 px <= the 8 px dash-on,
+/// renders SOLID (2 ops); B from (100,0) to (140,0) — 40 px, dashes
+/// [0,8) on, [8,14) off, [14,22) on, [22,28) off, [28,36) on,
+/// [36,40) off-tail => 3 dashes => 6 ops. Marker: center (3000,0),
+/// depth 0 => radius max(4, min(4+0, 64)) = 4 (2 ops). Heatmap: one
+/// 100x100 cell at (0,0), overflow 5, capacity 10 => ratio 0.5
+/// (2 ops). Tuning: net 1, min 100, max 500, actual 250 => in-band,
+/// anchored at airline A's from (6 ops).
+fn populated_overlay_snapshot() -> BoardSnapshot {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    let mut snapshot = two_layer_snapshot();
+    snapshot.traces.clear();
+    snapshot.pads.clear();
+    snapshot.outline.clear();
+    snapshot.overlays.airlines = vec![
+        epic_engine::snapshot::AirLinePrimitive {
+            from: point(0, 0),
+            to: point(5, 0),
+            net: 1,
+        },
+        epic_engine::snapshot::AirLinePrimitive {
+            from: point(100, 0),
+            to: point(140, 0),
+            net: 1,
+        },
+    ];
+    snapshot.overlays.violation_markers = vec![epic_engine::snapshot::ViolationMarker {
+        center: point(3000, 0),
+        depth: 0.0,
+        pair_kind: (0, 2),
+        phase: epic_engine::snapshot::MarkerPhase::Parse,
+    }];
+    snapshot.overlays.congestion = Some(epic_engine::snapshot::CongestionHeatmap {
+        cell_size: 100,
+        origin: point(0, 0),
+        dims: (1, 1),
+        cells: vec![epic_engine::snapshot::CongestionCell {
+            ix: 0,
+            iy: 0,
+            signal_layer: 0,
+            overflow: 5,
+            capacity: 10,
+        }],
+    });
+    snapshot.overlays.tuning = Some(vec![epic_engine::snapshot::NetTuningInfo {
+        net: 1,
+        min: 100.0,
+        max: 500.0,
+        actual: 250.0,
+    }]);
+    snapshot.bounds = epic_engine::snapshot::BoxPrimitive {
+        ll_x: 0,
+        ll_y: 0,
+        ur_x: 3000,
+        ur_y: 0,
+    };
+    snapshot
+}
+
+/// The ratsnest dash arithmetic at the crafted segment B (40 px):
+/// [0,8) on, [8,14) off, [14,22) on, [22,28) off, [28,36) on,
+/// [36,40) off-tail => 3 dashes => 6 ops.
 #[test]
-fn overlay_flags_all_16_combinations_change_nothing() {
-    let snapshot = load_snapshot(E1_RIPUP);
-    let base_view = golden_view(&snapshot);
-    let base = render_json(&project(&snapshot, &base_view.clone(), full_viewport()));
+fn overlay_flags_off_is_inert_and_each_flag_adds_its_own_family() {
+    // (a) ALL-OFF inertia: the flags-OFF e1_ripup projection is
+    // byte-identical to the COMMITTED T4 golden body (the T4-trio
+    // inertia pin 0 — the trio is NOT regenerated; flags-OFF emits
+    // zero overlay ops by construction).
+    let e1 = load_snapshot(E1_RIPUP);
+    let e1_view = golden_view(&e1);
+    let base = render_json(&project(&e1, &e1_view, full_viewport()));
+    assert_eq!(
+        base,
+        read_golden("e1_ripup.render.json"),
+        "flags-OFF output is byte-identical to the committed T4 golden"
+    );
 
-    for mask in 0..16u16 {
-        let mut view = base_view.clone();
-        view.overlays = OverlayFlags {
-            ratsnest: mask & 1 != 0,
-            drc: mask & 2 != 0,
-            congestion: mask & 4 != 0,
-            tuning: mask & 8 != 0,
-        };
-        let rendered = render_json(&project(&snapshot, &view, full_viewport()));
+    // (b) the EMPTY-data face: a PURE snapshot carries the empty
+    // OverlayData, so every single flag ON adds exactly ZERO ops.
+    for name in ["ratsnest", "drc", "congestion", "tuning"] {
+        let mut view = e1_view.clone();
+        match name {
+            "ratsnest" => view.overlays.ratsnest = true,
+            "drc" => view.overlays.drc = true,
+            "congestion" => view.overlays.congestion = true,
+            _ => view.overlays.tuning = true,
+        }
+        let rendered = project(&e1, &view, full_viewport());
         assert_eq!(
-            rendered, base,
-            "overlay mask {mask} changes nothing in T4 output (no overlay ops exist yet)"
+            render_json(&rendered),
+            base,
+            "{name} ON over EMPTY overlay data adds no ops"
         );
     }
+
+    // (c) the populated family arithmetic: each single flag ON adds
+    // EXACTLY its own op family (count + variant sequence + colors).
+    let snapshot = populated_overlay_snapshot();
+    let view = crafted_view(&snapshot, &[0, 1]);
+    let all_off = project(&snapshot, &view, full_viewport());
+    assert_eq!(all_off.ops.len(), 0, "empty geometry + all flags OFF");
+
+    // ratsnest ON: header (2) + airline A solid (2) + airline B
+    // dashed (6) = 10.
+    let mut ratsnest_view = view.clone();
+    ratsnest_view.overlays.ratsnest = true;
+    let ratsnest = project(&snapshot, &ratsnest_view, full_viewport());
+    assert_eq!(ratsnest.ops.len(), 10, "the ratsnest family arithmetic");
+    assert_eq!(
+        ratsnest.ops[0],
+        epic_gui::render::RenderOp::SetColor([255, 255, 255, 255]),
+        "the family header colors the ratsnest class (Java INCOMPLETES white)"
+    );
+    assert_eq!(
+        ratsnest.ops[1],
+        epic_gui::render::RenderOp::SetWidth(1.0),
+        "the family header width is Java's drawWidth 1"
+    );
+    assert_eq!(
+        &ratsnest.ops[2..4],
+        &[
+            epic_gui::render::RenderOp::MoveTo(IntPoint::new(0, 0)),
+            epic_gui::render::RenderOp::LineTo(IntPoint::new(5, 0)),
+        ],
+        "airline A (5 px) renders SOLID"
+    );
+
+    // drc ON: SetColor(violation) + Circle{r=4}.
+    let mut drc_view = view.clone();
+    drc_view.overlays.drc = true;
+    let drc = project(&snapshot, &drc_view, full_viewport());
+    assert_eq!(
+        drc.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor([255, 0, 255, 255]),
+            epic_gui::render::RenderOp::Circle {
+                center: IntPoint::new(3000, 0),
+                radius: 4,
+            },
+        ],
+        "the drc family: SetColor(violation) + Circle at the documented radius"
+    );
+
+    // congestion ON: ramp(0.5) = level 8, t = 8/15, per-channel lerp
+    // between [0,150,0] and [255,0,255] (the documented formula,
+    // computed here from the SPEC, not the impl).
+    let level: f64 = 8.0;
+    let t = level / 15.0;
+    let lerp = |a: u8, b: u8| (f64::from(a) + (f64::from(b) - f64::from(a)) * t).round() as u8;
+    let expected_ramp = [
+        lerp(0, 255), // red 0 -> 255
+        lerp(150, 0), // green 150 -> 0 (magenta carries NO green)
+        lerp(0, 255), // blue 0 -> 255
+        255u8,
+    ];
+    let mut congestion_view = view.clone();
+    congestion_view.overlays.congestion = true;
+    let congestion = project(&snapshot, &congestion_view, full_viewport());
+    assert_eq!(
+        congestion.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor(expected_ramp),
+            epic_gui::render::RenderOp::FillPolygon(vec![
+                IntPoint::new(0, 0),
+                IntPoint::new(100, 0),
+                IntPoint::new(100, 100),
+                IntPoint::new(0, 100),
+            ]),
+        ],
+        "the congestion family: ramp(0.5) color + the cell rect corners (ll, lr, ur, ul)\
+         — world (0,0)-(100,100), screen == world at the 1:1 transform"
+    );
+
+    // tuning ON: in-band green bracket at airline A's from (0,0),
+    // half-side 12: SetColor + MoveTo + 4 LineTo = 6 ops.
+    let mut tuning_view = view.clone();
+    tuning_view.overlays.tuning = true;
+    let tuning = project(&snapshot, &tuning_view, full_viewport());
+    assert_eq!(
+        tuning.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor([0, 150, 0, 255]),
+            epic_gui::render::RenderOp::MoveTo(IntPoint::new(-12, -12)),
+            epic_gui::render::RenderOp::LineTo(IntPoint::new(12, -12)),
+            epic_gui::render::RenderOp::LineTo(IntPoint::new(12, 12)),
+            epic_gui::render::RenderOp::LineTo(IntPoint::new(-12, 12)),
+            epic_gui::render::RenderOp::LineTo(IntPoint::new(-12, -12)),
+        ],
+        "the tuning family: in-band green closed bracket at the anchor"
+    );
+
+    // (d) determinism: all four ON twice => byte-equal.
+    let mut all_on = view.clone();
+    all_on.overlays = OverlayFlags {
+        ratsnest: true,
+        drc: true,
+        congestion: true,
+        tuning: true,
+    };
+    let one = project(&snapshot, &all_on, full_viewport());
+    let two = project(&snapshot, &all_on, full_viewport());
+    assert_eq!(
+        render_json(&one),
+        render_json(&two),
+        "same flags twice => byte-equal (determinism)"
+    );
+    assert_eq!(one.ops.len(), 10 + 2 + 2 + 6, "the all-ON count");
 }
 
 #[test]
@@ -902,6 +1098,279 @@ fn narrowing_saturates_at_the_i32_faces() {
     assert_eq!(w.y, i64::from(i32::MIN));
 }
 
+// --- PIN 6 (M9-T5) — overlay cull participation ±1 (DNR-16) ----------
+
+/// One 100-px airline (0,0)-(100,0), pan (0,0), zoom 1:1. The
+/// viewport walks across the segment's ur_x edge BOTH directions:
+/// with ll_x = w and a far ur, w = 100 touches the segment end =>
+/// KEPT (inclusive), w = 101 leaves it entirely left => CULLED
+/// (`culled` moves by exactly 1); symmetric on the ll side with
+/// ur_x = 0 => KEPT, ur_x = -1 => CULLED. Kills the
+/// overlays-don't-cull and exclusive-boundary mutants.
+#[test]
+fn overlay_airline_cull_participation_both_directions() {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    let mut snapshot = two_layer_snapshot();
+    snapshot.traces.clear();
+    snapshot.pads.clear();
+    snapshot.outline.clear();
+    snapshot.areas.clear();
+    snapshot.overlays.airlines = vec![epic_engine::snapshot::AirLinePrimitive {
+        from: point(0, 0),
+        to: point(100, 0),
+        net: 1,
+    }];
+    snapshot.bounds = epic_engine::snapshot::BoxPrimitive {
+        ll_x: 0,
+        ll_y: 0,
+        ur_x: 100,
+        ur_y: 0,
+    };
+    let mut view = crafted_view(&snapshot, &[0, 1]);
+    view.overlays.ratsnest = true;
+
+    // Right side: the viewport's LEFT edge crosses the segment's
+    // ur_x = 100.
+    let kept_on = project(
+        &snapshot,
+        &view,
+        IntBox::new(IntPoint::new(100, -10), IntPoint::new(2000, 10)),
+    );
+    assert_eq!(
+        (kept_on.ops.len(), kept_on.culled),
+        (18, 0),
+        "the viewport edge exactly ON the segment end keeps it (inclusive): header (2)\
+         + the 100-px dashed walk (8 on-dashes at 8/6 px = 16 ops)"
+    );
+    let culled_right = project(
+        &snapshot,
+        &view,
+        IntBox::new(IntPoint::new(101, -10), IntPoint::new(2000, 10)),
+    );
+    assert_eq!(
+        (culled_right.ops.len(), culled_right.culled),
+        (0, 1),
+        "1 DBU past the segment end it is culled, counted once"
+    );
+
+    // Left side: the viewport's RIGHT edge crosses the segment's
+    // ll_x = 0.
+    let kept_left = project(
+        &snapshot,
+        &view,
+        IntBox::new(IntPoint::new(-2000, -10), IntPoint::new(0, 10)),
+    );
+    assert_eq!(
+        (kept_left.ops.len(), kept_left.culled),
+        (18, 0),
+        "touching at the segment start keeps it (inclusive): the same 18 ops"
+    );
+    let culled_left = project(
+        &snapshot,
+        &view,
+        IntBox::new(IntPoint::new(-2000, -10), IntPoint::new(-1, 10)),
+    );
+    assert_eq!(
+        (culled_left.ops.len(), culled_left.culled),
+        (0, 1),
+        "1 DBU before the segment start it is culled, counted once"
+    );
+}
+
+// --- The M9-T5 overlay goldens (NEW files; session-boundary
+// snapshots, flags ON) -------------------------------------------------
+
+/// The silent sink for the routed capture/verify faces (the
+/// session/tee forwarding laws live in epic-engine's own pins — the
+/// golden door only needs a `DriverSink` to hand `Session::route`).
+struct SilentSink;
+
+impl epic_router::pipeline::event_sink::DriverSink for SilentSink {}
+
+/// The overlay-golden entries: (fixture, committed golden, flags,
+/// boundary, viewport kind). `boundary`: Load = `snapshot_with_overlays`
+/// pre-route (Parse markers); Route = route at defaults first;
+/// CongestionOn = route with `SessionLayer.congestion_global = Some(true)`.
+struct OverlayGoldenCase {
+    fixture: &'static str,
+    golden: &'static str,
+    flags: OverlayFlags,
+    boundary: Boundary,
+    restricted_viewport: bool,
+}
+
+enum Boundary {
+    Load,
+    Route,
+    CongestionOn,
+}
+
+const fn overlay_flags(ratsnest: bool, drc: bool, congestion: bool, tuning: bool) -> OverlayFlags {
+    OverlayFlags {
+        ratsnest,
+        drc,
+        congestion,
+        tuning,
+    }
+}
+
+/// The golden case set (the dispatch's minimum set 1-6):
+const OVERLAY_GOLDEN_CASES: [OverlayGoldenCase; 6] = [
+    // 1. airlines golden: LOAD boundary on bm08 (unrouted => airlines
+    //    plentiful), ratsnest flag ON only.
+    OverlayGoldenCase {
+        fixture: BM08,
+        golden: "bm08.overlay-airlines.json",
+        flags: overlay_flags(true, false, false, false),
+        boundary: Boundary::Load,
+        restricted_viewport: false,
+    },
+    // 2. markers golden: the crafted DRC world (a probed >= 1
+    //    violation bearer — the drc corpus craft), drc flag ON only,
+    //    Parse phase.
+    OverlayGoldenCase {
+        fixture: "harness/corpus/craft/drc-main.dsn",
+        golden: "drc-craft.overlay-markers.json",
+        flags: overlay_flags(false, true, false, false),
+        boundary: Boundary::Load,
+        restricted_viewport: false,
+    },
+    // 3. tuning golden: the crafted tuning fixture (constraints
+    //    declared — probed), tuning flag ON only.
+    OverlayGoldenCase {
+        fixture: "harness/fixtures/tuning/min_stair_tuning.dsn",
+        golden: "min-stair-tuning.overlay-tuning.json",
+        flags: overlay_flags(false, false, false, true),
+        boundary: Boundary::Load,
+        restricted_viewport: false,
+    },
+    // 4. AM4(a) MANDATE: the restricted-viewport face (culled > 0) —
+    //    the OBS-3/Q2 closure.
+    OverlayGoldenCase {
+        fixture: BM08,
+        golden: "bm08.overlay-culled.json",
+        flags: overlay_flags(true, false, false, false),
+        boundary: Boundary::Load,
+        restricted_viewport: true,
+    },
+    // 5. AM4(a) MANDATE: the routed face (post-route snapshot, all
+    //    four flags ON) — the via-bearing + layer-1-trace closure
+    //    (probed: bm08 routes to vias and B.Cu traces at defaults).
+    OverlayGoldenCase {
+        fixture: BM08,
+        golden: "bm08.overlay-routed.json",
+        flags: overlay_flags(true, true, false, true),
+        boundary: Boundary::Route,
+        restricted_viewport: false,
+    },
+    // 6. the congestion ON face (the reachable ON path:
+    //    SessionLayer congestion_global), congestion flag ON only.
+    OverlayGoldenCase {
+        fixture: BM08,
+        golden: "bm08.overlay-congestion.json",
+        flags: overlay_flags(false, false, true, false),
+        boundary: Boundary::CongestionOn,
+        restricted_viewport: false,
+    },
+];
+
+/// The restricted viewport for the culled face: the lower-left
+/// quadrant of bm08's bounds, widened to i32 — a viewport that
+/// provably culls (the golden header records `culled`).
+fn restricted_viewport(snapshot: &BoardSnapshot) -> IntBox {
+    let mid_x = snapshot.bounds.ll_x + (snapshot.bounds.ur_x - snapshot.bounds.ll_x) / 2;
+    let mid_y = snapshot.bounds.ll_y + (snapshot.bounds.ur_y - snapshot.bounds.ll_y) / 2;
+    let clamp = |v: i64| i32::try_from(v).unwrap_or(i32::MAX);
+    IntBox::new(
+        IntPoint::new(clamp(snapshot.bounds.ll_x), clamp(snapshot.bounds.ll_y)),
+        IntPoint::new(clamp(mid_x), clamp(mid_y)),
+    )
+}
+
+/// Derives the projection for one golden case (the shared face of
+/// capture + verify).
+fn project_overlay_case(case: &OverlayGoldenCase) -> (RenderList, BoardSnapshot) {
+    let bytes = fs::read(repo_root().join(case.fixture))
+        .unwrap_or_else(|error| panic!("{} is readable: {error}", case.fixture));
+    let session_layer = match case.boundary {
+        Boundary::CongestionOn => SessionLayer {
+            congestion_global: Some(true),
+            ..SessionLayer::default()
+        },
+        _ => SessionLayer::default(),
+    };
+    let mut session = match Session::load_dsn(&bytes, session_layer) {
+        Ok(session) => session,
+        Err(error) => panic!("{} loads at defaults: {error:?}", case.fixture),
+    };
+    match case.boundary {
+        Boundary::Load => {}
+        Boundary::Route | Boundary::CongestionOn => {
+            session.route(&CliLayer::default(), &mut SilentSink);
+        }
+    }
+    let snapshot = session.snapshot_with_overlays();
+    let mut view = golden_view(&snapshot);
+    view.overlays = case.flags;
+    let viewport = if case.restricted_viewport {
+        restricted_viewport(&snapshot)
+    } else {
+        full_viewport()
+    };
+    (project(&snapshot, &view, viewport), snapshot)
+}
+
+/// Every overlay golden verifies: in-process double derivation
+/// byte-identical to each other AND to the committed bytes; the
+/// structural asserts per case (culled > 0 on the culled face,
+/// congestion Some on the ON face, >= 1 marker on the markers face).
+#[test]
+fn overlay_goldens_verify_in_process() {
+    for case in &OVERLAY_GOLDEN_CASES {
+        let (run_one, snapshot) = project_overlay_case(case);
+        let (run_two, _) = project_overlay_case(case);
+        assert_eq!(
+            render_json(&run_one),
+            render_json(&run_two),
+            "{}: two projections of the same inputs are byte-identical",
+            case.golden
+        );
+        let golden = read_golden(case.golden);
+        assert!(!golden.is_empty(), "{} non-empty", case.golden);
+        assert_eq!(
+            render_json(&run_one),
+            golden,
+            "{}: the re-derivation is byte-identical to the committed golden",
+            case.golden
+        );
+        match case.golden {
+            "bm08.overlay-culled.json" => {
+                assert!(run_one.culled > 0, "the restricted viewport CULLS");
+            }
+            "bm08.overlay-congestion.json" => {
+                assert!(
+                    snapshot.overlays.congestion.is_some(),
+                    "the congestion ON face carries Some"
+                );
+            }
+            "drc-craft.overlay-markers.json" => {
+                assert!(
+                    !snapshot.overlays.violation_markers.is_empty(),
+                    "the markers golden carries >= 1 marker"
+                );
+            }
+            "min-stair-tuning.overlay-tuning.json" => {
+                assert!(
+                    snapshot.overlays.tuning.is_some(),
+                    "the tuning golden carries Some"
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
+// --- The sanctioned overlay capture door ------------------------------
 // --- The sanctioned capture door -------------------------------------
 
 /// Regenerates ALL THREE goldens in-process (the sanctioned capture
@@ -952,6 +1421,96 @@ fn capture_render_goldens() {
             .unwrap_or_else(|error| panic!("write {path:?}: {error}"));
         println!(
             "captured {golden_rel}: ops={} culled={}",
+            list.ops.len(),
+            list.culled
+        );
+    }
+}
+
+/// Captures ALL SIX overlay goldens in-process (the sanctioned NEW-
+/// goldens-only door; the T4 trio above is deliberately NOT touched —
+/// flags-OFF output is byte-identical, pinned). `#[ignore]`ged — run
+/// with `cargo test -p epic-gui --test render_goldens -- --ignored
+/// capture_overlay_goldens`.
+#[test]
+#[ignore = "the overlay golden capture door — run explicitly with --ignored"]
+fn capture_overlay_goldens() {
+    for case in &OVERLAY_GOLDEN_CASES {
+        let (list, snapshot) = project_overlay_case(case);
+        let overlay_counts = format!(
+            "airlines={} markers={} congestion={} tuning={}",
+            snapshot.overlays.airlines.len(),
+            snapshot.overlays.violation_markers.len(),
+            snapshot
+                .overlays
+                .congestion
+                .as_ref()
+                .map(|heatmap| heatmap.cells.len())
+                .map(|cells| format!("Some({cells} cells)",))
+                .unwrap_or_else(|| "None".to_string()),
+            snapshot
+                .overlays
+                .tuning
+                .as_ref()
+                .map(|infos| format!("Some({} infos)", infos.len()))
+                .unwrap_or_else(|| "None".to_string()),
+        );
+        let (viewport_desc, culled_desc) = if case.restricted_viewport {
+            let viewport = restricted_viewport(&snapshot);
+            (
+                format!(
+                    "restricted (ll=({},{}) ur=({},{}))",
+                    viewport.ll.x, viewport.ll.y, viewport.ur.x, viewport.ur.y
+                ),
+                format!("{}", list.culled),
+            )
+        } else {
+            (
+                "the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX))".to_string(),
+                "0".to_string(),
+            )
+        };
+        let header = format!(
+            "# fixture: {fixture}\n\
+             # boundary: {boundary}\n\
+             # snapshot revision: {rev}\n\
+             # snapshot items: traces={traces} vias={vias} pads={pads} areas={areas} outline_pts={outline} nets={nets}\n\
+             # overlay counts: {overlay_counts}\n\
+             # transform: pan=({px}, {py}) zoom=1/1 (the T4 derivation: 1/1 is the unique\n\
+             #   full-bijection px-per-DBU ratio — view.rs's exactness contract; pan = bounds.ll)\n\
+             # viewport: {viewport_desc}; culled={culled_desc}\n\
+             # overlay families: fixed order ratsnest -> drc -> congestion -> tuning, each in wire\n\
+             #   order; constants' derivations in render.rs's module-doc family table\n\
+             # format: serde_json::to_string_pretty of the RenderList; RenderOp externally tagged with\n\
+             #   Rust variant spelling; points {{\"x\":i32,\"y\":i32}}; colors [r,g,b,a] u8; SetWidth f32 px.\n",
+            fixture = case.fixture,
+            boundary = match case.boundary {
+                Boundary::Load => "load (snapshot_with_overlays pre-route; markers carry Parse)",
+                Boundary::Route =>
+                    "post-route (route at defaults, then snapshot_with_overlays; markers carry PostRoute)",
+                Boundary::CongestionOn =>
+                    "congestion-on (route with SessionLayer.congestion_global = Some(true), then snapshot_with_overlays)",
+            },
+            rev = snapshot.revision,
+            traces = snapshot.traces.len(),
+            vias = snapshot.vias.len(),
+            pads = snapshot.pads.len(),
+            areas = snapshot.areas.len(),
+            outline = snapshot.outline.len(),
+            nets = snapshot.nets.len(),
+            px = snapshot.bounds.ll_x,
+            py = snapshot.bounds.ll_y,
+            viewport_desc = viewport_desc,
+            culled_desc = culled_desc,
+        );
+        let path = repo_root()
+            .join("harness/fixtures/gui-render/golden")
+            .join(case.golden);
+        fs::write(&path, format!("{header}{}\n", render_json(&list)))
+            .unwrap_or_else(|error| panic!("write {path:?}: {error}"));
+        println!(
+            "captured {}: ops={} culled={}",
+            case.golden,
             list.ops.len(),
             list.culled
         );

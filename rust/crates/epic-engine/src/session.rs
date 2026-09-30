@@ -49,12 +49,14 @@ use epic_board::board::Board;
 use epic_board::items::ItemData;
 use epic_board::tree_manager::SearchTreeManager;
 use epic_drc::clearance::all_clearance_violation_depths;
+use epic_drc::incompletes::airline_segments;
 use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
 use epic_dsn::ses_board::SesBoard;
 use epic_dsn::sink::ItemClassIr;
 use epic_dsn::state::Unit as DsnUnit;
 use epic_geometry::rounding::java_round;
+use epic_router::global::map::CongestionMap;
 use epic_router::pipeline::batch::{StopFace, StopReason};
 use epic_router::pipeline::board_statistics::BoardStatistics;
 use epic_router::pipeline::event_sink::DriverSink;
@@ -67,6 +69,10 @@ use crate::settings::{
     SessionLayer, apply_board_specific_optimizations, apply_meander_activation,
     apply_pairs_activation, apply_tuning_activation, build_batch_settings, merge, merge_session,
     validate,
+};
+use crate::snapshot::{
+    AirLinePrimitive, BoardSnapshot, CongestionCell, CongestionHeatmap, MarkerPhase, NetTuningInfo,
+    PointPrimitive, board_snapshot,
 };
 
 // ---------------------------------------------------------------------------
@@ -413,6 +419,16 @@ pub struct Session {
     /// [`Session::statistics`] returns it — empty before the first
     /// run).
     statistics: Option<SessionStatistics>,
+    /// Whether the LAST [`Session::route`] resolved the
+    /// `congestion_global` family ON (the resolved batch flag — the
+    /// probe's reachable ON path is the `SessionLayer`/`CliLayer`
+    /// `router.congestion_global` field). The congestion slot of
+    /// [`Session::snapshot_with_overlays`] populates IFF this is set:
+    /// the heatmap is a RECOMPUTED `CongestionMap::build` over the
+    /// boundary board state, shown only when congestion-aware
+    /// planning engaged. A session that never routed carries `false`
+    /// → `None` (the Option-inertness pin).
+    congestion_engaged: bool,
 }
 
 impl Session {
@@ -486,6 +502,7 @@ impl Session {
             deterministic_budgets: true,
             input_name: "board.dsn".to_string(),
             statistics: None,
+            congestion_engaged: false,
         };
         match outcome {
             ReadOutcome::Loaded => Ok(session),
@@ -556,7 +573,11 @@ impl Session {
             };
         // The pipeline (route.rs:1280-1289) — the session's StopFace
         // rides the shared flag (`StopFace::default()` is the flagless
-        // equivalent the CLI uses).
+        // equivalent the CLI uses). The congestion engagement is
+        // recorded BEFORE the batch moves (the resolved
+        // `congestion_global` master — the snapshot attach step's
+        // gate).
+        self.congestion_engaged = batch.congestion_global;
         let mut pass_sink = PassTrackingSink::new(sink);
         let outcome = full::run(
             &mut self.manager,
@@ -712,6 +733,128 @@ impl Session {
     pub fn pre_existing_violations(&self) -> i32 {
         self.pre_existing_violations
     }
+
+    /// The M9-T5 ATTACH STEP (the one `&mut` host of the overlay
+    /// faces — the pure [`board_snapshot`] builder cannot run them):
+    /// derive the pure snapshot, then attach all four overlay faces
+    /// computed at the CURRENT session boundary.
+    ///
+    /// Per-face documentation:
+    ///
+    /// * **airlines** — [`airline_segments`] (the Kruskal-ACCEPTED
+    ///   subset with ratsnest-corner endpoints), projected onto
+    ///   [`AirLinePrimitive`]s, wire order preserved.
+    /// * **violation_markers** — [`all_clearance_violation_depths`]
+    ///   recomputed at the boundary; each row becomes a
+    ///   [`ViolationMarker`] (center = the two items' bbox-center
+    ///   midpoint, depth = `expected − actual` in board units,
+    ///   pair_kind = the items' `BoardItemType` declaration
+    ///   ordinals). PHASE: [`MarkerPhase::Parse`] before the first
+    ///   route (the load seed boundary — the walk recomputed on the
+    ///   unchanged board is the seed's own face),
+    ///   [`MarkerPhase::PostRoute`] after any [`Session::route`].
+    /// * **congestion** — populated ONLY when the last resolved route
+    ///   engaged `congestion_global` (the `congestion_engaged` field
+    ///   doc); the heatmap is a RECOMPUTED [`CongestionMap::build`]
+    ///   over the boundary board state — the same pure builder the
+    ///   global stage uses, NOT the mid-run artifact (no live map
+    ///   survives a planning face). Cells with `overflow > 0` only,
+    ///   raw occupancy (no net excluded).
+    /// * **tuning** — `Some` iff `has_length_constraints()`; one
+    ///   [`NetTuningInfo`] per net whose resolved
+    ///   `net_class_length_bounds` carry a non-zero bound (the SAME
+    ///   `> 0.0` predicate the activation uses), nets ascending,
+    ///   `actual` from [`Board::net_trace_length`].
+    #[must_use]
+    pub fn snapshot_with_overlays(&mut self) -> BoardSnapshot {
+        let phase = if self.final_state.is_some() {
+            MarkerPhase::PostRoute
+        } else {
+            MarkerPhase::Parse
+        };
+        let mut snapshot = board_snapshot(&self.board);
+        // Airlines: the `&mut` face over BOTH session fields (disjoint
+        // borrows — manager shared, board mutable).
+        snapshot.overlays.airlines = airline_segments(&self.manager, &mut self.board)
+            .into_iter()
+            .map(|segment| AirLinePrimitive {
+                from: PointPrimitive {
+                    x: segment.from.0,
+                    y: segment.from.1,
+                },
+                to: PointPrimitive {
+                    x: segment.to.0,
+                    y: segment.to.1,
+                },
+                net: segment.net,
+            })
+            .collect();
+        // Violation markers: the depth walk at the boundary.
+        let (_total, rows) = all_clearance_violation_depths(&mut self.manager, &mut self.board);
+        snapshot.overlays.violation_markers =
+            crate::snapshot::violation_markers_from_rows(&rows, &self.board, phase);
+        // Congestion: engaged-only, recomputed projection.
+        if self.congestion_engaged {
+            let map = CongestionMap::build(&mut self.board);
+            snapshot.overlays.congestion = project_heatmap(&map);
+        }
+        // Tuning: constraint-declared only.
+        if self.board.rules().has_length_constraints() {
+            let max_net = self.board.rules().nets.max_net_number();
+            let mut infos = Vec::new();
+            for net in 1..=max_net {
+                let (min, max) = self.board.rules().net_class_length_bounds(net);
+                if min > 0.0 || max > 0.0 {
+                    infos.push(NetTuningInfo {
+                        net,
+                        min,
+                        max,
+                        actual: self.board.net_trace_length(net),
+                    });
+                }
+            }
+            snapshot.overlays.tuning = Some(infos);
+        }
+        snapshot
+    }
+}
+
+/// The congestion heatmap projection ([`CongestionMap`] →
+/// [`CongestionHeatmap`]): only cells with `overflow > 0` (the raw
+/// occupancy read, no net excluded — the boundary projection, not a
+/// routing-net read), signal-layer-ascending then row-major
+/// `(iy, ix)` order (the map's own grid geometry, documented on the
+/// wire type). The empty map yields `None` (nothing to draw).
+fn project_heatmap(map: &CongestionMap) -> Option<CongestionHeatmap> {
+    if map.is_empty() {
+        return None;
+    }
+    let (nx, ny) = map.grid_dims();
+    let layer_count = map.total_overflow().len();
+    let mut cells = Vec::new();
+    for signal_layer in 0..layer_count {
+        for iy in 0..ny {
+            for ix in 0..nx {
+                let overflow = map.overflow(ix, iy, signal_layer, None);
+                if overflow > 0 {
+                    cells.push(CongestionCell {
+                        ix: ix as u64,
+                        iy: iy as u64,
+                        signal_layer: signal_layer as u64,
+                        overflow,
+                        capacity: map.capacity(signal_layer),
+                    })
+                }
+            }
+        }
+    }
+    let (ox, oy) = map.grid_origin();
+    Some(CongestionHeatmap {
+        cell_size: map.cell_size(),
+        origin: PointPrimitive { x: ox, y: oy },
+        dims: (nx as u64, ny as u64),
+        cells,
+    })
 }
 
 /// The CLI's final-state mapping (route.rs:449-462) — duplicated here

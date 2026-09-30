@@ -225,6 +225,7 @@ version = "0.1.0"
 dependencies = [
  "epic-engine",
  "epic-geometry",
+ "epic-router",
  "serde",
  "serde_json",
 ]
