@@ -299,16 +299,175 @@ fn layer_visibility_exclusion_by_construction() {
         "hiding a populated layer moves the op count"
     );
     let empty = project(&bm08, &crafted_view(&bm08, &[]), full_viewport());
-    let outline_only = project(&bm08, &crafted_view(&bm08, &[]), full_viewport());
+    // The outline-only face pinned for real: hiding EVERY layer leaves
+    // EXACTLY the layer-less outline group — one SetColor + one
+    // FillPolygon and nothing else (a hidden-layer-leaking mutant
+    // cannot pass a bare count).
     assert_eq!(
-        render_json(&empty),
-        render_json(&outline_only),
-        "hiding every layer renders the outline only (nothing else references hidden items)"
+        empty.ops.len(),
+        2,
+        "hiding every layer renders exactly SetColor + FillPolygon for the outline"
     );
+}
+
+// --- PIN 3b — the via mapping row (spec-review F1) -------------------
+
+/// A crafted one-via snapshot: two drill shapes on DIFFERENT layers
+/// (padstack order — a small 80x80 square on layer 0, a wider 160x160
+/// square on layer 1), centered at (500, 500); nothing else renders
+/// (no outline/pads/traces/areas), so the projection's op list is
+/// EXACTLY the via's op sequence and every assertion below is
+/// op-by-op.
+///
+/// Radius arithmetic at the 1:1 test transform (scale = 1): both
+/// shapes visible ⇒ union bbox (420,420)-(580,580), min(w,h) = 160 ⇒
+/// radius = 160/4 = 40 DBU ⇒ 40 px (the documented
+/// `max(1, min(w,h)/4 x scale)` face, the 1 px floor not reached).
+/// Only layer 0 visible ⇒ visible-union bbox (460,460)-(540,540),
+/// min(w,h) = 80 ⇒ radius = 80/4 = 20 px.
+fn one_via_snapshot() -> BoardSnapshot {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    BoardSnapshot {
+        traces: Vec::new(),
+        vias: vec![epic_engine::snapshot::ViaPrimitive {
+            center: point(500, 500),
+            drill_shapes: vec![
+                // Padstack index 0 — layer 0, the small square.
+                vec![
+                    point(460, 460),
+                    point(540, 460),
+                    point(540, 540),
+                    point(460, 540),
+                ],
+                // Padstack index 1 — layer 1, the wider square.
+                vec![
+                    point(420, 420),
+                    point(580, 420),
+                    point(580, 580),
+                    point(420, 580),
+                ],
+            ],
+            layers: vec![0, 1],
+            net: 1,
+        }],
+        pads: Vec::new(),
+        areas: Vec::new(),
+        outline: Vec::new(),
+        nets: vec![epic_engine::snapshot::NetInfo {
+            id: 1,
+            name: "n".to_string(),
+        }],
+        bounds: epic_engine::snapshot::BoxPrimitive {
+            ll_x: 420,
+            ll_y: 420,
+            ur_x: 580,
+            ur_y: 580,
+        },
+        revision: 0,
+    }
+}
+
+/// The doc table's via row, asserted op-by-op: `SetColor(via)` →
+/// `FillPolygon(pad rectangle)` per visible shape in PADSTACK order →
+/// the drill `Circle` LAST. Kills the drop-Circle mutant (the exact
+/// 4-op sequence fails), the Circle-before-pads mutant (same assert),
+/// and the per-shape-bbox cull mutant (the union-overlap face keeps
+/// the FULL 4-op sequence when the layer-1 shape sticks out of the
+/// viewport).
+#[test]
+fn via_mapping_ops_match_the_doc_table() {
+    let snapshot = one_via_snapshot();
+
+    // Both layers visible, wide-open viewport: exactly the doc-table
+    // op sequence (screen == world at the 1:1 pan-origin transform).
+    let all = project(
+        &snapshot,
+        &crafted_view(&snapshot, &[0, 1]),
+        full_viewport(),
+    );
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    let shape0 = [
+        point(460, 460),
+        point(540, 460),
+        point(540, 540),
+        point(460, 540),
+    ];
+    let shape1 = [
+        point(420, 420),
+        point(580, 420),
+        point(580, 580),
+        point(420, 580),
+    ];
+    // Screen == world − pan (pan = bounds.ll = (420, 420)) at zoom
+    // 1:1 — the expected literals below are the TRANSFORMED corners.
+    let screen = |points: &[epic_engine::snapshot::PointPrimitive]| {
+        points
+            .iter()
+            .map(|p| IntPoint::new((p.x - 420) as i32, (p.y - 420) as i32))
+            .collect::<Vec<_>>()
+    };
     assert_eq!(
-        empty.ops.len() % 2,
-        0,
-        "the outline group is SetColor + FillPolygon pairs"
+        all.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor([227, 183, 46, 255]),
+            epic_gui::render::RenderOp::FillPolygon(screen(&shape0)), // (40,40)-(120,120)
+            epic_gui::render::RenderOp::FillPolygon(screen(&shape1)), // (0,0)-(160,160)
+            epic_gui::render::RenderOp::Circle {
+                center: IntPoint::new(80, 80), // world (500,500) − pan
+                radius: 40,                    // min(160,160)/4 x scale 1 — the doc arithmetic
+            },
+        ],
+        "the via emits SetColor -> FillPolygon per visible shape in padstack order -> the drill Circle LAST"
+    );
+
+    // UNION-bbox cull: the layer-0 shape is fully inside the viewport
+    // while the layer-1 shape STICKS OUT past the right edge — the
+    // union still overlaps, so the via renders its FULL 4-op sequence
+    // (a per-shape-bbox cull mutant would drop the via or its
+    // layer-1 polygon here).
+    let sticking_out = IntBox::new(IntPoint::new(0, 0), IntPoint::new(560, 2000));
+    let kept = project(&snapshot, &crafted_view(&snapshot, &[0, 1]), sticking_out);
+    assert_eq!(
+        kept.ops.len(),
+        4,
+        "the union bbox overlaps (layer-1 shape sticks out) — the via renders completely"
+    );
+    assert_eq!(kept.culled, 0, "a union overlap is a keep — nothing culled");
+
+    // The same via fully ONE DBU outside: culled, no ops.
+    let one_out = IntBox::new(IntPoint::new(0, 0), IntPoint::new(419, 2000));
+    let culled_render = project(&snapshot, &crafted_view(&snapshot, &[0, 1]), one_out);
+    assert_eq!(
+        (culled_render.ops.len(), culled_render.culled),
+        (0, 1),
+        "the via 1-DBU outside the viewport is culled with no ops"
+    );
+
+    // ALL layers hidden: the via contributes NOTHING — no ops AND
+    // `culled` unchanged (a visibility-skipped primitive never reaches
+    // the precheck; the count-in-culled mutant dies here).
+    let hidden = project(&snapshot, &crafted_view(&snapshot, &[]), full_viewport());
+    assert_eq!(
+        (hidden.ops.len(), hidden.culled),
+        (0, 0),
+        "an all-layers-hidden via contributes nothing and is NOT counted in culled"
+    );
+
+    // ONE layer hidden: per-shape visibility, not all-or-nothing —
+    // only the layer-1 FillPolygon drops, and the drill radius
+    // re-derives from the VISIBLE shapes' union (80/4 = 20 px).
+    let half = project(&snapshot, &crafted_view(&snapshot, &[0]), full_viewport());
+    assert_eq!(
+        half.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor([227, 183, 46, 255]),
+            epic_gui::render::RenderOp::FillPolygon(screen(&shape0)),
+            epic_gui::render::RenderOp::Circle {
+                center: IntPoint::new(80, 80),
+                radius: 20, // min(80,80)/4 x scale 1 — the visible-union arithmetic
+            },
+        ],
+        "hiding layer 1 drops exactly its FillPolygon and re-derives the drill radius"
     );
 }
 
