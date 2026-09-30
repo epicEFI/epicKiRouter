@@ -168,6 +168,7 @@ fn is_snapshot_carrying(msg: &WorkerToGui) -> bool {
 /// loses the scalars; a keep-FIRST mutant loses the newest geometry;
 /// a reorder mutant violates the scalar ordering — the pin asserts
 /// the exact surviving sequence, so all three die.
+#[must_use]
 pub fn coalesce_latest_wins(batch: Vec<WorkerToGui>) -> Vec<WorkerToGui> {
     let mut last_snapshot: Option<usize> = None;
     for (index, msg) in batch.iter().enumerate() {
@@ -289,6 +290,25 @@ pub enum LaunchMode {
         /// The DSN to load.
         dsn: PathBuf,
     },
+}
+
+/// The first-display FIT ZOOM (the fix-round Q2 hoist — closes the
+/// census-pinnability leak: the math was gated inside the desktop
+/// `initialize_view_for` with zero pin coverage; the charter §2b law
+/// says pure logic the pins need lives UNGATED). Returns
+/// `(zoom_num, zoom_den)` = `(1, ceil(longest / 1400))`.
+///
+/// DNR-19 derivation of the 1400 px: the LONGEST board side spans a
+/// ~1400 px initial viewport (the 1280x800 smoke window's usable
+/// canvas budget, with margin), so a rational `<= 1` fits the whole
+/// board (the zoom-out door; factors stay `>= 1`). Degenerate inputs
+/// (zero/negative longest) clamp to den 1 via the `.max(1)`.
+#[must_use]
+pub fn fit_zoom(longest: i64) -> (i64, i64) {
+    // Manual ceil-div — `i64::div_ceil` is still unstable at the
+    // pinned 1.93 toolchain.
+    let den = ((longest + 1399) / 1400).max(1);
+    (1, den)
 }
 
 /// The smoke launch's overlay face (the fix-round F1 answer):
@@ -568,6 +588,32 @@ mod tests {
         assert_eq!(rational_zoom_step(-3, -3, Out), (1, 2));
     }
 
+    /// THE FIT-ZOOM PIN (fix-round Q2, closes the KM5 survivor):
+    /// the DNR-16 ceiling face BOTH directions at every 1400
+    /// boundary (exactly ON a multiple stays in that band, one DBU
+    /// over bumps the band) + the degenerate `.max(1)` face. Kills
+    /// the floor-div mutant (1401 would read den 1) and the
+    /// missing-clamp mutant (0 would read den 0 — a divide-by-zero
+    /// zoom).
+    #[test]
+    fn fit_zoom_faces() {
+        // ON the first multiple vs one DBU over (both directions of
+        // the DNR-16 boundary).
+        assert_eq!(fit_zoom(1400), (1, 1));
+        assert_eq!(fit_zoom(1401), (1, 2));
+        // ON the second multiple vs one DBU over.
+        assert_eq!(fit_zoom(2800), (1, 2));
+        assert_eq!(fit_zoom(2801), (1, 3));
+        // One DBU UNDER the first multiple is still band 1.
+        assert_eq!(fit_zoom(1399), (1, 1));
+        // Degenerate: zero and negative clamp to den 1 (the
+        // constructor-total face — never a zero denominator).
+        assert_eq!(fit_zoom(0), (1, 1));
+        assert_eq!(fit_zoom(-50), (1, 1));
+        // A realistic board face (bm08-class ~1.5M DBU).
+        assert_eq!(fit_zoom(1_500_000), (1, 1072));
+    }
+
     /// THE SMOKE OVERLAY PIN (fix-round F1): all four toggles ON
     /// (kills a flag-dropped-at-launch mutant — the evidence PNG must
     /// carry the toggled-ON families, not just the checkboxes).
@@ -621,5 +667,19 @@ mod tests {
         assert!(parse_launch_args(["--smoke"].iter().map(|s| arg(s))).is_err());
         assert!(parse_launch_args(["--smoke", "b.dsn"].iter().map(|s| arg(s))).is_err());
         assert!(parse_launch_args(["--wat"].iter().map(|s| arg(s))).is_err());
+        // Q7: the non-numeric --frames value is Err (the parse face).
+        assert!(
+            parse_launch_args(
+                ["--smoke", "b.dsn", "--frames", "soon", "--out", "f.png"]
+                    .iter()
+                    .map(|s| arg(s))
+            )
+            .is_err()
+        );
+        // Q7: --cancel-smoke with an extra arg is Err (the exact-arity
+        // face).
+        assert!(
+            parse_launch_args(["--cancel-smoke", "b.dsn", "extra"].iter().map(|s| arg(s))).is_err()
+        );
     }
 }

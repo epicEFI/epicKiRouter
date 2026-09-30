@@ -184,6 +184,13 @@ impl Worker {
     /// at attach cadence.
     fn attach_snapshot(&mut self) {
         let Some(session) = self.session.as_mut() else {
+            // Q3: the silent no-op class leaves a trace (mirroring
+            // `route`'s None-arm idiom) — a None session here means a
+            // Snapshot command raced a failed load.
+            let _ = self.tx.send(WorkerToGui::Engine(EngineEvent::Message {
+                level: "warn".to_string(),
+                text: "cannot attach: no board loaded".to_string(),
+            }));
             return;
         };
         let snapshot: BoardSnapshot = session.snapshot_with_overlays();

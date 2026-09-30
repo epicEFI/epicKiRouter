@@ -92,8 +92,8 @@ pub fn run(mode: LaunchMode) -> Result<i32, String> {
     eframe::run_native(
         "EpicRouter",
         options,
-        Box::new(move |_cc| {
-            let app = ShellApp::new(mode, exit_for_app)?;
+        Box::new(move |cc| {
+            let app = ShellApp::new(mode, exit_for_app, cc.egui_ctx.clone())?;
             Ok(Box::new(app))
         }),
     )
@@ -109,6 +109,10 @@ struct ShellApp {
     /// THE view state — pan/zoom/visibility/overlays mutate ONLY
     /// this (the renders-never-mutates law's GUI face).
     view: crate::view::ViewModel,
+    /// The egui Context handle (the Q1 liveness face: `send` pings
+    /// the repaint clock so an idle reactive-mode UI drains the
+    /// worker's reply).
+    egui_ctx: egui::Context,
     /// Worker -> GUI messages.
     rx: std::sync::mpsc::Receiver<WorkerToGui>,
     /// GUI -> worker commands.
@@ -219,7 +223,11 @@ fn unreachable(what: &str) -> ! {
 }
 
 impl ShellApp {
-    fn new(mode: LaunchMode, exit: Arc<Mutex<Option<i32>>>) -> Result<Self, String> {
+    fn new(
+        mode: LaunchMode,
+        exit: Arc<Mutex<Option<i32>>>,
+        egui_ctx: egui::Context,
+    ) -> Result<Self, String> {
         let (cmd_tx, cmd_rx) = std::sync::mpsc::channel::<GuiToWorker>();
         let (event_tx, event_rx) = std::sync::mpsc::channel::<WorkerToGui>();
         worker::spawn(cmd_rx, event_tx)?;
@@ -243,6 +251,7 @@ impl ShellApp {
         }
         Ok(Self {
             view,
+            egui_ctx,
             rx: event_rx,
             cmd_tx,
             display: None,
@@ -267,6 +276,16 @@ impl ShellApp {
     fn send(&mut self, command: GuiToWorker) {
         if self.cmd_tx.send(command).is_err() {
             self.protocol_error = Some("the worker thread is gone (channel closed)".to_string());
+        } else {
+            // Q1 liveness: a worker reply (LoadResult/Attached/…) may
+            // arrive while no route is running and no smoke is active
+            // — the 16ms cadence only fires while
+            // `route_running || smoke_is_active()`, so an idle
+            // reactive-mode UI would never drain the reply. One
+            // 100ms ping per issued command closes that gap
+            // (imperceptible; one ping per click, not a poll loop).
+            self.egui_ctx
+                .request_repaint_after(std::time::Duration::from_millis(100));
         }
     }
 
@@ -324,19 +343,14 @@ impl ShellApp {
             x: bounds.ll_x,
             y: bounds.ll_y,
         };
-        // The fit zoom (DNR-19 derivation): the LONGEST board side
-        // spans a ~1400 px initial viewport (the 1280x800 smoke
-        // window's usable canvas budget, with margin), so
-        // zoom = 1/den with den = ceil(longest / 1400) — a RATIONAL
-        // <= 1 (the zoom-out door; the factors stay >= 1).
+        // The fit zoom: the pure face hoisted to `shell::fit_zoom`
+        // (the Q2 census-pinnability hoist — the DNR-19 derivation
+        // lives on the hoisted fn, pinned in shell.rs).
         let longest = (bounds.ur_x - bounds.ll_x)
             .max(bounds.ur_y - bounds.ll_y)
             .max(1);
-        // (manual ceil-div — i64::div_ceil is still unstable at the
-        // pinned 1.93 toolchain)
-        let fit_den = ((longest + 1399) / 1400).max(1);
-        self.view.transform.zoom_num = 1;
-        self.view.transform.zoom_den = fit_den;
+        (self.view.transform.zoom_num, self.view.transform.zoom_den) =
+            crate::shell::fit_zoom(longest);
         if let Some(display) = &self.display {
             for layer in panels::present_layers(display) {
                 self.view.visible_layers.insert(layer);
@@ -454,7 +468,7 @@ impl ShellApp {
                 // that is a smoke FAILURE with the honest text.
                 if let Some(smoke) = self.smoke.as_mut() {
                     smoke.failures.push(
-                        "the eframe __screenshot hook did not fire (the PNG face is                          its pass-2 exit, not this path)"
+                        "the eframe __screenshot hook did not fire (the PNG face is its pass-2 exit, not this path)"
                             .to_string(),
                     );
                 }

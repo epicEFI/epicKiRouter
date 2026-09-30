@@ -99,6 +99,13 @@ fn paint_ops(
             }
             RenderOp::Circle { center, radius } => {
                 flush_path(painter, &mut path, &state);
+                // Q8 clamp-asymmetry note: the Circle stroke floors at
+                // 1.0 px (a drill hole thinner than 1 px would vanish
+                // entirely — a 1-px ring is the minimum VISIBLE
+                // circle), while path strokes floor at 0.1 px (traces
+                // legitimately render sub-pixel at fit zoom, where a
+                // 1-px floor would turn every hairline trace into a
+                // visible 1-px line and drown the geometry).
                 painter.circle_stroke(
                     point(rect, center),
                     radius.max(1) as f32,
