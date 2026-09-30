@@ -250,7 +250,12 @@ new test count), the events-compare step added with a 10-minute wall,
 and the posture prose refreshed (this paragraph, the rust/README
 status block + gates comment, the SEAM posture row,
 docs/architecture.md). The four prior holds (M4 close, M5-T8, M6-T3,
-M7) stand as history — the fifth moment was the flip.)
+M7) stand as history — the fifth moment was the flip. ANCHOR NOTE:
+the pre-existing line anchors in this paragraph-chain — the compare
+step's run line `rust-check.yml:169`/`timeout-minutes: 30` at `:170`
+(:229-231 above) and the M5 note's `:139` (:373) — are PRE-FLIP
+numbering; post-flip the compare step sits at `:133`/`:134` and the
+events step at `:140`.)
 
 M4 exit note (T13, adjudicated 2026-09-24 at tree `6a0dbd00b`):
 **M4_EXIT_WITH_DEVIATIONS**, adjudicated on this row's own faces.

@@ -14,7 +14,7 @@ clearance counting), the M4 fanout + batch-optimizer stages with the
 assembled full pipeline (`pipeline/full.rs`, the `RoutingPipeline.run()`
 equivalent), the deterministic per-net partitioned executor with
 `--threads`, and `epic-cli` (headless route: `epicrouter -de
-board.dsn -do out.ses`); **1,547 workspace tests green**. M6
+board.dsn -do out.ses`); **1,629 workspace tests green**. M6
 executed on top (the routing-intelligence family, ALL default-OFF —
 at defaults every output stayed byte-identical, canaries unrotated):
 floating-island detection (advisory `pour_islands` manifest face +
@@ -54,8 +54,9 @@ lever is opt-in and NOT load-bearing for the CI step (the router-only
 profile never engages the optimizer). The four prior holds (M4 close,
 M5-T8, M6-T3, M7) stand as history. The bound does not
 rise — the wall must drop (the rust-check.yml comment records the
-adjudication). Threads-gate CI wiring lands WITH the flip
-(re-deferred with cause: the preconditions failed at M6-T3). M7
+adjudication). The threads-gate CI wiring did NOT land with the
+flip (M8-T8): it stays in-tree-only (harness `router
+threads-invariance`), re-owned to the next workflow-touching act. M7
 executed on top (the tuning family, INPUT-DRIVEN — a DSN
 `(circuit (length …))` declaration activates; constraint-free input
 routes byte-identically at defaults, canaries unrotated): the
@@ -68,8 +69,8 @@ differential pairs (`pipeline/pairs.rs`, declared via
 tuning population is the six committed fixtures under
 `harness/fixtures/tuning/` (+ the two pair goldens), measured DRC-clean
 at the REAL counter (ri=0 on all six, T7); Tier A held 11/11
-row-for-row (10 green / 1 red completion-only); census 1,547/0/17,
-additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
+row-for-row (10 green / 1 red completion-only); census 1,547/0/17
+(the M7-exit census; 1,629 at the M8 flip), additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
 the T7 this-run pair 1800.1 s kill / 333.0 s strip / 1467.0 s bound).
 Status: **M7_EXIT_WITH_DEVIATIONS** — design §6 M7 exit note,
 `logs/M7-T7/report-t7.md`, the M7 criterion map in SEAM.md.
@@ -237,7 +238,7 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # compare step now runs GATE mode and exit is a hard gate; the four
 # prior holds are history): the
 # battery is now TIER-AWARE (`--tier A|B|C`, default A byte-identical —
-# the T3 chore commit 62c417a38) and the workspace census is 1,547
+# the T3 chore commit 62c417a38) and the workspace census is 1,629
 # passed / 0 failed / 17 ignored. The flip LANDED at M8-T8 —
 # the post-flip CI face (router-only, gate) is 11 green / 0 red at
 # Σ 286.5 s (arithmetic in the status block and the rust-check.yml

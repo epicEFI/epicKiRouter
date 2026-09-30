@@ -247,7 +247,7 @@ jobs:
                 let hits = matching_run_lines(&blocks, "cargo test --workspace");
                 panic!(
                     "the bare-suite run line must exist UNIQUELY — {} matching run \
-                     line(s) (zero = the step is gone; multiple = a duplicated step \
+                     line(s) (zero = the step is gone or its run line was folded/reshaped; multiple = a duplicated step \
                      is the usual cause): {hits:?}",
                     hits.len()
                 );
@@ -279,7 +279,7 @@ jobs:
             let hits = matching_run_lines(&blocks, "router compare");
             panic!(
                 "the router-compare run line must exist UNIQUELY — {} matching run \
-                 line(s) (zero = the step is gone; multiple = a duplicated step is \
+                 line(s) (zero = the step is gone or its run line was folded/reshaped; multiple = a duplicated step is \
                  the usual cause): {hits:?}",
                 hits.len()
             );
@@ -310,7 +310,7 @@ jobs:
             let hits = matching_run_lines(&blocks, "events compare");
             panic!(
                 "the events-compare run line must exist UNIQUELY — {} matching run \
-                 line(s) (zero = the step is gone; multiple = a duplicated step is \
+                 line(s) (zero = the step is gone or its run line was folded/reshaped; multiple = a duplicated step is \
                  the usual cause): {hits:?}",
                 hits.len()
             );
