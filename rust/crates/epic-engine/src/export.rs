@@ -189,9 +189,9 @@ mod tests {
         ));
     }
 
-    /// Q6 (quality review): the LAST-dot cut (BoardFileDetails.java:
-    /// 205-210) — a two-dot input name must keep the middle segment
-    /// (the first-dot mutant emitted `(session my` for `my.bad.dsn`).
+    /// The LAST-dot cut (BoardFileDetails.java:205-210): a two-dot
+    /// input name must keep the middle segment (the first-dot mutant
+    /// emitted `(session my` for `my.bad.dsn`).
     #[test]
     fn filename_without_extension_cuts_at_last_dot() {
         assert_eq!(filename_without_extension("my.bad.dsn"), "my.bad");

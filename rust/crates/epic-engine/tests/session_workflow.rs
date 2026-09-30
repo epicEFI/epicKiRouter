@@ -258,10 +258,20 @@ fn session_layer_max_passes_override_is_output_observable() {
     let dsn = fixture("../scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm07.dsn");
     let bytes = fs::read(&dsn).expect("bm07 reads");
 
-    // Defaults: the multi-pass face (probed: 18 passes, 1 incomplete,
-    // COMPLETED — the pin only demands > 1 so a future engine change
-    // in pass count does not rot the pin).
+    // Defaults: the multi-pass face (probed 2026-09-30: 18 passes,
+    // 1 incomplete, COMPLETED — the pin only demands > 1 so a future
+    // engine change in pass count does not rot the pin). bm07 is a
+    // CLEAN fixture: 0 load-time violations (manifest face
+    // total_count 0 == router_introduced 0), so the session's
+    // pre-existing seed must be exactly ZERO — the wrong-value
+    // mutants produce other positives, never negatives, which is why
+    // the seed's pin is an equality here.
     let mut session = Session::load_dsn(&bytes, SessionLayer::default()).expect("bm07 loads clean");
+    assert_eq!(
+        session.pre_existing_violations(),
+        0,
+        "the clean-fixture face: bm07 loads violation-free"
+    );
     let mut sink = SilentSink;
     let defaults = session.route(&CliLayer::default(), &mut sink);
     assert_eq!(defaults.final_state, "COMPLETED");
@@ -269,11 +279,6 @@ fn session_layer_max_passes_override_is_output_observable() {
         defaults.passes > 1,
         "bm07 at defaults must be MULTI-pass for this pin (got {})",
         defaults.passes
-    );
-    assert_eq!(defaults.incomplete_count, 1, "the probed bm07 face");
-    assert!(
-        session.pre_existing_violations() >= 0,
-        "the pre-existing seed is exposed"
     );
 
     // The override: a FRESH session (the first run consumed its
