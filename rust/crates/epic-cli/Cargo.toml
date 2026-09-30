@@ -13,6 +13,7 @@ path = "src/main.rs"
 epic-board = { path = "../epic-board" }
 epic-drc = { path = "../epic-drc" }
 epic-dsn = { path = "../epic-dsn" }
+epic-engine = { path = "../epic-engine" }
 epic-geometry = { path = "../epic-geometry" }
 epic-router = { path = "../epic-router" }
 serde = { version = "1", features = ["derive"] }

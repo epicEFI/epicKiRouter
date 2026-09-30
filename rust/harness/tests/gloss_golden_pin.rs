@@ -19,7 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use epic_cli::route::run_route;
-use epic_cli::settings::{ParsedRouteArgs, parse_route_args};
+use epic_engine::settings::{ParsedRouteArgs, parse_route_args};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -1390,13 +1390,13 @@ fn run_detail_pass(
 fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail, anyhow::Error> {
     use epic_board::board::Board;
     use epic_board::tree_manager::SearchTreeManager;
-    use epic_cli::route::{CliDriverSink, build_batch_settings};
-    use epic_cli::settings::{
-        DsnLayer, MergedSettings, ResolvedRouteSettings, apply_board_specific_optimizations, merge,
-        parse_route_args, validate,
-    };
+    use epic_cli::route::CliDriverSink;
     use epic_dsn::reader::{DsnReadResult, read_board};
     use epic_dsn::ses_board::SesBoard;
+    use epic_engine::settings::{
+        DsnLayer, MergedSettings, ResolvedRouteSettings, apply_board_specific_optimizations,
+        build_batch_settings, merge, parse_route_args, validate,
+    };
     use epic_router::pipeline::batch::{BatchDriver, StopFace};
     use epic_router::pipeline::board_statistics::BoardStatistics;
 

@@ -172,6 +172,7 @@ dependencies = [
  "epic-board",
  "epic-drc",
  "epic-dsn",
+ "epic-engine",
  "epic-geometry",
  "epic-index",
  "epic-router",
@@ -200,6 +201,12 @@ dependencies = [
 [[package]]
 name = "epic-engine"
 version = "0.1.0"
+dependencies = [
+ "epic-board",
+ "epic-dsn",
+ "epic-geometry",
+ "epic-router",
+]
 
 [[package]]
 name = "epic-geometry"
@@ -222,6 +229,7 @@ dependencies = [
  "epic-cli",
  "epic-drc",
  "epic-dsn",
+ "epic-engine",
  "epic-geometry",
  "epic-index",
  "epic-router",

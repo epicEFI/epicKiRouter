@@ -9,7 +9,7 @@
 //! error (nothing was routed).
 
 use epic_cli::route::run_route;
-use epic_cli::settings::parse_route_args;
+use epic_engine::settings::parse_route_args;
 
 const USAGE: &str = "usage: epic-cli route -de <board.dsn> -do <out.ses> \
                      [--result-json <manifest.json>] [--deterministic-budgets=on|off] \

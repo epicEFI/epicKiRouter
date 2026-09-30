@@ -15,6 +15,7 @@ clap = { version = "4", features = ["derive"] }
 epic-board = { path = "../crates/epic-board" }
 epic-cli = { path = "../crates/epic-cli" }
 epic-drc = { path = "../crates/epic-drc" }
+epic-engine = { path = "../crates/epic-engine" }
 epic-dsn = { path = "../crates/epic-dsn" }
 epic-geometry = { path = "../crates/epic-geometry" }
 epic-index = { path = "../crates/epic-index" }

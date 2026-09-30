@@ -41,7 +41,7 @@ use epic_dsn::state::Unit as DsnUnit;
 use epic_geometry::int_point::IntPoint;
 use epic_geometry::point::Point;
 use epic_geometry::rounding::java_round;
-use epic_router::pipeline::batch::{BatchSettings, StopFace, StopReason};
+use epic_router::pipeline::batch::{StopFace, StopReason};
 use epic_router::pipeline::board_statistics::{BoardStatistics, RouterSettingsScoring};
 use epic_router::pipeline::event_sink::DriverSink;
 use epic_router::pipeline::full::{PipelineOutcome, PipelinePhases};
@@ -49,9 +49,10 @@ use epic_router::pipeline::pass_runner::RouterCounters;
 use serde::Serialize;
 use sha2::Digest;
 
-use crate::settings::{
+use epic_engine::settings::{
     DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM, DsnLayer, MergedSettings, ParsedRouteArgs,
-    ResolvedRouteSettings, apply_board_specific_optimizations, merge,
+    ResolvedRouteSettings, apply_board_specific_optimizations, apply_meander_activation,
+    apply_pairs_activation, apply_tuning_activation, build_batch_settings, merge,
 };
 
 // ---------------------------------------------------------------------------
@@ -822,94 +823,6 @@ fn clearance_face(total_count: Option<i32>, pre_existing: i32) -> ManifestCleara
     }
 }
 
-/// The `BatchSettings` assembly from the resolved product — the flow's
-/// step 4, separated so the wiring is directly pinnable. The
-/// load-bearing line is the job-ctor derivation
-/// `removeUnconnectedVias = !isFanoutEnabled()`: fanout-off ALSO flips
-/// the batch tail sweep, so a silently broken coupling changes routing
-/// outcomes, not just via counts.
-///
-/// `pub` for the harness's T15 first-divergence localizer: the in-process
-/// detail pass must build its batch settings through THIS function, not a
-/// copy, so the fanout coupling has exactly one source (the harness's
-/// subprocess run is the real flow either way; this only keeps the
-/// diagnostic re-run honest).
-pub fn build_batch_settings(resolved: &ResolvedRouteSettings) -> BatchSettings {
-    let mut batch = BatchSettings::new(resolved.router_settings.clone(), resolved.scoring.clone());
-    batch.max_passes = resolved.max_passes;
-    batch.max_items = resolved.max_items;
-    batch.fanout_enabled = resolved.fanout_enabled;
-    // The job ctor derives removeUnconnectedVias = !isFanoutEnabled().
-    batch.remove_unconnected_vias = !resolved.fanout_enabled;
-    batch.pull_tight_accuracy = resolved.pull_tight_accuracy;
-    batch.strict_drc = resolved.strict_drc;
-    batch.run_router = resolved.run_router;
-    batch.deterministic_budgets = resolved.deterministic_budgets;
-    // M6-T6: the Rust-only connectivity clamp (default OFF — dead code
-    // at defaults; its route effect is measured at T8/T9, not here).
-    batch.plane_island_clamp = resolved.plane_island_clamp;
-    // M6-T7: the global-planning family (default OFF — dead code at
-    // defaults; the settings-ON faces are beyond-Java).
-    batch.congestion_global = resolved.congestion_global;
-    batch.congestion_global_pattern = resolved.congestion_global_pattern;
-    // M6-T8: the negotiated scheduler sub-flag (default OFF — dead
-    // code at defaults; the settings-ON faces are beyond-Java).
-    batch.congestion_global_pathfinder = resolved.congestion_global_pathfinder;
-    // M6-T9: the push-and-shove insertion flag (default OFF — dead
-    // code at defaults; the settings-ON faces are beyond-Java).
-    batch.push_shove = resolved.push_shove;
-    // The via-cost pair: the merged scoring box (DefaultSettings seeds
-    // 50/5; the CLI/DSN layers can override).
-    let scoring_box = resolved.scoring.scoring.clone().unwrap_or_default();
-    batch.via_costs = scoring_box.via_costs.unwrap_or(50);
-    batch.plane_via_costs = scoring_box.plane_via_costs.unwrap_or(5);
-    // M8-T3: the gloss-bus activation (the resolved flag is the only
-    // gate — no board seam needed, the pass is post-route). Default
-    // OFF: the stage never runs, byte-identical.
-    batch.bus_active = resolved.gloss_bus;
-    // M8-T4: the gloss-flow activation (same seam as the bus flag).
-    batch.flow_active = resolved.gloss_flow;
-    // M8-T5: the gloss via-place activation (same seam as the flow
-    // flag).
-    batch.via_place_active = resolved.gloss_via_place;
-    // M8-T6: the gloss teardrops activation (same seam as the via-place
-    // flag).
-    batch.teardrops_active = resolved.gloss_teardrops;
-    batch
-}
-
-/// The M7-T2 tuning ACTIVATION: the effective face of the
-/// `router.tuning` tri-state resolved against the BOARD (the
-/// input-driven regime). The tuning regime exists as data (the
-/// net-class length bounds, `epic_board::rules_surf`) plus this
-/// predicate; the M7 honoring/meander/match/pair faces (T3+) read the
-/// resolved [`BatchSettings::tuning_active`], never the tri-state.
-///
-/// - `Some(false)` — the kill-switch: OFF even where a declaration
-///   would activate.
-/// - `Some(true)` — the override: ON even on constraint-free input
-///   (the flag family's explicit face).
-/// - `None` (the default) — input-driven: ON iff the board resolves
-///   ANY non-zero length bound (`BoardRules::has_length_constraints`).
-///
-/// Default settings + no declaration ⇒ false ⇒ zero behavior change
-/// (the constraint-free zero-rotation negative face; pinned).
-///
-/// Separated from [`build_batch_settings`] so the predicate is
-/// directly pinnable (the M6-T6 separated-wiring convention) — the
-/// board does not exist at the plain-settings assembly site.
-pub fn apply_tuning_activation(
-    batch: &mut BatchSettings,
-    resolved: &ResolvedRouteSettings,
-    rules: &epic_board::rules_surf::BoardRules,
-) {
-    batch.tuning_active = match resolved.tuning {
-        Some(false) => false,
-        Some(true) => true,
-        None => rules.has_length_constraints(),
-    };
-}
-
 /// The M6-T7 plan -> manifest-face projection (deterministic scalars
 /// + digests only).
 fn manifest_global_plan(plan: &epic_router::global::plan::GlobalPlan) -> ManifestGlobalPlan {
@@ -925,53 +838,6 @@ fn manifest_global_plan(plan: &epic_router::global::plan::GlobalPlan) -> Manifes
         order_count: plan.net_order().len(),
         order_digest: plan.order_digest(),
     }
-}
-
-/// The M7-T4 meander sub-flag ACTIVATION (the separated-wiring
-/// convention: the predicate directly pinnable, not folded into
-/// `build_batch_settings`). `None` rides the resolved tuning
-/// activation (input-driven — a declaration activates both); `on`
-/// forces the stage (a natural no-op on a constraint-free board — no
-/// declaration, no deficit rows); `off` kills the meander stage ALONE
-/// (the T3 honoring gate stays armed off the resolved
-/// `tuning_active`, which this function does NOT touch).
-pub fn apply_meander_activation(batch: &mut BatchSettings, resolved: &ResolvedRouteSettings) {
-    batch.meander_active = match resolved.tuning_meander {
-        Some(false) => false,
-        Some(true) => true,
-        None => batch.tuning_active,
-    };
-}
-
-/// The M7-T6 pair ACTIVATION (the separated-wiring convention — the
-/// predicate directly pinnable, next to the tuning/meander faces): the
-/// declaration list resolves at the board seam (names → numbers; the
-/// conservative resolver: a name resolving to several subnet nets or
-/// to none leaves the pair UNRESOLVED — recorded in the advisory
-/// rows, never guessed). The resolved specs ride
-/// [`BatchSettings::pairs`] (the pass leader-first order, the maze
-/// coupling preference, and the post-routing match stage read it);
-/// Default empty = zero activation, byte-identical.
-pub fn apply_pairs_activation(
-    batch: &mut BatchSettings,
-    resolved: &ResolvedRouteSettings,
-    board: &epic_board::board::Board,
-) -> (
-    Vec<epic_router::pipeline::pairs::PairSpec>,
-    Vec<ManifestPairUnresolved>,
-) {
-    let Some(declarations) = resolved.tuning_pairs.clone() else {
-        return (Vec::new(), Vec::new());
-    };
-    let (specs, unresolved) = epic_router::pipeline::pairs::resolve_pairs(board, &declarations);
-    batch.pairs = specs.clone();
-    (
-        specs,
-        unresolved
-            .into_iter()
-            .map(|(name_a, name_b)| ManifestPairUnresolved { name_a, name_b })
-            .collect(),
-    )
 }
 
 /// The M7-T6 advisory pair-report assembly (the M6-T6
@@ -1307,7 +1173,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         usize::try_from(ses.metadata.layer_count).unwrap_or(0),
     );
     let mut merged = merge(&MergedSettings::default(), &dsn_layer, &args.layer);
-    for warning in crate::settings::validate(&mut merged) {
+    for warning in epic_engine::settings::validate(&mut merged) {
         eprintln!("Warning: {warning}");
     }
 
@@ -1371,8 +1237,15 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     apply_meander_activation(&mut batch, &resolved);
     // M7-T6: the PAIR activation — the resolved declaration list (the
     // third activation input) resolved at the board seam; the
-    // unresolved rows ride the advisory report.
-    let (pair_specs, unresolved_pairs) = apply_pairs_activation(&mut batch, &resolved, &board);
+    // unresolved rows ride the advisory report. The engine predicate
+    // returns the unresolved rows as RAW `(name_a, name_b)` tuples
+    // (the M9-T1 move: the manifest row type stays in the host); the
+    // mapping to the manifest's advisory rows happens HERE.
+    let (pair_specs, unresolved_raw) = apply_pairs_activation(&mut batch, &resolved, &board);
+    let unresolved_pairs: Vec<ManifestPairUnresolved> = unresolved_raw
+        .into_iter()
+        .map(|(name_a, name_b)| ManifestPairUnresolved { name_a, name_b })
+        .collect();
     // M7-T3: the honoring faces read the RESOLVED activation off the
     // board (never the CLI tri-state) — one write here, next to the
     // tuning activation — before any routing/optimization pass runs.
@@ -1716,11 +1589,11 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::parse_route_args;
     use epic_board::id::ItemId;
     use epic_dsn::coordinate_transform::CoordinateTransform;
     use epic_dsn::layer_structure::{Layer, LayerStructure};
     use epic_dsn::sink::{BoardRulesIr, BoardSink, CreateBoardIr};
+    use epic_engine::settings::parse_route_args;
     use epic_geometry::int_box::IntBox;
     use epic_geometry::tile_shape::TileShape;
     use epic_router::pipeline::batch::BatchDriver;
@@ -2907,33 +2780,6 @@ mod tests {
     /// double-load-bearing for T14. The pin asserts the REAL batch face
     /// through the same builder the flow uses (the `= false` mutant
     /// passed the whole suite before this pin existed).
-    #[test]
-    fn batch_settings_wiring_fanout_to_remove_unconnected_vias() {
-        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(
-            &MergedSettings::default(),
-            None,
-        ));
-        assert!(
-            default_batch.fanout_enabled,
-            "the DefaultSettings seed fans out"
-        );
-        assert!(
-            !default_batch.remove_unconnected_vias,
-            "fanout on -> the tail sweep is NOT run"
-        );
-
-        let merged = MergedSettings {
-            fanout_enabled: Some(false),
-            ..MergedSettings::default()
-        };
-        let batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
-        assert!(!batch.fanout_enabled);
-        assert!(
-            batch.remove_unconnected_vias,
-            "fanout off -> the tail sweep removes unconnected vias"
-        );
-    }
-
     /// Q6 (quality review): the LAST-dot cut (BoardFileDetails.java:
     /// 205-210) — a two-dot input name must keep the middle segment
     /// (the first-dot mutant emitted `(session my` for `my.bad.dsn`).
@@ -3215,9 +3061,9 @@ mod tests {
         let mut merged = merge(
             &MergedSettings::default(),
             &dsn_layer,
-            &crate::settings::CliLayer::default(),
+            &epic_engine::settings::CliLayer::default(),
         );
-        for warning in crate::settings::validate(&mut merged) {
+        for warning in epic_engine::settings::validate(&mut merged) {
             eprintln!("Warning: {warning}");
         }
         apply_board_specific_optimizations(&mut merged, &board);
@@ -3704,192 +3550,6 @@ mod tests {
         );
     }
 
-    /// The clamp flag flows into BatchSettings through
-    /// `build_batch_settings` (default OFF; explicit ON survives).
-    #[test]
-    fn build_batch_settings_carries_plane_island_clamp() {
-        let merged = MergedSettings::default();
-        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
-        assert!(!default_batch.plane_island_clamp, "default OFF");
-
-        let merged_on = MergedSettings {
-            plane_island_clamp: Some(true),
-            ..MergedSettings::default()
-        };
-        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
-        assert!(batch_on.plane_island_clamp);
-    }
-
-    /// The M6-T7 seam: build_batch_settings carries the master + the
-    /// pattern sub-flag, both default OFF.
-    #[test]
-    fn build_batch_settings_carries_congestion_global() {
-        let merged = MergedSettings::default();
-        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
-        assert!(!default_batch.congestion_global, "default OFF");
-        assert!(!default_batch.congestion_global_pattern, "default OFF");
-
-        let merged_on = MergedSettings {
-            congestion_global: Some(true),
-            congestion_global_pattern: Some(true),
-            ..MergedSettings::default()
-        };
-        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
-        assert!(batch_on.congestion_global);
-        assert!(batch_on.congestion_global_pattern);
-    }
-
-    /// The M8-T3 seam: build_batch_settings carries the gloss-bus flag
-    /// (default OFF — the two-regime law; explicit ON survives).
-    #[test]
-    fn build_batch_settings_carries_gloss_bus() {
-        let merged = MergedSettings::default();
-        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
-        assert!(!default_batch.bus_active, "default OFF");
-
-        let merged_on = MergedSettings {
-            gloss_bus: Some(true),
-            ..MergedSettings::default()
-        };
-        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
-        assert!(batch_on.bus_active, "explicit ON survives");
-    }
-
-    /// The M8-T4 seam: build_batch_settings carries the gloss-flow
-    /// flag (default OFF — the two-regime law; explicit ON survives).
-    #[test]
-    fn build_batch_settings_carries_gloss_flow() {
-        let merged = MergedSettings::default();
-        let default_batch = build_batch_settings(&ResolvedRouteSettings::resolve(&merged, None));
-        assert!(!default_batch.flow_active, "default OFF");
-
-        let merged_on = MergedSettings {
-            gloss_flow: Some(true),
-            ..MergedSettings::default()
-        };
-        let batch_on = build_batch_settings(&ResolvedRouteSettings::resolve(&merged_on, None));
-        assert!(batch_on.flow_active, "explicit ON survives");
-    }
-
-    // ------------------------------------------------------------------
-    // M7-T2: the tuning activation seam
-    // ------------------------------------------------------------------
-
-    /// The M7-T2 pin world: a `BoardRules` with one unconstrained
-    /// default class + one constrained class, two nets (1 plain, 2 in
-    /// the constrained class). Assembled through the pub IR face
-    /// (`BoardRules::from_ir`) — the same construction the parse uses.
-    fn tuning_world(min: f64, max: f64) -> epic_board::rules_surf::BoardRules {
-        use epic_dsn::sink::{BoardRulesIr, NetClassIr, NetIr};
-        let class = NetClassIr {
-            name: "constrained".to_string(),
-            trace_clearance_class: 1,
-            trace_half_widths: vec![1500],
-            active_routing_layers: vec![true],
-            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
-            via_rule: None,
-            pull_tight: true,
-            shove_fixed: false,
-            min_trace_length: min,
-            max_trace_length: max,
-            nets: Vec::new(),
-        };
-        let default = NetClassIr {
-            name: "default".to_string(),
-            ..class.clone()
-        };
-        let rules_ir = BoardRulesIr {
-            clearance: epic_dsn::sink::ClearanceIr::default_instance(1),
-            trace_angle_restriction: epic_dsn::state::AngleRestriction::FortyfiveDegree,
-            default_trace_half_widths: vec![1500],
-            min_trace_half_width: 1500,
-            max_trace_half_width: 1500,
-            pin_edge_to_turn_dist: 0.0,
-            default_item_clearance_classes: [0, 1, 1, 1, 1, 1],
-        };
-        epic_board::rules_surf::BoardRules::from_ir(
-            &rules_ir,
-            &[
-                NetIr {
-                    name: "plain".to_string(),
-                    subnet_number: 1,
-                    contains_plane: false,
-                    net_class: 0,
-                },
-                NetIr {
-                    name: "matched".to_string(),
-                    subnet_number: 1,
-                    contains_plane: false,
-                    net_class: 1,
-                },
-            ],
-            &[default, class],
-            &[],
-            &[],
-        )
-    }
-
-    /// Helper: a `ResolvedRouteSettings` with the default tri-state.
-    fn resolved_none() -> ResolvedRouteSettings {
-        ResolvedRouteSettings::resolve(&MergedSettings::default(), None)
-    }
-
-    /// The constraint-free ZERO-ROTATION negative face: default
-    /// settings + no declaration ⇒ the predicate is false ⇒ tuning
-    /// never fires.
-    #[test]
-    fn tuning_activation_default_and_unconstrained_is_off() {
-        let mut batch = build_batch_settings(&resolved_none());
-        let rules = tuning_world(0.0, 0.0);
-        apply_tuning_activation(&mut batch, &resolved_none(), &rules);
-        assert!(
-            !batch.tuning_active,
-            "no declaration + default tri-state (None): input-driven OFF"
-        );
-    }
-
-    /// The tri-state faces: the declaration alone (tri-state None)
-    /// activates; the kill-switch silences a declared board; the
-    /// override fires on constraint-free input. The M2 mutant (the
-    /// kill-switch arm answering true) dies here; the M1 mutant
-    /// (`>= 0.0` in the board predicate) dies in the epic-board pins.
-    #[test]
-    fn tuning_activation_tri_state_faces() {
-        let rules = tuning_world(10.0, 20.0);
-
-        // Input-driven ON.
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_none(), &rules);
-        assert!(batch.tuning_active, "a declaration activates (None)");
-
-        // Kill-switch: Some(false) silences a declared board.
-        let merged_kill = MergedSettings {
-            tuning: Some(false),
-            ..MergedSettings::default()
-        };
-        let resolved_kill = ResolvedRouteSettings::resolve(&merged_kill, None);
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_kill, &rules);
-        assert!(
-            !batch.tuning_active,
-            "the kill-switch silences a declared board"
-        );
-
-        // Override: Some(true) fires on constraint-free input.
-        let rules_free = tuning_world(0.0, 0.0);
-        let merged_on = MergedSettings {
-            tuning: Some(true),
-            ..MergedSettings::default()
-        };
-        let resolved_on = ResolvedRouteSettings::resolve(&merged_on, None);
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_on, &rules_free);
-        assert!(
-            batch.tuning_active,
-            "the override fires on constraint-free input"
-        );
-    }
-
     // ---- M7-T3: the meander-need report face (T4's input contract) ----
 
     /// A SesBoard world for the report pins: nets slow(1)/free(2)/
@@ -4112,47 +3772,6 @@ mod tests {
     // ------------------------------------------------------------------
     // M7-T4: the meander activation + the fixture golden faces
     // ------------------------------------------------------------------
-
-    /// The meander tri-state resolution (the separated predicate):
-    /// None rides the resolved tuning activation; `on` forces the
-    /// stage on a tuning-inert board; `off` kills the stage alone
-    /// while `tuning_active` (the gate's flag) stays true.
-    #[test]
-    fn meander_activation_tri_state_faces() {
-        let rules_free = tuning_world(0.0, 0.0);
-        let rules_declared = tuning_world(10.0, 0.0);
-        // None + free board: rides the (false) activation.
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_none(), &rules_free);
-        apply_meander_activation(&mut batch, &resolved_none());
-        assert!(!batch.meander_active, "None rides input-driven OFF");
-        // None + declared board: rides the (true) activation.
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_none(), &rules_declared);
-        apply_meander_activation(&mut batch, &resolved_none());
-        assert!(batch.meander_active, "None rides input-driven ON");
-        // `on` forces on a constraint-free board.
-        let merged_on = MergedSettings {
-            tuning_meander: Some(true),
-            ..MergedSettings::default()
-        };
-        let resolved_on = ResolvedRouteSettings::resolve(&merged_on, None);
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_on, &rules_free);
-        apply_meander_activation(&mut batch, &resolved_on);
-        assert!(batch.meander_active, "on forces");
-        // `off` kills the stage alone.
-        let merged_off = MergedSettings {
-            tuning_meander: Some(false),
-            ..MergedSettings::default()
-        };
-        let resolved_off = ResolvedRouteSettings::resolve(&merged_off, None);
-        let mut batch = build_batch_settings(&resolved_none());
-        apply_tuning_activation(&mut batch, &resolved_off, &rules_declared);
-        apply_meander_activation(&mut batch, &resolved_off);
-        assert!(!batch.meander_active, "off kills the stage alone");
-        assert!(batch.tuning_active, "the honoring gate's flag stays armed");
-    }
 
     /// The committed tuning fixtures' route through the real flow
     /// (the in-tree golden faces; the DSN files are the committed
