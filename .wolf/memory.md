@@ -9011,3 +9011,257 @@ description: chronological action log per session, consolidated weekly
 | 22:22 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | 1→2 lines | ~250 |
 | 22:23 | Edited rust/README.md | 5→9 lines | ~130 |
 | 22:37 | Created docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | — | ~10416 |
+| 22:38 | Created logs/M9-T1/dispatch-prompt-t1.md | — | ~1961 |
+| 22:43 | Edited rust/crates/epic-engine/src/settings.rs | 4→5 lines | ~84 |
+| 22:43 | Edited rust/crates/epic-engine/src/settings.rs | 5→6 lines | ~107 |
+| 22:44 | Edited rust/crates/epic-engine/src/settings.rs | modified settings_default_bend_cost() | ~3610 |
+| 22:45 | Edited rust/crates/epic-engine/src/settings.rs | modified build_batch_settings_carries_plane_island_clamp() | ~4675 |
+| 22:45 | Edited rust/crates/epic-engine/src/settings.rs | modified meander_activation_tri_state_faces() | ~614 |
+| 22:46 | Edited rust/crates/epic-engine/src/settings.rs | 7→6 lines | ~106 |
+| 22:46 | Edited rust/crates/epic-engine/src/settings.rs | 4→4 lines | ~36 |
+| 22:46 | Created rust/crates/epic-engine/src/lib.rs | — | ~322 |
+| 22:46 | Edited rust/crates/epic-cli/Cargo.toml | 6→7 lines | ~69 |
+| 22:46 | Edited rust/crates/epic-cli/src/lib.rs | 12→14 lines | ~168 |
+| 22:46 | Edited rust/crates/epic-cli/src/main.rs | 2→2 lines | ~21 |
+| 22:46 | Edited rust/crates/epic-cli/src/route.rs | 4→5 lines | ~77 |
+| 22:48 | Edited rust/crates/epic-cli/src/route.rs | expanded (+7 lines) | ~183 |
+| 22:52 | Edited rust/crates/epic-cli/src/route.rs | inline fix | ~16 |
+| 22:53 | Edited rust/crates/epic-engine/src/settings.rs | added 1 import(s) | ~65 |
+| 23:16 | Created logs/M9-T1/report-t1.md | — | ~2393 |
+| 23:21 | Edited logs/M9-T1/report-t1.md | inline fix | ~122 |
+| 23:22 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | inline fix | ~89 |
+| 23:22 | Created logs/M9-T1/spec-review-prompt-t1.md | — | ~1965 |
+| 23:30 | Created logs/M9-T1/spec-review-t1-1.md | — | ~3772 |
+| 23:32 | Created logs/M9-T1/quality-review-prompt-t1.md | — | ~1461 |
+| 23:34 | Created logs/M9-T2/dispatch-prompt-t2.md | — | ~3555 |
+| 23:36 | Created logs/M9-T1/quality-review-t1-1.md | — | ~3000 |
+| 23:37 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified lesson() | ~692 |
+| 23:37 | Edited logs/M9-T2/dispatch-prompt-t2.md | inline fix | ~102 |
+| 23:51 | Created rust/crates/epic-engine/src/export.rs | — | ~2279 |
+| 23:52 | Edited rust/crates/epic-engine/src/export.rs | removed 11 lines | ~4 |
+| 23:54 | Created rust/crates/epic-engine/src/session.rs | — | ~9724 |
+| 23:54 | Edited rust/crates/epic-engine/src/session.rs | modified classify_read_result() | ~129 |
+| 23:54 | Edited rust/crates/epic-engine/src/session.rs | 9→4 lines | ~75 |
+| 23:55 | Edited rust/crates/epic-engine/src/session.rs | modified route() | ~198 |
+| 23:55 | Edited rust/crates/epic-engine/src/session.rs | 11→12 lines | ~142 |
+| 23:55 | Edited rust/crates/epic-engine/src/session.rs | 3→1 lines | ~17 |
+| 23:55 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+33 lines) | ~642 |
+| 23:55 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+29 lines) | ~427 |
+| 23:55 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+34 lines) | ~336 |
+| 23:56 | Edited rust/crates/epic-engine/src/settings.rs | modified session_layer_some_fields_win_over_cli() | ~362 |
+| 23:56 | Edited rust/crates/epic-engine/src/settings.rs | 6→7 lines | ~64 |
+| 23:56 | Edited rust/crates/epic-engine/src/settings.rs | 16→14 lines | ~165 |
+| 23:56 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+25 lines) | ~702 |
+| 23:57 | Edited rust/crates/epic-engine/src/lib.rs | modified crate_scaffolds() | ~405 |
+| 23:57 | Edited rust/crates/epic-engine/Cargo.toml | 7→10 lines | ~73 |
+| 23:57 | Edited rust/crates/epic-engine/Cargo.toml | 10→11 lines | ~104 |
+| 23:58 | Edited rust/crates/epic-engine/src/export.rs | 4→3 lines | ~33 |
+| 23:58 | Edited rust/crates/epic-engine/src/session.rs | derive() → none() | ~115 |
+| 23:58 | Edited rust/crates/epic-engine/src/session.rs | modified fmt() | ~199 |
+| 00:09 | Created rust/crates/epic-engine/tests/session_workflow.rs | — | ~2872 |
+| 00:09 | Edited rust/crates/epic-engine/tests/session_workflow.rs | 8→7 lines | ~59 |
+| 00:10 | Edited rust/crates/epic-engine/tests/session_workflow.rs | 10→10 lines | ~115 |
+| 00:10 | Edited rust/crates/epic-engine/tests/session_workflow.rs | 6→5 lines | ~48 |
+| 00:10 | Created rust/harness/tests/session_parity_pin.rs | — | ~2275 |
+| 00:10 | Edited rust/harness/tests/session_parity_pin.rs | 2→2 lines | ~31 |
+| 00:10 | Edited rust/harness/tests/session_parity_pin.rs | 12→10 lines | ~79 |
+| 00:11 | Edited rust/harness/tests/session_parity_pin.rs | inline fix | ~18 |
+| 00:12 | Edited rust/crates/epic-engine/src/session.rs | modified Boxed() | ~130 |
+| 00:13 | Edited rust/harness/tests/session_parity_pin.rs | modified newest_workspace_source() | ~314 |
+| 01:06 | Edited logs/M9-T2/report-t2.md | inline fix | ~6 |
+| 01:09 | Edited logs/M9-T2/report-t2.md | expanded (+18 lines) | ~1164 |
+| 01:10 | Created logs/M9-T2/spec-review-prompt-t2.md | — | ~1782 |
+| 01:18 | Created logs/M9-T2/spec-review-t2-1.md | — | ~3699 |
+| 01:20 | Edited rust/crates/epic-engine/src/session.rs | modified request_cancel() | ~224 |
+| 01:33 | Created logs/M9-T2/fix-round-t2-1.md | — | ~847 |
+| 01:34 | Created logs/M9-T2/quality-review-prompt-t2.md | — | ~1436 |
+| 01:44 | Created logs/M9-T2/quality-review-t2-1.md | — | ~4681 |
+| 01:46 | Edited rust/crates/epic-engine/src/export.rs | modified cut() | ~50 |
+| 01:46 | Edited rust/crates/epic-engine/tests/session_workflow.rs | 17→22 lines | ~276 |
+| 01:53 | Created logs/M9-T2/fix-round-t2-2.md | — | ~810 |
+| 01:53 | Edited logs/M9-T2/report-t2.md | expanded (+24 lines) | ~943 |
+| 01:53 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified lesson() | ~1123 |
+| 01:58 | Created logs/M9-T3/dispatch-prompt-t3.md | — | ~3418 |
+| 02:09 | Edited rust/crates/epic-router/src/pipeline/event_sink.rs | expanded (+11 lines) | ~184 |
+| 02:09 | Edited rust/crates/epic-router/src/pipeline/event_sink.rs | modified board_updated() | ~382 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified on_progress() | ~246 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/fanout.rs | modified on_progress() | ~152 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/fanout.rs | 18→19 lines | ~169 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified hook() | ~71 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified hook() | ~93 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified hook() | ~115 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified hook() | ~131 |
+| 02:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified hook() | ~98 |
+| 02:12 | Created rust/crates/epic-engine/src/snapshot.rs | — | ~4305 |
+| 02:12 | Edited rust/crates/epic-engine/src/snapshot.rs | 12→9 lines | ~91 |
+| 02:13 | Edited rust/crates/epic-engine/src/snapshot.rs | 7→5 lines | ~51 |
+| 02:13 | Created rust/crates/epic-engine/src/events.rs | — | ~3106 |
+| 02:14 | Edited rust/crates/epic-engine/src/lib.rs | expanded (+8 lines) | ~158 |
+| 02:14 | Edited rust/crates/epic-engine/src/lib.rs | 6→7 lines | ~111 |
+| 02:14 | Edited rust/crates/epic-engine/Cargo.toml | 6→11 lines | ~126 |
+| 02:14 | Edited rust/crates/epic-engine/src/session.rs | modified new() | ~722 |
+| 02:14 | Edited rust/crates/epic-engine/src/session.rs | 4→1 lines | ~15 |
+| 02:14 | Edited rust/crates/epic-engine/src/session.rs | 6→6 lines | ~46 |
+| 02:15 | Edited rust/crates/epic-engine/src/events.rs | inline fix | ~8 |
+| 02:16 | Created rust/crates/epic-engine/tests/events_stream.rs | — | ~4074 |
+| 02:17 | Edited rust/crates/epic-engine/tests/events_stream.rs | 3→3 lines | ~46 |
+| 02:17 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified forwarding_exhaustion_guard_all_methods_arrive_through_both_wrappers() | ~412 |
+| 02:17 | Created rust/crates/epic-cli/tests/cli_path_inertia.rs | — | ~332 |
+| 02:17 | Edited rust/crates/epic-engine/tests/events_stream.rs | added 1 import(s) | ~54 |
+| 02:17 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified stream_started_carries_the_version_and_mismatches_are_rejected() | ~377 |
+| 02:22 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified mask_wall_clocks() | ~861 |
+| 02:22 | Edited rust/crates/epic-engine/tests/events_stream.rs | expanded (+6 lines) | ~80 |
+| 02:24 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified mask_wall_clocks() | ~248 |
+| 02:24 | Edited rust/crates/epic-engine/tests/events_stream.rs | reduced (-13 lines) | ~38 |
+| 02:25 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified kind_lines() | ~123 |
+| 02:45 | Created logs/M9-T3/report-t3.raw.md | — | ~3583 |
+| 02:48 | Edited logs/M9-T3/report-t3.md | modified review() | ~1265 |
+| 02:49 | Created logs/M9-T3/spec-review-prompt-t3.md | — | ~1513 |
+| 02:49 | Edited logs/M9-T3/report-t3.md | inline fix | ~57 |
+| 02:56 | Created logs/M9-T3/spec-review-t3-1.md | — | ~3120 |
+| 02:58 | Edited rust/crates/epic-engine/src/snapshot.rs | 6→10 lines | ~150 |
+| 02:58 | Edited rust/crates/epic-engine/src/events.rs | expanded (+6 lines) | ~257 |
+| 03:07 | Created logs/M9-T3/fix-round-t3-1.md | — | ~980 |
+| 03:08 | Created logs/M9-T3/quality-review-prompt-t3.md | — | ~1369 |
+| 03:17 | Created logs/M9-T3/quality-review-t3-1.md | — | ~4543 |
+| 03:18 | Edited rust/crates/epic-engine/src/events.rs | modified events() | ~404 |
+| 03:19 | Edited rust/crates/epic-engine/src/events.rs | event() → ships() | ~89 |
+| 03:19 | Edited rust/crates/epic-engine/src/snapshot.rs | expanded (+7 lines) | ~177 |
+| 03:19 | Edited rust/crates/epic-engine/src/snapshot.rs | 17→21 lines | ~214 |
+| 03:19 | Edited rust/crates/epic-engine/src/snapshot.rs | 1→2 lines | ~26 |
+| 03:19 | Edited rust/crates/epic-engine/src/snapshot.rs | modified APPROXIMATION() | ~190 |
+| 03:20 | Edited rust/crates/epic-engine/src/snapshot.rs | 1→2 lines | ~35 |
+| 03:26 | Created logs/M9-T3/fix-round-t3-2.md | — | ~1268 |
+| 03:27 | Edited logs/M9-T3/report-t3.md | expanded (+22 lines) | ~982 |
+| 03:27 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified board_snapshot() | ~1485 |
+| 03:30 | Created logs/M9-T4/dispatch-prompt-t4.md | — | ~2936 |
+| 03:42 | Created rust/crates/epic-gui/src/view.rs | — | ~3024 |
+| 03:42 | Edited rust/crates/epic-gui/src/view.rs | modified scale_f32() | ~111 |
+| 03:42 | Edited rust/crates/epic-gui/src/view.rs | removed 14 lines | ~6 |
+| 03:43 | Created rust/crates/epic-gui/src/render.rs | — | ~4420 |
+| 03:44 | Created rust/crates/epic-gui/src/render.rs | — | ~4412 |
+| 03:45 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~13 |
+| 03:45 | Created rust/crates/epic-gui/src/lib.rs | — | ~354 |
+| 03:45 | Created rust/crates/epic-gui/Cargo.toml | — | ~217 |
+| 03:45 | Created rust/crates/epic-gui/tests/probe_tmp.rs | — | ~478 |
+| 03:46 | Edited rust/crates/epic-gui/src/render.rs | 5→8 lines | ~84 |
+| 03:46 | Edited rust/crates/epic-gui/src/render.rs | 8→8 lines | ~71 |
+| 03:46 | Edited rust/crates/epic-gui/src/render.rs | 2→3 lines | ~22 |
+| 03:46 | Edited rust/crates/epic-gui/src/render.rs | 6→7 lines | ~66 |
+| 03:46 | Edited rust/crates/epic-gui/src/render.rs | 7→2 lines | ~33 |
+| 03:47 | Edited rust/crates/epic-gui/tests/probe_tmp.rs | 2→2 lines | ~23 |
+| 03:49 | Created rust/crates/epic-gui/tests/render_goldens.rs | — | ~6220 |
+| 03:49 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 5→5 lines | ~56 |
+| 03:49 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 6→6 lines | ~62 |
+| 03:50 | Edited rust/crates/epic-gui/tests/render_goldens.rs | inline fix | ~10 |
+| 03:50 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified repo_root() | ~127 |
+| 03:51 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 24→29 lines | ~340 |
+| 03:51 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified edge() | ~214 |
+| 03:52 | Edited rust/crates/epic-gui/src/view.rs | 2→4 lines | ~57 |
+| 03:52 | Edited rust/crates/epic-gui/src/view.rs | reduced (-12 lines) | ~24 |
+| 03:53 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 8→9 lines | ~110 |
+| 03:53 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 10→9 lines | ~91 |
+| 04:07 | Created logs/M9-T4/report-t4.raw.md | — | ~4475 |
+| 04:12 | Created logs/M9-T4/spec-review-prompt-t4.md | — | ~2528 |
+| 04:14 | Edited logs/M9-T4/report-t4.md | modified 6() | ~1661 |
+| 04:17 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~12 |
+| 04:18 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~12 |
+| 04:18 | Edited rust/crates/epic-gui/src/render.rs | modified contains() | ~23 |
+| 04:18 | Edited rust/crates/epic-gui/src/render.rs | modified contains() | ~23 |
+| 04:20 | Created logs/M9-T4/spec-review-t4-1.md | — | ~3401 |
+| 04:22 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 13→11 lines | ~123 |
+| 04:23 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified one_via_snapshot() | ~1678 |
+| 04:24 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 6→6 lines | ~55 |
+| 04:25 | Edited rust/crates/epic-gui/tests/render_goldens.rs | expanded (+8 lines) | ~271 |
+| 04:25 | Edited rust/crates/epic-gui/tests/render_goldens.rs | square() → screen() | ~154 |
+| 04:26 | Edited rust/crates/epic-gui/tests/render_goldens.rs | reduced (-6 lines) | ~27 |
+| 04:35 | Created logs/M9-T4/fix-round-t4-1.raw.md | — | ~1894 |
+| 04:36 | Created logs/M9-T4/quality-review-prompt-t4.md | — | ~1599 |
+| 04:44 | Edited rust/crates/epic-gui/src/view.rs | 10→10 lines | ~107 |
+| 04:44 | Edited rust/crates/epic-gui/src/view.rs | 10→10 lines | ~107 |
+| 04:44 | Edited rust/crates/epic-gui/src/view.rs | 8→8 lines | ~99 |
+| 04:44 | Edited rust/crates/epic-gui/src/view.rs | 8→8 lines | ~98 |
+| 04:45 | Edited rust/crates/epic-gui/src/view.rs | modified narrow_i128_to_i32() | ~15 |
+| 04:45 | Edited rust/crates/epic-gui/src/view.rs | modified narrow_i128_to_i32() | ~50 |
+| 04:45 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~8 |
+| 04:45 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~8 |
+| 04:45 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~20 |
+| 04:45 | Edited rust/crates/epic-gui/src/render.rs | inline fix | ~20 |
+| 04:48 | Created logs/M9-T4/quality-review-t4-1.md | — | ~3780 |
+| 04:50 | Edited rust/crates/epic-gui/src/view.rs | 4→7 lines | ~117 |
+| 04:51 | Edited rust/crates/epic-gui/src/view.rs | modified narrow_i128_to_i64() | ~78 |
+| 04:51 | Edited rust/crates/epic-gui/src/render.rs | modified drill_radius_px() | ~184 |
+| 04:51 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified one_via_snapshot() | ~604 |
+| 04:51 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 27→27 lines | ~305 |
+| 04:58 | Created logs/M9-T4/fix-round-t4-2.raw.md | — | ~1572 |
+| 05:04 | Edited logs/M9-T4/report-t4.md | expanded (+20 lines) | ~1113 |
+| 05:05 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified 6() | ~1304 |
+| 05:12 | Created logs/M9-T5/dispatch-prompt-t5.md | — | ~5414 |
+| 05:22 | Edited rust/crates/epic-drc/src/incompletes.rs | modified CONVENTION() | ~346 |
+| 05:23 | Edited rust/crates/epic-drc/src/incompletes.rs | modified net_incompletes_row() | ~361 |
+| 05:23 | Edited rust/crates/epic-drc/src/incompletes.rs | 17→13 lines | ~135 |
+| 05:23 | Edited rust/crates/epic-drc/src/incompletes.rs | modified exit() | ~168 |
+| 05:23 | Edited rust/crates/epic-drc/src/incompletes.rs | modified airline_segments() | ~500 |
+| 05:23 | Edited rust/crates/epic-drc/src/incompletes.rs | modified airline_segments_match_the_kruskal_count_and_corners() | ~820 |
+| 05:24 | Edited rust/crates/epic-drc/src/incompletes.rs | 8→4 lines | ~56 |
+| 05:24 | Edited rust/crates/epic-drc/src/incompletes.rs | 3→2 lines | ~20 |
+| 05:24 | Edited rust/crates/epic-drc/src/incompletes.rs | added 2 import(s) | ~69 |
+| 05:24 | Edited rust/crates/epic-engine/src/snapshot.rs | 8→6 lines | ~45 |
+| 05:25 | Edited rust/crates/epic-engine/src/snapshot.rs | modified center() | ~1909 |
+| 05:25 | Edited rust/crates/epic-engine/src/snapshot.rs | expanded (+6 lines) | ~105 |
+| 05:25 | Edited rust/crates/epic-engine/src/snapshot.rs | added optional chaining | ~1288 |
+| 05:26 | Edited rust/crates/epic-engine/src/snapshot.rs | 12→13 lines | ~149 |
+| 05:26 | Edited rust/crates/epic-engine/src/snapshot.rs | modified item_center() | ~37 |
+| 05:26 | Edited rust/crates/epic-engine/src/snapshot.rs | added 2 import(s) | ~47 |
+| 05:26 | Edited rust/crates/epic-engine/src/snapshot.rs | modified LAW() | ~109 |
+| 05:26 | Edited rust/crates/epic-engine/src/snapshot.rs | expanded (+11 lines) | ~182 |
+| 05:26 | Edited rust/crates/epic-engine/src/session.rs | expanded (+6 lines) | ~354 |
+| 05:27 | Edited rust/crates/epic-engine/src/session.rs | expanded (+10 lines) | ~212 |
+| 05:27 | Edited rust/crates/epic-engine/src/session.rs | 3→4 lines | ~35 |
+| 05:27 | Edited rust/crates/epic-engine/src/session.rs | 4→8 lines | ~124 |
+| 05:27 | Edited rust/crates/epic-engine/src/session.rs | modified pre_existing_violations() | ~55 |
+| 05:27 | Edited rust/crates/epic-engine/src/session.rs | modified pre_existing_violations() | ~1113 |
+| 05:27 | Edited rust/crates/epic-engine/src/snapshot.rs | modified violation_markers_from_rows() | ~146 |
+| 05:27 | Edited rust/crates/epic-engine/src/session.rs | modified project_heatmap() | ~396 |
+| 05:28 | Edited rust/crates/epic-engine/src/session.rs | inline fix | ~9 |
+| 05:28 | Edited rust/crates/epic-engine/src/snapshot.rs | 2→2 lines | ~36 |
+| 05:28 | Edited rust/crates/epic-engine/src/session.rs | 4→4 lines | ~43 |
+| 05:28 | Edited rust/crates/epic-gui/src/view.rs | expanded (+10 lines) | ~243 |
+| 05:29 | Edited rust/crates/epic-gui/src/view.rs | modified java_default() | ~208 |
+| 05:29 | Edited rust/crates/epic-gui/src/view.rs | 7→8 lines | ~131 |
+| 05:29 | Edited rust/crates/epic-gui/src/view.rs | 7→7 lines | ~113 |
+| 05:29 | Edited rust/crates/epic-gui/src/view.rs | 3→3 lines | ~52 |
+| 05:30 | Edited rust/crates/epic-gui/src/render.rs | expanded (+17 lines) | ~1149 |
+| 05:30 | Edited rust/crates/epic-gui/src/render.rs | 3→4 lines | ~50 |
+| 05:30 | Edited rust/crates/epic-gui/src/render.rs | modified ramp_color() | ~635 |
+| 05:30 | Edited rust/crates/epic-gui/src/render.rs | 6→6 lines | ~57 |
+| 05:31 | Edited rust/crates/epic-gui/src/render.rs | modified push_dashed_segment() | ~2209 |
+| 05:31 | Edited rust/crates/epic-gui/src/render.rs | expanded (+30 lines) | ~356 |
+| 05:35 | Edited rust/crates/epic-gui/Cargo.toml | expanded (+7 lines) | ~122 |
+| 05:40 | Created rust/crates/epic-engine/tests/overlays.rs | — | ~3363 |
+| 05:45 | Edited rust/crates/epic-engine/src/events.rs | expanded (+9 lines) | ~184 |
+| 05:55 | Created logs/M9-T5/report-t5.raw.md | — | ~3474 |
+| 06:00 | Created logs/M9-T5/spec-review-prompt-t5.md | — | ~2156 |
+| 06:05 | Edited rust/crates/epic-gui/src/render.rs | 2→2 lines | ~17 |
+| 06:05 | Edited rust/crates/epic-engine/src/session.rs | 1→2 lines | ~17 |
+| 06:06 | Edited rust/crates/epic-engine/src/session.rs | modified is_some() | ~39 |
+| 06:11 | Created logs/M9-T5/spec-review-t5-1.md | — | ~4250 |
+| 06:14 | Edited rust/crates/epic-engine/src/session.rs | modified pre_existing_violations() | ~176 |
+| 06:14 | Edited rust/crates/epic-engine/tests/overlays.rs | modified post_route_markers_survive_on_the_violation_retaining_craft() | ~469 |
+| 06:14 | Edited rust/crates/epic-engine/tests/overlays.rs | modified spec_discriminant() | ~616 |
+| 06:14 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified ORDER() | ~405 |
+| 06:15 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified ORDER() | ~471 |
+| 06:17 | Edited rust/crates/epic-engine/src/snapshot.rs | modified violation_markers_from_rows() | ~146 |
+| 06:17 | Edited rust/crates/epic-gui/tests/render_goldens.rs | 2→1 lines | ~20 |
+| 06:17 | Edited rust/crates/epic-engine/src/snapshot.rs | 4→6 lines | ~97 |
+| 06:32 | Edited logs/M9-T5/fix-round-t5-1.md | expanded (+10 lines) | ~571 |
+| 06:33 | Created logs/M9-T5/quality-review-prompt-t5.md | — | ~2816 |
+| 06:37 | Edited rust/crates/epic-gui/src/render.rs | 4→4 lines | ~54 |
+| 06:38 | Edited rust/crates/epic-engine/src/snapshot.rs | 4→4 lines | ~55 |
+| 06:39 | Edited rust/crates/epic-engine/src/snapshot.rs | 4→4 lines | ~55 |
+| 06:40 | Edited rust/crates/epic-engine/src/snapshot.rs | inline fix | ~19 |
+| 06:40 | Edited rust/crates/epic-engine/src/session.rs | inline fix | ~16 |
+| 06:45 | Created logs/M9-T5/quality-review-t5-1.md | — | ~4476 |
+| 06:56 | Created logs/M9-T5/fix-round-t5-2.md | — | ~1429 |
+| 07:00 | Edited logs/M9-T5/report-t5.md | expanded (+22 lines) | ~1266 |
+| 07:01 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified inputs() | ~1318 |

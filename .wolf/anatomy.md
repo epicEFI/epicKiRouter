@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T04:37:03.815Z
-> Files: 561 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T13:01:25.870Z
+> Files: 593 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -56,9 +56,9 @@
 ## .remember/
 
 - `.gitignore` — Git ignore rules (~1 tok)
-- `archive.md` — Archive (~589 tok)
-- `now.md` — 18:33 | epic/main (~126 tok)
-- `recent.md` — Recent (~1120 tok)
+- `archive.md` — Archive (~771 tok)
+- `now.md` (~0 tok)
+- `recent.md` — Recent (~1274 tok)
 - `today-2026-09-12.done.md` — 03:00 | master (~2707 tok)
 - `today-2026-09-13.done.md` — 05:53 | epic/main (~633 tok)
 - `today-2026-09-14.done.md` — 07:40 | epic/main (~1712 tok)
@@ -76,231 +76,27 @@
 - `today-2026-09-26.done.md` — 03:12 | epic/main (~8760 tok)
 - `today-2026-09-27.done.md` — T4 close + T5 dispatch (coordinator) (~7072 tok)
 - `today-2026-09-28.done.md` — 03:08 | epic/main (~6273 tok)
-- `today-2026-09-29.done.md` — 21:50 | epic/main (~198 tok)
-- `today-2026-09-29.md` — 00:46-02:17 | epic/main (~9995 tok)
+- `today-2026-09-29.done.md` — 00:46-02:17 | epic/main (~11633 tok)
+- `today-2026-09-30.done.md` — 03:19 | epic/main (~536 tok)
+- `today-2026-09-30.md` — 05:4x | epic/main (~4127 tok)
 
 ## .remember/logs/
 
 - `hook-errors.log` (~0 tok)
-- `memory-2026-09-21.log` (~269281 tok)
 - `memory-2026-09-25.log` (~169092 tok)
 - `memory-2026-09-27.log` (~233384 tok)
-- `memory-2026-09-29.log` (~248409 tok)
+- `memory-2026-09-30.log` (~101734 tok)
 
 ## .remember/logs/autonomous/
 
-- `save-121536.log` (~0 tok)
-- `save-121538.log` (~0 tok)
-- `save-121540.log` (~0 tok)
-- `save-121625.log` (~0 tok)
-- `save-121726.log` (~0 tok)
-- `save-121751.log` (~0 tok)
-- `save-121757.log` (~0 tok)
-- `save-121819.log` (~0 tok)
-- `save-121821.log` (~0 tok)
-- `save-121827.log` (~0 tok)
-- `save-122049.log` (~0 tok)
-- `save-122110.log` (~0 tok)
-- `save-122121.log` (~0 tok)
-- `save-122133.log` (~0 tok)
-- `save-122149.log` (~0 tok)
-- `save-122219.log` (~0 tok)
-- `save-122235.log` (~0 tok)
-- `save-122244.log` (~0 tok)
-- `save-122249.log` (~0 tok)
-- `save-122258.log` (~0 tok)
-- `save-122310.log` (~0 tok)
-- `save-122316.log` (~0 tok)
-- `save-122323.log` (~0 tok)
-- `save-122410.log` (~0 tok)
-- `save-122419.log` (~0 tok)
-- `save-122427.log` (~0 tok)
-- `save-122449.log` (~0 tok)
-- `save-122529.log` (~0 tok)
-- `save-122548.log` (~0 tok)
-- `save-122556.log` (~0 tok)
-- `save-122612.log` (~0 tok)
-- `save-122644.log` (~0 tok)
-- `save-122656.log` (~0 tok)
-- `save-122710.log` (~0 tok)
-- `save-122717.log` (~0 tok)
-- `save-122724.log` (~0 tok)
-- `save-122740.log` (~0 tok)
-- `save-122750.log` (~0 tok)
-- `save-122806.log` (~0 tok)
-- `save-122839.log` (~0 tok)
-- `save-122845.log` (~0 tok)
-- `save-122854.log` (~0 tok)
-- `save-122903.log` (~0 tok)
-- `save-122921.log` (~0 tok)
-- `save-122927.log` (~0 tok)
-- `save-122935.log` (~0 tok)
-- `save-122941.log` (~0 tok)
-- `save-123003.log` (~0 tok)
-- `save-123119.log` (~0 tok)
-- `save-123129.log` (~0 tok)
-- `save-123145.log` (~0 tok)
-- `save-123213.log` (~0 tok)
-- `save-123222.log` (~0 tok)
-- `save-123318.log` (~0 tok)
-- `save-123319.log` (~0 tok)
-- `save-123400.log` (~0 tok)
-- `save-123408.log` (~0 tok)
-- `save-123424.log` (~0 tok)
-- `save-123514.log` (~0 tok)
-- `save-123519.log` (~0 tok)
-- `save-123532.log` (~0 tok)
-- `save-123547.log` (~0 tok)
-- `save-123551.log` (~0 tok)
-- `save-123602.log` (~0 tok)
-- `save-123609.log` (~0 tok)
-- `save-123709.log` (~0 tok)
-- `save-123723.log` (~0 tok)
-- `save-123726.log` (~0 tok)
-- `save-123732.log` (~0 tok)
-- `save-123736.log` (~0 tok)
-- `save-123739.log` (~0 tok)
-- `save-123747.log` (~0 tok)
-- `save-123753.log` (~0 tok)
-- `save-123758.log` (~0 tok)
-- `save-123803.log` (~0 tok)
-- `save-123813.log` (~0 tok)
-- `save-123820.log` (~0 tok)
-- `save-123832.log` (~0 tok)
-- `save-123835.log` (~0 tok)
-- `save-123842.log` (~0 tok)
-- `save-123848.log` (~0 tok)
-- `save-123907.log` (~0 tok)
-- `save-123931.log` (~0 tok)
-- `save-124055.log` (~0 tok)
-- `save-124116.log` (~0 tok)
-- `save-124427.log` (~0 tok)
-- `save-124435.log` (~0 tok)
-- `save-124539.log` (~0 tok)
-- `save-124558.log` (~0 tok)
-- `save-124610.log` (~0 tok)
-- `save-124620.log` (~0 tok)
-- `save-124649.log` (~0 tok)
-- `save-124748.log` (~0 tok)
-- `save-124759.log` (~0 tok)
-- `save-124920.log` (~0 tok)
-- `save-125055.log` (~0 tok)
-- `save-125102.log` (~0 tok)
-- `save-125115.log` (~0 tok)
-- `save-125141.log` (~0 tok)
-- `save-125153.log` (~0 tok)
-- `save-125158.log` (~0 tok)
-- `save-125235.log` (~0 tok)
-- `save-125255.log` (~0 tok)
-- `save-125313.log` (~0 tok)
-- `save-125325.log` (~0 tok)
-- `save-125417.log` (~0 tok)
-- `save-125432.log` (~0 tok)
-- `save-125447.log` (~0 tok)
-- `save-125454.log` (~0 tok)
-- `save-125508.log` (~0 tok)
-- `save-125517.log` (~0 tok)
-- `save-125531.log` (~0 tok)
-- `save-125936.log` (~0 tok)
-- `save-125948.log` (~0 tok)
-- `save-125959.log` (~0 tok)
-- `save-130017.log` (~0 tok)
-- `save-130036.log` (~0 tok)
-- `save-130055.log` (~0 tok)
-- `save-130102.log` (~0 tok)
-- `save-130128.log` (~0 tok)
-- `save-130712.log` (~0 tok)
-- `save-130719.log` (~0 tok)
-- `save-130730.log` (~0 tok)
-- `save-130835.log` (~0 tok)
-- `save-130846.log` (~0 tok)
-- `save-130912.log` (~0 tok)
-- `save-131819.log` (~0 tok)
-- `save-131913.log` (~0 tok)
-- `save-132856.log` (~0 tok)
-- `save-133708.log` (~0 tok)
-- `save-133716.log` (~0 tok)
-- `save-133846.log` (~0 tok)
-- `save-133911.log` (~0 tok)
-- `save-133917.log` (~0 tok)
-- `save-133923.log` (~0 tok)
-- `save-134850.log` (~0 tok)
-- `save-134901.log` (~0 tok)
-- `save-134921.log` (~0 tok)
-- `save-134932.log` (~0 tok)
-- `save-134949.log` (~0 tok)
-- `save-135001.log` (~0 tok)
-- `save-135010.log` (~0 tok)
-- `save-135848.log` (~0 tok)
-- `save-140708.log` (~0 tok)
-- `save-140713.log` (~0 tok)
-- `save-140834.log` (~0 tok)
-- `save-140852.log` (~0 tok)
-- `save-141853.log` (~0 tok)
-- `save-141918.log` (~0 tok)
-- `save-141932.log` (~0 tok)
-- `save-141944.log` (~0 tok)
-- `save-141947.log` (~0 tok)
-- `save-143007.log` (~0 tok)
-- `save-143021.log` (~0 tok)
-- `save-143044.log` (~0 tok)
-- `save-143102.log` (~0 tok)
-- `save-143708.log` (~0 tok)
-- `save-143713.log` (~0 tok)
-- `save-144144.log` (~0 tok)
-- `save-144220.log` (~0 tok)
-- `save-144236.log` (~0 tok)
-- `save-145257.log` (~0 tok)
-- `save-150012.log` (~0 tok)
-- `save-150023.log` (~0 tok)
-- `save-150052.log` (~0 tok)
-- `save-150706.log` (~0 tok)
-- `save-150714.log` (~0 tok)
-- `save-151113.log` (~0 tok)
-- `save-151927.log` (~0 tok)
-- `save-152914.log` (~0 tok)
-- `save-152938.log` (~0 tok)
-- `save-152952.log` (~0 tok)
-- `save-153707.log` (~0 tok)
-- `save-153712.log` (~0 tok)
-- `save-153902.log` (~0 tok)
-- `save-153922.log` (~0 tok)
-- `save-153937.log` (~0 tok)
-- `save-154934.log` (~0 tok)
-- `save-154944.log` (~0 tok)
-- `save-155213.log` (~0 tok)
-- `save-160202.log` (~0 tok)
-- `save-160205.log` (~0 tok)
-- `save-160708.log` (~0 tok)
-- `save-160714.log` (~0 tok)
-- `save-161222.log` (~0 tok)
-- `save-162220.log` (~0 tok)
-- `save-163215.log` (~0 tok)
-- `save-163705.log` (~0 tok)
-- `save-163715.log` (~0 tok)
-- `save-163755.log` (~0 tok)
-- `save-163807.log` (~0 tok)
-- `save-164214.log` (~0 tok)
-- `save-165223.log` (~0 tok)
-- `save-165248.log` (~0 tok)
-- `save-165908.log` (~0 tok)
-- `save-165916.log` (~0 tok)
-- `save-170249.log` (~0 tok)
-- `save-171326.log` (~0 tok)
-- `save-171339.log` (~0 tok)
-- `save-172310.log` (~0 tok)
-- `save-172904.log` (~0 tok)
-- `save-172909.log` (~0 tok)
-- `save-173343.log` (~0 tok)
-- `save-174335.log` (~0 tok)
-- `save-175322.log` (~0 tok)
-- `save-175339.log` (~0 tok)
-- `save-175348.log` (~0 tok)
-- `save-175402.log` (~0 tok)
-- `save-175426.log` (~0 tok)
-- `save-175433.log` (~0 tok)
-- `save-175907.log` (~0 tok)
-- `save-175914.log` (~0 tok)
+- `save-055645.log` (~0 tok)
+- `save-055646.log` (~0 tok)
+- `save-055705.log` (~0 tok)
+- `save-055726.log` (~0 tok)
+- `save-055738.log` (~0 tok)
+- `save-055752.log` (~0 tok)
+- `save-055934.log` (~0 tok)
+- `save-055949.log` (~0 tok)
 
 ## .run/
 
@@ -484,8 +280,8 @@
 - `2026-09-25-epicrouter-m5-performance.md` — EpicRouter M5 — Performance: Arena/SoA + Deterministic Parallelism Implementation Plan (~6333 tok)
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
-- `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Imple (~17663 tok)
-- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~9765 tok)
+- `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
+- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~15119 tok)
 
 ## docs/superpowers/research/
 
@@ -585,6 +381,75 @@
 - `Issue508-DAC2020_bm01.dsn` — Declares signal (~8118 tok)
 - `Issue508-DAC2020_bm02.dsn` — Declares signal (~21410 tok)
 - `Issue508-DAC2020_bm04.dsn` — Declares signal (~7178 tok)
+- `Issue508-DAC2020_bm05.dsn` — Declares signal (~4460 tok)
+- `Issue508-DAC2020_bm05.ses` (~8780 tok)
+- `Issue508-DAC2020_bm06.dsn` — Declares signal (~6102 tok)
+- `Issue508-DAC2020_bm07-current.ses` (~8942 tok)
+- `Issue508-DAC2020_bm07-v190.ses` (~8288 tok)
+- `Issue508-DAC2020_bm07.dsn` — Declares signal (~3949 tok)
+- `Issue508-DAC2020_bm08-routed.ses` (~2519 tok)
+- `Issue508-DAC2020_bm08.dsn` — Declares signal (~1467 tok)
+- `Issue508-DAC2020_bm09.dsn` — Declares signal (~6654 tok)
+- `Issue508-DAC2020_bm10.dsn` — Declares signal (~8356 tok)
+- `Issue508-DAC2020_bm11.dsn` — Declares signal (~7000 tok)
+- `Issue508-SMD-routing-issue-demo.dsn` — Declares signal (~623 tok)
+- `Issue555-BBD_Mars-64-current.ses` (~14095 tok)
+- `Issue555-BBD_Mars-64-v190.ses` (~7875 tok)
+- `Issue555-BBD_Mars-64.dsn` — Declares signal (~14552 tok)
+- `Issue555-CNH_Functional_Tester_1.dsn` — Declares signal (~43641 tok)
+- `Issue558-dev-board.dsn` — Declares signal (~7251 tok)
+- `Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations-freerouting_drc.json` (~14769 tok)
+- `Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations-kicad_drc.json` (~28272 tok)
+- `Issue575-drc_BBD_Mars-64_6_track_1_hole_clearance_violations.dsn` — Declares signal (~24739 tok)
+- `Issue575-drc_dev-board_4_hole_clearance_violations-freerouting_drc.json` (~5807 tok)
+- `Issue575-drc_dev-board_4_hole_clearance_violations-kicad_drc.json` (~2871 tok)
+- `Issue575-drc_dev-board_4_hole_clearance_violations.dsn` — Declares signal (~16674 tok)
+- `Issue575-drc_Natural_Tone_Preamp_7_unconnected_items-freerouting_drc.json` (~4285 tok)
+- `Issue575-drc_Natural_Tone_Preamp_7_unconnected_items-kicad_drc.json` (~22458 tok)
+- `Issue575-drc_Natural_Tone_Preamp_7_unconnected_items.dsn` — Declares signal (~65565 tok)
+- `Issue593-BBD_Mars-64.dsn` — Declares signal (~14547 tok)
+- `Issue593-BBD_Mars-64.rules` — Declares smd_to_turn_gap (~883 tok)
+- `Issue593-BBD_Mars-64.ses` (~12824 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v1.dsn` — Declares signal (~9311 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v1.json` (~4006 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v2.dsn` — Declares signal (~10719 tok)
+- `Issue649-kicad_ecc83-pp_input_board_v2.json` (~9052 tok)
+- `Issue676-ch32v-tx118s.dsn` — Declares signal (~3847 tok)
+- `Issue684-Autorouter_PCB1_2026-5-8.dsn` — Declares default_smd (~6093 tok)
+- `Issue689-BBD_Mars-64.dsn` — Declares signal (~14547 tok)
+- `Issue690-ecc83.dsn` — Declares signal (~10711 tok)
+- `Issue690-ecc83.ses` — Declares protect (~3088 tok)
+- `Issue690-kit-dev-coldfire-xilinx_5213.dsn` — Declares signal (~109915 tok)
+- `Issue690-sonde_xilinx.dsn` — Declares signal (~13267 tok)
+- `Issue721-Autorouter_CE2632_HarryMu_2026-6-15.dsn` — Declares default_smd (~12437 tok)
+- `Issue723-CombineStackOverflow.dsn` — Declares signal (~74841 tok)
+- `Issue730-DAC2020_bm11.dsn` — Declares signal (~7000 tok)
+- `Issue732-CM5_MINIMA_3.dsn` — Declares signal (~39317 tok)
+- `Issue732-DAC2020_bm10.dsn` — Declares signal (~8356 tok)
+- `Issue732-RoyalBlue54L-Feather.dsn` — Declares signal (~27266 tok)
+- `Issue733-kicad_complex_hierarchy_input_design.dsn` — Declares power (~14241 tok)
+- `Issue733-kicad_complex_hierarchy_input_design.json` (~25665 tok)
+- `Issue733-kicad_complex_hierarchy_output_session.json` (~19552 tok)
+- `Issue733-kicad_complex_hierarchy_output_session.ses` (~9150 tok)
+- `Issue733-kicad_interf_u_input_design.dsn` — Declares signal (~36034 tok)
+- `Issue733-kicad_interf_u_input_design.json` (~109708 tok)
+- `Issue742-tastexx-pcb.dsn` — Declares signal (~9396 tok)
+- `Issue742-tastexx-pcb.ses` (~2039 tok)
+- `Issue753-CPU-85_r104.dsn` — Declares signal (~40379 tok)
+- `Issue754-avionics_hub.dsn` — Declares signal (~44332 tok)
+- `Issue756-minimal-hang.dsn` — Declares signal (~231 tok)
+- `Issue756-minimal-ok.dsn` — Declares signal (~209 tok)
+- `Issue756-tomu-fpga.dsn` — Declares signal (~33728 tok)
+- `Issue756-tomu-fpga11.dsn` — Declares signal (~34878 tok)
+- `Issue756-tomu-fpga7.dsn` — Declares signal (~92446 tok)
+- `Issue756-tomu-fpga8.dsn` — Declares signal (~92204 tok)
+- `Issue756-tomu-fpga9.dsn` — Declares signal (~93791 tok)
+- `Issue757-minimal-soe-ok.dsn` — Declares signal (~221 tok)
+- `Issue757-minimal-soe.dsn` — Declares signal (~245 tok)
+- `scoring-empty-net.dsn` — Declares signal (~279 tok)
+- `scoring-mixed-layer.dsn` — Declares signal (~324 tok)
+- `scoring-perfect-two-pin.dsn` — Declares signal (~197 tok)
+- `scoring-zero-length.dsn` — Declares signal (~286 tok)
 
 ## fixtures/Issue069-TestSensel/
 
@@ -636,36 +501,308 @@
 - `D_DO-41_SOD81_P10.16mm_Horizontal.kicad_mod` (~1169 tok)
 - `R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal.kicad_mod` (~847 tok)
 
-## logs/M8-ADJUDICATION/
+## fixtures/Issue184-motorizedopener/
 
-- `adjudication-prompt.md` — M8 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7 pattern) (~2262 tok)
-- `adjudication-report.md` — M8 MILESTONE ADJUDICATION REPORT (~5892 tok)
+- `fp-info-cache` (~1 tok)
+- `motorizedopener.kicad_pcb` (~60039 tok)
+- `motorizedopener.kicad_prl` (~307 tok)
+- `motorizedopener.kicad_pro` (~2484 tok)
+- `motorizedopener.kicad_sch` — Declares default (~50365 tok)
+- `run_freerouting.bat` (~19 tok)
 
-## logs/M8-T8/
+## fixtures/Issue191-processor.Z80/
 
-- `build-table-t8.py` — M8-T8 judgment-table builder (AM2-hardened). (~2842 tok)
-- `quality-review-prompt-t8.md` — M8-T8 QUALITY REVIEW DISPATCH (r1) (~1342 tok)
-- `quality-review-t8-1.md` — M8-T8 QUALITY REVIEW r1 (fresh-eyes code-quality reviewer, 2026-09-29) (~4745 tok)
-- `spec-review-prompt-t8.md` — M8-T8 SPEC REVIEW DISPATCH (r1) (~1799 tok)
-- `spec-review-t8-1.md` — M8-T8 SPEC REVIEW r1 (fresh-eyes spec-compliance reviewer, 2026-09-29) (~4412 tok)
+- `buffers.kicad_sch` — Declares default (~28866 tok)
+- `bus.kicad_sch` — Declares default (~29376 tok)
+- `CPU-DATA-DIR-GAL.csv` (~3992 tok)
+- `CPU-DATA-DIR-GAL.dig` (~3138 tok)
+- `CPU-DATA-DIR-GAL.jed` (~361 tok)
+- `CPU-DATA-DIR-GAL.tru` (~811 tok)
+- `CPU-MAPPER.csv` (~9594 tok)
+- `CPU-MAPPER.dig` (~3856 tok)
+- `CPU-MAPPER.jed` (~480 tok)
+- `CPU-MAPPER.tru` (~1170 tok)
+- `CPU-WS-GAL.csv` (~1456 tok)
+- `CPU-WS-GAL.dig` (~2559 tok)
+- `CPU-WS-GAL.jed` (~137 tok)
+- `CPU-WS-GAL.tru` (~287 tok)
+- `DMA-CS-GAL.csv` (~10699 tok)
+- `DMA-CS-GAL.dig` (~5302 tok)
+- `DMA-CS-GAL.jed` (~650 tok)
+- `DMA-CS-GAL.tru` (~1516 tok)
+- `DMA-RDY-GAL.csv` (~9601 tok)
+- `DMA-RDY-GAL.dig` (~2779 tok)
+- `DMA-RDY-GAL.jed` (~342 tok)
+- `DMA-RDY-GAL.tru` (~1107 tok)
+- `DMA.kicad_sch` — Declares default (~53399 tok)
+- `fp-lib-table` — Declares KiCad (~35 tok)
+- `fpanel.kicad_sch` — Declares default (~19146 tok)
+- `GAL22V10.dcm` (~13 tok)
+- `gal22v10.kicad_sym` — Declares default (~1356 tok)
+- `GALS.kicad_sch` — Declares default (~150436 tok)
+- `IM2.kicad_sch` — Declares default (~12572 tok)
+- `mapper.kicad_sch` — Declares default (~86267 tok)
+- `power.kicad_sch` — Declares default (~28217 tok)
+- `processor.rules` — Declares smd_to_turn_gap (~2943 tok)
+- `processor.ses` (~104319 tok)
+- `processor.Z80.csv` (~2411 tok)
+- `processor.Z80.kicad_prl` (~309 tok)
+- `processor.Z80.kicad_pro` (~3030 tok)
+- `processor.Z80.kicad_sch` — Declares default (~27954 tok)
+- `processor.Z80.xml` (~73921 tok)
+- `readme.txt` (~50 tok)
+- `sym-lib-table` (~121 tok)
+- `TL16C550CFN.kicad_sym` — Declares default (~2312 tok)
+- `waitstate.kicad_sch` — Declares default (~12388 tok)
+- `Z80CPU.kicad_sch` — Declares default (~24355 tok)
+- `Zilog_Z80_Peripherals.kicad_sym` — Declares default (~92266 tok)
+- `Zilog_z80.kicad_sym` — Declares default (~24744 tok)
 
-## logs/M8-T9/
+## fixtures/Issue191-processor.Z80/CUPL_CPU-DATA-DIR-GAL/
 
-- `dispatch-prompt-t9.md` — M8-T9 DISPATCH — the close-out: the M8 exit note, the docs faces, the buglog sweep, adjudication pre (~2053 tok)
-- `quality-review-prompt-t9.md` — M8-T9 QUALITY REVIEW DISPATCH (r1) (~1144 tok)
-- `quality-review-t9-1.md` — M8-T9 QUALITY REVIEW (r1) — commit `23a8dba79` (~3476 tok)
-- `spec-review-prompt-t9.md` — M8-T9 SPEC REVIEW DISPATCH (r1) (~1688 tok)
-- `spec-review-t9-1.md` — M8-T9 SPEC REVIEW (r1) — reviewer 1 (~3241 tok)
+- `CUPL.PLD` (~202 tok)
 
-## rust/
+## fixtures/Issue191-processor.Z80/CUPL_CPU-MAPPER/
 
-- `README.md` — Project documentation (~5494 tok)
+- `CUPL.PLD` (~219 tok)
 
-## rust/crates/epic-router/
+## fixtures/Issue191-processor.Z80/CUPL_CPU-WS-GAL/
 
-- `SEAM.md` — SEAM — the Java surface beyond `autoroute/` (M3-T3 audit) (~90903 tok)
+- `CPU-WS-GAL.dig.jed` (~224 tok)
+- `CUPL.abs` (~294 tok)
+- `CUPL.PLD` (~161 tok)
+- `CUPL.sim` (~122 tok)
+- `CUPL.wo` — WAVEFORM (~3 tok)
+- `tmpcsim.im` (~238 tok)
 
-## rust/harness/src/
+## fixtures/Issue191-processor.Z80/CUPL_DMA-CS-GAL/
 
-- `ci_tripwire.rs` — THE workflow tripwire pin (M3-T17c; closes banked mutant S6): the CI (~4140 tok)
-- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~50849 tok)
+- `CUPL.PLD` (~282 tok)
+
+## fixtures/Issue191-processor.Z80/CUPL_DMA-RDY-GAL/
+
+- `CUPL.PLD` (~204 tok)
+
+## fixtures/Issue191-processor.Z80/data-gear_gal/
+
+- `DATAGEAR.EQN` (~118 tok)
+- `DATAGEAR.JED` (~737 tok)
+- `DATAGEAR.LOG` (~692 tok)
+- `Velesoft DMA circuit.url` (~34 tok)
+- `velesoft DMA.txt` — Declares for (~206 tok)
+
+## fixtures/Issue199-StackOverflow/
+
+- `Signale_Vor+Block.dsn` — Declares signal (~5345 tok)
+
+## fixtures/Issue230-CNH_Functional_Tester/
+
+- `CNH_Functional_Tester_1.dsn` — Declares signal (~43647 tok)
+- `CNH_Functional_Tester_1.kicad_dru` (~0 tok)
+- `CNH_Functional_Tester_1.kicad_prl` (~350 tok)
+- `CNH_Functional_Tester_1.kicad_pro` (~5181 tok)
+- `CNH_Functional_Tester_1.kicad_sch` — Declares default (~89910 tok)
+- `fp-info-cache` (~1 tok)
+- `fp-lib-table` (~34 tok)
+- `Perf_Breakout.kicad_sch` — Declares default (~42955 tok)
+
+## fixtures/Issue230-CNH_Functional_Tester/Gerbers/
+
+- `CNH_Functional_Tester_1-B_Cu.gbr` (~25405 tok)
+- `CNH_Functional_Tester_1-B_Mask.gbr` (~7304 tok)
+- `CNH_Functional_Tester_1-B_Silkscreen.gbr` (~37687 tok)
+- `CNH_Functional_Tester_1-Edge_Cuts.gbr` (~185 tok)
+- `CNH_Functional_Tester_1-F_Cu.gbr` (~24917 tok)
+- `CNH_Functional_Tester_1-F_Mask.gbr` (~7606 tok)
+- `CNH_Functional_Tester_1-F_Silkscreen.gbr` (~75128 tok)
+- `CNH_Functional_Tester_1-In1_Cu.gbr` (~201107 tok)
+- `CNH_Functional_Tester_1-In2_Cu.gbr` (~200486 tok)
+- `CNH_Functional_Tester_1-job.gbrjob` (~975 tok)
+- `CNH_Functional_Tester_1.drl` (~3516 tok)
+- `report.txt` (~417 tok)
+
+## fixtures/Issue230-CNH_Functional_Tester/Library.pretty/
+
+- `R78_9V_1A_SIP_TH.kicad_mod` — Declares solid (~896 tok)
+
+## fixtures/Issue269-NoViasOnPowerPlanes/
+
+- `Issue269-NoViasOnPowerPlanes.dsn` — Declares signal (~5168 tok)
+- `Issue269-NoViasOnPowerPlanes.kicad_pcb` — Declares solid (~11292 tok)
+- `Issue269-NoViasOnPowerPlanes.kicad_prl` (~352 tok)
+- `Issue269-NoViasOnPowerPlanes.kicad_pro` (~4227 tok)
+- `Issue269-NoViasOnPowerPlanes.ses` (~1268 tok)
+
+## fixtures/Issue269-NoWiresOnPowerLayers/
+
+- `fp-info-cache` (~5198 tok)
+- `proba.kicad_pcb` — Declares solid (~155101 tok)
+- `proba.kicad_prl` (~346 tok)
+- `proba.kicad_pro` (~4167 tok)
+- `proba.kicad_sch` — Declares default (~115204 tok)
+- `proba.rules` — Declares smd_to_turn_gap (~1166 tok)
+
+## fixtures/Issue269-min_fr_test/
+
+- `min_fr_test_no_quotes.dsn` — Declares signal (~676 tok)
+- `min_fr_test.dsn` — Declares signal (~677 tok)
+- `min_fr_test.kicad_pcb` — Declares solid (~4700 tok)
+- `min_fr_test.kicad_prl` (~339 tok)
+- `min_fr_test.kicad_pro` (~3659 tok)
+- `min_fr_test.kicad_sch` — Declares default (~2814 tok)
+
+## fixtures/Issue283-UnconnectedTracesUnderPads/
+
+- `fp-info-cache` (~1 tok)
+- `Natural_Tone_Preamp.dsn` — Declares signal (~25943 tok)
+- `Natural_Tone_Preamp.kicad_pcb` (~76687 tok)
+- `Natural_Tone_Preamp.kicad_pro` (~3740 tok)
+- `Natural_Tone_Preamp.ses` (~24650 tok)
+
+## fixtures/Issue367-UltraFlactyl/
+
+- `fabrication-toolkit-options.json` (~32 tok)
+- `UltraFlactyl` (~342 tok)
+- `UltraFlactyl.dsn` — Declares signal (~27345 tok)
+- `UltraFlactyl.kicad_prl` (~342 tok)
+- `UltraFlactyl.kicad_pro` (~3674 tok)
+- `UltraFlactyl.kicad_sch` — Declares default (~39292 tok)
+
+## fixtures/Issue368-CorneyIslandWireless/
+
+- `corney_island_wireless (GUI).ses` (~440 tok)
+- `corney_island_wireless (no-GUI).ses` (~245 tok)
+- `corney_island_wireless.dsn` — Declares signal (~1095 tok)
+- `corney_island_wireless.kicad_pcb` — Declares solid (~3247 tok)
+- `corney_island_wireless.kicad_prl` (~347 tok)
+- `corney_island_wireless.kicad_pro` (~2170 tok)
+
+## fixtures/Issue508-DAC2020/
+
+- `benchmark.sh` (~454 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/
+
+- `bm1.routed.kicad_pcb` — Declares solid (~117220 tok)
+- `bm1.unrouted.kicad_pcb` — Declares solid (~38626 tok)
+- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/
+
+- `DAC2020_bm01.log` (~1144 tok)
+- `DAC2020_bm01.ses` (~21640 tok)
+- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~15171 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/logs/
+
+- `freerouting.log` (~1144 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/
+
+- `DAC2020_bm01.log` (~76716 tok)
+- `DAC2020_bm01.ses` (~25924 tok)
+- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~16382 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/
+
+- `bm2.routed.kicad_pcb` — Declares solid (~43101 tok)
+- `bm2.unrouted.kicad_pcb` — Declares solid (~35291 tok)
+- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/
+
+- `DAC2020_bm02.log` (~206 tok)
+- `DAC2020_bm02.ses` (~3195 tok)
+- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~405 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/logs/
+
+- `freerouting.log` (~206 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/
+
+- `DAC2020_bm02.log` (~762 tok)
+- `DAC2020_bm02.ses` (~3597 tok)
+- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~406 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/
+
+- `bm4.routed.kicad_pcb` — Declares solid (~66483 tok)
+- `bm4.unrouted.kicad_pcb` — Declares solid (~35065 tok)
+- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/
+
+- `DAC2020_bm04.log` (~860 tok)
+- `DAC2020_bm04.ses` (~14537 tok)
+- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~6816 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/logs/
+
+- `freerouting.log` (~860 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/
+
+- `DAC2020_bm04.log` (~34731 tok)
+- `DAC2020_bm04.ses` (~13138 tok)
+- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~8471 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/
+
+- `bm5.routed.kicad_pcb` — Declares solid (~47114 tok)
+- `bm5.unrouted.kicad_pcb` — Declares solid (~27686 tok)
+- `DAC2020_bm05.unrouted.dsn` — Declares signal (~4460 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/
+
+- `DAC2020_bm05.log` (~200 tok)
+- `DAC2020_bm05.ses` (~5567 tok)
+- `DAC2020_bm05.unrouted.dsn` — Declares signal (~4460 tok)
+- `FRv1.9.0_KiCad_DRC.rpt` (~5759 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/FRv1.9.0/logs/
+
+- `freerouting.log` (~200 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm05/FRv2.1.0/
+
+- `DAC2020_bm05.ses` (~2996 tok)
+- `DAC2020_bm05.unrouted.dsn` — Declares signal (~4460 tok)
+- `FRv2.1.0_KiCad_DRC.rpt` (~7676 tok)
+
+## fixtures/Issue508-DAC2020/DAC2020_bm06/
+
+- `bm6.routed.kicad_pcb` — Declares solid (~38566 tok)
+
+## logs/M9-T5/
+
+- `fix-round-t5-1.md` — M9-T5 FIX ROUND 1 REPORT (spec F1-F6) (~1846 tok)
+- `fix-round-t5-2.md` — M9-T5 FIX ROUND 2 REPORT (quality Q1/Q2) (~1340 tok)
+- `quality-review-prompt-t5.md` — M9-T5 CODE-QUALITY REVIEW DISPATCH (~2640 tok)
+- `quality-review-t5-1.md` — M9-T5 CODE-QUALITY REVIEW (quality-review-t5-1) (~4196 tok)
+- `report-t5.md` — M9-T5 REPORT — the overlay data faces: ratsnest, DRC markers, congestion heatmap, tuning overlays (~5932 tok)
+- `spec-review-prompt-t5.md` — M9-T5 SPEC-COMPLIANCE REVIEW DISPATCH (~2021 tok)
+- `spec-review-t5-1.md` — M9-T5 SPEC-COMPLIANCE REVIEW (spec-review-t5-1) (~3984 tok)
+
+## rust/crates/epic-engine/src/
+
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~12337 tok)
+- `snapshot.rs` — The M9-T3 `BoardSnapshot`: the plain-`Send` render projection of a (~7817 tok)
+
+## rust/crates/epic-engine/tests/
+
+- `overlays.rs` — M9-T5: the overlay DATA faces' engine pins: (~4415 tok)
+
+## rust/crates/epic-gui/src/
+
+- `render.rs` — The M9-T4 projection: [`project`] — a PURE function of (~8495 tok)
+
+## rust/crates/epic-gui/tests/
+
+- `render_goldens.rs` — M9-T4: the render-golden pins (the dispatch charter for (~15835 tok)
