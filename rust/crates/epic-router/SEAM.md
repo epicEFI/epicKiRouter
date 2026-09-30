@@ -2171,3 +2171,20 @@ fix-round commit that lands this row).
 
 **The flip posture row** already landed in the M6 hold posture table
 above (appended by M8-T8) — referenced, not duplicated.
+
+**M9 (appended 2026-09-30 by the coordinator at close-out — the AM7
+charter input "epic-router untouched across M9" was falsified at T8
+verification; the append was correctly deferred by M9-T8 per its
+zero-rust-files law):** exactly ONE commit touched this crate in M9 —
+`3f20acafd` (M9-T3): the additive `DriverSink::board_snapshot(&mut
+self, &Board)` default-no-op hook (event_sink.rs:68) + the
+`DRIVER_SINK_METHOD_COUNT = 8` forwarding-exhaustion guard
+(event_sink.rs:22), plus SIX mirror calls firing immediately after the
+`board_updated` faces (batch.rs:125 via the fanout progress listener;
+pass_runner.rs:564/:627 begin/finish pass; optimizer.rs:1158/:1518/
+:1536). All additive and default-path-inert — CLI sinks never override
+the hook, so no snapshot rows ever exist in captured/replayed streams
+— and byte-invariance re-proven at M9-T7 (the 17/17 session-vs-CLI
+workflow battery + the standing compares). Records: `logs/M9-T3/
+report-t3.md` (AMENDMENT 3), `logs/M9-T8/report-t8.md` §4, and the
+bracketed T8 erratum in the design §6 M9 exit note.
