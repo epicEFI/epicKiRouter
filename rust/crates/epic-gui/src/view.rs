@@ -120,10 +120,13 @@ pub struct OverlayFlags {
 ///
 /// # Exactness contract (pinned by `render_goldens.rs` round trips)
 ///
-/// * `world_to_screen` is EXACT (pure rational multiply) whenever the
-///   result fits i32; beyond that the narrowing SATURATES (clamps to
-///   i32::MIN/MAX — documented, deterministic, and unreachable at the
-///   fixed test transform whose derivation proves the fit).
+/// * `world_to_screen`'s i128 intermediate is overflow-free; the final
+///   narrowing to i32 SATURATES (clamps to i32::MIN/MAX — documented,
+///   deterministic, and unreachable at the fixed test transform whose
+///   derivation proves the fit). The VALUE is exact iff
+///   `zoom_den | (world - pan) * zoom_num` per axis — at a fractional
+///   zoom the i128 division truncates (e.g. `w2s(pan + 1500)` at
+///   1/1000 is 1, not 1.5).
 /// * `screen_to_world` truncates (i128 division truncates toward
 ///   zero) — the round trip `screen_to_world(world_to_screen(w)) ==
 ///   w` holds for EVERY world point iff `zoom_num % zoom_den == 0`
@@ -216,8 +219,10 @@ fn narrow_i128_to_i32(v: i128) -> i32 {
 }
 
 /// i128 -> i64 narrowing, saturating at the i64 range (the
-/// screen_to_world twin of [`narrow_i128_to_i32`]).
-fn narrow_i128_to_i64(v: i128) -> i64 {
+/// screen_to_world twin of [`narrow_i128_to_i32`]; `pub(crate)` so
+/// `render.rs`'s drill-radius face reuses the ONE narrowing
+/// implementation — the quality-review Q7 dedup).
+pub(crate) fn narrow_i128_to_i64(v: i128) -> i64 {
     if v > i128::from(i64::MAX) {
         i64::MAX
     } else if v < i128::from(i64::MIN) {

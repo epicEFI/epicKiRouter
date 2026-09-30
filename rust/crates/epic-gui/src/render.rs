@@ -267,19 +267,16 @@ fn push_polygon(
 
 /// The drill radius in screen px from the rendered shapes' union
 /// bbox: `max(1, min(w, h) / 4 DBU x scale)` — the module doc's
-/// Circle note (i128 intermediates; the i64 px narrowing saturates).
+/// Circle note (i128 intermediates; the i64 px narrowing reuses the
+/// crate's ONE saturating implementation, quality-review Q7 — the
+/// negative branch is unreachable past the `max(1)`).
 fn drill_radius_px(bbox: &WorldBBox, transform: &ScreenTransform) -> i64 {
     let w = bbox.ur_x.saturating_sub(bbox.ll_x);
     let h = bbox.ur_y.saturating_sub(bbox.ll_y);
     let r_dbu = w.min(h) / 4;
     let scaled =
         i128::from(r_dbu) * i128::from(transform.zoom_num) / i128::from(transform.zoom_den);
-    let clamped = scaled.max(1);
-    if clamped > i128::from(i64::MAX) {
-        i64::MAX
-    } else {
-        clamped as i64
-    }
+    crate::view::narrow_i128_to_i64(scaled.max(1))
 }
 
 /// The projection: snapshot + view + viewport -> the deterministic

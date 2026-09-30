@@ -310,46 +310,26 @@ fn layer_visibility_exclusion_by_construction() {
     );
 }
 
-// --- PIN 3b — the via mapping row (spec-review F1) -------------------
+// --- PIN 2b — the per-layer trace color override (quality Q5, fix
+// round t4-2) ------------------------------------------
 
-/// A crafted one-via snapshot: two drill shapes on DIFFERENT layers
-/// (padstack order — a small 80x80 square on layer 0, a wider 160x160
-/// square on layer 1), centered at (500, 500); nothing else renders
-/// (no outline/pads/traces/areas), so the projection's op list is
-/// EXACTLY the via's op sequence and every assertion below is
-/// op-by-op.
-///
-/// Radius arithmetic at the 1:1 test transform (scale = 1): both
-/// shapes visible ⇒ union bbox (420,420)-(580,580), min(w,h) = 160 ⇒
-/// radius = 160/4 = 40 DBU ⇒ 40 px (the documented
-/// `max(1, min(w,h)/4 x scale)` face, the 1 px floor not reached).
-/// Only layer 0 visible ⇒ visible-union bbox (460,460)-(540,540),
-/// min(w,h) = 80 ⇒ radius = 80/4 = 20 px.
-fn one_via_snapshot() -> BoardSnapshot {
+/// The `ColorTable` per-layer face: a trace on layer 1 (which HAS a
+/// `per_layer` entry) renders `SetColor` = [77,127,196] — the
+/// override, NOT the class [200,52,52]; a trace on layer 2 (NO
+/// entry) falls to the class color. Kills the override-dropped
+/// mutant (`trace_color` -> always `self.trace`).
+#[test]
+fn trace_color_per_layer_override_face() {
     let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
-    BoardSnapshot {
-        traces: Vec::new(),
-        vias: vec![epic_engine::snapshot::ViaPrimitive {
-            center: point(500, 500),
-            drill_shapes: vec![
-                // Padstack index 0 — layer 0, the small square.
-                vec![
-                    point(460, 460),
-                    point(540, 460),
-                    point(540, 540),
-                    point(460, 540),
-                ],
-                // Padstack index 1 — layer 1, the wider square.
-                vec![
-                    point(420, 420),
-                    point(580, 420),
-                    point(580, 580),
-                    point(420, 580),
-                ],
-            ],
-            layers: vec![0, 1],
-            net: 1,
-        }],
+    let trace = |layer: i32, y: i64| epic_engine::snapshot::TracePrimitive {
+        polyline_points: vec![point(0, y), point(500, y)],
+        layer,
+        half_width: 50,
+        net: 1,
+    };
+    let snapshot = BoardSnapshot {
+        traces: vec![trace(1, 0), trace(2, 500)],
+        vias: Vec::new(),
         pads: Vec::new(),
         areas: Vec::new(),
         outline: Vec::new(),
@@ -358,116 +338,31 @@ fn one_via_snapshot() -> BoardSnapshot {
             name: "n".to_string(),
         }],
         bounds: epic_engine::snapshot::BoxPrimitive {
-            ll_x: 420,
-            ll_y: 420,
-            ur_x: 580,
-            ur_y: 580,
+            ll_x: 0,
+            ll_y: 0,
+            ur_x: 500,
+            ur_y: 500,
         },
         revision: 0,
-    }
-}
-
-/// The doc table's via row, asserted op-by-op: `SetColor(via)` →
-/// `FillPolygon(pad rectangle)` per visible shape in PADSTACK order →
-/// the drill `Circle` LAST. Kills the drop-Circle mutant (the exact
-/// 4-op sequence fails), the Circle-before-pads mutant (same assert),
-/// and the per-shape-bbox cull mutant (the union-overlap face keeps
-/// the FULL 4-op sequence when the layer-1 shape sticks out of the
-/// viewport).
-#[test]
-fn via_mapping_ops_match_the_doc_table() {
-    let snapshot = one_via_snapshot();
-
-    // Both layers visible, wide-open viewport: exactly the doc-table
-    // op sequence (screen == world at the 1:1 pan-origin transform).
-    let all = project(
+    };
+    let render = project(
         &snapshot,
-        &crafted_view(&snapshot, &[0, 1]),
+        &crafted_view(&snapshot, &[1, 2]),
         full_viewport(),
     );
-    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
-    let shape0 = [
-        point(460, 460),
-        point(540, 460),
-        point(540, 540),
-        point(460, 540),
-    ];
-    let shape1 = [
-        point(420, 420),
-        point(580, 420),
-        point(580, 580),
-        point(420, 580),
-    ];
-    // Screen == world − pan (pan = bounds.ll = (420, 420)) at zoom
-    // 1:1 — the expected literals below are the TRANSFORMED corners.
-    let screen = |points: &[epic_engine::snapshot::PointPrimitive]| {
-        points
-            .iter()
-            .map(|p| IntPoint::new((p.x - 420) as i32, (p.y - 420) as i32))
-            .collect::<Vec<_>>()
-    };
+    // Emission is layer-ascending: the layer-1 group is ops[0..4]
+    // (SetColor, SetWidth, MoveTo, LineTo), the layer-2 group
+    // ops[4..8].
+    assert_eq!(render.ops.len(), 8, "two trace groups, 4 ops each");
     assert_eq!(
-        all.ops,
-        vec![
-            epic_gui::render::RenderOp::SetColor([227, 183, 46, 255]),
-            epic_gui::render::RenderOp::FillPolygon(screen(&shape0)), // (40,40)-(120,120)
-            epic_gui::render::RenderOp::FillPolygon(screen(&shape1)), // (0,0)-(160,160)
-            epic_gui::render::RenderOp::Circle {
-                center: IntPoint::new(80, 80), // world (500,500) − pan
-                radius: 40,                    // min(160,160)/4 x scale 1 — the doc arithmetic
-            },
-        ],
-        "the via emits SetColor -> FillPolygon per visible shape in padstack order -> the drill Circle LAST"
+        render.ops[0],
+        epic_gui::render::RenderOp::SetColor([77, 127, 196, 255]),
+        "a trace on layer 1 uses the per-layer OVERRIDE color"
     );
-
-    // UNION-bbox cull: the layer-0 shape is fully inside the viewport
-    // while the layer-1 shape STICKS OUT past the right edge — the
-    // union still overlaps, so the via renders its FULL 4-op sequence
-    // (a per-shape-bbox cull mutant would drop the via or its
-    // layer-1 polygon here).
-    let sticking_out = IntBox::new(IntPoint::new(0, 0), IntPoint::new(560, 2000));
-    let kept = project(&snapshot, &crafted_view(&snapshot, &[0, 1]), sticking_out);
     assert_eq!(
-        kept.ops.len(),
-        4,
-        "the union bbox overlaps (layer-1 shape sticks out) — the via renders completely"
-    );
-    assert_eq!(kept.culled, 0, "a union overlap is a keep — nothing culled");
-
-    // The same via fully ONE DBU outside: culled, no ops.
-    let one_out = IntBox::new(IntPoint::new(0, 0), IntPoint::new(419, 2000));
-    let culled_render = project(&snapshot, &crafted_view(&snapshot, &[0, 1]), one_out);
-    assert_eq!(
-        (culled_render.ops.len(), culled_render.culled),
-        (0, 1),
-        "the via 1-DBU outside the viewport is culled with no ops"
-    );
-
-    // ALL layers hidden: the via contributes NOTHING — no ops AND
-    // `culled` unchanged (a visibility-skipped primitive never reaches
-    // the precheck; the count-in-culled mutant dies here).
-    let hidden = project(&snapshot, &crafted_view(&snapshot, &[]), full_viewport());
-    assert_eq!(
-        (hidden.ops.len(), hidden.culled),
-        (0, 0),
-        "an all-layers-hidden via contributes nothing and is NOT counted in culled"
-    );
-
-    // ONE layer hidden: per-shape visibility, not all-or-nothing —
-    // only the layer-1 FillPolygon drops, and the drill radius
-    // re-derives from the VISIBLE shapes' union (80/4 = 20 px).
-    let half = project(&snapshot, &crafted_view(&snapshot, &[0]), full_viewport());
-    assert_eq!(
-        half.ops,
-        vec![
-            epic_gui::render::RenderOp::SetColor([227, 183, 46, 255]),
-            epic_gui::render::RenderOp::FillPolygon(screen(&shape0)),
-            epic_gui::render::RenderOp::Circle {
-                center: IntPoint::new(80, 80),
-                radius: 20, // min(80,80)/4 x scale 1 — the visible-union arithmetic
-            },
-        ],
-        "hiding layer 1 drops exactly its FillPolygon and re-derives the drill radius"
+        render.ops[4],
+        epic_gui::render::RenderOp::SetColor([200, 52, 52, 255]),
+        "a trace on layer 2 (no per_layer entry) falls to the CLASS color"
     );
 }
 
@@ -535,6 +430,241 @@ fn cull_boundary_plus_minus_one_dbu() {
         (outside.ops.len(), outside.culled),
         (0, 1),
         "1-outside is culled"
+    );
+}
+
+// --- PIN 3b — the via mapping row (spec-review F1, fix round t4-1) --
+
+/// A crafted one-via snapshot: two drill shapes on DIFFERENT layers
+/// (padstack order — a small 80x80 SQUARE on layer 0, a wider 160x120
+/// RECTANGLE on layer 1 — the rectangle is what pins the min(w,h)
+/// radius discriminant, quality-review Q3: a min→max mutant changes
+/// the expected radius), centered at (500, 500); nothing else renders
+/// (no outline/pads/traces/areas), so the projection's op list is
+/// EXACTLY the via's op sequence and every assertion below is
+/// op-by-op.
+///
+/// Radius arithmetic at the 1:1 test transform (scale = 1): both
+/// shapes visible ⇒ union bbox (420,420)-(580,540), w=160, h=120 ⇒
+/// min(w,h) = 120 ⇒ radius = 120/4 = 30 DBU ⇒ 30 px (the documented
+/// `max(1, min(w,h)/4 x scale)` face, the 1 px floor not reached; a
+/// min→max mutant would compute 160/4 = 40 and die).
+/// Only layer 0 visible ⇒ visible-union bbox (460,460)-(540,540),
+/// min(w,h) = 80 ⇒ radius = 80/4 = 20 px.
+fn one_via_snapshot() -> BoardSnapshot {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    BoardSnapshot {
+        traces: Vec::new(),
+        vias: vec![epic_engine::snapshot::ViaPrimitive {
+            center: point(500, 500),
+            drill_shapes: vec![
+                // Padstack index 0 — layer 0, the small square.
+                vec![
+                    point(460, 460),
+                    point(540, 460),
+                    point(540, 540),
+                    point(460, 540),
+                ],
+                // Padstack index 1 — layer 1, the wider RECTANGLE
+                // (160 x 120 — w != h pins the min face, Q3).
+                vec![
+                    point(420, 420),
+                    point(580, 420),
+                    point(580, 540),
+                    point(420, 540),
+                ],
+            ],
+            layers: vec![0, 1],
+            net: 1,
+        }],
+        pads: Vec::new(),
+        areas: Vec::new(),
+        outline: Vec::new(),
+        nets: vec![epic_engine::snapshot::NetInfo {
+            id: 1,
+            name: "n".to_string(),
+        }],
+        bounds: epic_engine::snapshot::BoxPrimitive {
+            ll_x: 420,
+            ll_y: 420,
+            ur_x: 580,
+            ur_y: 540,
+        },
+        revision: 0,
+    }
+}
+
+/// The doc table's via row, asserted op-by-op: `SetColor(via)` →
+/// `FillPolygon(pad rectangle)` per visible shape in PADSTACK order →
+/// the drill `Circle` LAST. Kills the drop-Circle mutant (the exact
+/// 4-op sequence fails), the Circle-before-pads mutant (same assert),
+/// and the per-shape-bbox cull mutant (the union-overlap face keeps
+/// the FULL 4-op sequence when the layer-1 shape sticks out of the
+/// viewport).
+#[test]
+fn via_mapping_ops_match_the_doc_table() {
+    let snapshot = one_via_snapshot();
+
+    // Both layers visible, wide-open viewport: exactly the doc-table
+    // op sequence (screen == world at the 1:1 pan-origin transform).
+    let all = project(
+        &snapshot,
+        &crafted_view(&snapshot, &[0, 1]),
+        full_viewport(),
+    );
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    let shape0 = [
+        point(460, 460),
+        point(540, 460),
+        point(540, 540),
+        point(460, 540),
+    ];
+    let shape1 = [
+        point(420, 420),
+        point(580, 420),
+        point(580, 540),
+        point(420, 540),
+    ];
+    // Screen == world − pan (pan = bounds.ll = (420, 420)) at zoom
+    // 1:1 — the expected literals below are the TRANSFORMED corners.
+    let screen = |points: &[epic_engine::snapshot::PointPrimitive]| {
+        points
+            .iter()
+            .map(|p| IntPoint::new((p.x - 420) as i32, (p.y - 420) as i32))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        all.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor([227, 183, 46, 255]),
+            epic_gui::render::RenderOp::FillPolygon(screen(&shape0)), // (40,40)-(120,120)
+            epic_gui::render::RenderOp::FillPolygon(screen(&shape1)), // (0,0)-(160,120)
+            epic_gui::render::RenderOp::Circle {
+                center: IntPoint::new(80, 80), // world (500,500) − pan
+                radius: 30, // min(160,120)/4 x scale 1 — a min→max mutant computes 40 and dies
+            },
+        ],
+        "the via emits SetColor -> FillPolygon per visible shape in padstack order -> the drill Circle LAST"
+    );
+
+    // UNION-bbox cull: the layer-0 shape is fully inside the viewport
+    // while the layer-1 shape STICKS OUT past the right edge — the
+    // union still overlaps, so the via renders its FULL 4-op sequence
+    // (a per-shape-bbox cull mutant would drop the via or its
+    // layer-1 polygon here).
+    let sticking_out = IntBox::new(IntPoint::new(0, 0), IntPoint::new(560, 2000));
+    let kept = project(&snapshot, &crafted_view(&snapshot, &[0, 1]), sticking_out);
+    assert_eq!(
+        kept.ops.len(),
+        4,
+        "the union bbox overlaps (layer-1 shape sticks out) — the via renders completely"
+    );
+    assert_eq!(kept.culled, 0, "a union overlap is a keep — nothing culled");
+
+    // The same via fully ONE DBU outside: culled, no ops.
+    let one_out = IntBox::new(IntPoint::new(0, 0), IntPoint::new(419, 2000));
+    let culled_render = project(&snapshot, &crafted_view(&snapshot, &[0, 1]), one_out);
+    assert_eq!(
+        (culled_render.ops.len(), culled_render.culled),
+        (0, 1),
+        "the via 1-DBU outside the viewport is culled with no ops"
+    );
+
+    // ALL layers hidden: the via contributes NOTHING — no ops AND
+    // `culled` unchanged (a visibility-skipped primitive never reaches
+    // the precheck; the count-in-culled mutant dies here).
+    let hidden = project(&snapshot, &crafted_view(&snapshot, &[]), full_viewport());
+    assert_eq!(
+        (hidden.ops.len(), hidden.culled),
+        (0, 0),
+        "an all-layers-hidden via contributes nothing and is NOT counted in culled"
+    );
+
+    // ONE layer hidden: per-shape visibility, not all-or-nothing —
+    // only the layer-1 FillPolygon drops, and the drill radius
+    // re-derives from the VISIBLE shapes' union (80/4 = 20 px).
+    let half = project(&snapshot, &crafted_view(&snapshot, &[0]), full_viewport());
+    assert_eq!(
+        half.ops,
+        vec![
+            epic_gui::render::RenderOp::SetColor([227, 183, 46, 255]),
+            epic_gui::render::RenderOp::FillPolygon(screen(&shape0)),
+            epic_gui::render::RenderOp::Circle {
+                center: IntPoint::new(80, 80),
+                radius: 20, // min(80,80)/4 x scale 1 — the visible-union arithmetic
+            },
+        ],
+        "hiding layer 1 drops exactly its FillPolygon and re-derives the drill radius"
+    );
+}
+
+// --- PIN 3c — the trace half-width cull expansion (quality Q4, fix
+// round t4-2) ------------------------------------------
+
+/// A crafted trace whose CORNER bbox is fully OUTSIDE the viewport's
+/// right edge while its half-width-EXPANDED bbox still reaches in:
+/// corner bbox (1000,1000)-(1200,1000), half_width 51 => expanded
+/// (949,949)-(1251,1051). The expanded-bbox face pinned BOTH
+/// directions at ±1 (the DNR-16 discipline):
+/// * right edge at 975 => the corner bbox alone says OUTSIDE
+///   (1000 > 975) but the expansion touches (949 <= 975) => KEPT —
+///   renders only BECAUSE of the expansion (the drop-expand mutant
+///   culls here and dies);
+/// * right edge at 949 => exactly ON the expanded edge => KEPT
+///   (inclusive);
+/// * right edge at 948 => 1 DBU beyond the expansion => CULLED,
+///   `culled` moves by 1.
+#[test]
+fn trace_half_width_expansion_cull_face() {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    let snapshot = BoardSnapshot {
+        traces: vec![epic_engine::snapshot::TracePrimitive {
+            polyline_points: vec![point(1000, 1000), point(1200, 1000)],
+            layer: 0,
+            half_width: 51,
+            net: 1,
+        }],
+        vias: Vec::new(),
+        pads: Vec::new(),
+        areas: Vec::new(),
+        outline: Vec::new(),
+        nets: vec![epic_engine::snapshot::NetInfo {
+            id: 1,
+            name: "n".to_string(),
+        }],
+        bounds: epic_engine::snapshot::BoxPrimitive {
+            ll_x: 949,
+            ll_y: 949,
+            ur_x: 1251,
+            ur_y: 1051,
+        },
+        revision: 0,
+    };
+    let view = crafted_view(&snapshot, &[0]);
+    let viewport = |ur_x: i32| IntBox::new(IntPoint::new(0, 0), IntPoint::new(ur_x, 5000));
+
+    // Kept ONLY because of the expansion (corner bbox says outside).
+    let kept = project(&snapshot, &view.clone(), viewport(975));
+    assert_eq!(
+        (kept.ops.len(), kept.culled),
+        (4, 0),
+        "the expansion reaches the viewport (949 <= 975) — the trace renders (SetColor, SetWidth, MoveTo, LineTo)"
+    );
+
+    // Exactly ON the expanded edge: KEPT (inclusive).
+    let on_edge = project(&snapshot, &view.clone(), viewport(949));
+    assert_eq!(
+        (on_edge.ops.len(), on_edge.culled),
+        (4, 0),
+        "the viewport edge exactly ON the expanded bbox edge keeps the trace (inclusive)"
+    );
+
+    // 1 DBU beyond the expansion: CULLED; `culled` moves by exactly 1.
+    let out = project(&snapshot, &view.clone(), viewport(948));
+    assert_eq!(
+        (out.ops.len(), out.culled),
+        (0, 1),
+        "1 DBU beyond the expanded bbox the trace is culled"
     );
 }
 
@@ -742,6 +872,34 @@ fn screen_round_trip_exact_at_the_i32_faces() {
             );
         }
     }
+}
+
+// --- PIN 5c — the narrowing saturation face (quality Q2, fix round
+// t4-2) ------------------------------------------------
+
+/// The documented saturating i32 narrowing (`view.rs`): at a 1:1
+/// transform with pan (0,0), world x = i32::MAX + 1 saturates to
+/// i32::MAX (the raw-cast mutant wraps to i32::MIN and dies); the MIN
+/// side symmetric; both axes pinned. The i64-side narrowing (the
+/// screen_to_world twin) is exercised at its range faces too.
+#[test]
+fn narrowing_saturates_at_the_i32_faces() {
+    let zero = epic_engine::snapshot::PointPrimitive { x: 0, y: 0 };
+    let t = ScreenTransform::new(zero, 1, 1);
+
+    let overflow = epic_engine::snapshot::PointPrimitive {
+        x: i64::from(i32::MAX) + 1,
+        y: i64::from(i32::MIN) - 1,
+    };
+    let s = t.world_to_screen(overflow);
+    assert_eq!(s.x, i32::MAX, "world x past i32::MAX saturates, not wraps");
+    assert_eq!(s.y, i32::MIN, "world y past i32::MIN saturates, not wraps");
+
+    // The i64-side narrowing: at 1:1 the round trip is exact, so the
+    // extreme SCREEN points map back to themselves at the i64 faces.
+    let w = t.screen_to_world(IntPoint::new(i32::MAX, i32::MIN));
+    assert_eq!(w.x, i64::from(i32::MAX));
+    assert_eq!(w.y, i64::from(i32::MIN));
 }
 
 // --- The sanctioned capture door -------------------------------------
