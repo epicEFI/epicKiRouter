@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T13:01:25.870Z
-> Files: 593 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T15:38:32.149Z
+> Files: 610 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -50,7 +50,7 @@
 - `gradle-build-on-pr.yml` — CI: Build the source on PR (~374 tok)
 - `gui-a11y.yml` — CI: GUI accessibility tests (~462 tok)
 - `pre-commit.yml` — CI: pre-commit (~466 tok)
-- `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~2050 tok)
+- `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~2374 tok)
 - `stale.yml` — This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time. (~540 tok)
 
 ## .remember/
@@ -281,7 +281,7 @@
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
 - `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
-- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~15119 tok)
+- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~16475 tok)
 
 ## docs/superpowers/research/
 
@@ -790,18 +790,50 @@
 - `spec-review-prompt-t5.md` — M9-T5 SPEC-COMPLIANCE REVIEW DISPATCH (~2021 tok)
 - `spec-review-t5-1.md` — M9-T5 SPEC-COMPLIANCE REVIEW (spec-review-t5-1) (~3984 tok)
 
+## logs/M9-T6/
+
+- `dispatch-prompt-t6.md` — M9-T6 IMPLEMENTATION DISPATCH — the desktop shell (default-off `desktop` feature) + the CI workflow  (~4146 tok)
+- `fix-round-t6-1.md` — M9-T6 FIX ROUND 1 REPORT (spec F1/F4) (~1262 tok)
+- `fix-round-t6-2.md` — M9-T6 FIX ROUND 2 REPORT (quality Q1/Q2/Q3 + nits) (~1390 tok)
+- `quality-review-prompt-t6.md` — M9-T6 CODE-QUALITY REVIEW — dispatch charter (~1498 tok)
+- `quality-review-t6-1.md` — M9-T6 CODE-QUALITY REVIEW — commits `e7508f974` + `f17d0c96d` (reviewer: fresh quality-review op, 20 (~3345 tok)
+- `report-t6.md` — M9-T6 REPORT — the desktop shell (default-off) + CI desktop-clippy + threads-gate steps (the M5-T8 d (~6106 tok)
+- `spec-review-prompt-t6.md` — M9-T6 SPEC-COMPLIANCE REVIEW — dispatch charter (~2182 tok)
+- `spec-review-t6-1.md` — M9-T6 SPEC-COMPLIANCE REVIEW — commit `e7508f974` (reviewer: fresh spec-review op, 2026-09-30) (~3564 tok)
+
+## rust/
+
+- `README.md` — Project documentation (~5706 tok)
+
 ## rust/crates/epic-engine/src/
 
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~12337 tok)
+- `lib.rs` — The headless application core: jobs, the layered settings (~727 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~12551 tok)
 - `snapshot.rs` — The M9-T3 `BoardSnapshot`: the plain-`Send` render projection of a (~7817 tok)
 
 ## rust/crates/epic-engine/tests/
 
 - `overlays.rs` — M9-T5: the overlay DATA faces' engine pins: (~4415 tok)
 
+## rust/crates/epic-gui/
+
+- `Cargo.toml` — Rust package manifest (~476 tok)
+
 ## rust/crates/epic-gui/src/
 
+- `lib.rs` — The epic-gui headless view core (M9-T4): the pure (~459 tok)
 - `render.rs` — The M9-T4 projection: [`project`] — a PURE function of (~8495 tok)
+- `shell.rs` — The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED (~7153 tok)
+
+## rust/crates/epic-gui/src/bin/
+
+- `epic-gui.rs` — The epic-gui bin: the desktop shell's entry face. DEFAULT-OFF: (~277 tok)
+
+## rust/crates/epic-gui/src/desktop/
+
+- `canvas.rs` — The M9-T6 canvas (desktop-gated): the egui painter over (~502 tok)
+- `mod.rs` — The M9-T6 desktop shell (desktop-gated): the THIN eframe host — (~8474 tok)
+- `worker.rs` — The M9-T6 desktop worker thread (desktop-gated; its PROTOCOL types (~2328 tok)
 
 ## rust/crates/epic-gui/tests/
 

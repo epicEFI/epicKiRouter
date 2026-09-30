@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-30T13:01:25.870Z",
-    "fileCount": 593,
+    "lastScanned": "2026-09-30T15:38:32.149Z",
+    "fileCount": 610,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "54ede73480105909f4e9addcd270617ffd53d13f31336476e99b7fa1d078d3bb",
-    "storeUpdatedAt": "2026-09-30T13:01:25.880Z",
-    "rootHash": "d4a6e9c1016312a4"
+    "renderedHash": "f6f088d0964c0759003ecf78b539bafe8079c4c541bfa617e38e2696c8de7efb",
+    "storeUpdatedAt": "2026-09-30T15:38:32.159Z",
+    "rootHash": "3c4571c62fe524fd"
   },
   "files": {
     ".dockerignore": {
@@ -156,12 +156,12 @@
     },
     ".github/workflows/rust-check.yml": {
       "description": "\", \".github/workflows/rust-check.yml\"]",
-      "tokens": 2050,
-      "hash": "05c46a54584f64a8",
-      "size": 7214,
-      "mtimeMs": 1790735209576.3037,
-      "updatedAt": "2026-09-30T12:00:00.040Z",
-      "source": "scan"
+      "tokens": 2374,
+      "hash": "ca6bb85d089137ae",
+      "size": 8354,
+      "mtimeMs": 1790779563057.6719,
+      "updatedAt": "2026-09-30T14:46:03.170Z",
+      "source": "hook"
     },
     ".github/workflows/stale.yml": {
       "description": "This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.",
@@ -1911,11 +1911,11 @@
     },
     "docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md": {
       "description": "EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan",
-      "tokens": 15119,
-      "hash": "827ceedf4d8c39ec",
-      "size": 61047,
-      "mtimeMs": 1790773285748.028,
-      "updatedAt": "2026-09-30T13:01:25.870Z",
+      "tokens": 16475,
+      "hash": "14f954b48808853c",
+      "size": 66542,
+      "mtimeMs": 1790782712023.0996,
+      "updatedAt": "2026-09-30T15:38:32.148Z",
       "source": "hook"
     },
     "docs/superpowers/research/2026-09-11-autorouter-state-of-the-art.md": {
@@ -5422,11 +5422,11 @@
     },
     "rust/crates/epic-engine/src/session.rs": {
       "description": "The headless application session — the M9-T2 `Session` (the Java",
-      "tokens": 12337,
-      "hash": "6f4c6a778a0113ae",
-      "size": 46438,
-      "mtimeMs": 1790772036118.2266,
-      "updatedAt": "2026-09-30T12:40:36.218Z",
+      "tokens": 12551,
+      "hash": "e1b1620bf150ecd7",
+      "size": 47241,
+      "mtimeMs": 1790774058044.2668,
+      "updatedAt": "2026-09-30T13:14:18.195Z",
       "source": "hook",
       "symbols": [
         {
@@ -5538,8 +5538,8 @@
           "name": "PassTrackingSink",
           "kind": "section",
           "startLine": 944,
-          "endLine": 1015,
-          "tokens": 715
+          "endLine": 1032,
+          "tokens": 944
         }
       ]
     },
@@ -6090,6 +6090,363 @@
       "size": 23955,
       "mtimeMs": 1790773256921.9512,
       "updatedAt": "2026-09-30T13:00:57.019Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/dispatch-prompt-t6.md": {
+      "description": "M9-T6 IMPLEMENTATION DISPATCH — the desktop shell (default-off `desktop` feature) + the CI workflow ",
+      "tokens": 4146,
+      "hash": "a2f9bf2bfef790d2",
+      "size": 16715,
+      "mtimeMs": 1790773531614.7104,
+      "updatedAt": "2026-09-30T13:05:31.715Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/Cargo.toml": {
+      "description": "Rust package manifest",
+      "tokens": 476,
+      "hash": "8a86bdbbf160a6cc",
+      "size": 1794,
+      "mtimeMs": 1790774039508.2107,
+      "updatedAt": "2026-09-30T13:13:59.674Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-engine/src/lib.rs": {
+      "description": "The headless application core: jobs, the layered settings",
+      "tokens": 727,
+      "hash": "4b42162f8c52d882",
+      "size": 2732,
+      "mtimeMs": 1790774045522.2288,
+      "updatedAt": "2026-09-30T13:14:05.629Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/src/shell.rs": {
+      "description": "The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED",
+      "tokens": 7153,
+      "hash": "ac2d2fa18ee00e7e",
+      "size": 26915,
+      "mtimeMs": 1790781622947.8394,
+      "updatedAt": "2026-09-30T15:20:23.067Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "GuiToWorker",
+          "kind": "class",
+          "startLine": 65,
+          "endLine": 97,
+          "tokens": 450
+        },
+        {
+          "name": "LoadReport",
+          "kind": "class",
+          "startLine": 98,
+          "endLine": 119,
+          "tokens": 247
+        },
+        {
+          "name": "WorkerToGui",
+          "kind": "class",
+          "startLine": 120,
+          "endLine": 152,
+          "tokens": 459
+        },
+        {
+          "name": "is_snapshot_carrying",
+          "kind": "fn",
+          "startLine": 153,
+          "endLine": 170,
+          "tokens": 238
+        },
+        {
+          "name": "coalesce_latest_wins",
+          "kind": "fn",
+          "startLine": 171,
+          "endLine": 203,
+          "tokens": 400
+        },
+        {
+          "name": "splice_overlays",
+          "kind": "fn",
+          "startLine": 204,
+          "endLine": 230,
+          "tokens": 342
+        },
+        {
+          "name": "ZoomDirection",
+          "kind": "class",
+          "startLine": 231,
+          "endLine": 253,
+          "tokens": 270
+        },
+        {
+          "name": "rational_zoom_step",
+          "kind": "fn",
+          "startLine": 254,
+          "endLine": 269,
+          "tokens": 210
+        },
+        {
+          "name": "LaunchMode",
+          "kind": "class",
+          "startLine": 270,
+          "endLine": 308,
+          "tokens": 473
+        },
+        {
+          "name": "smoke_overlay_flags",
+          "kind": "fn",
+          "startLine": 309,
+          "endLine": 327,
+          "tokens": 204
+        },
+        {
+          "name": "parse_launch_args",
+          "kind": "fn",
+          "startLine": 328,
+          "endLine": 629,
+          "tokens": 3476
+        }
+      ]
+    },
+    "rust/crates/epic-gui/src/lib.rs": {
+      "description": "The epic-gui headless view core (M9-T4): the pure",
+      "tokens": 459,
+      "hash": "4f3cf0e229081803",
+      "size": 1729,
+      "mtimeMs": 1790774177891.631,
+      "updatedAt": "2026-09-30T13:16:17.996Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/src/desktop/worker.rs": {
+      "description": "The M9-T6 desktop worker thread (desktop-gated; its PROTOCOL types",
+      "tokens": 2328,
+      "hash": "10b1e39078b8b31d",
+      "size": 8752,
+      "mtimeMs": 1790774467591.52,
+      "updatedAt": "2026-09-30T13:21:07.691Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "NoopSink",
+          "kind": "class",
+          "startLine": 42,
+          "endLine": 43,
+          "tokens": 5
+        },
+        {
+          "name": "NoopSink",
+          "kind": "section",
+          "startLine": 44,
+          "endLine": 47,
+          "tokens": 43
+        },
+        {
+          "name": "spawn",
+          "kind": "fn",
+          "startLine": 48,
+          "endLine": 68,
+          "tokens": 172
+        },
+        {
+          "name": "Worker",
+          "kind": "class",
+          "startLine": 69,
+          "endLine": 77,
+          "tokens": 75
+        },
+        {
+          "name": "Worker",
+          "kind": "section",
+          "startLine": 78,
+          "endLine": 204,
+          "tokens": 1621
+        }
+      ]
+    },
+    "rust/crates/epic-gui/src/desktop/canvas.rs": {
+      "description": "The M9-T6 canvas (desktop-gated): the egui painter over",
+      "tokens": 502,
+      "hash": "17a7d7e0ee11f68e",
+      "size": 1896,
+      "mtimeMs": 1790774517453.0806,
+      "updatedAt": "2026-09-30T13:21:57.558Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "paint",
+          "kind": "fn",
+          "startLine": 40,
+          "endLine": 43,
+          "tokens": 23
+        }
+      ]
+    },
+    "rust/README.md": {
+      "description": "Project documentation",
+      "tokens": 5706,
+      "hash": "1cb1ef4be467c26b",
+      "size": 23023,
+      "mtimeMs": 1790774952506.0132,
+      "updatedAt": "2026-09-30T13:29:12.632Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/report-t6.md": {
+      "description": "M9-T6 REPORT — the desktop shell (default-off) + CI desktop-clippy + threads-gate steps (the M5-T8 d",
+      "tokens": 6106,
+      "hash": "143344ec4435078d",
+      "size": 24656,
+      "mtimeMs": 1790782689104.0186,
+      "updatedAt": "2026-09-30T15:38:09.218Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/spec-review-prompt-t6.md": {
+      "description": "M9-T6 SPEC-COMPLIANCE REVIEW — dispatch charter",
+      "tokens": 2182,
+      "hash": "345498738bca56e3",
+      "size": 8809,
+      "mtimeMs": 1790779376761.271,
+      "updatedAt": "2026-09-30T14:42:56.865Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/spec-review-t6-1.md": {
+      "description": "M9-T6 SPEC-COMPLIANCE REVIEW — commit `e7508f974` (reviewer: fresh spec-review op, 2026-09-30)",
+      "tokens": 3564,
+      "hash": "262befe721a1b6ee",
+      "size": 14363,
+      "mtimeMs": 1790779927054.568,
+      "updatedAt": "2026-09-30T14:52:07.167Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/fix-round-t6-1.md": {
+      "description": "M9-T6 FIX ROUND 1 REPORT (spec F1/F4)",
+      "tokens": 1262,
+      "hash": "1abbfcdc79815968",
+      "size": 5086,
+      "mtimeMs": 1790780741741.8164,
+      "updatedAt": "2026-09-30T15:05:41.841Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/quality-review-prompt-t6.md": {
+      "description": "M9-T6 CODE-QUALITY REVIEW — dispatch charter",
+      "tokens": 1498,
+      "hash": "14c61092ea04d9c1",
+      "size": 6039,
+      "mtimeMs": 1790780506827.1504,
+      "updatedAt": "2026-09-30T15:01:46.967Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/src/bin/epic-gui.rs": {
+      "description": "The epic-gui bin: the desktop shell's entry face. DEFAULT-OFF:",
+      "tokens": 277,
+      "hash": "d429c0742a860ec3",
+      "size": 1038,
+      "mtimeMs": 1790781603756.7493,
+      "updatedAt": "2026-09-30T15:20:03.858Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/src/desktop/mod.rs": {
+      "description": "The M9-T6 desktop shell (desktop-gated): the THIN eframe host —",
+      "tokens": 8474,
+      "hash": "f7418837d6e29900",
+      "size": 31821,
+      "mtimeMs": 1790781647528.9534,
+      "updatedAt": "2026-09-30T15:20:47.636Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 65,
+          "endLine": 107,
+          "tokens": 512
+        },
+        {
+          "name": "ShellApp",
+          "kind": "class",
+          "startLine": 108,
+          "endLine": 156,
+          "tokens": 576
+        },
+        {
+          "name": "Smoke",
+          "kind": "class",
+          "startLine": 157,
+          "endLine": 172,
+          "tokens": 88
+        },
+        {
+          "name": "Smoke",
+          "kind": "section",
+          "startLine": 173,
+          "endLine": 216,
+          "tokens": 451
+        },
+        {
+          "name": "unreachable",
+          "kind": "fn",
+          "startLine": 217,
+          "endLine": 220,
+          "tokens": 20
+        },
+        {
+          "name": "ShellApp",
+          "kind": "section",
+          "startLine": 221,
+          "endLine": 399,
+          "tokens": 2056
+        },
+        {
+          "name": "SmokeAction",
+          "kind": "class",
+          "startLine": 400,
+          "endLine": 410,
+          "tokens": 80
+        },
+        {
+          "name": "ShellApp",
+          "kind": "section",
+          "startLine": 411,
+          "endLine": 588,
+          "tokens": 2032
+        },
+        {
+          "name": "ShellApp",
+          "kind": "section",
+          "startLine": 589,
+          "endLine": 761,
+          "tokens": 2223
+        },
+        {
+          "name": "ShellApp",
+          "kind": "section",
+          "startLine": 762,
+          "endLine": 771,
+          "tokens": 69
+        },
+        {
+          "name": "color_of_background",
+          "kind": "fn",
+          "startLine": 772,
+          "endLine": 781,
+          "tokens": 104
+        }
+      ]
+    },
+    "logs/M9-T6/quality-review-t6-1.md": {
+      "description": "M9-T6 CODE-QUALITY REVIEW — commits `e7508f974` + `f17d0c96d` (reviewer: fresh quality-review op, 20",
+      "tokens": 3345,
+      "hash": "722569f54dc0d533",
+      "size": 13536,
+      "mtimeMs": 1790781857874.8765,
+      "updatedAt": "2026-09-30T15:24:17.986Z",
+      "source": "hook"
+    },
+    "logs/M9-T6/fix-round-t6-2.md": {
+      "description": "M9-T6 FIX ROUND 2 REPORT (quality Q1/Q2/Q3 + nits)",
+      "tokens": 1390,
+      "hash": "64e0dd370bc66124",
+      "size": 5629,
+      "mtimeMs": 1790782668659.9463,
+      "updatedAt": "2026-09-30T15:37:48.787Z",
       "source": "hook"
     }
   },

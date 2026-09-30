@@ -3423,6 +3423,57 @@
     "m9-t4",
     "gate-logistics"
    ]
+  },
+  {
+   "id": 221,
+   "date": "2026-09-30",
+   "task": "M9-T6 — the desktop shell worker (desktop/worker.rs): the first --smoke frames run reported OK while the board was never loaded",
+   "error_message": "The frames-smoke exited 0 and printed OK, but the PNG showed an empty canvas: the worker's load() path constructed/validated the Session without ever ASSIGNING it to the worker field, so the subsequent route attempt hit the None arm, emitted RouteDone(Err) which the smoke harness did not read as failure — a vacuous green.",
+   "root_cause": "A success-shaped control flow with an unread error channel: LoadPath -> parse/validate -> (missing assignment) -> StartRoute reads the None session -> RouteDone(Err) shipped to a GUI side the smoke never asserted on. The smoke's exit criterion was 'frames ran', not 'the expected failure/success states were observed', so the Err path was invisible.",
+   "fix": "Assign the session in load(); add the Shoot-arm 'hook did not fire' honest-failure path as the standing guard; the cancel smoke then caught the class live (RouteDone(Err) unread -> disclosed). Landed in e7508f974; evidence logs/M9-T6/evidence/21-smoke-bm08.log + 22-cancel-smoke.log; the honest re-proof is the real PNG 23-bm08-smoke-overlays.png.",
+   "tags": [
+    "m9-t6",
+    "vacuous-green",
+    "unread-error-channel",
+    "smoke-harness",
+    "self-caught",
+    "closed"
+   ],
+   "status": "fixed"
+  },
+  {
+   "id": 222,
+   "date": "2026-09-30",
+   "task": "M9-T6 fix2 (quality Q1) — the interactive shell froze after any worker command",
+   "error_message": "Interactive face: clicking Load/Route/Export sent the command to the worker, the worker replied on the GUI channel, but the window never redrew — an invisible stall. Only the route-running cadence (route_running || smoke active) kept repainting.",
+   "root_cause": "egui reactive mode redraws only when repaint is requested. The shell's continuous 16ms cadence was gated on route_running || smoke_is_active(); an idle UI that had just issued a click-driven LoadPath/ExportSes never requested a repaint, so the reply sat in the channel with no frame to drain it. Send-without-repaint is an invisible stall in reactive mode.",
+   "fix": "ShellApp captures cc.egui_ctx at creation; send() issues ctx.request_repaint_after(100ms) after every successful worker command (one ping per command, not a poll loop), with the cadence rationale documented at the site. Landed in 94e17f873; verified by the quality reviewer's Q1 finding -> fix disposition in logs/M9-T6/fix-round-t6-2.md.",
+   "tags": [
+    "m9-t6",
+    "egui-reactive-mode",
+    "repaint-liveness",
+    "gui-threading",
+    "review-finding-q1",
+    "closed"
+   ],
+   "status": "fixed"
+  },
+  {
+   "id": 223,
+   "date": "2026-09-30",
+   "task": "M9-T6 fix2 (quality KM5/Q2) — the fit-zoom math was unreachable by the census",
+   "error_message": "cargo test --workspace (the default-features census) could not exercise the initial fit-zoom computation (zoom = 1/ceil(longest/1400)): the math lived inside initialize_view_for in cfg-gated desktop code, so a mutant (ceil-div -> floor-div) survived the whole pin suite.",
+   "root_cause": "The census-pinnability law (pure logic belongs in ungated modules with pins) leaked at ~15 lines: the fit-zoom arithmetic was written inline in the gated module for convenience during shell bring-up. The charter stated the law (section 2b) but no reviewer question asked 'name the pure logic still gated' — the leak survived the spec review and only the fresh quality reviewer's mutant run caught it.",
+   "fix": "Hoisted to the ungated pure face shell::fit_zoom(longest) -> (i64, i64) (DNR-19 1400px derivation note on the fn, #[must_use]); pinned by fit_zoom_faces (DNR-16 both directions at 1400/1401 and 2800/2801, the 1399 face, degenerate clamps 0/-50, the realistic 1_500_000 -> 1072 case); the live kill exit=101 in logs/M9-T6/evidence/50-fix2-km5-mutant.log with a byte-identical backup-restore proof. Landed in 94e17f873. Lesson banked as AM6 standing lesson 2: reviews must ask the census-pinnability question explicitly.",
+   "tags": [
+    "m9-t6",
+    "census-pinnability",
+    "feature-gating",
+    "mutant-survivor",
+    "review-question",
+    "closed"
+   ],
+   "status": "fixed"
   }
  ]
 }

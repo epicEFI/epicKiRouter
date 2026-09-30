@@ -9265,3 +9265,41 @@ description: chronological action log per session, consolidated weekly
 | 06:56 | Created logs/M9-T5/fix-round-t5-2.md | — | ~1429 |
 | 07:00 | Edited logs/M9-T5/report-t5.md | expanded (+22 lines) | ~1266 |
 | 07:01 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified inputs() | ~1318 |
+| 07:05 | Created logs/M9-T6/dispatch-prompt-t6.md | — | ~4422 |
+| 07:13 | Edited rust/crates/epic-gui/Cargo.toml | modified shell() | ~214 |
+| 07:14 | Edited rust/crates/epic-engine/src/lib.rs | expanded (+8 lines) | ~140 |
+| 07:14 | Edited rust/crates/epic-engine/src/session.rs | modified java_two_decimal_faces() | ~329 |
+| 07:16 | Created rust/crates/epic-gui/src/shell.rs | — | ~6346 |
+| 07:16 | Edited rust/crates/epic-gui/src/shell.rs | modified bare_snapshot() | ~201 |
+| 07:16 | Edited rust/crates/epic-gui/src/lib.rs | modified shell() | ~113 |
+| 07:21 | Created rust/crates/epic-gui/src/desktop/worker.rs | — | ~2388 |
+| 07:21 | Edited rust/crates/epic-gui/src/desktop/worker.rs | inline fix | ~7 |
+| 07:21 | Edited rust/crates/epic-gui/src/desktop/worker.rs | reduced (-6 lines) | ~69 |
+| 07:21 | Created rust/crates/epic-gui/src/desktop/canvas.rs | — | ~694 |
+| 07:21 | Created rust/crates/epic-gui/src/desktop/canvas.rs | — | ~886 |
+| 07:21 | Created rust/crates/epic-gui/src/desktop/canvas.rs | — | ~502 |
+| 07:28 | Edited .github/workflows/rust-check.yml | expanded (+9 lines) | ~198 |
+| 07:28 | Edited .github/workflows/rust-check.yml | modified LANDS() | ~194 |
+| 07:29 | Edited rust/README.md | expanded (+10 lines) | ~172 |
+| 07:29 | Edited rust/README.md | only() → step() | ~207 |
+| 08:41 | Created logs/M9-T6/report-t6.md | — | ~3008 |
+| 08:42 | Edited logs/M9-T6/report-t6.md | modified recorded() | ~2327 |
+| 08:42 | Created logs/M9-T6/spec-review-prompt-t6.md | — | ~2328 |
+| 08:45 | Edited rust/crates/epic-gui/src/shell.rs | modified is_none() | ~31 |
+| 08:45 | Edited rust/crates/epic-gui/src/shell.rs | clone() → clobber() | ~30 |
+| 08:45 | Edited rust/crates/epic-gui/src/shell.rs | inline fix | ~22 |
+| 08:46 | Edited .github/workflows/rust-check.yml | inline fix | ~25 |
+| 08:52 | Created logs/M9-T6/spec-review-t6-1.md | — | ~3802 |
+| 09:01 | Created logs/M9-T6/fix-round-t6-1.md | — | ~1320 |
+| 09:01 | Created logs/M9-T6/quality-review-prompt-t6.md | — | ~1598 |
+| 09:05 | Edited logs/M9-T6/fix-round-t6-1.md | 3→3 lines | ~92 |
+| 09:19 | Edited rust/crates/epic-gui/src/shell.rs | inline fix | ~16 |
+| 09:19 | Edited rust/crates/epic-gui/src/shell.rs | inline fix | ~13 |
+| 09:20 | Edited rust/crates/epic-gui/src/bin/epic-gui.rs | 3→3 lines | ~24 |
+| 09:20 | Edited rust/crates/epic-gui/src/shell.rs | 6→9 lines | ~71 |
+| 09:20 | Edited rust/crates/epic-gui/src/desktop/mod.rs | inline fix | ~13 |
+| 09:24 | Created logs/M9-T6/quality-review-t6-1.md | — | ~3568 |
+| 09:34 | Created logs/M9-T6/fix-round-t6-2.md | — | ~1444 |
+| 09:37 | Edited logs/M9-T6/fix-round-t6-2.md | VERIFIED() → declaration() | ~89 |
+| 09:38 | Edited logs/M9-T6/report-t6.md | expanded (+22 lines) | ~1510 |
+| 09:38 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified inputs() | ~1505 |
