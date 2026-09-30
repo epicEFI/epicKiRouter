@@ -420,6 +420,34 @@ T7); Tier A held 11/11 row-for-row at T7. Design §6 M7 exit note
 (verdict pending adjudication), `logs/M7-T7/report-t7.md`, and the M7
 criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
 
+M8 gloss face (landed on top of the M7 engine, default-off throughout
+— at DEFAULT settings every output stayed byte-identical, census
+1629/0/17, canaries unrotated): the four-metric aesthetics measurer
+(`rust/crates/epic-board/src/aesthetics.rs` — `aesthetics_metrics` at
+:238, the `AESTHETICS_PARALLELISM_WINDOW_DBU` constant at :83, the
+metric definitions in the module docs) with two thin doors — the
+`--dump-aesthetics` sidecar on `rust/crates/epic-cli/src/route.rs`
+(:1565; sidecar ONLY, never into the manifest — the canary-rotation
+trap is named in the code) and the java-free harness
+`aesthetics --dsn` reference door — over the committed 21-board
+PCBench sample (`rust/harness/fixtures/aesthetics/sample.yaml` + 24
+reference goldens); and the gloss stage family
+(`rust/crates/epic-router/src/pipeline/gloss.rs` — the bus group
+detector + hug/spread pass `run_gloss_bus_stage` :996, the
+POST-tightener 45° flow jog/stub/miter pass :1556, the
+return-path-aware via-placement pass :1806, the graded-wire teardrop
+pass :2488 — slotted post-tuning in `pipeline/full.rs` :440-:492)
+behind `router.gloss.bus` / `.flow` / `.via_place` / `.teardrops`
+(the tri-state flags in `epic-cli/src/settings.rs`). The M8
+measurement record: the two criterion-1 regression findings, the
+via-density monotone violation, and the artifact-dominated bend
+improvement all own to the teardrop tapers' added routed length
+(flow-alone an exact no-op on the sample corpus), while criterion 2
+(no completion/DRC regression) held clean; the CI router gate FLIPPED
+at M8-T8 (recorded above). Design §6 M8 exit note (verdict slot OPEN,
+pending adjudication), `logs/M8-T8/report-t8.md`, and the M8
+criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
+
 ## How The Code Fits Together
 
 ### Routing Path

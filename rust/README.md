@@ -72,8 +72,33 @@ at the REAL counter (ri=0 on all six, T7); Tier A held 11/11
 row-for-row (10 green / 1 red completion-only); census 1,547/0/17
 (the M7-exit census; 1,629 at the M8 flip), additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
 the T7 this-run pair 1800.1 s kill / 333.0 s strip / 1467.0 s bound).
-Status: **M7_EXIT_WITH_DEVIATIONS** — design §6 M7 exit note,
-`logs/M7-T7/report-t7.md`, the M7 criterion map in SEAM.md.
+M8 executed on top (the gloss family, ALL default-OFF — at defaults
+every output stayed byte-identical, canaries unrotated): the
+four-metric aesthetics measurer (`epic-board/src/aesthetics.rs` —
+`aesthetics_metrics` :238; the two doors are the `--dump-aesthetics`
+sidecar on `epic-cli/src/route.rs` — sidecar ONLY, never into the
+manifest, the canary-rotation trap named in the code — and the
+java-free harness `aesthetics --dsn` reference door) over the
+committed 21-board PCBench sample (`harness/fixtures/aesthetics/`:
+`sample.yaml` + 24 reference goldens + `select.py`); and the gloss
+stage family (`epic-router/src/pipeline/gloss.rs` — the bus
+detector/hug-spread pass, the POST-tightener 45° flow pass, the
+return-path-aware via-placement pass, and the graded-wire teardrop
+pass; slotted post-tuning in `pipeline/full.rs`) behind
+`router.gloss.bus` / `.flow` / `.via_place` / `.teardrops`. The T8
+measurement record: the two criterion-1 regression findings, the
+via-density monotone violation, and the artifact-dominated bend
+improvement ALL own to the teardrop tapers' added routed length
+(flow-alone an exact no-op on the sample corpus), while criterion 2
+(no completion/DRC regression) held clean (20/20 grid, Tier A 10+1
+held, canaries unrotated, census 1629/0/17); the CI flip LANDED at
+M8-T8 (recorded above); the B/C re-faces are the deviations refresh in
+design §6 M8 exit note and `logs/M8-T8/report-t8.md`.
+Status: **M8 CLOSED-PENDING-ADJUDICATION** — design §6 M8 exit note
+(verdict slot OPEN), `logs/M8-T8/report-t8.md`, the M8 criterion map
+in SEAM.md. The M7 row: **M7_EXIT_WITH_DEVIATIONS** (design §6 M7
+exit note, `logs/M7-T7/report-t7.md`, the M7 criterion map in
+SEAM.md).
 Port ledger: `crates/epic-router/SEAM.md`.
 
 ## Layout

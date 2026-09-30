@@ -668,6 +668,169 @@ attribution Finding 1 corrected in the T6 report and AMENDMENT 6 §3 —
 fixes at the first `pairs.rs` touch (M8). The measurement verdicts are
 unaffected.
 
+M8 exit note (T9, 2026-09-29; close-out docs commit as sole child of
+`040d5dade` — the measurement record predates this note: the AFTER
+battery, the per-pass ablations, the inherited re-faces, and the CI
+flip are T8's, measured at tree `9fe3a0751`
+(`logs/M8-T8/report-t8.md` + evidence; spec r1 fix `186c9eafd`,
+quality r1 fix `040d5dade`); the engine tree came out of the close-out
+identical, census 1629/0/17):
+**VERDICT: <per milestone adjudication>** — the slot stays OPEN; the
+deviations table below and the criterion-1 verdict formulation are the
+adjudication's inputs.
+
+M8's arc, honestly stated (four beats, from AM8's T9 banks): (a)
+**instrument-before-improvement held** — T1 built the four-metric
+measurer, the committed 21-board PCBench sample, and the 24 reference
+goldens before any pass existed, T2 measured the BEFORE face before
+any pass ran, and the falsification reads kept the plan's task order
+(the T5-first re-order REJECTED on measurement, AM2; the
+`ground_truth.json` demotion to context rows, AM1); (b) **the gloss
+family's real-corpus outcome is the milestone's honest center** — the
+designed primary bend lever (the flow pass) never engaged at all
+(EXACT no-op on all 20 sample boards, zero movers on default-routed
+geometry), bus and via-place moved noise-level deltas, and the one
+pass that moved real geometry — teardrops, 976 landed tapers on 15
+boards, geometry the consumer wants — is scored by the four-metric
+instrument as REGRESSION, because its taper copper adds routed length
+into every length-bearing metric; (c) **the 197 charter decision
+landed deterministically and opened the flip on measurement** — the
+deterministic candidate parallelism (T7, `e92b57cc9`) pulled bm01
+under both bounds (1340.78 s vs 1514.3/1510.7), four holds preceded
+the fifth moment, and the flip LANDED at `ba5e587bb` (11 green / 0 red
+at the exact post-flip CI face, Σ 286.5 s); (d) **the re-faces: no
+gloss-ON rescue, two rows worse, one improved, one kill green** — the
+push_shove precedent does NOT repeat (gloss-ON is row-for-row NO-OP on
+every B/C fixture, both tiers), bm05 and bm10 moved worse, interf_u
+improved, CM5's kill did not recur.
+
+Criterion verdicts (evidence: `logs/M8-T8/report-t8.md` — §1 the
+judgment + attribution tables, §2 the no-regression face, §3 the
+re-faces, §5 the flip record; `logs/M8-T2/report-t2.md` the BEFORE
+table; AMENDMENTS 1–8 in the gloss plan):
+
+- **Criterion 1 (aesthetics metrics improve monotonically vs PCBench
+  ground truth) — PRESENTED HONESTLY AS MET-ON-ONE-METRIC /
+  FINDINGS-ON-TWO; the verdict formulation is THE adjudication
+  question.** The judgment table (T8 §1; all 24 cells
+  coordinator-re-derived exact from the raw sidecars), n = 20 (the
+  LMS6002 kill row pinned, denominators stable):
+
+  | metric | BEFORE (T2) | AFTER (ALL-ON) | GT mean | verdict |
+  |---|---|---|---|---|
+  | mean_length_excess | 0.1807 | 0.4743 | 0.2093 | **REGRESSION-FINDING** (> 0.1812) |
+  | via_density | 1.5891 | 1.3905 | 3.1643 | letter PASS; **monotone-up VIOLATED (down)** |
+  | bend_to_length_ratio | 17.8165 | 15.3972 | 15.1677 | PASS — **artifact-dominated** |
+  | parallelism_ratio | 0.93875 | 0.9325 | 0.9054 | **REGRESSION-FINDING** (< 0.9383) |
+
+  Attribution (the ablation table, T8 §1): BOTH regression findings +
+  the via-density violation + the bend "win" own to the TEARDROPS
+  pass's taper copper — 976 landed tapers on 15 boards ADD routed
+  length, which enters the length-excess numerator and the
+  via-density/bend-ratio denominators (teardrops-alone ≈ ALL-ON:
+  len 0.4745, bend 15.4370). The genuine levers are tiny:
+  via-place −0.048 bends; bus near-neutral; **flow-alone = EXACT
+  no-op on all 20 boards** (zero movers on default-routed sample
+  geometry). The measurement-contract tension, owned to the record:
+  the AM6 position ("teardrops are unscored by the four metrics") is
+  FALSIFIED in its metric-inert reading — they are unscored as CREDIT,
+  but they still move all four metrics through the length faces; the
+  instrument-vs-consumer question (geometry the consumer wants that
+  the four-metric instrument scores as regression) is the
+  adjudicator's input, not an engine bug. **No finding is
+  re-baselined.** Whether this record reads MET-with-findings or
+  NOT-MET is left open by design.
+- **Criterion 2 (no completion/DRC regression) MET clean.** The
+  no-regression grid 20/20 (incompletes byte-equal ON vs default;
+  ri = 0 everywhere, the REAL counter); the Tier A default battery at
+  its held face 10 green / 1 red EXACTLY (the bm01 chronic
+  cap-scrape; Σ 2096.1 s DNR-18-reconciled); eight compares green by
+  name; events 3520; determinism ×2 default (canaries
+  `dc271114…`/`cf607714…` UNROTATED) + ×2 ALL-ON (ses `3ea73c82…`
+  byte-stable); census 1629/0/17 EXACT ×3. The LMS6002-Pmod kill row
+  is UNCHANGED (exit=124 recurs at ALL-ON) — the pinned PERMANENT
+  row: a kill, not a regression.
+- **Criterion 3 (the M7-exit deviations rows dispositioned) MET.**
+  bm01/197: the charter decision made and measured (T7: wall
+  1340.78 s < the 1514.3 this-run / 1510.7 canonical bounds — the
+  reopen OPENED; the lever `optimizer.threads` landed opt-in, the
+  flip judged at T8). The T8 refresh (§3), every row honest:
+  bm05 **worse** (29 > 18, was 27 > 18); bm10's **FACE CHANGED
+  worse** (completion 3 > 1 → tier-kill @900 s); interf_u
+  **improved** (1 > 0, was 3 > 0, still red); the mm/mm-u parity
+  floors held byte-exact (160 = 160; 128 = 128, cv 285 = 285);
+  StickHub/LimeSDR kills held; 1Bitsy 2 > 1 and bm04 3 > 2 held
+  exactly; **CM5's kill did NOT recur — PASS 6 ≤ 6 (green)**; and
+  gloss-ON as a lever candidate is **row-for-row NO-OP on every B/C
+  fixture, both tiers** (the push_shove precedent does not repeat).
+  The StickHub/CM5 pour measurement gaps carry. F3's reopen trigger:
+  DECLINED with evidence (diagonal-parallel groups EXIST — 7 groups
+  on 3 boards — but no board carries bend/length headroom; the
+  trigger stays armed for M9+ corpora). All still-standing reds
+  re-owned M9+ (table below).
+- **Criterion 4 (the M8-opening chores landed) DISCHARGED.** The
+  README M7 status flip landed early (AM2, riding the T2 amendment);
+  the `pairs.rs` :48-:50 module-doc swap fix landed at T3 (the
+  adjudication erratum corrected at source; the committed module doc
+  now attributes 381 482.0 / delta 10 270.24 to pair_SPLIT); **the
+  chore(wolf) bank — the M8 buglog dispositions, including 197's
+  flip-judgment tag now resolving at `ba5e587bb` — lands as the
+  coordinator's separate chore(wolf) commit IMMEDIATELY AFTER this
+  close-out commit** (the standing no-fold rule; it is not part of
+  this note's commit).
+- **Criterion 5 (gates green; census additions only; committed
+  artifacts untouched; nothing pushed) MET.** Census 1547 →
+  1629/0/17 across M8, additions only (the per-task ledger: 1562 at
+  T1 → 1581/1584 at T3 → 1598/1599 at T4 → 1613 at T5 → 1622/1625 at
+  T6 → 1629 at T7); committed artifacts untouched EXCEPT the
+  sanctioned NEW captures — the aesthetics sample + 24 reference
+  goldens + `select.py` (T1) and the ON-face goldens (T3 bus worlds,
+  T4 flow worlds, T5 via worlds, T6 teardrop worlds), each justified
+  in its landing commit; nothing pushed.
+
+Deviations (the T8 §3 refresh, the M7 deviations-table shape — the
+adjudication input; every still-standing red):
+
+| Red | Face (T8, tree `9fe3a0751`) | Root cause | Owner | Buglog |
+| --- | --- | --- | --- | --- |
+| bm01 (Tier A) | full-flow tier-kill 1800 s in BOTH modes (gate mode does NOT preflight-skip its optimizer); with the lever ot=4: 1340.78 s (T7) — opt-in, NOT load-bearing for the router-only CI face | optimizer wall; the lever LANDED (deterministic candidate parallelism, `optimizer.threads`); the adoption face is open | M9+ (adoption face) | 197 (closed at implementation) |
+| bm05 | RED 29 > 18 (was 27 > 18) | engine-capability (congestion) | M9+ | — |
+| bm10 | tier-kill @900 s (was completion 3 > 1) — FACE CHANGED, worse | engine-capability + load-sensitive tail | M9+ | — |
+| interf_u | RED 1 > 0 (was 3 > 0) — the row improves, still red | engine-capability | M9+ | — |
+| mm / mm-u | parity floors HELD (160 = 160; 128 = 128, cv 285 = 285) | — | — | — |
+| StickHub / LimeSDR | tier-kills held @900 s | engine-capability/wall | M9+ | — |
+| 1Bitsy | RED 2 > 1 held exactly | completion/bistability | M9+ | — |
+| bm04 | 3 > 2 held exactly | completion | M9+ | — |
+| CM5 | kill did NOT recur — PASS 6 ≤ 6 | was kill; now green | — | — |
+| gloss-ON lever | row-for-row NO-OP on every B/C fixture, both tiers | the push_shove precedent does NOT repeat | adjudication | — |
+| StickHub / CM5 pour faces | not re-measured (no pour battery) | measurement gaps | — | — |
+
+Carry-forwards (every line traces to a record): the via_density
+full-closure routing-stage lever (M9+, OUTSIDE the gloss family — AM2
+named it; the pass family's count-never-increases guard means the
+gloss passes structurally cannot close the ≈half-of-GT via deficit);
+the flow-pass engagement question (zero movers on default-routed
+sample geometry — constant recalibration, a pre-flow normalizer
+investigation, or an honest decline of the pass family; the designed
+primary bend lever never engaged the corpus it was built for); the
+teardrop metric-tension disposition (instrument change vs
+default-off-with-tension-documented — the adjudication's input; the
+pass itself is DRC-clean and consumer-honest, the four-metric
+instrument scores its copper as regression); the P2 partition-skew
+tuning follow-up (206.7 vs 710.8 s at N=4 under the fixed mod key,
+AM7 — a performance face, not correctness); the F3 diagonal trigger
+(ARMED, declined-with-evidence at T8 — 7 groups on 3 boards exist but
+no headroom; reopen for M9+ corpora); the threads-gate CI wiring
+(re-owned to the next workflow-touching act; the in-tree-only posture
+disclosed in rust-check.yml and README); the O(N²·S²) gloss detector
+prefilter — DECLINED on measurement (+8 s on the whole battery, T8
+§8); the StickHub/CM5 pour measurement gaps (carried, no new work).
+
+The engine tree is frozen at census 1629/0/17 across the close-out;
+the verdict slot above stays OPEN for the milestone adjudication (the
+M4-T17d/M5/M6/M7 pattern; the deviations table and the criterion-1
+verdict formulation are its inputs).
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI

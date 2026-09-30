@@ -2116,3 +2116,45 @@ drain fix → T5 (`d6c7bd859` + `758356366` + `a7b00639b` +
 (`logs/M7-T7/report-t7.md`, no commits; AMENDMENT 7); the Finding-1
 label correction + the mixer fact (125 `(wire`) ride the design doc §6
 M7 exit note; the close-out (this map, the exit note, the sweep) → T8.
+
+## M8 milestone-criterion map (appended by M8-T9; successor to the M7 map above — adjudication input)
+
+The map reads the design §6 M8 row (§6's table + the M8 exit note's
+verdict slot) and the M8 plan's exit criteria
+(`docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md` :24-30);
+evidence: `logs/M8-T2/report-t2.md` (the BEFORE table),
+`logs/M8-T8/report-t8.md` §1–§5 (the AFTER battery, the ablations,
+the re-faces, the gate lap, the flip record), the per-task dossiers
+in AMENDMENTS 1–8. The verdict slot in the design doc §6 M8 exit note
+stays OPEN — this map presents, the adjudicator decides.
+
+| # | Criterion | Verdict on the record | Locations / evidence |
+|---|---|---|---|
+| 1 — aesthetics metrics improve monotonically vs PCBench ground truth | **PRESENTED AS MET-ON-ONE-METRIC / FINDINGS-ON-TWO — the verdict formulation is the adjudication's question.** Judgment table (T8 §1, 24 cells coordinator-re-derived exact): mean_length_excess 0.1807 → 0.4743 REGRESSION-FINDING; via_density 1.5891 → 1.3905 letter-PASS with the monotone-up intermediate VIOLATED (down); bend_to_length_ratio 17.8165 → 15.3972 letter-PASS, ARTIFACT-DOMINATED; parallelism_ratio 0.93875 → 0.9325 REGRESSION-FINDING. | the measurer `rust/crates/epic-board/src/aesthetics.rs` (`aesthetics_metrics` :238; the metric struct :91–:100; the window constant :83); the sidecar door `--dump-aesthetics` in `rust/crates/epic-cli/src/route.rs` (the rotation-trap comment); the java-free reference door (harness `aesthetics --dsn`); the committed sample `rust/harness/fixtures/aesthetics/sample.yaml` + 24 reference goldens; `logs/M8-T2/report-t2.md`; `logs/M8-T8/report-t8.md` §1 (the judgment + ablation tables) |
+| 2 — no completion/DRC regression | **MET clean** — no-regression grid 20/20 (incompletes byte-equal ON vs default; ri = 0 everywhere, the REAL counter); Tier A held face 10 green / 1 red EXACTLY (the bm01 chronic cap-scrape; Σ 2096.1 s DNR-18-reconciled); eight compares green by name; events 3,520; determinism ×2 default (canaries `dc271114…`/`cf607714…` UNROTATED) + ×2 ALL-ON (ses `3ea73c82…` byte-stable); census 1629/0/17 EXACT ×3; the LMS6002-Pmod kill row is the pinned PERMANENT row (exit=124 recurs at ALL-ON — a kill, not a regression; n = 20 everywhere) | `logs/M8-T8/report-t8.md` §2 |
+| 3 — M7-exit deviations dispositioned | **MET** — bm01/197: the charter decision made and measured (T7 wall 1340.78 s < the 1514.3 this-run / 1510.7 canonical bounds — the reopen OPENED; the lever `optimizer.threads` landed opt-in); the T8 refresh honest row-for-row: bm05 29>18 WORSE, bm10 completion 3>1 → tier-kill @900 s (FACE CHANGED, worse), interf_u 1>0 improved-but-red, mm/mm-u floors held byte-exact, StickHub/LimeSDR kills held, 1Bitsy 2>1 and bm04 3>2 held, CM5's kill did NOT recur (PASS 6≤6), gloss-ON row-for-row NO-OP on every B/C fixture both tiers; pour measurement gaps carried; all still-standing reds re-owned M9+ | `logs/M8-T7/report-t7.md`; `logs/M8-T8/report-t8.md` §3 |
+| 4 — M8-opening chores | **DISCHARGED** — the README M7 status flip landed early (AM2); the `pairs.rs` :48–:50 module-doc swap fix landed at T3; the chore(wolf) bank lands as the coordinator's separate chore(wolf) commit immediately after the close-out commit (never folded) | the M8 gloss plan :22; AM2/AM3 |
+| 5 — gates green; census additions only; committed artifacts untouched | **MET** — census 1547 → 1629/0/17 additions-only across M8 (1562 → 1581/1584 → 1598/1599 → 1613 → 1622/1625 → 1629); committed artifacts untouched EXCEPT the sanctioned NEW captures — the aesthetics sample + 24 reference goldens + `select.py` (T1) and the ON-face goldens (T3 bus worlds, T4 flow worlds, T5 via worlds, T6 teardrop worlds); nothing pushed | AM1–AM7 census lines; the per-task reports |
+
+**The gloss stage family + flags** (all default-OFF; the two-regime
+byte-invariance contract: a DEFAULT run never reaches the family, ON
+runs are the improvement regime, golden-captured at first landing and
+pinned per pass): `router.gloss.bus` (T3 — the axis-aligned bus group
+detector + the hug/spread pass), `router.gloss.flow` (T4 — the
+POST-tightener jog/stub elimination + miter/recorner pass),
+`router.gloss.via_place` (T5 — return-path-aware via relocation; via
+COUNT never increases), `router.gloss.teardrops` (T6 — graded-width
+wires at trace/pad junctions; the investigation chose the graded-wire
+representation after BOTH polygon consumers proved to drop the shape).
+The stage slots live in `pipeline/full.rs` (:440–:492), the flags in
+`epic-cli/src/settings.rs`, and the sidecar blocks (`gloss_report`,
+`gloss_flow`, `gloss_via_place`, `gloss_teardrops` + their `*_gated`
+siblings) ride `--dump-aesthetics` — never the manifest.
+
+**The T8 measurement verdicts table** is §1 of
+`logs/M8-T8/report-t8.md` (the criterion-1 row above summarizes it;
+the full per-metric/per-pass deltas live there — not duplicated
+here).
+
+**The flip posture row** already landed in the M6 hold posture table
+above (appended by M8-T8) — referenced, not duplicated.
