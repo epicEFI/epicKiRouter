@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T20:39:22.543Z
-> Files: 604 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T21:19:58.855Z
+> Files: 612 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -291,7 +291,7 @@
 
 ## docs/
 
-- `architecture.md` — Freerouting Architecture Map (~9616 tok)
+- `architecture.md` — Freerouting Architecture Map (~9929 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
 - `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
@@ -381,7 +381,7 @@
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
 - `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
-- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~17562 tok)
+- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~18549 tok)
 
 ## docs/superpowers/research/
 
@@ -391,7 +391,7 @@
 
 ## docs/superpowers/specs/
 
-- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~18988 tok)
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~21800 tok)
 
 ## examples/tutorial_board/
 
@@ -729,6 +729,10 @@
 
 - `min_fr_test_no_quotes.dsn` — Declares signal (~676 tok)
 
+## logs/M9-ADJUDICATION/
+
+- `adjudication-prompt.md` — M9 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7/M8 pattern) (~2450 tok)
+
 ## logs/M9-T7/
 
 - `quality-review-prompt-t7.md` — M9-T7 QUALITY-REVIEW DISPATCH — the instrument and the measurement, under fresh eyes (~1240 tok)
@@ -736,3 +740,16 @@
 - `report-t7.md` — M9-T7 REPORT — the measurement moment (no commits landed) (~7461 tok)
 - `spec-review-prompt-t7.md` — M9-T7 SPEC-REVIEW DISPATCH — the measurement moment under fresh eyes (~1977 tok)
 - `spec-review-t7-1.md` — M9-T7 SPEC REVIEW 1 (materialized by the coordinator from the reviewer's inline report, 2026-09-30;  (~2504 tok)
+
+## logs/M9-T8/
+
+- `dispatch-prompt-t8.md` — M9-T8 DISPATCH — the close-out: the M9 exit note, the doc faces, the buglog sweep (the M8-T9 pattern (~1905 tok)
+- `quality-review-prompt-t8.md` — M9-T8 QUALITY-REVIEW DISPATCH — the close-out documents as ADJUDICATION INPUT, under fresh eyes (~1454 tok)
+- `quality-review-t8-1.md` — M9-T8 QUALITY REVIEW 1 (materialized by the coordinator from the reviewer's inline report, 2026-09-3 (~2124 tok)
+- `report-t8.md` — M9-T8 REPORT — the close-out: the M9 exit note, the doc faces, the buglog sweep (~6590 tok)
+- `spec-review-prompt-t8.md` — M9-T8 SPEC-REVIEW DISPATCH — the close-out documents, under fresh eyes (~1715 tok)
+- `spec-review-t8-1.md` — M9-T8 SPEC REVIEW 1 (materialized by the coordinator from the reviewer's inline report, 2026-09-30;  (~2689 tok)
+
+## rust/
+
+- `README.md` — Project documentation (~5904 tok)

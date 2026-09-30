@@ -2854,7 +2854,8 @@
         "dsn-reader",
         "M4-T5",
         "discovered-by-fixture"
-      ]
+      ],
+        "status": "open"
     },
     {
       "id": "bug-187",
@@ -3421,8 +3422,10 @@
         "freshness-guard",
         "cargo-clean",
         "m9-t4",
-        "gate-logistics"
-      ]
+        "gate-logistics",
+        "m9-t8-sweep"
+      ],
+      "status": "fixed"
     },
     {
       "id": 221,

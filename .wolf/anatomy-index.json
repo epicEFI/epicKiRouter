@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-30T20:39:22.543Z",
-    "fileCount": 604,
+    "lastScanned": "2026-09-30T21:19:58.855Z",
+    "fileCount": 612,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "a19085d3017d5f52c9f239e741c69f201f5532efd02505d2eea56de971fc4026",
-    "storeUpdatedAt": "2026-09-30T20:39:22.552Z",
-    "rootHash": "3e114802b73204c3"
+    "renderedHash": "78b8f20afcf57ebf31c3b8a399d1f5e4f419cc719cab56a7c667c2ff6cff0158",
+    "storeUpdatedAt": "2026-09-30T21:19:58.867Z",
+    "rootHash": "d76f82dcbb3312f1"
   },
   "files": {
     ".dockerignore": {
@@ -2226,12 +2226,12 @@
     },
     "docs/architecture.md": {
       "description": "Freerouting Architecture Map",
-      "tokens": 9616,
-      "hash": "1edcf549da2860f6",
-      "size": 38590,
-      "mtimeMs": 1790741095740.8362,
-      "updatedAt": "2026-09-30T18:00:00.223Z",
-      "source": "scan"
+      "tokens": 9929,
+      "hash": "e3adebf57815efbd",
+      "size": 39868,
+      "mtimeMs": 1790801267358.6084,
+      "updatedAt": "2026-09-30T20:47:47.455Z",
+      "source": "hook"
     },
     "docs/benchmarks.md": {
       "description": "Freerouting Benchmarks",
@@ -2811,11 +2811,11 @@
     },
     "docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md": {
       "description": "EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan",
-      "tokens": 17562,
-      "hash": "9c6db570f902343d",
-      "size": 70933,
-      "mtimeMs": 1790800762436.0422,
-      "updatedAt": "2026-09-30T20:39:22.543Z",
+      "tokens": 18549,
+      "hash": "3f8ae8b998c8dae6",
+      "size": 74933,
+      "mtimeMs": 1790803198747.2205,
+      "updatedAt": "2026-09-30T21:19:58.855Z",
       "source": "hook"
     },
     "docs/superpowers/research/2026-09-11-autorouter-state-of-the-art.md": {
@@ -2847,12 +2847,12 @@
     },
     "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md": {
       "description": "EpicRouter: Rust Rewrite Design",
-      "tokens": 18988,
-      "hash": "7f1274ca59e64b8e",
-      "size": 76950,
-      "mtimeMs": 1790742149915.15,
-      "updatedAt": "2026-09-30T18:00:00.280Z",
-      "source": "scan"
+      "tokens": 21800,
+      "hash": "ebbdc4c0a0881524",
+      "size": 88302,
+      "mtimeMs": 1790801253031.5635,
+      "updatedAt": "2026-09-30T20:47:33.132Z",
+      "source": "hook"
     },
     "docs/translations.md": {
       "description": "Translation guide",
@@ -5444,6 +5444,78 @@
       "size": 9766,
       "mtimeMs": 1790800645509.6865,
       "updatedAt": "2026-09-30T20:37:25.608Z",
+      "source": "hook"
+    },
+    "logs/M9-T8/dispatch-prompt-t8.md": {
+      "description": "M9-T8 DISPATCH — the close-out: the M9 exit note, the doc faces, the buglog sweep (the M8-T9 pattern",
+      "tokens": 1905,
+      "hash": "314d27db610a9eac",
+      "size": 7716,
+      "mtimeMs": 1790800822632.2266,
+      "updatedAt": "2026-09-30T20:40:22.731Z",
+      "source": "hook"
+    },
+    "rust/README.md": {
+      "description": "Project documentation",
+      "tokens": 5904,
+      "hash": "8be7785d75e7dad5",
+      "size": 23845,
+      "mtimeMs": 1790801287473.6714,
+      "updatedAt": "2026-09-30T20:48:07.572Z",
+      "source": "hook"
+    },
+    "logs/M9-T8/spec-review-prompt-t8.md": {
+      "description": "M9-T8 SPEC-REVIEW DISPATCH — the close-out documents, under fresh eyes",
+      "tokens": 1715,
+      "hash": "d73d1cce77c9f278",
+      "size": 6946,
+      "mtimeMs": 1790801818883.5095,
+      "updatedAt": "2026-09-30T20:56:58.982Z",
+      "source": "hook"
+    },
+    "logs/M9-T8/report-t8.md": {
+      "description": "M9-T8 REPORT — the close-out: the M9 exit note, the doc faces, the buglog sweep",
+      "tokens": 6590,
+      "hash": "53f626c91b13dd04",
+      "size": 26638,
+      "mtimeMs": 1790803095488.88,
+      "updatedAt": "2026-09-30T21:18:15.598Z",
+      "source": "hook"
+    },
+    "logs/M9-T8/spec-review-t8-1.md": {
+      "description": "M9-T8 SPEC REVIEW 1 (materialized by the coordinator from the reviewer's inline report, 2026-09-30; ",
+      "tokens": 2689,
+      "hash": "1f8c5e52dddee266",
+      "size": 10898,
+      "mtimeMs": 1790802320832.2856,
+      "updatedAt": "2026-09-30T21:05:20.926Z",
+      "source": "hook"
+    },
+    "logs/M9-T8/quality-review-prompt-t8.md": {
+      "description": "M9-T8 QUALITY-REVIEW DISPATCH — the close-out documents as ADJUDICATION INPUT, under fresh eyes",
+      "tokens": 1454,
+      "hash": "67f759fb0c265c41",
+      "size": 5869,
+      "mtimeMs": 1790802350626.3877,
+      "updatedAt": "2026-09-30T21:05:50.727Z",
+      "source": "hook"
+    },
+    "logs/M9-ADJUDICATION/adjudication-prompt.md": {
+      "description": "M9 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7/M8 pattern)",
+      "tokens": 2450,
+      "hash": "af2869c51aee70fd",
+      "size": 9918,
+      "mtimeMs": 1790802415675.6094,
+      "updatedAt": "2026-09-30T21:06:55.783Z",
+      "source": "hook"
+    },
+    "logs/M9-T8/quality-review-t8-1.md": {
+      "description": "M9-T8 QUALITY REVIEW 1 (materialized by the coordinator from the reviewer's inline report, 2026-09-3",
+      "tokens": 2124,
+      "hash": "79924e3d21190932",
+      "size": 8573,
+      "mtimeMs": 1790802990004.5312,
+      "updatedAt": "2026-09-30T21:16:30.134Z",
       "source": "hook"
     }
   },

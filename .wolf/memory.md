@@ -9335,3 +9335,17 @@ description: chronological action log per session, consolidated weekly
 | 14:38 | Edited logs/M9-T7/report-t7.md | inline fix | ~263 |
 | 14:38 | Edited logs/M9-T7/report-t7.md | inline fix | ~135 |
 | 14:39 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified recorded() | ~1208 |
+| 14:40 | Created logs/M9-T8/dispatch-prompt-t8.md | — | ~2032 |
+| 14:47 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified NOTE() | ~3079 |
+| 14:47 | Edited docs/architecture.md | modified core() | ~387 |
+| 14:48 | Edited rust/README.md | 1→6 lines | ~114 |
+| 14:48 | Edited rust/README.md | unlanded() → core() | ~156 |
+| 14:56 | Created logs/M9-T8/spec-review-prompt-t8.md | — | ~1829 |
+| 14:57 | Edited logs/M9-T8/report-t8.md | modified personally() | ~1749 |
+| 15:04 | Edited logs/M9-T8/report-t8.md | modified disposition() | ~751 |
+| 15:05 | Created logs/M9-T8/spec-review-t8-1.md | — | ~2869 |
+| 15:05 | Created logs/M9-T8/quality-review-prompt-t8.md | — | ~1551 |
+| 15:06 | Created logs/M9-ADJUDICATION/adjudication-prompt.md | — | ~2614 |
+| 15:16 | Created logs/M9-T8/quality-review-t8-1.md | — | ~2266 |
+| 15:18 | Edited logs/M9-T8/report-t8.md | modified disposition() | ~1640 |
+| 15:19 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified lessons() | ~1238 |
