@@ -417,7 +417,8 @@ flags are override/kill-switch only). The tuning population is the six
 committed fixtures under `rust/harness/fixtures/tuning/` plus the two
 pair goldens, measured DRC-clean at the REAL counter (ri=0 on all six,
 T7); Tier A held 11/11 row-for-row at T7. Design §6 M7 exit note
-(verdict pending adjudication), `logs/M7-T7/report-t7.md`, and the M7
+(**M7_EXIT_WITH_DEVIATIONS**, adjudicated 2026-09-28 at `bb57d7046`),
+`logs/M7-T7/report-t7.md`, and the M7
 criterion map in [SEAM.md](rust/crates/epic-router/SEAM.md).
 
 M8 gloss face (landed on top of the M7 engine, default-off throughout

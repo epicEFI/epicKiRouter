@@ -69,8 +69,8 @@ differential pairs (`pipeline/pairs.rs`, declared via
 tuning population is the six committed fixtures under
 `harness/fixtures/tuning/` (+ the two pair goldens), measured DRC-clean
 at the REAL counter (ri=0 on all six, T7); Tier A held 11/11
-row-for-row (10 green / 1 red completion-only); census 1,547/0/17
-(the M7-exit census; 1,629 at the M8 flip), additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
+row-for-row (10 green / 1 red completion-only); census 1547/0/17
+(the M7-exit census; 1629 at the M8 flip), additions only; the flip reopen bound is UNCHANGED (canonical 1510.7 s;
 the T7 this-run pair 1800.1 s kill / 333.0 s strip / 1467.0 s bound).
 M8 executed on top (the gloss family, ALL default-OFF — at defaults
 every output stayed byte-identical, canaries unrotated): the

@@ -668,8 +668,10 @@ attribution Finding 1 corrected in the T6 report and AMENDMENT 6 §3 —
 fixes at the first `pairs.rs` touch (M8). The measurement verdicts are
 unaffected.
 
-M8 exit note (T9, 2026-09-29; close-out docs commit as sole child of
-`040d5dade` — the measurement record predates this note: the AFTER
+M8 exit note (T9, 2026-09-29; close-out docs commit `23a8dba79` as
+sole child of `720c72d52` (the AM8 banking commit, itself
+`040d5dade`'s sole child) — the measurement record predates this note:
+the AFTER
 battery, the per-pass ablations, the inherited re-faces, and the CI
 flip are T8's, measured at tree `9fe3a0751`
 (`logs/M8-T8/report-t8.md` + evidence; spec r1 fix `186c9eafd`,
@@ -714,7 +716,10 @@ table; AMENDMENTS 1–8 in the gloss plan):
   FINDINGS-ON-TWO; the verdict formulation is THE adjudication
   question.** The judgment table (T8 §1; all 24 cells
   coordinator-re-derived exact from the raw sidecars), n = 20 (the
-  LMS6002 kill row pinned, denominators stable):
+  LMS6002 kill row pinned, denominators stable); the verdict cells'
+  thresholds are the AM2 predicates — the direction gates are
+  BEFORE ± ε with ε = 0.0005 (gloss plan :146-149), not GT-derived
+  bounds:
 
   | metric | BEFORE (T2) | AFTER (ALL-ON) | GT mean | verdict |
   |---|---|---|---|---|
@@ -776,8 +781,9 @@ table; AMENDMENTS 1–8 in the gloss plan):
   chore(wolf) bank — the M8 buglog dispositions, including 197's
   flip-judgment tag now resolving at `ba5e587bb` — lands as the
   coordinator's separate chore(wolf) commit IMMEDIATELY AFTER this
-  close-out commit** (the standing no-fold rule; it is not part of
-  this note's commit).
+  close-out commit** (the no-fold rule is gloss plan :22; the
+  immediately-after timing is AM8's T9 banks + the T9 charter's own
+  phrasing; it is not part of this note's commit).
 - **Criterion 5 (gates green; census additions only; committed
   artifacts untouched; nothing pushed) MET.** Census 1547 →
   1629/0/17 across M8, additions only (the per-task ledger: 1562 at
