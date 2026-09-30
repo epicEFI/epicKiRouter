@@ -861,9 +861,10 @@ scored this record better — 2 of 4 improving — evidencing
 non-self-serving adoption); the corrected AM2 law stands for M9 until
 formally amended.
 
-M9 exit note (T8, 2026-09-30; this close-out docs commit (the sole child, below) as
-sole child of `e5591969c` (the M9 AM7 banking commit, itself
-`3b9e0d8fb`'s sole child) — the measurement record predates this note:
+M9 exit note (T8, 2026-09-30; this close-out docs commit as sole child of
+`e5591969c` (the T7-cycle wolf-bank commit, itself `8a024eed8`'s sole
+child — the AMENDMENT 7 record; `3b9e0d8fb` is the T6-cycle wolf bank
+two steps down) — the measurement record predates this note:
 the workflow battery, the render-perf face, the inherited re-faces,
 and the gate lap are T7's, measured at tree `3b9e0d8fb`
 (`logs/M9-T7/report-t7.md` + evidence); the engine tree came out of
@@ -876,7 +877,11 @@ measurement record): (a) **the settings-move neutrality held exactly**
 epic-engine (`4a0d7b3f5`) was pure relocation by construction and by
 proof (the CLI byte-invariance lap green at T1; census-invariant at
 1632 = 1629 + 3 SessionLayer pins, the eight moved tests
-count-invariant), the one engine-side change M9 was ever allowed;
+count-invariant), the one engine-side change of its kind M9 was
+chartered (the plan's law is two-clause — this MOVE, plus NEW additive
+read-only faces: the T3 `DriverSink::board_snapshot` hook in epic-router
+and the T5 `airline_segments` face in epic-drc, both default-path-inert,
+named in the erratum below);
 (b) **the session-parity proof architecture is the milestone's
 structural center** — the session IS the CLI path (the same
 `pipeline::full::run`, the same moved resolution predicates, the same
@@ -885,7 +890,7 @@ cannot reach the engine any other way; the acceptance proof is
 byte-identity, proven 17/17 at T7 with the two kill-face rows (bm01,
 bm10) completed by natural-wall CLI re-runs and byte-proven twice
 (independently by the coordinator and the spec reviewer —
-`coord-bm01-bm10-byte-proof.log`);
+`logs/M9-T7/evidence/coord-bm01-bm10-byte-proof.log`);
 (c) **the shell's thinness is a law that held** — the module split
 (ungated `shell.rs` pure faces + pins vs `desktop/*` behind the
 default-off feature) survived the whole milestone, and the ONE
@@ -997,10 +1002,22 @@ chartered AM3 additive `DriverSink::board_snapshot` hook +
 mirror calls (event_sink.rs, batch.rs, fanout.rs, optimizer.rs,
 pass_runner.rs — all additive, default-path-inert, byte-invariance
 re-proven at T7). The premise "epic-router untouched across M9" was
-therefore falsified at verification. The SEAM.md append itself is
-deferred to the adjudication follow-up docs commit: T8's binding
-zero-rust-files law (the commit-proof gate `git diff --stat
-HEAD~1..HEAD -- rust/` must print nothing) forbids it in this task.]
+therefore falsified at verification. The SEAM.md append LANDED
+at `03f911836` (the coordinator's follow-up commit, +17/−0 append-only;
+T8's binding zero-rust-files law — the commit-proof gate `git diff
+--stat HEAD~1..HEAD -- rust/` must print nothing — forbade it in the
+task's own commit).
+The same verification census over ALL engine crates: epic-board and
+epic-geometry untouched; **epic-drc touched by exactly ONE commit —
+`7a61ef5f5` (M9-T5)**: the additive `airline_segments` face +
+`AirLineSegment` in `incompletes.rs` (+136/−4, the parity row path
+byte-identical per AM5) — disclosed in AM5 but in no close-out face
+until this erratum (quality-review QF1). Errata applied pre-adjudication
+2026-09-30: header parentage corrected (spec-review F1 — the true chain
+`3b9e0d8fb` → `8a024eed8` → `e5591969c` → `9bc40ae90`), the
+amend-garbled header fragment cleaned, beat (a) rewritten to the
+plan's two-clause law, and the byte-proof citation given its full path
+— that erratum commit's body is the record.]
 
 The census ledger: 1629 → 1632 (T1, +3 SessionLayer pins) → 1642 (T2)
 → 1649/1650 (T3 +7/+1) → 1659/1660/1663 (T4 +9/+1/+3) → 1672/1673/1673
