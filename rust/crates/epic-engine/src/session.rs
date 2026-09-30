@@ -609,7 +609,11 @@ impl Session {
     /// the pipeline's PRE-STAGE check, which SKIPS the routing stage
     /// entirely (pass-through `Ok(true)` -> COMPLETED — full.rs
     /// `router_enabled && !stop.is_requested()`). Both faces are
-    /// pinned in `session_workflow.rs`.
+    /// pinned by name in `session_workflow.rs`: the mid-run CANCELLED
+    /// face in `cancel_mid_run_cancels_and_refuses_export`, the
+    /// pre-route pass-through COMPLETED face in
+    /// `pre_route_cancel_passes_through_completed` (this method's
+    /// exercised caller).
     pub fn request_cancel(&self) {
         // Relaxed: the pipeline polls with `Ordering::Relaxed`
         // (batch.rs `is_requested`); the flag is a boolean hint whose

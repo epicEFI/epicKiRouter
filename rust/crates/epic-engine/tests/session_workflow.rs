@@ -163,11 +163,11 @@ fn load_success_shape_and_pre_route_faces() {
 /// CANCELLED, and `export_ses` refuses with the state named. The
 /// pre-route raise is a DIFFERENT face (the pipeline's pre-stage
 /// check skips the routing stage: pass-through COMPLETED — pinned in
-/// the outline-missing test above).
+/// `pre_route_cancel_passes_through_completed` below).
 #[test]
 fn cancel_mid_run_cancels_and_refuses_export() {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     use epic_router::pipeline::pass_runner::RouterCounters;
 
@@ -215,6 +215,37 @@ fn cancel_mid_run_cancels_and_refuses_export() {
     }
     assert!(!out.exists(), "the refused export writes NOTHING");
     let _ = fs::remove_dir_all(&scratch);
+}
+
+/// The pre-route cancel face, PINNED (spec-review F1+F2): a raise
+/// BEFORE `route()` hits the pipeline's pre-stage stop check (full.rs
+/// `router_enabled && !stop.is_requested()`) — the routing stage is
+/// SKIPPED (pass-through `Ok(true)`, no stop reason), so the run
+/// lands COMPLETED with zero passes and the UNROUTED board stands in
+/// the statistics. Also `request_cancel`'s exercised-caller pin (its
+/// mid-run sibling raises through `stop_flag()` instead).
+#[test]
+fn pre_route_cancel_passes_through_completed() {
+    let bytes = fs::read(fixture("harness/fixtures/event-stream/e1_ripup.dsn"))
+        .expect("the ripup fixture reads");
+    let mut session =
+        Session::load_dsn(&bytes, SessionLayer::default()).expect("the fixture loads clean");
+    session.request_cancel();
+    let mut sink = SilentSink;
+    let summary = session.route(&CliLayer::default(), &mut sink);
+    assert_eq!(
+        summary.final_state, "COMPLETED",
+        "a stop raised BEFORE route() skips the routing stage (pass-through Ok(true), no \
+         stop reason) — raise MID-RUN for CANCELLED"
+    );
+    assert_eq!(
+        summary.passes, 0,
+        "the routing stage never ran: no board_updated rows reached the sink"
+    );
+    assert!(
+        summary.incomplete_count > 0,
+        "the unrouted board stands (the statistics walk still ran)"
+    );
 }
 
 /// (c) The session-layer override is OUTPUT-OBSERVABLE: on bm07 (the
