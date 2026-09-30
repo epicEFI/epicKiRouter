@@ -8578,3 +8578,429 @@ description: chronological action log per session, consolidated weekly
 | 19:43 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified ERRATUM() | ~247 |
 | 20:25 | Created docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | — | ~9419 |
 | 20:25 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | inline fix | ~94 |
+| 20:27 | Created logs/M8-T1/dispatch-prompt-t1.md | — | ~2368 |
+| 20:40 | Created rust/crates/epic-board/src/aesthetics.rs | — | ~9886 |
+| 20:40 | Edited rust/crates/epic-board/src/aesthetics.rs | modified enumerate() | ~35 |
+| 20:40 | Edited rust/crates/epic-board/src/aesthetics.rs | 6→5 lines | ~95 |
+| 20:40 | Edited rust/crates/epic-board/src/aesthetics.rs | modified by() | ~97 |
+| 20:46 | Edited rust/crates/epic-cli/src/route.rs | modified write() | ~407 |
+| 20:46 | Created rust/harness/src/aesthetics_face.rs | — | ~398 |
+| 20:46 | Created rust/harness/src/aesthetics_face.rs | — | ~1121 |
+| 20:48 | Edited rust/harness/src/aesthetics_face.rs | added 1 import(s) | ~27 |
+| 20:48 | Edited rust/harness/src/aesthetics_face.rs | 3→4 lines | ~51 |
+| 20:49 | Created rust/harness/fixtures/aesthetics/select.py | — | ~2589 |
+| 20:56 | Created rust/crates/epic-router/tests/aesthetics_stats_parity.rs | — | ~2038 |
+| 20:58 | Edited rust/crates/epic-board/src/aesthetics.rs | modified layer_is_signal() | ~49 |
+| 20:58 | Edited rust/crates/epic-board/src/aesthetics.rs | unwrap() → expect() | ~39 |
+| 21:27 | Created logs/M8-T1/report-t1.md | — | ~2249 |
+| 21:28 | Created logs/M8-T1/spec-review-prompt-t1.md | — | ~1243 |
+| 21:35 | Created logs/M8-T1/spec-review-t1-1.md | — | ~3343 |
+| 21:38 | Created logs/M8-T1/fix-round-1-prompt.md | — | ~1058 |
+| 21:39 | Edited rust/crates/epic-board/src/aesthetics.rs | 4→4 lines | ~70 |
+| 21:58 | Created logs/M8-T1/quality-review-prompt-t1.md | — | ~1218 |
+| 22:00 | Created logs/M8-T2/dispatch-prompt-t2.md | — | ~1667 |
+| 22:07 | Created logs/M8-T1/quality-review-t1-1.md | — | ~4202 |
+| 22:09 | Created logs/M8-T1/fix-round-2-prompt.md | — | ~1434 |
+| 22:12 | Edited rust/crates/epic-board/src/aesthetics.rs | modified segment_distance() | ~780 |
+| 22:14 | Edited rust/harness/src/main.rs | modified corpus() | ~110 |
+| 22:14 | Edited rust/crates/epic-cli/src/route.rs | 2→6 lines | ~111 |
+| 22:14 | Edited rust/crates/epic-board/src/aesthetics.rs | 1→5 lines | ~95 |
+| 22:17 | Edited rust/harness/src/aesthetics_face.rs | 3→5 lines | ~69 |
+| 22:38 | Edited logs/M8-T2/dispatch-prompt-t2.md | inline fix | ~32 |
+| 22:38 | Edited logs/M8-T2/dispatch-prompt-t2.md | 2→2 lines | ~83 |
+| 22:41 | Created logs/M8-T2/run-battery.sh | — | ~524 |
+| 22:42 | Created logs/M8-T2/build-table.py | — | ~1115 |
+| 22:42 | Created logs/M8-T2/run-gate.sh | — | ~282 |
+| 23:40 | Edited logs/M8-T2/build-table.py | 1→2 lines | ~60 |
+| 23:47 | Created logs/M8-T2/report-t2.md | — | ~3635 |
+| 23:48 | Created logs/M8-T2/spec-review-prompt-t2.md | — | ~1379 |
+| 23:58 | Created logs/M8-T2/spec-review-t2-1.md | — | ~4111 |
+| 00:00 | Edited logs/M8-T2/report-t2.md | inline fix | ~46 |
+| 00:00 | Edited logs/M8-T2/report-t2.md | inline fix | ~42 |
+| 00:01 | Edited logs/M8-T2/report-t2.md | modified ERRATUM() | ~170 |
+| 00:01 | Created logs/M8-T2/quality-review-prompt-t2.md | — | ~1374 |
+| 00:09 | Created logs/M8-T2/quality-review-t2-1.md | — | ~4268 |
+| 00:11 | Edited logs/M8-T2/report-t2.md | "final_state=COMPLETED" → "5 of 20" | ~192 |
+| 00:13 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | modified bank() | ~1397 |
+| 00:13 | Edited rust/README.md | inline fix | ~17 |
+| 00:15 | Created logs/M8-T3/dispatch-prompt-t3.md | — | ~1966 |
+| 00:35 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | expanded (+6 lines) | ~270 |
+| 00:36 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | modified TIE() | ~224 |
+| 00:36 | Edited rust/crates/epic-board/src/aesthetics.rs | router() → number() | ~150 |
+| 00:46 | Created rust/crates/epic-router/src/pipeline/gloss.rs | — | ~7363 |
+| 00:48 | Created rust/crates/epic-router/src/pipeline/gloss.rs | — | ~7519 |
+| 00:49 | Created rust/crates/epic-router/src/pipeline/gloss.rs | — | ~1025 |
+| 00:49 | Created rust/crates/epic-router/src/pipeline/gloss.rs | — | ~1970 |
+| 00:49 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 11→11 lines | ~70 |
+| 00:50 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified as_int() | ~1050 |
+| 00:50 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified is_empty() | ~632 |
+| 00:50 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified run_group_pass() | ~307 |
+| 00:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | reduced (-28 lines) | ~80 |
+| 00:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified run_group_pass() | ~942 |
+| 00:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified span_name_hint() | ~1298 |
+| 00:52 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | span_name_hint() → participant_name() | ~52 |
+| 00:52 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 6→3 lines | ~56 |
+| 00:52 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified participant_name() | ~15 |
+| 00:52 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified median_of() | ~1875 |
+| 00:52 | Edited rust/crates/epic-router/src/pipeline/mod.rs | 2→3 lines | ~12 |
+| 00:53 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified ALONE() | ~288 |
+| 00:53 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 4→5 lines | ~38 |
+| 00:53 | Edited rust/crates/epic-router/src/pipeline/full.rs | 6→11 lines | ~164 |
+| 00:53 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified is_empty() | ~296 |
+| 00:53 | Edited rust/crates/epic-router/src/pipeline/full.rs | 4→5 lines | ~20 |
+| 00:54 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→4 lines | ~44 |
+| 00:54 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→2 lines | ~20 |
+| 00:55 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified get() | ~46 |
+| 00:55 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~11 |
+| 00:55 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 7→9 lines | ~66 |
+| 00:55 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~10 |
+| 00:56 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 2→2 lines | ~30 |
+| 00:56 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+15 lines) | ~272 |
+| 00:56 | Edited rust/crates/epic-cli/src/settings.rs | modified parse_pairs() | ~93 |
+| 00:57 | Edited rust/crates/epic-cli/src/route.rs | 4→8 lines | ~100 |
+| 00:57 | Edited rust/crates/epic-cli/src/route.rs | 5→6 lines | ~31 |
+| 00:57 | Edited rust/crates/epic-cli/src/route.rs | modified is_empty() | ~551 |
+| 00:58 | Edited rust/crates/epic-board/src/aesthetics.rs | modified render_json_value() | ~408 |
+| 01:05 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified length_guard_ok() | ~1785 |
+| 01:05 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 9→4 lines | ~47 |
+| 01:06 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified run_stage() | ~1347 |
+| 01:06 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified p1_pass_world_exact_geometry() | ~843 |
+| 01:06 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | reduced (-9 lines) | ~146 |
+| 01:06 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified p2_blocked_world_no_move_honest_row() | ~400 |
+| 01:07 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified run_stage() | ~719 |
+| 01:08 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified blocked_world() | ~491 |
+| 01:08 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified world() | ~417 |
+| 01:09 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified p3_non_group_net_identical_on_vs_off() | ~1526 |
+| 01:09 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 16→16 lines | ~138 |
+| 01:10 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→5 lines | ~33 |
+| 01:11 | Edited rust/crates/epic-cli/src/settings.rs | modified fanout_group_uptake_parse_merge_resolve() | ~164 |
+| 01:11 | Edited rust/crates/epic-cli/src/settings.rs | modified gloss_bus_tri_state_parse_merge_resolve() | ~816 |
+| 01:12 | Edited rust/crates/epic-cli/src/route.rs | modified build_batch_settings_carries_congestion_global() | ~415 |
+| 01:15 | Created rust/harness/fixtures/gloss/bus_world.dsn | — | ~456 |
+| 01:15 | Edited rust/harness/fixtures/gloss/bus_world.dsn | expanded (+9 lines) | ~62 |
+| 01:15 | Created rust/harness/fixtures/gloss/bus_world_blocked.dsn | — | ~70 |
+| 01:15 | Created rust/harness/fixtures/gloss/bus_world_blocked.dsn | — | ~123 |
+| 01:17 | Created rust/harness/fixtures/gloss/bus_world_blocked.dsn | — | ~526 |
+| 01:18 | Created rust/harness/fixtures/gloss/bus_world.dsn | — | ~504 |
+| 01:26 | Created rust/harness/tests/gloss_golden_pin.rs | — | ~1750 |
+| 01:27 | Edited rust/harness/tests/gloss_golden_pin.rs | 3→3 lines | ~56 |
+| 01:28 | Edited rust/crates/epic-board/src/aesthetics.rs | router() → number() | ~155 |
+| 01:33 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | Some() → is_some_and() | ~46 |
+| 02:05 | Created logs/M8-T3/spec-review-prompt-t3.md | — | ~1844 |
+| 02:17 | Created logs/M8-T3/spec-review-t3-1.md | — | ~4788 |
+| 02:19 | Edited logs/M8-T3/report-t3.md | inline fix | ~159 |
+| 02:19 | Edited logs/M8-T3/report-t3.md | modified ERRATUM() | ~252 |
+| 02:19 | Edited logs/M8-T3/report-t3.md | inline fix | ~98 |
+| 02:20 | Created logs/M8-T3/quality-review-prompt-t3.md | — | ~1430 |
+| 02:30 | Created logs/M8-T3/quality-review-t3-1.md | — | ~4015 |
+| 02:35 | Created logs/M8-T3/fix-round-1-prompt.md | — | ~2302 |
+| 03:13 | Edited logs/M8-T3/report-t3.md | modified corridor_pick() | ~3115 |
+| 03:15 | Created logs/M8-T4/dispatch-prompt-t4.md | — | ~2066 |
+| 03:38 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified JOG() | ~2276 |
+| 03:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified length_guard_ok() | ~5132 |
+| 03:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified length_guard_ok() | ~32 |
+| 03:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | face() → through() | ~234 |
+| 03:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 11→14 lines | ~137 |
+| 03:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_trace_pass() | ~337 |
+| 03:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_window() | ~1527 |
+| 03:43 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified pass() | ~263 |
+| 03:43 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 3→4 lines | ~28 |
+| 03:43 | Edited rust/crates/epic-router/src/pipeline/full.rs | 6→11 lines | ~175 |
+| 03:43 | Edited rust/crates/epic-router/src/pipeline/full.rs | 1→2 lines | ~23 |
+| 03:43 | Edited rust/crates/epic-router/src/pipeline/full.rs | expanded (+16 lines) | ~307 |
+| 03:43 | Edited rust/crates/epic-router/src/pipeline/full.rs | 4→5 lines | ~25 |
+| 03:43 | Edited rust/crates/epic-cli/src/settings.rs | modified parse_on_off() | ~92 |
+| 03:43 | Edited rust/crates/epic-cli/src/settings.rs | 4→8 lines | ~106 |
+| 03:43 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~16 |
+| 03:43 | Edited rust/crates/epic-cli/src/settings.rs | 3→6 lines | ~43 |
+| 03:43 | Edited rust/crates/epic-cli/src/settings.rs | 6→10 lines | ~126 |
+| 03:43 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~32 |
+| 03:44 | Edited rust/crates/epic-cli/src/settings.rs | modified pass() | ~312 |
+| 03:44 | Edited rust/crates/epic-cli/src/route.rs | 3→5 lines | ~45 |
+| 03:44 | Edited rust/crates/epic-cli/src/route.rs | 6→7 lines | ~36 |
+| 03:44 | Edited rust/crates/epic-cli/src/route.rs | modified is_empty() | ~403 |
+| 03:44 | Edited rust/crates/epic-cli/src/route.rs | modified build_batch_settings_carries_gloss_flow() | ~231 |
+| 03:44 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~19 |
+| 03:45 | Edited rust/crates/epic-cli/src/settings.rs | modified gloss_flow_tri_state_parse_merge_resolve() | ~672 |
+| 03:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~27 |
+| 03:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_base_ses() | ~7727 |
+| 03:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_base_ses() | ~74 |
+| 03:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | added 1 import(s) | ~35 |
+| 03:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 2→3 lines | ~26 |
+| 03:51 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 2→1 lines | ~14 |
+| 03:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 7→7 lines | ~49 |
+| 03:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified 11_999() | ~212 |
+| 03:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified 12_001() | ~308 |
+| 03:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 12→13 lines | ~96 |
+| 03:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 2→6 lines | ~62 |
+| 03:54 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 8→12 lines | ~132 |
+| 03:54 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | expanded (+8 lines) | ~221 |
+| 03:55 | Created rust/harness/fixtures/gloss/flow_world.dsn | — | ~506 |
+| 03:56 | Created rust/harness/fixtures/gloss/flow_world_blocked.dsn | — | ~522 |
+| 03:56 | Edited rust/harness/fixtures/gloss/flow_world_blocked.dsn | 2→1 lines | ~16 |
+| 03:58 | Created rust/harness/tests/flow_golden_pin.rs | — | ~1937 |
+| 03:59 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified f5_miter_threshold_boundary_worlds() | ~132 |
+| 03:59 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 30_001() → 30_000() | ~137 |
+| 03:59 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | "30_001 is not a candidate" → "the exact-edge stub is no" | ~19 |
+| 04:02 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 8→9 lines | ~143 |
+| 04:03 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 6→5 lines | ~78 |
+| 04:03 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified f2_blocked_world_honest_row() | ~35 |
+| 04:20 | Created logs/M8-T4/spec-review-prompt-t4.md | — | ~1607 |
+| 04:20 | Created logs/M8-T4/report-t4.md | — | ~2428 |
+| 04:31 | Created logs/M8-T4/spec-review-t4-1.md | — | ~4358 |
+| 04:33 | Created logs/M8-T4/fix-round-1-prompt.md | — | ~777 |
+| 04:34 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified face() | ~252 |
+| 04:39 | Created logs/M8-T4/quality-review-prompt-t4.md | — | ~1509 |
+| 04:51 | Created logs/M8-T4/quality-review-t4-1.md | — | ~3734 |
+| 04:55 | Created logs/M8-T4/fix-round-2-prompt.md | — | ~1443 |
+| 04:57 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_trace_pass() | ~725 |
+| 04:57 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_window() | ~336 |
+| 04:57 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→7 lines | ~119 |
+| 04:57 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→5 lines | ~91 |
+| 04:57 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified f13_plane_net_is_never_a_flow_target() | ~486 |
+| 04:58 | Edited rust/crates/epic-cli/src/route.rs | modified is_empty() | ~90 |
+| 04:58 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified flow_angle_ok() | ~102 |
+| 04:58 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 6→6 lines | ~57 |
+| 05:00 | Created logs/M8-T5/dispatch-prompt-t5.md | — | ~2280 |
+| 05:07 | Edited logs/M8-T4/report-t4.md | modified doc() | ~1803 |
+| 05:08 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | modified charter() | ~1026 |
+| 05:26 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified gate() | ~2064 |
+| 05:26 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→3 lines | ~36 |
+| 05:26 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→3 lines | ~28 |
+| 05:28 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | added optional chaining | ~6083 |
+| 05:28 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→2 lines | ~24 |
+| 05:28 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified arm_length() | ~137 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | modified pass() | ~339 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | modified parse_on_off() | ~96 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | 4→8 lines | ~110 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | 2→3 lines | ~25 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | 3→6 lines | ~46 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | 5→9 lines | ~109 |
+| 05:29 | Edited rust/crates/epic-cli/src/settings.rs | 2→3 lines | ~50 |
+| 05:29 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+8 lines) | ~136 |
+| 05:29 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 3→4 lines | ~30 |
+| 05:29 | Edited rust/crates/epic-router/src/pipeline/full.rs | 2→7 lines | ~107 |
+| 05:29 | Edited rust/crates/epic-router/src/pipeline/full.rs | 2→3 lines | ~38 |
+| 05:29 | Edited rust/crates/epic-router/src/pipeline/full.rs | expanded (+18 lines) | ~339 |
+| 05:29 | Edited rust/crates/epic-router/src/pipeline/full.rs | 4→5 lines | ~21 |
+| 05:30 | Edited rust/crates/epic-cli/src/route.rs | 4→7 lines | ~70 |
+| 05:30 | Edited rust/crates/epic-cli/src/route.rs | 7→8 lines | ~43 |
+| 05:30 | Edited rust/crates/epic-cli/src/route.rs | modified is_empty() | ~386 |
+| 05:31 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~19 |
+| 05:31 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~19 |
+| 05:31 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→4 lines | ~49 |
+| 05:31 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified plane_stitch() | ~80 |
+| 05:31 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~27 |
+| 05:35 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_padstack() | ~1145 |
+| 05:36 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 5→2 lines | ~30 |
+| 05:36 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 18→17 lines | ~196 |
+| 05:36 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified staircase_corners() | ~212 |
+| 05:36 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | circle_of() → Circle() | ~245 |
+| 05:37 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified staircase_trace() | ~865 |
+| 05:37 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~7 |
+| 05:37 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→3 lines | ~36 |
+| 05:37 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v1b_alignment_family_world() | ~342 |
+| 05:38 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v1b_alignment_family_world() | ~357 |
+| 05:38 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | added 1 import(s) | ~101 |
+| 05:39 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_arm() | ~1594 |
+| 05:41 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v5_return_path_scoring_and_tie_boundary() | ~806 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified staircase_corners() | ~22 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified staircase_corners() | ~15 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_world_split() | ~662 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~19 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | via_world() → via_world_split() | ~30 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~19 |
+| 05:42 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~19 |
+| 05:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→8 lines | ~133 |
+| 05:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 8→9 lines | ~46 |
+| 05:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 8→9 lines | ~64 |
+| 05:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified gate() | ~246 |
+| 05:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_length_guard_ok() | ~156 |
+| 05:44 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_world_blocked() | ~1273 |
+| 05:44 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→3 lines | ~29 |
+| 05:44 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~26 |
+| 05:45 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→4 lines | ~70 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 10→10 lines | ~89 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→4 lines | ~35 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v9_incompletes_gate_marks_the_hold() | ~75 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~15 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_arm() | ~82 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→7 lines | ~60 |
+| 05:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 5→6 lines | ~52 |
+| 05:47 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 29→34 lines | ~395 |
+| 05:47 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 8→11 lines | ~124 |
+| 05:48 | Created rust/harness/fixtures/gloss/via_world.dsn | — | ~308 |
+| 05:48 | Created rust/harness/fixtures/gloss/via_world_blocked.dsn | — | ~327 |
+| 05:48 | Edited rust/harness/fixtures/gloss/via_world.dsn | inline fix | ~10 |
+| 05:48 | Edited rust/harness/fixtures/gloss/via_world_blocked.dsn | inline fix | ~10 |
+| 05:49 | Created rust/harness/tests/via_place_golden_pin.rs | — | ~2065 |
+| 05:49 | Edited rust/harness/tests/via_place_golden_pin.rs | 4→4 lines | ~83 |
+| 05:50 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_world_blocked() | ~109 |
+| 05:50 | Edited rust/harness/tests/via_place_golden_pin.rs | 8→7 lines | ~89 |
+| 05:52 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | extend() → expectation() | ~268 |
+| 05:52 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified boundary() | ~82 |
+| 05:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~13 |
+| 05:53 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified via_candidate_accepts() | ~27 |
+| 05:53 | Edited rust/crates/epic-cli/src/settings.rs | 3→4 lines | ~42 |
+| 05:57 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 26→26 lines | ~178 |
+| 06:16 | Created logs/M8-T5/report-t5.md | — | ~2654 |
+| 06:17 | Created logs/M8-T5/spec-review-prompt-t5.md | — | ~1856 |
+| 06:25 | Created logs/M8-T5/spec-review-t5-1.md | — | ~5185 |
+| 06:27 | Created logs/M8-T5/fix-round-1-prompt.md | — | ~880 |
+| 06:32 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v9_incompletes_gate_marks_the_hold() | ~1549 |
+| 06:33 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 24→23 lines | ~411 |
+| 06:34 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 5→5 lines | ~60 |
+| 06:39 | Created logs/M8-T5/quality-review-prompt-t5.md | — | ~1743 |
+| 06:40 | Created logs/M8-T6/dispatch-prompt-t6.md | — | ~1960 |
+| 06:48 | Created logs/M8-T5/quality-review-t5-1.md | — | ~4558 |
+| 06:54 | Created logs/M8-T5/fix-round-2-prompt.md | — | ~1722 |
+| 07:05 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v11_two_via_world_sweep_order_and_corner_arm() | ~1767 |
+| 07:05 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | removed 5 lines | ~1 |
+| 07:06 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v11zz_debug_contacts() | ~371 |
+| 07:07 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified v11zz_debug_contacts() | ~911 |
+| 07:07 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~16 |
+| 07:13 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | expanded (+7 lines) | ~148 |
+| 07:13 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→5 lines | ~78 |
+| 07:13 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 2→6 lines | ~101 |
+| 07:14 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 5→9 lines | ~154 |
+| 07:34 | Created logs/M8-T6/investigation.md | — | ~2117 |
+| 07:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified teardrop_anatomy_ok() | ~5087 |
+| 07:40 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified teardrop_anatomy_ok() | ~39 |
+| 07:41 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+8 lines) | ~136 |
+| 07:41 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 2→3 lines | ~23 |
+| 07:41 | Edited rust/crates/epic-router/src/pipeline/full.rs | 2→7 lines | ~111 |
+| 07:41 | Edited rust/crates/epic-router/src/pipeline/full.rs | expanded (+16 lines) | ~309 |
+| 07:41 | Edited rust/crates/epic-router/src/pipeline/full.rs | 1→2 lines | ~29 |
+| 07:41 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→4 lines | ~16 |
+| 07:42 | Edited rust/crates/epic-cli/src/route.rs | 3→6 lines | ~56 |
+| 07:42 | Edited rust/crates/epic-cli/src/route.rs | 8→9 lines | ~50 |
+| 07:42 | Edited rust/crates/epic-cli/src/route.rs | modified is_empty() | ~348 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+21 lines) | ~380 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | modified parse_on_off() | ~98 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | 5→9 lines | ~120 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~19 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | 3→6 lines | ~49 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | 5→9 lines | ~113 |
+| 07:42 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~38 |
+| 07:43 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~22 |
+| 07:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 11→12 lines | ~188 |
+| 07:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→8 lines | ~123 |
+| 07:46 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 6→9 lines | ~81 |
+| 07:59 | Created rust/harness/fixtures/gloss/teardrop_world.dsn | — | ~265 |
+| 07:59 | Created rust/harness/fixtures/gloss/teardrop_world_blocked.dsn | — | ~340 |
+| 07:59 | Edited rust/harness/fixtures/gloss/teardrop_world.dsn | inline fix | ~16 |
+| 07:59 | Edited rust/harness/fixtures/gloss/teardrop_world_blocked.dsn | inline fix | ~10 |
+| 08:01 | Created rust/harness/tests/teardrop_golden_pin.rs | — | ~2192 |
+| 08:24 | Created logs/M8-T6/spec-review-prompt-t6.md | — | ~2091 |
+| 08:37 | Created logs/M8-T6/spec-review-t6-1.md | — | ~4390 |
+| 08:42 | Created logs/M8-T6/fix-round-1-prompt.md | — | ~1404 |
+| 08:43 | Edited rust/harness/tests/teardrop_golden_pin.rs | expanded (+9 lines) | ~205 |
+| 08:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 13→8 lines | ~94 |
+| 08:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→8 lines | ~133 |
+| 08:43 | Created logs/M8-T6/quality-review-prompt-t6.md | — | ~2102 |
+| 08:43 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 3→7 lines | ~115 |
+| 08:48 | Edited logs/M8-T6/quality-review-prompt-t6.md | "__FIXSHA__" → "32d5cea69" | ~4 |
+| 08:55 | Created logs/M8-T6/quality-review-t6-1.md | — | ~3548 |
+| 08:58 | Created logs/M8-T6/fix-round-2-prompt.md | — | ~1999 |
+| 08:59 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→5 lines | ~87 |
+| 08:59 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified pad_diameter_at() | ~170 |
+| 08:59 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | inline fix | ~18 |
+| 09:00 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→6 lines | ~104 |
+| 09:00 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified teardrop_attempt() | ~220 |
+| 09:00 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified PLAN() | ~180 |
+| 09:00 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 8→11 lines | ~180 |
+| 09:00 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | expanded (+8 lines) | ~270 |
+| 09:00 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | 4→4 lines | ~52 |
+| 09:02 | Edited rust/crates/epic-router/src/pipeline/gloss.rs | modified verbatim() | ~166 |
+| 09:36 | Created logs/M8-T7/investigation.md | — | ~2786 |
+| 09:36 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified executor() | ~335 |
+| 09:36 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 2→3 lines | ~25 |
+| 09:37 | Edited rust/crates/epic-router/src/pipeline/event_sink.rs | modified is_trace_enabled() | ~1150 |
+| 09:41 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified flag() | ~258 |
+| 09:41 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | added 2 import(s) | ~30 |
+| 09:41 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | added 2 import(s) | ~40 |
+| 09:41 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified candidate_ripup_costs() | ~694 |
+| 09:42 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified candidate_ripup_costs_for() | ~2631 |
+| 09:43 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified of() | ~2839 |
+| 09:44 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified is_none() | ~2323 |
+| 09:44 | Edited rust/crates/epic-router/src/pipeline/event_sink.rs | modified flush_to() | ~259 |
+| 09:45 | Edited rust/crates/epic-cli/src/settings.rs | expanded (+12 lines) | ~240 |
+| 09:45 | Edited rust/crates/epic-cli/src/settings.rs | 2→6 lines | ~91 |
+| 09:45 | Edited rust/crates/epic-cli/src/settings.rs | 5→9 lines | ~136 |
+| 09:45 | Edited rust/crates/epic-cli/src/settings.rs | 4→8 lines | ~110 |
+| 09:45 | Edited rust/crates/epic-cli/src/settings.rs | 3→6 lines | ~53 |
+| 09:45 | Edited rust/crates/epic-cli/src/route.rs | modified is_some() | ~266 |
+| 09:45 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 4→3 lines | ~46 |
+| 09:46 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 2→3 lines | ~41 |
+| 09:46 | Edited rust/crates/epic-cli/src/settings.rs | 1→2 lines | ~23 |
+| 09:47 | Edited rust/crates/epic-cli/src/settings.rs | 1→6 lines | ~54 |
+| 09:47 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified deadline_passed() | ~190 |
+| 09:50 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified t7_board_is_send_and_sync() | ~1967 |
+| 09:52 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 2 → 3 | ~23 |
+| 10:08 | Created logs/M8-T7/evidence/20-optimizer-threads-invariance.log | — | ~477 |
+| 10:09 | Edited logs/M8-T7/evidence/20-optimizer-threads-invariance.log | inline fix | ~20 |
+| 11:32 | Created logs/M8-T7/evidence/40-bm01-measurement.log | — | ~930 |
+| 11:32 | Edited logs/M8-T7/evidence/40-bm01-measurement.log | inline fix | ~39 |
+| 11:39 | Created logs/M8-T7/report-t7.md | — | ~2299 |
+| 11:39 | Created logs/M8-T7/spec-review-prompt-t7.md | — | ~2098 |
+| 11:49 | Created logs/M8-T7/spec-review-t7-1.md | — | ~4406 |
+| 11:50 | Edited logs/M8-T7/report-t7.md | inline fix | ~80 |
+| 11:51 | Created logs/M8-T7/fix-round-1-prompt.md | — | ~1794 |
+| 11:52 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified deadline_passed_at() | ~159 |
+| 11:53 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified of() | ~312 |
+| 11:53 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified with() | ~110 |
+| 11:53 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | board() → flight() | ~144 |
+| 11:58 | Created logs/M8-T7/evidence/FRAMES.md | — | ~988 |
+| 11:59 | Created logs/M8-T7/quality-review-prompt-t7.md | — | ~1927 |
+| 12:13 | Created logs/M8-T7/quality-review-t7-1.md | — | ~3834 |
+| 12:17 | Created logs/M8-T7/fix-round-2-prompt.md | — | ~2051 |
+| 12:21 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified of() | ~655 |
+| 12:21 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified executor() | ~256 |
+| 12:22 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | rows() → row() | ~249 |
+| 12:22 | Edited rust/crates/epic-router/src/pipeline/event_sink.rs | modified new() | ~59 |
+| 12:23 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 10→9 lines | ~144 |
+| 12:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 5→5 lines | ~45 |
+| 12:35 | Edited logs/M8-T7/report-t7.md | modified doc() | ~1851 |
+| 12:35 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | modified lever() | ~1132 |
+| 12:37 | Created logs/M8-T8/dispatch-prompt-t8.md | — | ~2401 |
+| 12:46 | Created logs/M8-T8/run-face.sh | — | ~889 |
+| 12:49 | Created logs/M8-T8/build-table-t8.py | — | ~2809 |
+| 12:51 | Created logs/M8-T8/f3-diagonal-check.py | — | ~812 |
+| 12:52 | Created logs/M8-T8/f3-diagonal-check.py | — | ~1374 |
+| 12:52 | Created logs/M8-T8/f3-diagonal-check.py | — | ~824 |
+| 12:53 | Created logs/M8-T8/f3-diagonal-check.py | — | ~663 |
+| 12:53 | Edited logs/M8-T8/f3-diagonal-check.py | 2→2 lines | ~29 |
+| 12:54 | Edited logs/M8-T8/f3-diagonal-check.py | 5→5 lines | ~136 |
+| 12:54 | Edited logs/M8-T8/f3-diagonal-check.py | 2→4 lines | ~46 |
+| 13:09 | Created logs/M8-T8/run-tier-walk.sh | — | ~338 |
+| 13:49 | Edited logs/M8-T8/f3-diagonal-check.py | modified startswith() | ~31 |
+| 14:19 | Edited logs/M8-T8/build-table-t8.py | 4→7 lines | ~97 |
+| 20:26 | Edited .github/workflows/rust-check.yml | modified arithmetic() | ~882 |
+| 20:27 | Edited rust/harness/src/ci_tripwire.rs | modified ci_workflow_pins_test_step_wall_and_compare_gate_argv() | ~1409 |
+| 20:28 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified note() | ~419 |
+| 20:39 | Created logs/M8-T8/spec-review-prompt-t8.md | — | ~1919 |
+| 20:50 | Created logs/M8-T8/spec-review-t8-1.md | — | ~4706 |
+| 20:53 | Edited rust/harness/src/ci_tripwire.rs | flip() → LANDED() | ~314 |
+| 20:53 | Edited rust/harness/src/router_compare.rs | 2→2 lines | ~37 |
+| 20:53 | Edited logs/M8-T8/build-table-t8.py | modified exists() | ~184 |
+| 20:58 | Created logs/M8-T8/quality-review-prompt-t8.md | — | ~1431 |
+| 21:10 | Created logs/M8-T8/quality-review-t8-1.md | — | ~5061 |
+| 21:20 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | modified banks() | ~1835 |
+| 21:21 | Created logs/M8-T9/dispatch-prompt-t9.md | — | ~2190 |
+| 21:32 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified stated() | ~2771 |
+| 21:32 | Edited rust/README.md | modified top() | ~464 |
+| 21:32 | Edited docs/architecture.md | modified face() | ~514 |
+| 21:33 | Edited rust/crates/epic-router/SEAM.md | inline fix | ~19 |
+| 21:33 | Edited rust/crates/epic-router/SEAM.md | inline fix | ~16 |
+| 21:41 | Created logs/M8-T9/spec-review-prompt-t9.md | — | ~1800 |
+| 21:51 | Created logs/M8-T9/spec-review-t9-1.md | — | ~3458 |
+| 21:52 | Created logs/M8-T9/quality-review-prompt-t9.md | — | ~1220 |
+| 22:00 | Created logs/M8-T9/quality-review-t9-1.md | — | ~3708 |
+| 22:04 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 2→4 lines | ~55 |
+| 22:04 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 3→6 lines | ~88 |
+| 22:04 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 3→4 lines | ~66 |
+| 22:04 | Edited docs/architecture.md | 3→4 lines | ~63 |
+| 22:04 | Edited rust/README.md | 2→2 lines | ~48 |
+| 22:05 | Edited rust/crates/epic-router/SEAM.md | 4→6 lines | ~94 |
+| 22:05 | Edited rust/crates/epic-router/SEAM.md | inline fix | ~105 |
+| 22:05 | Edited rust/crates/epic-router/SEAM.md | expanded (+11 lines) | ~202 |
