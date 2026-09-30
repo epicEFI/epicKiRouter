@@ -861,6 +861,156 @@ scored this record better — 2 of 4 improving — evidencing
 non-self-serving adoption); the corrected AM2 law stands for M9 until
 formally amended.
 
+M9 exit note (T8, 2026-09-30; this close-out docs commit (the sole child, below) as
+sole child of `e5591969c` (the M9 AM7 banking commit, itself
+`3b9e0d8fb`'s sole child) — the measurement record predates this note:
+the workflow battery, the render-perf face, the inherited re-faces,
+and the gate lap are T7's, measured at tree `3b9e0d8fb`
+(`logs/M9-T7/report-t7.md` + evidence); the engine tree came out of
+the close-out identical, census 1682/0/19):
+**VERDICT: <per milestone adjudication>**
+
+M9's arc, honestly stated (five beats, from AMENDMENTS 1–7 and the T7
+measurement record): (a) **the settings-move neutrality held exactly**
+— T1's relocation of the settings layering from epic-cli to
+epic-engine (`4a0d7b3f5`) was pure relocation by construction and by
+proof (the CLI byte-invariance lap green at T1; census-invariant at
+1632 = 1629 + 3 SessionLayer pins, the eight moved tests
+count-invariant), the one engine-side change M9 was ever allowed;
+(b) **the session-parity proof architecture is the milestone's
+structural center** — the session IS the CLI path (the same
+`pipeline::full::run`, the same moved resolution predicates, the same
+merged layers), so the GUI cannot diverge from the CLI because it
+cannot reach the engine any other way; the acceptance proof is
+byte-identity, proven 17/17 at T7 with the two kill-face rows (bm01,
+bm10) completed by natural-wall CLI re-runs and byte-proven twice
+(independently by the coordinator and the spec reviewer —
+`coord-bm01-bm10-byte-proof.log`);
+(c) **the shell's thinness is a law that held** — the module split
+(ungated `shell.rs` pure faces + pins vs `desktop/*` behind the
+default-off feature) survived the whole milestone, and the ONE
+census-pinnability leak (~15 lines of fit-zoom math gated inside the
+shell) was found by the T6 quality review and hoisted + pinned at fix2
+(`94e17f873`); (d) **the falsified-premise record is the cycle's
+discipline story** — AM2's three charter bugs (the
+`deterministic_budgets` default, the pre-route cancel face, the bm08
+multi-pass premise) were all caught by the implementer with probes;
+and at T7 the coordinator's own stop-flag mechanism verification
+(pass granularity) was WRONG and the quality review caught it from the
+tree — the optimizer stage runs on a FLAGLESS `StopFace::default()`
+(`full.rs:341-342`, the documented T9 wiring artifact at `:49-52`), so
+the GUI's mid-OPTIMIZATION cancel is structurally ineffective
+(pre-existing and documented, NOT an M9 regression — M9 touched no
+engine stop wiring); buglog 224's amendment is the model erratum;
+(e) **the render-perf measurement closed a chartered question by
+measuring it** — `project` at 0.004 ms median (bm08) / 0.160 ms
+(interf_u) vs the 16.6 ms/frame budget (0.02% / 1.0%), per-pass-bound
+snapshot 1.2 / 58.6 ms — the wgpu-callback follow-up NOT chartered
+(the measurement-overrides-plan identity); and the two chronic walls
+read as wall-overrun COMPLETIONS with honest PROCESS walls — bm01
+3589 s and bm10 1372 s vs the 1800/900 s tier budgets (QF2-corrected
+digit provenance: engine-echoed "completed in N s" lines are STAGE
+walls; process walls come from the log's START/END windows).
+
+Criterion verdicts (evidence: `logs/M9-T7/report-t7.md` — §1 what ran,
+§2 the battery table + aggregates, §3 the render-perf verdicts, §4 the
+re-faces + carry table, §5 the gate lap; `logs/M9-T6/report-t6.md` the
+smoke evidence; AMENDMENTS 1–7 in the GUI plan):
+
+- **Criterion 1 (the full workflow without Java, on the session path)
+  MET.** The T7 battery: 17/17 fixtures byte-identical between
+  `Session` load→route(default)→export and `epic-cli route` on the same
+  fixture×settings — all 11 Tier A (bm01 LAST per its discipline),
+  3 Tier B (bm10, 1Bitsy/unrouted [PCBench], interf_u), 3 crafted;
+  15 in-slice TRUE + bm01/bm10 completed by natural-wall CLI re-runs
+  and byte-proven twice (T7 §2 + the coordinator byte-proof); all four
+  `LoadError` arms pinned at T2 (parse/IO hard-fail; `OutlineMissing`
+  warn-and-continue). The interactive demonstration rides the T6
+  evidence forward on the rust/-byte-identical-since-`94e17f873`
+  argument (re-verified at T7 and T8): the overlays-ON bm08 PNG
+  (`logs/M9-T6/evidence/23-bm08-smoke-overlays.png`, CONFIRMED by
+  independent eyes) and the mid-route cancel smoke
+  (`22-cancel-smoke.log`: `final_state=CANCELLED`, no export).
+  Known bound, honestly recorded: mid-OPTIMIZATION cancel is
+  structurally ineffective (beat d; M10 carry — buglog 224).
+- **Criterion 2 (renders-never-mutates, structural) MET.** The Opening
+  rules grep law (no `&mut Board`/`&mut SearchTreeManager`, no board
+  mutation calls in epic-gui, tests included) green at every task that
+  touched the crate (T4/T5/T6 records; the T6 face extended to
+  `src/` including `desktop/` plus the bin) — no mutation surface
+  exists in epic-gui; board access is `&Board` read faces only.
+- **Criterion 3 (the §7 view set with headless goldens) MET.** The
+  headless core: the T4 trio of render goldens (bm08, a PCBench
+  reference, a crafted world) + the T5 six overlay-golden extensions +
+  unit pins (layer-visibility exclusion, cull ±1 both directions,
+  overlay-flags-off, pan/zoom round-trip exactness, narrowing
+  saturation, per-layer color override, dash geometry); each view
+  family visible in the shell (the T6 PNG — ratsnest CONFIRMED by
+  independent eyes; the other three families honestly absent on that
+  board's clean COMPLETED face); tuning overlays present iff
+  constraints declared (the crafted tuning fixture), congestion present
+  iff the global stage ran (None at defaults, pinned).
+- **Criterion 4 (zero regressions) MET.** Seven compares green (corpus
+  5000/5000; DSN 1,332; ses 20/20; ses-snap 5/5; index 33; undo 33;
+  drc 17); events 3,520 aligned; determinism canaries IMMOVABLE in-log
+  ×2 (ses `dc271114…`, manifest `cf607714…`); Tier A CI gate face 11/0
+  (Σ 313.4 s, DNR-18-reconciled); census additions only 1629 → 1682
+  (the ledger chain below); the settings move proven byte-neutral at
+  T1; committed artifacts untouched EXCEPT the sanctioned NEW goldens
+  (the T3 event-kind golden, the T4 render trio, the T5 six overlay
+  extensions — each via its capture door, justified in its landing
+  commit); nothing pushed.
+- **Criterion 5 (the M8 deviations table dispositioned) MET.** The
+  threads-gate CI wiring LANDED at T6 (`e7508f974` + `94e17f873`: both
+  steps argv-exact and tripwire-pinned in `ci_tripwire.rs`; the local
+  face green — 6 runs, 127.7 s, byte-identical across -mt 1/3/4); every
+  other row re-faced at T7 row-for-row (Tier B 4 green / 5 red, Tier C
+  1/2 — no drift vs the M8 record, none retried) and carried with
+  named M10+ ownership (the table below); the corrected AM2 law stands
+  untouched (M9 has no aesthetics criterion).
+
+Deviations/carry table (the T7 §4 refresh, statuses verbatim — the
+adjudication input; 13 M8 rows re-faced + the NEW stop-flag row):
+
+| carry row | status at T7 | owner | what would close it |
+|---|---|---|---|
+| teardrop instrument-vs-consumer decision | UNCHANGED — M9 has no aesthetics criterion; the corrected AM2 law stands untouched | M10+ (aesthetics milestone) | an instrument decision (teardrop-aware term / explicit exclusion / letter kept) before any metric-facing pass |
+| flow engagement question | UNCHANGED — the flow pass remains an exact no-op in the M8 record; no M9 face moved it | M10+ | recalibration / pre-flow normalizer / a documented decline |
+| via_density routing-stage lever | UNCHANGED — no M9 routing-stage work | M10+ | a chartered lever with the via_density gap as target |
+| F3 diagonal trigger (ARMED, corpora-gated) | CARRIED — no NEW geometry-corpus face appeared in M9 (the gui-render goldens are render faces, not geometry corpus; the events corpus is unchanged since M4) | M10+ | the next new-corpus milestone act must re-check the trigger |
+| StickHub/CM5 pour measurement gaps | CARRIED — no pour battery in M9 (CM5's cv 29=29 re-confirmed at T7) | M10+ first pour battery | measured pour faces |
+| bm01 adoption face + P2 partition skew | NEW DATA, row OPEN: defaults full-profile completes at natural wall (3465 s / 3139.9 s CLI) — a wall-overrun completion, not a completion failure; the ot=4 lever remains opt-in and NOT load-bearing for the router-only CI face (11/0 green at T7); P2 skew untouched | M9+/M10+ | the adoption decision (or documented decline) + the wall re-measured under it; P2 skew dispositioned |
+| bm05 29>18 | RE-FACED EXACT (engine capability, congestion family) | M10+ | completion red cleared or an owned lever |
+| bm10 tier-kill | FACE SHARPENED: the 900 s kill is a budget-kill on a board that COMPLETES at 1446 s session / 1220.5 s CLI [stage wall; process 1372 s — QF2 erratum 2026-09-30] with byte-identical SES both sides | M10+ | budget policy decision (tier budget vs natural wall) or a wall lever |
+| stop-flag / mid-optimization cancel gap (buglog 224) | NEW AT T7, mechanism QF1-corrected: the optimizer stage runs on a FLAGLESS `StopFace::default()` (full.rs:341-342, the documented T9 wiring artifact) — external stops raised during optimization are invisible; the GUI's mid-optimization cancel is structurally ineffective (pre-existing, NOT an M9 regression) | M10+ | wire the parent face/flag into `run_optimization_stage` (the session/GUI face; CLI flow intentionally flagless per full.rs:49-52) or document the bound |
+| interf_u 1>0 | RE-FACED EXACT (the M8 improvement face holds; must not silently freeze at 1) | M10+ | 0 incompletes or re-owned |
+| multichannel_mixer / mm-unrouted parity floors | HOLDING EXACT (160=160; 128=128 / cv 285=285) | M10+ | parity floors re-recorded each milestone |
+| StickHub / LimeSDR kills | RE-FACED EXACT (both kill @900 s) | M10+ | kills cleared or wall-attributed (bm10's sharpened face is the precedent) |
+| 1Bitsy 2>1 | RE-FACED EXACT | M10+ | completion parity (1≤1) |
+| bm04 3>2 | RE-FACED EXACT | M10+ | completion parity (2≤2) |
+
+[T8 erratum on AM7 charter input (f): the SEAM verification was run and
+it is NOT clean — `git log --oneline a6cf56d0b..HEAD --
+rust/crates/epic-router/` names ONE commit, `3f20acafd` (M9-T3): the
+chartered AM3 additive `DriverSink::board_snapshot` hook +
+`DRIVER_SINK_METHOD_COUNT` forwarding-exhaustion guard + the six
+mirror calls (event_sink.rs, batch.rs, fanout.rs, optimizer.rs,
+pass_runner.rs — all additive, default-path-inert, byte-invariance
+re-proven at T7). The premise "epic-router untouched across M9" was
+therefore falsified at verification. The SEAM.md append itself is
+deferred to the adjudication follow-up docs commit: T8's binding
+zero-rust-files law (the commit-proof gate `git diff --stat
+HEAD~1..HEAD -- rust/` must print nothing) forbids it in this task.]
+
+The census ledger: 1629 → 1632 (T1, +3 SessionLayer pins) → 1642 (T2)
+→ 1649/1650 (T3 +7/+1) → 1659/1660/1663 (T4 +9/+1/+3) → 1672/1673/1673
+(T5 +9/+1/+0) → 1680/1681/1682 (T6 +7/+1/+1) → 1682 (T7 +0, measured
+thrice — implementer, coordinator, spec reviewer). The engine tree is
+frozen at census 1682/0/19 across the close-out (T8: docs-only, zero
+rust files); the verdict slot above stays OPEN for the milestone
+adjudication (the M4-T17d/M5/M6/M7/M8 pattern; the deviations/carry
+table and the criterion verdicts above are its inputs).
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI

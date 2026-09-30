@@ -334,6 +334,25 @@ commands and parity gates: [rust/README.md](../rust/README.md)).
   counterpart of `drc`.
 - `rust/crates/epic-cli` — headless `route` command (`epicrouter -de
   board.dsn -do out.ses`) — the counterpart of the Java CLI surface.
+- `rust/crates/epic-engine` — the headless application core (the
+  counterpart of the Java `HeadlessBoardManager` role): the layered
+  settings face (defaults→DSN→CLI→session, the Java `SettingsMerger`
+  precedence — moved here from epic-cli at M9-T1) plus the `Session`
+  (load→settings→route→cancel→export over the exact `run_route`
+  prelude), the versioned `EngineEvent` stream with the `TeeDriverSink`
+  (parity-stream forwarding pinned byte-safe), and `BoardSnapshot` with
+  the overlay data faces (ratsnest/DRC markers/congestion/tuning). The
+  CLI path never constructs the session or the tee — default-path-inert
+  by construction.
+- `rust/crates/epic-gui` — the GUI layer as a pure projection + thin
+  host: the headless view core (`ViewModel → RenderList`, committed
+  goldens, always compiled) plus the desktop shell (eframe/rfd behind
+  the DEFAULT-OFF `desktop` feature — worker thread over the engine
+  `Session`, canvas, panels, dialogs; no geometry logic). Structural
+  law: the GUI renders, never mutates (no `&mut Board` surface; board
+  access is `&Board` read faces through the session/engine event
+  stream). CI posture: compile-gated only (desktop-clippy,
+  tripwire-pinned) — the default workspace build stays egui/wgpu-free.
 - `rust/harness` — differential parity + benchmark harness: the
   java-free compare gates (geometry corpus, DSN/SES, index, undo, DRC,
   events), the router-compare battery (router-only default + the

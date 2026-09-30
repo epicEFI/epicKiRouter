@@ -94,7 +94,12 @@ improvement ALL own to the teardrop tapers' added routed length
 held, canaries unrotated, census 1629/0/17); the CI flip LANDED at
 M8-T8 (recorded above); the B/C re-faces are the deviations refresh in
 design §6 M8 exit note and `logs/M8-T8/report-t8.md`.
-Status: **M8_EXIT_WITH_DEVIATIONS** — design §6 M8 exit note
+Status: **M9 CLOSED-PENDING-ADJUDICATION** — design §6 M9 exit note
+(verdict slot OPEN, pending the milestone adjudication; census
+1682/0/19, additions only 1629→1682; the seven compares, events 3,520,
+and the determinism canaries all unrotated), `logs/M9-T7/report-t7.md`
+(the measurement record), `logs/M9-T8/report-t8.md` (the close-out),
+plan AMENDMENTS 1–7. The M8 row: **M8_EXIT_WITH_DEVIATIONS** — design §6 M8 exit note
 (adjudicated 2026-09-29 at `277ee7970`: criterion 1 NOT MET on the
 committed four-metric instrument — the teardrop-owned regression
 findings; criteria 2/3/5 MET, 4 discharged; the CI flip SUSTAINED at
@@ -135,9 +140,15 @@ Port ledger: `crates/epic-router/SEAM.md`.
   `router.congestion_global` (+ `.pattern`/`.pathfinder`), plus the
   push-and-shove insertion arm behind `router.push_shove`, all
   default-OFF; `SEAM.md` in the crate is the port ledger)
-- `crates/epic-engine` — 13-line scaffold, still unlanded (the layered
-  settings face lives in `epic-cli/src/settings.rs`; jobs/seeds have no
-  consumer yet)
+- `crates/epic-engine` — the headless application core (M9 done: the
+  layered settings face — defaults→DSN→CLI→session, the Java
+  `SettingsMerger` precedence — moved here from epic-cli at M9-T1; the
+  `Session` load→settings→route→cancel→export workflow, CLI-path parity
+  pinned by SES byte-identity; the versioned `EngineEvent` stream +
+  `TeeDriverSink` (the parity trace stream forwarded unchanged) +
+  `BoardSnapshot` with the overlay data faces — ratsnest/DRC
+  markers/congestion/tuning). The CLI never constructs the session or
+  the tee — default-path-inert by construction
 - `crates/epic-cli` — `epicrouter` CLI (M3 done: headless `route`,
   manifest + SES + exit-code semantics)
 - `crates/epic-gui` — the headless view core (M9-T4/T5: the pure
