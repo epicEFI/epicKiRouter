@@ -22,12 +22,14 @@
 //!
 //! ```text
 //! let (sender, receiver) = std::sync::mpsc::channel();
+//! // The host keeps a CLONE for its own events (BoardLoaded /
+//! // RoutingFinished are typed faces the tee cannot see):
+//! let host_sender = sender.clone();
 //! let mut capture = CaptureDriverSink::default();          // or any DriverSink
 //! let mut tee = TeeDriverSink::new(&mut capture, sender);
+//! // pre-route, on host_sender: BoardLoaded { revision, item_count, incomplete_count }
 //! let summary = session.route(&CliLayer::default(), &mut tee);
-//! // host-side (typed faces the tee cannot see):
-//! //   BoardLoaded  { revision, item_count, incomplete_count }  — after load_dsn
-//! //   RoutingFinished { final_state, incomplete_count, violations } — from summary
+//! // post-route, on host_sender: RoutingFinished { final_state, incomplete_count, violations }
 //! // then drain receiver → the GUI's event queue (T6's worker is the real consumer).
 //! ```
 //!
@@ -35,7 +37,14 @@
 //! documented choice): it needs no host discipline to stay first —
 //! every ship path funnels through one guard — and it makes the
 //! golden deterministic without a separate start call. The golden
-//! pins that it IS the first line.
+//! pins that it IS the first line. SCOPE (quality Q2): the guard
+//! orders the TEE'S OWN events — a host event emitted on a pre-move
+//! CLONE (e.g. `BoardLoaded` before `route()`) legitimately precedes
+//! it in the channel; the enum doc's first-ness claim is
+//! tee-relative, not channel-relative. The T6 ordering decision (a
+//! public `TeeDriverSink::start()` the host calls before its own
+//! emissions — forcing header-first across the whole channel) is
+//! BANKED as a T6 charter input; no API change this round.
 //!
 //! ## The message-coverage note (documented per the charter)
 //!
@@ -68,8 +77,11 @@ pub const ENGINE_EVENT_STREAM_VERSION: u32 = 1;
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum EngineEvent {
-    /// The stream header — ALWAYS the first event (the lazy-ship
-    /// guard), carrying [`ENGINE_EVENT_STREAM_VERSION`].
+    /// The stream header — the FIRST event the tee itself ships (the
+    /// lazy-ship guard; quality Q2: a host event sent on a pre-move
+    /// clone may legitimately precede it in the channel — the T6
+    /// ordering decision is banked, see the module docs), carrying
+    /// [`ENGINE_EVENT_STREAM_VERSION`].
     StreamStarted {
         /// The schema version (see the constant's derivation note).
         version: u32,

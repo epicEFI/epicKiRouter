@@ -14,7 +14,8 @@
 //!   pin/via,
 //! * `drill_tile_shape_count` — the padstack span
 //!   (`DrillItem.java:202-208`, `toLayer - fromLayer + 1`),
-//! * `trace_polyline` (`:982`) / `trace_half_width` (`:1002`),
+//! * `trace_polyline` (`:982`) / `trace_layer` (`:992`) /
+//!   `trace_half_width` (`:1002`),
 //! * `area_layer` (`:1087`),
 //! * `item_shape_layer_read` (`:1154`) — the `&self` drill-layer
 //!   face (the memoizing `drill_first_layer` twin needs `&mut`, which
@@ -36,7 +37,11 @@
 //! [`PolygonShape::border_line`] (the directed border lines' start
 //! corners, in shape order) and, for a `Circle` (which has no
 //! corners — `Circle::corner_approx_arr` is empty by port docs), the
-//! four corners of its own `Circle::bounding_box`. Determinism: same
+//! four corners of its own `Circle::bounding_box` — an
+//! APPROXIMATION (quality Q6): every round via/pad shape ships as a
+//! 4-corner rectangle on the wire; determinism is the only contract,
+//! and T4's renderer must know it draws squares for discs unless it
+//! consumes a circle primitive. Determinism: same
 //! board state → byte-identical [`serde_json`] output (pinned in
 //! `events_stream.rs`).
 
@@ -114,6 +119,13 @@ impl BoxPrimitive {
 pub struct TracePrimitive {
     /// The stored corner polyline, corner order preserved.
     pub polyline_points: Vec<PointPrimitive>,
+    /// `Trace.get_layer()` — the 0-based layer (quality Q1: every
+    /// other primitive carries placement — `ViaPrimitive.layers`,
+    /// `PadPrimitive.layer`, `AreaPrimitive.layer` — and T4's
+    /// `project()` needs layer-filtered views; the polyline geometry
+    /// is pure 2D, so this is genuinely absent from the wire without
+    /// the field).
+    pub layer: i32,
     /// `Trace.get_half_width()` (DBU).
     pub half_width: i32,
     /// The carrying net (see [`BoardSnapshot`]'s net-field note).
@@ -209,7 +221,8 @@ pub struct BoardSnapshot {
 /// lines' start corners, in shape order. Tiles and polygons walk
 /// their `border_line` faces; a circle has no corners (`corner_approx_arr`
 /// is empty by port docs) and ships the four corners of its own
-/// `bounding_box` — the deterministic rectangle face.
+/// `bounding_box` — the deterministic rectangle APPROXIMATION (every
+/// round via/pad ships as a 4-corner rectangle; quality Q6).
 fn shape_outline_points(shape: &BoardShape) -> Vec<PointPrimitive> {
     let border_of = |border_line_count: usize,
                      border_line: &dyn Fn(i32) -> epic_geometry::line::Line|
@@ -285,6 +298,9 @@ pub fn board_snapshot(board: &Board) -> BoardSnapshot {
                 let Some(polyline) = board.trace_polyline(entry.id) else {
                     continue;
                 };
+                let Some(layer) = board.trace_layer(entry.id) else {
+                    continue;
+                };
                 let Some(half_width) = board.trace_half_width(entry.id) else {
                     continue;
                 };
@@ -294,6 +310,7 @@ pub fn board_snapshot(board: &Board) -> BoardSnapshot {
                         .iter()
                         .map(PointPrimitive::from_point)
                         .collect(),
+                    layer,
                     half_width,
                     net: first_net(&entry.nets),
                 });

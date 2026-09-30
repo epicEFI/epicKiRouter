@@ -463,3 +463,99 @@ fn stream_started_carries_the_version_and_mismatches_are_rejected() {
         "a future version is REJECTED by the consumer face"
     );
 }
+
+/// PIN 8 (quality Q3, fix-round 2) — the counters-render drift pin:
+/// `TeeDriverSink`'s `counters_summary` duplicates epic-router's
+/// `render_counters` field-for-field, order-for-order — but
+/// `render_counters` is `pub(crate)` to epic-router, so epic-engine
+/// cannot import it and the golden/kind-lines deliberately exclude
+/// counters text. THE OBSERVED FACE (documented per the fix-round
+/// adjudication): the INNER CaptureDriverSink's `board_updated` row
+/// text — which IS `render_counters(&counters)` verbatim (the
+/// capture sink's own impl, the exact text the parity stream sees) —
+/// must equal the tee's shipped `counters_summary`, counters row for
+/// counters row. A drift mutant (a field added/reordered/rendered
+/// differently in either rendering) dies here.
+#[test]
+fn counters_summary_matches_the_parity_row_rendering() {
+    // Representative shapes: the two phases with distinct field
+    // semantics (autoroute = the full row, fanout = the only
+    // fanout_extra_vias face), all fields NONZERO so a dropped or
+    // zero-hardcoded field cannot hide, plus a default-shaped
+    // optimizer row.
+    let variants = [
+        RouterCounters {
+            phase: "autoroute".to_string(),
+            pass_count: 7,
+            queued_to_be_routed_count: 42,
+            skipped_count: 1,
+            ripped_count: 3,
+            failed_to_be_routed_count: 2,
+            routed_count: 11,
+            incomplete_count: 5,
+            fanout_extra_vias_count: 0,
+        },
+        RouterCounters {
+            phase: "fanout".to_string(),
+            pass_count: 2,
+            queued_to_be_routed_count: 9,
+            skipped_count: 0,
+            ripped_count: 1,
+            failed_to_be_routed_count: 4,
+            routed_count: 8,
+            incomplete_count: 6,
+            fanout_extra_vias_count: 13,
+        },
+        RouterCounters {
+            phase: "optimizer".to_string(),
+            ..RouterCounters::default()
+        },
+    ];
+
+    let mut capture = CaptureDriverSink::default();
+    let (sender, receiver) = mpsc::channel();
+    {
+        let mut tee = TeeDriverSink::new(&mut capture, sender);
+        let sink: &mut dyn DriverSink = &mut tee;
+        for counters in &variants {
+            sink.board_updated(counters);
+        }
+    }
+
+    // The tee's shipped summaries, in order.
+    let summaries: Vec<String> = collect(receiver)
+        .iter()
+        .filter_map(|event| match event {
+            EngineEvent::PassProgress {
+                counters_summary, ..
+            } => Some(counters_summary.clone()),
+            _ => None,
+        })
+        .collect();
+    // The inner capture's board_updated rows, in order — each is
+    // `render_counters(&counters)` verbatim.
+    let rows: Vec<String> = capture
+        .rows
+        .iter()
+        .filter(|(tag, _)| *tag == "board_updated")
+        .map(|(_, row)| row.clone())
+        .collect();
+
+    assert_eq!(
+        summaries.len(),
+        variants.len(),
+        "every board_updated fire shipped exactly one PassProgress"
+    );
+    assert_eq!(
+        summaries, rows,
+        "the tee's counters_summary must equal the parity row rendering \
+         (render_counters) counters row for counters row"
+    );
+    // The rows really carry the canonical shape (a render that
+    // degenerated to empty strings on BOTH faces cannot pass).
+    assert!(
+        rows.first()
+            .is_some_and(|row| row.starts_with("phase=autoroute pass=7 ")),
+        "the observed face is the canonical render_counters row shape"
+    );
+}
