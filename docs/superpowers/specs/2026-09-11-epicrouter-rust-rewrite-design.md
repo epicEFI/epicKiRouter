@@ -861,15 +861,15 @@ scored this record better — 2 of 4 improving — evidencing
 non-self-serving adoption); the corrected AM2 law stands for M9 until
 formally amended.
 
-M9 exit note (T8, 2026-09-30; this close-out docs commit as sole child of
-`e5591969c` (the T7-cycle wolf-bank commit, itself `8a024eed8`'s sole
-child — the AMENDMENT 7 record; `3b9e0d8fb` is the T6-cycle wolf bank
-two steps down) — the measurement record predates this note:
+M9 exit note (T8, 2026-09-30; close-out docs commit `9bc40ae90` as
+sole child of `e5591969c` (the T7-cycle wolf-bank commit, itself
+`8a024eed8`'s sole child — the AMENDMENT 7 record; `3b9e0d8fb` is the
+T6-cycle wolf bank two steps down) — the measurement record predates this note:
 the workflow battery, the render-perf face, the inherited re-faces,
 and the gate lap are T7's, measured at tree `3b9e0d8fb`
 (`logs/M9-T7/report-t7.md` + evidence); the engine tree came out of
 the close-out identical, census 1682/0/19):
-**VERDICT: <per milestone adjudication>**
+**VERDICT: M9_EXIT_WITH_DEVIATIONS**, adjudicated 2026-09-30 at tree `66f563cf5` (fresh-eyes adjudicator): criterion 1 (the full workflow without Java, on the session path) **MET WITH FINDINGS** — the T7 battery 17/17 byte-identical between `Session` load→route(default)→export and `epic-cli route` (11 Tier A + 3 Tier B incl. the PCBench 1Bitsy + 3 crafted; bm01/bm10 completed by natural-wall CLI re-runs and byte-proven twice, `5c34ef4c…`/`9063a828…`), all four `LoadError` arms pinned at T2, and the interactive demonstration SOUND on the ride-forward (the rust/ CODE tree byte-identical since `94e17f873`; the overlays-ON bm08 shell PNG and the routing-stage cancel smoke `final_state=CANCELLED` independently re-viewed) — with the FINDING that the demonstrated cancel is ROUTING-stage-only: the optimizer stage runs on a flagless `StopFace::default()` (`full.rs:341-342`, the documented T9 wiring artifact), so the GUI's mid-OPTIMIZATION cancel is structurally ineffective (pre-existing, NOT an M9 regression; buglog 224; carried M10 as a wiring change or a documented bound); criterion 2 (renders never mutate) MET structurally (the grep gate green at every task and re-run clean by the adjudicator; no mutation surface exists in epic-gui); criterion 3 (the §7 view set with headless goldens) MET (10 committed NEW goldens — the T4 render trio, the T5 six overlay extensions, the T3 event-kind golden — plus the unit pins, each family visible in the shell, the conditionals pinned present-iff); criterion 4 (zero regressions) MET (seven compares green; events 3,520; canaries `dc271114…`/`cf607714…` IMMOVABLE ×2; Tier A CI gate face 11/0, Σ 313.4 s; census additions only 1629→1682, measured 1682/0/19 thrice; the settings move byte-neutral at T1; committed artifacts untouched except the sanctioned NEW goldens; nothing pushed); criterion 5 (the M8 deviations table dispositioned) MET (the threads-gate CI wiring LANDED at T6 and verified in `rust-check.yml`; every other row re-faced at T7 row-for-row against the raw logs and carried with named M10+ ownership); with thirteen chartered deviations riding the 14-row carry table (the threads-gate row closed) and every still-standing red owned by M10.
 
 M9's arc, honestly stated (five beats, from AMENDMENTS 1–7 and the T7
 measurement record): (a) **the settings-move neutrality held exactly**
@@ -931,8 +931,9 @@ smoke evidence; AMENDMENTS 1–7 in the GUI plan):
   and byte-proven twice (T7 §2 + the coordinator byte-proof); all four
   `LoadError` arms pinned at T2 (parse/IO hard-fail; `OutlineMissing`
   warn-and-continue). The interactive demonstration rides the T6
-  evidence forward on the rust/-byte-identical-since-`94e17f873`
-  argument (re-verified at T7 and T8): the overlays-ON bm08 PNG
+  evidence forward on the rust/ CODE-tree-byte-identical-since-`94e17f873`
+  argument (re-verified at T7 and T8; the only post-T6 `rust/` changes
+  are the docs `README.md` and `SEAM.md`): the overlays-ON bm08 PNG
   (`logs/M9-T6/evidence/23-bm08-smoke-overlays.png`, CONFIRMED by
   independent eyes) and the mid-route cancel smoke
   (`22-cancel-smoke.log`: `final_state=CANCELLED`, no export).
@@ -996,7 +997,9 @@ adjudication input; 13 M8 rows re-faced + the NEW stop-flag row):
 
 [T8 erratum on AM7 charter input (f): the SEAM verification was run and
 it is NOT clean — `git log --oneline a6cf56d0b..HEAD --
-rust/crates/epic-router/` names ONE commit, `3f20acafd` (M9-T3): the
+rust/crates/epic-router/` names ONE CODE commit, `3f20acafd` (M9-T3; at
+the post-append tree the same log also names the docs-only SEAM append
+`03f911836`, recorded below): the
 chartered AM3 additive `DriverSink::board_snapshot` hook +
 `DRIVER_SINK_METHOD_COUNT` forwarding-exhaustion guard + the six
 mirror calls (event_sink.rs, batch.rs, fanout.rs, optimizer.rs,
@@ -1024,9 +1027,11 @@ The census ledger: 1629 → 1632 (T1, +3 SessionLayer pins) → 1642 (T2)
 (T5 +9/+1/+0) → 1680/1681/1682 (T6 +7/+1/+1) → 1682 (T7 +0, measured
 thrice — implementer, coordinator, spec reviewer). The engine tree is
 frozen at census 1682/0/19 across the close-out (T8: docs-only, zero
-rust files); the verdict slot above stays OPEN for the milestone
-adjudication (the M4-T17d/M5/M6/M7/M8 pattern; the deviations/carry
-table and the criterion verdicts above are its inputs).
+rust files); the verdict slot above is FILLED — adjudicated 2026-09-30
+at tree `66f563cf5` (this fill commit's parent; the M4-T17d/M5/M6/M7/M8
+pattern; the deviations/carry table and the criterion verdicts above
+were its inputs; the adjudicator's E-ADJ-1/E-ADJ-2 precision errata are
+applied in this commit — its body is the record).
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 

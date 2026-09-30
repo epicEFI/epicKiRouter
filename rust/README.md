@@ -94,12 +94,17 @@ improvement ALL own to the teardrop tapers' added routed length
 held, canaries unrotated, census 1629/0/17); the CI flip LANDED at
 M8-T8 (recorded above); the B/C re-faces are the deviations refresh in
 design §6 M8 exit note and `logs/M8-T8/report-t8.md`.
-Status: **M9 CLOSED-PENDING-ADJUDICATION** — design §6 M9 exit note
-(verdict slot OPEN, pending the milestone adjudication; census
-1682/0/19, additions only 1629→1682; the seven compares, events 3,520,
-and the determinism canaries all unrotated), `logs/M9-T7/report-t7.md`
-(the measurement record), `logs/M9-T8/report-t8.md` (the close-out),
-plan AMENDMENTS 1–7. The M8 row: **M8_EXIT_WITH_DEVIATIONS** — design §6 M8 exit note
+Status: **M9_EXIT_WITH_DEVIATIONS** — design §6 M9 exit note (adjudicated
+2026-09-30 at `66f563cf5`: criteria 2/3/4/5 MET; criterion 1 MET WITH
+FINDINGS — the interactive workflow is byte-identical to the CLI on the
+17/17 battery, but the demonstrated cancel is routing-stage-only (the
+mid-optimization cancel structurally ineffective on the flagless
+optimizer-stage `StopFace`, pre-existing, carried M10 as a wiring
+change); census 1682/0/19, additions only 1629→1682; the seven
+compares, events 3,520, and the determinism canaries all unrotated),
+`logs/M9-T7/report-t7.md` (the measurement record),
+`logs/M9-T8/report-t8.md` (the close-out), `logs/M9-ADJUDICATION/` (the
+adjudication), plan AMENDMENTS 1–8. The M8 row: **M8_EXIT_WITH_DEVIATIONS** — design §6 M8 exit note
 (adjudicated 2026-09-29 at `277ee7970`: criterion 1 NOT MET on the
 committed four-metric instrument — the teardrop-owned regression
 findings; criteria 2/3/5 MET, 4 discharged; the CI flip SUSTAINED at
