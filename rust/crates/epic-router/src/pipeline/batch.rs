@@ -106,7 +106,7 @@ pub const STAGNATION_SCORE_THRESHOLD: f32 = 0.5;
 struct BatchFanoutListener;
 
 impl FanoutProgressListener for BatchFanoutListener {
-    fn on_progress(&mut self, status: &FanoutPassStatus, sink: &mut dyn DriverSink) {
+    fn on_progress(&mut self, status: &FanoutPassStatus, board: &Board, sink: &mut dyn DriverSink) {
         let counters = RouterCounters {
             phase: "fanout".to_string(),
             pass_count: status.pass_no,
@@ -119,6 +119,10 @@ impl FanoutProgressListener for BatchFanoutListener {
             fanout_extra_vias_count: status.extra_vias_this_pass,
         };
         sink.board_updated(&counters);
+        // The M9 snapshot hook (event_sink.rs): mirrors the
+        // `board_updated` fire immediately — the default sink is a
+        // no-op, so the parity stream is byte-stable.
+        sink.board_snapshot(board);
 
         if status.pass_completed {
             // Java `String.format(Locale.US, ...)` — the plural arms

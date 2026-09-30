@@ -629,7 +629,13 @@ pub struct FanoutPassStatus {
 /// [`DriverSink`](crate::pipeline::event_sink::DriverSink) is the
 /// unified backend (info = `job.logInfo` / `FRLogger.info`).
 pub trait FanoutProgressListener {
-    fn on_progress(&mut self, status: &FanoutPassStatus, sink: &mut dyn DriverSink);
+    /// M9-T3 note: the `board` parameter was ADDED for the snapshot
+    /// hook — the board is in scope in [`publish_progress`] one frame
+    /// up, not in the old `on_progress` body, so it is threaded in
+    /// here. The single implementor ([`crate::pipeline::batch::BatchFanoutListener`])
+    /// only forwards it to [`DriverSink::board_snapshot`] (the default
+    /// no-op for every pre-existing sink); no parity row changes.
+    fn on_progress(&mut self, status: &FanoutPassStatus, board: &Board, sink: &mut dyn DriverSink);
 }
 
 /// Java `FanoutRunSummary`.
@@ -727,6 +733,7 @@ fn publish_progress(
             pass_completed,
             escape_statistics,
         },
+        board,
         sink,
     );
 }

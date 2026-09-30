@@ -558,6 +558,10 @@ fn begin_pass(
         &incomplete_rows,
     );
     sink.board_updated(&counters);
+    // The M9 snapshot hook (event_sink.rs): mirrors the
+    // `board_updated` fire immediately — the default sink is a no-op,
+    // so the parity stream is byte-stable.
+    sink.board_snapshot(board);
     autoroute_item_list
 }
 
@@ -617,6 +621,10 @@ fn finish_pass(
     };
     counters.pass_count = pass_no;
     sink.board_updated(&counters);
+    // The M9 snapshot hook (event_sink.rs): mirrors the
+    // `board_updated` fire immediately — the default sink is a no-op,
+    // so the parity stream is byte-stable.
+    sink.board_snapshot(board);
 
     // Java `:322-329` — PerformanceProfiler.recordPass + the benchmark
     // profile render are banked; `router.airLine = null` is the GUI

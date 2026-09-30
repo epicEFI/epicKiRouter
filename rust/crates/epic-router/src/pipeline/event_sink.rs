@@ -8,7 +8,18 @@
 //! event bus) is the host's business, and tests capture the rows
 //! verbatim.
 
+use epic_board::board::Board;
+
 use crate::pipeline::pass_runner::{RouterCounters, render_counters};
+
+/// The number of methods on [`DriverSink`] (the
+/// forwarding-exhaustion guard's constant, M9-T3): every sink WRAPPER
+/// (the tee, the session's pass tracker, the replay buffer) must
+/// forward EVERY method — a future 9th method added here without
+/// bumping this constant and updating the wrappers' guard pin
+/// (`epic-engine` `events_stream.rs`) would be silently un-forwarded.
+/// Bump this when the trait grows; the guard pin fails otherwise.
+pub const DRIVER_SINK_METHOD_COUNT: usize = 8;
 
 /// The batch driver's event sink (Java's log + event surfaces).
 pub trait DriverSink {
@@ -40,6 +51,21 @@ pub trait DriverSink {
     /// (logging off). T13's manifest reads the fields without
     /// re-parsing row text (quality MINOR-2).
     fn board_updated(&mut self, _counters: &RouterCounters) {}
+    /// The M9 pass-boundary snapshot hook (the tee sink's face — the
+    /// GUI consumes [`BoardSnapshot`]s at pass granularity): the
+    /// pipeline calls this IMMEDIATELY AFTER every
+    /// [`DriverSink::board_updated`] fire, with the SAME live board
+    /// the counters describe — no new boundary semantics, the hook
+    /// mirrors `board_updated` exactly, and the order (counters row
+    /// first, snapshot second) is pinned by the tee's golden.
+    ///
+    /// The default is the NO-OP every existing sink keeps: no parity
+    /// stream ever grows a snapshot row, so captured/replayed streams
+    /// (`BufferedSinkRow`) need no new variant and every existing
+    /// capture-based pin is byte-stable across this trait extension.
+    /// Only a sink that overrides this (the M9 tee) sees the calls —
+    /// and the CLI never constructs one (pinned in epic-cli).
+    fn board_snapshot(&mut self, _board: &Board) {}
 }
 
 /// The silent sink (the headless default — Java with logging off).

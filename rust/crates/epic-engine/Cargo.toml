@@ -14,6 +14,11 @@ epic-drc = { path = "../epic-drc" }
 epic-dsn = { path = "../epic-dsn" }
 epic-geometry = { path = "../epic-geometry" }
 epic-router = { path = "../epic-router" }
+# M9-T3: the event/snapshot wire shapes (workspace-unpinned — the
+# workspace has no [workspace.dependencies] table; the existing
+# serde_json consumers, epic-board/epic-cli, both pin "1").
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 # The relocation pins in export.rs exercise the rational-corner view

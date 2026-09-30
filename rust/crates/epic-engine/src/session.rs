@@ -557,10 +557,7 @@ impl Session {
         // The pipeline (route.rs:1280-1289) — the session's StopFace
         // rides the shared flag (`StopFace::default()` is the flagless
         // equivalent the CLI uses).
-        let mut pass_sink = PassTrackingSink {
-            inner: sink,
-            last_autoroute_pass: 0,
-        };
+        let mut pass_sink = PassTrackingSink::new(sink);
         let outcome = full::run(
             &mut self.manager,
             &mut self.board,
@@ -597,7 +594,7 @@ impl Session {
             final_state,
             incomplete_count,
             violations_total,
-            passes: pass_sink.last_autoroute_pass,
+            passes: pass_sink.last_autoroute_pass(),
         }
     }
 
@@ -755,11 +752,38 @@ fn java_two_decimal(value: f32) -> f64 {
 /// pass-count source of [`RouteSummary::passes`] (route.rs:1356's
 /// face, which the CLI reads off its OWN sink; a `&mut dyn
 /// DriverSink` exposes no counters, so the session observes them at
-/// the same seam). Constructed ONLY inside [`Session::route`]; the
-/// CLI never touches it.
-struct PassTrackingSink<'a> {
+/// the same seam). The M9-T3 snapshot hook is forwarded too — a tee
+/// handed to [`Session::route`] as the sink sits INSIDE this wrapper,
+/// and without the forward its snapshots would never fire.
+///
+/// `pub` (not crate-private) ONLY so the forwarding-exhaustion guard
+/// pin (`events_stream.rs`) can drive ALL
+/// [`DRIVER_SINK_METHOD_COUNT`](epic_router::pipeline::event_sink::DRIVER_SINK_METHOD_COUNT)
+/// methods through this wrapper against a capture inner sink — the
+/// structural defense against a future trait method being silently
+/// un-forwarded (the T2 quality-review forward note). Behavior is
+/// unchanged; the CLI never touches this type.
+pub struct PassTrackingSink<'a> {
     inner: &'a mut dyn DriverSink,
     last_autoroute_pass: i32,
+}
+
+impl<'a> PassTrackingSink<'a> {
+    /// The wrapper face ([`Session::route`] uses it; the guard pin
+    /// constructs directly).
+    pub fn new(inner: &'a mut dyn DriverSink) -> Self {
+        Self {
+            inner,
+            last_autoroute_pass: 0,
+        }
+    }
+
+    /// The last `board_updated` counters row's pass count whose phase
+    /// was `autoroute` (0 when none fired — see [`RouteSummary::passes`]).
+    #[must_use]
+    pub fn last_autoroute_pass(&self) -> i32 {
+        self.last_autoroute_pass
+    }
 }
 
 impl DriverSink for PassTrackingSink<'_> {
@@ -786,6 +810,9 @@ impl DriverSink for PassTrackingSink<'_> {
             self.last_autoroute_pass = counters.pass_count;
         }
         self.inner.board_updated(counters);
+    }
+    fn board_snapshot(&mut self, board: &Board) {
+        self.inner.board_snapshot(board);
     }
 }
 

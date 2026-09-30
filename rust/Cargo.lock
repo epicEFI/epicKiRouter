@@ -208,6 +208,8 @@ dependencies = [
  "epic-geometry",
  "epic-router",
  "num-bigint",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -24,10 +24,19 @@
 //! - [`export`]: the board -> SES projection + the design-name face,
 //!   relocated from epic-cli route.rs so BOTH paths call the same
 //!   projection/writer code.
+//! - [`events`] (M9-T3): the versioned
+//!   [`EngineEvent`](events::EngineEvent) stream + the
+//!   [`TeeDriverSink`](events::TeeDriverSink) (the host composes the
+//!   tee around its own inner sink; the parity stream is untouched).
+//! - [`snapshot`] (M9-T3): the pass-granular
+//!   [`BoardSnapshot`](snapshot::BoardSnapshot) render projection
+//!   (`&Board` read faces only — the renders-never-mutates law).
 
+pub mod events;
 pub mod export;
 pub mod session;
 pub mod settings;
+pub mod snapshot;
 
 #[cfg(test)]
 mod tests {

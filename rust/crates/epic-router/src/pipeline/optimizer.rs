@@ -1152,6 +1152,10 @@ impl<'a> BatchOptimizerStage<'a> {
             ..RouterCounters::default()
         };
         sink.board_updated(&counters);
+        // The M9 snapshot hook (event_sink.rs): mirrors the
+        // `board_updated` fire immediately — the default sink is a
+        // no-op, so the parity stream is byte-stable.
+        sink.board_snapshot(self.board);
 
         // Java `:633` — the weighted length is the candidate baseline.
         self.min_cumulative_trace_length = f64::from(total_weighted_trace_length(self.board));
@@ -1508,6 +1512,10 @@ impl<'a> BatchOptimizerStage<'a> {
             self.adopt_board(&worker_board);
             self.min_cumulative_trace_length = f64::from(total_weighted_trace_length(self.board));
             sink.board_updated(&counters);
+            // The M9 snapshot hook (event_sink.rs): mirrors the
+            // `board_updated` fire immediately — the default sink is
+            // a no-op, so the parity stream is byte-stable.
+            sink.board_snapshot(self.board);
             route_improved = result.improvement_percentage();
         }
 
@@ -1522,6 +1530,10 @@ impl<'a> BatchOptimizerStage<'a> {
         // banked.
         let stats_after = BoardStatistics::new(self.manager, self.board);
         sink.board_updated(&counters);
+        // The M9 snapshot hook (event_sink.rs): mirrors the
+        // `board_updated` fire immediately — the default sink is a
+        // no-op, so the parity stream is byte-stable.
+        sink.board_snapshot(self.board);
         sink.info(&format!(
             "Optimizer pass #{pass_no} on board '{}' was completed in {:.2} seconds with the \
              score of {}.",
