@@ -239,6 +239,45 @@ fn congestion_engaged_yields_some_and_default_yields_none() {
     );
 }
 
+// --- PIN 3b — the F1 fix-round face: PostRoute on REAL content -------
+
+/// The violation-retaining post-route face (spec-review F1, mutant
+/// M3): the drc craft ROUTED at defaults RETAINS violations (the
+/// non-vacuousness assert comes FIRST — a phase forced to Parse now
+/// fails here on real content, where the vacuous routed-bm08 face
+/// could not catch it). Also pins the marker count == the depth-walk
+/// total at the SAME post-route boundary (via
+/// [`Session::clearance_violation_depth_total`], the same walk the
+/// attach step runs).
+#[test]
+fn post_route_markers_survive_on_the_violation_retaining_craft() {
+    let bytes = read_fixture(DRC_CRAFT);
+    let mut session = match Session::load_dsn(&bytes, SessionLayer::default()) {
+        Ok(session) => session,
+        Err(error) => panic!("the drc craft loads: {error:?}"),
+    };
+    session.route(&CliLayer::default(), &mut SilentSink);
+    let snapshot = session.snapshot_with_overlays();
+    // NON-VACUOUS FIRST (the M3 closure's whole point).
+    assert!(
+        !snapshot.overlays.violation_markers.is_empty(),
+        "the routed craft RETAINS >= 1 clearance violation (the non-vacuousness face)"
+    );
+    assert!(
+        snapshot
+            .overlays
+            .violation_markers
+            .iter()
+            .all(|marker| marker.phase == epic_engine::snapshot::MarkerPhase::PostRoute),
+        "every retained post-route marker carries PostRoute on REAL content"
+    );
+    assert_eq!(
+        snapshot.overlays.violation_markers.len(),
+        session.clearance_violation_depth_total() as usize,
+        "the marker count equals the depth-walk total at the same post-route boundary"
+    );
+}
+
 // --- PIN 5 — the tuning face ------------------------------------------
 
 /// The crafted tuning fixture (a probed constraint declaration):
@@ -331,4 +370,50 @@ fn attach_counts_match_the_independent_drc_walks() {
         total,
         "rows.len == total (the walk contract)"
     );
+
+    // F2 (spec-review fix round): the pair_kind DERIVED OUTPUT, from
+    // real fixture content. The markers derive IN ROW ORDER
+    // (filter_map preserves order; the count equality above is the
+    // pairing guard on this fixture), so markers[i] corresponds to
+    // rows[i]. The expected u8s come from a TEST-LOCAL table (the
+    // documented SPEC — BoardItemType's Java declaration order,
+    // Trace=0 … Other=9), NOT from the impl's own
+    // `kind_discriminant` — an ordinal-permutation mutant in the
+    // impl now disagrees with the spec table and dies.
+    fn spec_discriminant(kind: epic_board::items::BoardItemType) -> u8 {
+        use epic_board::items::BoardItemType as K;
+        match kind {
+            K::Trace => 0,
+            K::Pin => 1,
+            K::Via => 2,
+            K::ObstacleArea => 3,
+            K::ViaObstacleArea => 4,
+            K::ConductionArea => 5,
+            K::ComponentObstacleArea => 6,
+            K::BoardOutline => 7,
+            K::ComponentOutline => 8,
+            K::Other => 9,
+        }
+    }
+    assert_eq!(
+        snapshot.overlays.violation_markers.len(),
+        rows.len(),
+        "index pairing is sound on this fixture (counts equal)"
+    );
+    for (marker, row) in snapshot.overlays.violation_markers.iter().zip(rows.iter()) {
+        let kind = |id: i64| {
+            let id = epic_board::id::ItemId::new(u32::try_from(id).expect("craft id fits u32"));
+            board
+                .get(id)
+                .map(|entry| spec_discriminant(entry.board_item_type()))
+                .expect("the violating item exists on the board")
+        };
+        let expected = (kind(row.a), kind(row.b));
+        assert_eq!(
+            marker.pair_kind, expected,
+            "pair_kind == the declaration-order discriminants of the violated pair \
+             (row ({}, {}))",
+            row.a, row.b
+        );
+    }
 }

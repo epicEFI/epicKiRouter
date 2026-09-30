@@ -60,7 +60,7 @@ pub struct ColorTable {
     /// (`OtherColorTableModel.java:102`,
     /// `getColorSafe(ColumnNames.INCOMPLETES, Color.white)`). Java
     /// draws the airlines with exactly this color
-    /// (`NetIncompletesGraphics.java:26`,
+    /// (`NetIncompletesGraphics.java:28`,
     /// `graphicsContext.getIncompleteColor()`).
     pub ratsnest: [u8; 4],
     /// Per-layer TRACE color overrides (BTreeMap — no HashMap anywhere

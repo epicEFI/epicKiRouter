@@ -331,7 +331,9 @@ pub struct OverlayData {
     /// The congestion heatmap — `Some` IFF the session's last-resolved
     /// route settings engaged the `congestion_global` family (the
     /// probe's reachable ON path: the `SessionLayer`/`CliLayer`
-    /// `router.congestion_global` flag), `None` otherwise.
+    /// `router.congestion_global` flag) AND the recomputed map is
+    /// non-empty (`project_heatmap` maps an empty map to `None`),
+    /// `None` otherwise.
     pub congestion: Option<CongestionHeatmap>,
     /// The tuning target bands — `Some` IFF
     /// `BoardRules::has_length_constraints()` (one
@@ -519,13 +521,6 @@ fn item_center(board: &Board, id: ItemId) -> Option<PointPrimitive> {
     })
 }
 
-/// Builds the markers from the depth rows (the T5 charter's
-/// documented choices): center = midpoint of the two items' bbox
-/// centers (integer floor division both steps), depth =
-/// `expected - actual` in board units, pair_kind = the two kinds'
-/// declaration-order discriminants (pair order follows the row's
-/// canonical `(min id, max id)` order — the CENTER derives from
-/// a→b in that same order, and a midpoint is order-free anyway).
 /// Builds the markers from the depth rows (the T5 charter's
 /// documented choices): center = midpoint of the two items' bbox
 /// centers (integer floor division both steps), depth =

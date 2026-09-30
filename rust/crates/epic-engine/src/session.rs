@@ -734,6 +734,18 @@ impl Session {
         self.pre_existing_violations
     }
 
+    /// The depth-walk total at the CURRENT boundary —
+    /// [`all_clearance_violation_depths`]'s first element, recomputed
+    /// (the `&mut` walk the attach step runs; exposed so a pin can
+    /// cross-check the attach step's marker count against the SAME
+    /// walk at the SAME boundary — the T5 fix-round F1 face). NOT a
+    /// hot path: one DRC walk per call.
+    #[must_use]
+    pub fn clearance_violation_depth_total(&mut self) -> i64 {
+        let (total, _) = all_clearance_violation_depths(&mut self.manager, &mut self.board);
+        total
+    }
+
     /// The M9-T5 ATTACH STEP (the one `&mut` host of the overlay
     /// faces — the pure [`board_snapshot`] builder cannot run them):
     /// derive the pure snapshot, then attach all four overlay faces

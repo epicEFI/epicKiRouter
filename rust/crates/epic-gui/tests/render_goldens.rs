@@ -886,8 +886,20 @@ fn overlay_flags_off_is_inert_and_each_flag_adds_its_own_family() {
         "same flags twice => byte-equal (determinism)"
     );
     assert_eq!(one.ops.len(), 10 + 2 + 2 + 6, "the all-ON count");
-}
 
+    // (e) THE FAMILY ORDER (spec-review F3, mutant M4): the all-ON
+    // projection must equal the four per-family renders (each
+    // asserted op-exactly above) CONCATENATED in the chartered fixed
+    // order ratsnest -> drc -> congestion -> tuning. The single-flag
+    // renders are order-independent (each family emits alone), so an
+    // order-permutation mutant (e.g. drc emitted before ratsnest)
+    // fails THIS compare while the per-family asserts stay green.
+    let mut expected: Vec<epic_gui::render::RenderOp> = Vec::new();
+    for family in [&ratsnest, &drc, &congestion, &tuning] {
+        expected.extend(family.ops.iter().cloned());
+    }
+    assert_eq!(one.ops, expected, "the chartered family order");
+}
 #[test]
 fn overlay_flags_round_trip_through_the_view_model() {
     let snapshot = load_snapshot(E1_RIPUP);
@@ -1371,7 +1383,6 @@ fn overlay_goldens_verify_in_process() {
 }
 
 // --- The sanctioned overlay capture door ------------------------------
-// --- The sanctioned capture door -------------------------------------
 
 /// Regenerates ALL THREE goldens in-process (the sanctioned capture
 /// path: committed goldens are regenerated ONLY through this door,
