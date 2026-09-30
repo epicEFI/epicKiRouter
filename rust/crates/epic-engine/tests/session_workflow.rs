@@ -248,6 +248,85 @@ fn pre_route_cancel_passes_through_completed() {
     );
 }
 
+/// (e) M10-T1: the END-TO-END stop-flag WIRING pin (buglog 224's
+/// closure, the M9-adjudicated carry). The session's shared flag raised
+/// at the optimization stage's ENTRY ROW (the "Optimization stage
+/// started" info row — deterministic: it precedes the pass loop's
+/// first stop poll) must be OBSERVED by the optimizer's pass loop
+/// through the M10-T1 wiring (`run_optimization_stage` now builds its
+/// stage face OVER the parent's flag — before the wiring the stage
+/// face was the flagless `StopFace::default()` and the raise was
+/// invisible: the buglog-224 face).
+///
+/// THE HONEST FINAL-STATE FACE (probed + derived, the dispatch's
+/// "pin what is true" law): `COMPLETED`, NOT `CANCELLED`. Derivation:
+/// the cancel lands MID-OPTIMIZATION, i.e. AFTER the routing stage has
+/// already returned `Ok(true)` (e1_ripup routes to completion,
+/// incompletes 0 — the events-compare face), so the session's mapping
+/// (`final_state_for`'s caller, session.rs:592-596, derived from
+/// route.rs:447) takes the `Ok(true) => "COMPLETED"` arm; the
+/// CANCELLED arm (`Ok(false)` + `StopReason::UserStop`) is only
+/// reachable from a MID-ROUTING raise (pinned in
+/// `cancel_mid_run_cancels_and_refuses_export`). Java-faithful:
+/// `RoutingPipeline.run()` is void and
+/// propagates no stop state (`RoutingPipeline.java:86-90/121-134`);
+/// the pipeline's observable stop face is the stage's own summary row
+/// (`BatchOptimizer.java:530` `interrupted:`), which this pin asserts
+/// reached the session's sink.
+#[test]
+fn mid_optimization_cancel_is_observed_by_the_optimizer_stage() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// Raises the session's shared flag on the optimization stage's
+    /// entry row; records whether the stage's interrupted summary
+    /// reached the sink (the wiring's end-to-end witness).
+    struct RaiseAtOptimizationStartSink {
+        flag: Arc<AtomicBool>,
+        fired: bool,
+        saw_interrupted: bool,
+    }
+    impl DriverSink for RaiseAtOptimizationStartSink {
+        fn info(&mut self, message: &str) {
+            if !self.fired && message.contains("Optimization stage started") {
+                self.fired = true;
+                self.flag.store(true, Ordering::Relaxed);
+            }
+            if message.contains("Optimization stage interrupted:") {
+                self.saw_interrupted = true;
+            }
+        }
+    }
+
+    let bytes = fs::read(fixture("harness/fixtures/event-stream/e1_ripup.dsn"))
+        .expect("the ripup fixture reads");
+    let mut session =
+        Session::load_dsn(&bytes, SessionLayer::default()).expect("the fixture loads clean");
+    let mut sink = RaiseAtOptimizationStartSink {
+        flag: session.stop_flag(),
+        fired: false,
+        saw_interrupted: false,
+    };
+    let summary = session.route(&CliLayer::default(), &mut sink);
+    assert!(
+        sink.fired,
+        "the optimization stage must RUN in this world (guards must not bypass) — the fixture \
+         choice is load-bearing"
+    );
+    assert!(
+        sink.saw_interrupted,
+        "the wiring witness: the optimizer's interrupted summary reached the session's sink (a \
+         flagless stage face keeps this row dead — the buglog-224 revert mutant kills the pin \
+         here)"
+    );
+    assert_eq!(
+        summary.final_state, "COMPLETED",
+        "the honest face: routing already returned Ok(true), so the session mapping lands \
+         COMPLETED (the derivation in this pin's doc); the cancel's EFFECT is the interrupted \
+         stage, not the state name"
+    );
+}
+
 /// (c) The session-layer override is OUTPUT-OBSERVABLE: on bm07 (the
 /// probed multi-pass Tier A face — 18 passes at defaults), the
 /// session layer's `max_passes = 1` caps the run at exactly one pass,

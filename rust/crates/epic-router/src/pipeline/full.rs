@@ -46,12 +46,21 @@
 //! distinguish external from driver raises after the fact — flagged
 //! faces keep the pre-T1b collapsed face; production headless faces
 //! carry no flag (`StopFace::default()`), where the mapping is exact.
-//! (2) The optimizer's OWN loop reads a fresh in-stage face (the T9
-//! wiring artifact) — matching Java's loop reading `isStopRequested()`
-//! (`BatchOptimizer.java:384`), an ALL-only face, for the
-//! internally-stopped case, but not the external-during-optimization
-//! interrupt. (Fix provenance: M5-T1's measurement-only battery
-//! (`logs/M5-T1/`) named the gate; T1b lands the port.)
+//! (2) WIRED at M10-T1 (buglog 224 closed): the optimizer's loop reads
+//! a stage face that SHARES the parent's shared flag
+//! (`StopFace::from_flag(parent_stop.flag().cloned())` at
+//! `run_optimization_stage`), so an external raise mid-optimization is
+//! visible to the loop's polls — exactly Java, whose loop reads the
+//! shared `isStopRequested()` face via `job.thread`
+//! (`BatchOptimizer.java:384`). A FLAGLESS parent (the CLI production
+//! face) yields field-identically the pre-T1 `StopFace::default()`, so
+//! the CLI path is byte-invariant BY CONSTRUCTION (the measured
+//! re-proof lives in the M10-T1 battery). The T9-era fresh-flagless
+//! artifact this wiring replaces left the external-during-optimization
+//! interrupt dead (the M9-T7 battery's bm01/bm10 watchdog faces,
+//! buglog 224). (Fix provenance: M5-T1's measurement-only battery
+//! (`logs/M5-T1/`) named the gate; T1b landed the port; M10-T1 wires
+//! the flag.)
 //!
 //! **`finishAutoroute` (`RoutingBoard.java:899-904`).** RECON INSIDE,
 //! recorded: the call clears the retained `AutorouteEngine`
@@ -309,6 +318,13 @@ impl RoutingStageResult {
 /// pair is captured at Java's own moments (stage entry / stage exit — a
 /// preflight bypass leaves the board untouched, so `after == before`
 /// there, matching Java's bypass fill).
+///
+/// `parent_stop` is the caller's stop face: M10-T1's wiring (buglog
+/// 224's closure) shares its flag with the stage face, so an EXTERNAL
+/// raise mid-optimization stops the loop (Java's loop reads the shared
+/// `job.thread` face, `BatchOptimizer.java:384`). A flagless parent
+/// (the CLI production face) is field-identical to the pre-T1
+/// `StopFace::default()` — byte-invariance is structural.
 #[allow(clippy::too_many_arguments)]
 pub fn run_optimization_stage(
     manager: &mut SearchTreeManager,
@@ -317,6 +333,7 @@ pub fn run_optimization_stage(
     optimizer_settings: OptimizerSettingsIr,
     run_optimizer: bool,
     full_stop: bool,
+    parent_stop: &StopFace,
     sink: &mut dyn DriverSink,
     transitions: &mut Vec<RoutingStage>,
 ) -> Option<OptimizerStageFaces> {
@@ -336,10 +353,12 @@ pub fn run_optimization_stage(
     // at runBatchLoop entry; the pipeline's walk here is the same
     // moment (construction has no board effect).
     let before = BoardStatistics::new(manager, board);
-    // The stage stop face is the T9 wiring face (a fresh face — the
-    // CLI flow has no external stop source; Java shares `job.thread`,
-    // banked in SEAM).
-    let mut stage_stop = StopFace::default();
+    // M10-T1: the stage face SHARES the parent's flag (buglog 224's
+    // wiring fix) — a flagless parent (the CLI production face) yields
+    // exactly the old `StopFace::default()`; a flagged parent (the
+    // session/GUI face) makes external raises visible to the
+    // optimizer's polls (optimizer.rs:1238-1242/:1458/:1738/:1802).
+    let mut stage_stop = StopFace::from_flag(parent_stop.flag().cloned());
     let mut optimizer = BatchOptimizerStage::new(
         manager,
         board,
@@ -396,6 +415,7 @@ pub fn run(
             optimizer_settings,
             run_optimizer,
             stage.stop_full,
+            &stop,
             sink,
             &mut transitions,
         )
@@ -738,6 +758,148 @@ mod tests {
         assert!(result.boundaries.autorouter_after.is_some());
         // And the pipeline-owned settings carry the restored face.
         assert_eq!(settings.max_passes, Some(-1));
+    }
+
+    /// M10-T1's raise sink: stores `true` into the parent's shared flag
+    /// the moment the optimization stage's first info row arrives — the
+    /// deterministic external-raise face (Java's cancel button raising
+    /// `job.thread` mid-optimization). No timing, no sleeps: the row is
+    /// emitted at stage entry (optimizer.rs `run_batch_loop`, the
+    /// "Optimization stage started" row) BEFORE the pass loop's first
+    /// stop poll, so the raise is always visible to the loop.
+    struct RaiseAtOptimizationStartSink {
+        flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        fired: bool,
+        saw_interrupted: bool,
+        saw_completed: bool,
+    }
+
+    impl DriverSink for RaiseAtOptimizationStartSink {
+        fn info(&mut self, message: &str) {
+            if !self.fired && message.contains("Optimization stage started") {
+                self.fired = true;
+                self.flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            if message.contains("Optimization stage interrupted:") {
+                self.saw_interrupted = true;
+            }
+            if message.contains("Optimization stage completed:") {
+                self.saw_completed = true;
+            }
+        }
+    }
+
+    /// THE M10-T1 WIRING PIN (buglog 224): a flagged parent + a raise
+    /// at the optimization stage's entry row ⇒ the stage's pass loop
+    /// OBSERVES the stop — the interrupted summary row is the loop's
+    /// own stop witness ("Optimization stage interrupted:", the port of
+    /// Java `BatchOptimizer.java:530`'s `interrupted:` literal), and
+    /// `passes_completed == 0` pins WHEN (before pass 1).
+    ///
+    /// PROBE RECORD (the dispatch's probe-first law): NO outcome field
+    /// propagates a stop face out of the stage —
+    /// `OptimizerOutcome { passes_completed, is_timed_out }` is the
+    /// whole face, and Java propagates none either
+    /// (`RoutingPipeline.java:121-134`: `runOptimizationStage` is
+    /// void; `run()` is void). Java-faithful observables are the
+    /// stage's OWN rows (the `interrupted:` summary) + the pass count,
+    /// and the HOST re-reads the shared flag — so no new outcome field
+    /// is wired. The pass count + the summary row are this pin's face.
+    ///
+    /// DNR-16 minus-mutant witness (the wiring revert,
+    /// `stage_stop = StopFace::default()`): the raise lands on a face
+    /// nobody reads, the loop runs its pass, the summary reads
+    /// `completed:` — the pin DIES on both asserts. Restored ⇒ green.
+    #[test]
+    fn m10_t1_optimizer_stage_shares_the_parent_flag() {
+        let (mut manager, mut board, settings, optimizer) = completed_world();
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let parent = StopFace::from_flag(Some(std::sync::Arc::clone(&flag)));
+        let mut sink = RaiseAtOptimizationStartSink {
+            flag,
+            fired: false,
+            saw_interrupted: false,
+            saw_completed: false,
+        };
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            parent,
+            &mut sink,
+        );
+        assert_eq!(
+            outcome.stage_transitions,
+            vec![
+                RoutingStage::Routing,
+                RoutingStage::Optimization,
+                RoutingStage::Idle
+            ],
+            "the stage ran (the raise happened mid-run, not before it)"
+        );
+        assert!(
+            sink.fired,
+            "the raise fired (the stage emitted its entry row)"
+        );
+        let faces = match outcome.optimizer {
+            Some(faces) => faces,
+            None => panic!("the optimizer stage must have run in this world"),
+        };
+        assert_eq!(
+            faces.outcome.passes_completed, 0,
+            "the loop observed the stop before pass 1"
+        );
+        assert!(
+            sink.saw_interrupted,
+            "the loop's own stop witness row must carry the interrupted summary"
+        );
+        assert!(
+            !sink.saw_completed,
+            "the loop must not have run to natural completion"
+        );
+    }
+
+    /// THE M10-T1 OVER-WIRING CONTROL PIN (DNR-16's plus direction): a
+    /// flagged parent with NO raise must run the stage CLEANLY to
+    /// natural completion — the wiring SHARES the flag, it does not
+    /// raise anything. Kills the pre-raised-stage-face mutant
+    /// (`stage_stop` constructed then `request_full()`ed — an
+    /// over-eager wiring that stops every flagged-parent run): that
+    /// mutant turns this run into `interrupted:`/0-passes and the pin
+    /// DIES. The revert mutant (minus direction) is killed by the
+    /// raise pin above; between the two pins BOTH wiring directions
+    /// are mutant-witnessed.
+    #[test]
+    fn m10_t1_flagged_parent_without_a_raise_runs_clean() {
+        let (mut manager, mut board, settings, optimizer) = completed_world();
+        let parent = StopFace::from_flag(Some(std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        )));
+        let mut sink = CaptureDriverSink::default();
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            parent,
+            &mut sink,
+        );
+        let faces = match outcome.optimizer {
+            Some(faces) => faces,
+            None => panic!("the optimizer stage must have run in this world"),
+        };
+        assert_eq!(
+            faces.outcome.passes_completed, 1,
+            "the un-raised flagged parent runs its full pass budget"
+        );
+        assert!(
+            sink.any_contains("Optimization stage completed:"),
+            "the natural-completion summary, not the interrupted one"
+        );
+        assert!(!sink.any_contains("Optimization stage interrupted:"));
     }
 
     /// THE STOP-REQUEST SHORT-CIRCUIT PIN (T1b two-face form): a FULL

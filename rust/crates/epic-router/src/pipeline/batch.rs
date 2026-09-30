@@ -236,7 +236,11 @@ impl StopFace {
 
     /// The shared flag, handed to the per-connection engines as their
     /// `stoppableThread` (Java's `router.thread` IS the shared stop
-    /// source the engines consult).
+    /// source the engines consult). The M10-T1 wiring face: the
+    /// optimizer stage constructs its own face OVER the parent's flag
+    /// so external raises are visible mid-optimization — Java's
+    /// `BatchOptimizer` reads the shared `isStopRequested()` face via
+    /// `job.thread`, `BatchOptimizer.java:384`.
     #[must_use]
     pub fn flag(&self) -> Option<&Arc<AtomicBool>> {
         self.flag.as_ref()

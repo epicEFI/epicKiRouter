@@ -2188,3 +2188,48 @@ the hook, so no snapshot rows ever exist in captured/replayed streams
 workflow battery + the standing compares). Records: `logs/M9-T3/
 report-t3.md` (AMENDMENT 3), `logs/M9-T8/report-t8.md` §4, and the
 bracketed T8 erratum in the design §6 M9 exit note.
+
+---
+
+**M10-T1 (appended 2026-09-30, inside the task's commit — Opening rule
+4):** the stop-flag WIRING — buglog 224's closure, the M9-adjudicated
+carry. `run_optimization_stage` gains `parent_stop: &StopFace` (after
+`full_stop`) and builds its stage face OVER the parent's shared flag —
+`StopFace::from_flag(parent_stop.flag().cloned())` (full.rs, replacing
+the T9-era flagless `StopFace::default()`; the `run()` call site passes
+`&stop`) — so an EXTERNAL raise mid-optimization is visible to the
+optimizer's pass-loop polls (optimizer.rs:1238-1242/:1458/:1738/:1802),
+Java-faithful: `BatchOptimizer.java:384` reads the shared
+`isStopRequested()` face via `job.thread`; the stage GATE
+(`RoutingPipeline.java:122`) is unchanged. **Byte-invariance is
+STRUCTURAL on the CLI path** (the CLI production face is flagless;
+`from_flag(None)` is field-identical to the old `StopFace::default()`)
+**and measured**: the full M9-T7 battery faces re-run at this commit —
+Tier A + crafted + Tier B/C, byte-identity on every comparable row (the
+two watchdog faces, bm01/bm10, are CLI_KILLED rows with no in-slice CLI
+bytes — their session-side walls SHORTENED, the wiring's intended
+effect: the 1800s/900s watchdog raises now terminate the optimization
+stage), the events compare (3 fixtures / 3520 golden rows) + the bm08
+canaries (ses `dc2711146276…`, manifest `cf6077141d2f…`) byte-identical.
+**No new outcome face**: the probe found
+`OptimizerOutcome { passes_completed, is_timed_out }` propagates no stop
+state and Java propagates none either (`RoutingPipeline.java:121-134`
+is void) — the pins witness the stop through the stage's own
+`interrupted:` summary row (Java `BatchOptimizer.java:530`) + the pass
+count, and the HOST re-reads the shared flag. **Pins** (DNR-16 both
+directions witnessed in `logs/M10-T1/evidence/40-44-*`: the revert
+mutant kills the raise pins — router + session — and NOT the control;
+the over-wiring mutant kills the control and NOT the raise pins;
+restores green):
+`m10_t1_optimizer_stage_shares_the_parent_flag` +
+`m10_t1_flagged_parent_without_a_raise_runs_clean` (full.rs tests) +
+`mid_optimization_cancel_is_observed_by_the_optimizer_stage`
+(epic-engine `session_workflow.rs`; the honest final state is
+COMPLETED — a mid-optimization cancel lands after routing returned
+`Ok(true)`, so the session mapping's `Ok(true) => COMPLETED` arm
+governs; the state-name mapping is unchanged and Java-faithful —
+`RoutingPipeline.run()` propagates nothing). Census 1682 → 1685/0/19
+(declared before the run). Erratum to the plan's recon:
+`StopFace::flag()` PRE-EXISTED (M3's `507eacc76`) — the recon's "has NO
+public flag accessor" was stale; only the accessor's doc gained the
+M10-T1 wiring-face note (batch.rs).
