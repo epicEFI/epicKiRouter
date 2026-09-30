@@ -2,15 +2,20 @@
 //! workflow `.github/workflows/rust-check.yml` is load-bearing policy —
 //! the test step's 30-minute wall (the hang tripwire the bare suite
 //! leans on since the T17b skip retirement) and the router-compare
-//! step's `--report-only` (the exit flip deferred to the milestone
-//! adjudication) are both SINGLE LINES whose silent mutation would
+//! step's argv are both SINGLE LINES whose silent mutation would
 //! change CI's contract with nothing in the suite noticing. This module
 //! pins both faces: a tiny step-block reader for the workflow's shape
 //! (pure, synthetic-testable — not a YAML parser, by design) and the
-//! real-file pin. When T17c+ performs the exit flip (drop
-//! `--report-only`) or moves a wall, THIS PIN DIES — the change must be
-//! a conscious same-commit act that updates the pin (the OBS-1
-//! precedent: policy edits and their pins land together).
+//! real-file pin. THE M8-T8 EXIT FLIP HAS LANDED (commit `ba5e587bb`):
+//! the compare step rides the exact GATE argv
+//! (`cargo run -q -p epic-harness -- router compare` — no
+//! `--report-only`; exit is a hard gate), and the events-compare step
+//! (added by the same flip commit) is pinned with unique-existence +
+//! its own wall bound. The pin now DIES on a silent re-ADDITION of
+//! `--report-only`, any argv drift on the three pinned steps, or any
+//! wall move — the change must be a conscious same-commit act that
+//! updates the pin (the OBS-1 precedent: policy edits and their pins
+//! land together).
 
 // ---------------------------------------------------------------------------
 // The workflow reader (pure; synthetic-world pinnable)

@@ -62,8 +62,8 @@
 //!   the gates read the committed T14 records (`baselines/router-only/A`),
 //!   and `router determinism`'s canary faces stay the router-only digests.
 //!   The default exists so the profile switch cannot rotate any default
-//!   invocation's behavior — CI's bare `router compare --report-only`
-//!   stays this face until the T13 exit flip.
+//!   invocation's behavior — CI's bare `router compare` (GATE mode
+//!   since the M8-T8 exit flip, commit `ba5e587bb`) stays this face.
 //! - `full` (the M4 battery face): the Rust side drops BOTH flags and
 //!   runs the assembled fanout → router → optimizer pipeline
 //!   (`pipeline/full.rs`, T9/T10); the gates read the M0 full-flow jar
