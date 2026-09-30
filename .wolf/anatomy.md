@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T04:05:20.314Z
-> Files: 558 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T04:37:03.815Z
+> Files: 561 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -484,7 +484,8 @@
 - `2026-09-25-epicrouter-m5-performance.md` — EpicRouter M5 — Performance: Arena/SoA + Deterministic Parallelism Implementation Plan (~6333 tok)
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
-- `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Imple (~16908 tok)
+- `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Imple (~17663 tok)
+- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~9765 tok)
 
 ## docs/superpowers/research/
 
@@ -494,7 +495,7 @@
 
 ## docs/superpowers/specs/
 
-- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~18028 tok)
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~18988 tok)
 
 ## examples/tutorial_board/
 
@@ -635,6 +636,11 @@
 - `D_DO-41_SOD81_P10.16mm_Horizontal.kicad_mod` (~1169 tok)
 - `R_Axial_DIN0309_L9.0mm_D3.2mm_P12.70mm_Horizontal.kicad_mod` (~847 tok)
 
+## logs/M8-ADJUDICATION/
+
+- `adjudication-prompt.md` — M8 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7 pattern) (~2262 tok)
+- `adjudication-report.md` — M8 MILESTONE ADJUDICATION REPORT (~5892 tok)
+
 ## logs/M8-T8/
 
 - `build-table-t8.py` — M8-T8 judgment-table builder (AM2-hardened). (~2842 tok)
@@ -653,7 +659,7 @@
 
 ## rust/
 
-- `README.md` — Project documentation (~5441 tok)
+- `README.md` — Project documentation (~5494 tok)
 
 ## rust/crates/epic-router/
 

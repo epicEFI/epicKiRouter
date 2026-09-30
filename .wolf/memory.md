@@ -9004,3 +9004,10 @@ description: chronological action log per session, consolidated weekly
 | 22:05 | Edited rust/crates/epic-router/SEAM.md | 4→6 lines | ~94 |
 | 22:05 | Edited rust/crates/epic-router/SEAM.md | inline fix | ~105 |
 | 22:05 | Edited rust/crates/epic-router/SEAM.md | expanded (+11 lines) | ~202 |
+| 22:09 | Created logs/M8-ADJUDICATION/adjudication-prompt.md | — | ~2413 |
+| 22:20 | Created logs/M8-ADJUDICATION/adjudication-report.md | — | ~6285 |
+| 22:22 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 3→1 lines | ~715 |
+| 22:22 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified ERRATUM() | ~417 |
+| 22:22 | Edited docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md | 1→2 lines | ~250 |
+| 22:23 | Edited rust/README.md | 5→9 lines | ~130 |
+| 22:37 | Created docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | — | ~10416 |

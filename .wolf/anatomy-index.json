@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-30T04:05:20.314Z",
-    "fileCount": 558,
+    "lastScanned": "2026-09-30T04:37:03.815Z",
+    "fileCount": 561,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "7adbbbb65b3cb1b5b6c62cf5302b6f414ea1ba8d634a34c24c90edfecb110435",
-    "storeUpdatedAt": "2026-09-30T04:05:20.326Z",
-    "rootHash": "1430a7ab36bc71c7"
+    "renderedHash": "77a6039bf44aebf3c06bdeb9cf804df3a5eed6829af418ed33fac8052d2fbcbb",
+    "storeUpdatedAt": "2026-09-30T04:37:03.823Z",
+    "rootHash": "3703cb526785aba7"
   },
   "files": {
     ".dockerignore": {
@@ -3738,11 +3738,11 @@
     },
     "docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md": {
       "description": "EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Imple",
-      "tokens": 16908,
-      "hash": "3d9970a38a25877e",
-      "size": 68437,
-      "mtimeMs": 1790738407788.0178,
-      "updatedAt": "2026-09-30T03:20:07.886Z",
+      "tokens": 17663,
+      "hash": "bffb226543ab61f6",
+      "size": 71484,
+      "mtimeMs": 1790742176032.2249,
+      "updatedAt": "2026-09-30T04:22:56.132Z",
       "source": "hook"
     },
     "docs/superpowers/research/2026-09-11-autorouter-state-of-the-art.md": {
@@ -3774,11 +3774,11 @@
     },
     "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md": {
       "description": "EpicRouter: Rust Rewrite Design",
-      "tokens": 18028,
-      "hash": "4e71132f21a52624",
-      "size": 73065,
-      "mtimeMs": 1790741086267.807,
-      "updatedAt": "2026-09-30T04:04:46.368Z",
+      "tokens": 18988,
+      "hash": "7f1274ca59e64b8e",
+      "size": 76950,
+      "mtimeMs": 1790742149915.15,
+      "updatedAt": "2026-09-30T04:22:30.023Z",
       "source": "hook"
     },
     "docs/translations.md": {
@@ -5238,11 +5238,11 @@
     },
     "rust/README.md": {
       "description": "Project documentation",
-      "tokens": 5441,
-      "hash": "889cdba729b78a0d",
-      "size": 21958,
-      "mtimeMs": 1790741097031.84,
-      "updatedAt": "2026-09-30T04:04:57.140Z",
+      "tokens": 5494,
+      "hash": "1ad6558da28ede3a",
+      "size": 22172,
+      "mtimeMs": 1790742202121.2595,
+      "updatedAt": "2026-09-30T04:23:22.219Z",
       "source": "hook"
     },
     "rust/crates/epic-router/SEAM.md": {
@@ -5288,6 +5288,33 @@
       "size": 14002,
       "mtimeMs": 1790740852718.0908,
       "updatedAt": "2026-09-30T04:00:52.812Z",
+      "source": "hook"
+    },
+    "logs/M8-ADJUDICATION/adjudication-prompt.md": {
+      "description": "M8 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7 pattern)",
+      "tokens": 2262,
+      "hash": "0d30976747f96fbb",
+      "size": 9149,
+      "mtimeMs": 1790741382921.7302,
+      "updatedAt": "2026-09-30T04:09:43.017Z",
+      "source": "hook"
+    },
+    "logs/M8-ADJUDICATION/adjudication-report.md": {
+      "description": "M8 MILESTONE ADJUDICATION REPORT",
+      "tokens": 5892,
+      "hash": "a0ae303fbecc35c0",
+      "size": 23817,
+      "mtimeMs": 1790742054525.8477,
+      "updatedAt": "2026-09-30T04:20:54.632Z",
+      "source": "hook"
+    },
+    "docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md": {
+      "description": "EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan",
+      "tokens": 9765,
+      "hash": "359e60bf1d8c7cd5",
+      "size": 39394,
+      "mtimeMs": 1790743023709.0066,
+      "updatedAt": "2026-09-30T04:37:03.815Z",
       "source": "hook"
     }
   },
