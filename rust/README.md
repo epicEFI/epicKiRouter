@@ -94,9 +94,13 @@ improvement ALL own to the teardrop tapers' added routed length
 held, canaries unrotated, census 1629/0/17); the CI flip LANDED at
 M8-T8 (recorded above); the B/C re-faces are the deviations refresh in
 design §6 M8 exit note and `logs/M8-T8/report-t8.md`.
-Status: **M8 CLOSED-PENDING-ADJUDICATION** — design §6 M8 exit note
-(verdict slot OPEN), `logs/M8-T8/report-t8.md`, the M8 criterion map
-in SEAM.md. The M7 row: **M7_EXIT_WITH_DEVIATIONS** (design §6 M7
+Status: **M8_EXIT_WITH_DEVIATIONS** — design §6 M8 exit note
+(adjudicated 2026-09-29 at `277ee7970`: criterion 1 NOT MET on the
+committed four-metric instrument — the teardrop-owned regression
+findings; criteria 2/3/5 MET, 4 discharged; the CI flip SUSTAINED at
+`ba5e587bb`), `logs/M8-T8/report-t8.md`, `logs/M8-ADJUDICATION/`,
+the M8 criterion map in SEAM.md. The M7 row:
+**M7_EXIT_WITH_DEVIATIONS** (design §6 M7
 exit note, `logs/M7-T7/report-t7.md`, the M7 criterion map in
 SEAM.md).
 Port ledger: `crates/epic-router/SEAM.md`.

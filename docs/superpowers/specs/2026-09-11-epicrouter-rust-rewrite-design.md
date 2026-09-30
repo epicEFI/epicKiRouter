@@ -677,9 +677,7 @@ flip are T8's, measured at tree `9fe3a0751`
 (`logs/M8-T8/report-t8.md` + evidence; spec r1 fix `186c9eafd`,
 quality r1 fix `040d5dade`); the engine tree came out of the close-out
 identical, census 1629/0/17):
-**VERDICT: <per milestone adjudication>** — the slot stays OPEN; the
-deviations table below and the criterion-1 verdict formulation are the
-adjudication's inputs.
+**VERDICT: M8_EXIT_WITH_DEVIATIONS**, adjudicated 2026-09-29 at tree `277ee7970` (fresh-eyes adjudicator): criterion 1 (aesthetics metrics improve monotonically vs PCBench ground truth) **NOT MET on the committed four-metric instrument** — under the governing AM2 predicates (the milestone's reviewed legislative record; the strict GT-gap letter would have scored this record no better — only bend improves under it), mean_length_excess 0.1807→0.4743 and parallelism_ratio 0.93875→0.9325 are direction-gate regression findings, via_density 1.5891→1.3905 is a third finding (AM2's band constant 2.4752 is hereby corrected to its declared gap-of-means base 1.5752 — |AFTER−GT| 1.7738 > 1.5752: letter FAILURE, not letter PASS; the monotone-up violation stands under either constant), and bend 17.8165→15.3972 is the sole pass, artifact-dominated (−2.3794 of −2.4193 is the teardrop denominator effect); all four metric moves own to the teardrop pass's 976 landed tapers on 15 boards (teardrops-alone ≈ ALL-ON) while the designed primary bend lever (flow) is an EXACT no-op on all 20 sample boards; the teardrop tension (consumer-honest, DRC-clean geometry the four-metric instrument scores as regression) is dispositioned DEFAULT-OFF-WITH-TENSION-DOCUMENTED — no retroactive instrument change (the re-baseline the criterion forbids); the instrument-vs-consumer decision (teardrop-aware term, explicit exclusion, or the letter kept) is an M9 carry-forward that must precede any metric-facing pass; criterion 2 (no completion/DRC regression) MET clean (the 20/20 grid with ri = 0 everywhere on the REAL counter, Tier A held face 10+1 exact Σ 2096.1, eight compares, events 3520, canaries UNROTATED + ON-face byte-stable ×2, census 1629/0/17, the LMS6002 kill pinned permanent); criterion 3 MET (the 197 charter decision landed and measured — 1340.78 s < 1514.3/1510.7, the reopen OPENED; the T8 refresh honest: bm05 worse 29>18, bm10 face-changed-worse, interf_u improved 1>0, CM5's kill green, gloss-ON a row-for-row NO-OP lever — discharged); criterion 4 DISCHARGED (the README flips, the pairs.rs :48-50 erratum fix at T3, the chore(wolf) bank at `277ee7970`); criterion 5 MET (census additions only 1547→1629, committed artifacts untouched except the sanctioned NEW captures, nothing pushed); the CI flip SUSTAINED at `ba5e587bb` (11/0 at the exact gate face, Σ 286.5 s, 5.3–6.3× headroom) — with every still-standing red (the B/C capability floors, bm10, 1Bitsy, bm04, bm01's adoption face + P2 skew, the flow engagement question, the teardrop instrument question, the F3 armed trigger, the threads-gate CI wiring, the pour measurement gaps) owned by M9 via the deviations table.
 
 M8's arc, honestly stated (four beats, from AM8's T9 banks): (a)
 **instrument-before-improvement held** — T1 built the four-metric
@@ -836,6 +834,32 @@ The engine tree is frozen at census 1629/0/17 across the close-out;
 the verdict slot above stays OPEN for the milestone adjudication (the
 M4-T17d/M5/M6/M7 pattern; the deviations table and the criterion-1
 verdict formulation are its inputs).
+
+ERRATUM (adjudication): the closing line above predates the
+adjudication — the slot is now FILLED (`M8_EXIT_WITH_DEVIATIONS`,
+above). Two further adjudication errata:
+
+1. **C1 label replaced**: the criterion-1 presentation's
+"MET-ON-ONE-METRIC / FINDINGS-ON-TWO" label (the T9 charter's own
+phrasing) is REPLACED by the adjudicated formulation — C1 NOT MET on
+the committed instrument; one metric passes (bend, artifact-
+dominated), three are findings (mean_length_excess,
+parallelism_ratio, via_density).
+2. **The via_density band erratum (F-ADJ-1)**: AMENDMENT 2's
+via_density band constant 2.4752 has no derivation from the committed
+BEFORE record; the declared base (gap-of-means) gives 1.5752 (the
+bend band 2.6488 matches its gap-of-means exactly, establishing the
+intended derivation law). The T8 judgment table's via cell and
+`build-table-t8.py`'s constant carry the same erratum — via_density
+reads REGRESSION-FINDING, not "letter PASS". No measurement changes;
+the denominators, sidecars, and all other 23 cells stand verified
+exact.
+
+LAW-GOVERNANCE NOTE (adjudication): AM2's amended criterion-1
+predicates govern M8's exit (the strict original letter would have
+scored this record better — 2 of 4 improving — evidencing
+non-self-serving adoption); the corrected AM2 law stands for M9 until
+formally amended.
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
