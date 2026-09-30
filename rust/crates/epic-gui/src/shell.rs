@@ -291,6 +291,27 @@ pub enum LaunchMode {
     },
 }
 
+/// The smoke launch's overlay face (the fix-round F1 answer):
+/// ALL FOUR toggles ON when the shell launches in a smoke mode —
+/// criterion 3's "each [view] visible in the shell" evidence face
+/// must show RENDERINGS, not just controls. Honest absence note:
+/// the congestion/tuning FAMILIES are `None`-iff-not-engaged by the
+/// T5 design (the snapshot carries them only when the route engaged
+/// `congestion_global` / the DSN declares length constraints), and
+/// the drc markers render only where violations exist — so on bm08
+/// at the parse boundary the RATSNEST airlines are the populated
+/// family (the T5 golden's face); the flags being ON cannot invent
+/// data.
+#[must_use]
+pub fn smoke_overlay_flags() -> crate::view::OverlayFlags {
+    crate::view::OverlayFlags {
+        ratsnest: true,
+        drc: true,
+        congestion: true,
+        tuning: true,
+    }
+}
+
 /// The smoke frames' fixed dt (DNR-19 derivation): 1/60 s — the
 /// plan's 60-fps design intent (T7's render-perf face measures
 /// against it). A FIXED dt decouples the smoke from wall-clock so
@@ -545,6 +566,15 @@ mod tests {
         // itself).
         assert_eq!(rational_zoom_step(0, 0, In), (2, 1));
         assert_eq!(rational_zoom_step(-3, -3, Out), (1, 2));
+    }
+
+    /// THE SMOKE OVERLAY PIN (fix-round F1): all four toggles ON
+    /// (kills a flag-dropped-at-launch mutant — the evidence PNG must
+    /// carry the toggled-ON families, not just the checkboxes).
+    #[test]
+    fn smoke_overlay_flags_are_all_on() {
+        let flags = smoke_overlay_flags();
+        assert!(flags.ratsnest && flags.drc && flags.congestion && flags.tuning);
     }
 
     /// The launch parser's faces: empty argv is Interactive; the two

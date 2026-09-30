@@ -30,8 +30,13 @@
 //! face therefore rides a DEV-BOX-ONLY cargo feature `smoke` =
 //! `["eframe/glow", "eframe/__screenshot"]` (never in CI,
 //! default-off), the run selects `Renderer::Glow`, and the PNG is
-//! written by THIS crate with the chartered `png` dep from the
-//! `glow::Context::read_pixels` face of `Frame::gl()`.
+//! written by EFRAME'S OWN HOOK (its `image` dep) — the raw
+//! `Frame::gl()`/`glow::Context::read_pixels` faces were attempted
+//! FIRST and FALSIFIED (both post-swap planes read all-black on this
+//! driver; the attempts are recorded in `screenshot.rs`'s module
+//! docs). The chartered `png` dep stays resolved behind the feature
+//! letter but is currently unused (the fix-round F4 truth; the T6
+//! report's deviation 3).
 
 pub(crate) mod canvas;
 pub(crate) mod panels;
@@ -221,7 +226,7 @@ impl ShellApp {
         // The view: no layers visible until the first attach; pan
         // anchors at the world origin until the first snapshot sets
         // it (the first-display face below).
-        let view = crate::view::ViewModel::new(crate::view::ScreenTransform::new(
+        let mut view = crate::view::ViewModel::new(crate::view::ScreenTransform::new(
             epic_engine::snapshot::PointPrimitive { x: 0, y: 0 },
             1,
             1,
@@ -230,6 +235,12 @@ impl ShellApp {
             LaunchMode::Interactive => None,
             other => Some(Smoke::new(other)),
         };
+        // F1: the smoke launch renders the overlay FAMILIES (all four
+        // toggles ON — the pure face + its honest-absence note in
+        // shell.rs), not just the toggle controls.
+        if smoke.is_some() {
+            view.overlays = crate::shell::smoke_overlay_flags();
+        }
         Ok(Self {
             view,
             rx: event_rx,
