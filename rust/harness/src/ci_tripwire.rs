@@ -220,14 +220,16 @@ jobs:
     /// THE tripwire (real repo file): the bare-suite test step keeps
     /// its 30-minute wall AND its exact BARE argv (the T17b skip
     /// protocol must not silently return), the router-compare step
-    /// still carries `--report-only` on its run line (the exit flip is
-    /// a conscious act — this assert DIES on the flip), and the
-    /// compare step keeps the 30-minute wall the YAML's own WALL
-    /// WARNING names as the designed battery tripwire. Mutation-verified
-    /// (T17c): removing `--report-only` and separately moving the test
-    /// wall to 29 each kill this pin; both edits restored after.
+    /// rides its exact GATE argv (the M8-T8 EXIT FLIP: `--report-only`
+    /// is GONE — a silent return of the flag is a conscious-act
+    /// violation in the other direction now), the compare step keeps
+    /// the 30-minute wall, and the events-compare step (added by the
+    /// flip commit) exists UNIQUELY with its own wall bound. The
+    /// pre-flip mutant faces (T17c): removing `--report-only` and
+    /// moving the test wall to 29 each killed this pin; the post-flip
+    /// faces are pinned by the exact-argv assert below.
     #[test]
-    fn ci_workflow_pins_test_step_wall_and_compare_report_only() {
+    fn ci_workflow_pins_test_step_wall_and_compare_gate_argv() {
         let root = crate::oracle::find_repo_root().expect("repo root");
         let path = root.join(".github/workflows/rust-check.yml");
         let raw = std::fs::read_to_string(&path)
@@ -264,8 +266,10 @@ jobs:
             test_block
         );
 
-        // THE COMPARE STEP: --report-only rides the run line (never a
-        // comment), and the designed battery-wall tripwire stays 30.
+        // THE COMPARE STEP (post-flip): the EXACT gate argv on the run
+        // line — `--report-only` must stay gone (the flip's other
+        // direction: silently re-adding the flag would silent the hard
+        // gate), and the designed battery-wall tripwire stays 30.
         let compare_line = find_step_run_line(&blocks, "router compare").unwrap_or_else(|| {
             let hits = matching_run_lines(&blocks, "router compare");
             panic!(
@@ -275,10 +279,14 @@ jobs:
                 hits.len()
             );
         });
-        assert!(
-            compare_line.contains("--report-only"),
-            "the compare step must still be REPORT mode — dropping the flag is THE exit \
-             flip and must be a conscious same-commit act with this pin: {compare_line}"
+        let compare_argv = compare_line
+            .trim_start()
+            .strip_prefix("- ")
+            .unwrap_or(compare_line.trim_start());
+        assert_eq!(
+            compare_argv, "run: cargo run -q -p epic-harness -- router compare",
+            "the compare step must ride the exact GATE argv (the M8-T8 exit flip; \
+             re-adding --report-only is a conscious act that must die here): {compare_line}"
         );
         let compare_block = blocks
             .iter()
@@ -287,8 +295,37 @@ jobs:
         assert_eq!(
             step_timeout_minutes(compare_block),
             Some(30),
-            "the compare step's 30-minute wall is the designed wall tripwire (the YAML's \
-             WALL WARNING): {compare_block}"
+            "the compare step's 30-minute wall is the designed wall tripwire: {compare_block}"
+        );
+
+        // THE EVENTS STEP (the flip commit's addition): exists UNIQUELY
+        // with its own wall bound — the java-free events-compare gate
+        // (3 fixtures / 3,520 golden trace rows, green since M4-T6).
+        let events_line = find_step_run_line(&blocks, "events compare").unwrap_or_else(|| {
+            let hits = matching_run_lines(&blocks, "events compare");
+            panic!(
+                "the events-compare run line must exist UNIQUELY — {} matching run \
+                 line(s) (zero = the step is gone; multiple = a duplicated step is \
+                 the usual cause): {hits:?}",
+                hits.len()
+            );
+        });
+        let events_argv = events_line
+            .trim_start()
+            .strip_prefix("- ")
+            .unwrap_or(events_line.trim_start());
+        assert_eq!(
+            events_argv, "run: cargo run -q -p epic-harness -- events compare",
+            "the events step must ride its exact argv: {events_line}"
+        );
+        let events_block = blocks
+            .iter()
+            .find(|b| b.lines().any(|l| l == events_line))
+            .expect("the events step's own block");
+        assert_eq!(
+            step_timeout_minutes(events_block),
+            Some(10),
+            "the events step carries its own 10-minute wall bound: {events_block}"
         );
     }
 }

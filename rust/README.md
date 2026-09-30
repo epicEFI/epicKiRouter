@@ -44,15 +44,15 @@ golden rows, exit 0 since M4-T6), determinism canaries are unrotated
 (ses `dc271114…` / manifest `cf607714…`), and the in-tree
 threads-invariance gate is green (bm06 SES `77caf2099a2f…` / manifest
 `90f08ad2…` byte-identical across `-mt 1/3/4`). The CI router gate
-stays in `--report-only`: the M6-T3 close adjudicated the flip
-NO-GO (honest hold) on BOTH preconditions — the Tier A battery
-verdict face reads 10 green / 1 red ≠ 11 green / 0 red (the
-completion-only reading is 11/11; both faces named per the plan's
-corrected precondition wording), and Σ Tier A 2089.5 s > the compare
-step's 30-min budget (over by 289.5 s = 16.1%). Reopen bound: the
-other ten Tier A walls sum 289.3 s — the flip reopens when bm01
-completes < 1510.7 s; the named lever is deterministic candidate
-parallelism (buglog 197), recorded not attempted. The bound does not
+FLIPPED at M8-T8 (2026-09-29, tree `9fe3a0751`): the exact post-flip
+CI face (router-only profile, mode: gate) reads 11 green / 0 red at
+Σ 286.5 s — 5.3–6.3× headroom under the compare step's 30-min budget
+(DNR-18-reconciled, `logs/M8-T8/evidence/80-gate-laps.log`); strip
+context: the M6-T3 reopen frame's full-flow Σ with the T7 lever
+(bm01 ot=4 1340.78 s + the 285.7 s strip = 1626.5 s) also fits — the
+lever is opt-in and NOT load-bearing for the CI step (the router-only
+profile never engages the optimizer). The four prior holds (M4 close,
+M5-T8, M6-T3, M7) stand as history. The bound does not
 rise — the wall must drop (the rust-check.yml comment records the
 adjudication). Threads-gate CI wiring lands WITH the flip
 (re-deferred with cause: the preconditions failed at M6-T3). M7
@@ -233,27 +233,25 @@ cargo run -q -p epic-harness --release -- router compare
 # victim-choice family; bm11 wall-integrity red with the engine AT
 # Java's exact 975.00/3/0 face at the kill) — T12's face.
 cargo run -q -p epic-harness --release -- router compare --profile full
-# CI posture (M4-T13, refreshed at M5-T9, re-refreshed at M6-T4 to the
-# M6-T3 hold): --report-only prints every verdict and exits 0. The
+# CI posture (M4-T13, refreshed M5-T9/M6-T4; FLIPPED at M8-T8 — the
+# compare step now runs GATE mode and exit is a hard gate; the four
+# prior holds are history): the
 # battery is now TIER-AWARE (`--tier A|B|C`, default A byte-identical —
 # the T3 chore commit 62c417a38) and the workspace census is 1,547
-# passed / 0 failed / 17 ignored. The flip stays HELD after M6-T3 —
-# both preconditions fail: the Tier A battery verdict face is 10 green
-# / 1 red (bm01's 1800.2 s INTEGRITY-gate tier kill — routing complete
-# 0/0/1000.00, optimizer P1 571.93 s REJECTED, incumbent restored; the
-# completion-only reading is 11/11, both faces named) and Σ Tier A =
-# 2089.5 s > the compare step's 30-min budget (over by 289.5 s =
-# 16.1%). The per-tier BEFORE-face tables (A 10 green / 1 red, B 4/5,
-# C 1/2 green/red) live
-# in logs/M6-T3/report-t3.md. REOPEN BOUND: the other ten Tier A walls
-# sum 289.3 s — the flip reopens exactly when bm01's total completes
-# < 1510.7 s. Named lever, recorded NOT attempted: deterministic
-# candidate parallelism (buglog 197; Java DefaultSettings.java:182
-# optimizer.maxThreads = cores−1 vs Rust's mandated 1-thread face).
-# The bound does not rise; the wall must drop (the rust-check.yml
-# comment records the bound-rise adjudication: NOT taken — bounds are
-# never raised to fit walls, the same discipline as tiers.yaml
-# timeouts).
+# passed / 0 failed / 17 ignored. The flip LANDED at M8-T8 —
+# the post-flip CI face (router-only, gate) is 11 green / 0 red at
+# Σ 286.5 s (arithmetic in the status block and the rust-check.yml
+# comment; DNR-18-reconciled). The full-profile held face HELD:
+# 10 green / 1 red bm01 (mode: report, exit 0), and in mode: gate the
+# same bm01 tier-kill reds it (exit 1) — the deterministic budgets do
+# NOT preflight-skip bm01's optimizer; the full profile is NOT the CI
+# step's face. The pre-flip M6-T3 hold record (10 green / 1 red,
+# Σ 2089.5 s > 1800 s, reopen bound 1510.7 s) lives in the git
+# history of this file and logs/M6-T3/. The per-tier BEFORE-face
+# tables (A 10 green / 1 red, B 4/5, C 1/2 green/red) live
+# in logs/M6-T3/report-t3.md; the M8-T8 re-faces (B 4/5 both faces,
+# C 1/2 both faces, gloss-ON row-for-row identical) live in
+# logs/M8-T8/.
 #
 # RESIDUALS LEDGER (the standing record; the B/C faces are the T10
 # AFTER-face unless noted): the B/C completion reds after the
@@ -319,15 +317,15 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # per-fixture wall columns do NOT re-sum to it; Tier A (the
 # adjudicated Σ) sums exactly.
 #
-# At the flip: drop --report-only, update BOTH ci_tripwire.rs pins in
-# the SAME commit, add the events-compare step (java-free, green since
-# M4-T6) with its own pin, and refresh the posture prose (this file's
-# status block and this comment, plus the design doc §6 note's CI
-# paragraph, SEAM posture rows); the rust-check.yml comment records
-# the condition. The threads-gate CI wiring lands WITH the flip
-# (re-deferred with cause at M6-T4: the flip preconditions failed at
-# M6-T3).
-cargo run -q -p epic-harness -- router compare --report-only
+# EXECUTED AT THE FLIP (M8-T8, one commit): --report-only dropped,
+# both ci_tripwire.rs pin faces updated (the compare-step pin now pins
+# the exact GATE argv; the events step pinned inside the same test fn
+# — census unchanged), the events-compare step added with a 10-minute
+# wall, and the posture prose refreshed (this file's status block and
+# this comment, the design doc §6 note's CI paragraph, the SEAM
+# posture row, docs/architecture.md). The threads-gate CI wiring stays
+# in-tree-only (harness router threads-invariance).
+cargo run -q -p epic-harness -- router compare
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
 # manifest (canaries at the M5-T3 fix: ses dc271114… / manifest
 # cf607714… — the M4-close values were 253e7b14… / 8c4a9773…, the

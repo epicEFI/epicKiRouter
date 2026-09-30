@@ -90,83 +90,54 @@ jobs:
         timeout-minutes: 30
         env:
           EPIC_SKIP_GRADLE: "1"
-      # M3 T15 router compare (REPORT mode — every fixture gets an
-      # explicit verdict in the CI log, exit stays 0). This step runs
-      # the ROUTER-ONLY profile (the default; fanout-off epic-cli vs
-      # the committed router-only records) — green since M4-T6 (11/0 in
-      # 337.7s, logs/M4-T6/evidence/cmp_router_t6.log). The exit flip is
-      # judged on the MILESTONE battery — the full-profile face
-      # M6-T3 ADJUDICATION (2026-09-26; logs/M6-T3/report-t3.md):
-      # NO-GO (honest hold) — the third consecutive hold, BOTH
-      # preconditions failing:
-      # Precondition 1 — Tier A completion: FAIL on the harness verdict
-      # face (10 green / 1 red — DAC2020_bm01 killed at the 1800.2 s
-      # tier bound on the INTEGRITY gate: harness timeout, no manifest,
-      # exit None; NOT a completion failure — pre-kill router face
-      # 0-unrouted / 1000.00, optimizer pass #1 571.93 s REJECTED
-      # OPTIMIZER_SCORE_NOT_IMPROVED, incumbent restored), while the
-      # completion-only reading PASSES it (11/11 — every router reached
-      # 0 unrouted; incompletes <= Java and violations <= Java on all
-      # ten completers). BOTH faces are named explicitly because the
-      # flip precondition is judged on both: the verdict face must read
-      # 11 green / 0 red AND the completion face 11/11 (the plan's
-      # earlier "expect 11/11" wording was self-contradictory — spec
-      # review PLAN-LEVEL finding 1; this durable record does not
-      # repeat that ambiguity).
-      # Precondition 2 — Sigma Tier A < the 30-min budget: FAIL.
-      # Sigma Tier A (measured, full flow, default settings) =
-      # 2089.5 s = 34.8 min > this step's timeout-minutes: 30
-      # (= 1800 s) — over by 289.5 s = 16.1%. Either failing implies
-      # NO-GO; both fail.
-      # REOPEN BOUND: the other ten Tier A walls sum 289.3 s (4.8 min),
-      # so the flip reopens exactly when bm01's total completes
-      # < 1510.7 s (today: ~276 s routing + 571.9 s rejected optimizer
-      # P1 + P2 to the kill — roughly a 2x per-pass optimizer drop fits
-      # two full passes under the remaining budget). Named lever,
-      # RECORDED NOT ATTEMPTED: deterministic candidate parallelism
-      # (buglog 197; Java DefaultSettings.java:182
-      # optimizer.maxThreads = cores-1 vs Rust's mandated 1-thread
-      # face; the M5-T7 partition pattern).
-      # BOUND-RISE ADJUDICATED: NOT TAKEN. The earlier wording ("the
-      # wall to drop ... or this bound to rise") is retired as policy:
-      # the wall drops, the bound does not rise — bounds are never
-      # raised to fit walls (the same discipline as tiers.yaml
-      # timeouts).
-      # RESIDUALS (short form; the full ledger lives in rust/README's
-      # CI-posture comment): the B/C completion reds are the T8/T9
-      # tuning population (bm05 29v18, interf_u 1v0, 1Bitsy 2v1,
-      # bm04 3v2); kill faces bm01 (A) + bm10/StickHub/LimeSDR (B/C);
-      # the FANOUT-FULL-FLOW GATE GAP — the events fixtures are capture
-      # replays that never exercise the changed fanout arm and the
-      # router-only/ses/det gates run fanout-disabled, so the
-      # buglog-181 fix carries zero byte-invariance coverage until a
-      # fanout-full-flow golden exists (guards: the ci_tripwire pins +
-      # sanctioned faces + the batteries); the Sigma-decomposition
-      # battery print and the quality-r2 NITs are BANKED for the first
-      # harness touch.
-      # PROTOCOL AT THE FLIP (unchanged): drop `--report-only` here,
-      # update BOTH ci_tripwire.rs pins in the SAME commit, add the
-      # events-compare step (java-free, green since M4-T6) with its own
-      # pin, and refresh the posture prose (rust/README status block +
-      # gates comment, design §6 CI paragraph, SEAM posture rows).
-      # THREADS-GATE CI WIRING: still RE-DEFERRED (the M5-T8 decision
-      # (2)), now WITH CAUSE — it lands WITH the flip commit; the
-      # cause of the continued deferral is that the flip preconditions
-      # failed at M6-T3. The in-tree threads-invariance gate (bm06
-      # byte-identical across -mt 1/3/4) stays pinned in-tree only.
-      # WALL WARNING: the battery's wall is the SUM of tier timeouts;
-      # a full-battery push trips this 30-min step bound (the designed
-      # tripwire for the wall), and a harness-KILLED run skips the
-      # detail pass outright (an in-process re-run of a wall-truncated
-      # board would only re-burn the same wall). Release-profile routing
-      # is ~10x faster than debug with byte-identical outcomes (T17b
-      # witnessed: bm01 pass #1 debug 1074s vs release 103s, same score
-      # 466.67 / 78 unrouted / 0 violations); the spawned epic-cli
-      # prefers a release bin (the bug-184 freshness guard), but a
-      # cacheless CI checkout can still adopt a debug sibling. Retiring
-      # the trip needs the wall to drop — the bound does not rise (the
-      # M6-T4 adjudication above).
-      - run: cargo run -q -p epic-harness -- router compare --report-only
+      # M3 T15 router quality scoreboard — THE EXIT FLIP LANDED at M8-T8
+      # (2026-09-29, tree 9fe3a0751; the one-commit protocol executed
+      # exactly as this comment's predecessor recorded it). This step
+      # runs the ROUTER-ONLY profile (the default; fanout-off epic-cli
+      # vs the committed router-only records) in GATE mode — exit is
+      # now a HARD gate. Flip arithmetic (logs/M8-T8/evidence/
+      # 80-gate-laps.log, both laps at the idle box):
+      #   Precondition 1 — the face green at held-face semantics: the
+      #   exact post-flip CI face read 11 green / 0 red (exit 0); the
+      #   full-profile held face held exactly (10 green + the bm01
+      #   chronic cap-scrape red, mode: report, exit 0; in mode: gate
+      #   the same bm01 tier-kill reds it, exit 1 — the full profile is
+      #   NOT this step's face; the deterministic budgets do NOT
+      #   preflight-skip bm01's optimizer).
+      #   Precondition 2 — Sigma vs the 30-min budget: the post-flip
+      #   face measured Sigma 286.5 s (release, local; DNR-18
+      #   reconciled; the CI debug-history datum is 337.7 s, M4-T6) —
+      #   5.3-6.3x headroom under 1800 s. Strip context: the M6-T3
+      #   reopen frame's full-flow Sigma with the T7 lever =
+      #   1340.78 (bm01, ot=4) + 285.7 (ten-fixture strip) =
+      #   1626.5 s < 1800 s — the T7 reopen verdict remains
+      #   arithmetically open (the lever is OPT-IN and not load-bearing
+      #   for this step: the router-only profile never engages the
+      #   optimizer).
+      # History: the flip was honestly held FOUR times (M4 close, M5-T8,
+      # M6-T3, M7) on the intact 1510.7 s reopen bound; T7's
+      # deterministic candidate parallelism (buglog 197, commit
+      # ccd85aa9d) measured bm01 at 1340.78 s < 1510.7 — the reopen
+      # OPENED, and T8's battery + arithmetic executed the flip.
+      # STANDING FACTS (unchanged by the flip): the full-profile
+      # battery's wall is the SUM of tier timeouts — a full-battery
+      # push would trip a 30-min step bound IF this step ever ran the
+      # full profile (it does not; the milestone batteries run in the
+      # task logs). Release-profile routing is ~10x faster than debug
+      # with byte-identical outcomes (T17b witnessed); the spawned
+      # epic-cli prefers a release bin (the bug-184 freshness guard),
+      # but a cacheless CI checkout can still adopt a debug sibling.
+      # The threads-gate CI wiring note: the in-tree threads-invariance
+      # gate (bm06 byte-identical across -mt 1/3/4) stays pinned
+      # in-tree (harness router threads-invariance).
+      - run: cargo run -q -p epic-harness -- router compare
         timeout-minutes: 30
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M8-T8 FLIP COMMIT — the events-compare step joins CI per the
+      # one-commit protocol (java-free, green since M4-T6: 3 fixtures,
+      # 3,520 golden trace rows aligned; pin live in ci_tripwire.rs).
+      - run: cargo run -q -p epic-harness -- events compare
+        timeout-minutes: 10
         env:
           EPIC_SKIP_GRADLE: "1"

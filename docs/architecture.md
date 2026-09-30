@@ -305,9 +305,9 @@ family — congestion map + global planning, PathFinder negotiated
 congestion, push-and-shove insertion, floating-island detection + the
 plane-island clamp, the plane-routing parity audit — all behind
 default-off settings, with byte-invariance at defaults held throughout
-(census 1497/0/17, canaries unrotated); the CI router gate stays in
-`--report-only` after the M6-T3 NO-GO (Tier A 10 green / 1 red,
-Σ 2089.5 s > the compare step's 30-min budget); crafted DSNs stay
+(census 1497/0/17, canaries unrotated); the CI router gate FLIPPED at M8-T8
+(`--report-only` dropped after four holds — the post-flip face is
+11 green / 0 red at Σ 286.5 s, `logs/M8-T8/`); crafted DSNs stay
 comment-free pending bug-186 (M1b-reopen); design §6 M4/M5/M6 exit
 notes, `logs/M6-T10/report-t10.md`;
 commands and parity gates: [rust/README.md](../rust/README.md)).

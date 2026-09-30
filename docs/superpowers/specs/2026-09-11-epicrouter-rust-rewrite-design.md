@@ -228,7 +228,29 @@ timeout anchors are pre-refresh numbering) and the SEAM M6 hold
 posture table. Post-refresh line anchor (verify at the committed
 tree): the compare step's run line is `rust-check.yml:169`, its
 `timeout-minutes: 30` at `:170` — the M5 note's `:139` anchors are
-pre-refresh numbering.)
+pre-refresh numbering.) (M8 UPDATE, T8 — THE FLIP
+LANDED: adjudicated GO on the arithmetic at tree `9fe3a0751`
+(`logs/M8-T8/report-t8.md` §5, evidence `logs/M8-T8/evidence/
+80-gate-laps.log`): the EXACT post-flip CI face (router-only profile,
+mode: gate) read **11 green / 0 red, Σ 286.5 s** (DNR-18-reconciled,
+exit 0; the CI debug-history datum 337.7 s, M4-T6) — 5.3–6.3× headroom
+under the compare step's 1800 s budget; strip context: the M6-T3
+reopen frame's full-flow Σ with the T7 lever (bm01 ot=4 1340.78 s +
+the 285.7 s ten-fixture strip = 1626.5 s) also fits — the T7 reopen
+verdict stays arithmetically open, with the honest caveat that the
+lever is opt-in and NOT load-bearing for the CI step (the router-only
+profile never engages the optimizer). The full-profile held face held
+exactly (10 green + the bm01 chronic cap-scrape at mode: report; the
+same red in mode: gate — the deterministic budgets do NOT
+preflight-skip bm01's optimizer). The one-commit protocol executed:
+`--report-only` dropped, both `ci_tripwire.rs` pin faces updated (the
+compare-step pin now pins the exact GATE argv, the events step joins
+with its own pin asserts in the same test fn — census unchanged, no
+new test count), the events-compare step added with a 10-minute wall,
+and the posture prose refreshed (this paragraph, the rust/README
+status block + gates comment, the SEAM posture row,
+docs/architecture.md). The four prior holds (M4 close, M5-T8, M6-T3,
+M7) stand as history — the fifth moment was the flip.)
 
 M4 exit note (T13, adjudicated 2026-09-24 at tree `6a0dbd00b`):
 **M4_EXIT_WITH_DEVIATIONS**, adjudicated on this row's own faces.
