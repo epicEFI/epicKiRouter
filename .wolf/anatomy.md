@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T21:19:58.855Z
-> Files: 612 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-09-30T21:31:12.738Z
+> Files: 613 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -381,7 +381,7 @@
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
 - `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
-- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~18549 tok)
+- `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~19183 tok)
 
 ## docs/superpowers/research/
 
@@ -391,7 +391,7 @@
 
 ## docs/superpowers/specs/
 
-- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~21800 tok)
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~22700 tok)
 
 ## examples/tutorial_board/
 
@@ -731,7 +731,8 @@
 
 ## logs/M9-ADJUDICATION/
 
-- `adjudication-prompt.md` — M9 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7/M8 pattern) (~2450 tok)
+- `adjudication-prompt.md` — M9 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7/M8 pattern) (~2592 tok)
+- `adjudication-report.md` — M9 MILESTONE ADJUDICATION REPORT (~5222 tok)
 
 ## logs/M9-T7/
 
@@ -752,4 +753,4 @@
 
 ## rust/
 
-- `README.md` — Project documentation (~5904 tok)
+- `README.md` — Project documentation (~5990 tok)

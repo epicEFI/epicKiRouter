@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-09-30T21:19:58.855Z",
-    "fileCount": 612,
+    "lastScanned": "2026-09-30T21:31:12.738Z",
+    "fileCount": 613,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "78b8f20afcf57ebf31c3b8a399d1f5e4f419cc719cab56a7c667c2ff6cff0158",
-    "storeUpdatedAt": "2026-09-30T21:19:58.867Z",
-    "rootHash": "d76f82dcbb3312f1"
+    "renderedHash": "184164d429e3c0d38b488c18432b9d26de398462e80e112b63c3620727c7ce2c",
+    "storeUpdatedAt": "2026-09-30T21:31:12.748Z",
+    "rootHash": "db93abccc22d90b3"
   },
   "files": {
     ".dockerignore": {
@@ -2811,11 +2811,11 @@
     },
     "docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md": {
       "description": "EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan",
-      "tokens": 18549,
-      "hash": "3f8ae8b998c8dae6",
-      "size": 74933,
-      "mtimeMs": 1790803198747.2205,
-      "updatedAt": "2026-09-30T21:19:58.855Z",
+      "tokens": 19183,
+      "hash": "5d09985920f8d90a",
+      "size": 77486,
+      "mtimeMs": 1790803872643.301,
+      "updatedAt": "2026-09-30T21:31:12.737Z",
       "source": "hook"
     },
     "docs/superpowers/research/2026-09-11-autorouter-state-of-the-art.md": {
@@ -2847,11 +2847,11 @@
     },
     "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md": {
       "description": "EpicRouter: Rust Rewrite Design",
-      "tokens": 21800,
-      "hash": "ebbdc4c0a0881524",
-      "size": 88302,
-      "mtimeMs": 1790801253031.5635,
-      "updatedAt": "2026-09-30T20:47:33.132Z",
+      "tokens": 22700,
+      "hash": "cc6f1c97d725ea91",
+      "size": 91959,
+      "mtimeMs": 1790803835079.194,
+      "updatedAt": "2026-09-30T21:30:35.176Z",
       "source": "hook"
     },
     "docs/translations.md": {
@@ -5457,11 +5457,11 @@
     },
     "rust/README.md": {
       "description": "Project documentation",
-      "tokens": 5904,
-      "hash": "8be7785d75e7dad5",
-      "size": 23845,
-      "mtimeMs": 1790801287473.6714,
-      "updatedAt": "2026-09-30T20:48:07.572Z",
+      "tokens": 5990,
+      "hash": "757becc48fd77769",
+      "size": 24193,
+      "mtimeMs": 1790803837221.2002,
+      "updatedAt": "2026-09-30T21:30:37.316Z",
       "source": "hook"
     },
     "logs/M9-T8/spec-review-prompt-t8.md": {
@@ -5502,11 +5502,11 @@
     },
     "logs/M9-ADJUDICATION/adjudication-prompt.md": {
       "description": "M9 MILESTONE ADJUDICATION DISPATCH (the M4-T17d/M5/M6/M7/M8 pattern)",
-      "tokens": 2450,
-      "hash": "af2869c51aee70fd",
-      "size": 9918,
-      "mtimeMs": 1790802415675.6094,
-      "updatedAt": "2026-09-30T21:06:55.783Z",
+      "tokens": 2592,
+      "hash": "3dd545c7a17bf7f9",
+      "size": 10483,
+      "mtimeMs": 1790803240240.3572,
+      "updatedAt": "2026-09-30T21:20:40.367Z",
       "source": "hook"
     },
     "logs/M9-T8/quality-review-t8-1.md": {
@@ -5516,6 +5516,15 @@
       "size": 8573,
       "mtimeMs": 1790802990004.5312,
       "updatedAt": "2026-09-30T21:16:30.134Z",
+      "source": "hook"
+    },
+    "logs/M9-ADJUDICATION/adjudication-report.md": {
+      "description": "M9 MILESTONE ADJUDICATION REPORT",
+      "tokens": 5222,
+      "hash": "a8fb779e12e8a004",
+      "size": 21091,
+      "mtimeMs": 1790803783323.0486,
+      "updatedAt": "2026-09-30T21:29:43.419Z",
       "source": "hook"
     }
   },
