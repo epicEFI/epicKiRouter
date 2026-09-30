@@ -237,6 +237,38 @@ fn congestion_engaged_yields_some_and_default_yields_none() {
         None,
         "the default-settings route leaves the heatmap None"
     );
+
+    // Fix-round 2 (quality Q2, mutant Q-M4): the per-LAST-route RESET
+    // face on ONE session — route ON via the pub CLI layer
+    // (`CliLayer.congestion_global`, settings.rs:107 — same resolved
+    // flag the SessionLayer arm gates), then route the SAME session
+    // with `CliLayer::default()` and require the heatmap GONE. Under
+    // the sticky mutant (`=` -> `|=` at session.rs:580) the stale
+    // heatmap survives the second route and this assert fails.
+    let bytes = read_fixture(BM08);
+    let mut one_session = match Session::load_dsn(&bytes, SessionLayer::default()) {
+        Ok(session) => session,
+        Err(error) => panic!("bm08 loads: {error:?}"),
+    };
+    let cli_on = CliLayer {
+        congestion_global: Some(true),
+        ..CliLayer::default()
+    };
+    one_session.route(&cli_on, &mut SilentSink);
+    assert!(
+        one_session
+            .snapshot_with_overlays()
+            .overlays
+            .congestion
+            .is_some(),
+        "the CLI-ON route engages the heatmap"
+    );
+    one_session.route(&CliLayer::default(), &mut SilentSink);
+    assert_eq!(
+        one_session.snapshot_with_overlays().overlays.congestion,
+        None,
+        "the per-last-route reset: a following default-CLI route drops the heatmap"
+    );
 }
 
 // --- PIN 3b — the F1 fix-round face: PostRoute on REAL content -------

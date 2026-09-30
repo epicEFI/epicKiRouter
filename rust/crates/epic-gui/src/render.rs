@@ -308,7 +308,7 @@ const RATSNEST_DASH_ON_PX: f64 = 8.0;
 /// derivation note is the module doc's family table).
 const RATSNEST_DASH_OFF_PX: f64 = 6.0;
 /// Ratsnest stroke width px (Java's own drawWidth,
-/// `NetIncompletesGraphics.java:30`).
+/// `NetIncompletesGraphics.java:34` (second instance `:70`, third `:85`).
 const RATSNEST_WIDTH_PX: f32 = 1.0;
 /// Violation marker radius: base px (derivation: the module doc's
 /// family table).
