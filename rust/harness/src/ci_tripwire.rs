@@ -332,5 +332,75 @@ jobs:
             Some(10),
             "the events step carries its own 10-minute wall bound: {events_block}"
         );
+
+        // THE DESKTOP-CLIPPY STEP (M9-T6): the default-off `desktop`
+        // feature's ONLY CI face — exact argv + unique existence +
+        // its own 30-minute wall (the battery-precedent bound; the
+        // wgpu tree compiles on a 2-core runner).
+        let desktop_line =
+            find_step_run_line(&blocks, "--features desktop").unwrap_or_else(|| {
+                let hits = matching_run_lines(&blocks, "--features desktop");
+                panic!(
+                    "the desktop-clippy run line must exist UNIQUELY — {} matching run \
+                     line(s) (zero = the step is gone or its run line was folded/reshaped; multiple = a duplicated step is \
+                     the usual cause): {hits:?}",
+                    hits.len()
+                );
+            });
+        let desktop_argv = desktop_line
+            .trim_start()
+            .strip_prefix("- ")
+            .unwrap_or(desktop_line.trim_start());
+        assert_eq!(
+            desktop_argv,
+            "run: cargo clippy -p epic-gui --all-targets --features desktop -- -D warnings",
+            "the desktop-clippy step must ride its exact argv (a gate-shape change \
+             is a conscious act that must update this pin): {desktop_line}"
+        );
+        let desktop_block = blocks
+            .iter()
+            .find(|b| b.lines().any(|l| l == desktop_line))
+            .expect("the desktop-clippy step's own block");
+        assert_eq!(
+            step_timeout_minutes(desktop_block),
+            Some(30),
+            "the desktop-clippy step carries its own 30-minute wall (the wgpu tree \
+             compiles on a 2-core runner): {desktop_block}"
+        );
+
+        // THE THREADS-GATE STEP (M9-T6 — the M5-T8 debt lands): the
+        // in-tree threads-invariance harness gate joins CI, exact
+        // argv + unique existence + its own 30-minute wall (the
+        // determinism-step precedent).
+        let threads_line =
+            find_step_run_line(&blocks, "router threads-invariance").unwrap_or_else(|| {
+                let hits = matching_run_lines(&blocks, "router threads-invariance");
+                panic!(
+                    "the threads-invariance run line must exist UNIQUELY — {} matching run \
+                     line(s) (zero = the step is gone or its run line was folded/reshaped; multiple = a duplicated step is \
+                     the usual cause): {hits:?}",
+                    hits.len()
+                );
+            });
+        let threads_argv = threads_line
+            .trim_start()
+            .strip_prefix("- ")
+            .unwrap_or(threads_line.trim_start());
+        assert_eq!(
+            threads_argv,
+            "run: cargo run -q -p epic-harness --release -- router threads-invariance",
+            "the threads-gate step must ride its exact argv (the M5-T8 promise, \
+             landed; a gate-shape change must update this pin): {threads_line}"
+        );
+        let threads_block = blocks
+            .iter()
+            .find(|b| b.lines().any(|l| l == threads_line))
+            .expect("the threads-gate step's own block");
+        assert_eq!(
+            step_timeout_minutes(threads_block),
+            Some(30),
+            "the threads-gate step carries its own 30-minute wall (the determinism- \
+             step precedent): {threads_block}"
+        );
     }
 }

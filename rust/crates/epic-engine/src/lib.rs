@@ -38,6 +38,14 @@ pub mod session;
 pub mod settings;
 pub mod snapshot;
 
+/// The M9-T6 host re-export: the desktop shell's worker needs the
+/// [`DriverSink`] trait to type its inner no-op sink, and epic-gui's
+/// LIB must stay epic-router-free (the dev-dependency law — the leaf
+/// crate's consumers never grow the router dep). One additive line:
+/// `epic-router` is already an epic-engine dependency, so this moves
+/// NO code and changes NO behavior.
+pub use epic_router::pipeline::event_sink::DriverSink;
+
 #[cfg(test)]
 mod tests {
     /// The crate scaffolded in M0; the settings core landed in M9-T1.

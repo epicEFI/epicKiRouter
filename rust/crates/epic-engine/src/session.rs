@@ -1011,4 +1011,21 @@ mod tests {
         assert_eq!(java_two_decimal(-0.0_f32), 0.0);
         assert_eq!(java_two_decimal(812.5_f32), 812.5);
     }
+
+    /// The AM2-asked, T6-landed compile-time pin: `Session` is
+    /// `Send + Sync` — the worker-thread face is now REAL (the
+    /// desktop shell's worker thread owns and drives a `Session`),
+    /// so the guarantee is pinned, not presumed. `Board` is pinned
+    /// `Send + Sync` (M8-T7's `t7_board_is_send_and_sync`); this pin
+    /// covers the WHOLE session (board + search tree + settings
+    /// layers + the `Arc<AtomicBool>` stop flag).
+    #[test]
+    fn session_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Session>();
+        // The worker ships the cancel flag to the GUI thread, so the
+        // flag handle's own Send face is load-bearing too.
+        fn assert_send<T: Send>() {}
+        assert_send::<Arc<AtomicBool>>();
+    }
 }

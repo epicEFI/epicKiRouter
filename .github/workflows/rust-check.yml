@@ -23,6 +23,15 @@ jobs:
           workspaces: rust
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # M9-T6: the desktop shell is DEFAULT-OFF (`desktop` feature) —
+      # this step is its ONLY CI face: a compile gate (the wgpu tree
+      # compiles on the bare runner; eframe dlopens X11/wayland at
+      # runtime, no link-time dev headers). It never RUNS the shell —
+      # the smokes are dev-box evidence (DISPLAY=:1). 30 min matches
+      # the battery-precedent wall (a cold wgpu tree on a 2-core
+      # runner); the argv is tripwire-pinned in ci_tripwire.rs.
+      - run: cargo clippy -p epic-gui --all-targets --features desktop -- -D warnings
+        timeout-minutes: 30
       # Suite BARE (T17b): the buglog-175 watchdog bounds the
       # `detail_pass_restores_...` sentinel (its world-2 route fires a
       # 10s wall deadline; bm01's detail pass alone is >50 min in this
@@ -131,6 +140,16 @@ jobs:
       # gate (bm06 byte-identical across -mt 1/3/4) stays pinned
       # in-tree (harness router threads-invariance).
       - run: cargo run -q -p epic-harness -- router compare
+        timeout-minutes: 30
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M9-T6 — THE THREADS-GATE DEBT LANDS (the M5-T8 promise,
+      # re-owned at M8-T8 "to the next workflow-touching act"): the
+      # in-tree threads-invariance gate (bm06 SES+manifest
+      # byte-identical across -mt 1/3/4; green since M5-T7) joins CI.
+      # 30 min matches the determinism-step precedent. The argv is
+      # tripwire-pinned in ci_tripwire.rs (the M8-T8 pattern).
+      - run: cargo run -q -p epic-harness --release -- router threads-invariance
         timeout-minutes: 30
         env:
           EPIC_SKIP_GRADLE: "1"

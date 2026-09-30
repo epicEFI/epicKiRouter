@@ -18,7 +18,16 @@
 //!   goldens in `harness/fixtures/gui-render/golden/`).
 
 pub mod render;
+pub mod shell;
 pub mod view;
+
+// The desktop shell (M9-T6): the thin eframe host — worker thread,
+// channels, panels, canvas. DEFAULT-OFF: the default workspace build
+// compiles none of this (no wgpu tree); `--features desktop` gates
+// the whole module (the census-pinnability law's other half — every
+// pure face the pins need lives UNGATED in [`shell`]).
+#[cfg(feature = "desktop")]
+pub mod desktop;
 
 #[cfg(test)]
 mod tests {

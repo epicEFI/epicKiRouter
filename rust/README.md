@@ -140,7 +140,17 @@ Port ledger: `crates/epic-router/SEAM.md`.
   consumer yet)
 - `crates/epic-cli` — `epicrouter` CLI (M3 done: headless `route`,
   manifest + SES + exit-code semantics)
-- `crates/epic-gui` — egui frontend (M9)
+- `crates/epic-gui` — the headless view core (M9-T4/T5: the pure
+  `ViewModel -> RenderList` projection + committed goldens, always
+  compiled) + the desktop shell (M9-T6: eframe 0.35 + rfd + png
+  behind the DEFAULT-OFF `desktop` feature — a thin host: worker
+  thread over the engine `Session`, canvas, panels, dialogs; NO
+  geometry logic). CI posture: compile-gated ONLY
+  (`cargo clippy -p epic-gui --all-targets --features desktop --
+  -D warnings`, tripwire-pinned) — the default workspace build stays
+  egui/wgpu-free, and the shell smokes are dev-box evidence
+  (`--smoke` / `--cancel-smoke` on `DISPLAY=:1`, PNG + logs), never
+  gates
 - `harness` — parity + benchmark harness against the Java oracle
 
 ## Commands
@@ -353,8 +363,12 @@ cargo run -q -p epic-harness --release -- router compare --profile full
 # — census unchanged), the events-compare step added with a 10-minute
 # wall, and the posture prose refreshed (this file's status block and
 # this comment, the design doc §6 note's CI paragraph, the SEAM
-# posture row, docs/architecture.md). The threads-gate CI wiring stays
-# in-tree-only (harness router threads-invariance).
+# posture row, docs/architecture.md). The threads-gate CI wiring
+# LANDED at M9-T6 (2026-09-30): `cargo run -q -p epic-harness
+# --release -- router threads-invariance` joins the router steps with
+# its own 30-minute wall, and the default-off `desktop` shell gained
+# its compile-gate step (desktop-clippy, 30 min) — both argv
+# tripwire-pinned in ci_tripwire.rs.
 cargo run -q -p epic-harness -- router compare
 # Determinism self-gate: one DSN, two runs, byte-identical SES +
 # manifest (canaries at the M5-T3 fix: ses dc271114… / manifest
