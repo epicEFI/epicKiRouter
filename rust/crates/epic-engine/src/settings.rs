@@ -2098,6 +2098,39 @@ pub fn apply_pairs_activation(
 /// surface) have NO session twin — the layer is constructed
 /// programmatically, never parsed.
 ///
+/// **The M9-T2 field-set re-audit (T1 spec-review F6, re-decided
+/// consciously).** ADDED this task — the route-time faces a
+/// GUI-style session host can meaningfully override, mirroring the
+/// CLI merge arms one-for-one: `vias_allowed`, `via_costs`,
+/// `plane_via_costs`, `start_ripup_costs` (the scoring-box trio +
+/// the via gate — the same three slots the DSN layer speaks), plus
+/// `automatic_neckdown`, `trace_pull_tight_accuracy`, `strict_drc`,
+/// `improvement_threshold`, `fanout_enabled`,
+/// `optimizer_max_passes`, `optimizer_max_items`. STILL EXCLUDED,
+/// each with its reason:
+///
+/// * `copper_to_edge_clearance_um` — LOAD-time only: the session
+///   override cannot reach the parse-time outline promotion (no
+///   post-load re-derivation exists; `DefaultSettings` seeds the
+///   only value the frozen tree observes).
+/// * the scoring-VERSION fields (`router_scoring_version`,
+///   `optimizer_scoring_version`) — formula identity, pinned by the
+///   committed score goldens; not a route-time knob.
+/// * the optimizer fine-tuning family (`optimizer_algorithm`,
+///   `optimizer_enable_preflight_guards`,
+///   `optimizer_max_consecutive_failures{,_pass1}`,
+///   `optimizer_additional_ripup_cost_factor_at_start`,
+///   `optimizer_trace_ripup_cost_factor`,
+///   `optimizer_max_autoroute_passes`, `optimizer_timeout_string`) —
+///   engine-internal parity-constant knobs; no Java-dialog
+///   counterpart in the ported surface.
+/// * `optimizer_max_threads` — parsed-but-unused surface parity.
+/// * the fanout FINE knobs (`fanout_max_passes`,
+///   `fanout_max_items`, `fanout_max_milliseconds_per_pin`,
+///   `fanout_ripup_allowed`, the escape/via-diameter/pin-sorting/
+///   fallback/timeout row) — stage-internal tuning; only the stage
+///   GATE (`fanout_enabled`, added above) is a route-time face.
+///
 /// The CLI does NOT use this layer anywhere (zero call sites; the
 /// byte-invariance proof lap pins the CLI path unchanged).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -2153,6 +2186,35 @@ pub struct SessionLayer {
     /// CLI twin: [`CliLayer::gloss_teardrops`] — the M8-T6 gloss
     /// teardrops flag.
     pub gloss_teardrops: Option<bool>,
+    /// CLI twin: [`CliLayer::vias_allowed`] — `router.vias_allowed`
+    /// (the M9-T2 re-audit additions start here: the route-time
+    /// faces added above the CLI layer).
+    pub vias_allowed: Option<bool>,
+    /// CLI twin: [`CliLayer::via_costs`] — `router.via_costs` (the
+    /// merged scoring box's slot, like the CLI merge arm).
+    pub via_costs: Option<i32>,
+    /// CLI twin: [`CliLayer::plane_via_costs`] —
+    /// `router.plane_via_costs` (the scoring box).
+    pub plane_via_costs: Option<i32>,
+    /// CLI twin: [`CliLayer::start_ripup_costs`] —
+    /// `router.start_ripup_costs` (the scoring box).
+    pub start_ripup_costs: Option<i32>,
+    /// CLI twin: [`CliLayer::automatic_neckdown`].
+    pub automatic_neckdown: Option<bool>,
+    /// CLI twin: [`CliLayer::trace_pull_tight_accuracy`].
+    pub trace_pull_tight_accuracy: Option<i32>,
+    /// CLI twin: [`CliLayer::strict_drc`].
+    pub strict_drc: Option<bool>,
+    /// CLI twin: [`CliLayer::improvement_threshold`] — the optimizer
+    /// pass-stop threshold (NO session twin for the `-oit`
+    /// deprecation warning: the layer is never parsed).
+    pub improvement_threshold: Option<f32>,
+    /// CLI twin: [`CliLayer::fanout_enabled`] — the fanout stage gate.
+    pub fanout_enabled: Option<bool>,
+    /// CLI twin: [`CliLayer::optimizer_max_passes`].
+    pub optimizer_max_passes: Option<i32>,
+    /// CLI twin: [`CliLayer::optimizer_max_items`].
+    pub optimizer_max_items: Option<i32>,
 }
 
 /// The session-layer merge — the GUI slot applied ABOVE the CLI layer
@@ -2216,6 +2278,40 @@ pub fn merge_session(merged: &mut MergedSettings, session: &SessionLayer) {
     }
     if let Some(v) = session.gloss_teardrops {
         merged.gloss_teardrops = Some(v);
+    }
+    // --- the M9-T2 re-audit additions (route-time faces) ---
+    if let Some(v) = session.vias_allowed {
+        merged.vias_allowed = Some(v);
+    }
+    if let Some(v) = session.via_costs {
+        merged.scoring.via_costs = Some(v);
+    }
+    if let Some(v) = session.plane_via_costs {
+        merged.scoring.plane_via_costs = Some(v);
+    }
+    if let Some(v) = session.start_ripup_costs {
+        merged.scoring.start_ripup_costs = Some(v);
+    }
+    if let Some(v) = session.automatic_neckdown {
+        merged.automatic_neckdown = Some(v);
+    }
+    if let Some(v) = session.trace_pull_tight_accuracy {
+        merged.trace_pull_tight_accuracy = Some(v);
+    }
+    if let Some(v) = session.strict_drc {
+        merged.strict_drc = Some(v);
+    }
+    if let Some(v) = session.improvement_threshold {
+        merged.improvement_threshold = Some(v);
+    }
+    if let Some(v) = session.fanout_enabled {
+        merged.fanout_enabled = Some(v);
+    }
+    if let Some(v) = session.optimizer_max_passes {
+        merged.optimizer_max_passes = Some(v);
+    }
+    if let Some(v) = session.optimizer_max_items {
+        merged.optimizer_max_items = Some(v);
     }
 }
 
@@ -4372,7 +4468,9 @@ mod tests {
     /// PIN SL-2: every `Some` session field WINS over the CLI-layer
     /// value on the same slot (the session layer merges ABOVE the CLI
     /// layer), across the whole field set — gates, bounds, threads,
-    /// and every router.* tri-state family member.
+    /// every router.* tri-state family member, AND the M9-T2
+    /// re-audit additions (the scoring trio, strict_drc,
+    /// improvement_threshold, fanout_enabled, the optimizer bounds).
     #[test]
     fn session_layer_some_fields_win_over_cli() {
         let cli = CliLayer {
@@ -4385,6 +4483,17 @@ mod tests {
             plane_island_clamp: Some(false),
             congestion_global: Some(false),
             congestion_global_pattern: Some(false),
+            vias_allowed: Some(false),
+            via_costs: Some(11),
+            plane_via_costs: Some(12),
+            start_ripup_costs: Some(13),
+            automatic_neckdown: Some(false),
+            trace_pull_tight_accuracy: Some(111),
+            strict_drc: Some(false),
+            improvement_threshold: Some(1.5),
+            fanout_enabled: Some(false),
+            optimizer_max_passes: Some(10),
+            optimizer_max_items: Some(2000),
             congestion_global_pathfinder: Some(false),
             push_shove: Some(false),
             tuning: Some(false),
@@ -4419,6 +4528,17 @@ mod tests {
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
             gloss_teardrops: Some(true),
+            vias_allowed: Some(true),
+            via_costs: Some(21),
+            plane_via_costs: Some(22),
+            start_ripup_costs: Some(23),
+            automatic_neckdown: Some(true),
+            trace_pull_tight_accuracy: Some(222),
+            strict_drc: Some(true),
+            improvement_threshold: Some(9.5),
+            fanout_enabled: Some(true),
+            optimizer_max_passes: Some(20),
+            optimizer_max_items: Some(3000),
         };
 
         merge_session(&mut merged, &session);
@@ -4447,6 +4567,20 @@ mod tests {
         assert_eq!(merged.gloss_flow, Some(true));
         assert_eq!(merged.gloss_via_place, Some(true));
         assert_eq!(merged.gloss_teardrops, Some(true));
+        // The M9-T2 re-audit additions: session wins on every new
+        // slot, including the scoring-box trio (the same slots the
+        // CLI merge arm targets).
+        assert_eq!(merged.vias_allowed, Some(true));
+        assert_eq!(merged.scoring.via_costs, Some(21));
+        assert_eq!(merged.scoring.plane_via_costs, Some(22));
+        assert_eq!(merged.scoring.start_ripup_costs, Some(23));
+        assert_eq!(merged.automatic_neckdown, Some(true));
+        assert_eq!(merged.trace_pull_tight_accuracy, Some(222));
+        assert_eq!(merged.strict_drc, Some(true));
+        assert_eq!(merged.improvement_threshold, Some(9.5));
+        assert_eq!(merged.fanout_enabled, Some(true));
+        assert_eq!(merged.optimizer_max_passes, Some(20));
+        assert_eq!(merged.optimizer_max_items, Some(3000));
     }
 
     /// PIN SL-3: `None` session fields NEVER overwrite — every CLI

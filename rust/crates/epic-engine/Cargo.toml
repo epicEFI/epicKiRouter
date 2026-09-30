@@ -10,8 +10,12 @@ workspace = true
 
 [dependencies]
 epic-board = { path = "../epic-board" }
+epic-drc = { path = "../epic-drc" }
 epic-dsn = { path = "../epic-dsn" }
+epic-geometry = { path = "../epic-geometry" }
 epic-router = { path = "../epic-router" }
 
 [dev-dependencies]
-epic-geometry = { path = "../epic-geometry" }
+# The relocation pins in export.rs exercise the rational-corner view
+# with big rationals (the old epic-cli route.rs test module's dep).
+num-bigint = "0.4"

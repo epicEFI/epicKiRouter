@@ -14,7 +14,19 @@
 //!   the tuning/meander/pairs activations), and the M9-T1
 //!   `SessionLayer` slot (`merge_session`, the GUI tri-state layer
 //!   merged above the CLI layer — the CLI never constructs it).
+//! - [`session`]: the M9-T2 headless workflow (`Session::load_dsn` ->
+//!   `route` -> `request_cancel` -> `export_ses` -> `statistics`),
+//!   driving the EXACT `run_route` sequence with the moved faces; the
+//!   acceptance proof is the harness `session_parity_pin.rs`
+//!   byte-identity. Also carries the relocated
+//!   `apply_copper_to_edge_clearance_override` (the load-time outline
+//!   promotion both host flows share).
+//! - [`export`]: the board -> SES projection + the design-name face,
+//!   relocated from epic-cli route.rs so BOTH paths call the same
+//!   projection/writer code.
 
+pub mod export;
+pub mod session;
 pub mod settings;
 
 #[cfg(test)]

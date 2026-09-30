@@ -203,9 +203,11 @@ name = "epic-engine"
 version = "0.1.0"
 dependencies = [
  "epic-board",
+ "epic-drc",
  "epic-dsn",
  "epic-geometry",
  "epic-router",
+ "num-bigint",
 ]
 
 [[package]]

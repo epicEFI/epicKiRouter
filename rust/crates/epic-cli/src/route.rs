@@ -30,17 +30,11 @@
 //!    default).
 
 use epic_board::board::Board;
-use epic_board::items::{FixedState, ItemData};
 use epic_board::tree_manager::SearchTreeManager;
 use epic_drc::clearance::all_clearance_violation_depths;
 use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
-use epic_dsn::ses_board::{ItemIr, SesBoard};
-use epic_dsn::sink::{FixedStateIr, TraceIr, ViaIr};
-use epic_dsn::state::Unit as DsnUnit;
-use epic_geometry::int_point::IntPoint;
-use epic_geometry::point::Point;
-use epic_geometry::rounding::java_round;
+use epic_dsn::ses_board::SesBoard;
 use epic_router::pipeline::batch::{StopFace, StopReason};
 use epic_router::pipeline::board_statistics::{BoardStatistics, RouterSettingsScoring};
 use epic_router::pipeline::event_sink::DriverSink;
@@ -49,10 +43,12 @@ use epic_router::pipeline::pass_runner::RouterCounters;
 use serde::Serialize;
 use sha2::Digest;
 
+use epic_engine::export::{filename_without_extension, project_routed_items};
+use epic_engine::session::apply_copper_to_edge_clearance_override;
 use epic_engine::settings::{
-    DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM, DsnLayer, MergedSettings, ParsedRouteArgs,
-    ResolvedRouteSettings, apply_board_specific_optimizations, apply_meander_activation,
-    apply_pairs_activation, apply_tuning_activation, build_batch_settings, merge,
+    DsnLayer, MergedSettings, ParsedRouteArgs, ResolvedRouteSettings,
+    apply_board_specific_optimizations, apply_meander_activation, apply_pairs_activation,
+    apply_tuning_activation, build_batch_settings, merge,
 };
 
 // ---------------------------------------------------------------------------
@@ -700,105 +696,6 @@ pub fn render_manifest(
 // the board -> SES projection
 // ---------------------------------------------------------------------------
 
-/// The rounded corner view of a board polyline corner (`corner_to_int`,
-/// `io.specctra.scope.Wiring`): `Point::Int` passes through; a rational
-/// corner rounds each axis of its float approximation with `Math.round`
-/// semantics.
-fn corner_to_int(point: Point) -> IntPoint {
-    match point {
-        Point::Int(p) => p,
-        Point::Rational(r) => {
-            let float = r.to_float();
-            IntPoint::new(java_round(float.x) as i32, java_round(float.y) as i32)
-        }
-    }
-}
-
-/// The fixed-state transfer (`Item.fixedState` — the ladders are
-/// 1:1 across the crates).
-fn fixed_to_ir(fixed: FixedState) -> FixedStateIr {
-    match fixed {
-        FixedState::Unfixed => FixedStateIr::Unfixed,
-        FixedState::ShoveFixed => FixedStateIr::ShoveFixed,
-        FixedState::UserFixed => FixedStateIr::UserFixed,
-        FixedState::SystemFixed => FixedStateIr::SystemFixed,
-    }
-}
-
-/// Projects the LIVE board's routed items (traces + vias, ascending id)
-/// into the parse SES board. Deliberately NOT the
-/// `BoardSink::insert_trace` face: those apply parse drop guards and
-/// fresh ids; the projection preserves the LIVE item's id verbatim
-/// (`SesBoard::push_routed_item`).
-///
-/// Buglog 210 (M7-T5, Java-exactness): the emitted session's wiring is
-/// the LIVE board's wiring — Java's `SesWriter.writeNet` walks
-/// `board.getConnectableItems(netNumber)` and emits ONE `(wire` per
-/// on-board `PolylineTrace` (instrumented: the jar's session on a
-/// pre-routed input carries one wire per net). The parse board retains
-/// the input `(wiring` items alongside the projection, so a pre-routed
-/// input would emit the pre-route copy NEXT TO the live copy (the
-/// duplication the T4 capture showed). The live board's trace/via
-/// population is the complete truth — survivors keep their parse ids,
-/// ripped-up items are gone — so the parse routed items are drained
-/// before the projection. Pins/keepouts/conduction areas are parse
-/// items the projection never supplies and stay.
-fn project_routed_items(board: &Board, ses: &mut SesBoard) {
-    ses.items
-        .retain(|item| !matches!(item, ItemIr::Trace { .. } | ItemIr::Via { .. }));
-    for entry in board.iter_ascending() {
-        if !entry.on_the_board {
-            // Java's item walks see live items only.
-            continue;
-        }
-        let id = i32::try_from(entry.id.get()).unwrap_or(0);
-        match &entry.data {
-            ItemData::Trace {
-                layer,
-                half_width,
-                lines,
-            } => {
-                let corners: Vec<IntPoint> = (0..i32::try_from(lines.corner_count()).unwrap_or(0))
-                    .filter_map(|index| lines.corner(index))
-                    .map(corner_to_int)
-                    .collect();
-                ses.push_routed_item(ItemIr::Trace {
-                    id,
-                    trace: TraceIr {
-                        layer_no: *layer,
-                        half_width: *half_width,
-                        corners,
-                        polyline: lines.clone(),
-                        nets: entry.nets.clone(),
-                        clearance_class: entry.clearance_class,
-                        fixed: fixed_to_ir(entry.fixed),
-                    },
-                });
-            }
-            ItemData::Via {
-                center,
-                padstack_no,
-                attach_smd_allowed,
-            } => {
-                ses.push_routed_item(ItemIr::Via {
-                    id,
-                    via: ViaIr {
-                        padstack_no: *padstack_no,
-                        location: *center,
-                        nets: entry.nets.clone(),
-                        clearance_class: entry.clearance_class,
-                        fixed: fixed_to_ir(entry.fixed),
-                        attach_smd_allowed: *attach_smd_allowed,
-                    },
-                });
-            }
-            // Pins, keepouts, conduction areas and outlines are parse
-            // items — already in `ses.items` from the read.
-            _ => {}
-        }
-    }
-}
-
 /// The SHA-256 hex of the input bytes (lowercase, the `sha2` default).
 fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = sha2::Sha256::new();
@@ -936,169 +833,9 @@ pub fn length_needs(manager: &SearchTreeManager, board: &mut Board) -> Vec<Manif
     rows
 }
 
-/// Java `BoardFileDetails.getFilenameWithoutExtension`
-/// (`BoardFileDetails.java:205-210`): the name up to the LAST dot when
-/// it contains one, else unchanged. This — not the raw file name — is
-/// the job name Java hands `SesWriter.write` (`RoutingJob.java:519`), so
-/// the session scope's design face carries NO `.dsn` (the writer's
-/// `.replace(".dsn", ".ses")` is a no-op on it).
-fn filename_without_extension(filename: &str) -> &str {
-    match filename.rfind('.') {
-        Some(dot) => &filename[..dot],
-        None => filename,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // the flow
 // ---------------------------------------------------------------------------
-
-/// Java `HeadlessBoardManager.BOARD_EDGE_CLEARANCE_CLASS_NAME` (`:88`).
-const BOARD_EDGE_CLEARANCE_CLASS_NAME: &str = "board_edge";
-
-/// Java `HeadlessBoardManager.applyCopperToEdgeClearanceOverride`
-/// (`HeadlessBoardManager.java:470-556`, ported body `:471-548`; the
-/// trailing `FRLogger.debug` success log at `:550-555` is deliberately
-/// omitted — the port has no debug-logging surface here). The load-time
-/// settings
-/// behavior the port lacked ENTIRELY — the buglog-189 root cause
-/// (M5-T2): on every manager DSN load whose outline sits at the
-/// fallback default-area clearance class, the CLI promotes the outline
-/// item to the appended `board_edge` class at 2500 DBU, so the class-1
-/// autoroute tree's outline leaf grows
-/// `halfWidth + (2500 − compValue(1,0))` = 1600 instead of 1100 and
-/// the first fanout search's start-room completion lands 500 DBU
-/// further out (bm06: north edge −911636 vs the port's −911136).
-///
-/// Placement: Java applies this from the MANAGER load flow at two call
-/// sites — `:346` (`createBoard`, fired by the DSN parser at
-/// `Structure.java:1268`, when only the default tree exists) and `:750`
-/// (`applyRouterSettingsForLoadedBoard`, the post-load face). The
-/// skip-gate (`:509-511`) makes the second application a no-op on the
-/// default-value path (idempotent on the non-default path: the append
-/// dedups, the set rewrites the same values, the remove/insert is
-/// stable), so ONE parse-time call reproduces the CLI's final state —
-/// and Java's EFFECTIVE ordering puts this state BEFORE everything the
-/// Rust flow does next: the wiring scope's `normalizeAllTraces`
-/// (`Wiring.java:347`), `applyBoardSpecificOptimizations` (`:749`),
-/// and the deferred pre-existing-violation seed (`:788-793`), whose
-/// background DRC reads the promoted board. The port therefore fires
-/// the call right after the default-tree fill, BEFORE
-/// `normalize_all_traces` and the seed, in every flow that replicates
-/// the manager walk: [`run_route`], and the harness's in-process
-/// detail/alloc replicators. It is NOT part of `DsnReader.readBoard` —
-/// the direct-read flows (every harness oracle probe, the events
-/// corpus capture: `RouteEventProbe.java:198-205` calls
-/// `DsnReader.readBoard` directly) bypass the manager and MUST NOT
-/// apply this. One value note: Java's `:346` face reads the job's
-/// routerSettings before the DSN layer is applied, the Rust call reads
-/// the fully merged settings — but NO settings source writes
-/// `copperToEdgeClearanceUm` in the frozen tree (only
-/// `DefaultSettings.java:155` seeds it), so the value is identical.
-///
-/// Sequence, Java-exact (`:471-548`):
-/// 1. Null guards (`:471-476`) — the `Option` here; the board/rules/
-///    matrix null guards are structural impossibilities in the port
-///    (`BoardRules` always carries a matrix).
-/// 2. Negative µm → warn + skip (`:478-484`).
-/// 3. Outline unavailable → warn + skip (`:491-496`).
-/// 4. Skip-gate (`:504-511`): `usesDefaultEdgeClearanceValue &&
-///    !usesFallbackOutlineClass` → untouched. An EXPLICIT DSN outline
-///    class survives the default value; a fallback-class outline IS
-///    promoted even at the default (both faces pinned below).
-/// 5. µm → board units (`:513-520`):
-///    `round(um * max(1, resolution))`, `Unit.scale(.., UM, unit)` —
-///    bm06: 250 µm × resolution 10 = 2500 DBU.
-/// 6. `board_edge` class: `get_no` (`:523-524`), `append_class` when
-///    absent (`:525`), warn+skip when still absent (`:528-532`).
-/// 7. Full symmetric set for EVERY class ≥ 1 on EVERY layer
-///    (`:534-539`) — class 0 stays at the `append_class` init value
-///    `v(1, 0)`; the even-rounding of `set_value` applies.
-/// 8. The TARGETED reclassification (`:541-548` — the T2 spec-review
-///    port guidance): `remove` → `set_item_clearance_class` →
-///    `clear_derived_data` → `insert`. NOT a bulk reinsert.
-pub fn apply_copper_to_edge_clearance_override(
-    settings: &MergedSettings,
-    manager: &mut SearchTreeManager,
-    board: &mut Board,
-) {
-    let Some(configured_clearance_um) = settings.copper_to_edge_clearance_um else {
-        return; // Java `:471-476`.
-    };
-    if configured_clearance_um < 0.0 {
-        eprintln!(
-            "Warning: Ignoring router.copper_to_edge_clearance_um because it is negative: {configured_clearance_um}"
-        );
-        return;
-    }
-    // Java's `board.rules == null || rules.clearanceMatrix == null`
-    // guards (`:485-489`) are structural impossibilities here.
-    let Some(outline_id) = board
-        .iter_descending()
-        .find(|entry| matches!(entry.data, ItemData::BoardOutline { .. }))
-        .map(|entry| entry.id)
-    else {
-        eprintln!(
-            "Warning: Ignoring router.copper_to_edge_clearance_um because the board outline is unavailable."
-        );
-        return;
-    };
-    let default_area_class_no =
-        board.rules().default_item_clearance_classes[epic_dsn::sink::ItemClassIr::Area as usize];
-    let uses_fallback_outline_class =
-        board.item_clearance_class(outline_id) == Some(default_area_class_no);
-    let uses_default_edge_clearance_value =
-        (configured_clearance_um - DEFAULT_COPPER_TO_EDGE_CLEARANCE_UM).abs() < 1e-9;
-    // Keep explicit DSN outline-clearance classes untouched when only
-    // the global default is active (Java `:504-511`).
-    if uses_default_edge_clearance_value && !uses_fallback_outline_class {
-        return;
-    }
-    let board_resolution = board.communication().resolution.max(1);
-    let configured_clearance_board_units = java_round(DsnUnit::scale(
-        configured_clearance_um * f64::from(board_resolution),
-        DsnUnit::Um,
-        board.communication().unit,
-    )) as i32;
-    let matrix = &mut board.rules_mut().clearance;
-    let mut board_edge_class_no = matrix.get_no(BOARD_EDGE_CLEARANCE_CLASS_NAME);
-    if board_edge_class_no < 0 {
-        matrix.append_class(BOARD_EDGE_CLEARANCE_CLASS_NAME);
-        board_edge_class_no = matrix.get_no(BOARD_EDGE_CLEARANCE_CLASS_NAME);
-    }
-    if board_edge_class_no < 0 {
-        eprintln!(
-            "Warning: Unable to create/find the board_edge clearance class for copper-to-edge override."
-        );
-        return;
-    }
-    // The full symmetric set: EVERY class >= 1 on EVERY layer, BOTH
-    // directions (Java `:534-539`). Class 0 stays at the `append_class`
-    // init value `v(1, 0)` — Java's loop starts at class 1.
-    for layer in 0..matrix.layer_count() as i32 {
-        for class_no in 1..matrix.class_count() as i32 {
-            matrix.set_value(
-                board_edge_class_no,
-                class_no,
-                layer,
-                configured_clearance_board_units,
-            );
-            matrix.set_value(
-                class_no,
-                board_edge_class_no,
-                layer,
-                configured_clearance_board_units,
-            );
-        }
-    }
-    // The TARGETED reclassification (Java `:541-548`, the T2 spec-review
-    // port guidance): remove the outline from every live tree, reclass
-    // it, clear its derived caches, reinsert. NOT a bulk reinsert.
-    manager.remove(board, outline_id);
-    board.set_item_clearance_class(outline_id, board_edge_class_no);
-    board.clear_derived_data(outline_id);
-    manager.insert(board, outline_id);
-}
 
 /// The whole `route` run: returns the PROCESS EXIT CODE. Parse warnings
 /// and driver rows echo to stderr; the SES file and (optionally) the
@@ -1590,11 +1327,16 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
 mod tests {
     use super::*;
     use epic_board::id::ItemId;
+    use epic_board::items::ItemData;
     use epic_dsn::coordinate_transform::CoordinateTransform;
     use epic_dsn::layer_structure::{Layer, LayerStructure};
+    use epic_dsn::ses_board::ItemIr;
     use epic_dsn::sink::{BoardRulesIr, BoardSink, CreateBoardIr};
+    use epic_dsn::sink::{FixedStateIr, TraceIr};
     use epic_engine::settings::parse_route_args;
     use epic_geometry::int_box::IntBox;
+    use epic_geometry::int_point::IntPoint;
+    use epic_geometry::point::Point;
     use epic_geometry::tile_shape::TileShape;
     use epic_router::pipeline::batch::BatchDriver;
 
@@ -2374,37 +2116,6 @@ mod tests {
         );
     }
 
-    /// The rounded corner view: Int passes through; a rational corner
-    /// rounds with Java Math.round per axis — the 1.5 / -2.5 pair
-    /// discriminates floor(x+0.5) from truncation and from
-    /// half-away-from-zero (-2.5 -> -2, not -3).
-    #[test]
-    fn corner_to_int_java_round_view() {
-        use num_bigint::BigInt;
-        assert_eq!(
-            corner_to_int(Point::Int(IntPoint::new(7, -9))),
-            IntPoint::new(7, -9)
-        );
-        assert_eq!(
-            corner_to_int(Point::get_instance_big(
-                BigInt::from(3),
-                BigInt::from(-5),
-                BigInt::from(2)
-            )),
-            IntPoint::new(2, -2)
-        );
-        // The negated-denominator normalization (z < 0 flips) lands on
-        // the same rational point.
-        assert_eq!(
-            corner_to_int(Point::get_instance_big(
-                BigInt::from(-3),
-                BigInt::from(5),
-                BigInt::from(-2)
-            )),
-            IntPoint::new(2, -2)
-        );
-    }
-
     /// The SHA-256 of the INPUT bytes (a known vector: "abc").
     #[test]
     fn sha256_of_input_bytes() {
@@ -2780,40 +2491,6 @@ mod tests {
     /// double-load-bearing for T14. The pin asserts the REAL batch face
     /// through the same builder the flow uses (the `= false` mutant
     /// passed the whole suite before this pin existed).
-    /// Q6 (quality review): the LAST-dot cut (BoardFileDetails.java:
-    /// 205-210) — a two-dot input name must keep the middle segment
-    /// (the first-dot mutant emitted `(session my` for `my.bad.dsn`).
-    #[test]
-    fn filename_without_extension_cuts_at_last_dot() {
-        assert_eq!(filename_without_extension("my.bad.dsn"), "my.bad");
-        assert_eq!(filename_without_extension("plain.dsn"), "plain");
-        assert_eq!(filename_without_extension("noext"), "noext");
-    }
-
-    /// Q7a (quality review): the fixed-state ladder is permutation-
-    /// sensitive — each `FixedState` maps to the SAME-named IR variant
-    /// (the UserFixed/SystemFixed arm swap passed the whole suite and
-    /// was invisible to every compare before this pin).
-    #[test]
-    fn fixed_to_ir_ladder_is_permutation_sensitive() {
-        assert!(matches!(
-            fixed_to_ir(FixedState::Unfixed),
-            FixedStateIr::Unfixed
-        ));
-        assert!(matches!(
-            fixed_to_ir(FixedState::ShoveFixed),
-            FixedStateIr::ShoveFixed
-        ));
-        assert!(matches!(
-            fixed_to_ir(FixedState::UserFixed),
-            FixedStateIr::UserFixed
-        ));
-        assert!(matches!(
-            fixed_to_ir(FixedState::SystemFixed),
-            FixedStateIr::SystemFixed
-        ));
-    }
-
     /// A two-signal-layer shell for the projection pins (the board
     /// build needs the layer structure + rules only).
     fn two_layer_ses() -> SesBoard {

@@ -110,7 +110,11 @@ pub fn run(dsn: &Path, stats: &Path, sample: u64) -> Result<()> {
     // `createBoard` :346, BEFORE `Wiring.java:347` normalizeAllTraces)
     // — the profile must measure the production load face (the
     // buglog-189 fix).
-    epic_cli::route::apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+    epic_engine::session::apply_copper_to_edge_clearance_override(
+        &merged,
+        &mut manager,
+        &mut board,
+    );
     epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
 
     // The load-time violation seed (the flow's step 2b — POST-override:
