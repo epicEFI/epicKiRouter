@@ -222,6 +222,12 @@ dependencies = [
 [[package]]
 name = "epic-gui"
 version = "0.1.0"
+dependencies = [
+ "epic-engine",
+ "epic-geometry",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "epic-harness"

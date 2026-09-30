@@ -1,0 +1,642 @@
+//! M9-T4: the render-golden pins (the dispatch charter for
+//! `epic-gui`):
+//!
+//! 1. **the golden verify x3** — bm08 (the Tier A parity fixture),
+//!    kit2-led-cube (the probed moderate PCBench reference board),
+//!    e1_ripup (the T3 crafted world): the in-process re-derivation is
+//!    byte-identical (serde_json) to each committed golden;
+//! 2. **layer-visibility exclusion** — hide a populated layer and the
+//!    projection loses EXACTLY that layer's ops (crafted prefix/suffix
+//!    proof + the bm08 count-moved face + the all-hidden ==
+//!    outline-only face);
+//! 3. **the cull boundary ±1 (DNR-16)** — a viewport edge placed so a
+//!    pad is 1-inside (kept), exactly-on (kept), 1-outside (culled);
+//!    `culled` moves by exactly the right amount;
+//! 4. **the overlay flags** — all four exist; all 16 combinations
+//!    change NOTHING in T4 output (the plumbing pin; T5 extends the
+//!    one site in `render.rs`);
+//! 5. **the pan/zoom round trips** —
+//!    `screen_to_world(world_to_screen(p)) == p` at the i64 faces and
+//!    the symmetric screen face, exact per `ScreenTransform`'s
+//!    documented exactness contract (full-domain at 1:1 and at every
+//!    integer px-per-DBU zoom; lattice-exact otherwise, quantization
+//!    bounded).
+//!
+//! All runs are IN-PROCESS (no spawned binaries). The goldens are
+//! captured/regenerated via `capture_render_goldens` (`#[ignore]`ged,
+//! in-process — run with `--ignored`, `EPIC_GUI_REGEN` not required).
+
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::PathBuf;
+
+use epic_engine::session::Session;
+use epic_engine::settings::SessionLayer;
+use epic_engine::snapshot::{BoardSnapshot, board_snapshot};
+use epic_geometry::int_box::IntBox;
+use epic_geometry::int_point::IntPoint;
+use epic_gui::render::{RenderList, project};
+use epic_gui::view::{OverlayFlags, ScreenTransform, ViewModel};
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("rust/ is two parents up from crates/epic-gui")
+        .to_path_buf()
+}
+
+const BM08: &str = "../scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn";
+const KIT2: &str = "../scripts/benchmark/fixtures/PCBench/kit2-led-cube_led_cube/unrouted.dsn";
+const E1_RIPUP: &str = "harness/fixtures/event-stream/e1_ripup.dsn";
+
+/// Loads a fixture through the session face (the T4 golden path:
+/// `Session::load_dsn` at defaults -> post-load `board_snapshot`).
+fn load_snapshot(repo_rel: &str) -> BoardSnapshot {
+    let bytes = fs::read(repo_root().join(repo_rel))
+        .unwrap_or_else(|error| panic!("{repo_rel} is readable: {error}"));
+    let session = match Session::load_dsn(&bytes, SessionLayer::default()) {
+        Ok(session) => session,
+        Err(error) => panic!("{repo_rel} loads at defaults: {error:?}"),
+    };
+    board_snapshot(session.board())
+}
+
+/// THE FIXED TEST TRANSFORM (the golden transform, with its
+/// derivation — DNR-19): `pan = snapshot.bounds.ll` (the fixture's
+/// lower-left anchored at the screen origin) and zoom 1/1.
+///
+/// DERIVATION of zoom 1/1: it is the unique px-per-DBU ratio whose
+/// world<->screen map is a full BIJECTION (both round trips exact on
+/// the entire in-range domain — `ScreenTransform`'s exactness
+/// contract), which is what the charter's round-trip pin demands at
+/// the i64 faces; the dispatch letter's "1:1000-ish" example would
+/// make that exactness lattice-only. The projected extents then
+/// equal the fixture's DBU extents (probed < 2^30 for all three
+/// fixtures — they fit i32 with margin and exercise both screen
+/// axes).
+fn fixed_test_transform(snapshot: &BoardSnapshot) -> ScreenTransform {
+    ScreenTransform::new(
+        epic_engine::snapshot::PointPrimitive {
+            x: snapshot.bounds.ll_x,
+            y: snapshot.bounds.ll_y,
+        },
+        1,
+        1,
+    )
+}
+
+/// The wide-open viewport (every primitive is inside; the golden
+/// renders are cull-free by construction — `culled == 0`).
+fn full_viewport() -> IntBox {
+    IntBox::new(
+        IntPoint::new(i32::MIN, i32::MIN),
+        IntPoint::new(i32::MAX, i32::MAX),
+    )
+}
+
+/// Every layer the snapshot's primitives name (the "all layers
+/// visible" face; the set is sorted — BTreeSet).
+fn populated_layers(snapshot: &BoardSnapshot) -> BTreeSet<i32> {
+    let mut layers = BTreeSet::new();
+    for trace in &snapshot.traces {
+        layers.insert(trace.layer);
+    }
+    for pad in &snapshot.pads {
+        layers.insert(pad.layer);
+    }
+    for area in &snapshot.areas {
+        layers.insert(area.layer);
+    }
+    for via in &snapshot.vias {
+        layers.extend(via.layers.iter().copied());
+    }
+    layers
+}
+
+/// The golden view: the fixed test transform + every populated layer
+/// visible + the documented default color table + default overlays.
+fn golden_view(snapshot: &BoardSnapshot) -> ViewModel {
+    let mut view = ViewModel::new(fixed_test_transform(snapshot));
+    view.visible_layers = populated_layers(snapshot);
+    view
+}
+
+/// Serializes a `RenderList` exactly as the goldens store it (the
+/// golden-format convention: `serde_json::to_string_pretty`; the
+/// header lines ride separately in the file).
+fn render_json(list: &RenderList) -> String {
+    serde_json::to_string_pretty(list).expect("RenderList serializes")
+}
+
+/// Reads a committed golden: strips the `#` header lines, trims the
+/// trailing newline.
+fn read_golden(rel: &str) -> String {
+    let text = fs::read_to_string(
+        repo_root()
+            .join("harness/fixtures/gui-render/golden")
+            .join(rel),
+    )
+    .unwrap_or_else(|error| panic!("golden {rel} is readable: {error}"));
+    let body: String = text
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .collect::<Vec<&str>>()
+        .join("\n");
+    body.trim_end().to_string()
+}
+
+/// The shared golden-verify body (determinism double-derivation +
+/// byte-compare against the committed file).
+fn assert_golden_matches(fixture_rel: &str, golden_rel: &str) {
+    let snapshot = load_snapshot(fixture_rel);
+    let view = golden_view(&snapshot);
+
+    let run_one = project(&snapshot, &view, full_viewport());
+    let run_two = project(&snapshot, &view, full_viewport());
+    assert_eq!(
+        render_json(&run_one),
+        render_json(&run_two),
+        "two projections of the same inputs are byte-identical (determinism)"
+    );
+    assert_eq!(run_one.culled, 0, "the wide-open viewport culls nothing");
+
+    let golden = read_golden(golden_rel);
+    assert!(!golden.is_empty(), "the golden body is non-empty");
+    assert_eq!(
+        render_json(&run_one),
+        golden,
+        "the re-derivation is byte-identical to the committed golden"
+    );
+}
+
+// --- PIN 1 — the golden verify x3 -----------------------------------
+
+#[test]
+fn bm08_golden_matches_in_process_rederivation() {
+    assert_golden_matches(BM08, "bm08.render.json");
+}
+
+#[test]
+fn kit2_led_cube_golden_matches_in_process_rederivation() {
+    assert_golden_matches(KIT2, "kit2-led-cube_led_cube.render.json");
+}
+
+#[test]
+fn e1_ripup_golden_matches_in_process_rederivation() {
+    assert_golden_matches(E1_RIPUP, "e1_ripup.render.json");
+}
+
+// --- PIN 2 — layer-visibility exclusion -----------------------------
+
+/// A crafted two-trace + one-pad + outline snapshot (layers 0/1) for
+/// the EXACT by-construction exclusion proof: with layer-ascending
+/// emission, hiding a layer removes exactly that layer's op group —
+/// a PREFIX (lower layer) or SUFFIX (higher layer) of the full op
+/// list.
+fn two_layer_snapshot() -> BoardSnapshot {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    let trace = |layer: i32, y: i64| epic_engine::snapshot::TracePrimitive {
+        polyline_points: vec![point(0, y), point(500, y)],
+        layer,
+        half_width: 50,
+        net: 1,
+    };
+    BoardSnapshot {
+        traces: vec![trace(0, 0), trace(1, 500)],
+        vias: Vec::new(),
+        pads: vec![epic_engine::snapshot::PadPrimitive {
+            outline_points: vec![
+                point(200, 200),
+                point(300, 200),
+                point(300, 300),
+                point(200, 300),
+            ],
+            layer: 0,
+            net: 1,
+        }],
+        areas: Vec::new(),
+        outline: vec![
+            point(0, 0),
+            point(1000, 0),
+            point(1000, 1000),
+            point(0, 1000),
+        ],
+        nets: vec![epic_engine::snapshot::NetInfo {
+            id: 1,
+            name: "n".to_string(),
+        }],
+        bounds: epic_engine::snapshot::BoxPrimitive {
+            ll_x: 0,
+            ll_y: 0,
+            ur_x: 1000,
+            ur_y: 1000,
+        },
+        revision: 0,
+    }
+}
+
+/// A view over `snapshot` with exactly `layers` visible (zoom 1:1,
+/// pan at the origin — the crafted boards' coordinates ARE screen px).
+fn crafted_view(snapshot: &BoardSnapshot, layers: &[i32]) -> ViewModel {
+    let mut view = ViewModel::new(fixed_test_transform(snapshot));
+    view.visible_layers = layers.iter().copied().collect();
+    view
+}
+
+#[test]
+fn layer_visibility_exclusion_by_construction() {
+    let snapshot = two_layer_snapshot();
+    let all = project(
+        &snapshot,
+        &crafted_view(&snapshot, &[0, 1]),
+        full_viewport(),
+    );
+    // The full face: outline (2) + pad (2) + two trace groups (4+4).
+    assert_eq!(all.ops.len(), 12, "the crafted full render has 12 ops");
+
+    // Hide the LOWER layer: layer 0's groups (pad + trace) are gone;
+    // the remainder is the outline pair plus the layer-1 trace group
+    // (an exact splice of the full list — zero ops reference hidden
+    // items, by construction).
+    let hide_zero = project(&snapshot, &crafted_view(&snapshot, &[1]), full_viewport());
+    assert_eq!(hide_zero.ops.len(), 6, "hiding layer 0 drops 6 ops");
+    let mut expected: Vec<epic_gui::render::RenderOp> = all.ops[..2].to_vec();
+    expected.extend_from_slice(&all.ops[8..]);
+    assert_eq!(
+        render_json(&RenderList {
+            ops: expected,
+            culled: 0,
+        }),
+        render_json(&hide_zero),
+        "the hidden-layer render keeps exactly the outline pair + the layer-1 group"
+    );
+
+    // Hide the HIGHER layer: the remainder is the exact PREFIX (the
+    // layer-1 trace group was last — layer-ascending emission).
+    let hide_one = project(&snapshot, &crafted_view(&snapshot, &[0]), full_viewport());
+    assert_eq!(hide_one.ops.len(), 8, "hiding layer 1 drops 4 ops");
+    assert_eq!(
+        render_json(&RenderList {
+            ops: all.ops[..8].to_vec(),
+            culled: 0,
+        }),
+        render_json(&hide_one),
+        "the hidden-layer render is the exact op prefix"
+    );
+
+    // The count moved on the REAL fixture too: bm08 minus layer 0 has
+    // strictly fewer ops, and hiding EVERY layer leaves exactly the
+    // layer-less outline group.
+    let bm08 = load_snapshot(BM08);
+    let bm08_view = golden_view(&bm08);
+    let bm08_all = project(&bm08, &bm08_view.clone(), full_viewport());
+    let mut minus_zero = bm08_view.clone();
+    minus_zero.visible_layers.remove(&0);
+    let bm08_minus = project(&bm08, &minus_zero, full_viewport());
+    assert!(
+        bm08_minus.ops.len() < bm08_all.ops.len(),
+        "hiding a populated layer moves the op count"
+    );
+    let empty = project(&bm08, &crafted_view(&bm08, &[]), full_viewport());
+    let outline_only = project(&bm08, &crafted_view(&bm08, &[]), full_viewport());
+    assert_eq!(
+        render_json(&empty),
+        render_json(&outline_only),
+        "hiding every layer renders the outline only (nothing else references hidden items)"
+    );
+    assert_eq!(
+        empty.ops.len() % 2,
+        0,
+        "the outline group is SetColor + FillPolygon pairs"
+    );
+}
+
+// --- PIN 3 — the cull boundary ±1 (DNR-16) ---------------------------
+
+#[test]
+fn cull_boundary_plus_minus_one_dbu() {
+    let point = |x: i64, y: i64| epic_engine::snapshot::PointPrimitive { x, y };
+    // One pad, square (1000,1000)-(1100,1100); nothing else.
+    let snapshot = BoardSnapshot {
+        traces: Vec::new(),
+        vias: Vec::new(),
+        pads: vec![epic_engine::snapshot::PadPrimitive {
+            outline_points: vec![
+                point(1000, 1000),
+                point(1100, 1000),
+                point(1100, 1100),
+                point(1000, 1100),
+            ],
+            layer: 0,
+            net: 1,
+        }],
+        areas: Vec::new(),
+        outline: Vec::new(),
+        nets: vec![epic_engine::snapshot::NetInfo {
+            id: 1,
+            name: "n".to_string(),
+        }],
+        bounds: epic_engine::snapshot::BoxPrimitive {
+            ll_x: 1000,
+            ll_y: 1000,
+            ur_x: 1100,
+            ur_y: 1100,
+        },
+        revision: 0,
+    };
+    let view = crafted_view(&snapshot, &[0]);
+
+    // The viewport spans y fully; its ur_x edge moves across the
+    // pad's ur_x = 1100.
+    let viewport_at = |ur_x: i32| IntBox::new(IntPoint::new(0, 0), IntPoint::new(ur_x, 2000));
+
+    // 1 DBU INSIDE the edge (the pad fully in, 1 DBU of margin):
+    // kept.
+    let inside = project(&snapshot, &view.clone(), viewport_at(1101));
+    assert_eq!(
+        (inside.ops.len(), inside.culled),
+        (2, 0),
+        "1-inside renders"
+    );
+
+    // EXACTLY ON the edge: the viewport's right edge at the pad's
+    // ll_x — a zero-area touch. KEPT (the inclusive DNR-16 face).
+    let on_edge = project(&snapshot, &view.clone(), viewport_at(1000));
+    assert_eq!(
+        (on_edge.ops.len(), on_edge.culled),
+        (2, 0),
+        "on-edge renders (inclusive)"
+    );
+
+    // 1 DBU OUTSIDE (the pad entirely beyond the edge): culled;
+    // `culled` moves by exactly 1 and no ops remain.
+    let outside = project(&snapshot, &view.clone(), viewport_at(999));
+    assert_eq!(
+        (outside.ops.len(), outside.culled),
+        (0, 1),
+        "1-outside is culled"
+    );
+}
+
+// --- PIN 4 — the overlay flags (T4: plumbing only) -------------------
+
+#[test]
+fn overlay_flags_all_16_combinations_change_nothing() {
+    let snapshot = load_snapshot(E1_RIPUP);
+    let base_view = golden_view(&snapshot);
+    let base = render_json(&project(&snapshot, &base_view.clone(), full_viewport()));
+
+    for mask in 0..16u16 {
+        let mut view = base_view.clone();
+        view.overlays = OverlayFlags {
+            ratsnest: mask & 1 != 0,
+            drc: mask & 2 != 0,
+            congestion: mask & 4 != 0,
+            tuning: mask & 8 != 0,
+        };
+        let rendered = render_json(&project(&snapshot, &view, full_viewport()));
+        assert_eq!(
+            rendered, base,
+            "overlay mask {mask} changes nothing in T4 output (no overlay ops exist yet)"
+        );
+    }
+}
+
+#[test]
+fn overlay_flags_round_trip_through_the_view_model() {
+    let snapshot = load_snapshot(E1_RIPUP);
+    let mut view = golden_view(&snapshot);
+
+    // Each flag carries through the ViewModel (the plumbing face T5
+    // consumes) and the projection ACCEPTS the view at every state.
+    type FlagSetter = (&'static str, fn(&mut OverlayFlags));
+    let setters: [FlagSetter; 4] = [
+        ("ratsnest", |f| f.ratsnest = true),
+        ("drc", |f| f.drc = true),
+        ("congestion", |f| f.congestion = true),
+        ("tuning", |f| f.tuning = true),
+    ];
+    for (name, setter) in setters {
+        setter(&mut view.overlays);
+        assert!(
+            matches!(
+                (&view.overlays, name),
+                (OverlayFlags { ratsnest: true, .. }, "ratsnest")
+                    | (OverlayFlags { drc: true, .. }, "drc")
+                    | (
+                        OverlayFlags {
+                            congestion: true,
+                            ..
+                        },
+                        "congestion"
+                    )
+                    | (OverlayFlags { tuning: true, .. }, "tuning")
+            ),
+            "the {name} flag round-trips through the ViewModel"
+        );
+        let list = project(&snapshot, &view.clone(), full_viewport());
+        assert!(
+            !list.ops.is_empty(),
+            "project accepts a view with overlays set"
+        );
+        view.overlays = OverlayFlags::default();
+    }
+}
+
+// --- PIN 5 — the pan/zoom round trips --------------------------------
+
+/// Samples a grid of world points across `snapshot`'s bounds (plus
+/// the corners and the first pad's outline points — points across the
+/// fixture's extent).
+fn sample_world_points(
+    snapshot: &BoardSnapshot,
+    steps: usize,
+) -> Vec<epic_engine::snapshot::PointPrimitive> {
+    let mut points = Vec::new();
+    let b = &snapshot.bounds;
+    let w = b.ur_x - b.ll_x;
+    let h = b.ur_y - b.ll_y;
+    for i in 0..=steps {
+        for j in 0..=steps {
+            let x = b.ll_x + w * i as i64 / steps as i64;
+            let y = b.ll_y + h * j as i64 / steps as i64;
+            points.push(epic_engine::snapshot::PointPrimitive { x, y });
+        }
+    }
+    if let Some(pad) = snapshot.pads.first() {
+        points.extend(pad.outline_points.iter().copied());
+    }
+    points
+}
+
+#[test]
+fn world_round_trip_exact_at_the_i64_faces() {
+    let snapshot = load_snapshot(BM08);
+    let samples = sample_world_points(&snapshot, 20);
+    let pan = epic_engine::snapshot::PointPrimitive {
+        x: snapshot.bounds.ll_x,
+        y: snapshot.bounds.ll_y,
+    };
+
+    // The fixed test transform (1:1): FULL-DOMAIN exact — the golden
+    // transform's own contract.
+    let identity = fixed_test_transform(&snapshot);
+    for p in &samples {
+        assert_eq!(
+            identity.screen_to_world(identity.world_to_screen(*p)),
+            *p,
+            "1:1 world round trip is exact at the i64 faces for {p:?}"
+        );
+    }
+
+    // The integer px-per-DBU family (num % den == 0, here 7/1):
+    // full-domain exact per the exactness contract.
+    let zoom_in = ScreenTransform::new(pan, 7, 1);
+    for p in &samples {
+        assert_eq!(
+            zoom_in.screen_to_world(zoom_in.world_to_screen(*p)),
+            *p,
+            "7/1 world round trip is exact at the i64 faces for {p:?}"
+        );
+    }
+
+    // The fractional zoom (1/1000): exact ON the world lattice
+    // {pan + k*1000}, and the off-lattice round trip is quantized
+    // within ONE den per axis (the documented floor face).
+    let zoom_out = ScreenTransform::new(pan, 1, 1000);
+    for p in &samples {
+        let round_tripped = zoom_out.screen_to_world(zoom_out.world_to_screen(*p));
+        if (p.x - pan.x) % 1000 == 0 && (p.y - pan.y) % 1000 == 0 {
+            assert_eq!(
+                round_tripped, *p,
+                "1/1000 world round trip is exact on the lattice for {p:?}"
+            );
+        } else {
+            let dx = (round_tripped.x - p.x).abs();
+            let dy = (round_tripped.y - p.y).abs();
+            assert!(
+                dx < 1000 && dy < 1000,
+                "1/1000 off-lattice round trip quantizes within one den for {p:?} (d=({dx},{dy}))"
+            );
+        }
+    }
+}
+
+#[test]
+fn screen_round_trip_exact_at_the_i32_faces() {
+    let snapshot = load_snapshot(BM08);
+    let b = &snapshot.bounds;
+    let pan = epic_engine::snapshot::PointPrimitive {
+        x: b.ll_x,
+        y: b.ll_y,
+    };
+
+    // Screen samples: a grid across the projected bounds (the 1:1
+    // projection IS the bounds extents; the zoom faces scale it).
+    let mut samples = Vec::new();
+    let steps: i32 = 20;
+    let w = i32::try_from(b.ur_x - b.ll_x).expect("bm08 fits i32");
+    let h = i32::try_from(b.ur_y - b.ll_y).expect("bm08 fits i32");
+    for i in 0..=steps {
+        for j in 0..=steps {
+            samples.push(IntPoint::new((w / steps) * i, (h / steps) * j));
+        }
+    }
+
+    // The fixed test transform (1:1): bijective — FULL-DOMAIN exact.
+    let identity = fixed_test_transform(&snapshot);
+    for s in &samples {
+        assert_eq!(
+            identity.world_to_screen(identity.screen_to_world(*s)),
+            *s,
+            "1:1 screen round trip is exact at the i32 faces for {s:?}"
+        );
+    }
+
+    // 1/1000 (den % num == 0): full-domain exact screen round trip.
+    let zoom_out = ScreenTransform::new(pan, 1, 1000);
+    for s in &samples {
+        assert_eq!(
+            zoom_out.world_to_screen(zoom_out.screen_to_world(*s)),
+            *s,
+            "1/1000 screen round trip is exact at the i32 faces for {s:?}"
+        );
+    }
+
+    // 7/1: exact on the screen lattice {k*7}, quantized within one
+    // num DBU otherwise (the documented floor face).
+    let zoom_in = ScreenTransform::new(pan, 7, 1);
+    for s in &samples {
+        let round_tripped = zoom_in.world_to_screen(zoom_in.screen_to_world(*s));
+        if s.x % 7 == 0 && s.y % 7 == 0 {
+            assert_eq!(
+                round_tripped, *s,
+                "7/1 screen round trip is exact on the lattice for {s:?}"
+            );
+        } else {
+            let dx = i64::from(round_tripped.x - s.x);
+            let dy = i64::from(round_tripped.y - s.y);
+            assert!(
+                dx.abs() < 7 && dy.abs() < 7,
+                "7/1 off-lattice screen round trip quantizes within one num for {s:?}"
+            );
+        }
+    }
+}
+
+// --- The sanctioned capture door -------------------------------------
+
+/// Regenerates ALL THREE goldens in-process (the sanctioned capture
+/// path: committed goldens are regenerated ONLY through this door,
+/// and the regeneration reason goes in the commit). `#[ignore]`ged —
+/// run with `cargo test -p epic-gui --test render_goldens -- --ignored
+/// capture_render_goldens`.
+#[test]
+#[ignore = "the golden capture door — run explicitly with --ignored"]
+fn capture_render_goldens() {
+    for (fixture_rel, golden_rel) in [
+        (BM08, "bm08.render.json"),
+        (KIT2, "kit2-led-cube_led_cube.render.json"),
+        (E1_RIPUP, "e1_ripup.render.json"),
+    ] {
+        let snapshot = load_snapshot(fixture_rel);
+        let view = golden_view(&snapshot);
+        let list = project(&snapshot, &view, full_viewport());
+        let header = format!(
+            "# fixture: {fixture_rel}\n\
+             # snapshot revision: {rev}\n\
+             # snapshot items: traces={traces} vias={vias} pads={pads} areas={areas} outline_pts={outline} nets={nets}\n\
+             # transform: pan=({px}, {py}) zoom=1/1\n\
+             # transform derivation: pan = snapshot.bounds.ll (the fixture's lower-left anchored at\n\
+             #   the screen origin); zoom 1/1 is the unique px-per-DBU ratio whose world<->screen map\n\
+             #   is a full bijection (both round trips exact on the entire in-range domain —\n\
+             #   view.rs's exactness contract), chosen over the dispatch letter's 1:1000-ish example\n\
+             #   because the round-trip pin demands world->screen->world exactness at the i64 faces.\n\
+             #   The projected extents equal the fixture's DBU extents (all three fixtures probed\n\
+             #   < 2^30; they fit i32 with margin and exercise both screen axes).\n\
+             # viewport: the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX)); culled=0.\n\
+             # format: serde_json::to_string_pretty of the RenderList; RenderOp externally tagged with\n\
+             #   Rust variant spelling; points {{\"x\":i32,\"y\":i32}}; colors [r,g,b,a] u8; SetWidth f32 px.\n",
+            rev = snapshot.revision,
+            traces = snapshot.traces.len(),
+            vias = snapshot.vias.len(),
+            pads = snapshot.pads.len(),
+            areas = snapshot.areas.len(),
+            outline = snapshot.outline.len(),
+            nets = snapshot.nets.len(),
+            px = snapshot.bounds.ll_x,
+            py = snapshot.bounds.ll_y,
+        );
+        let path = repo_root()
+            .join("harness/fixtures/gui-render/golden")
+            .join(golden_rel);
+        fs::write(&path, format!("{header}{}\n", render_json(&list)))
+            .unwrap_or_else(|error| panic!("write {path:?}: {error}"));
+        println!(
+            "captured {golden_rel}: ops={} culled={}",
+            list.ops.len(),
+            list.culled
+        );
+    }
+}

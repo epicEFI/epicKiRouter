@@ -7,3 +7,20 @@ rust-version.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+# The view core consumes ONLY the snapshot face (the renders-never-
+# mutates law: the snapshot is the input; epic-board is NOT a dep —
+# the projection cannot reach a Board even transitively through its
+# own imports).
+epic-engine = { path = "../epic-engine" }
+epic-geometry = { path = "../epic-geometry" }
+# The render goldens (serde-JSON of the RenderList) — workspace-
+# unpinned, the existing serde_json consumers pin "1".
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# M9-T6 adds `desktop = ["dep:eframe", ...]` here (default = [] — the
+# default workspace build stays egui/wgpu-free).
+[features]
+default = []
