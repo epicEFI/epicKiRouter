@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T01:24:41.991Z
-> Files: 599 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T05:36:50.711Z
+> Files: 612 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -785,6 +785,28 @@
 - `report-t2.md` — M10-T2 IMPLEMENTER REPORT — the Q7 `final_state_for` hoist + the Q6 re-route product decision (~4152 tok)
 - `spec-review-prompt-t2.md` — M10-T2 SPEC REVIEW — charter (~1503 tok)
 - `spec-review-t2-1.md` — M10-T2 SPEC REVIEW — spec-review-t2-1.md (~2922 tok)
+
+## logs/M10-T3/
+
+- `dispatch-prompt-t3.md` — M10-T3 DISPATCH — the measurement moment (battery + the 13-row dispositionment; ZERO commits) (~1593 tok)
+- `quality-review-prompt-t3.md` — M10-T3 QUALITY REVIEW — charter (report-only; T3 landed ZERO commits by design) (~992 tok)
+- `quality-review-t3-1.md` — M10-T3 QUALITY REVIEW (review 1) — 2026-09-30, at `e47ce50f7` (~4257 tok)
+- `report-t3.md` — M10-T3 REPORT — the measurement moment (battery + the 13-row dispositionment; ZERO commits) (~6679 tok)
+- `spec-review-prompt-t3.md` — M10-T3 SPEC REVIEW — charter (report-only; the implementer made ZERO commits by design) (~1290 tok)
+- `spec-review-t3-1.md` — M10-T3 SPEC REVIEW (review 1) — 2026-09-30, at `e47ce50f7` (~3426 tok)
+
+## logs/M10-T3/scratch/
+
+- `battery.sh` — M10-T3 workflow battery (the charter's Step 1). Waits for the gate (~324 tok)
+- `gate-lap.sh` — M10-T3 gate lap (the CI-face items + the tier B/C full re-face walks). (~1070 tok)
+- `list-crafted.tsv` (~48 tok)
+- `list-tierA.tsv` (~191 tok)
+- `list-tierBC.tsv` (~52 tok)
+
+## logs/M10-T3/scratch/battery/src/
+
+- `battery.rs` — The workflow battery (Deliverable A). (~2627 tok)
+- `renderperf.rs` — The render-perf face (Deliverable B): load -> route -> snapshot x7 (~1993 tok)
 
 ## rust/crates/epic-cli/src/
 

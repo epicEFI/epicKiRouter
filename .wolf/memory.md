@@ -9406,3 +9406,21 @@ description: chronological action log per session, consolidated weekly
 | 19:10 | Created logs/M10-T2/quality-review-t2-1.md | — | ~3282 |
 | 19:24 | Created logs/M10-T2/fix-round-t2-1.md | — | ~1260 |
 | 19:24 | Edited logs/M10-T2/report-t2.md | modified Q1() | ~808 |
+| 19:25 | Created logs/M10-T3/dispatch-prompt-t3.md | — | ~1699 |
+| 19:29 | Created logs/M10-T3/scratch/list-tierA.tsv | — | ~191 |
+| 19:29 | Created logs/M10-T3/scratch/list-tierBC.tsv | — | ~52 |
+| 19:29 | Created logs/M10-T3/scratch/list-crafted.tsv | — | ~48 |
+| 19:29 | Created logs/M10-T3/scratch/gate-lap.sh | — | ~1091 |
+| 19:29 | Created logs/M10-T3/scratch/gate-lap.sh | — | ~1089 |
+| 19:30 | Edited logs/M10-T3/scratch/gate-lap.sh | 2→1 lines | ~11 |
+| 19:30 | Created logs/M10-T3/scratch/battery.sh | — | ~324 |
+| 19:31 | Edited logs/M10-T3/scratch/battery/src/battery.rs | expanded (+6 lines) | ~127 |
+| 19:31 | Edited logs/M10-T3/scratch/battery/src/renderperf.rs | expanded (+6 lines) | ~183 |
+| 23:18 | Created logs/M10-T3/report-t3.md | — | ~5506 |
+| 23:19 | Created logs/M10-T3/spec-review-prompt-t3.md | — | ~1376 |
+| 23:25 | Created logs/M10-T3/spec-review-t3-1.md | — | ~3654 |
+| 23:25 | Created logs/M10-T3/quality-review-prompt-t3.md | — | ~1059 |
+| 23:35 | Created logs/M10-T3/quality-review-t3-1.md | — | ~4541 |
+| 23:36 | Edited logs/M10-T3/report-t3.md | modified Aggregates() | ~389 |
+| 23:36 | Edited logs/M10-T3/report-t3.md | modified 3() | ~332 |
+| 23:36 | Edited logs/M10-T3/report-t3.md | modified lessons() | ~1247 |

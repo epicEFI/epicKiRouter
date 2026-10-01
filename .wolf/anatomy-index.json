@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-01T01:24:41.991Z",
-    "fileCount": 599,
+    "lastScanned": "2026-10-01T05:36:50.711Z",
+    "fileCount": 612,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "337e4d5a84aabb6852633f2652816c585b76320dfc57fceff42eb10c597e8c02",
-    "storeUpdatedAt": "2026-10-01T01:24:42.000Z",
-    "rootHash": "94d40f965b5eaad2"
+    "renderedHash": "334225937a7c645affdf9b7f4935a6b557279a4acf3d7b93bb0d51887910f6b9",
+    "storeUpdatedAt": "2026-10-01T05:36:50.721Z",
+    "rootHash": "35345944e5047c73"
   },
   "files": {
     ".dockerignore": {
@@ -6013,6 +6013,211 @@
       "size": 4790,
       "mtimeMs": 1790817870118.9204,
       "updatedAt": "2026-10-01T01:24:30.237Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/dispatch-prompt-t3.md": {
+      "description": "M10-T3 DISPATCH — the measurement moment (battery + the 13-row dispositionment; ZERO commits)",
+      "tokens": 1593,
+      "hash": "b59fbdb7741c2b5c",
+      "size": 6445,
+      "mtimeMs": 1790817954013.207,
+      "updatedAt": "2026-10-01T01:25:54.124Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/scratch/list-tierA.tsv": {
+      "description": "",
+      "tokens": 191,
+      "hash": "a37217de1713bc20",
+      "size": 713,
+      "mtimeMs": 1790818155114.6807,
+      "updatedAt": "2026-10-01T01:29:15.211Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/scratch/list-tierBC.tsv": {
+      "description": "",
+      "tokens": 52,
+      "hash": "4307c2b6ab2c2dc0",
+      "size": 195,
+      "mtimeMs": 1790818156212.6833,
+      "updatedAt": "2026-10-01T01:29:16.311Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/scratch/list-crafted.tsv": {
+      "description": "",
+      "tokens": 48,
+      "hash": "ba3e18c7ca3ae04e",
+      "size": 178,
+      "mtimeMs": 1790818156659.6846,
+      "updatedAt": "2026-10-01T01:29:16.762Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/scratch/gate-lap.sh": {
+      "description": "M10-T3 gate lap (the CI-face items + the tier B/C full re-face walks).",
+      "tokens": 1070,
+      "hash": "ca41c5f228cf25b5",
+      "size": 4031,
+      "mtimeMs": 1790818203771.8047,
+      "updatedAt": "2026-10-01T01:30:03.894Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/scratch/battery.sh": {
+      "description": "M10-T3 workflow battery (the charter's Step 1). Waits for the gate",
+      "tokens": 324,
+      "hash": "e2c4cacbe8ad8a4f",
+      "size": 1214,
+      "mtimeMs": 1790818207963.8154,
+      "updatedAt": "2026-10-01T01:30:08.098Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/scratch/battery/src/battery.rs": {
+      "description": "The workflow battery (Deliverable A).",
+      "tokens": 2627,
+      "hash": "110ea54a2f149e36",
+      "size": 9851,
+      "mtimeMs": 1790818267133.971,
+      "updatedAt": "2026-10-01T01:31:07.247Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "Row",
+          "kind": "class",
+          "startLine": 21,
+          "endLine": 36,
+          "tokens": 85
+        },
+        {
+          "name": "sha256_file",
+          "kind": "fn",
+          "startLine": 37,
+          "endLine": 43,
+          "tokens": 60
+        },
+        {
+          "name": "fail_row",
+          "kind": "fn",
+          "startLine": 44,
+          "endLine": 61,
+          "tokens": 130
+        },
+        {
+          "name": "run_one",
+          "kind": "fn",
+          "startLine": 62,
+          "endLine": 239,
+          "tokens": 1956
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 240,
+          "endLine": 258,
+          "tokens": 250
+        },
+        {
+          "name": "print_row",
+          "kind": "fn",
+          "startLine": 259,
+          "endLine": 278,
+          "tokens": 129
+        }
+      ]
+    },
+    "logs/M10-T3/scratch/battery/src/renderperf.rs": {
+      "description": "The render-perf face (Deliverable B): load -> route -> snapshot x7",
+      "tokens": 1993,
+      "hash": "9ba96241086eef9b",
+      "size": 7476,
+      "mtimeMs": 1790818270415.9797,
+      "updatedAt": "2026-10-01T01:31:10.514Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "populated_layers",
+          "kind": "fn",
+          "startLine": 21,
+          "endLine": 37,
+          "tokens": 117
+        },
+        {
+          "name": "med",
+          "kind": "fn",
+          "startLine": 38,
+          "endLine": 42,
+          "tokens": 25
+        },
+        {
+          "name": "mins",
+          "kind": "fn",
+          "startLine": 43,
+          "endLine": 46,
+          "tokens": 24
+        },
+        {
+          "name": "maxs",
+          "kind": "fn",
+          "startLine": 47,
+          "endLine": 50,
+          "tokens": 25
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 51,
+          "endLine": 175,
+          "tokens": 1336
+        },
+        {
+          "name": "items",
+          "kind": "fn",
+          "startLine": 176,
+          "endLine": 215,
+          "tokens": 406
+        }
+      ]
+    },
+    "logs/M10-T3/report-t3.md": {
+      "description": "M10-T3 REPORT — the measurement moment (battery + the 13-row dispositionment; ZERO commits)",
+      "tokens": 6679,
+      "hash": "782aca9d3dcbe7de",
+      "size": 27074,
+      "mtimeMs": 1790833010612.3394,
+      "updatedAt": "2026-10-01T05:36:50.711Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/spec-review-prompt-t3.md": {
+      "description": "M10-T3 SPEC REVIEW — charter (report-only; the implementer made ZERO commits by design)",
+      "tokens": 1290,
+      "hash": "7744195159c2dc7c",
+      "size": 5204,
+      "mtimeMs": 1790831968119.9587,
+      "updatedAt": "2026-10-01T05:19:28.236Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/spec-review-t3-1.md": {
+      "description": "M10-T3 SPEC REVIEW (review 1) — 2026-09-30, at `e47ce50f7`",
+      "tokens": 3426,
+      "hash": "9dfdb00439fdeea8",
+      "size": 13891,
+      "mtimeMs": 1790832308806.053,
+      "updatedAt": "2026-10-01T05:25:08.925Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/quality-review-prompt-t3.md": {
+      "description": "M10-T3 QUALITY REVIEW — charter (report-only; T3 landed ZERO commits by design)",
+      "tokens": 992,
+      "hash": "ed67b4f08e5f2d5a",
+      "size": 4005,
+      "mtimeMs": 1790832358576.2166,
+      "updatedAt": "2026-10-01T05:25:58.682Z",
+      "source": "hook"
+    },
+    "logs/M10-T3/quality-review-t3-1.md": {
+      "description": "M10-T3 QUALITY REVIEW (review 1) — 2026-09-30, at `e47ce50f7`",
+      "tokens": 4257,
+      "hash": "2484061b580434ba",
+      "size": 17199,
+      "mtimeMs": 1790832925784.0645,
+      "updatedAt": "2026-10-01T05:35:25.896Z",
       "source": "hook"
     }
   },
