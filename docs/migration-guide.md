@@ -205,8 +205,9 @@ user terms:
 | Aesthetics family | The teardrop instrument-vs-consumer tension stands documented (the four-metric instrument is a measurement instrument, not a 2.0 product face); the via_density lever stays closed post-2.0; flow ships unengaged (section 4). | T3 rows 1–3 |
 | Copper pours | Advisory island detection ships (a manifest face; zero divergences); the ROUTING-side pour face (plane-routing clearance) is first-measured post-2.0 — no argv measures it today. | T3 row 5 |
 
-One internal gate-arming row also rides post-2.0 — the F3 diagonal-trigger
-arming (dev-facing instrumentation, corpora-gated, not a user-facing bound);
+One internal gate-arming row also rides post-2.0 — the F3 check (an
+internal corpus-reopen trigger from the pre-2.0 records; the diagonal-trigger
+arming is dev-facing instrumentation, corpora-gated, not a user-facing bound);
 see the cited full table (the M10 plan, AMENDMENT 3).
 
 Two honest scoping notes: the Tier B/C tier walks read 4 green / 5 red and

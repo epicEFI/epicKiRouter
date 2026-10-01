@@ -735,8 +735,9 @@ pub fn assert_epic_cli_fresh(repo_root: &Path, cli_bin: &Path) -> Result<()> {
          even when epic-cli's own sources are untouched, and a plain `cargo build -p\n  \
          epic-cli` may NOT clear the flag — an up-to-date target can skip the relink,\n  \
          leaving the bin's mtime old (M10 AM6 lesson 19).\n  \
-         FORCE the relink, then rebuild BOTH profiles before judging any digest:\n    \
-         cargo clean -p epic-cli        # the witnessed TRUE relink (buglog 220)\n    \
+         FORCE the relink (the witnessed TRUE relink is the clean below,\n  \
+         buglog 220), then rebuild BOTH profiles before judging any digest:\n    \
+         cargo clean -p epic-cli\n    \
          cargo build -p epic-cli\n    \
          cargo build -p epic-cli --release\n  \
          (from rust/; or point EPIC_CLI at a freshly built bin)",
@@ -4042,6 +4043,10 @@ mod pins {
         assert!(
             msg.contains("cargo build -p epic-cli --release"),
             "release cmd missing: {msg}"
+        );
+        assert!(
+            msg.contains("cargo clean -p epic-cli\n"),
+            "clean cmd missing: {msg}"
         );
         let _ = std::fs::remove_dir_all(&root);
     }

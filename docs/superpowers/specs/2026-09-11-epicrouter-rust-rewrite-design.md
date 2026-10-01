@@ -1141,7 +1141,10 @@ bm10
 **The committed goldens (`rust/harness/baselines|corpus`, the
 events-golden, `config/tiers.yaml`) are the post-sunset comparability
 carrier** — every T3 face is golden- or Rust-internal, no live-Java
-dependency, so the T4 sunset made nothing incomparable. In the rows,
+dependency, so the T4 sunset made nothing incomparable.
+The `(ev N)` cites in the cells are T3's evidence-log cites into
+git-ignored `logs/M10-T3/` task records; the committed carrier is
+AMENDMENT 3. In the rows,
 **ot=4 is the opt-in optimizer-threads=4 wall lever** (design `:800`,
 the deterministic candidate-parallelism face). The two budget-stop
 rows carry erratum 2's scoping: bm01's wall-clock stop is
