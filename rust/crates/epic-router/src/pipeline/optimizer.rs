@@ -741,6 +741,7 @@ impl<'a> BatchOptimizerStage<'a> {
             min_cumulative_trace_length: self.min_cumulative_trace_length,
             max_autoroute_passes: self.optimizer.max_autoroute_passes,
             stop_flag: self.stop.flag().cloned(),
+            stop_external_only: self.stop.is_external_only(),
             deadline_ms: self.deadline_ms,
         }
     }
@@ -1376,7 +1377,7 @@ impl<'a> BatchOptimizerStage<'a> {
                                 continue;
                             }
                             let mut buffer = BufferedDriverSink::new(trace_enabled);
-                            let mut worker_stop = StopFace::from_flag(base_ref.stop_flag.clone());
+                            let mut worker_stop = worker_stop_face(base_ref);
                             let result = opt_route_item_body(
                                 base_ref,
                                 &mut worker_stop,
@@ -1574,8 +1575,31 @@ struct CandidateEvalBase {
     /// worker performs itself (the max-items face) is carried back in
     /// the candidate record, never through the flag.
     stop_flag: Option<Arc<AtomicBool>>,
+    /// The external-only mode of the stage stop face (the readiness
+    /// fix-round-2 R2-1 propagation): workers over an EXTERNAL-ONLY
+    /// stage face must never hold a face that can WRITE the shared
+    /// flag — a max-items trip inside a candidate reroute would store
+    /// the host's cancel flag on a signal-free run (the finding-1
+    /// leak). See [`worker_stop_face`].
+    stop_external_only: bool,
     /// Java `deadlineMs` — wall-profile-only.
     deadline_ms: Option<i64>,
+}
+
+/// The partitioned executor's per-worker stop face (the R2-1 seam):
+/// the external-only mode PROPAGATES from the eval base — a
+/// host-cancel-shielded stage hands each worker a
+/// [`StopFace::from_external_flag`] (raises stay local, the carry-back
+/// at the executor's `is_locally_raised` reads survives), while the
+/// writable [`StopFace::from_flag`] face (the session path,
+/// Java-faithful outbound store) is unchanged. Pinned both ways by
+/// `worker_stop_face_propagates_the_external_only_mode`.
+fn worker_stop_face(base: &CandidateEvalBase) -> StopFace {
+    if base.stop_external_only {
+        StopFace::from_external_flag(base.stop_flag.clone())
+    } else {
+        StopFace::from_flag(base.stop_flag.clone())
+    }
 }
 
 /// The candidate ripup costs (free face of the former
@@ -1873,6 +1897,58 @@ mod tests {
     use crate::test_util::parse;
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::polyline::Polyline;
+
+    /// The R2-1 seam pin (review finding 1, the bug-227 family): the
+    /// partitioned executor's worker face PROPAGATES the external-only
+    /// mode. External-only base — a worker's `request_full` (the
+    /// max-items trip inside a candidate reroute, reachable via
+    /// `opt_route_item_body` -> `run_single_thread` ->
+    /// `max_items_gate`) must NOT store the shared flag (the CLI
+    /// cancel channel stays the signal handler's alone), while the
+    /// local raise stays real: the carry-back read
+    /// (`is_locally_raised`) and the face's own polls both see it.
+    /// Writable base (the session path): the outbound store survives,
+    /// Java-faithful.
+    #[test]
+    fn worker_stop_face_propagates_the_external_only_mode() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let external_only_base = CandidateEvalBase {
+            settings: BatchSettings::new(settings_ir(), RouterSettingsScoring::default()),
+            additional_ripup_cost_factor_at_start: 0,
+            trace_ripup_cost_factor: 0.0,
+            use_increased_ripup_costs: false,
+            min_cumulative_trace_length: 0.0,
+            max_autoroute_passes: 1,
+            stop_flag: Some(Arc::clone(&flag)),
+            stop_external_only: true,
+            deadline_ms: None,
+        };
+        let mut shielded = worker_stop_face(&external_only_base);
+        shielded.request_full();
+        assert!(
+            !flag.load(std::sync::atomic::Ordering::Relaxed),
+            "a worker raise must NOT store the host's shared flag"
+        );
+        assert!(
+            shielded.is_locally_raised(),
+            "the carry-back read must still see the local raise"
+        );
+        assert!(shielded.is_requested());
+        assert!(shielded.is_full_stop_requested());
+
+        let writable_flag = Arc::new(AtomicBool::new(false));
+        let writable_base = CandidateEvalBase {
+            stop_flag: Some(Arc::clone(&writable_flag)),
+            stop_external_only: false,
+            ..external_only_base
+        };
+        let mut writable = worker_stop_face(&writable_base);
+        writable.request_full();
+        assert!(
+            writable_flag.load(std::sync::atomic::Ordering::Relaxed),
+            "the writable face keeps its documented outbound store"
+        );
+    }
 
     /// The T9/T10c locator-world fixture (2 layers, `unit um`; 100 SMD
     /// pins all on layer 0; its nets 33/98 are the only two pin PAIRS).
