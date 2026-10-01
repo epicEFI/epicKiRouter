@@ -20,6 +20,13 @@ const USAGE: &str = "usage: epic-cli route -de <board.dsn> -do <out.ses> \
 fn main() {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let exit = match argv.split_first() {
+        Some((flag, _)) if flag == "--version" => {
+            // The version face (M10-T5): single-sourced from the
+            // workspace manifest via CARGO_PKG_VERSION — the same
+            // source the result manifest's app_version reads.
+            println!("epicrouter {}", env!("CARGO_PKG_VERSION"));
+            0
+        }
         Some((command, rest)) if command == "route" => match parse_route_args(rest) {
             Ok(args) if args.batch_mode() => match run_route(&args) {
                 Ok(code) => code,

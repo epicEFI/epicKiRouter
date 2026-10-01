@@ -1,0 +1,66 @@
+# The Rust release workflow (M10-T5): reworks the retired Java
+# `create-release.yml` (retired at T4, `ed07e2cfc`) — ubuntu-latest +
+# the dtolnay 1.93.0 toolchain pin MIRRORING rust-check.yml; both
+# release builds; the tarball + its sha256; the retired workflow's own
+# upload idiom (AButler/upload-release-assets@v3.0). NO windows/java
+# jobs. The first GitHub-side run is the user's act (the never-push
+# law) — this workflow is authored, not pushed.
+#
+# Migration-guide pointer: NOT shipped yet — the guide is T6's
+# deliverable; T6 adds it to the tarball contents when it lands (a
+# dangling pointer was explicitly rejected at charter time).
+name: create-release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # allows a manual run (the retired workflow's face)
+
+permissions:
+  contents: write
+
+env:
+  # The release tag comes from the push event, never from any
+  # user-authored content — passed to the upload step via env, not
+  # inline interpolation in a run: block.
+  RELEASE_TAG: ${{ github.ref_name }}
+
+jobs:
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo build --release -p epic-cli
+      # The desktop shell release build (no --jobs 4 on CI: that cap
+      # is a dev-box memory guard, buglog 194 family).
+      - run: cargo build --release -p epic-gui --features desktop
+      - name: Package the tarball (bins + README + LICENSE) + sha256
+        run: |
+          VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)"
+          NAME="epicrouter-${VERSION}-x86_64-unknown-linux-gnu"
+          mkdir -p "dist/${NAME}"
+          cp target/release/epic-cli "dist/${NAME}/epic-cli"
+          cp target/release/epic-gui "dist/${NAME}/epic-gui"
+          cp ../README.md ../LICENSE "dist/${NAME}/"
+          tar -czf "../${NAME}.tar.gz" -C dist "${NAME}"
+          cd ..
+          sha256sum "${NAME}.tar.gz" > "${NAME}.tar.gz.sha256"
+          sha256sum "${NAME}.tar.gz"
+          echo "ARTIFACT_NAME=${NAME}" >> "$GITHUB_ENV"
+      - name: Upload the release assets
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: '${{ env.ARTIFACT_NAME }}.tar.gz;${{ env.ARTIFACT_NAME }}.tar.gz.sha256'
+          release-tag: ${{ env.RELEASE_TAG }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
