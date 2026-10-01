@@ -30,7 +30,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 
-use crate::baseline::sha256_file;
+use crate::baseline::{normalized_manifest_sha256, sha256_file};
 use crate::oracle::{find_repo_root, wait_with_timeout};
 use crate::router_compare::resolve_fresh_epic_cli;
 
@@ -242,9 +242,18 @@ fn run_face(
     let digest = |path: &Path| -> Result<Option<String>> {
         path.is_file().then(|| sha256_file(path)).transpose()
     };
+    // The manifest digest is the VERSION-BLIND face (the M10-T5
+    // handoff): a release bump can never rotate a committed
+    // global-golden digest; the artifact bytes still carry the true
+    // version. The SES digest stays raw (byte-identity gate).
+    let manifest_digest = |path: &Path| -> Result<Option<String>> {
+        path.is_file()
+            .then(|| normalized_manifest_sha256(path))
+            .transpose()
+    };
     Ok(RunDigests {
         ses_sha: digest(&ses_path)?,
-        manifest_sha: digest(&manifest_path)?,
+        manifest_sha: manifest_digest(&manifest_path)?,
     })
 }
 

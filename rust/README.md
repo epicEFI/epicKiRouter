@@ -41,7 +41,10 @@ tables live in `logs/M6-T3/report-t3.md`. All seven standing
 compares stay green (corpus 5000/5000; DSN 1,332; SES 20; ses-snap 5;
 index 33; undo 33; drc 17), the events compare is green (3,520
 golden rows, exit 0 since M4-T6), determinism canaries are unrotated
-(ses `dc271114…` / manifest `cf607714…`), and the in-tree
+(ses `dc271114…` / manifest `c6644a91…` — the manifest digest is
+version-blind since M10-T5: `app_version`/`git_sha` are normalized out
+of the digest face, the raw-bytes `cf607714…` retired there), and the
+in-tree
 threads-invariance gate is green (bm06 SES `77caf2099a2f…` / manifest
 `90f08ad2…` byte-identical across `-mt 1/3/4`). The CI router gate
 FLIPPED at M8-T8 (2026-09-29, tree `9fe3a0751`): the exact post-flip
@@ -392,7 +395,10 @@ cargo run -q -p epic-harness -- router compare
 # M3-exit values 96ba7300… / 16714d5e…; the M5-T3 rotation is the
 # sanctioned copper-to-edge movement (the canary rides bm08, whose
 # outline gets the same fallback-class promotion as bm06), recorded
-# in SEAM's T3 dossier). STALENESS has TWO
+# in SEAM's T3 dossier; the M10-T5 handoff made the manifest face
+# VERSION-BLIND (app_version/git_sha normalized out of the digest —
+# a release bump can never rotate it) and retired the raw
+# cf607714… for c6644a91…; ses dc271114… immovable throughout). STALENESS has TWO
 # witnessed axes: `-p epic-harness` does not rebuild the spawned
 # epic-cli bin (library-only dep), and a debug-profile run once
 # adopted its stale target/debug sibling over the fresh release bin.

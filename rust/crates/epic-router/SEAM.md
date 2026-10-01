@@ -2263,3 +2263,19 @@ re-pointed the session docs' pre-existing stale `route.rs` line cites (they
 predate the M8-T4 sidecar re-layout and were already false at HEAD) to their
 true locations at the committed tree, including the stale epic-board
 `pins.rs` cite `:486-490` → `:905-919`.
+
+**M10-T5 commit A′ (appended 2026-10-01, inside the task's commit — Opening
+rule 4): comment-only canary-citation refresh; zero engine change.** The
+coordinator's Option-B adjudication (`logs/M10-T5/report-t5.md`) made the
+HARNESS manifest-digest face version-blind
+(`baseline::normalized_manifest_sha256`: `app_version`/`git_sha` are
+normalized out before hashing — a release bump can never rotate a committed
+manifest digest; the manifest ARTIFACT keeps its true values). The raw-bytes
+manifest canary `cf607714…` retired at A′; its successor — the normalized
+literal measured there — is `c6644a910255b865a8c5fa7e903b8e98a5228d0129c29d741180749ce8121f4d`;
+the ses canary `dc271114…` stayed immovable throughout. This commit's
+epic-router touches are COMMENT-ONLY: the ten live
+"the canary cf607714 pins manifest bytes" citations in `pipeline/gloss.rs`
+(4) and `pipeline/full.rs` (1) — plus their epic-cli siblings in
+`route.rs` (5) — now cite the version-blind canary face. No behavior, no
+signature, no pin change in either engine crate.

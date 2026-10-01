@@ -7,5 +7,5 @@
     "--router.congestion_global.pathfinder=on"
   ],
   "ses_sha256": "f06a3044abacd1d1c89739695cb1d6ac950ce0586bb6ed2df6bef629a81bac85",
-  "manifest_sha256": "f26ff245097610c5adf6d54dd3e5de5b8706cf24ea6a281da6112202b16afdaf"
+  "manifest_sha256": "1c83ca92b280f0c9dea0367bed4d85dd220344a646ca9ed537263930faa0ddb9"
 }

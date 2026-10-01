@@ -5,7 +5,7 @@
 
 use crate::manifest::RoutingResultManifest;
 use crate::oracle::OracleRun;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -54,6 +54,57 @@ pub fn sha256_file(path: &Path) -> Result<String> {
         std::fs::read(path).with_context(|| format!("reading {} for hashing", path.display()))?;
     let digest = Sha256::digest(&bytes);
     Ok(format!("{digest:x}"))
+}
+
+/// The manifest digest is VERSION-BLIND (the M10-T5 sanctioned handoff:
+/// the raw-bytes manifest canary `cf607714…` retired at the M10-T5
+/// commit A′; its successor is the normalized literal measured there).
+/// The two ambient build-metadata string fields — `app_version` and
+/// `git_sha` (the unset-by-default `FREEROUTING_GIT_SHA` ambient) — are
+/// replaced with a fixed placeholder BEFORE hashing, so a release bump
+/// can never rotate a committed manifest digest. The manifest ARTIFACT
+/// keeps its true values (`route.rs` is untouched); only this digest
+/// face is scoped. The replace is byte-level and surgical: the CLI
+/// manifest is single-line canonical JSON, each field appears exactly
+/// once, and a version/sha string cannot contain a quote — the value
+/// runs from the marker's opening quote to the next `"` byte.
+///
+/// Both digest faces route through this helper: the determinism pair
+/// face (`router_compare::determinism_digests`) and the global-golden
+/// capture/verify face (`global_golden::run_face`).
+pub fn normalized_manifest_sha256(path: &Path) -> Result<String> {
+    let bytes =
+        std::fs::read(path).with_context(|| format!("reading {} for hashing", path.display()))?;
+    let digest = Sha256::digest(normalize_manifest_bytes(&bytes)?);
+    Ok(format!("{digest:x}"))
+}
+
+/// Replaces the `"app_version":"<any>"` / `"git_sha":"<any>"` values
+/// with `"-"`. An absent field is left alone (a manifest without it
+/// needs no scoping; a digest over it is already version-blind).
+fn normalize_manifest_bytes(bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut out = bytes.to_vec();
+    for field in ["app_version", "git_sha"] {
+        let marker = format!("\"{field}\":\"");
+        let Some(start) = find_subslice(&out, marker.as_bytes()) else {
+            continue;
+        };
+        let value_start = start + marker.len();
+        let Some(rel) = out[value_start..].iter().position(|&b| b == b'"') else {
+            bail!("malformed manifest: unterminated {field} string value");
+        };
+        out.splice(value_start..value_start + rel, std::iter::once(b'-'));
+    }
+    Ok(out)
+}
+
+/// The first occurrence of `needle` in `haystack` (plain byte search —
+/// a manifest is ~1 KB, a memchr-grade scan is unwarranted).
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    (0..=haystack.len() - needle.len()).find(|&i| &haystack[i..i + needle.len()] == needle)
 }
 
 /// Reduces one oracle run to the committed baseline record. `profile_marker`
@@ -459,6 +510,63 @@ mod tests {
             first
                 .chars()
                 .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+        );
+    }
+
+    /// The M10-T5 version-blind manifest digest (commit A′): the digest
+    /// face must be invariant to the two ambient build-metadata fields
+    /// (`app_version`, `git_sha`) and sensitive to everything else.
+    /// Three assertions, the T2 non-vacuity shape:
+    /// (1) manifests differing ONLY in those two fields hash EQUAL;
+    /// (2) a manifest differing in real content hashes DIFFERENT;
+    /// (3) the normalization actually fired — a version-bearing
+    /// manifest's normalized digest differs from its raw sha256 (guards
+    /// the marker against rot, e.g. a serde pretty-print inserting
+    /// spaces after the colons).
+    #[test]
+    fn manifest_digest_is_version_blind_and_content_sensitive() {
+        let dir = std::env::temp_dir().join("epic-harness-baseline-test");
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let body = r#"{"schema_version":1,"app_version":"#;
+        let tail = r#","fixture":{"filename":"x.dsn"},"final_state":"COMPLETED","exit_code":0,"output_written":true}"#;
+        // (1) version-blind: only app_version/git_sha differ.
+        let v1 = dir.join("manifest-v1.json");
+        std::fs::write(
+            &v1,
+            format!("{body}\"0.1.0\",\"git_sha\":\"unknown\"{tail}"),
+        )
+        .expect("write v1");
+        let v2 = dir.join("manifest-v2.json");
+        std::fs::write(
+            &v2,
+            format!("{body}\"9.9.9\",\"git_sha\":\"deadbeef\"{tail}"),
+        )
+        .expect("write v2");
+        let d1 = normalized_manifest_sha256(&v1).expect("hash v1");
+        let d2 = normalized_manifest_sha256(&v2).expect("hash v2");
+        assert_eq!(
+            d1, d2,
+            "manifests differing only in app_version/git_sha must hash equal"
+        );
+        // (2) content-sensitive: a real field moves the digest.
+        let v3 = dir.join("manifest-v3.json");
+        std::fs::write(
+            &v3,
+            format!(
+                "{body}\"0.1.0\",\"git_sha\":\"unknown\",\"fixture\":{{\"filename\":\"y.dsn\"}},\"final_state\":\"COMPLETED\",\"exit_code\":0,\"output_written\":true}}"
+            ),
+        )
+        .expect("write v3");
+        let d3 = normalized_manifest_sha256(&v3).expect("hash v3");
+        assert_ne!(
+            d1, d3,
+            "a manifest differing in real content must hash different"
+        );
+        // (3) non-vacuous vs the raw face: the replace fired.
+        let raw1 = sha256_file(&v1).expect("raw hash v1");
+        assert_ne!(
+            d1, raw1,
+            "the normalized digest of a version-bearing manifest must differ from its raw sha256"
         );
     }
 }

@@ -468,8 +468,8 @@ pub fn run(
     // (Java's stage enum is the frozen parity surface — the events
     // corpus cannot rotate) and NO events (the meander-stage
     // precedent). The report rides the aesthetics SIDECAR via
-    // epic-cli, NEVER the manifest (the cf607714 canary pins manifest
-    // bytes).
+    // epic-cli, NEVER the manifest (the version-blind manifest canary
+    // pins manifest bytes; the raw cf607714… retired at M10-T5).
     let gloss_report = if routing.is_ok() && bus_active {
         crate::pipeline::gloss::run_gloss_bus_stage(manager, board)
     } else {

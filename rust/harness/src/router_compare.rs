@@ -131,7 +131,9 @@ use std::time::{Duration, Instant, SystemTime};
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 
-use crate::baseline::{BASELINE_SCHEMA_VERSION, BaselineRecord, sha256_file};
+use crate::baseline::{
+    BASELINE_SCHEMA_VERSION, BaselineRecord, normalized_manifest_sha256, sha256_file,
+};
 use crate::manifest::RoutingResultManifest;
 use crate::oracle::{OracleProfile, find_repo_root, parse_manifest_file, wait_with_timeout};
 use crate::tiers::TierFile;
@@ -1619,15 +1621,23 @@ pub type DeterminismDigests = (
 
 /// Hashes the pair: `(ses1, ses2, manifest1, manifest2)`, each digest
 /// computed from its OWN run's path (`None` when that run wrote nothing).
+/// The manifest digests are the VERSION-BLIND face
+/// ([`normalized_manifest_sha256`]: the M10-T5 handoff — a release bump
+/// can never rotate a determinism digest; the ses digests stay raw).
 pub fn determinism_digests(pair: &DeterminismPair) -> Result<DeterminismDigests> {
     let digest = |path: &Path| -> Result<Option<String>> {
         path.is_file().then(|| sha256_file(path)).transpose()
     };
+    let manifest_digest = |path: &Path| -> Result<Option<String>> {
+        path.is_file()
+            .then(|| normalized_manifest_sha256(path))
+            .transpose()
+    };
     Ok((
         digest(&pair.run1.ses)?,
         digest(&pair.run2.ses)?,
-        digest(&pair.run1.manifest)?,
-        digest(&pair.run2.manifest)?,
+        manifest_digest(&pair.run1.manifest)?,
+        manifest_digest(&pair.run2.manifest)?,
     ))
 }
 

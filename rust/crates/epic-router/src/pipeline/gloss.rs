@@ -88,7 +88,8 @@
 //! false); an OFF run never constructs a report and never touches the
 //! board. The report rides the `--dump-aesthetics` SIDECAR ONLY (the
 //! `bus_groups` block rendered by epic-cli — NEVER the manifest: the
-//! canary cf607714 pins manifest bytes).
+//! version-blind manifest canary pins manifest bytes; the raw
+//! cf607714… retired at M10-T5).
 //!
 //! ===========================================================================
 //! M8-T4: the FLOW pass — 45° jog/stub elimination + miter/recorner
@@ -225,8 +226,8 @@
 //! false) plus the two stage gates above; an OFF run never
 //! constructs a report and never touches the board. The report rides
 //! the `--dump-aesthetics` SIDECAR ONLY (the `gloss_flow` block
-//! rendered by epic-cli — NEVER the manifest: the canary cf607714
-//! pins manifest bytes).
+//! rendered by epic-cli — NEVER the manifest: the version-blind manifest canary pins manifest bytes; the raw
+//! cf607714… retired at M10-T5).
 //!
 //! ===========================================================================
 //! M8-T5: the VIA PLACE pass — return-path-aware via placement
@@ -349,8 +350,8 @@
 //! (`BatchSettings::via_place_active`, default false); an OFF run
 //! never constructs a report and never touches the board. The report
 //! rides the `--dump-aesthetics` SIDECAR ONLY (the `gloss_via_place`
-//! block rendered by epic-cli — NEVER the manifest: the canary
-//! cf607714 pins manifest bytes).
+//! block rendered by epic-cli — NEVER the manifest: the version-blind manifest canary pins manifest bytes; the raw
+//! cf607714… retired at M10-T5).
 
 use epic_board::board::Board;
 use epic_board::id::ItemId;
@@ -2325,7 +2326,8 @@ fn land_via_candidate(
 /// default false); an OFF run never constructs a report and never
 /// touches the board. The report rides the `--dump-aesthetics` SIDECAR
 /// ONLY (the `gloss_teardrops` block rendered by epic-cli — NEVER the
-/// manifest: the canary cf607714 pins manifest bytes); the incompletes
+/// manifest: the version-blind manifest canary pins manifest bytes;
+/// the raw cf607714… retired at M10-T5); the incompletes
 /// gate surfaces as the DISTINCT `gloss_teardrops_gated` sibling key.
 /// The stage is the TERMINAL gloss slot (after via-place — that pass
 /// moves vias, teardrops attach at the moved positions) and emits NO

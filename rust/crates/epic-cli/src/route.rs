@@ -1161,8 +1161,9 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         // The M8-T1 sidecar door: the four aesthetics metrics over the
         // FINAL board, written at manifest-write time. ROTATION TRAP:
         // the metrics land in THIS sidecar file, NEVER into the
-        // manifest — the manifest bytes are pinned by the canary
-        // golden (cf607714…), and a new always-on manifest key would
+        // manifest — the manifest bytes are pinned by the version-blind
+        // manifest canary (the raw-bytes cf607714… retired at M10-T5),
+        // and a new always-on manifest key would
         // rotate every manifest golden on every board. The same
         // log-only face as the manifest write: an unwritable sidecar
         // path never flips the SES-derived exit code. Byte-stable for
@@ -1177,8 +1178,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         // (serde-skip-when-empty — default runs and the parse-only
         // reference door never carry it: the 24 committed reference
         // goldens and every default-run sidecar stay byte-identical).
-        // NEVER the manifest (the canary cf607714 pins manifest
-        // bytes).
+        // NEVER the manifest (the version-blind manifest canary pins
+        // manifest bytes; the raw cf607714… retired at M10-T5).
         let mut sidecar = epic_board::aesthetics::render_json_value(&metrics);
         if !gloss_report.is_empty() {
             let groups: Vec<serde_json::Value> = gloss_report
@@ -1213,7 +1214,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             sidecar["bus_groups_gated"] = serde_json::Value::Bool(true);
         }
         // M8-T4: the gloss `gloss_flow` block — SAME sidecar, same
-        // skip-when-empty law (never the manifest: cf607714). The
+        // skip-when-empty law (never the manifest: the version-blind
+        // manifest-canary digest). The
         // gated hold surfaces as the DISTINCT `gloss_flow_gated`
         // sibling key from day one (the T3 fix-round lesson — no
         // gated-face conflation).
@@ -1242,7 +1244,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             sidecar["gloss_flow_gated"] = serde_json::Value::Bool(true);
         }
         // M8-T5: the gloss `gloss_via_place` block — SAME sidecar, same
-        // skip-when-empty law (never the manifest: cf607714). The gated
+        // skip-when-empty law (never the manifest: the version-blind
+        // manifest-canary digest). The gated
         // hold surfaces as the DISTINCT `gloss_via_place_gated` sibling
         // key from day one (the T3 fix-round lesson — no gated-face
         // conflation). Row locator contract: from_x/from_y = the via
@@ -1271,7 +1274,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             sidecar["gloss_via_place_gated"] = serde_json::Value::Bool(true);
         }
         // M8-T6: the gloss `gloss_teardrops` block — SAME sidecar, same
-        // skip-when-empty law (never the manifest: cf607714). The gated
+        // skip-when-empty law (never the manifest: the version-blind
+        // manifest-canary digest). The gated
         // hold surfaces as the DISTINCT `gloss_teardrops_gated` sibling
         // key from day one. Row locator contract: at_x/at_y = the
         // junction (pad center), landed = the taper wrote its wires.
