@@ -177,15 +177,18 @@ pub struct OracleRun {
 }
 
 /// Locates the repository root by walking up from the current directory
-/// until a directory containing both `.git` and `build.gradle` is found.
+/// until a directory containing `.git` is found. (Pre-M10-T4 this also
+/// required `build.gradle` — the sunset deleted the gradle build, so the
+/// marker would never match and EVERY harness subcommand, java-free
+/// compares included, would fail. M10-T4 repair, tree `ed07e2cfc`.)
 pub fn find_repo_root() -> Result<PathBuf> {
     let mut dir = std::env::current_dir().context("getting current directory")?;
     loop {
-        if dir.join(".git").exists() && dir.join("build.gradle").exists() {
+        if dir.join(".git").exists() {
             return Ok(dir);
         }
         if !dir.pop() {
-            bail!("could not locate repo root (no .git + build.gradle upward from cwd)");
+            bail!("could not locate repo root (no .git upward from cwd)");
         }
     }
 }

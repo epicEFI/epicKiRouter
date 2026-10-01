@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 
 /// The curated fixture matrix (design §5). `fixtures_root` is resolved
 /// against the repository root (the harness locates it by walking up from the
-/// working directory until it finds `.git` + `build.gradle`).
+/// working directory until it finds `.git`; the pre-M10-T4 `build.gradle`
+/// co-requirement retired with the gradle build).
 #[derive(Debug, Deserialize)]
 pub struct TierFile {
     pub fixtures_root: PathBuf,
