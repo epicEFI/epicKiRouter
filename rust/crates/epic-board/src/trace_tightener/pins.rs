@@ -48,7 +48,9 @@ use std::sync::atomic::AtomicBool;
 /// `epic-dsn/src/reader.rs`): every consumer MUST run
 /// [`crate::normalize_all::normalize_all_traces`] after building its
 /// `SearchTreeManager` (the production recipe,
-/// `epic-cli/src/route.rs:486-490`). Omitting it is invisible on
+/// `epic-cli/src/route.rs:905-919` — refreshed at M10-T2; the prior
+/// cite `:486-490` was stale at HEAD, pointing at `java_two_decimal`).
+/// Omitting it is invisible on
 /// disjoint-wire fixtures (normalize is a no-op) but diverges the
 /// moment same-net wires touch — the smooth fixture's T junctions.
 fn parse_fixture() -> (SearchTreeManager, crate::board::Board) {

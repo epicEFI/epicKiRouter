@@ -28,7 +28,7 @@
 //! let mut capture = CaptureDriverSink::default();          // or any DriverSink
 //! let mut tee = TeeDriverSink::new(&mut capture, sender);
 //! // pre-route, on host_sender: BoardLoaded { revision, item_count, incomplete_count }
-//! let summary = session.route(&CliLayer::default(), &mut tee);
+//! let summary = session.route(&CliLayer::default(), &mut tee).expect("route succeeds");
 //! // post-route, on host_sender: RoutingFinished { final_state, incomplete_count, violations }
 //! // then drain receiver → the GUI's event queue (T6's worker is the real consumer).
 //! ```

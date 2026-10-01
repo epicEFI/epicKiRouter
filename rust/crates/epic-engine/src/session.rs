@@ -13,7 +13,7 @@
 //! in-code-documented:
 //!
 //! 1. `export_ses` takes `&mut self` (the projection mutates the
-//!    `SesBoard` carrier, `route.rs:746` — the dispatch's own
+//!    `SesBoard` carrier, `route.rs:1112` — the dispatch's own
 //!    refinement, kept).
 //! 2. `deterministic_budgets` defaults to TRUE, not the dispatch's
 //!    `false`: the CLI default is ON — `resolve` seeds
@@ -23,7 +23,7 @@
 //!    (`fanout.rs:812`), i.e. OFF is the NONDETERMINISTIC face. A
 //!    session default of `false` would make the workflow parity pin
 //!    nondeterministic. The dispatch's "false = the CLI default"
-//!    contradicts its own anchor (`route.rs:1217` feeds
+//!    contradicts its own anchor (`route.rs:939` feeds
 //!    `args.deterministic_budgets`, which stays `None` at defaults
 //!    and resolves ON).
 //! 3. `apply_copper_to_edge_clearance_override` is RELOCATED here
@@ -35,7 +35,7 @@
 //!    would break the same-code law. Pure move; the CLI call site
 //!    re-imports; byte-invariance is proven by the standing battery.
 //!
-//! The session mode has NO output-file deletion: route.rs:1158-1160
+//! The session mode has NO output-file deletion: route.rs:880-882
 //! is CLI `-do` semantics (a failed RUN must not leave the previous
 //! run's session in place); the session's export is EXPLICIT — the
 //! host owns the file lifecycle, [`Session::export_ses`] only ever
@@ -57,7 +57,7 @@ use epic_dsn::sink::ItemClassIr;
 use epic_dsn::state::Unit as DsnUnit;
 use epic_geometry::rounding::java_round;
 use epic_router::global::map::CongestionMap;
-use epic_router::pipeline::batch::{StopFace, StopReason};
+use epic_router::pipeline::batch::{StopFace, final_state_for};
 use epic_router::pipeline::board_statistics::BoardStatistics;
 use epic_router::pipeline::event_sink::DriverSink;
 use epic_router::pipeline::full;
@@ -235,7 +235,7 @@ pub fn apply_copper_to_edge_clearance_override(
 
 /// Which success-shaped arm [`read_board`] landed on — the session
 /// treats both as warn-and-continue (the CLI face,
-/// route.rs:1136-1143), but the caller of [`Session::load_dsn`]
+/// route.rs:859-864), but the caller of [`Session::load_dsn`]
 /// distinguishes them through [`LoadError::OutlineMissing`].
 #[derive(Debug, PartialEq, Eq)]
 enum ReadOutcome {
@@ -245,7 +245,7 @@ enum ReadOutcome {
     LoadedOutlineMissing,
 }
 
-/// The four-arm `read_board` mapping (route.rs:1136-1150, session
+/// The four-arm `read_board` mapping (route.rs:856-871, session
 /// face): the two success arms collect their parity warnings and
 /// continue; `ParseError` is a hard `LoadError::Parse` (the CLI's
 /// `parse error at {location}: {detail}` text); `IoError` is a hard
@@ -286,7 +286,7 @@ fn classify_read_result(
 /// `Parse`/`Io` are hard failures; `OutlineMissing` is the
 /// WARN-AND-CONTINUE face — the loaded session is RETURNED so the
 /// caller can route it (the CLI proceeds with the default boundary,
-/// route.rs:1137-1143). Manual `Debug`: `Session` deliberately
+/// route.rs:859-864). Manual `Debug`: `Session` deliberately
 /// carries none (its fields are engine-internal), so the arm prints
 /// without it.
 pub enum LoadError {
@@ -317,15 +317,54 @@ impl std::fmt::Debug for LoadError {
     }
 }
 
+/// The [`Session::route`] failure face (the Q6 product decision,
+/// M10-T2, pre-made at charter level): re-route stays DISABLED — ONE
+/// route per `Session`; a re-route requires a fresh session
+/// ([`Session::load_dsn`]). The probe (2026-09-30, pre-change tree,
+/// `logs/M10-T2/evidence/10-q6-probe.log`) measured the prior face:
+/// a second call returned `Ok` SILENTLY — the pipeline re-ran on the
+/// live board and overwrote `final_state`/`statistics` with no
+/// refusal and no panic (e1_ripup: two COMPLETED runs, rev 651 twice,
+/// identical SES bytes — a no-op re-route HERE, but a silent
+/// geometry-mutating re-optimization on any board the pull-tight
+/// stage can still tighten).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RouteError {
+    /// A route run already completed on this session. ANY prior final
+    /// state arms the guard (`final_state` is set at the end of EVERY
+    /// [`Session::route`] call — COMPLETED, CANCELLED, TERMINATED, and
+    /// TIMED_OUT alike), and the guard fires BEFORE any settings
+    /// merge or pipeline work: the board, the statistics, and the
+    /// stored final state are untouched.
+    AlreadyRouted {
+        /// The prior run's final state.
+        final_state: String,
+    },
+}
+
+impl std::fmt::Display for RouteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AlreadyRouted { final_state } => write!(
+                f,
+                "cannot route: the session has already routed once (final state \
+                 {final_state}); a re-route requires a fresh session (Session::load_dsn)"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RouteError {}
+
 /// One route run's summary (the dispatch shape). `passes` is the
 /// AUTOROUTE phase's final pass count — the last
 /// `board_updated` counters row whose `phase == "autoroute"`
-/// (route.rs:1356's face; 0 when the phase emitted no row — an
+/// (route.rs:1078's face; 0 when the phase emitted no row — an
 /// external stop before pass 1, a router-disabled run, or the
 /// all-layers-disabled abort).
 #[derive(Debug, Clone)]
 pub struct RouteSummary {
-    /// The final-state mapping (`route.rs:1293-1297`): TERMINATED on a
+    /// The final-state mapping (`route.rs:1015-1019`): TERMINATED on a
     /// driver error, COMPLETED on `Ok(true)`, else
     /// [`final_state_for`]'s face (CANCELLED only for an EXTERNAL
     /// stop).
@@ -342,7 +381,7 @@ pub struct RouteSummary {
 /// The post-route statistics face ([`Session::statistics`]):
 /// [`BoardStatistics::new`]'s full walk + the incomplete/violation
 /// faces + both scores on the SAME Java two-decimal face the manifest
-/// ships (route.rs:1303-1310; the session's consumer is the T3+ event
+/// ships (route.rs:1024-1032; the session's consumer is the T3+ event
 /// stream, which needs no separate raw face — if one is ever needed,
 /// add a field, do not reinterpret these).
 #[derive(Debug, Clone)]
@@ -397,7 +436,7 @@ pub struct Session {
     /// The shared cancel flag ([`Session::request_cancel`] raises;
     /// `StopFace::from_flag` reads).
     stop_flag: Arc<AtomicBool>,
-    /// The load-time violation seed (route.rs:1208-1209, the
+    /// The load-time violation seed (route.rs:930-931, the
     /// `HeadlessBoardManager.java:788-793` face).
     pre_existing_violations: i32,
     /// The last run's final state (the export gate's input).
@@ -411,7 +450,7 @@ pub struct Session {
     /// [`Session::set_deterministic_budgets`].
     deterministic_budgets: bool,
     /// The input file name the SES design face is derived from (the
-    /// CLI reads it off the `-de` path, route.rs:1381-1384; the
+    /// CLI reads it off the `-de` path, route.rs:1103-1106; the
     /// session gets bytes, so the host sets it — default `board.dsn`,
     /// the CLI's own fallback spelling).
     input_name: String,
@@ -432,7 +471,7 @@ pub struct Session {
 }
 
 impl Session {
-    /// The load face (the run_route prelude, route.rs:1132-1209):
+    /// The load face (the run_route prelude, route.rs:856-931):
     /// bytes -> parse -> DSN layer -> board build + tree fill + the
     /// copper-to-edge override + trace normalization -> the
     /// pre-existing-violation seed.
@@ -445,7 +484,7 @@ impl Session {
     /// argv. Both orderings observe the same copper-to-edge VALUE:
     /// Java applies no DSN or CLI source to `copperToEdgeClearanceUm`
     /// (only `DefaultSettings.java:155` seeds it — the
-    /// route.rs:1164-1170 comment, stated not re-derived), and
+    /// route.rs:884-890 comment, stated not re-derived), and
     /// `SessionLayer` carries no twin for that field for the same
     /// reason (the T2 re-audit's load-time-only exclusion).
     ///
@@ -460,12 +499,12 @@ impl Session {
     pub fn load_dsn(bytes: &[u8], session: SessionLayer) -> Result<Session, LoadError> {
         let mut warnings: Vec<String> = Vec::new();
         let mut ses = SesBoard::new();
-        // 1. The four-arm read (route.rs:1136-1150). NO output-file
+        // 1. The four-arm read (route.rs:856-871). NO output-file
         //    deletion here — that is CLI `-do` semantics
-        //    (route.rs:1152-1160); the session's export is explicit
+        //    (route.rs:880-882); the session's export is explicit
         //    (module docs).
         let outcome = classify_read_result(read_board(bytes, &mut ses), &mut warnings)?;
-        // 2. The DSN settings layer (route.rs:1171-1174).
+        // 2. The DSN settings layer (route.rs:893-896).
         let dsn_layer = DsnLayer::from_metadata(
             ses.metadata.autoroute_settings.as_ref(),
             usize::try_from(ses.metadata.layer_count).unwrap_or(0),
@@ -475,14 +514,14 @@ impl Session {
         let mut load_merged = merge(&MergedSettings::default(), &dsn_layer, &CliLayer::default());
         merge_session(&mut load_merged, &session);
         // 4. Board build + tree fill + override + normalization
-        //    (route.rs:1183-1197; the override placement comment
+        //    (route.rs:905-919; the override placement comment
         //    lives on the relocated fn).
         let mut board = Board::from_ses_board(&ses);
         let mut manager = SearchTreeManager::new();
         manager.reinsert_tree_items(&mut board);
         apply_copper_to_edge_clearance_override(&load_merged, &mut manager, &mut board);
         epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
-        // 5. The load-time violation seed (route.rs:1208-1209).
+        // 5. The load-time violation seed (route.rs:930-931).
         let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
         board.pre_existing_clearance_violations_count =
             i32::try_from(pre_total).unwrap_or(i32::MAX);
@@ -511,26 +550,45 @@ impl Session {
     }
 
     /// One route run (the run_route settings block + pipeline,
-    /// route.rs:1216-1297): the fresh merge (Default -> DSN -> CLI ->
+    /// route.rs:897-1042): the fresh merge (Default -> DSN -> CLI ->
     /// SESSION) -> validate -> the board-specific pass -> resolve ->
     /// the batch build + activation predicates -> the explicit-
     /// engagement thread faces -> `full::run` over the caller's sink
     /// behind the session's stop flag -> the final-state mapping and
     /// the statistics walk.
     ///
-    /// Re-runnable: each call re-merges from the unchanged
-    /// [`SessionLayer`]/[`DsnLayer`] and re-runs the pipeline on the
-    /// live board (the caller owns rerun semantics — the session
-    /// mirrors the CLI's one-shot flow, not a multi-run protocol).
+    /// ONE route per session (the Q6 product decision, M10-T2): a
+    /// second call returns [`RouteError::AlreadyRouted`] BEFORE any
+    /// merge or pipeline work; a re-route requires a fresh session
+    /// ([`Session::load_dsn`]). The prior face was a documented
+    /// "re-runnable" silent re-run (the probe citation on
+    /// [`RouteError`]).
     /// The route-time validate warnings surface through the SINK
     /// (`warn`) — the session's host-log face; the load-time parse
     /// warnings live on [`Session::warnings`].
     ///
     /// The pairs activation's raw tuple output is deliberately
     /// dropped here: the manifest mapping is CLI-only (route.rs
-    /// `:1244-1248`); the batch mutation is what the pipeline reads.
-    pub fn route(&mut self, cli: &CliLayer, sink: &mut dyn DriverSink) -> RouteSummary {
-        // The settings order (route.rs:1162-1217, session face): the
+    /// `:1073-1076`); the batch mutation is what the pipeline reads.
+    ///
+    /// # Errors
+    ///
+    /// [`RouteError::AlreadyRouted`] on any second call (the guard is
+    /// the session's stored `final_state` — every prior run's face).
+    pub fn route(
+        &mut self,
+        cli: &CliLayer,
+        sink: &mut dyn DriverSink,
+    ) -> Result<RouteSummary, RouteError> {
+        // The Q6 guard (M10-T2): re-route stays DISABLED — one route
+        // per session; a re-route requires a fresh Session (load_dsn).
+        // Fires BEFORE any merge/pipeline work (nothing mutated).
+        if let Some(final_state) = &self.final_state {
+            return Err(RouteError::AlreadyRouted {
+                final_state: final_state.clone(),
+            });
+        }
+        // The settings order (route.rs:897-900, session face): the
         // T1 slot merged ABOVE the CLI layer, then the trailing
         // validate.
         let mut merged = merge(&MergedSettings::default(), &self.dsn_layer, cli);
@@ -538,11 +596,11 @@ impl Session {
         for warning in validate(&mut merged) {
             sink.warn(&warning);
         }
-        // 3. The unconditional geometry pass (route.rs:1211-1216).
+        // 3. The unconditional geometry pass (route.rs:938-939).
         apply_board_specific_optimizations(&mut merged, &self.board);
         let resolved = ResolvedRouteSettings::resolve(&merged, Some(self.deterministic_budgets));
         // 4. The batch build + the three activation predicates
-        //    (route.rs:1227-1248; the raw tuples are fine here — the
+        //    (route.rs:949-971; the raw tuples are fine here — the
         //    manifest mapping is CLI-only).
         let mut batch = build_batch_settings(&resolved);
         apply_tuning_activation(&mut batch, &resolved, self.board.rules());
@@ -550,9 +608,9 @@ impl Session {
         let (_pair_specs, _unresolved_pairs) =
             apply_pairs_activation(&mut batch, &resolved, &self.board);
         // The honoring face reads the RESOLVED activation off the
-        // board (route.rs:1249-1252).
+        // board (route.rs:974-977).
         self.board.set_tuning_active(batch.tuning_active);
-        // The threads faces (route.rs:1253-1279) — the explicit-
+        // The threads faces (route.rs:981-1001) — the explicit-
         // engagement law extended to the session layer: the executor
         // engages on an EXPLICIT CLI *or* SESSION value; the default
         // stays 1 (the golden sequential path) even though the merged
@@ -571,7 +629,7 @@ impl Session {
             } else {
                 1
             };
-        // The pipeline (route.rs:1280-1289) — the session's StopFace
+        // The pipeline (route.rs:1003-1012) — the session's StopFace
         // rides the shared flag (`StopFace::default()` is the flagless
         // equivalent the CLI uses). The congestion engagement is
         // recorded BEFORE the batch moves (the resolved
@@ -588,13 +646,13 @@ impl Session {
             StopFace::from_flag(Some(Arc::clone(&self.stop_flag))),
             &mut pass_sink,
         );
-        // The final-state mapping (route.rs:1293-1297).
+        // The final-state mapping (route.rs:1015-1019).
         let final_state: String = match &outcome.routing {
             Err(_) => "TERMINATED".to_string(),
             Ok(true) => "COMPLETED".to_string(),
             Ok(false) => final_state_for(false, outcome.stop_reason).to_string(),
         };
-        // 5. The post-route statistics walk (route.rs:1300-1322,
+        // 5. The post-route statistics walk (route.rs:1022-1042,
         //    summary faces). `BoardStatistics::new` needs `&mut` —
         //    which is why `statistics()` returns the STORED walk (the
         //    read-only getter cannot re-walk).
@@ -611,19 +669,21 @@ impl Session {
         self.statistics = Some(session_stats.clone());
         self.final_state = Some(final_state.clone());
         self.pre_existing_violations = self.board.pre_existing_clearance_violations_count;
-        RouteSummary {
+        Ok(RouteSummary {
             final_state,
             incomplete_count,
             violations_total,
             passes: pass_sink.last_autoroute_pass(),
-        }
+        })
     }
 
     /// The cancel face: raises the shared flag the pipeline's
     /// `StopFace` polls. Timing semantics are the PIPELINE's (the
     /// session path is the CLI path): a raise MID-RUN is the
-    /// external-stop face (`StopReason::UserStop` -> CANCELLED,
-    /// route.rs `:450-461`); a raise BEFORE [`Session::route`] hits
+    /// external-stop face (`StopReason::UserStop` -> CANCELLED, the
+    /// hoisted `epic_router::pipeline::batch::final_state_for` —
+    /// CANCELLED only for an EXTERNAL stop); a raise BEFORE
+    /// [`Session::route`] hits
     /// the pipeline's PRE-STAGE check, which SKIPS the routing stage
     /// entirely (pass-through `Ok(true)` -> COMPLETED — full.rs
     /// `router_enabled && !stop.is_requested()`). Both faces are
@@ -664,7 +724,7 @@ impl Session {
         &self.board
     }
 
-    /// The SES export, gated EXACTLY like route.rs:1385-1399: only
+    /// The SES export, gated EXACTLY like route.rs:1110-1119: only
     /// COMPLETED/TIMED_OUT produce a file — every other face (and a
     /// no-route-yet session) returns `Err` WITHOUT touching `path`.
     /// Success: the SAME projection + writer the CLI step 6 uses (the
@@ -687,7 +747,7 @@ impl Session {
         if !matches!(final_state.as_str(), "COMPLETED" | "TIMED_OUT") {
             return Err(format!(
                 "no session file: final state {final_state} produces no output (only \
-                 COMPLETED/TIMED_OUT do, the route.rs:1385-1399 gate)"
+                 COMPLETED/TIMED_OUT do, the route.rs:1110-1119 gate)"
             ));
         }
         project_routed_items(&self.board, &mut self.ses);
@@ -869,26 +929,7 @@ fn project_heatmap(map: &CongestionMap) -> Option<CongestionHeatmap> {
     })
 }
 
-/// The CLI's final-state mapping (route.rs:449-462) — duplicated here
-/// as a PRIVATE one-liner rather than imported: `final_state_for` is
-/// `pub` in epic-cli, which epic-engine cannot depend on. Two 12-line
-/// mappings of a frozen `StopReason` enum; the parity pin (CANCELLED
-/// on the external stop) and the workspace battery hold both faces.
-#[must_use]
-fn final_state_for(run_ok: bool, stop_reason: Option<StopReason>) -> &'static str {
-    if run_ok {
-        return "COMPLETED";
-    }
-    match stop_reason {
-        // An EXTERNAL stop is the only CANCELLED face.
-        Some(StopReason::UserStop) => "CANCELLED",
-        // Internal stops (MaxPasses, MaxItems, stagnation, restore
-        // exhaustion) are normal end-of-work for the scheduler.
-        _ => "COMPLETED",
-    }
-}
-
-/// Java's manifest float face, VALUE step (route.rs:489-496,
+/// Java's manifest float face, VALUE step (route.rs:470-476,
 /// byte-verbatim): `%.2f` HALF_UP at 2 decimals, arithmetically.
 fn java_two_decimal(value: f32) -> f64 {
     let x = f64::from(value);
@@ -904,7 +945,7 @@ fn java_two_decimal(value: f32) -> f64 {
 /// `:140-141`/`:164-177` precedent — `is_trace_enabled` mirrors the
 /// inner sink exactly) and additionally keeps the last
 /// `board_updated` counters row whose phase is `autoroute` — the
-/// pass-count source of [`RouteSummary::passes`] (route.rs:1356's
+/// pass-count source of [`RouteSummary::passes`] (route.rs:1078's
 /// face, which the CLI reads off its OWN sink; a `&mut dyn
 /// DriverSink` exposes no counters, so the session observes them at
 /// the same seam). The M9-T3 snapshot hook is forwarded too — a tee
@@ -974,6 +1015,7 @@ impl DriverSink for PassTrackingSink<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epic_router::pipeline::batch::StopReason;
 
     /// The `IoError` arm: the port's reader never constructs it from
     /// bytes (epic-dsn reader.rs module docs), so the mapping is
@@ -987,7 +1029,8 @@ mod tests {
         assert!(warnings.is_empty());
     }
 
-    /// The final-state mapping is the CLI's route.rs:449-462 face:
+    /// The final-state mapping is the hoisted
+    /// `epic_router::pipeline::batch::final_state_for` face (M10-T2):
     /// the external stop is the only CANCELLED; every internal stop
     /// and `Ok(true)` are COMPLETED.
     #[test]
@@ -1002,7 +1045,7 @@ mod tests {
     }
 
     /// The two-decimal float face on the discriminating values
-    /// (route.rs:489-496): ties round HALF_UP (-2.5e-2 style) and
+    /// (route.rs:470-476): ties round HALF_UP (-2.5e-2 style) and
     /// -0.0 renders as 0.0.
     #[test]
     fn java_two_decimal_faces() {

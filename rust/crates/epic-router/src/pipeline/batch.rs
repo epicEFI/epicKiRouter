@@ -298,6 +298,30 @@ pub enum StopReason {
     UserStop,
 }
 
+/// The final-state mapping (route.rs:449-462) — formerly DUPLICATED at
+/// two hosts: epic-cli `route.rs` held the PUBLIC copy (its `:447` fn),
+/// epic-engine `session.rs` a PRIVATE 12-line duplicate rather than an
+/// import (`final_state_for` was `pub` in epic-cli, which epic-engine
+/// cannot depend on). Two 12-line mappings of a frozen [`StopReason`]
+/// enum; the parity pin (CANCELLED on the external stop) and the
+/// workspace battery held both faces. M10-T2 hoisted the mapping HERE,
+/// beside [`StopReason`], and BOTH hosts import it — the
+/// epic-engine-cannot-depend-on-epic-cli constraint is RESOLVED. The
+/// body is byte-verbatim from the hoisted originals.
+#[must_use]
+pub fn final_state_for(run_ok: bool, stop_reason: Option<StopReason>) -> &'static str {
+    if run_ok {
+        return "COMPLETED";
+    }
+    match stop_reason {
+        // An EXTERNAL stop is the only CANCELLED face.
+        Some(StopReason::UserStop) => "CANCELLED",
+        // Internal stops (MaxPasses, MaxItems, stagnation, restore
+        // exhaustion) are normal end-of-work for the scheduler.
+        _ => "COMPLETED",
+    }
+}
+
 /// Java `AutorouteBatchLoop.run`'s abort face: Java throws
 /// `IllegalArgumentException("Cannot start autorouter: all layers are
 /// disabled.")` after emitting the CANCELLED event.

@@ -1318,7 +1318,9 @@ fn project_overlay_case(case: &OverlayGoldenCase) -> (RenderList, BoardSnapshot)
     match case.boundary {
         Boundary::Load => {}
         Boundary::Route | Boundary::CongestionOn => {
-            session.route(&CliLayer::default(), &mut SilentSink);
+            session
+                .route(&CliLayer::default(), &mut SilentSink)
+                .expect("route succeeds");
         }
     }
     let snapshot = session.snapshot_with_overlays();

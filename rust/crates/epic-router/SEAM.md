@@ -2238,3 +2238,28 @@ set is optimizer.rs:907/:1234/:1458/:1738/:1802 (:907 is the loop-head
 poll the raise pins' kill rides on), verified by the T1 quality review
 (logs/M10-T1/quality-review-t1-1.md, Q1); corrected in the live comment
 at the T1 quality fix commit.]
+
+**M10-T2 (appended 2026-09-30, inside the task's commit — Opening rule 4):
+the Q7 `final_state_for` hoist + the Q6 re-route product decision.** The
+duplicate-resolution row from M9-T2's deviations register is CLOSED: the
+final-state mapping now exists ONCE, as `pub fn final_state_for(run_ok: bool,
+stop_reason: Option<StopReason>) -> &'static str` in
+`epic-router/src/pipeline/batch.rs`, directly beside `StopReason` (body
+byte-verbatim from the two deleted copies — epic-cli `route.rs:447` public +
+epic-engine `session.rs:878` private, whose doc recorded the
+epic-engine-cannot-depend-on-epic-cli constraint, now RESOLVED by the hoist);
+both hosts import it from `epic_router::pipeline::batch` (no new pin — a pure
+import-move; the existing arm pins in both hosts exercise the hoisted body).
+The Q6 probe (pre-change, `logs/M10-T2/evidence/10-q6-probe.log`) measured the
+second `Session::route()` face as a SILENT `Ok` re-run (e1_ripup: two
+COMPLETED runs, rev 651 twice, identical 1222-byte SES — no refusal, no
+panic); the pre-made product decision landed as
+`RouteError::AlreadyRouted { final_state }` — the guard fires BEFORE any
+merge/pipeline work, re-route stays DISABLED, a re-route requires a fresh
+`Session::load_dsn`. Pin `reroute_is_disabled_with_a_clean_error`
+(epic-engine `session_workflow.rs`; DNR-16 both directions). Census
+1685 + 1 = 1686/0/19 declared before the run. Citation hygiene: the task
+re-pointed the session docs' pre-existing stale `route.rs` line cites (they
+predate the M8-T4 sidecar re-layout and were already false at HEAD) to their
+true locations at the committed tree, including the stale epic-board
+`pins.rs` cite `:486-490` → `:905-919`.

@@ -30,7 +30,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use epic_engine::DriverSink;
 use epic_engine::events::{EngineEvent, TeeDriverSink};
-use epic_engine::session::{LoadError, RouteSummary, Session};
+use epic_engine::session::{LoadError, RouteError, RouteSummary, Session};
 use epic_engine::settings::SessionLayer;
 use epic_engine::snapshot::BoardSnapshot;
 
@@ -154,7 +154,7 @@ impl Worker {
         };
         let (engine_tx, engine_rx) = std::sync::mpsc::channel::<EngineEvent>();
         let gui_tx = self.tx.clone();
-        let summary: RouteSummary = std::thread::scope(|scope| {
+        let result: Result<RouteSummary, RouteError> = std::thread::scope(|scope| {
             let forwarder = scope.spawn(move || {
                 for event in engine_rx {
                     if gui_tx.send(WorkerToGui::Engine(event)).is_err() {
@@ -167,16 +167,26 @@ impl Worker {
             // `for` ends on the channel disconnect, and joining it
             // here keeps the scope's implicit join from deadlocking
             // on a still-open channel.
-            let summary = {
+            let result = {
                 let mut noop = NoopSink;
                 let mut tee = TeeDriverSink::new(&mut noop, engine_tx);
                 session.route(&cli, &mut tee)
             };
             let _ = forwarder.join();
-            summary
+            result
         });
-        let _ = self.tx.send(WorkerToGui::RouteDone(Ok(summary)));
-        self.attach_snapshot();
+        match result {
+            Ok(summary) => {
+                let _ = self.tx.send(WorkerToGui::RouteDone(Ok(summary)));
+                self.attach_snapshot();
+            }
+            Err(error) => {
+                // The Q6 face (M10-T2): re-route stays DISABLED — the
+                // already-routed session refuses with the clean error;
+                // the board state (and the GUI's last attach) stands.
+                let _ = self.tx.send(WorkerToGui::RouteDone(Err(error.to_string())));
+            }
+        }
     }
 
     /// The attach step: `snapshot_with_overlays` (the ONE overlay

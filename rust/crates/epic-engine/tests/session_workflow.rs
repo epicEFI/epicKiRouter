@@ -10,7 +10,7 @@
 //!     reader.rs module docs), so no byte input can reach it (the
 //!     dispatch's "bad path is CLI-only" note).
 //! (b) cancel: `request_cancel` before pass 1 ⇒ final_state
-//!     CANCELLED, and `export_ses` refuses (the route.rs:1385-1399
+//!     CANCELLED, and `export_ses` refuses (the route.rs:1110-1119
 //!     gate — only COMPLETED/TIMED_OUT produce a file).
 //! (c) session-layer override precedence: CLI layer default (all
 //!     None) + `SessionLayer { max_passes: Some(1) }` ⇒
@@ -32,7 +32,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use epic_engine::session::{LoadError, Session};
+use epic_engine::session::{LoadError, RouteError, Session};
 use epic_engine::settings::{CliLayer, SessionLayer};
 use epic_router::pipeline::event_sink::DriverSink;
 
@@ -106,7 +106,7 @@ fn load_outline_missing_returns_the_session() {
         Ok(_) => panic!("a boundary-less DSN must land the OutlineMissing arm"),
     };
     // The arm's contract is the HAND-BACK (warn-and-continue at LOAD,
-    // the route.rs:1137-1143 face). The board carries NO outline item
+    // the route.rs:859-864 face). The board carries NO outline item
     // (the relocated override's own no-outline skip arm fired at load
     // — its warning row is on stderr) and no built boundary, so the
     // board's mutation tick still sits at ZERO; routing it is NOT
@@ -195,13 +195,15 @@ fn cancel_mid_run_cancels_and_refuses_export() {
         flag: session.stop_flag(),
         fired: false,
     };
-    let summary = session.route(&CliLayer::default(), &mut sink);
+    let summary = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
     assert_eq!(
         summary.final_state, "CANCELLED",
         "a MID-RUN external stop is the CANCELLED face"
     );
     assert_eq!(summary.passes, 0, "the stop fired before pass 1 finished");
-    // The export gate: CANCELLED produces NO file (route.rs:1385-1399).
+    // The export gate: CANCELLED produces NO file (route.rs:1110-1119).
     let scratch =
         std::env::temp_dir().join(format!("session_workflow_cancel_{}", std::process::id()));
     let out = scratch.join("cancelled.ses");
@@ -232,7 +234,9 @@ fn pre_route_cancel_passes_through_completed() {
         Session::load_dsn(&bytes, SessionLayer::default()).expect("the fixture loads clean");
     session.request_cancel();
     let mut sink = SilentSink;
-    let summary = session.route(&CliLayer::default(), &mut sink);
+    let summary = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
     assert_eq!(
         summary.final_state, "COMPLETED",
         "a stop raised BEFORE route() skips the routing stage (pass-through Ok(true), no \
@@ -263,8 +267,9 @@ fn pre_route_cancel_passes_through_completed() {
 /// the cancel lands MID-OPTIMIZATION, i.e. AFTER the routing stage has
 /// already returned `Ok(true)` (e1_ripup routes to completion,
 /// incompletes 0 — the events-compare face), so the session's mapping
-/// (`final_state_for`'s caller, session.rs:592-596, derived from
-/// route.rs:447) takes the `Ok(true) => "COMPLETED"` arm; the
+/// (`final_state_for`'s caller, the session route body, derived from
+/// the M10-T2-hoisted `epic_router::pipeline::batch::final_state_for`)
+/// takes the `Ok(true) => "COMPLETED"` arm; the
 /// CANCELLED arm (`Ok(false)` + `StopReason::UserStop`) is only
 /// reachable from a MID-ROUTING raise (pinned in
 /// `cancel_mid_run_cancels_and_refuses_export`). Java-faithful:
@@ -307,7 +312,9 @@ fn mid_optimization_cancel_is_observed_by_the_optimizer_stage() {
         fired: false,
         saw_interrupted: false,
     };
-    let summary = session.route(&CliLayer::default(), &mut sink);
+    let summary = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
     assert!(
         sink.fired,
         "the optimization stage must RUN in this world (guards must not bypass) — the fixture \
@@ -352,7 +359,9 @@ fn session_layer_max_passes_override_is_output_observable() {
         "the clean-fixture face: bm07 loads violation-free"
     );
     let mut sink = SilentSink;
-    let defaults = session.route(&CliLayer::default(), &mut sink);
+    let defaults = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
     assert_eq!(defaults.final_state, "COMPLETED");
     assert!(
         defaults.passes > 1,
@@ -368,7 +377,9 @@ fn session_layer_max_passes_override_is_output_observable() {
     };
     let mut session = Session::load_dsn(&bytes, session_layer).expect("bm07 loads clean");
     let mut sink = SilentSink;
-    let capped = session.route(&CliLayer::default(), &mut sink);
+    let capped = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
     assert_eq!(capped.passes, 1, "the session layer's cap bit");
     assert_eq!(
         capped.final_state, "COMPLETED",
@@ -390,9 +401,54 @@ fn session_layer_max_passes_override_is_output_observable() {
         ..CliLayer::default()
     };
     let mut sink = SilentSink;
-    let beats_cli = session.route(&cli, &mut sink);
+    let beats_cli = session.route(&cli, &mut sink).expect("route succeeds");
     assert_eq!(
         beats_cli.passes, 1,
         "the session layer merges ABOVE the CLI"
+    );
+}
+
+/// (f) M10-T2, the Q6 product decision PIN: re-route stays DISABLED —
+/// ONE route per session; a second call returns the clean documented
+/// error ([`RouteError::AlreadyRouted`]) and NOTHING moves: the guard
+/// fires before any merge/pipeline work, so the board revision, the
+/// stored statistics, and the final state all stand exactly as the
+/// first run left them. The error text names the prior final state
+/// and the sanctioned escape hatch (a fresh `Session::load_dsn`).
+/// The prior face (the probe, `logs/M10-T2/evidence/10-q6-probe.log`)
+/// was a silent `Ok` re-run — the mutant face (guard removed) is that
+/// `Ok`, so the DNR-16 revert mutant (guard deleted) FAILS this pin.
+#[test]
+fn reroute_is_disabled_with_a_clean_error() {
+    let bytes = fs::read(fixture("harness/fixtures/event-stream/e1_ripup.dsn"))
+        .expect("the ripup fixture reads");
+    let mut session =
+        Session::load_dsn(&bytes, SessionLayer::default()).expect("the fixture loads clean");
+    let mut sink = SilentSink;
+    let first = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
+    assert_eq!(first.final_state, "COMPLETED");
+    let revision = session.board_revision();
+    let statistics = session.statistics();
+
+    // The second call: refused, cleanly (the single-variant
+    // destructure is the exhaustive arm match).
+    let second = session.route(&CliLayer::default(), &mut sink);
+    let RouteError::AlreadyRouted { final_state } =
+        second.expect_err("a second route MUST refuse (re-route stays disabled — the Q6 decision)");
+    assert_eq!(
+        final_state, "COMPLETED",
+        "the error carries the prior run's final state"
+    );
+    assert_eq!(
+        session.board_revision(),
+        revision,
+        "the refusal touched nothing: the board revision stands"
+    );
+    assert_eq!(
+        session.statistics().incomplete_count,
+        statistics.incomplete_count,
+        "the refusal touched nothing: the stored statistics stand"
     );
 }

@@ -35,7 +35,7 @@ use epic_drc::clearance::all_clearance_violation_depths;
 use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
 use epic_dsn::ses_board::SesBoard;
-use epic_router::pipeline::batch::{StopFace, StopReason};
+use epic_router::pipeline::batch::{StopFace, final_state_for};
 use epic_router::pipeline::board_statistics::{BoardStatistics, RouterSettingsScoring};
 use epic_router::pipeline::event_sink::DriverSink;
 use epic_router::pipeline::full::{PipelineOutcome, PipelinePhases};
@@ -440,21 +440,6 @@ pub struct RouteTelemetry {
     pub pair_report: Vec<ManifestPairRow>,
     /// The M7-T6 advisory unresolved-declaration rows (empty = absent).
     pub pair_unresolved: Vec<ManifestPairUnresolved>,
-}
-
-/// The final-state mapping (module docs for the Java-scheduler rule).
-#[must_use]
-pub fn final_state_for(run_ok: bool, stop_reason: Option<StopReason>) -> &'static str {
-    if run_ok {
-        return "COMPLETED";
-    }
-    match stop_reason {
-        // An EXTERNAL stop is the only CANCELLED face.
-        Some(StopReason::UserStop) => "CANCELLED",
-        // Internal stops (MaxPasses, MaxItems, stagnation, restore
-        // exhaustion) are normal end-of-work for the scheduler.
-        _ => "COMPLETED",
-    }
 }
 
 /// The exit-code mapping (Java `MainResult`): 0 iff the state is
@@ -1338,7 +1323,7 @@ mod tests {
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::point::Point;
     use epic_geometry::tile_shape::TileShape;
-    use epic_router::pipeline::batch::BatchDriver;
+    use epic_router::pipeline::batch::{BatchDriver, StopReason};
 
     /// The final-state mapping (module-docs rule): run-finished ->
     /// COMPLETED; external stop -> CANCELLED; every internal stop ->

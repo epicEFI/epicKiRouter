@@ -117,7 +117,9 @@ fn route_bm07_through_tee() -> Vec<EngineEvent> {
     let mut capture = CaptureDriverSink::default();
     {
         let mut tee = TeeDriverSink::new(&mut capture, sender);
-        let summary = session.route(&CliLayer::default(), &mut tee);
+        let summary = session
+            .route(&CliLayer::default(), &mut tee)
+            .expect("route succeeds");
         assert_eq!(
             summary.final_state, "COMPLETED",
             "bm07 completes at defaults"
@@ -205,7 +207,7 @@ fn parity_stream_is_byte_identical_through_the_tee() {
         Err(_) => panic!("e1_ripup loads"),
     };
     let mut plain = CaptureDriverSink::default();
-    session_a.route(&cli, &mut plain);
+    session_a.route(&cli, &mut plain).expect("route succeeds");
 
     // Run B: the tee AROUND an identical capture sink.
     let bytes = e1_ripup_bytes();
@@ -217,7 +219,7 @@ fn parity_stream_is_byte_identical_through_the_tee() {
     let (sender, receiver) = mpsc::channel();
     {
         let mut tee = TeeDriverSink::new(&mut wrapped, sender);
-        session_b.route(&cli, &mut tee);
+        session_b.route(&cli, &mut tee).expect("route succeeds");
     }
     let _events = collect(receiver);
 
@@ -386,7 +388,9 @@ fn snapshot_is_deterministic_and_revision_monotonic_across_a_route() {
 
     let summary = {
         let mut sink = NullDriverSink;
-        session.route(&CliLayer::default(), &mut sink)
+        session
+            .route(&CliLayer::default(), &mut sink)
+            .expect("route succeeds")
     };
     assert_eq!(summary.final_state, "COMPLETED");
 

@@ -159,7 +159,9 @@ fn session_export_is_byte_identical_to_the_cli() {
         .to_string();
     session.set_input_name(input_name);
     let mut sink = SilentSink;
-    let summary = session.route(&CliLayer::default(), &mut sink);
+    let summary = session
+        .route(&CliLayer::default(), &mut sink)
+        .expect("route succeeds");
     assert_eq!(
         summary.final_state, "COMPLETED",
         "bm08 must complete at defaults for the parity pin (passes {}, incomplete {})",
