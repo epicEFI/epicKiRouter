@@ -1036,9 +1036,81 @@ applied in this commit — its body is the record).
 M10 exit note (T7, 2026-10-01, at tree `36bcc7cd2` — the prior commit;
 the close-out commit is its child — the deviation-3 lesson: the note
 names the prior commit, the T8 fill names its own parent).
-**VERDICT: <per milestone adjudication>** — the slot is OPEN; the
-terminal adjudication (T8, the M4-T17d/M5/M6/M7/M8/M9 pattern) fills it
-at the M10-final tree.
+**VERDICT: M10_EXIT_WITH_DEVIATIONS** — adjudicated 2026-10-01 at tree
+`ef6f5a736` (this fill commit's parent; the M4-T17d/M5/M6/M7/M8/M9
+pattern), by the fresh-opus terminal adjudicator (task record
+`logs/M10-T8/report-t8.md`; AM8 in the plan is the committed carrier).
+All six concrete exit criteria **MET** on the adjudication's own
+re-derivations at the M10-final tree:
+
+- **Criterion 1 (stop-flag wiring) — MET**: the wiring hunks live at
+  `full.rs:341` (`parent_stop: &StopFace`) and `:375`
+  (`StopFace::from_flag(parent_stop.flag().cloned())`), the accessor at
+  `batch.rs:245`; the named wiring/cancel pins re-run green by the
+  adjudicator (`m10_t1_optimizer_stage_shares_the_parent_flag`,
+  `m10_t1_flagged_parent_without_a_raise_runs_clean`,
+  `mid_optimization_cancel_is_observed_by_the_optimizer_stage`); DNR-16
+  both-directions kills at T2's fix round; CLI byte-invariance structural
+  (the flagless production face) and measured (17/17 session shas,
+  T1/T3); buglog 224 `fixed`.
+- **Criterion 2 (Q7 hoist + Q6 decision) — MET**: `final_state_for` at
+  `batch.rs:312`, imported and consumed by both hosts (`session.rs`,
+  `route.rs`); the Q6 guard `RouteError::AlreadyRouted` fires before any
+  merge/pipeline work, pinned `reroute_is_disabled_with_a_clean_error`;
+  the decision text is what the migration guide carries.
+- **Criterion 3 (deviations dispositioned) — MET**: the 13-row table
+  (`:1162-1174`) byte-verbatim vs T3 (block cmp IDENTICAL — proven by
+  the T7 spec reviewer, the T7 coordinator post-fix, and the
+  adjudicator); row-for-row agreement with AM3's condensed dispositions;
+  floors re-recorded HOLDING EXACT (160=160, 128=128, cv 285=285).
+- **Criterion 4 (Java sunset) — MET**: 47 `.java` keepers / 49 oracle
+  files / zero gradle surface, re-derived; the live-reference grep
+  re-derived at exactly 33 governed lines (16 `AGENTS.md` + 16
+  `docs/architecture.md` + 1 `scripts/pcbench/README.md`);
+  `rust-check.yml` untouched.
+- **Criterion 5 (2.0 released) — MET**: `rust/Cargo.toml`
+  `version = "2.0.0"`; the `--version` face live-probed from the
+  committed tree — `epicrouter 2.0.0`, exit 0; the release tarball is
+  not on disk at adjudication time, so its sha256 was not re-checkable —
+  the packaging faces (`package-linux.sh`, the reworked
+  `create-release.yml`) are present and AM5's banked artifact sha stands
+  as the record.
+- **Criterion 6 (zero regressions) — MET**: census **1690/0/19 exact
+  over 41 suites** (declared-before, adjudicator-re-summed, coordinator
+  re-summed), additions-only 1682→1690; canaries EXACT ×2 at the final
+  tree (ses `dc271114…91deb` IMMOVABLE; manifest `c6644a91…1f4d`, the
+  AM5 sanctioned successor); goldens integrity = EXACTLY the sanctioned
+  T5-A′ 7-golden `manifest_sha256` re-capture, nothing else; never-push
+  verified on all three faces (only `upstream` in `git remote`; 13
+  remote refs ALL under `upstream/`, `upstream/master` at the pinned
+  `e7f9bdf1`; `epic/main@{upstream}` unresolvable — no tracking ref, no
+  push target).
+
+The verdict is WITH deviations, not clean: twelve of the thirteen carry
+rows ride post-2.0 with named owners + exit conditions (the carry table
+above, cells verbatim, is the authoritative deviations list; row 13/Q6
+is the sole in-milestone closure; row 10 is a standing re-record
+obligation; rows 6/8 are landed DECISIONS whose residuals — P2 skew, the
+bm10 wall lever — ride). The adjudicator re-faces them against zero
+production-code drift since T3's measurement (post-T3 engine deltas are
+comment-only or test-module-only; canaries and goldens exact at the
+final tree), so the T3 battery still governs.
+
+**Adjudication errata:**
+- **E-ADJ-1 (precision-only):** the count-errata chain above quotes the
+  codespell ignore-list as **43 entries** — true at T4's measured tree
+  (`cfa8a1bef`) — but the M10-final tree carries **39**: T5 commit C′
+  (`8d5e3a4c9`, the AM4 Q-2 intake) pruned exactly the four risky tokens
+  `ot`/`padd`/`ser`/`abd`. Criterion 4's keeper digits (47/49, 33 lines)
+  are unaffected and re-derive exactly.
+- **E-ADJ-2 (record-only):** `git for-each-ref refs/remotes` at the
+  final tree names 13 refs, ALL under the graft remote `upstream/` — not
+  master alone. The never-push substance is intact: no origin exists,
+  `epic/main` has no tracking ref, and nothing was ever pushed anywhere
+  the repo can see.
+
+The loop's mandate ("until m10 and everything is complete") is
+**DISCHARGED** by this fill; no M11 opens.
 
 Criterion verdicts — each **OPEN** here; the terminal adjudication
 judges THESE (the plan's concrete criteria) against the cited evidence
@@ -1251,8 +1323,8 @@ The census ledger: 1682 (M9) → 1685 (T1, +3) → 1686 (T2, +1) → 1686
 `version_line_equals_the_package_version_face`) → the close-out
 declares 1690 + 0 = 1690/0/19 expected (the two riding intakes add
 no pins: a bail-message reword + a doc footnote), measured at this
-close-out. The verdict slot stays OPEN pending the terminal
-adjudication (T8).
+close-out. The verdict slot is FILLED above — `M10_EXIT_WITH_DEVIATIONS`,
+the terminal adjudication (T8); the loop's mandate discharged.
 
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
