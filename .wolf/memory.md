@@ -9564,3 +9564,67 @@ description: chronological action log per session, consolidated weekly
 | 08:49 | Edited docs/architecture.md | 3→4 lines | ~64 |
 | 08:50 | Created logs/M10-T8/report-t8.md | — | ~3795 |
 | 08:51 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md | modified errata() | ~1111 |
+| 12:44 | Created logs/readiness-2026-10-01/charter.md | — | ~496 |
+| 12:45 | Created logs/readiness-2026-10-01/run_batch.sh | — | ~246 |
+| 12:49 | Created logs/readiness-2026-10-01/run_gates.sh | — | ~371 |
+| 13:02 | Created logs/readiness-2026-10-01/audit-code-quality.md | — | ~4275 |
+| 13:08 | Created logs/readiness-2026-10-01/fix-round-charter.md | — | ~839 |
+| 13:22 | Created logs/readiness-2026-10-01/run_batch_ext.sh | — | ~204 |
+| 13:23 | Created logs/readiness-2026-10-01/dispatch-prompt-fixround.md | — | ~2538 |
+| 13:32 | Edited rust/Cargo.toml | expanded (+10 lines) | ~148 |
+| 13:32 | Edited rust/crates/epic-engine/src/settings.rs | modified java_math_round() | ~200 |
+| 13:32 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+18 lines) | ~269 |
+| 13:33 | Edited rust/crates/epic-engine/src/settings.rs | modified java_math_round() | ~248 |
+| 13:33 | Edited rust/crates/epic-engine/src/settings.rs | modified java_math_round() | ~75 |
+| 13:34 | Edited rust/crates/epic-engine/src/settings.rs | modified same_output_target() | ~754 |
+| 13:34 | Edited rust/crates/epic-engine/src/settings.rs | modified same_output_target_lexical_normalization() | ~332 |
+| 13:34 | Edited rust/crates/epic-engine/src/settings.rs | 3→4 lines | ~80 |
+| 13:35 | Edited rust/crates/epic-engine/src/settings.rs | modified java_math_round_is_total_java_math_round() | ~274 |
+| 13:35 | Created rust/crates/epic-cli/src/main.rs | — | ~1847 |
+| 13:36 | Edited rust/crates/epic-cli/src/main.rs | 3→3 lines | ~46 |
+| 13:38 | Edited rust/crates/epic-cli/src/route.rs | modified info() | ~1596 |
+| 13:38 | Edited rust/crates/epic-cli/src/route.rs | inline fix | ~10 |
+| 13:38 | Edited rust/crates/epic-cli/src/route.rs | modified run_route() | ~64 |
+| 13:38 | Edited rust/crates/epic-cli/src/route.rs | modified run_route() | ~133 |
+| 13:39 | Edited rust/crates/epic-cli/src/route.rs | expanded (+15 lines) | ~212 |
+| 13:39 | Edited rust/crates/epic-cli/src/route.rs | modified here() | ~216 |
+| 13:39 | Edited rust/crates/epic-cli/src/route.rs | modified install_stop_signal_handlers() | ~469 |
+| 13:39 | Edited rust/crates/epic-cli/src/route.rs | expanded (+11 lines) | ~161 |
+| 13:40 | Edited rust/crates/epic-cli/src/route.rs | modified write() | ~61 |
+| 13:40 | Edited rust/crates/epic-cli/src/route.rs | added 2 import(s) | ~26 |
+| 13:40 | Edited rust/crates/epic-cli/Cargo.toml | 3→6 lines | ~73 |
+| 13:40 | Edited rust/crates/epic-cli/src/route.rs | modified exit_code_mapping() | ~108 |
+| 13:41 | Edited rust/crates/epic-cli/src/route.rs | modified exit_code_mapping() | ~1635 |
+| 13:42 | Created rust/crates/epic-cli/tests/cli_surface.rs | — | ~1246 |
+| 13:42 | Edited README.md | inline fix | ~85 |
+| 13:42 | Edited docs/command_line_arguments.md | modified note() | ~93 |
+| 13:42 | Edited docs/settings.md | modified note() | ~100 |
+| 13:43 | Edited rust/crates/epic-engine/src/settings.rs | inline fix | ~15 |
+| 13:44 | Edited rust/crates/epic-cli/src/route.rs | modified install_stop_signal_handlers() | ~118 |
+| 13:44 | Edited rust/crates/epic-cli/src/route.rs | 6→6 lines | ~57 |
+| 13:44 | Edited rust/crates/epic-cli/src/route.rs | 7→7 lines | ~59 |
+| 13:44 | Edited rust/crates/epic-cli/src/route.rs | inline fix | ~18 |
+| 13:44 | Edited rust/crates/epic-cli/src/route.rs | 3→2 lines | ~37 |
+| 13:44 | Edited rust/crates/epic-cli/src/route.rs | 6→6 lines | ~62 |
+| 13:45 | Edited rust/crates/epic-cli/src/main.rs | expanded (+12 lines) | ~151 |
+| 14:04 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified from_flag() | ~709 |
+| 14:04 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified request() | ~106 |
+| 14:04 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified propagates() | ~340 |
+| 14:04 | Edited rust/crates/epic-cli/src/route.rs | modified cli_stop_face() | ~146 |
+| 14:05 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified external_only_face_never_writes_the_shared_flag() | ~498 |
+| 14:23 | Created logs/readiness-2026-10-01/report-fixround.md | — | ~2433 |
+| 14:26 | Created logs/readiness-2026-10-01/probe_sigint.sh | — | ~576 |
+| 14:38 | Edited logs/readiness-2026-10-01/report-fixround.md | modified CORRECTION() | ~214 |
+| 14:38 | Edited logs/readiness-2026-10-01/report-fixround.md | 1→3 lines | ~39 |
+| 14:38 | Created logs/readiness-2026-10-01/review-fixround.md | — | ~2332 |
+| 14:41 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 4→5 lines | ~46 |
+| 14:42 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified worker_stop_face() | ~410 |
+| 14:42 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 2→2 lines | ~44 |
+| 14:42 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified worker_stop_face_propagates_the_external_only_mode() | ~732 |
+| 14:42 | Edited rust/crates/epic-cli/src/route.rs | modified clear_stop_signal_slot() | ~144 |
+| 14:42 | Edited rust/crates/epic-cli/src/route.rs | 9→13 lines | ~118 |
+| 14:42 | Edited rust/crates/epic-cli/src/route.rs | modified cli_stop_face_carries_the_flag() | ~394 |
+| 14:42 | Edited rust/crates/epic-cli/src/main.rs | modified settings() | ~76 |
+| 14:43 | Edited rust/crates/epic-cli/src/main.rs | modified parse() | ~172 |
+| 14:43 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 3→4 lines | ~42 |
+| 14:53 | Created logs/readiness-2026-10-01/report-fixround2.md | — | ~1807 |

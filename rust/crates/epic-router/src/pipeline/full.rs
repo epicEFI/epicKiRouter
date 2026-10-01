@@ -359,20 +359,27 @@ pub fn run_optimization_stage(
     // moment (construction has no board effect).
     let before = BoardStatistics::new(manager, board);
     // M10-T1: the stage face SHARES the parent's flag (buglog 224's
-    // wiring fix) — a flagless parent (the CLI production face) yields
-    // exactly the old `StopFace::default()`; a flagged parent (the
-    // session/GUI face) makes external raises visible to the
-    // optimizer's polls (optimizer.rs:907 the loop head — the poll the
-    // M10-T1 raise pins' kill rides on — and :1234/:1458/:1738/:1802;
-    // the site list verified by the T1 quality review). The sharing
-    // also widens the OUTBOUND direction: the optimizer's internal
-    // `request_full` (the M8-T7 candidate-raise replay,
-    // optimizer.rs:1494) now STORES the parent's shared flag, so an
-    // internal full-stop request is visible to the session host —
-    // Java-faithful (Java's max-items `requestStop()` raises the shared
-    // thread flag, `AutoroutePassRunner.java:211-218`) and
-    // CLI-invariant (the CLI parent is flagless).
-    let mut stage_stop = StopFace::from_flag(parent_stop.flag().cloned());
+    // wiring fix) — a flagless parent yields exactly the old
+    // `StopFace::default()`; a flagged parent makes external raises
+    // visible to the optimizer's polls (optimizer.rs:907 the loop head
+    // — the poll the M10-T1 raise pins' kill rides on — and
+    // :1234/:1458/:1738/:1802; the site list verified by the T1
+    // quality review). The sharing also widens the OUTBOUND direction:
+    // the optimizer's internal `request_full` (the M8-T7
+    // candidate-raise replay, optimizer.rs:1494) now STORES the
+    // parent's shared flag, so an internal full-stop request is
+    // visible to the session host — Java-faithful (Java's max-items
+    // `requestStop()` raises the shared thread flag,
+    // `AutoroutePassRunner.java:211-218`). The EXTERNAL-ONLY mode
+    // propagates (the readiness fix-round): a host cancel flag the
+    // engine must never write keeps the stage face write-shielded too,
+    // so an internal stop cannot leak into the host's cancel flag
+    // either.
+    let mut stage_stop = if parent_stop.is_external_only() {
+        StopFace::from_external_flag(parent_stop.flag().cloned())
+    } else {
+        StopFace::from_flag(parent_stop.flag().cloned())
+    };
     let mut optimizer = BatchOptimizerStage::new(
         manager,
         board,

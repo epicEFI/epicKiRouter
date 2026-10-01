@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T14:51:02.428Z
-> Files: 631 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T20:53:53.241Z
+> Files: 649 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -21,7 +21,7 @@
 - `GEMINI.md` — OpenWolf (~75 tok)
 - `LICENSE` — Project license (~9366 tok)
 - `pyproject.toml` — Configuration for development tools (~262 tok)
-- `README.md` — Project documentation (~900 tok)
+- `README.md` — Project documentation (~927 tok)
 - `rewrite.yml` — Freerouting OpenRewrite phases. (~1676 tok)
 
 ## .github/
@@ -284,7 +284,7 @@
 - `architecture.md` — Freerouting Architecture Map (~10210 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
-- `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
+- `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3510 tok)
 - `CONTRIBUTING.md` — Introduction (~1392 tok)
 - `integrations.md` — EDA Integrations (~2331 tok)
 - `labels.md` — Issue and Pull Request Labels (~1529 tok)
@@ -292,7 +292,7 @@
 - `ProjectSchemeCodeStyle.xml` (~519 tok)
 - `scoring.md` — Board scoring (V2) (~3175 tok)
 - `self-hosting.md` — Self-Hosting the Freerouting API (~4256 tok)
-- `settings.md` — Freerouting Settings Documentation (~5563 tok)
+- `settings.md` — Freerouting Settings Documentation (~5647 tok)
 
 ## docs/API/
 
@@ -767,18 +767,42 @@
 - `dispatch-prompt-t8.md` — M10-T8 DISPATCH — the terminal milestone adjudication (fresh adjudicator) (~2002 tok)
 - `report-t8.md` — M10-T8 — the terminal milestone adjudication (materialized verbatim by the coordinator) (~3558 tok)
 
+## logs/readiness-2026-10-01/
+
+- `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
+- `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
+- `dispatch-prompt-fixround.md` — Readiness fix round — implementer dispatch (2026-10-01) (~2379 tok)
+- `fix-round-charter.md` — Readiness fix round — 2.0.1 hardening charter (2026-10-01) (~787 tok)
+- `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
+- `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
+- `report-fixround2.md` — Readiness fix-round-2 report (2026-10-01) (~1694 tok)
+- `review-fixround.md` — Fresh-eyes review — 2.0.0 hardening diff (2026-10-01) (~2186 tok)
+- `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
+- `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
+- `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
+
 ## rust/
 
-- `Cargo.toml` — Rust package manifest (~150 tok)
+- `Cargo.toml` — Rust package manifest (~286 tok)
 - `README.md` — Project documentation (~6421 tok)
+
+## rust/crates/epic-cli/
+
+- `Cargo.toml` — Rust package manifest (~219 tok)
 
 ## rust/crates/epic-cli/src/
 
-- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~556 tok)
+- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2109 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~48578 tok)
 
 ## rust/crates/epic-cli/tests/
 
+- `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~1265 tok)
 - `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
+
+## rust/crates/epic-engine/src/
+
+- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~56192 tok)
 
 ## rust/crates/epic-gui/src/
 
@@ -799,6 +823,12 @@
 ## rust/crates/epic-router/src/path/
 
 - `inserter.rs` — Java `autoroute/path/FoundConnectionInserter.java` — inserts the (~22375 tok)
+
+## rust/crates/epic-router/src/pipeline/
+
+- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~25620 tok)
+- `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~13513 tok)
+- `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~44251 tok)
 
 ## rust/harness/
 

@@ -165,6 +165,15 @@ pub struct StopFace {
     /// Java `thread.stopRequested` — the shared flag (the engines get
     /// clones as their `stoppableThread`).
     flag: Option<Arc<AtomicBool>>,
+    /// The EXTERNAL-ONLY face (the readiness fix-round's CLI signal
+    /// wiring): the engine's own raises never write the shared flag —
+    /// `request` keeps the local bits, and only the external owner's
+    /// store is visible through the loads. A face the engine can WRITE
+    /// lets an internal stop (stagnation/max-items) leak into the
+    /// host's cancel flag and abort the optimizer stage on a
+    /// signal-free run — the byte-identity break witnessed live (the
+    /// push_shove golden drift, fix-round evidence 05c).
+    external_only: bool,
     /// The driver-local stop bit (Java's `stopRequested` on the same
     /// thread object; the split is a port ownership artifact).
     local: bool,
@@ -179,14 +188,42 @@ pub struct StopFace {
 
 impl StopFace {
     /// A face over a pre-existing shared flag (`None` = local only).
+    /// The engine MAY write the flag: every internal raise stores it
+    /// (the two-face port's outbound direction — the session/GUI
+    /// wiring relies on it).
     #[must_use]
     pub fn from_flag(flag: Option<Arc<AtomicBool>>) -> Self {
         Self {
             flag,
+            external_only: false,
             local: false,
             max_items_faced: false,
             full_stop: false,
         }
+    }
+
+    /// A face over a pre-existing shared flag the engine never
+    /// WRITES: only the external owner's store is visible (through
+    /// the loads); every internal raise stays on the local bits.
+    /// Field-identical to [`Self::default`] when the flag never
+    /// raises — the byte-identity face the host-layer cancel wiring
+    /// needs. The readiness fix-round's CLI seam uses this.
+    #[must_use]
+    pub fn from_external_flag(flag: Option<Arc<AtomicBool>>) -> Self {
+        Self {
+            flag,
+            external_only: true,
+            local: false,
+            max_items_faced: false,
+            full_stop: false,
+        }
+    }
+
+    /// The external-only mode mark (the pipeline's stage-face
+    /// propagation reads it).
+    #[must_use]
+    pub fn is_external_only(&self) -> bool {
+        self.external_only
     }
 
     /// Java `isStopAutoRouterRequested()` (`StoppableThread.java:40-42`).
@@ -215,9 +252,13 @@ impl StopFace {
     }
 
     /// Java `requestStopAutoRouter()` (`StoppableThread.java:33-37`).
+    /// The external-only face keeps the store local (the shared flag
+    /// is the EXTERNAL owner's channel alone).
     pub fn request(&mut self) {
         self.local = true;
-        if let Some(flag) = &self.flag {
+        if !self.external_only
+            && let Some(flag) = &self.flag
+        {
             flag.store(true, Ordering::Relaxed);
         }
     }
@@ -1646,6 +1687,40 @@ mod tests {
         let stop = StopFace::from_flag(Some(flag));
         assert!(stop.is_requested());
         assert!(stop.is_full_stop_requested());
+    }
+
+    /// The readiness fix-round's external-only face pin: the engine's
+    /// own raises stay LOCAL (the shared flag is never written), while
+    /// an external owner's store is fully visible — and the writable
+    /// `from_flag` face keeps its documented outbound store. This is
+    /// the byte-identity seam the CLI cancel wiring rides (the
+    /// flagged-face write-back broke it live: push_shove golden
+    /// drift, fix-round evidence 05c).
+    #[test]
+    fn external_only_face_never_writes_the_shared_flag() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let mut face = StopFace::from_external_flag(Some(Arc::clone(&flag)));
+        face.request();
+        assert!(
+            !flag.load(Ordering::Relaxed),
+            "an internal raise must NOT store the shared flag"
+        );
+        assert!(face.is_requested(), "the raise is still real on the face");
+        face.request_full();
+        assert!(
+            !flag.load(Ordering::Relaxed),
+            "request_full stays local too"
+        );
+        assert!(face.is_full_stop_requested());
+        // The external owner's channel still works.
+        flag.store(true, Ordering::Relaxed);
+        assert!(face.is_requested());
+        assert!(face.is_full_stop_requested());
+        // The writable face keeps its documented outbound store.
+        let writable_flag = Arc::new(AtomicBool::new(false));
+        let mut writable = StopFace::from_flag(Some(Arc::clone(&writable_flag)));
+        writable.request();
+        assert!(writable_flag.load(Ordering::Relaxed));
     }
 
     /// The pass runner's maxItems face (`AutoroutePassRunner:211-220`):

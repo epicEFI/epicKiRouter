@@ -42,6 +42,8 @@ use epic_router::pipeline::full::{PipelineOutcome, PipelinePhases};
 use epic_router::pipeline::pass_runner::RouterCounters;
 use serde::Serialize;
 use sha2::Digest;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use epic_engine::export::{filename_without_extension, project_routed_items};
 use epic_engine::session::apply_copper_to_edge_clearance_override;
@@ -79,6 +81,140 @@ impl DriverSink for CliDriverSink {
         self.last_counters_by_phase
             .insert(counters.phase.clone(), counters.clone());
     }
+}
+
+// ---------------------------------------------------------------------------
+// host-layer hardening (readiness-fix M2 / M5 / m2 / E2)
+// ---------------------------------------------------------------------------
+
+/// The readiness-fix M2 pre-flight: the output path is probed BEFORE
+/// any design bytes are read, so a typo in `-do`'s parent directory
+/// costs nothing (previously the only writability probe was the SES
+/// write AFTER the whole pipeline). `create_dir_all` the parent, then
+/// write+delete a uniquely-named probe file (pid-keyed) in it.
+///
+/// CALLED FROM `main`'s arg-validation position (right after
+/// `parse_route_args`), so a failure is the usage class (exit 2) —
+/// `run_route`'s `Err` maps to 1, and the charter's exit-code table
+/// stays untouched. `parse_route_args` itself stays pure (it is shared
+/// with the harness faces, which must not gain a directory-creating
+/// side effect).
+///
+/// # Errors
+///
+/// An uncreatable parent or an unwritable directory is a hard `Err`
+/// (the usage message names the `-do` path).
+pub fn preflight_output_path(args: &ParsedRouteArgs) -> Result<(), String> {
+    let Some(ses) = args.ses.as_ref() else {
+        return Ok(());
+    };
+    let ses_path = std::path::Path::new(ses);
+    let parent = match ses_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        // A bare filename (`-do out.ses`): the parent is the cwd.
+        _ => std::path::Path::new("."),
+    };
+    if let Err(error) = std::fs::create_dir_all(parent) {
+        return Err(format!(
+            "output directory not usable: -do {ses} (parent {}): {error}",
+            parent.display()
+        ));
+    }
+    let probe = parent.join(format!(".epic-cli-write-probe-{}", std::process::id()));
+    let probe_result = std::fs::write(&probe, b"");
+    // The probe is removed whatever the outcome — a failure still
+    // leaves no residue in the user's directory.
+    let _ = std::fs::remove_file(&probe);
+    probe_result.map_err(|error| format!("output path not writable: -do {ses}: {error}"))
+}
+
+// ---------------------------------------------------------------------------
+// the SIGINT/SIGTERM graceful stop (readiness-fix M5)
+// ---------------------------------------------------------------------------
+
+/// The slot the signal handler reads: a raw pointer to the shared
+/// [`AtomicBool`] (owned by the `Arc` `run_route` keeps alive across
+/// the pipeline). Set immediately before the handlers install; reset
+/// never (the process exits with the run).
+static STOP_FLAG_SLOT: std::sync::atomic::AtomicPtr<AtomicBool> =
+    std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+/// The signal handler (SIGINT and SIGTERM): atomic loads + ONE
+/// AtomicBool store — async-signal-safe by construction, no
+/// allocation, no locks (the charter's requirement).
+#[allow(unsafe_code)] // raw-pointer deref IS the signal-handler idiom; the pointee outlives the handler (Arc held by run_route)
+extern "C" fn handle_stop_signal(signal: i32) {
+    let _ = signal;
+    let flag = STOP_FLAG_SLOT.load(std::sync::atomic::Ordering::Relaxed);
+    if !flag.is_null() {
+        #[allow(unsafe_code)]
+        unsafe {
+            (*flag).store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+}
+
+/// Null the signal slot (the R2-2 face, review finding 3): the slot
+/// holds a raw pointer into the `Arc`'s flag; the `Arc` drops when
+/// `run_route` returns, so the slot must go back to null the moment
+/// the pipeline is no longer running — a signal in the post-run window
+/// hits the handler's null check, never a dangling pointee.
+fn clear_stop_signal_slot() {
+    STOP_FLAG_SLOT.store(std::ptr::null_mut(), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Install the SIGINT/SIGTERM handlers against `flag`. Raw
+/// `libc::sigaction` (no new dependency class: `libc` was already in
+/// the tree transitively). Errors are the caller's WARN-and-degrade
+/// face (flagless pipeline = the pre-change behavior).
+#[allow(unsafe_code)] // the sigaction FFI IS the unsafe surface; zeroed struct + two calls, no aliasing
+fn install_stop_signal_handlers(flag: &Arc<AtomicBool>) -> Result<(), String> {
+    STOP_FLAG_SLOT.store(
+        Arc::as_ptr(flag) as *mut AtomicBool,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    // No signals blocked beyond the delivered one (the zeroed mask);
+    // no SA_RESTART semantics requested — a pending pipeline poll sees
+    // the flag on its next check.
+    let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
+    action.sa_sigaction = handle_stop_signal as *const () as usize;
+    action.sa_flags = 0;
+    let sigint = unsafe { libc::sigaction(libc::SIGINT, &action, std::ptr::null_mut()) };
+    let sigterm = unsafe { libc::sigaction(libc::SIGTERM, &action, std::ptr::null_mut()) };
+    if sigint != 0 || sigterm != 0 {
+        return Err("sigaction failed".to_string());
+    }
+    Ok(())
+}
+
+/// The M5 wiring seam: the `StopFace` handed to the pipeline,
+/// carrying the CLI's shared stop flag as an EXTERNAL-ONLY face
+/// (`StopFace::from_external_flag` — the engine never writes the
+/// flag, so an internal stop cannot leak into the host's cancel flag
+/// and abort the optimizer stage on a signal-free run; the drift that
+/// proved the need is fix-round evidence 05c). Pinned by
+/// `cli_stop_face_carries_the_flag`.
+fn cli_stop_face(flag: &Arc<AtomicBool>) -> StopFace {
+    StopFace::from_external_flag(Some(Arc::clone(flag)))
+}
+
+/// The readiness-fix m2 face: the ONE glanceable stdout row (stdout was
+/// previously unused). Values are the SAME stats the manifest carries
+/// (incomplete_count, the full-violation clearance total, the
+/// two-decimal router score, the final state) — exit codes untouched.
+fn result_summary_row(incomplete: i64, violations: i64, score: f64, final_state: &str) -> String {
+    format!(
+        "result: incomplete={incomplete} violations={violations} score={score:.2} final={final_state}"
+    )
+}
+
+/// The readiness-fix E2 face: the ONE load-phase Info row (the parse ->
+/// board build -> normalize -> DRC-seed walk was previously minutes of
+/// silence on a large board). stderr-only; never the manifest.
+fn board_loaded_row(items: usize, nets: usize, pre_existing: i64, seconds: f64) -> String {
+    format!(
+        "board loaded: {items} items, {nets} nets, {pre_existing} pre-existing violations, {seconds:.1}s"
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -835,6 +971,8 @@ pub fn length_needs(manager: &SearchTreeManager, board: &mut Board) -> Vec<Manif
 /// ends CANCELLED/TERMINATED writes no session and returns the mapped
 /// exit code.
 pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
+    // The E2 load-row clock: starts BEFORE the first input byte.
+    let load_started = std::time::Instant::now();
     let dsn_path = std::path::Path::new(
         args.dsn
             .as_ref()
@@ -930,6 +1068,20 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
     board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
 
+    // The driver sink moves UP here (the readiness-fix E2 emit point):
+    // ONE stderr Info line after the load phase (parse -> board build
+    // -> normalize -> the DRC seed) — the minutes of silence on a
+    // large board were a UX gap, not a diagnostic. The duration is a
+    // local Instant (stderr-only; never the manifest — the
+    // non-determinism omission stands).
+    let mut sink = CliDriverSink::default();
+    sink.info(&board_loaded_row(
+        board.item_count(),
+        board.rules().nets.iter().count(),
+        pre_total,
+        load_started.elapsed().as_secs_f64(),
+    ));
+
     // 3. The unconditional geometry pass (bug-compat fact 1; Java
     //    `applyRouterSettingsForLoadedBoard` `:749`, which runs after
     //    the `:346` override — the pass reads only the board's
@@ -999,16 +1151,32 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     } else {
         1
     };
-    let mut sink = CliDriverSink::default();
+    // The readiness-fix M5 face: the stop flag + handlers install AS
+    // LATE AS POSSIBLE (right before the pipeline; the --version and
+    // --help arms never reach this code). No signal => the flag never
+    // raises => the flagged StopFace is field-behaviorally the
+    // StopFace::default() it replaces (byte-identical requirement (a)).
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let stop_face = match install_stop_signal_handlers(&stop_flag) {
+        Ok(()) => cli_stop_face(&stop_flag),
+        Err(message) => {
+            eprintln!("Warning: {message}; a SIGINT/SIGTERM will kill the run outright");
+            StopFace::default()
+        }
+    };
     let outcome = epic_router::pipeline::full::run(
         &mut manager,
         &mut board,
         batch,
         resolved.optimizer.clone(),
         resolved.run_optimizer,
-        StopFace::default(),
+        stop_face,
         &mut sink,
     );
+    // The R2-2 face: the pipeline is done — null the slot BEFORE the
+    // flag's Arc can ever drop (the rest of the run is synchronous
+    // post-processing on the way out of run_route).
+    clear_stop_signal_slot();
     let run_result = outcome.routing;
     let stop_reason = outcome.stop_reason;
 
@@ -1017,14 +1185,23 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         Ok(true) => "COMPLETED".to_string(),
         Ok(false) => final_state_for(false, stop_reason).to_string(),
     };
+    if final_state == "CANCELLED" {
+        // The readiness-fix M5(b) face: the SIGINT/SIGTERM path — the
+        // external stop maps through the EXISTING final-state mapping
+        // (final_state_for: UserStop -> CANCELLED, pinned), no SES is
+        // written (the COMPLETED/TIMED_OUT output gate), the manifest
+        // write below is still reached, and the exit code is the
+        // EXISTING CANCELLED mapping (exit 1, pinned at
+        // exit_code_mapping).
+        eprintln!("Info: run cancelled by signal; no session file written");
+    }
 
     // 5. Post-route statistics (the manifest's board face).
     let stats = BoardStatistics::new(&mut manager, &mut board);
     // Both top-level scores render through the manifest's %.2f adapter
     // face (GsonProvider's TwoDecimal adapters — F2).
-    let normalized_score = Some(java_two_decimal(
-        stats.get_router_score(Some(&resolved.scoring)),
-    ));
+    let router_score = java_two_decimal(stats.get_router_score(Some(&resolved.scoring)));
+    let normalized_score = Some(router_score);
     // Java `:201` — the value source of the top-level optimizer score
     // (the manifest's final boardStatistics); the RENDERER applies the
     // `:200-202` iff-gate on the optimizer phase faces.
@@ -1120,6 +1297,17 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         false
     };
     let exit_code = exit_code_for(&final_state, output_written);
+
+    // The readiness-fix m2 face: the ONE glanceable stdout row, from
+    // the SAME stats the manifest carries (the string is built here —
+    // before `final_state`/`normalized_score` move into the telemetry —
+    // and printed at the very end of the run; exit codes untouched).
+    let summary_row = result_summary_row(
+        i64::from(stats.connections.incomplete_count.unwrap_or(0)),
+        i64::from(stats.clearance_violations.total_count.unwrap_or(0)),
+        router_score,
+        &final_state,
+    );
 
     // 7. The manifest.
     let telemetry = RouteTelemetry {
@@ -1309,6 +1497,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             eprintln!("Error: cannot write aesthetics sidecar {aesthetics_path}: {error}");
         }
     }
+    println!("{summary_row}");
     Ok(exit_code)
 }
 
@@ -1363,6 +1552,163 @@ mod tests {
         assert_eq!(exit_code_for("COMPLETED", false), 1);
         assert_eq!(exit_code_for("CANCELLED", true), 1);
         assert_eq!(exit_code_for("TERMINATED", true), 1);
+    }
+
+    // -------------------------------------------------------------------
+    // the readiness-fix pins (M2 / M5 / m2 / E2 helpers)
+    // -------------------------------------------------------------------
+
+    /// Readiness-fix m2: the glanceable stdout row's exact formatting.
+    #[test]
+    fn result_summary_row_formatting() {
+        assert_eq!(
+            result_summary_row(3, 7, 812.3456, "COMPLETED"),
+            "result: incomplete=3 violations=7 score=812.35 final=COMPLETED"
+        );
+        assert_eq!(
+            result_summary_row(0, 0, 0.0, "CANCELLED"),
+            "result: incomplete=0 violations=0 score=0.00 final=CANCELLED"
+        );
+    }
+
+    /// Readiness-fix E2: the load-phase Info row's exact formatting
+    /// (stderr-only; the manifest never carries the duration).
+    #[test]
+    fn board_loaded_row_formatting() {
+        assert_eq!(
+            board_loaded_row(1_234, 56, 2, 1.942),
+            "board loaded: 1234 items, 56 nets, 2 pre-existing violations, 1.9s"
+        );
+    }
+
+    /// Readiness-fix M5: the handler fn called DIRECTLY raises the
+    /// shared flag (the charter's unit pin; async-signal-safety is the
+    /// body's atomic-ops-only construction).
+    #[test]
+    fn stop_signal_handler_raises_the_shared_flag() {
+        let flag = Arc::new(AtomicBool::new(false));
+        STOP_FLAG_SLOT.store(
+            Arc::as_ptr(&flag) as *mut AtomicBool,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        handle_stop_signal(libc::SIGINT);
+        assert!(
+            flag.load(std::sync::atomic::Ordering::Relaxed),
+            "the handler must raise the shared flag"
+        );
+        // SIGTERM rides the same handler.
+        let other = Arc::new(AtomicBool::new(false));
+        STOP_FLAG_SLOT.store(
+            Arc::as_ptr(&other) as *mut AtomicBool,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        handle_stop_signal(libc::SIGTERM);
+        assert!(other.load(std::sync::atomic::Ordering::Relaxed));
+        // Restore the null slot (no dangling pointee behind us).
+        STOP_FLAG_SLOT.store(std::ptr::null_mut(), std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Readiness-fix M5: the wiring seam — the StopFace handed to the
+    /// pipeline raises iff the CLI's shared flag does (both the
+    /// never-raised face (requirement (a): behavior byte-identical)
+    /// and the raised face).
+    #[test]
+    fn cli_stop_face_carries_the_flag() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let face = cli_stop_face(&flag);
+        assert!(
+            !face.is_requested(),
+            "no signal => the face is indistinguishable from StopFace::default()"
+        );
+        flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert!(face.is_requested(), "a raise must reach the pipeline face");
+    }
+
+    /// The R2-2 face (review finding 3): the slot clears to null — a
+    /// signal after the pipeline must hit the handler's null check,
+    /// never a dangling pointee (the Arc drops at `run_route`'s exit).
+    #[test]
+    fn clear_stop_signal_slot_nulls_the_slot() {
+        let flag = Arc::new(AtomicBool::new(false));
+        STOP_FLAG_SLOT.store(
+            Arc::as_ptr(&flag) as *mut AtomicBool,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        assert!(
+            !STOP_FLAG_SLOT
+                .load(std::sync::atomic::Ordering::Relaxed)
+                .is_null()
+        );
+        clear_stop_signal_slot();
+        assert!(
+            STOP_FLAG_SLOT
+                .load(std::sync::atomic::Ordering::Relaxed)
+                .is_null(),
+            "the post-run window must not hold a live pointer"
+        );
+    }
+
+    /// Readiness-fix M2: an unwritable output parent is the usage
+    /// class BEFORE any design byte is read — the helper receives only
+    /// the parsed argv, so the input file cannot be touched by
+    /// construction; this pin witnesses the immediate `Err` and that
+    /// the input marker file survives.
+    #[test]
+    fn preflight_rejects_unwritable_output_parent() {
+        let dir = std::env::temp_dir().join(format!("epic-fix-m2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        // A REGULAR FILE where the -do parent directory would be.
+        let blocker = dir.join("blocker");
+        std::fs::write(&blocker, b"not a directory").expect("blocker file");
+        let dsn = dir.join("board.dsn");
+        std::fs::write(&dsn, b"(pcbGNUGNU ..)").expect("dsn marker");
+        let args = parse_route_args(&[
+            "-de".to_string(),
+            dsn.to_string_lossy().into_owned(),
+            "-do".to_string(),
+            blocker.join("out.ses").to_string_lossy().into_owned(),
+        ])
+        .expect("args parse");
+        let error = preflight_output_path(&args).expect_err("unwritable parent must reject");
+        assert!(
+            error.contains("output directory not usable"),
+            "the usage-class message names the -do parent: {error}"
+        );
+        // The input file is untouched (the failure is immediate).
+        assert_eq!(
+            std::fs::read(&dsn).expect("dsn still present"),
+            b"(pcbGNUGNU ..)",
+            "the pre-flight must not touch the input"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Readiness-fix M2: the success face — the parent dir is created,
+    /// the probe leaves NO residue, and the run is accepted.
+    #[test]
+    fn preflight_ok_creates_parent_and_leaves_no_probe() {
+        let dir = std::env::temp_dir().join(format!("epic-fix-m2-ok-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let target = dir.join("nested").join("out.ses");
+        let args = parse_route_args(&[
+            "-de".to_string(),
+            dir.join("board.dsn").to_string_lossy().into_owned(),
+            "-do".to_string(),
+            target.to_string_lossy().into_owned(),
+        ])
+        .expect("args parse");
+        preflight_output_path(&args).expect("creatable parent accepted");
+        assert!(dir.join("nested").is_dir(), "the parent was created");
+        let residue: Vec<_> = std::fs::read_dir(dir.join("nested"))
+            .expect("read the created dir")
+            .filter_map(std::result::Result::ok)
+            .collect();
+        assert!(
+            residue.is_empty(),
+            "the probe file must be deleted: {residue:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The counters' pass-count backfill: the LAST counters' passCount
