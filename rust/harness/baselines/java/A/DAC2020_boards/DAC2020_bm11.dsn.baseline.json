@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm11.dsn",
+  "fixture_sha256": "33d1e43b16feb1be6251eaae1159cae00cac0b6054778eb7f26c0447a2d0c525",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 3,
+  "maximum_count": 160,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 975.0,
+  "optimizer_score": 756.12,
+  "ses_sha256": "e2af598dd804c7c2d9d9f6bc86df0beb7aeb9dd4833ff688297b7a88106f9595",
+  "autorouter_seconds": 47.92,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 18,
+  "captured_at_unix": 1789192385,
+  "notes": null
+}

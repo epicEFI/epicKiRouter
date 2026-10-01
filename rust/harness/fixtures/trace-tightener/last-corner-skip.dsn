@@ -1,0 +1,59 @@
+(PCB last-corner-skip.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary (rect pcb 0 0 120000 60000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 250))
+  )
+  (placement
+    (component "CA"
+      (place "PA_COMP" 2000 2000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADT" "PA" 0 0)
+    )
+    (padstack "PADT"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+  )
+  (network
+    (net "N1")
+    (net "N2")
+    (net "N3")
+    (net "N4")
+    (net "N5")
+    (class kicad_default "N1" "N2" "N3" "N4" "N5"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+  (wiring
+    (wire (path F.Cu 200  10000 10000 30000 10000 30000 14000 50000 14000 50000 10000 60000 10000) (net N1))
+    (wire (path F.Cu 200  10000 25000 20000 25000 20000 35000 40000 35000 40000 27000 60000 27000) (net N2))
+    (wire (path F.Cu 200  10000 40000 30000 40000 30000 50000 50000 50000 50000 42000 70000 42000) (net N3))
+    (wire (path F.Cu 200  70000 10000 90000 10000 90000 30000 110000 30000 110000 10000 115000 10000) (net N4))
+    (wire (path F.Cu 200  70000 45000 100000 45000 100000 46000 105000 46000 105000 45000 110000 45000) (net N5))
+  )
+)

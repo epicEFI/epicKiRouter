@@ -1,0 +1,685 @@
+(PCB t9_locator_any.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  100000 0  100000 60000  0 60000  0 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  48000 0  52000 0  52000 28000  48000 28000  48000 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  48000 32000  52000 32000  52000 60000  48000 60000  48000 32000)
+    )
+    (keepout ""
+      (polygon F.Cu 0  48500 28000  51500 28000  51500 29600  48500 29600  48500 28000)
+    )
+    (snap_angle none)
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CD"
+      (place "D001" 2000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D002" 3000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D003" 4000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D004" 5000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D005" 6000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D006" 7000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D007" 8000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D008" 9000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D009" 10000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D010" 11000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D011" 12000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D012" 13000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D013" 14000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D014" 15000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D015" 16000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D016" 17000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D017" 18000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D018" 19000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D019" 20000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D020" 21000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D021" 22000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D022" 23000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D023" 24000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D024" 25000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D025" 26000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D026" 27000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D027" 28000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D028" 29000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D029" 30000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D030" 31000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D031" 32000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D032" 33000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D033" 2000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D034" 3000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D035" 4000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D036" 5000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D037" 6000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D038" 7000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D039" 8000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D040" 9000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D041" 10000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D042" 11000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D043" 12000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D044" 13000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D045" 14000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D046" 15000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D047" 16000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D048" 17000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D049" 18000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D050" 19000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D051" 20000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D052" 21000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D053" 22000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D054" 23000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D055" 24000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D056" 25000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D057" 26000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D058" 27000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D059" 28000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D060" 29000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D061" 30000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D062" 31000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D063" 32000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D064" 33000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D065" 34000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D066" 35000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D067" 36000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D068" 37000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D069" 38000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D070" 39000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D071" 40000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D072" 41000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D073" 42000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D074" 43000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D075" 44000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D076" 45000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D077" 46000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D078" 47000 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D079" 52350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D080" 53350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D081" 54350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D082" 55350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D083" 56350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D084" 57350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D085" 58350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D086" 59350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D087" 60350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D088" 61350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D089" 62350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D090" 63350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D091" 64350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D092" 65350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D093" 66350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D094" 67350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D095" 68350 2000 Front 0.000000)
+    )
+    (component "CD"
+      (place "D096" 69350 2000 Front 0.000000)
+    )
+    (component "CA"
+      (place "KA" 20000 30000 Front 0.000000)
+    )
+    (component "CB"
+      (place "KB" 80000 30000 Front 0.000000)
+    )
+    (component "CT"
+      (place "TA" 15000 45000 Front 0.000000)
+    )
+    (component "CU"
+      (place "TB" 85000 45000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADB" "PB" 0 0)
+    )
+    (image "CT"
+      (pin "PADT" "PT" 0 0)
+    )
+    (image "CU"
+      (pin "PADU" "PU" 0 0)
+    )
+    (image "CD"
+      (pin "PADD" "PD" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADB"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADT"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADU"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+    (padstack "PADD"
+      (shape (circle F.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "N001"
+      (pins "D001"-"PD")
+    )
+    (net "N002"
+      (pins "D002"-"PD")
+    )
+    (net "N003"
+      (pins "D003"-"PD")
+    )
+    (net "N004"
+      (pins "D004"-"PD")
+    )
+    (net "N005"
+      (pins "D005"-"PD")
+    )
+    (net "N006"
+      (pins "D006"-"PD")
+    )
+    (net "N007"
+      (pins "D007"-"PD")
+    )
+    (net "N008"
+      (pins "D008"-"PD")
+    )
+    (net "N009"
+      (pins "D009"-"PD")
+    )
+    (net "N010"
+      (pins "D010"-"PD")
+    )
+    (net "N011"
+      (pins "D011"-"PD")
+    )
+    (net "N012"
+      (pins "D012"-"PD")
+    )
+    (net "N013"
+      (pins "D013"-"PD")
+    )
+    (net "N014"
+      (pins "D014"-"PD")
+    )
+    (net "N015"
+      (pins "D015"-"PD")
+    )
+    (net "N016"
+      (pins "D016"-"PD")
+    )
+    (net "N017"
+      (pins "D017"-"PD")
+    )
+    (net "N018"
+      (pins "D018"-"PD")
+    )
+    (net "N019"
+      (pins "D019"-"PD")
+    )
+    (net "N020"
+      (pins "D020"-"PD")
+    )
+    (net "N021"
+      (pins "D021"-"PD")
+    )
+    (net "N022"
+      (pins "D022"-"PD")
+    )
+    (net "N023"
+      (pins "D023"-"PD")
+    )
+    (net "N024"
+      (pins "D024"-"PD")
+    )
+    (net "N025"
+      (pins "D025"-"PD")
+    )
+    (net "N026"
+      (pins "D026"-"PD")
+    )
+    (net "N027"
+      (pins "D027"-"PD")
+    )
+    (net "N028"
+      (pins "D028"-"PD")
+    )
+    (net "N029"
+      (pins "D029"-"PD")
+    )
+    (net "N030"
+      (pins "D030"-"PD")
+    )
+    (net "N031"
+      (pins "D031"-"PD")
+    )
+    (net "N032"
+      (pins "D032"-"PD")
+    )
+    (net "NET_33"
+      (pins "KA"-"PA" "KB"-"PB")
+    )
+    (net "N033"
+      (pins "D033"-"PD")
+    )
+    (net "N034"
+      (pins "D034"-"PD")
+    )
+    (net "N035"
+      (pins "D035"-"PD")
+    )
+    (net "N036"
+      (pins "D036"-"PD")
+    )
+    (net "N037"
+      (pins "D037"-"PD")
+    )
+    (net "N038"
+      (pins "D038"-"PD")
+    )
+    (net "N039"
+      (pins "D039"-"PD")
+    )
+    (net "N040"
+      (pins "D040"-"PD")
+    )
+    (net "N041"
+      (pins "D041"-"PD")
+    )
+    (net "N042"
+      (pins "D042"-"PD")
+    )
+    (net "N043"
+      (pins "D043"-"PD")
+    )
+    (net "N044"
+      (pins "D044"-"PD")
+    )
+    (net "N045"
+      (pins "D045"-"PD")
+    )
+    (net "N046"
+      (pins "D046"-"PD")
+    )
+    (net "N047"
+      (pins "D047"-"PD")
+    )
+    (net "N048"
+      (pins "D048"-"PD")
+    )
+    (net "N049"
+      (pins "D049"-"PD")
+    )
+    (net "N050"
+      (pins "D050"-"PD")
+    )
+    (net "N051"
+      (pins "D051"-"PD")
+    )
+    (net "N052"
+      (pins "D052"-"PD")
+    )
+    (net "N053"
+      (pins "D053"-"PD")
+    )
+    (net "N054"
+      (pins "D054"-"PD")
+    )
+    (net "N055"
+      (pins "D055"-"PD")
+    )
+    (net "N056"
+      (pins "D056"-"PD")
+    )
+    (net "N057"
+      (pins "D057"-"PD")
+    )
+    (net "N058"
+      (pins "D058"-"PD")
+    )
+    (net "N059"
+      (pins "D059"-"PD")
+    )
+    (net "N060"
+      (pins "D060"-"PD")
+    )
+    (net "N061"
+      (pins "D061"-"PD")
+    )
+    (net "N062"
+      (pins "D062"-"PD")
+    )
+    (net "N063"
+      (pins "D063"-"PD")
+    )
+    (net "N064"
+      (pins "D064"-"PD")
+    )
+    (net "N065"
+      (pins "D065"-"PD")
+    )
+    (net "N066"
+      (pins "D066"-"PD")
+    )
+    (net "N067"
+      (pins "D067"-"PD")
+    )
+    (net "N068"
+      (pins "D068"-"PD")
+    )
+    (net "N069"
+      (pins "D069"-"PD")
+    )
+    (net "N070"
+      (pins "D070"-"PD")
+    )
+    (net "N071"
+      (pins "D071"-"PD")
+    )
+    (net "N072"
+      (pins "D072"-"PD")
+    )
+    (net "N073"
+      (pins "D073"-"PD")
+    )
+    (net "N074"
+      (pins "D074"-"PD")
+    )
+    (net "N075"
+      (pins "D075"-"PD")
+    )
+    (net "N076"
+      (pins "D076"-"PD")
+    )
+    (net "N077"
+      (pins "D077"-"PD")
+    )
+    (net "N078"
+      (pins "D078"-"PD")
+    )
+    (net "N079"
+      (pins "D079"-"PD")
+    )
+    (net "N080"
+      (pins "D080"-"PD")
+    )
+    (net "N081"
+      (pins "D081"-"PD")
+    )
+    (net "N082"
+      (pins "D082"-"PD")
+    )
+    (net "N083"
+      (pins "D083"-"PD")
+    )
+    (net "N084"
+      (pins "D084"-"PD")
+    )
+    (net "N085"
+      (pins "D085"-"PD")
+    )
+    (net "N086"
+      (pins "D086"-"PD")
+    )
+    (net "N087"
+      (pins "D087"-"PD")
+    )
+    (net "N088"
+      (pins "D088"-"PD")
+    )
+    (net "N089"
+      (pins "D089"-"PD")
+    )
+    (net "N090"
+      (pins "D090"-"PD")
+    )
+    (net "N091"
+      (pins "D091"-"PD")
+    )
+    (net "N092"
+      (pins "D092"-"PD")
+    )
+    (net "N093"
+      (pins "D093"-"PD")
+    )
+    (net "N094"
+      (pins "D094"-"PD")
+    )
+    (net "N095"
+      (pins "D095"-"PD")
+    )
+    (net "N096"
+      (pins "D096"-"PD")
+    )
+    (net "NET_98"
+      (pins "TA"-"PT" "TB"-"PU")
+    )
+    (class kicad_default "NET_33" "NET_98"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+)

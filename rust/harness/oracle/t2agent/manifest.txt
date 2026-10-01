@@ -1,0 +1,4 @@
+Premain-Class: t2agent.T2Agent
+Can-Retransform-Classes: true
+Can-Redefine-Classes: true
+Multi-Release: true

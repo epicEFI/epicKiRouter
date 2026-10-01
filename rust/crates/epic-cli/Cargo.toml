@@ -1,0 +1,28 @@
+[package]
+name = "epic-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "epic-cli"
+path = "src/main.rs"
+
+[dependencies]
+epic-board = { path = "../epic-board" }
+epic-drc = { path = "../epic-drc" }
+epic-dsn = { path = "../epic-dsn" }
+epic-engine = { path = "../epic-engine" }
+epic-geometry = { path = "../epic-geometry" }
+epic-router = { path = "../epic-router" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+epic-index = { path = "../epic-index" }
+num-bigint = "0.4"
+
+[lints]
+workspace = true

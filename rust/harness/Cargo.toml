@@ -1,0 +1,37 @@
+[package]
+name = "epic-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "epic-harness"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+epic-board = { path = "../crates/epic-board" }
+epic-cli = { path = "../crates/epic-cli" }
+epic-drc = { path = "../crates/epic-drc" }
+epic-engine = { path = "../crates/epic-engine" }
+epic-dsn = { path = "../crates/epic-dsn" }
+epic-geometry = { path = "../crates/epic-geometry" }
+epic-index = { path = "../crates/epic-index" }
+epic-router = { path = "../crates/epic-router" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_norway = "0.9" # maintained drop-in fork of the archived serde_yaml (RUSTSEC-2024-0320); API-identical
+sha2 = "0.10"
+
+[lints]
+workspace = true
+
+[features]
+# The M5-T1 allocation-cost instrument (measurement-only, harness-side).
+# NEVER a default build: without this feature the counting-allocator
+# static is cfg'd out entirely and the binary face is unchanged. Build:
+#   cargo build -p epic-harness --release --features alloc-profile \
+#     && (env CARGO_PROFILE_RELEASE_DEBUG=2 for backtrace-symbol faces)
+alloc-profile = []

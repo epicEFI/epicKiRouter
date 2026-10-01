@@ -1,0 +1,18 @@
+{
+  "bend_to_length_ratio": 3.03,
+  "gloss_via_place": [
+    {
+      "from_x": 200000,
+      "from_y": 150000,
+      "landed": false,
+      "net": 1,
+      "net_name": "sig",
+      "to_x": 200000,
+      "to_y": 150000,
+      "via_id": 6
+    }
+  ],
+  "mean_length_excess": 0.316,
+  "parallelism_ratio": 0.0,
+  "via_density": 3.03
+}

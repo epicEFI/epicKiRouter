@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/KiCad_10_demos/pic_programmer.dsn",
+  "fixture_sha256": "401f2566ec305d468b3a1ebe8a66aef6cabb504c5b3bc44888c05e141953f5e1",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 1,
+  "maximum_count": 126,
+  "clearance_violations_total": 1,
+  "clearance_router_introduced": 0,
+  "normalized_score": 989.19,
+  "optimizer_score": null,
+  "ses_sha256": "92d140c7ed7e5f4d0307f716e82cca4ae226a1fc3f6706c988cb3cfc695bd5c1",
+  "autorouter_seconds": 5.57,
+  "optimizer_seconds": null,
+  "passes_completed": 18,
+  "profile": "router-only",
+  "captured_at_unix": 1789939619,
+  "notes": null
+}

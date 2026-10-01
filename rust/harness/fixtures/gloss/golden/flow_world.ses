@@ -1,0 +1,65 @@
+(session "flow_world"
+  (base_design "flow_world")
+  (placement
+    (resolution um 10)
+    (component IA
+      (place A1 20000 200000 front 0)
+      (place A2 480000 200000 front 0)
+    )
+    (component IB
+      (place B1 20000 100000 front 0)
+      (place B2 420000 116000 front 0)
+    )
+    (component IC
+      (place C1 20000 300000 front 0)
+      (place C2 200000 304000 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+    )
+    (library_out 
+    )
+    (network_out 
+      (net "flow_a"
+        (wire
+          (path F.Cu 2000
+            20000 200000
+            24000 204000
+            28000 200000
+            480000 200000
+          )
+        )
+      )
+      (net "flow_b"
+        (wire
+          (path F.Cu 2000
+            20000 100000
+            36000 116000
+            420000 116000
+          )
+        )
+      )
+      (net "flow_c"
+        (wire
+          (path B.Cu 2000
+            100000 304000
+            200000 304000
+          )
+        )
+        (via VIA 100000 304000
+        )
+        (wire
+          (path F.Cu 2000
+            20000 300000
+            96000 300000
+            100000 304000
+          )
+        )
+      )
+    )
+  )
+)

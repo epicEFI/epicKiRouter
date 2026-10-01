@@ -1,0 +1,55 @@
+(session "ecc83-pp_v2.ses"
+  (base_design "ecc83-pp_v2.dsn")
+  (placement
+    (resolution um 10)
+    (component "Footprints:CP_Radial_D12.5mm_P7.50mm"
+      (place C1 1331000 -1029000 front 90)
+    )
+    (component "Footprints:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal"
+      (place R1 1410000 -1213000 front 270)
+      (place R3 1244600 -1150000 front 270)
+      (place R4 1651000 -1162000 front 270)
+      (place R2 1652000 -1073000 front 90)
+    )
+    (component "Footprints:MountingHole_3.2mm_M3_DIN965_Pad"
+      (place P5 1231900 -939800 front 0)
+      (place P6 1651000 -939800 front 0)
+      (place P7 1651000 -1295400 front 0)
+      (place P8 1231900 -1295400 front 0)
+    )
+    (component "Footprints:Valve_ECC-83-2"
+      (place U1 1492800 -1092300 front 0)
+    )
+    (component "Footprints:C_Axial_L12.0mm_D6.5mm_P20.00mm_Horizontal"
+      (place C2 1314450 -1085850 front 270)
+    )
+    (component "Footprints:PinHeader_1x02_P2.54mm_Vertical"
+      (place P2 1231900 -1111250 front 180)
+      (place P3 1231900 -1028700 front 180)
+      (place P1 1651000 -1104900 front 0)
+      (place P4 1504950 -1289050 front 270)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.2")
+    )
+    (library_out 
+      (padstack "Via[0-1]_1905:635_um"
+        (shape
+          (circle Dessus 19050 0 0)
+        )
+        (shape
+          (circle Dessous 19050 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

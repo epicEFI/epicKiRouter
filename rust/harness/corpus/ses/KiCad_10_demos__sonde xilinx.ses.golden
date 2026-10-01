@@ -1,0 +1,69 @@
+(session "sonde xilinx.ses"
+  (base_design "sonde xilinx.dsn")
+  (placement
+    (resolution um 10)
+    (component "sonde-xilinx:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (place R14 1625600 -889000 front 180)
+      (place R9 1219200 -805180 front 180)
+      (place R4 1219200 -1041400 front 180)
+      (place R13 1625600 -1054100 front 180)
+      (place R12 1625600 -990600 front 180)
+      (place R11 1625600 -939800 front 180)
+      (place R8 1219200 -876300 front 180)
+      (place R7 1219200 -927100 front 180)
+      (place R6 1219327 -838200 front 180)
+      (place R10 1219200 -772160 front 180)
+      (place R1 1219200 -738632 front 180)
+      (place R2 1371600 -723900 front 0)
+      (place R5 1511300 -736600 front 0)
+    )
+    (component "sonde-xilinx:D_A-405_P7.62mm_Horizontal"
+      (place D2 1600200 -787400 front 180)
+      (place D1 1346200 -723900 front 180)
+    )
+    (component "sonde-xilinx:C_Axial_L5.1mm_D3.1mm_P12.50mm_Horizontal"
+      (place C1 1346200 -762000 front 0)
+    )
+    (component "sonde-xilinx:PinHeader_1x06_P2.54mm_Vertical"
+      (place P1 1696720 -801370 front 0)
+    )
+    (component "sonde-xilinx:DIP-14_W7.62mm_LongPads"
+      (place U2 1409700 -825500 front 0)
+      (place U1 1270000 -825500 front 0)
+    )
+    (component "sonde-xilinx:C_Disc_D5.1mm_W3.2mm_P5.00mm"
+      (place C5 1450000 -1028700 front 270)
+      (place C4 1490000 -1028700 front 270)
+      (place C2 1409700 -1028700 front 270)
+      (place C3 1511300 -698500 front 0)
+    )
+    (component "sonde-xilinx:DSUB-25_Male_EdgeMount_P2.77mm"
+      (place J1 1055116 -891032 front 270)
+    )
+    (component "sonde-xilinx:DSUB-9_Male_EdgeMount_P2.77mm"
+      (place J2 1816100 -901192 back 90)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.2")
+    )
+    (library_out 
+      (padstack "Via[0-1]_1651:635_um"
+        (shape
+          (circle "top_copper" 16510 0 0)
+        )
+        (shape
+          (circle "bottom_copper" 16510 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

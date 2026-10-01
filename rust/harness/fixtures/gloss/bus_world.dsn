@@ -1,0 +1,68 @@
+(pcb bus_world.dsn
+  (parser (string_quote ") (space_in_quoted_tokens on))
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal) (property (index 0)))
+    (layer B.Cu (type signal) (property (index 1)))
+    (boundary (rect pcb 0 0 500000 300000))
+    (snap_angle ninety_degree)
+    (rule (width 200) (clearance 200))
+  )
+  (placement
+    (component "IA" (place "A1" 1500 3000 Front 0.000000))
+    (component "IA" (place "A2" 54500 3000 Front 0.000000))
+    (component "IB" (place "B1" 1500 6000 Front 0.000000))
+    (component "IB" (place "B2" 54500 6000 Front 0.000000))
+    (component "IC" (place "C1" 1500 9000 Front 0.000000))
+    (component "IC" (place "C2" 54500 9000 Front 0.000000))
+  )
+  (library
+    (image "IA" (pin "PAD" "P" 0 0))
+    (image "IB" (pin "PAD" "P" 0 0))
+    (image "IC" (pin "PAD" "P" 0 0))
+    (padstack "PAD"
+      (shape (circle F.Cu 1000 0 0))
+      (shape (circle B.Cu 500 0 0))
+      (attach off)
+    )
+    (padstack "VIA"
+      (shape (circle F.Cu 100 0 0))
+      (shape (circle B.Cu 100 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via V VIA kicad_default)
+    (net "bus_a" (pins "A1"-"P" "A2"-"P"))
+    (net "bus_b" (pins "B1"-"P" "B2"-"P"))
+    (net "bus_c" (pins "C1"-"P" "C2"-"P"))
+    (class kicad_default "bus_a" "bus_b" "bus_c" (rule (clearance 200)))
+  )
+  (wiring
+    (wire (path F.Cu 200
+      1500 3000
+      3200 3000
+      3200 10000
+      51000 10000
+      51000 3000
+      54500 3000
+    ) (net "bus_a"))
+    (wire (path F.Cu 200
+      1500 6000
+      2600 6000
+      2600 14000
+      52000 14000
+      52000 6000
+      54500 6000
+    ) (net "bus_b"))
+    (wire (path F.Cu 200
+      1500 9000
+      1800 9000
+      1800 18500
+      53000 18500
+      53000 9000
+      54500 9000
+    ) (net "bus_c"))
+  )
+)

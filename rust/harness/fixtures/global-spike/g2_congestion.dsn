@@ -1,0 +1,95 @@
+(PCB g2_congestion.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  128000 0  128000 64000  0 64000  0 0)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CA" (place "KA" 20000 32000 Front 0.000000))
+    (component "CB" (place "KB" 108000 48000 Front 0.000000))
+    (component "CC" (place "KC" 40000 16000 Front 0.000000))
+    (component "CD" (place "KD" 88000 16000 Front 0.000000))
+    (component "CE" (place "KE" 20000 16000 Front 0.000000))
+    (component "CF" (place "KF" 108000 64000 Front 0.000000))
+    (component "CG" (place "KG" 56000 32000 Front 0.000000))
+    (component "CH" (place "KH" 56000 48000 Front 0.000000))
+    (component "CI" (place "KI" 72000 32000 Front 0.000000))
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADA" "PB" 0 0)
+    )
+    (image "CC"
+      (pin "PADA" "PC" 0 0)
+    )
+    (image "CD"
+      (pin "PADA" "PD" 0 0)
+    )
+    (image "CE"
+      (pin "PADA" "PE" 0 0)
+    )
+    (image "CF"
+      (pin "PADF" "PF" 0 0)
+    )
+    (image "CG"
+      (pin "PADA" "PG" 0 0)
+    )
+    (image "CH"
+      (pin "PADA" "PH" 0 0)
+    )
+    (image "CI"
+      (pin "PADA" "PI" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADF"
+      (shape (polygon B.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "NA" (pins "KA"-"PA" "KB"-"PB"))
+    (net "NB" (pins "KC"-"PC" "KD"-"PD"))
+    (net "NC" (pins "KE"-"PE" "KF"-"PF"))
+    (net "ND" (pins "KG"-"PG" "KH"-"PH" "KI"-"PI"))
+    (class kicad_default "NA" "NB" "NC" "ND"
+      (rule
+        (clearance 250)
+        (width 2000)
+      )
+    )
+  )
+)

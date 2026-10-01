@@ -1,0 +1,76 @@
+(PCB t6_maze.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  100000 0  100000 60000  0 60000  0 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  48000 0  52000 0  52000 28000  48000 28000  48000 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  48000 32000  52000 32000  52000 60000  48000 60000  48000 32000)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CA"
+      (place "KA" 20000 30000 Front 0.000000)
+    )
+    (component "CB"
+      (place "KB" 80000 30000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADB" "PB" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADB"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (via_rule T6_RULE VT)
+    (net "NET_A"
+      (pins "KA"-"PA" "KB"-"PB")
+    )
+    (class kicad_default "NET_A"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+)

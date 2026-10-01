@@ -1,0 +1,162 @@
+name: rust-check
+
+on:
+  push:
+    branches: [master, main, epic/main]
+    paths: ["rust/**", ".github/workflows/rust-check.yml"]
+  pull_request:
+    paths: ["rust/**", ".github/workflows/rust-check.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # M9-T6: the desktop shell is DEFAULT-OFF (`desktop` feature) —
+      # this step is its ONLY CI face: a compile gate (the wgpu tree
+      # compiles on the bare runner; eframe dlopens X11/wayland at
+      # runtime, no link-time dev headers). It never RUNS the shell —
+      # the smokes are dev-box evidence (DISPLAY=:1). 30 min matches
+      # the battery-precedent wall (a cold wgpu tree on a 2-core
+      # runner); the argv is tripwire-pinned in ci_tripwire.rs.
+      - run: cargo clippy -p epic-gui --all-targets --features desktop -- -D warnings
+        timeout-minutes: 30
+      # Suite BARE (T17b): the buglog-175 watchdog bounds the
+      # `detail_pass_restores_...` sentinel (its world-2 route fires a
+      # 10s wall deadline; bm01's detail pass alone is >50 min in this
+      # build), so the T17a skip protocol is RETIRED — the bare suite
+      # is the gate again. timeout-minutes still bounds any other
+      # unbounded test (a hang trips here instead of the 360-min job
+      # default).
+      - run: cargo test --workspace
+        timeout-minutes: 30
+      # corpus compare is java-free (reads only the committed goldens);
+      # EPIC_SKIP_GRADLE guards against future oracle coupling.
+      - run: cargo run -q -p epic-harness -- corpus compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M1b parse parity: all 1,332 digest+soak fixtures (175 + 1,157) vs
+      # the committed Java-oracle goldens; the divergence ledger is
+      # retired/empty since D22 (normalizeAllTraces landed in T13).
+      - run: cargo run -q -p epic-harness -- dsn compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M1b SES emission parity: tier A+B (20 fixtures) vs the committed
+      # session goldens — byte-equal expected (byte-diff classifier for
+      # anything else).
+      - run: cargo run -q -p epic-harness -- dsn ses-compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M2 T15 endpoint-snap parity: the contacts-wired writer over the 5
+      # ROUTED fixtures vs committed goldens + Java-side counter sidecar
+      # (provider gate, snapFired=0 canary) — java-free compare.
+      - run: cargo run -q -p epic-harness -- dsn ses-snap-compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M2 index parity: tree dumps + query replay vs committed Java-oracle
+      # goldens (tier fixtures + stressors) — java-free compare.
+      - run: cargo run -q -p epic-harness -- index compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M2 snapshot/undo parity: scripted snapshot/insert/remove/undo/redo/
+      # pop replay vs committed Java-oracle goldens — java-free compare.
+      - run: cargo run -q -p epic-harness -- undo compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M3 T2 DRC parity: incompletes (filter → grouping → Delaunay →
+      # Kruskal airline count, per-net rows, maxConnections) + clearance
+      # violations over 17 fixtures (11 tier A + 3 PCBench pre-routed + 3
+      # craft pin boards) vs committed DrcOracle goldens — java-free.
+      - run: cargo run -q -p epic-harness -- drc compare
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M3 T15 router quality scoreboard: epic-cli must exist for the
+      # two steps below (the harness resolves target/debug/epic-cli).
+      # Step bounds (quality-review MINOR-1): 5 min ≈ a cold `cargo
+      # build -q -p epic-cli` with headroom (warm cache: seconds).
+      - run: cargo build -q -p epic-cli
+        timeout-minutes: 5
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M3 T15 determinism self-gate: same DSN, two epic-cli runs to
+      # separate output paths, byte-identical SES + manifest (java-free,
+      # ~1s on the smallest Tier A board). HARD gate: any divergence is a
+      # real determinism bug and fails CI. Step bound: 30 min = 7.5x the
+      # worst case (two runs x the 120s tiers timeout) — a hang trips
+      # here instead of the 360-min job default.
+      - run: cargo run -q -p epic-harness -- router determinism
+        timeout-minutes: 30
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M3 T15 router quality scoreboard — THE EXIT FLIP LANDED at M8-T8
+      # (2026-09-29, tree 9fe3a0751; the one-commit protocol executed
+      # exactly as this comment's predecessor recorded it). This step
+      # runs the ROUTER-ONLY profile (the default; fanout-off epic-cli
+      # vs the committed router-only records) in GATE mode — exit is
+      # now a HARD gate. Flip arithmetic (logs/M8-T8/evidence/
+      # 80-gate-laps.log, both laps at the idle box):
+      #   Precondition 1 — the face green at held-face semantics: the
+      #   exact post-flip CI face read 11 green / 0 red (exit 0); the
+      #   full-profile held face held exactly (10 green + the bm01
+      #   chronic cap-scrape red, mode: report, exit 0; in mode: gate
+      #   the same bm01 tier-kill reds it, exit 1 — the full profile is
+      #   NOT this step's face; the deterministic budgets do NOT
+      #   preflight-skip bm01's optimizer).
+      #   Precondition 2 — Sigma vs the 30-min budget: the post-flip
+      #   face measured Sigma 286.5 s (release, local; DNR-18
+      #   reconciled; the CI debug-history datum is 337.7 s, M4-T6) —
+      #   5.3-6.3x headroom under 1800 s. Strip context: the M6-T3
+      #   reopen frame's full-flow Sigma with the T7 lever =
+      #   1340.78 (bm01, ot=4) + 285.7 (ten-fixture strip) =
+      #   1626.5 s < 1800 s — the T7 reopen verdict remains
+      #   arithmetically open (the lever is OPT-IN and not load-bearing
+      #   for this step: the router-only profile never engages the
+      #   optimizer).
+      # History: the flip was honestly held FOUR times (M4 close, M5-T8,
+      # M6-T3, M7) on the intact 1510.7 s reopen bound; T7's
+      # deterministic candidate parallelism (buglog 197, commit
+      # ccd85aa9d) measured bm01 at 1340.78 s < 1510.7 — the reopen
+      # OPENED, and T8's battery + arithmetic executed the flip.
+      # STANDING FACTS (unchanged by the flip): the full-profile
+      # battery's wall is the SUM of tier timeouts — a full-battery
+      # push would trip a 30-min step bound IF this step ever ran the
+      # full profile (it does not; the milestone batteries run in the
+      # task logs). Release-profile routing is ~10x faster than debug
+      # with byte-identical outcomes (T17b witnessed); the spawned
+      # epic-cli prefers a release bin (the bug-184 freshness guard),
+      # but a cacheless CI checkout can still adopt a debug sibling.
+      # The threads-gate CI wiring note: the in-tree threads-invariance
+      # gate (bm06 byte-identical across -mt 1/3/4) stays pinned
+      # in-tree (harness router threads-invariance).
+      - run: cargo run -q -p epic-harness -- router compare
+        timeout-minutes: 30
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M9-T6 — THE THREADS-GATE DEBT LANDS (the M5-T8 promise,
+      # re-owned at M8-T8 "to the next workflow-touching act"): the
+      # in-tree threads-invariance gate (bm06 SES+manifest
+      # byte-identical across -mt 1/3/4; green since M5-T7) joins CI.
+      # 30 min matches the determinism-step precedent. The argv is
+      # tripwire-pinned in ci_tripwire.rs (the M8-T8 pattern).
+      - run: cargo run -q -p epic-harness --release -- router threads-invariance
+        timeout-minutes: 30
+        env:
+          EPIC_SKIP_GRADLE: "1"
+      # M8-T8 FLIP COMMIT — the events-compare step joins CI per the
+      # one-commit protocol (java-free, green since M4-T6: 3 fixtures,
+      # 3,520 golden trace rows aligned; pin live in ci_tripwire.rs).
+      - run: cargo run -q -p epic-harness -- events compare
+        timeout-minutes: 10
+        env:
+          EPIC_SKIP_GRADLE: "1"

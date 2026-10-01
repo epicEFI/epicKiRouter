@@ -1,0 +1,120 @@
+# The M8-T1 committed 21-board PCBench sample (docs/superpowers/plans/2026-09-28-epicrouter-m8-gloss.md, Task 1).
+#
+# Selection rule (materialized verbatim):
+#   1. Population: the PCBench dirs carrying BOTH unrouted.dsn and
+#      reference-routed.dsn (1,157 at the generated-at tree).
+#   2. EXCLUDED: the three PCBench dirs in harness/config/tiers.yaml
+#      (1-Wire-Wing-pcb_1-Wire_Wing, 1Bitsy_1bitsy,
+#      front-end-modules_LimeSDR_Sony) — parity instruments, kept
+#      separate → 1,154 eligible.
+#   3. Stratify by unrouted.dsn BYTE SIZE terciles (ascending by
+#      (unrouted.dsn bytes, dirname); n=1154 → 385/385/384).
+#   4. Per tercile: the 7 lowest sha256(dirname) hex digests
+#      (lexicographic; tie-break dirname ascending) → 21 boards.
+#
+# Generated at tree SHA ccd1e6024 (branch epic/main).
+# Re-cut through: PYTHONSAFEPATH=1 python3 rust/harness/fixtures/aesthetics/select.py
+# (a pure function of the tree — the same tree always yields the
+# same 21 names; the eligible-population count is asserted).
+#
+# Tercile boundaries at capture: t0 = ranks 1-385 (unrouted.dsn 3312-21124 bytes),
+# t1 = ranks 386-770 (21226-40019 bytes), t2 = ranks 771-1154 (40223-491728 bytes).
+
+sample:
+  - dirname: Starburst-One_alpha
+    tercile: 0
+    unrouted_bytes: 6486
+    sha256_dirname: 0006af8139c14c902852542fbcdf628a14c483f97bff3f2aad7d7ae8e08a67dd
+  - dirname: ReST32_ReST SD-Module
+    tercile: 0
+    unrouted_bytes: 19623
+    sha256_dirname: 0139f1047cf062db1fdd1b07c0e1fc6a1c4bdc5a409960abe0f447e36553ec99
+  - dirname: LoLin_Designs_LoLin
+    tercile: 0
+    unrouted_bytes: 17539
+    sha256_dirname: 014effe5a15d351473b673debfb60c6a70ce33dee2eebe4a767d6340dfbef345
+  - dirname: nRF24breakoutBoard_nRF24-breakout
+    tercile: 0
+    unrouted_bytes: 18548
+    sha256_dirname: 02864e10a6dbc58e2550e6a1e0e55884b546bf76dad308e032120d4bc9df3b03
+  - dirname: autohat-board_inverted-usd-adapter
+    tercile: 0
+    unrouted_bytes: 3895
+    sha256_dirname: 02b9b15d930a52011cbeeb157dc2a89b0a3c3a056969675f72f736955a4a6658
+  - dirname: 6N137-TTL-Serial-Optoisolator_6N137-TTL-Serial-Optoisolator
+    tercile: 0
+    unrouted_bytes: 11612
+    sha256_dirname: 05947716b5ee5974ad618da8dcb14a33c9519a100a8e23bb369be5a5ba71f05a
+  - dirname: Raspberry-Pi-Soft-Power-Controller_Switching Supply TPS563208 MCI
+    tercile: 0
+    unrouted_bytes: 7754
+    sha256_dirname: 05ddafe639cc1973db4993581ddf28fd23c2327833c9baba24fc198e178616a6
+  - dirname: kitspace_PCBs
+    tercile: 1
+    unrouted_bytes: 38183
+    sha256_dirname: 002f2c5763680e351ef64a2355c1fda964a9fa2e08b1c862316d55b55113917d
+  - dirname: kitspace_filaSens
+    tercile: 1
+    unrouted_bytes: 26121
+    sha256_dirname: 004a83c0f56eeb7314a81ed824d7038ee7cd804397b695764dd2ef068d80d152
+  - dirname: arf154_arf154
+    tercile: 1
+    unrouted_bytes: 23693
+    sha256_dirname: 009c72159f1afd9d7e41dca554676d5e86deac27d3bd1e3750590a7af5f89a16
+  - dirname: newer-motor-controllers_design3
+    tercile: 1
+    unrouted_bytes: 34705
+    sha256_dirname: 019efb2fbcf1819bcd8af2e2bceedcf1392da5030a3f7cbbb1cd7250b3e0da19
+  - dirname: custom_cpu--ALU_custom_cpu--ALU
+    tercile: 1
+    unrouted_bytes: 25796
+    sha256_dirname: 024b2f8e6fdd39c4067a281b1dfd2eae5e70446a17a1b69d602331da8d870bfd
+  - dirname: epapercard_epapercard
+    tercile: 1
+    unrouted_bytes: 27011
+    sha256_dirname: 02f710cf13e43c0106525bfa4091bc05f92af2441075fccefa53a65ca729cc70
+  - dirname: elec-power-bms_OSBMS Balancer Rev1
+    tercile: 1
+    unrouted_bytes: 28465
+    sha256_dirname: 03dae70f719f70861fecd268b9fbe9e226aef0d833f88ea621b7ceb7bb198185
+  - dirname: HillhacksLantern_LEDLantern
+    tercile: 2
+    unrouted_bytes: 42850
+    sha256_dirname: 00e23b09f663c352a28a39e2a5893ec32becd6fcc3254e33617916545ee24a8e
+  - dirname: LMS6002-Pmod_LMS6002-Pmod
+    tercile: 2
+    unrouted_bytes: 55866
+    sha256_dirname: 014ebee53f0bc49c389980fe49243cdedaf5ef535810217cf9f26e05a8f13fd2
+  - dirname: HID_PID_controller
+    tercile: 2
+    unrouted_bytes: 43295
+    sha256_dirname: 023203fdf98a6853a13c8eb192b5d9929b1b4332a56c3fa3210c7e3dbe9ad4f8
+  - dirname: pmtoy-hardware-pcb_PMToy
+    tercile: 2
+    unrouted_bytes: 41954
+    sha256_dirname: 02752b9e1c7185b29206379353a399e1536c36a83adce4af4596f1fad7c751cd
+  - dirname: nanoTracer_nanoTracer
+    tercile: 2
+    unrouted_bytes: 57829
+    sha256_dirname: 029783c18cad48dfeff38f89ec13566bea884d5a92a71b5dfe68f3141b829894
+  - dirname: eeg_muscleboardv0
+    tercile: 2
+    unrouted_bytes: 41580
+    sha256_dirname: 047463865f4b2a0ece3a7c721b0b3e0df19e2c73e7912fcf9ae73b80c1c83020
+  - dirname: Hardware_Playground_leds_array
+    tercile: 2
+    unrouted_bytes: 109127
+    sha256_dirname: 0495814cb062b533e3d2648fad7c3d248b2784123241c35626d10666c98c9f79
+
+# The three tier-context boards (excluded from the sample; their
+# reference goldens ship too — the parity instruments' context rows).
+tier_context:
+  - dirname: 1-Wire-Wing-pcb_1-Wire_Wing
+    unrouted_bytes: 16144
+    sha256_dirname: d98c91a36e0358a471b54f2954ff375b5e736e07e8445532315bc239cf8a8a38
+  - dirname: 1Bitsy_1bitsy
+    unrouted_bytes: 37752
+    sha256_dirname: ae418b8fe9aff9ff023a9e370d5f311cb414b124b422c131e9143f69dccb2105
+  - dirname: front-end-modules_LimeSDR_Sony
+    unrouted_bytes: 83056
+    sha256_dirname: df66b230de56dc3267030e30ee155bb6cbd920412a5b8498ba91e79052706060

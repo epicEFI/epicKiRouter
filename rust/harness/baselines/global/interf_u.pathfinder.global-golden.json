@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "dsn": "interf_u.dsn",
+  "dsn_sha256": "6339bf16f109d818d5711208f2c60701ef22ceeae04c6f5105438e8a70bb5aac",
+  "flags": [
+    "--router.congestion_global=on",
+    "--router.congestion_global.pathfinder=on"
+  ],
+  "ses_sha256": "f06a3044abacd1d1c89739695cb1d6ac950ce0586bb6ed2df6bef629a81bac85",
+  "manifest_sha256": "1c83ca92b280f0c9dea0367bed4d85dd220344a646ca9ed537263930faa0ddb9"
+}

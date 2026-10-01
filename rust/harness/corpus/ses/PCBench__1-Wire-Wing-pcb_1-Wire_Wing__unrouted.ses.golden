@@ -1,0 +1,71 @@
+(session unrouted.ses
+  (base_design unrouted.dsn)
+  (placement
+    (resolution um 10)
+    (component "Capacitors_SMD:C_0603_HandSoldering"
+      (place C1 1381120 -1089020 back 270)
+      (place F1 1193160 -991235 front 270)
+    )
+    (component "Capacitors_SMD:C_0805_HandSoldering"
+      (place C2 1544960 -1115700 back 90)
+    )
+    (component "HIROSE_Connectors:HIROSE_FH19C-8S-0.5SH(05)"
+      (place CN1 1567820 -1089020 back 90)
+    )
+    (component "Pin_Headers:Pin_Header_Straight_1x16"
+      (place H1 1209680 -1190620 back 90)
+    )
+    (component "Pin_Headers:Pin_Header_Straight_1x12"
+      (place H3 1311280 -987425 back 90)
+    )
+    (component "Pin_Headers:Pin_Header_Straight_1x03"
+      (place JP1 1228720 -1063620 front 0)
+    )
+    (component "Resistors_SMD:R_0603_HandSoldering"
+      (place R1 1400180 -1089020 back 270)
+      (place R2 1419220 -1089020 back 270)
+      (place R3 1330320 -1139820 back 270)
+      (place R5 1284600 -1083940 back 270)
+      (place R9 1332860 -1042040 front 270)
+      (place R4 1228720 -1026800 back 90)
+      (place R7 1332860 -1138560 front 90)
+      (place R6 1254120 -1161420 front 0)
+      (place R8 1271900 -1066160 front 0)
+    )
+    (component "OMRON_PushButtons:OMRON_B3U-1000P"
+      (place SW1 1349380 -1089020 front 180)
+      (place SW2 1310000 -1136020 front 90)
+      (place SW3 1271900 -1089020 front 0)
+      (place SW4 1310000 -1042040 front 270)
+      (place SW5 1120780 -1190620 front 180)
+    )
+    (component "MaximIntegrated:SOT95P280X125-6N"
+      (place U1 1343020 -1095380 back 180)
+    )
+    (component "TEConnectivity:TE_6P6C_5555165-1"
+      (place J1 1193160 -1089020 front 270)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "10.0.2")
+    )
+    (library_out 
+      (padstack "Via[0-1]_635:381_um"
+        (shape
+          (circle F.Cu 6350 0 0)
+        )
+        (shape
+          (circle B.Cu 6350 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

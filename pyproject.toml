@@ -1,0 +1,21 @@
+# Configuration for development tools
+# Note: EpicRouter is the Rust rewrite of Freerouting; Python-based tools
+# here support repo linting (codespell, yamlfix).
+
+[tool.codespell]
+# The configuration must be kept here to ensure that
+# `codespell` can be run as a standalone program from the CLI
+# with the appropriate default options.
+
+skip = "*.dsn,*.ses,*.frb,*.png,*.jpg,*.svg,*.pdf,build,logs,.git,fixtures,docs/reference,scripts/benchmark/fixtures,.*,website,docs/superpowers"
+
+check-hidden = true
+quiet-level = 2
+ignore-regex = '\\[fnrstv]'
+builtin = "clear,rare,informal,code,names"
+
+ignore-words-list = "autoroute,autorouter,autorouting,padstack,padstacks,netlist,netlists,freerouting,ws,stdio,thead,Cloneable,Deque,deque,IAM,ro,currentY,onText,Jupyter,mut,crate,iff,IFF,unparseable,shrinked,thru,ND,implementors,implementor,disjointness,CAs,AtEnd,atEnd,warmup,LOD,fpt,re-declares,re-declare,re-uses"
+
+[tool.yamlfix]
+line_length = 80
+explicit_start = true

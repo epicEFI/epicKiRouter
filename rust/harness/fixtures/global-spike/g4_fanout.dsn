@@ -1,0 +1,79 @@
+(PCB g4_fanout.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  128000 0  128000 64000  0 64000  0 0)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "QFP" (place "QFP1" 60000 32000 Front 0.000000))
+    (component "RMT" (place "RMT1" 110000 32000 Front 0.000000))
+    (component "JAM" (place "JAM1" 61000 32000 Front 0.000000))
+  )
+  (library
+    (image "QFP"
+      (pin "PAD" "QA" 0 0)
+      (pin "PAD" "QB" 0 8000)
+      (pin "PAD" "QC" 0 20000)
+    )
+    (image "RMT"
+      (pin "PAD" "RA" 0 0)
+      (pin "PAD" "RB" 0 8000)
+      (pin "PAD" "RD" 0 20000)
+    )
+    (image "JAM"
+      (pin "PAD" "JA" 0 0)
+    )
+    (padstack "PAD"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "NB"
+      (pins "QFP1"-"QB" "RMT1"-"RB")
+    )
+    (net "NA"
+      (pins "QFP1"-"QA" "RMT1"-"RA")
+    )
+    (net "NC"
+      (pins "QFP1"-"QC" "RMT1"-"RD")
+    )
+    (net "ND"
+      (pins "JAM1"-"JA")
+    )
+  )
+  (class kicad_default "NB" "NA" "NC" "ND"
+    (rule
+      (clearance 250)
+      (width 2000)
+    )
+  )
+)

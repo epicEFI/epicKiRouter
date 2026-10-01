@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Freerouting Benchmarks & Performance Analysis | 1,100+ PCB Test Fixtures</title>
+    <meta content="Explore official Freerouting performance benchmarks across 1,100+ PCB design fixtures. Compare routing completion rates, DRC clearance violation scores, and multi-threaded execution metrics."
+          name="description">
+    <meta content="PCB autorouter benchmarks, Freerouting performance, PCB routing metrics, DRC clearance violations, KiCad routing tests, Eagle routing benchmarks" name="keywords">
+    <meta content="Andras Fuchs" name="author">
+    <link rel="canonical" href="https://www.freerouting.app/benchmarks.html">
+
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Freerouting">
+    <meta property="og:title" content="Freerouting Benchmarks & Performance Analysis">
+    <meta property="og:description" content="Official performance metrics and routing completion statistics across 1,100+ hardware design test boards.">
+    <meta property="og:url" content="https://www.freerouting.app/benchmarks.html">
+    <meta property="og:image" content="https://www.freerouting.app/GUI_screenshot.png">
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Freerouting PCB Routing Benchmarks">
+    <meta name="twitter:description" content="Detailed performance statistics and routing completion benchmarks for Freerouting across 1,100+ boards.">
+    <meta name="twitter:image" content="https://www.freerouting.app/GUI_screenshot.png">
+
+    <!-- Favicon & Styles -->
+    <link href="freerouting_icon_256x256_v3.ico" rel="icon" type="image/x-icon">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+    <!-- Cookie Consent & Google Consent Mode v2 -->
+    <script src="cookie-consent.js"></script>
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-4JCLE6RZE0"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-4JCLE6RZE0');
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('a, .btn').forEach(function(element) {
+                element.addEventListener('click', function() {
+                    gtag('event', 'click_' + element.id, {
+                        'event_category': 'engagement',
+                        'event_label': element.href || element.textContent
+                    });
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+
+<!-- Sticky Navigation Bar -->
+<header class="navbar">
+    <div class="navbar-container">
+        <a class="brand" href="index.html" aria-label="Freerouting Homepage">
+            <img alt="Freerouting logo" src="logo_transparent.png" width="36" height="36">
+            <span class="brand-title">freerouting</span>
+        </a>
+
+        <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation menu">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <ul class="nav-menu" id="nav-menu">
+            <li><a class="nav-link" href="index.html">Home</a></li>
+            <li><a class="nav-link" href="index.html#features">Features</a></li>
+            <li><a class="nav-link" href="index.html#integrations">Integrations</a></li>
+            <li><a class="nav-link" href="donate.html"><i class="fas fa-heart" style="color: var(--accent-pink);"></i> Support</a></li>
+        </ul>
+
+        <div class="nav-actions">
+            <a class="btn btn-secondary btn-sm" href="https://github.com/freerouting/freerouting" id="github" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-github"></i> <span class="nav-action-text">GitHub</span>
+            </a>
+            <a class="btn btn-primary btn-sm" href="https://github.com/freerouting/freerouting/releases" id="download">
+                <i class="fas fa-download"></i> <span class="nav-action-text">Download</span>
+            </a>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div class="section-header" style="margin-top: 1em; margin-bottom: 2em;">
+        <span class="section-tag"><i class="fas fa-chart-line"></i> Rigorous Quality Assurance</span>
+        <h1 class="section-title">Automated PCB Routing Benchmarks</h1>
+        <p class="section-subtitle">
+            Freerouting is continuously tested against more than 1,100 real-world PCB designs to track algorithmic convergence, DRC violation counts, and completion efficiency across versions.
+        </p>
+    </div>
+
+    <section class="section">
+        <!-- BENCHMARK_TABLE_START -->
+        <div class='benchmark-container'>
+          <div class='benchmark-report-info'>Generated on: 2026-09-11 15:11:17 &middot; System:  ( Cores,  GB RAM)</div>
+          <div class='summary-section' style='margin-bottom: 24px;'>
+            <h3 class='fixture-title' style='margin-bottom: 4px;'>Summary Table (All Tiers Combined)</h3>
+            <p class='fixture-meta' style='margin-bottom: 12px;'>Comprehensive performance across all benchmark fixtures.</p>
+            <table class='benchmark-table'>
+              <thead>
+                <tr class='header-row'>
+                  <th>Version</th>
+                  <th>Fixtures</th>
+                  <th>Clean (0 DRC)</th>
+                  <th>Fully-Routed</th>
+                  <th>Timeouts</th>
+                  <th>Failures</th>
+                  <th style='text-align: right;'>Total Time</th>
+                  <th>Avg. Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1.9.0</strong></td>
+                  <td>1157</td>
+                  <td>415/1157 (35.9%)</td>
+                  <td>568/1157 (49.1%)</td>
+                  <td>28/1157 (2.4%)</td>
+                  <td>33/1157 (2.9%)</td>
+                  <td style='text-align: right;'>2574.5</td>
+                  <td>932.2</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC1</strong></td>
+                  <td>1157</td>
+                  <td>353/1157 (30.5%)</td>
+                  <td>581/1157 (50.2%)</td>
+                  <td>0/1157 (0%)</td>
+                  <td>3/1157 (0.3%)</td>
+                  <td style='text-align: right;'>4375.3</td>
+                  <td>926.0</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC2</strong></td>
+                  <td>1157</td>
+                  <td>462/1157 (39.9%)</td>
+                  <td>595/1157 (51.4%)</td>
+                  <td>0/1157 (0%)</td>
+                  <td>2/1157 (0.2%)</td>
+                  <td style='text-align: right;'>4328.9</td>
+                  <td>933.7</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC3</strong></td>
+                  <td>178</td>
+                  <td>164/178 (92.1%)</td>
+                  <td>165/178 (92.7%)</td>
+                  <td>0/178 (0%)</td>
+                  <td>0/178 (0%)</td>
+                  <td style='text-align: right;'>296.7</td>
+                  <td><strong>993.3</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class='summary-section' style='margin-bottom: 24px;'>
+            <h3 class='fixture-title' style='margin-bottom: 4px;'>Tier A: Canary Gate</h3>
+            <p class='fixture-meta' style='margin-bottom: 12px;'>Fast-solving 2-layer boards (0 unrouted, 0 clearance violations expected).</p>
+            <table class='benchmark-table'>
+              <thead>
+                <tr class='header-row'>
+                  <th>Version</th>
+                  <th>Fixtures</th>
+                  <th>Clean (0 DRC)</th>
+                  <th>Fully-Routed</th>
+                  <th>Timeouts</th>
+                  <th>Failures</th>
+                  <th style='text-align: right;'>Total Time</th>
+                  <th>Avg. Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1.9.0</strong></td>
+                  <td>453</td>
+                  <td>330/453 (72.8%)</td>
+                  <td>350/453 (77.3%)</td>
+                  <td>0/453 (0%)</td>
+                  <td>1/453 (0.2%)</td>
+                  <td style='text-align: right;'>349.3</td>
+                  <td>987.8</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC1</strong></td>
+                  <td>453</td>
+                  <td>320/453 (70.6%)</td>
+                  <td>399/453 (88.1%)</td>
+                  <td>0/453 (0%)</td>
+                  <td>0/453 (0%)</td>
+                  <td style='text-align: right;'>683.1</td>
+                  <td>992.6</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC2</strong></td>
+                  <td>453</td>
+                  <td>443/453 (97.8%)</td>
+                  <td>443/453 (97.8%)</td>
+                  <td>0/453 (0%)</td>
+                  <td>0/453 (0%)</td>
+                  <td style='text-align: right;'>687.2</td>
+                  <td><strong>998.2</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC3</strong></td>
+                  <td>178</td>
+                  <td>164/178 (92.1%)</td>
+                  <td>165/178 (92.7%)</td>
+                  <td>0/178 (0%)</td>
+                  <td>0/178 (0%)</td>
+                  <td style='text-align: right;'>296.7</td>
+                  <td>993.3</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class='summary-section' style='margin-bottom: 24px;'>
+            <h3 class='fixture-title' style='margin-bottom: 4px;'>Tier B: Routine Benchmarks</h3>
+            <p class='fixture-meta' style='margin-bottom: 12px;'>Standard 2-4 layer boards evaluated for routine optimization progress.</p>
+            <table class='benchmark-table'>
+              <thead>
+                <tr class='header-row'>
+                  <th>Version</th>
+                  <th>Fixtures</th>
+                  <th>Clean (0 DRC)</th>
+                  <th>Fully-Routed</th>
+                  <th>Timeouts</th>
+                  <th>Failures</th>
+                  <th style='text-align: right;'>Total Time</th>
+                  <th>Avg. Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1.9.0</strong></td>
+                  <td>560</td>
+                  <td>65/560 (11.6%)</td>
+                  <td>187/560 (33.4%)</td>
+                  <td>3/560 (0.5%)</td>
+                  <td>4/560 (0.7%)</td>
+                  <td style='text-align: right;'>852.9</td>
+                  <td><strong>930.8</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC1</strong></td>
+                  <td>560</td>
+                  <td>16/560 (2.9%)</td>
+                  <td>147/560 (26.2%)</td>
+                  <td>0/560 (0%)</td>
+                  <td>0/560 (0%)</td>
+                  <td style='text-align: right;'>1642.3</td>
+                  <td>895.0</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC2</strong></td>
+                  <td>560</td>
+                  <td>0/560 (0%)</td>
+                  <td>115/560 (20.5%)</td>
+                  <td>0/560 (0%)</td>
+                  <td>0/560 (0%)</td>
+                  <td style='text-align: right;'>1594.2</td>
+                  <td>902.9</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class='summary-section' style='margin-bottom: 24px;'>
+            <h3 class='fixture-title' style='margin-bottom: 4px;'>Tier C: Complex / Multi-Layer</h3>
+            <p class='fixture-meta' style='margin-bottom: 12px;'>Dense and 6+ layer boards requiring deeper pathfinding.</p>
+            <table class='benchmark-table'>
+              <thead>
+                <tr class='header-row'>
+                  <th>Version</th>
+                  <th>Fixtures</th>
+                  <th>Clean (0 DRC)</th>
+                  <th>Fully-Routed</th>
+                  <th>Timeouts</th>
+                  <th>Failures</th>
+                  <th style='text-align: right;'>Total Time</th>
+                  <th>Avg. Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1.9.0</strong></td>
+                  <td>122</td>
+                  <td>18/122 (14.8%)</td>
+                  <td>27/122 (22.1%)</td>
+                  <td>16/122 (13.1%)</td>
+                  <td>19/122 (15.6%)</td>
+                  <td style='text-align: right;'>862.9</td>
+                  <td>796.0</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC1</strong></td>
+                  <td>122</td>
+                  <td>17/122 (13.9%)</td>
+                  <td>31/122 (25.4%)</td>
+                  <td>0/122 (0%)</td>
+                  <td>1/122 (0.8%)</td>
+                  <td style='text-align: right;'>1453.5</td>
+                  <td>855.8</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC2</strong></td>
+                  <td>122</td>
+                  <td>18/122 (14.8%)</td>
+                  <td>34/122 (27.9%)</td>
+                  <td>0/122 (0%)</td>
+                  <td>0/122 (0%)</td>
+                  <td style='text-align: right;'>1453.0</td>
+                  <td><strong>868.2</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class='summary-section' style='margin-bottom: 24px;'>
+            <h3 class='fixture-title' style='margin-bottom: 4px;'>Tier D: Extreme Stress / Diagnostic</h3>
+            <p class='fixture-meta' style='margin-bottom: 12px;'>High net-count and large surface-area stress boards.</p>
+            <table class='benchmark-table'>
+              <thead>
+                <tr class='header-row'>
+                  <th>Version</th>
+                  <th>Fixtures</th>
+                  <th>Clean (0 DRC)</th>
+                  <th>Fully-Routed</th>
+                  <th>Timeouts</th>
+                  <th>Failures</th>
+                  <th style='text-align: right;'>Total Time</th>
+                  <th>Avg. Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>1.9.0</strong></td>
+                  <td>22</td>
+                  <td>2/22 (9.1%)</td>
+                  <td>4/22 (18.2%)</td>
+                  <td>9/22 (40.9%)</td>
+                  <td>9/22 (40.9%)</td>
+                  <td style='text-align: right;'>509.4</td>
+                  <td>578.9</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC1</strong></td>
+                  <td>22</td>
+                  <td>0/22 (0%)</td>
+                  <td>4/22 (18.2%)</td>
+                  <td>0/22 (0%)</td>
+                  <td>2/22 (9.1%)</td>
+                  <td style='text-align: right;'>596.4</td>
+                  <td>731.8</td>
+                </tr>
+                <tr>
+                  <td><strong>2.5.0-RC2</strong></td>
+                  <td>22</td>
+                  <td>1/22 (4.5%)</td>
+                  <td>3/22 (13.6%)</td>
+                  <td>0/22 (0%)</td>
+                  <td>2/22 (9.1%)</td>
+                  <td style='text-align: right;'>594.5</td>
+                  <td><strong>753.0</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <!-- BENCHMARK_TABLE_END -->
+    </section>
+</main>
+
+<!-- Modern Multi-Column Footer -->
+<footer class="footer">
+    <div class="footer-container">
+        <div class="footer-col">
+            <div style="display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.8em;">
+                <img alt="Freerouting logo" src="logo_transparent.png" width="30" height="30">
+                <strong style="font-size: 1.25em; color: var(--gold-primary); font-family: 'NotoSansItalic', sans-serif;">freerouting</strong>
+            </div>
+            <p class="footer-brand-desc">
+                World's leading open-source, fully-automated PCB routing software. Free and independent software empowering hardware engineers, makers, and students worldwide.
+            </p>
+            <p style="font-size: 0.9em; color: #9ca3af; margin-top: 1em;">
+                Maintained by <strong>Andras Fuchs</strong> &bull; <strong>Foxy Laboratories OÜ</strong><br>
+                Tartu maantee 67 1-13b, 10115 Tallinn, Harju, Estonia<br>
+                Contact: <a href="mailto:info@freerouting.app">info@freerouting.app</a>
+            </p>
+        </div>
+
+        <div class="footer-col">
+            <h4>Quick Links</h4>
+            <ul class="footer-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="https://github.com/freerouting/freerouting/releases">Download Releases</a></li>
+                <li><a href="donate.html">Support &amp; Donate</a></li>
+                <li><a href="benchmarks.html">Performance Benchmarks</a></li>
+                <li><a href="https://github.com/freerouting/freerouting/blob/master/docs/API/MCP.md">MCP AI Documentation</a></li>
+                <li><a href="https://forms.gle/EqbxFZMSQiSsR4WM8">Request API Access</a></li>
+            </ul>
+        </div>
+
+        <div class="footer-col">
+            <h4>Legal &amp; Compliance</h4>
+            <ul class="footer-links">
+                <li><a href="legal.html" id="benchmarks_footer_legal">Legal Notice (Impressum)</a></li>
+                <li><a href="terms.html" id="benchmarks_footer_terms">Terms &amp; Conditions</a></li>
+                <li><a href="privacy.html" id="benchmarks_footer_privacy">Privacy Policy</a></li>
+                <li><a href="#" onclick="openCookiePreferences(); return false;" id="benchmarks_footer_cookies">Cookie Settings</a></li>
+                <li><a href="https://github.com/freerouting/freerouting" target="_blank" rel="noopener noreferrer" id="github_footer">GitHub Repository</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer-bottom">
+        <p>&copy; 2026 Freerouting &bull; Foxy Laboratories OÜ. All rights reserved. Open-source under GPLv3.</p>
+        <div class="footer-legal-links">
+            <a href="legal.html">Legal Notice</a>
+            <a href="terms.html">Terms</a>
+            <a href="privacy.html">Privacy</a>
+            <a href="#" onclick="openCookiePreferences(); return false;">Cookies</a>
+        </div>
+    </div>
+</footer>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggle = document.getElementById('nav-toggle');
+        const menu = document.getElementById('nav-menu');
+        if (toggle && menu) {
+            toggle.addEventListener('click', function() {
+                menu.classList.toggle('active');
+            });
+        }
+    });
+</script>
+
+</body>
+</html>

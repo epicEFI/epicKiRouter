@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/KiCad_10_demos/StickHub.dsn",
+  "fixture_sha256": "f3fa9768628d8a249f6c2563da274930892f8e3f8989715e3321274358416de3",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 4,
+  "maximum_count": 231,
+  "clearance_violations_total": 1,
+  "clearance_router_introduced": 0,
+  "normalized_score": 976.85,
+  "optimizer_score": 890.51,
+  "ses_sha256": "0f9c497f32c336de2897df4c669376efa7d60db996c196dbfb0421aa7d29a588",
+  "autorouter_seconds": 34.26,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 20,
+  "captured_at_unix": 1789194768,
+  "notes": null
+}

@@ -1,0 +1,38 @@
+build
+out
+.idea/
+tmp
+/logs/
+bin/
+.vscode
+
+/fixtures/*.bin
+/fixtures/**/*.zip
+
+# Visual Studio 2015/2017 cache/options directory
+/.vs/
+/integrations/KiCad/installjava/.vs
+/scripts/stats/.vs/
+
+freerouting.dsn
+temp-freerouting.dsn
+freerouting.ses
+# GitHub App credentials
+gha-creds-*.json
+
+# Agent files
+/.agent
+/.secrets
+/scripts/benchmark/logs
+/scripts/benchmark/outputs
+/scripts/benchmark/results/comparison-*/
+/scripts/benchmark/binaries/freerouting-current-*.jar
+
+# Autopilot loop artifacts
+/.worktrees/
+/external/PCBench/
+/experiments/*/
+!/experiments/REPORT.md
+!/experiments/experiments.jsonl
+/scripts/pcbench/cache/
+/scripts/pcbench/__pycache__/

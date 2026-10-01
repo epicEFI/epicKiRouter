@@ -1,0 +1,289 @@
+# fixture: harness/fixtures/event-stream/e1_ripup.dsn
+# snapshot revision: 10
+# snapshot items: traces=2 vias=0 pads=4 areas=3 outline_pts=4 nets=2
+# transform: pan=(-1000, -1000) zoom=1/1
+# transform derivation: pan = snapshot.bounds.ll (the fixture's lower-left anchored at
+#   the screen origin); zoom 1/1 is the unique px-per-DBU ratio whose world<->screen map
+#   is a full bijection (both round trips exact on the entire in-range domain —
+#   view.rs's exactness contract), chosen over the dispatch letter's 1:1000-ish example
+#   because the round-trip pin demands world->screen->world exactness at the i64 faces.
+#   The projected extents equal the fixture's DBU extents (all three fixtures probed
+#   < 2^30; they fit i32 with margin and exercise both screen axes).
+# viewport: the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX)); culled=0.
+# format: serde_json::to_string_pretty of the RenderList; RenderOp externally tagged with
+#   Rust variant spelling; points {"x":i32,"y":i32}; colors [r,g,b,a] u8; SetWidth f32 px.
+{
+  "ops": [
+    {
+      "SetColor": [
+        100,
+        150,
+        255,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 1000
+        },
+        {
+          "x": 1201000,
+          "y": 1000
+        },
+        {
+          "x": 1201000,
+          "y": 641000
+        },
+        {
+          "x": 1000,
+          "y": 641000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 541000,
+          "y": 1000
+        },
+        {
+          "x": 661000,
+          "y": 1000
+        },
+        {
+          "x": 661000,
+          "y": 91000
+        },
+        {
+          "x": 541000,
+          "y": 91000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 541000,
+          "y": 551000
+        },
+        {
+          "x": 661000,
+          "y": 551000
+        },
+        {
+          "x": 661000,
+          "y": 641000
+        },
+        {
+          "x": 541000,
+          "y": 641000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 541000,
+          "y": 1000
+        },
+        {
+          "x": 661000,
+          "y": 1000
+        },
+        {
+          "x": 661000,
+          "y": 641000
+        },
+        {
+          "x": 541000,
+          "y": 641000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 236000
+        },
+        {
+          "x": 216000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 266000
+        },
+        {
+          "x": 186000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 236000
+        },
+        {
+          "x": 1016000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 266000
+        },
+        {
+          "x": 986000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 106000
+        },
+        {
+          "x": 616000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 136000
+        },
+        {
+          "x": 586000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        227,
+        183,
+        46,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 1000,
+          "y": 506000
+        },
+        {
+          "x": 616000,
+          "y": 1000
+        },
+        {
+          "x": 1000,
+          "y": 536000
+        },
+        {
+          "x": 586000,
+          "y": 1000
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        200,
+        52,
+        52,
+        255
+      ]
+    },
+    {
+      "SetWidth": 10000.0
+    },
+    {
+      "MoveTo": {
+        "x": 601000,
+        "y": 121000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 601000,
+        "y": 321000
+      }
+    },
+    {
+      "SetColor": [
+        200,
+        52,
+        52,
+        255
+      ]
+    },
+    {
+      "SetWidth": 10000.0
+    },
+    {
+      "MoveTo": {
+        "x": 601000,
+        "y": 321000
+      }
+    },
+    {
+      "LineTo": {
+        "x": 601000,
+        "y": 521000
+      }
+    }
+  ],
+  "culled": 0
+}

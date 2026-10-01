@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "dsn": "DAC2020_bm08.dsn",
+  "dsn_sha256": "5d3acaaac47c1851d439150e3b70751b85fe1e8b8afc55278f1487b692b32bc5",
+  "flags": [],
+  "ses_sha256": "03e3260a44b5e5e1f217caad39e6de45a133b3e3dd005660764407253f22ab51",
+  "manifest_sha256": "56e912b4f74b27ba9d1f028bd196682214f68b40b63b9938edacd2bcbea6579c"
+}

@@ -1,0 +1,133 @@
+# bm07 (scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm07.dsn) through
+# TeeDriverSink at DEFAULT settings — the M9-T3 kind-sequence golden.
+#
+# Golden-format convention: one line per event, `Kind field=value…` —
+# KINDS + PASSES + REVISIONS + PHASES only. NO wall times, NO snapshot
+# payloads, NO counters text: the payloads that carry wall-clock or bulk
+# geometry are exactly the ones that must never gate a golden.
+# `#`-prefixed lines are ignored by the reader (events_stream.rs).
+#
+# Captured 2026-09-30 at the M9-T3 tree (two-run determinism pinned in
+# bm07_kind_sequence_matches_the_golden_twice); StreamStarted is FIRST by
+# the tee's lazy-ship guard; the trailing CANCELLED task state is the
+# pipeline's end-of-batch task_state face (a parity-stream row, not the
+# RouteSummary final state — the pin asserts COMPLETED separately).
+StreamStarted version=1
+StageEntered stage=STARTED
+TaskState state=STARTED pass=0
+Message level=info
+StageEntered stage=fanout
+PassProgress pass=1 phase=fanout
+Snapshot revision=141
+PassProgress pass=1 phase=fanout
+Snapshot revision=1354
+Message level=info
+PassProgress pass=2 phase=fanout
+PassProgress pass=2 phase=fanout
+Snapshot revision=1525
+Message level=info
+PassProgress pass=3 phase=fanout
+PassProgress pass=3 phase=fanout
+Snapshot revision=1579
+Message level=info
+PassProgress pass=4 phase=fanout
+PassProgress pass=4 phase=fanout
+Message level=info
+Message level=info
+Message level=info
+StageEntered stage=RUNNING
+TaskState state=RUNNING pass=1
+StageEntered stage=autoroute
+PassProgress pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
+Snapshot revision=3831
+Message level=info
+TaskState state=RUNNING pass=2
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4855
+Message level=info
+TaskState state=RUNNING pass=3
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4967
+Message level=info
+TaskState state=RUNNING pass=4
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5025
+Message level=info
+TaskState state=RUNNING pass=5
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5083
+Message level=info
+TaskState state=RUNNING pass=6
+PassProgress pass=6 phase=autoroute
+PassProgress pass=6 phase=autoroute
+Snapshot revision=5141
+Message level=info
+TaskState state=RUNNING pass=7
+PassProgress pass=7 phase=autoroute
+PassProgress pass=7 phase=autoroute
+Snapshot revision=5199
+Message level=info
+TaskState state=RUNNING pass=8
+PassProgress pass=8 phase=autoroute
+PassProgress pass=8 phase=autoroute
+Snapshot revision=5257
+Message level=info
+TaskState state=RUNNING pass=9
+PassProgress pass=9 phase=autoroute
+PassProgress pass=9 phase=autoroute
+Snapshot revision=5315
+Message level=info
+TaskState state=RUNNING pass=10
+PassProgress pass=10 phase=autoroute
+PassProgress pass=10 phase=autoroute
+Snapshot revision=5373
+Message level=info
+TaskState state=RUNNING pass=11
+PassProgress pass=11 phase=autoroute
+PassProgress pass=11 phase=autoroute
+Snapshot revision=5431
+Message level=info
+TaskState state=RUNNING pass=12
+PassProgress pass=12 phase=autoroute
+Snapshot revision=5434
+PassProgress pass=12 phase=autoroute
+Snapshot revision=5515
+Message level=info
+TaskState state=RUNNING pass=13
+PassProgress pass=13 phase=autoroute
+PassProgress pass=13 phase=autoroute
+Snapshot revision=5607
+Message level=info
+TaskState state=RUNNING pass=14
+PassProgress pass=14 phase=autoroute
+PassProgress pass=14 phase=autoroute
+Snapshot revision=5699
+Message level=info
+TaskState state=RUNNING pass=15
+PassProgress pass=15 phase=autoroute
+PassProgress pass=15 phase=autoroute
+Snapshot revision=5791
+Message level=info
+TaskState state=RUNNING pass=16
+PassProgress pass=16 phase=autoroute
+PassProgress pass=16 phase=autoroute
+Snapshot revision=5883
+Message level=info
+TaskState state=RUNNING pass=17
+PassProgress pass=17 phase=autoroute
+PassProgress pass=17 phase=autoroute
+Snapshot revision=5975
+Message level=info
+TaskState state=RUNNING pass=18
+PassProgress pass=18 phase=autoroute
+PassProgress pass=18 phase=autoroute
+Snapshot revision=6067
+Message level=info
+Message level=info
+StageEntered stage=CANCELLED
+TaskState state=CANCELLED pass=18

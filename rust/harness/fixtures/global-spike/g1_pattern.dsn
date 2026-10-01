@@ -1,0 +1,66 @@
+(PCB g1_pattern.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  128000 0  128000 64000  0 64000  0 0)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CA" (place "KA" 20000 32000 Front 0.000000))
+    (component "CB" (place "KB" 108000 48000 Front 0.000000))
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADB" "PB" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADB"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "NA"
+      (pins "KA"-"PA" "KB"-"PB")
+    )
+  )
+  (class kicad_default "NA"
+    (rule
+      (clearance 250)
+      (width 2000)
+    )
+  )
+)

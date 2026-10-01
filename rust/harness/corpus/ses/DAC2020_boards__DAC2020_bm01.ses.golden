@@ -1,0 +1,125 @@
+(session "DAC2020_bm01.ses"
+  (base_design "DAC2020_bm01.dsn")
+  (placement
+    (resolution um 10)
+    (component "Arduino MEGA Reference Design:2X03"
+      (place U7 1625981 -1037336 front 270)
+    )
+    (component "Arduino MEGA Reference Design:1X08"
+      (place U14 1523111 -808736 front 180)
+      (place U15 1307211 -808736 front 180)
+      (place U11 1573911 -1291336 front 0)
+      (place U13 1751711 -808736 front 180)
+      (place U12 1802511 -1291336 front 0)
+    )
+    (component "Arduino MEGA Reference Design:SMC_D"
+      (place U18 1205611 -1255776 front 270)
+      (place U19 1261491 -1255776 front 270)
+    )
+    (component "Arduino MEGA Reference Design:B3F-10XX"
+      (place U6 1718691 -1037336 front 180)
+    )
+    (component "Arduino MEGA Reference Design:0805RND"
+      (place U24 1739011 -945896 front 180)
+      (place U40 1241171 -1052576 front 0)
+      (place U41 1241171 -1077976 front 0)
+      (place U38 1241171 -1001776 front 180)
+      (place U37 1241171 -976376 front 180)
+      (place U33 1241171 -925576 front 180)
+    )
+    (component "Arduino MEGA Reference Design:SMB"
+      (place U17 1149731 -1225296 front 270)
+    )
+    (component "Arduino MEGA Reference Design:DC-21MM"
+      (place U55 1030351 -1232916 front 90)
+    )
+    (component "Arduino MEGA Reference Design:HC49_S"
+      (place U3 1408811 -1184656 front 90)
+    )
+    (component "Arduino MEGA Reference Design:SOT223"
+      (place U16 1063371 -1138936 front 90)
+      (place U4 1048131 -1042416 front 90)
+    )
+    (component "Arduino MEGA Reference Design:1X06"
+      (place U5 1370711 -1291336 front 0)
+    )
+    (component "Arduino MEGA Reference Design:C0805RND"
+      (place U35 1241171 -874776 front 0)
+      (place U28 1624711 -1132586 front 0)
+      (place U21 1363091 -1220216 front 0)
+      (place U22 1363091 -1194816 front 0)
+      (place U43 1139571 -1128776 front 0)
+      (place U26 1784731 -945896 front 180)
+      (place U27 1784731 -920496 front 180)
+      (place U23 1620901 -942086 front 180)
+      (place U20 1363091 -1245616 front 0)
+      (place U47 1241171 -1128776 front 0)
+      (place U46 1241171 -1154176 front 0)
+      (place U36 1139571 -1052576 front 0)
+      (place U30 1129411 -854456 front 0)
+      (place U32 1241171 -950976 front 0)
+      (place U39 1241171 -1027176 front 0)
+      (place U31 1175131 -854456 front 0)
+      (place U34 1241171 -900176 front 180)
+      (place U48 1241171 -1104392 front 180)
+      (place U42 1139571 -1154176 front 180)
+      (place U45 1190371 -1128776 front 180)
+      (place U44 1190371 -1154176 front 180)
+      (place U29 1190371 -1052576 front 0)
+      (place U25 1784731 -971296 front 180)
+    )
+    (component "Arduino MEGA Reference Design:TQFP100"
+      (place U56 1485011 -1033272 front 0)
+    )
+    (component "Arduino MEGA Reference Design:SSOP28"
+      (place U53 1159891 -925576 front 0)
+    )
+    (component "Arduino MEGA Reference Design:PN61729"
+      (place U54 1015111 -935736 front 270)
+    )
+    (component "Arduino MEGA Reference Design:L1812"
+      (place U49 1159891 -1011936 front 0)
+    )
+    (component "Arduino MEGA Reference Design:SO08"
+      (place U50 1164971 -1090676 front 270)
+    )
+    (component "Arduino MEGA Reference Design:2X08"
+      (place U52 1929511 -923036 front 90)
+      (place U51 1929511 -1126236 front 90)
+    )
+    (component "Arduino MEGA Reference Design:1X01"
+      (place U10 1916811 -808736 front 0)
+      (place U9 1942211 -808736 front 0)
+      (place U1 1916811 -1240536 front 0)
+      (place U2 1942211 -1240536 front 0)
+    )
+    (component "Arduino MEGA Reference Design:SJ"
+      (place U57 1281811 -1107186 front 270)
+    )
+    (component "Arduino MEGA Reference Design:JP4"
+      (place U8 1294511 -983996 front 270)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

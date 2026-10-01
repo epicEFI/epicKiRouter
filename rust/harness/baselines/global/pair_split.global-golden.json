@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "dsn": "pair_split_tuning.dsn",
+  "dsn_sha256": "e8dd2866e717174da9d91b0bc29691be917be1f4ad16468c1d42c640f66a7182",
+  "flags": [
+    "--router.tuning.pairs=pa:pb"
+  ],
+  "ses_sha256": "d3d740a8595202d52cbc2c39c4a59880917a729fa4160fb427d78423fe470145",
+  "manifest_sha256": "b42b2e91c4945e991fa1bf3c1da54b31f1f2b1bd70d9dcb42daaf90ab50b50c4"
+}

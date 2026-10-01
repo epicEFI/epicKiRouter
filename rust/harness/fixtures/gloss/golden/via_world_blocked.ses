@@ -1,0 +1,38 @@
+(session "via_world_blocked"
+  (base_design "via_world_blocked")
+  (placement
+    (resolution um 10)
+    (component IA
+      (place A1 30000 150000 front 0)
+      (place A2 260000 250000 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+    )
+    (library_out 
+    )
+    (network_out 
+      (net sig
+        (wire
+          (path B.Cu 2000
+            200000 150000
+            200000 250000
+            260000 250000
+          )
+        )
+        (via VIA 200000 150000
+        )
+        (wire
+          (path F.Cu 2000
+            30000 150000
+            200000 150000
+          )
+        )
+      )
+    )
+  )
+)

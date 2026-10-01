@@ -1,0 +1,36 @@
+(pcb drc-tie.dsn
+
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 120000))
+    (rule (width 250) (clearance 2000))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 10000 10000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_R
+      (shape (rect F.Cu -1000 -1000 1000 1000))
+    )
+    (image CMP1
+      (pin PAD_R P5 10000 70000)
+    )
+  )
+  (network
+    (net TA (pins CMP1-P5))
+    (net TB (pins CMP1-P5))
+  )
+  (wiring
+    (wire (path F.Cu 250  10000 80000  20000 80000) (net TA))
+    (wire (path F.Cu 250  20000 80000  20000 90000) (net TB))
+  )
+)

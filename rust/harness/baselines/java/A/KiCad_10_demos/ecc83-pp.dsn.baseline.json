@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/KiCad_10_demos/ecc83-pp.dsn",
+  "fixture_sha256": "645296a9b1fc884b117ab79c39cd58ac6ee8961f996f805c4dc106651faf1709",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 0,
+  "maximum_count": 21,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 1000.0,
+  "optimizer_score": 1000.0,
+  "ses_sha256": "2c787400ab94b7c07fe0c4d87448b09cf6eaec33e92acff84ba2b9546e950472",
+  "autorouter_seconds": 0.36,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 2,
+  "captured_at_unix": 1789192389,
+  "notes": null
+}

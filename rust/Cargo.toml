@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/epic-geometry",
+    "crates/epic-dsn",
+    "crates/epic-board",
+    "crates/epic-index",
+    "crates/epic-drc",
+    "crates/epic-router",
+    "crates/epic-engine",
+    "crates/epic-cli",
+    "crates/epic-gui",
+    "harness",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.93"
+
+[workspace.lints.rust]
+# SIMD kernels in epic-geometry will opt in per-module with #[allow(unsafe_code)].
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"

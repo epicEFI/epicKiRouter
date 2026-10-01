@@ -1,0 +1,12 @@
+[package]
+name = "epic-geometry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+num-bigint = "0.4"
+
+[lints]
+workspace = true

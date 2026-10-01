@@ -1,0 +1,26 @@
+{
+  "bend_to_length_ratio": 0.0,
+  "gloss_teardrops": [
+    {
+      "at_x": 30000,
+      "at_y": 150000,
+      "landed": true,
+      "net": 1,
+      "net_name": "sig",
+      "pad_diameter": 20000,
+      "trace_id": 4
+    },
+    {
+      "at_x": 450000,
+      "at_y": 150000,
+      "landed": true,
+      "net": 1,
+      "net_name": "sig",
+      "pad_diameter": 20000,
+      "trace_id": 4
+    }
+  ],
+  "mean_length_excess": 0.114,
+  "parallelism_ratio": 0.0,
+  "via_density": 0.0
+}

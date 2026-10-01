@@ -1,0 +1,39 @@
+# EpicRouter parity fixture matrix (M0).
+# fixtures_root is resolved against the repository root, not this file.
+# Tier A: canary gate — fast boards, must stay clean (design §5).
+# Tier B: routine 2-4 layer boards.
+# Tier C: complex / multi-layer / large boards.
+# All four KiCad demos disabled upstream as *.dsn_disabled (timing out) are
+# excluded, so they are absent here even where metadata.yaml still lists them:
+#   kit-dev-coldfire-xilinx_5213, RoyalBlue54L-Feather, video, vme-wren.
+fixtures_root: scripts/benchmark/fixtures
+tiers:
+  - name: A
+    fixtures:
+      - { path: DAC2020_boards/DAC2020_bm01.dsn, timeout_seconds: 1800 }
+      - { path: DAC2020_boards/DAC2020_bm02.dsn, timeout_seconds: 300 }
+      - { path: DAC2020_boards/DAC2020_bm06.dsn, timeout_seconds: 600 }
+      - { path: DAC2020_boards/DAC2020_bm07.dsn, timeout_seconds: 300 }
+      - { path: DAC2020_boards/DAC2020_bm08.dsn, timeout_seconds: 120 }
+      - { path: DAC2020_boards/DAC2020_bm09.dsn, timeout_seconds: 600 }
+      - { path: DAC2020_boards/DAC2020_bm11.dsn, timeout_seconds: 600 }
+      - { path: KiCad_10_demos/ecc83-pp.dsn, timeout_seconds: 120 }
+      - { path: KiCad_10_demos/ecc83-pp_v2.dsn, timeout_seconds: 120 }
+      - { path: KiCad_10_demos/pic_programmer.dsn, timeout_seconds: 300 }
+      - { path: "KiCad_10_demos/sonde xilinx.dsn", timeout_seconds: 300 }
+  - name: B
+    fixtures:
+      - { path: DAC2020_boards/DAC2020_bm05.dsn, timeout_seconds: 1800 }
+      - { path: DAC2020_boards/DAC2020_bm10.dsn, timeout_seconds: 900 }
+      - { path: KiCad_10_demos/complex_hierarchy.dsn, timeout_seconds: 600 }
+      - { path: KiCad_10_demos/interf_u.dsn, timeout_seconds: 1800 }
+      - { path: KiCad_10_demos/multichannel_mixer.dsn, timeout_seconds: 600 }
+      - { path: KiCad_10_demos/multichannel_mixer-unrouted.dsn, timeout_seconds: 900 }
+      - { path: KiCad_10_demos/StickHub.dsn, timeout_seconds: 900 }
+      - { path: PCBench/1-Wire-Wing-pcb_1-Wire_Wing/unrouted.dsn, timeout_seconds: 300 }
+      - { path: PCBench/1Bitsy_1bitsy/unrouted.dsn, timeout_seconds: 300 }
+  - name: C
+    fixtures:
+      - { path: DAC2020_boards/DAC2020_bm04.dsn, timeout_seconds: 2700 }
+      - { path: KiCad_10_demos/CM5_MINIMA_3.dsn, timeout_seconds: 1800 }
+      - { path: PCBench/front-end-modules_LimeSDR_Sony/unrouted.dsn, timeout_seconds: 900 }

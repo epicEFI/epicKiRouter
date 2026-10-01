@@ -1,0 +1,106 @@
+(PCB e1_ripup.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  120000 0  120000 64000  0 64000  0 0)
+    )
+    (keepout ""
+      (polygon B.Cu 0  54000 0  66000 0  66000 64000  54000 64000  54000 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  54000 0  66000 0  66000 9000  54000 9000  54000 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  54000 55000  66000 55000  66000 64000  54000 64000  54000 55000)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CA"
+      (place "KA" 20000 25000 Front 0.000000)
+    )
+    (component "CB"
+      (place "KB" 100000 25000 Front 0.000000)
+    )
+    (component "CC"
+      (place "KC1" 60000 12000 Front 0.000000)
+    )
+    (component "CD"
+      (place "KC2" 60000 52000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADB" "PB" 0 0)
+    )
+    (image "CC"
+      (pin "PADC" "PC" 0 0)
+    )
+    (image "CD"
+      (pin "PADD" "PD" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  1500 1500 -1500 1500 -1500 -1500 1500 -1500  1500 1500))
+      (attach off)
+    )
+    (padstack "PADB"
+      (shape (polygon F.Cu 0  1500 1500 -1500 1500 -1500 -1500 1500 -1500  1500 1500))
+      (attach off)
+    )
+    (padstack "PADC"
+      (shape (polygon F.Cu 0  1500 1500 -1500 1500 -1500 -1500 1500 -1500  1500 1500))
+      (attach off)
+    )
+    (padstack "PADD"
+      (shape (polygon F.Cu 0  1500 1500 -1500 1500 -1500 -1500 1500 -1500  1500 1500))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "NET_A"
+      (pins "KA"-"PA" "KB"-"PB")
+    )
+    (net "NET_B"
+      (pins "KC1"-"PC" "KC2"-"PD")
+    )
+    (class kicad_default "NET_A" "NET_B"
+      (rule
+        (clearance 250)
+        (width 2000)
+      )
+    )
+  )
+  (wiring
+      (wire (path F.Cu 2000  60000 12000  60000 32000) (net NET_B))
+      (wire (path F.Cu 2000  60000 32000  60000 52000) (net NET_B) (type protect))
+  )
+)

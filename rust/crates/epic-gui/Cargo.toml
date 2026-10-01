@@ -1,0 +1,59 @@
+[package]
+name = "epic-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The view core consumes ONLY the snapshot face (the renders-never-
+# mutates law: the snapshot is the input; epic-board is NOT a dep —
+# the projection cannot reach a Board even transitively through its
+# own imports).
+epic-engine = { path = "../epic-engine" }
+epic-geometry = { path = "../epic-geometry" }
+# The render goldens (serde-JSON of the RenderList) — workspace-
+# unpinned, the existing serde_json consumers pin "1".
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# M9-T6 desktop shell (default-off): eframe 0.35 (newest stable with
+# MSRV <= the pinned 1.93 toolchain — 0.35 declares rust-version 1.92,
+# 0.36.2 declares 1.95), rfd 0.17 (default features = xdg-portal +
+# wayland, pure Rust via ashpd/zbus — no gtk3 link dep), png 0.18
+# (the smoke screenshot encoder). The DEFAULT build compiles none of
+# this: the default workspace face stays egui/wgpu-free.
+eframe = { version = "0.35", optional = true }
+rfd = { version = "0.17.2", optional = true }
+# The charter's feature letter names png the smoke screenshot
+# encoder; the PROBED face (eframe's own `__screenshot` hook, the
+# only pre-swap readback) writes the PNG through eframe's own image
+# dep, so png stays chartered-and-resolved here for the future
+# in-process encode face (documented deviation, the T6 report).
+png = { version = "0.18.1", optional = true }
+
+[features]
+default = []
+desktop = ["dep:eframe", "dep:rfd", "dep:png"]
+# DEV-BOX EVIDENCE FACE (never in CI, default-off): the glow renderer
+# + eframe's `__screenshot` gate — the ONLY pixel-readback face eframe
+# 0.35 ships (the wgpu backend's hook asserts "not yet implemented";
+# see src/desktop/mod.rs module docs for the probe citation). The
+# `--smoke` PNG evidence runs with `--features desktop,smoke`.
+smoke = ["eframe/glow", "eframe/__screenshot"]
+
+# The shell bin: the default build compiles a 5-line stub (exit 1 +
+# the hint); `--features desktop` compiles the real eframe entry.
+[[bin]]
+name = "epic-gui"
+path = "src/bin/epic-gui.rs"
+
+# M9-T5: the routed overlay-golden faces hand `Session::route` a sink —
+# the `DriverSink` trait lives in epic-router, so the TESTS need it.
+# Dev-only: the lib surface stays epic-router-free (the leaf law is
+# about consumers of epic-gui, unchanged).
+[dev-dependencies]
+epic-router = { path = "../epic-router" }

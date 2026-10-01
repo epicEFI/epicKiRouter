@@ -1,0 +1,44 @@
+(session "DAC2020_bm08.ses"
+  (base_design "DAC2020_bm08.dsn")
+  (placement
+    (resolution um 10)
+    (component "imu:LGA-24"
+      (place U5 1450594 -1052068 front 270)
+    )
+    (component imu:C0805
+      (place U1 1496060 -1008634 front 270)
+      (place U2 1518666 -1008634 front 270)
+      (place U3 1405636 -1052322 front 90)
+      (place U4 1427988 -1006856 front 180)
+    )
+    (component imu:R0805
+      (place U6 1494790 -1086104 front 270)
+      (place U7 1517396 -1085850 front 270)
+    )
+    (component "imu:MA04-1"
+      (place U8 1560830 -1049020 front 90)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

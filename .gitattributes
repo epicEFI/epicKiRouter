@@ -1,0 +1,21 @@
+# Shell scripts must always use LF line endings (CRLF breaks the shebang on Linux/macOS)
+*.sh        text eol=lf
+
+# Java and build/source metadata use LF on every platform.
+# (*.gradle / *.groovy / *.properties pruned at M10-T5 C': zero files
+# match since the Java sunset; *.java stays for the 47 oracle keepers.)
+*.java      text eol=lf
+*.json      text eol=lf
+*.py        text eol=lf
+*.xml       text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.toml      text eol=lf
+
+# Windows batch files use CRLF
+*.bat       text eol=crlf
+
+# Default behaviour for everything else
+*           text=auto eol=lf
+

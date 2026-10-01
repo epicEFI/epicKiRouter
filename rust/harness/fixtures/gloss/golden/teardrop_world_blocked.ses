@@ -1,0 +1,41 @@
+(session "teardrop_world_blocked"
+  (base_design "teardrop_world_blocked")
+  (placement
+    (resolution um 10)
+    (component IA
+      (place A1 30000 150000 front 0)
+      (place A2 450000 150000 front 0)
+    )
+    (component IB
+      (place B1 36000 163000 front 0)
+      (place B2 440000 163000 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+    )
+    (library_out 
+    )
+    (network_out 
+      (net sig
+        (wire
+          (path F.Cu 2000
+            30000 150000
+            450000 150000
+          )
+        )
+      )
+      (net other
+        (wire
+          (path F.Cu 2000
+            36000 163000
+            440000 163000
+          )
+        )
+      )
+    )
+  )
+)

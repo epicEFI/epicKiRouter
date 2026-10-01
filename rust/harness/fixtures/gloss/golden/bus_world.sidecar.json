@@ -1,0 +1,40 @@
+{
+  "bend_to_length_ratio": 5.797,
+  "bus_groups": [
+    {
+      "horizontal": true,
+      "layer": 0,
+      "member_names": [
+        "bus_a",
+        "bus_b",
+        "bus_c"
+      ],
+      "members": [
+        1,
+        2,
+        3
+      ],
+      "moves_landed": 2,
+      "moves_rejected": 0,
+      "rows": [
+        {
+          "from_pos": 100000,
+          "landed": 97500,
+          "net": 1,
+          "net_name": "bus_a",
+          "target_pos": 97500
+        },
+        {
+          "from_pos": 185000,
+          "landed": 182500,
+          "net": 3,
+          "net_name": "bus_c",
+          "target_pos": 182500
+        }
+      ]
+    }
+  ],
+  "mean_length_excess": 0.302,
+  "parallelism_ratio": 1.0,
+  "via_density": 0.0
+}

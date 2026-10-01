@@ -1,0 +1,18 @@
+---
+description: EpicRouter formatting, line-ending, and quality-gate rules
+alwaysApply: true
+---
+
+# Quality Gates
+
+- Preserve the repository LF policy. Do not change `core.autocrlf` to solve an individual
+  file; inspect `.gitattributes` and the actual diff instead.
+- Never stage files automatically. Keep formatting-only changes separate from functional
+  changes and inspect `git diff --stat` and `git diff --check`.
+- Before handoff, run (from `rust/`):
+  `systemd-run --user --scope -p MemoryMax=6G cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`
+- Golden baselines (`rust/harness/baselines/`, corpus dirs, `config/tiers.yaml`) are
+  committed parity artifacts — never modified; new goldens are new files via sanctioned
+  capture only.
+- Historical (Java era, retired at M10-T4): the gradle/spotless/checkstyle and i18n
+  gates; the Java tree is git history.

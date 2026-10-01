@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "engine": "java",
+  "app_version": "2.4.2-SNAPSHOT",
+  "git_sha": "unknown",
+  "fixture": "scripts/benchmark/fixtures/KiCad_10_demos/multichannel_mixer.dsn",
+  "fixture_sha256": "207981e857566c56e4a6fa2c41cebf9ca80d9b2e30877eeea58ed90a631347a1",
+  "final_state": "COMPLETED",
+  "exit_code": 0,
+  "incomplete_count": 160,
+  "maximum_count": 203,
+  "clearance_violations_total": 0,
+  "clearance_router_introduced": 0,
+  "normalized_score": 141.22,
+  "optimizer_score": 1000.0,
+  "ses_sha256": "1572cd9946f9c1d8f38ce09ee24d5d8adf5ebe4d167052b9d044da3abda78486",
+  "autorouter_seconds": 129.64,
+  "optimizer_seconds": 0.0,
+  "passes_completed": 18,
+  "captured_at_unix": 1789194532,
+  "notes": null
+}

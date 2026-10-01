@@ -1,0 +1,65 @@
+(session "bus_world_blocked"
+  (base_design "bus_world_blocked")
+  (placement
+    (resolution um 10)
+    (component IA
+      (place A1 15000 30000 front 0)
+      (place A2 545000 30000 front 0)
+    )
+    (component IB
+      (place B1 15000 60000 front 0)
+      (place B2 545000 60000 front 0)
+    )
+    (component IC
+      (place C1 15000 90000 front 0)
+      (place C2 545000 90000 front 0)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+    )
+    (library_out 
+    )
+    (network_out 
+      (net "bus_a"
+        (wire
+          (path F.Cu 2000
+            15000 30000
+            32000 30000
+            32000 97500
+            510000 97500
+            510000 30000
+            545000 30000
+          )
+        )
+      )
+      (net "bus_b"
+        (wire
+          (path F.Cu 2000
+            15000 60000
+            26000 60000
+            26000 140000
+            520000 140000
+            520000 60000
+            545000 60000
+          )
+        )
+      )
+      (net "bus_c"
+        (wire
+          (path F.Cu 2000
+            15000 90000
+            18000 90000
+            18000 185000
+            530000 185000
+            530000 90000
+            545000 90000
+          )
+        )
+      )
+    )
+  )
+)

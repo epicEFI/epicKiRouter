@@ -1,0 +1,94 @@
+(session "DAC2020_bm05.ses"
+  (base_design "DAC2020_bm05.dsn")
+  (placement
+    (resolution um 10)
+    (component audioCodec:0603
+      (place U1 1543211 -886736 front 270)
+      (place U2 1524611 -1196436 front 90)
+      (place U3 1433511 -1196436 front 90)
+      (place U4 1458111 -1196436 front 90)
+      (place U5 1397611 -1002936 front 180)
+      (place U6 1439711 -962336 front 0)
+      (place U7 1404811 -971236 front 270)
+      (place U8 1515911 -953636 front 270)
+      (place U9 1566911 -1005036 front 180)
+      (place U10 1566911 -982636 front 180)
+      (place U11 1470511 -953636 front 90)
+      (place U12 1501411 -1110536 front 90)
+      (place U13 1567411 -1067036 front 180)
+      (place U14 1397511 -1026036 front 0)
+      (place U15 1567611 -1097036 front 180)
+      (place U16 1566711 -961036 front 180)
+      (place U17 1627511 -989836 front 180)
+      (place U18 1627511 -1018936 front 180)
+      (place U19 1315311 -902036 front 0)
+      (place U20 1315811 -930036 front 0)
+      (place U21 1631211 -911736 front 0)
+      (place U22 1631211 -938636 front 0)
+      (place U23 1558211 -1035836 front 90)
+      (place U24 1562511 -1196436 front 270)
+      (place U25 1588111 -1196436 front 270)
+      (place U26 1498011 -1196436 front 90)
+      (place U33 1628011 -962436 front 180)
+      (place U34 1314911 -872136 front 0)
+      (place U36 1469411 -1110636 front 90)
+      (place U37 1449911 -1110736 front 90)
+      (place U38 1566111 -914436 front 90)
+      (place U39 1561911 -1155336 front 270)
+      (place U40 1588411 -1155236 front 270)
+      (place U41 1604211 -1086536 front 90)
+      (place U42 1492811 -953336 front 90)
+      (place U43 1613411 -1120936 front 0)
+      (place U44 1590711 -914436 front 90)
+      (place U47 1380011 -1066036 front 180)
+    )
+    (component "audioCodec:QFN50P700X700X100-49N"
+      (place U27 1479011 -1030336 front 180)
+    )
+    (component "audioCodec:SOT95P284X122-5N"
+      (place U28 1578311 -874836 front 0)
+    )
+    (component audioCodec:1X02
+      (place U29 1562511 -1235536 front 0)
+      (place U30 1524411 -1234536 front 180)
+      (place U31 1458911 -1234536 front 180)
+    )
+    (component audioCodec:2X6
+      (place U32 1359711 -897536 front 0)
+    )
+    (component "audioCodec:CMC-2242PBL-A"
+      (place U35 1658711 -1218136 front 180)
+    )
+    (component "audioCodec:SJ-43514-SMT-TR"
+      (place U45 1384311 -1233536 front 90)
+    )
+    (component audioCodec:NRH2412T2R2MNGH
+      (place U46 1626111 -872836 front 270)
+    )
+    (component audioCodec:1X03
+      (place U48 1661011 -1080036 front 270)
+    )
+  )
+  (was_is
+  )
+  (routes 
+    (resolution um 10)
+    (parser
+      (host_cad "KiCad's Pcbnew")
+      (host_version "9.0.6")
+    )
+    (library_out 
+      (padstack "Via[0-1]_600:300_um"
+        (shape
+          (circle Top 6000 0 0)
+        )
+        (shape
+          (circle Bottom 6000 0 0)
+        )
+        (attach off)
+      )
+    )
+    (network_out 
+    )
+  )
+)

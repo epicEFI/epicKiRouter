@@ -1,0 +1,104 @@
+(PCB t5_drill_pages.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer In1.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (layer In2.Cu
+      (type signal)
+      (property
+        (index 2)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 3)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  100000 0  100000 60000  0 60000  0 0)
+    )
+    (keepout ""
+      (polygon F.Cu 0  40000 20000 60000 20000 60000 40000 40000 40000  40000 20000)
+    )
+    (rule
+      (clearance 250)
+    )
+  )
+  (placement
+    (component "CA"
+      (place "KA" 20000 33000 Front 0.000000)
+    )
+    (component "CB"
+      (place "KB" 80000 33000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CA"
+      (pin "PADA" "PA" 0 0)
+    )
+    (image "CB"
+      (pin "PADB" "PB" 0 0)
+    )
+    (padstack "PADA"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "PADB"
+      (shape (polygon F.Cu 0  2000 2000 -2000 2000 -2000 -2000 2000 -2000  2000 2000))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle In1.Cu 800 0 0))
+      (shape (circle In2.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+    (padstack "VIA_H"
+      (shape (circle F.Cu 600 0 0))
+      (shape (circle In1.Cu 600 0 0))
+      (attach off)
+    )
+    (padstack "VIA_X"
+      (shape (circle F.Cu 1200 0 0))
+      (shape (circle In1.Cu 1200 0 0))
+      (shape (circle In2.Cu 1200 0 0))
+      (shape (circle B.Cu 1200 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (via VA VIA_T kicad_default attach)
+    (via VH VIA_H kicad_default)
+    (via_rule T5_RULE VT VA VH)
+    (net "NET_A"
+      (pins "KA"-"PA")
+    )
+    (net "NET_B"
+      (pins "KB"-"PB")
+    )
+    (class kicad_default "NET_A" "NET_B"
+      (rule
+        (clearance 250)
+      )
+    )
+  )
+)

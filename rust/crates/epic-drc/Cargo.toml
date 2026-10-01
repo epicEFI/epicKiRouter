@@ -1,0 +1,19 @@
+[package]
+name = "epic-drc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+epic-board = { path = "../epic-board" }
+epic-geometry = { path = "../epic-geometry" }
+
+[dev-dependencies]
+# The pin suites parse crafted DSN text through the same reader the
+# corpus harness uses (mode-8 discipline: no absolute ids, lookup by
+# net membership and kind on the parsed board).
+epic-dsn = { path = "../epic-dsn" }
+
+[lints]
+workspace = true

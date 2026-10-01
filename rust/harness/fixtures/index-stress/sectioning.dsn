@@ -1,0 +1,23 @@
+(pcb sectioning.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 10000 6000))
+    (keepout (rect F.Cu 500 500 9500 5500))
+    (rule (width 25) (clearance 14))
+  )
+  (placement)
+  (library)
+  (network
+    (net SN)
+  )
+  (wiring
+    (wire (path F.Cu 25  500 250 9500 250) (net SN))
+  )
+)

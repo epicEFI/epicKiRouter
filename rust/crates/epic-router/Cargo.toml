@@ -1,0 +1,25 @@
+[package]
+name = "epic-router"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# epic-index is not consumed yet — the maze engine lands in T4-T9
+# (expansion rooms/doors search the shape tree through it). Declared
+# now per the crate design; remove if T4 ends up not needing it.
+epic-board = { path = "../epic-board" }
+# T12: the driver's score/restore faces read the DRC aggregate
+# (violations with depths, incompletes) directly.
+epic-drc = { path = "../epic-drc" }
+epic-dsn = { path = "../epic-dsn" }
+epic-geometry = { path = "../epic-geometry" }
+epic-index = { path = "../epic-index" }
+# T12: the board hash (SHA-256 over the canonical trace/via/itemList
+# encoding — the algorithm is parity-irrelevant, the anchors bank the
+# string divergence from Java's MD5-over-Java-serialization).
+sha2 = "0.10"
+
+[lints]
+workspace = true
