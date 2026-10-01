@@ -9552,3 +9552,15 @@ description: chronological action log per session, consolidated weekly
 | 08:23 | Edited rust/harness/src/router_compare.rs | 3→6 lines | ~47 |
 | 08:34 | Edited logs/M10-T7/report-t7.md | modified adjudication() | ~2466 |
 | 08:35 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md | modified Chain() | ~1586 |
+| 08:35 | Edited logs/M10-T8/dispatch-prompt-t8.md | 2→3 lines | ~55 |
+| 08:35 | Edited logs/M10-T8/dispatch-prompt-t8.md | 2→2 lines | ~41 |
+| 08:35 | Edited logs/M10-T8/dispatch-prompt-t8.md | 2→2 lines | ~40 |
+| 08:35 | Edited logs/M10-T8/dispatch-prompt-t8.md | 2→3 lines | ~56 |
+| 08:49 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified 1() | ~1193 |
+| 08:49 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 2→2 lines | ~37 |
+| 08:49 | Edited rust/README.md | 2→3 lines | ~67 |
+| 08:49 | Edited rust/README.md | inline fix | ~20 |
+| 08:49 | Edited rust/README.md | 2→2 lines | ~42 |
+| 08:49 | Edited docs/architecture.md | 3→4 lines | ~64 |
+| 08:50 | Created logs/M10-T8/report-t8.md | — | ~3795 |
+| 08:51 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md | modified errata() | ~1111 |

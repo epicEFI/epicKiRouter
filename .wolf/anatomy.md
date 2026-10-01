@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T14:35:05.299Z
-> Files: 630 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T14:51:02.428Z
+> Files: 631 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -281,7 +281,7 @@
 
 ## docs/
 
-- `architecture.md` — Freerouting Architecture Map (~10200 tok)
+- `architecture.md` — Freerouting Architecture Map (~10210 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
 - `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
@@ -369,7 +369,7 @@
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
 - `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
-- `2026-09-30-epicrouter-m10-sunset-and-release.md` — EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan (~16048 tok)
+- `2026-09-30-epicrouter-m10-sunset-and-release.md` — EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan (~17056 tok)
 - `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~19183 tok)
 
 ## docs/superpowers/research/
@@ -380,7 +380,7 @@
 
 ## docs/superpowers/specs/
 
-- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~27213 tok)
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~28306 tok)
 
 ## examples/tutorial_board/
 
@@ -764,12 +764,13 @@
 
 ## logs/M10-T8/
 
-- `dispatch-prompt-t8.md` — M10-T8 DISPATCH — the terminal milestone adjudication (fresh adjudicator) (~1971 tok)
+- `dispatch-prompt-t8.md` — M10-T8 DISPATCH — the terminal milestone adjudication (fresh adjudicator) (~2002 tok)
+- `report-t8.md` — M10-T8 — the terminal milestone adjudication (materialized verbatim by the coordinator) (~3558 tok)
 
 ## rust/
 
 - `Cargo.toml` — Rust package manifest (~150 tok)
-- `README.md` — Project documentation (~6394 tok)
+- `README.md` — Project documentation (~6421 tok)
 
 ## rust/crates/epic-cli/src/
 
