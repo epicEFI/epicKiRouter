@@ -9424,3 +9424,45 @@ description: chronological action log per session, consolidated weekly
 | 23:36 | Edited logs/M10-T3/report-t3.md | modified Aggregates() | ~389 |
 | 23:36 | Edited logs/M10-T3/report-t3.md | modified 3() | ~332 |
 | 23:36 | Edited logs/M10-T3/report-t3.md | modified lessons() | ~1247 |
+| 23:38 | Created logs/M10-T4/dispatch-prompt-t4.md | — | ~1854 |
+| 23:40 | Created logs/M10-T4/evidence/01-java-dependence-probe.log | — | ~878 |
+| 23:42 | Created logs/M10-T4/evidence/02-enumeration-probe.log | — | ~924 |
+| 23:42 | Created logs/M10-T4/evidence/03-workflow-probe.log | — | ~443 |
+| 23:42 | Created logs/M10-T4/evidence/04-precommit-probe.log | — | ~368 |
+| 23:45 | Created .gitignore | — | ~174 |
+| 23:46 | Edited .pre-commit-config.yaml | Freerouting() → EpicRouter() | ~119 |
+| 23:46 | Edited .pre-commit-config.yaml | 9→9 lines | ~102 |
+| 23:46 | Edited .pre-commit-config.yaml | reduced (-21 lines) | ~60 |
+| 23:47 | Created CLAUDE.md | — | ~2199 |
+| 23:47 | Edited CLAUDE.md | inline fix | ~37 |
+| 23:47 | Edited CLAUDE.md | inline fix | ~52 |
+| 23:47 | Edited CLAUDE.md | inline fix | ~80 |
+| 23:47 | Edited AGENTS.md | 3→5 lines | ~392 |
+| 23:48 | Created README.md | — | ~928 |
+| 23:48 | Edited docs/architecture.md | modified HISTORICAL() | ~219 |
+| 23:48 | Edited rust/harness/src/oracle.rs | modified SUNSET() | ~292 |
+| 23:48 | Edited docs/CONTRIBUTING.md | 3→3 lines | ~135 |
+| 23:48 | Edited docs/CONTRIBUTING.md | modified committing() | ~375 |
+| 23:48 | Edited scripts/pcbench/README.md | inline fix | ~56 |
+| 23:50 | Created .cursor/rules/quality-gates.mdc | — | ~247 |
+| 23:50 | Edited pyproject.toml | 9→10 lines | ~129 |
+| 23:51 | Edited .agents/skills/code-quality-checks/SKILL.md | modified NOTE() | ~99 |
+| 23:54 | Edited rust/harness/src/oracle.rs | modified find_repo_root() | ~184 |
+| 23:54 | Edited rust/harness/src/tiers.rs | 3→4 lines | ~74 |
+| 00:24 | Edited pyproject.toml | "autoroute,autorouter,auto" → "autoroute,autorouter,auto" | ~48 |
+| 00:28 | Edited pyproject.toml | "*.dsn,*.ses,*.frb,*.png,*" → "*.dsn,*.ses,*.frb,*.png,*" | ~50 |
+| 00:28 | Edited pyproject.toml | "autoroute,autorouter,auto" → "autoroute,autorouter,auto" | ~91 |
+| 00:28 | Edited pyproject.toml | inline fix | ~4 |
+| 00:31 | Edited .pre-commit-config.yaml | 5→5 lines | ~84 |
+| 00:31 | Edited .pre-commit-config.yaml | inline fix | ~18 |
+| 00:33 | Edited pyproject.toml | "*.dsn,*.ses,*.frb,*.png,*" → "*.dsn,*.ses,*.frb,*.png,*" | ~39 |
+| 00:35 | Edited .pre-commit-config.yaml | inline fix | ~52 |
+| 00:40 | Created logs/M10-T4/report-t4.md | — | ~3707 |
+| 00:42 | Created logs/M10-T4/spec-review-prompt-t4.md | — | ~1683 |
+| 00:44 | Edited logs/M10-T4/report-t4.md | modified personally() | ~1848 |
+| 00:51 | Created logs/M10-T4/spec-review-t4-1.md | — | ~4574 |
+| 00:51 | Edited logs/M10-T4/spec-review-t4-1.md | inline fix | ~31 |
+| 00:52 | Edited logs/M10-T4/report-t4.md | modified lesson() | ~1287 |
+| 00:52 | Created logs/M10-T4/quality-review-prompt-t4.md | — | ~1280 |
+| 01:02 | Created logs/M10-T4/quality-review-t4-1.md | — | ~4589 |
+| 01:03 | Edited logs/M10-T4/report-t4.md | modified lesson() | ~2427 |

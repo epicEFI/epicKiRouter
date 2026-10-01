@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T05:36:50.711Z
-> Files: 612 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T07:03:55.148Z
+> Files: 600 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -12,22 +12,17 @@
 - `.dockerignore` — Docker ignore rules (~326 tok)
 - `.editorconfig` — Editor configuration (~31 tok)
 - `.gitattributes` — Git attributes (~152 tok)
-- `.gitignore` — Git ignore rules (~228 tok)
-- `.pre-commit-config.yaml` — Pre-commit hooks for Freerouting (Java project) (~998 tok)
+- `.gitignore` — Git ignore rules (~174 tok)
+- `.pre-commit-config.yaml` — Pre-commit hooks for EpicRouter (the Rust PCB autorouter — the sunset (~800 tok)
 - `.yamllint.yaml` — YAML linting configuration for Freerouting project (~205 tok)
-- `AGENTS.md` — Project Persona & Goal (~12382 tok)
-- `build.gradle` — Gradle build configuration (~7481 tok)
-- `CLAUDE.md` — OpenWolf (~2143 tok)
+- `AGENTS.md` — Project Persona & Goal (~12663 tok)
+- `CLAUDE.md` — OpenWolf (~2045 tok)
 - `Dockerfile` — Docker container definition (~510 tok)
 - `GEMINI.md` — OpenWolf (~75 tok)
-- `gradle.properties` — Gradle Configuration (~128 tok)
-- `gradlew` — you may not use this file except in compliance with the License. (~2303 tok)
-- `gradlew.bat` (~738 tok)
 - `LICENSE` — Project license (~9366 tok)
-- `pyproject.toml` — Python project configuration (~245 tok)
-- `README.md` — Project documentation (~2644 tok)
+- `pyproject.toml` — Configuration for development tools (~262 tok)
+- `README.md` — Project documentation (~870 tok)
 - `rewrite.yml` — Freerouting OpenRewrite phases. (~1676 tok)
-- `settings.gradle` — Gradle settings (~32 tok)
 
 ## .github/
 
@@ -42,13 +37,7 @@
 
 ## .github/workflows/
 
-- `create-release.yml` — CI: Publish a new release (~1374 tok)
-- `create-snapshot.yml` — CI: Update the snapshot build (~1362 tok)
 - `deploy-pages.yml` — CI: Deploy website to GitHub Pages (~266 tok)
-- `docker-nightly.yml` — CI: Push the Docker nightly image (~492 tok)
-- `docker-release.yml` — CI: Push a new Docker release image (~551 tok)
-- `gradle-build-on-pr.yml` — CI: Build the source on PR (~374 tok)
-- `gui-a11y.yml` — CI: GUI accessibility tests (~462 tok)
 - `pre-commit.yml` — CI: pre-commit (~466 tok)
 - `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~2373 tok)
 - `stale.yml` — This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time. (~540 tok)
@@ -79,33 +68,124 @@
 - `today-2026-09-29.done.md` — 00:46-02:17 | epic/main (~11633 tok)
 - `today-2026-09-30.done.md` — 03:19 | epic/main (~536 tok)
 - `today-2026-09-30.md` — 05:4x | epic/main (~5053 tok)
+- `today-2026-10-01.md` — 00:18 | epic/main (~419 tok)
 
 ## .remember/logs/
 
 - `hook-errors.log` (~0 tok)
 - `memory-2026-09-25.log` (~169092 tok)
 - `memory-2026-09-27.log` (~233384 tok)
-- `memory-2026-09-30.log` (~232630 tok)
 
 ## .remember/logs/autonomous/
 
-- `save-175734.log` (~0 tok)
-- `save-175738.log` (~0 tok)
-- `save-175746.log` (~0 tok)
-- `save-175750.log` (~0 tok)
-- `save-175803.log` (~0 tok)
-- `save-175812.log` (~0 tok)
-- `save-175818.log` (~0 tok)
-- `save-175822.log` (~0 tok)
-- `save-175847.log` (~0 tok)
-- `save-175848.log` (~0 tok)
-- `save-175858.log` (~0 tok)
-- `save-175906.log` (~0 tok)
-- `save-175907.log` (~0 tok)
-- `save-175914.log` (~0 tok)
-- `save-175922.log` (~0 tok)
-- `save-175931.log` (~0 tok)
-- `save-175940.log` (~0 tok)
+- `save-233622.log` (~0 tok)
+- `save-233650.log` (~0 tok)
+- `save-233657.log` (~0 tok)
+- `save-233708.log` (~0 tok)
+- `save-233727.log` (~0 tok)
+- `save-233734.log` (~0 tok)
+- `save-233738.log` (~0 tok)
+- `save-233821.log` (~0 tok)
+- `save-233827.log` (~0 tok)
+- `save-233830.log` (~0 tok)
+- `save-233834.log` (~0 tok)
+- `save-233836.log` (~0 tok)
+- `save-233837.log` (~0 tok)
+- `save-233840.log` (~0 tok)
+- `save-233844.log` (~0 tok)
+- `save-233847.log` (~0 tok)
+- `save-233850.log` (~0 tok)
+- `save-233902.log` (~0 tok)
+- `save-233911.log` (~0 tok)
+- `save-233918.log` (~0 tok)
+- `save-233928.log` (~0 tok)
+- `save-233929.log` (~0 tok)
+- `save-233942.log` (~0 tok)
+- `save-233944.log` (~0 tok)
+- `save-233955.log` (~0 tok)
+- `save-234014.log` (~0 tok)
+- `save-234032.log` (~0 tok)
+- `save-234039.log` (~0 tok)
+- `save-234055.log` (~0 tok)
+- `save-234107.log` (~0 tok)
+- `save-234135.log` (~0 tok)
+- `save-234159.log` (~0 tok)
+- `save-234206.log` (~0 tok)
+- `save-234229.log` (~0 tok)
+- `save-234233.log` (~0 tok)
+- `save-234244.log` (~0 tok)
+- `save-234256.log` (~0 tok)
+- `save-234305.log` (~0 tok)
+- `save-234319.log` (~0 tok)
+- `save-234400.log` (~0 tok)
+- `save-234410.log` (~0 tok)
+- `save-234419.log` (~0 tok)
+- `save-234424.log` (~0 tok)
+- `save-234425.log` (~0 tok)
+- `save-234451.log` (~0 tok)
+- `save-234500.log` (~0 tok)
+- `save-234505.log` (~0 tok)
+- `save-234507.log` (~0 tok)
+- `save-234523.log` (~0 tok)
+- `save-234541.log` (~0 tok)
+- `save-234552.log` (~0 tok)
+- `save-234555.log` (~0 tok)
+- `save-234559.log` (~0 tok)
+- `save-234604.log` (~0 tok)
+- `save-234609.log` (~0 tok)
+- `save-234621.log` (~0 tok)
+- `save-234630.log` (~0 tok)
+- `save-234710.log` (~0 tok)
+- `save-234715.log` (~0 tok)
+- `save-234720.log` (~0 tok)
+- `save-234726.log` (~0 tok)
+- `save-234729.log` (~0 tok)
+- `save-234739.log` (~0 tok)
+- `save-234801.log` (~0 tok)
+- `save-234810.log` (~0 tok)
+- `save-234821.log` (~0 tok)
+- `save-234830.log` (~0 tok)
+- `save-234845.log` (~0 tok)
+- `save-234853.log` (~0 tok)
+- `save-234900.log` (~0 tok)
+- `save-234934.log` (~0 tok)
+- `save-234945.log` (~0 tok)
+- `save-234953.log` (~0 tok)
+- `save-234957.log` (~0 tok)
+- `save-235006.log` (~0 tok)
+- `save-235012.log` (~0 tok)
+- `save-235024.log` (~0 tok)
+- `save-235039.log` (~0 tok)
+- `save-235051.log` (~0 tok)
+- `save-235103.log` (~0 tok)
+- `save-235108.log` (~0 tok)
+- `save-235124.log` (~0 tok)
+- `save-235146.log` (~0 tok)
+- `save-235201.log` (~0 tok)
+- `save-235217.log` (~0 tok)
+- `save-235227.log` (~0 tok)
+- `save-235237.log` (~0 tok)
+- `save-235246.log` (~0 tok)
+- `save-235257.log` (~0 tok)
+- `save-235305.log` (~0 tok)
+- `save-235312.log` (~0 tok)
+- `save-235323.log` (~0 tok)
+- `save-235335.log` (~0 tok)
+- `save-235344.log` (~0 tok)
+- `save-235351.log` (~0 tok)
+- `save-235356.log` (~0 tok)
+- `save-235401.log` (~0 tok)
+- `save-235422.log` (~0 tok)
+- `save-235426.log` (~0 tok)
+- `save-235432.log` (~0 tok)
+- `save-235440.log` (~0 tok)
+- `save-235443.log` (~0 tok)
+- `save-235451.log` (~0 tok)
+- `save-235900.log` (~0 tok)
+- `save-235906.log` (~0 tok)
+- `save-235914.log` (~0 tok)
+- `save-235928.log` (~0 tok)
+- `save-235950.log` (~0 tok)
 
 ## .run/
 
@@ -200,19 +280,17 @@
 
 ## docs/
 
-- `architecture.md` — Freerouting Architecture Map (~9929 tok)
+- `architecture.md` — Freerouting Architecture Map (~10072 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
 - `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
-- `CONTRIBUTING.md` — Introduction (~1542 tok)
-- `developer.md` — Information for developers (~4875 tok)
+- `CONTRIBUTING.md` — Introduction (~1392 tok)
 - `integrations.md` — EDA Integrations (~2331 tok)
 - `labels.md` — Issue and Pull Request Labels (~1529 tok)
 - `ProjectSchemeCodeStyle.xml` (~519 tok)
 - `scoring.md` — Board scoring (V2) (~3175 tok)
 - `self-hosting.md` — Self-Hosting the Freerouting API (~4256 tok)
 - `settings.md` — Freerouting Settings Documentation (~5563 tok)
-- `translations.md` — Translation guide (~1771 tok)
 
 ## docs/API/
 
@@ -252,7 +330,6 @@
 ## docs/reference/
 
 - `Cadence_SPECCTRA_Design_Language_Reference_v10_(2000-05).md` — SPECCTRA (~72304 tok)
-- `gradle_quick_reference.md` — Quick Reference: Gradle Commands (~953 tok)
 
 ## docs/research/
 
@@ -290,7 +367,7 @@
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
 - `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
-- `2026-09-30-epicrouter-m10-sunset-and-release.md` — EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan (~6742 tok)
+- `2026-09-30-epicrouter-m10-sunset-and-release.md` — EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan (~10398 tok)
 - `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~19183 tok)
 
 ## docs/superpowers/research/
@@ -641,16 +718,6 @@
 - `Issue269-NoViasOnPowerPlanes.kicad_pcb` — Declares solid (~11292 tok)
 - `Issue269-NoViasOnPowerPlanes.kicad_prl` (~352 tok)
 - `Issue269-NoViasOnPowerPlanes.kicad_pro` (~4227 tok)
-- `Issue269-NoViasOnPowerPlanes.ses` (~1268 tok)
-
-## fixtures/Issue269-NoWiresOnPowerLayers/
-
-- `fp-info-cache` (~5198 tok)
-- `proba.kicad_pcb` — Declares solid (~155101 tok)
-- `proba.kicad_prl` (~346 tok)
-- `proba.kicad_pro` (~4167 tok)
-- `proba.kicad_sch` — Declares default (~115204 tok)
-- `proba.rules` — Declares smd_to_turn_gap (~1166 tok)
 
 ## fixtures/Issue269-min_fr_test/
 
@@ -661,170 +728,10 @@
 - `min_fr_test.kicad_pro` (~3659 tok)
 - `min_fr_test.kicad_sch` — Declares default (~2814 tok)
 
-## fixtures/Issue283-UnconnectedTracesUnderPads/
+## logs/M10-T4/
 
-- `fp-info-cache` (~1 tok)
-- `Natural_Tone_Preamp.dsn` — Declares signal (~25943 tok)
-- `Natural_Tone_Preamp.kicad_pcb` (~76687 tok)
-- `Natural_Tone_Preamp.kicad_pro` (~3740 tok)
-- `Natural_Tone_Preamp.ses` (~24650 tok)
-
-## fixtures/Issue367-UltraFlactyl/
-
-- `fabrication-toolkit-options.json` (~32 tok)
-- `UltraFlactyl` (~342 tok)
-- `UltraFlactyl.dsn` — Declares signal (~27345 tok)
-- `UltraFlactyl.kicad_prl` (~342 tok)
-- `UltraFlactyl.kicad_pro` (~3674 tok)
-- `UltraFlactyl.kicad_sch` — Declares default (~39292 tok)
-
-## fixtures/Issue368-CorneyIslandWireless/
-
-- `corney_island_wireless (GUI).ses` (~440 tok)
-- `corney_island_wireless (no-GUI).ses` (~245 tok)
-- `corney_island_wireless.dsn` — Declares signal (~1095 tok)
-- `corney_island_wireless.kicad_pcb` — Declares solid (~3247 tok)
-- `corney_island_wireless.kicad_prl` (~347 tok)
-- `corney_island_wireless.kicad_pro` (~2170 tok)
-
-## fixtures/Issue508-DAC2020/
-
-- `benchmark.sh` (~454 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm01/
-
-- `bm1.routed.kicad_pcb` — Declares solid (~117220 tok)
-- `bm1.unrouted.kicad_pcb` — Declares solid (~38626 tok)
-- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/
-
-- `DAC2020_bm01.log` (~1144 tok)
-- `DAC2020_bm01.ses` (~21640 tok)
-- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
-- `FRv1.9.0_KiCad_DRC.rpt` (~15171 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv1.9.0/logs/
-
-- `freerouting.log` (~1144 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm01/FRv2.1.0/
-
-- `DAC2020_bm01.log` (~76716 tok)
-- `DAC2020_bm01.ses` (~25924 tok)
-- `DAC2020_bm01.unrouted.dsn` — Declares signal (~8118 tok)
-- `FRv2.1.0_KiCad_DRC.rpt` (~16382 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm02/
-
-- `bm2.routed.kicad_pcb` — Declares solid (~43101 tok)
-- `bm2.unrouted.kicad_pcb` — Declares solid (~35291 tok)
-- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/
-
-- `DAC2020_bm02.log` (~206 tok)
-- `DAC2020_bm02.ses` (~3195 tok)
-- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
-- `FRv1.9.0_KiCad_DRC.rpt` (~405 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv1.9.0/logs/
-
-- `freerouting.log` (~206 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm02/FRv2.1.0/
-
-- `DAC2020_bm02.log` (~762 tok)
-- `DAC2020_bm02.ses` (~3597 tok)
-- `DAC2020_bm02.unrouted.dsn` — Declares signal (~21410 tok)
-- `FRv2.1.0_KiCad_DRC.rpt` (~406 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm04/
-
-- `bm4.routed.kicad_pcb` — Declares solid (~66483 tok)
-- `bm4.unrouted.kicad_pcb` — Declares solid (~35065 tok)
-- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/
-
-- `DAC2020_bm04.log` (~860 tok)
-- `DAC2020_bm04.ses` (~14537 tok)
-- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
-- `FRv1.9.0_KiCad_DRC.rpt` (~6816 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv1.9.0/logs/
-
-- `freerouting.log` (~860 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm04/FRv2.1.0/
-
-- `DAC2020_bm04.log` (~34731 tok)
-- `DAC2020_bm04.ses` (~13138 tok)
-- `DAC2020_bm04.unrouted.dsn` — Declares signal (~7178 tok)
-- `FRv2.1.0_KiCad_DRC.rpt` (~8471 tok)
-
-## fixtures/Issue508-DAC2020/DAC2020_bm05/
-
-- `bm5.routed.kicad_pcb` — Declares solid (~47114 tok)
-- `bm5.unrouted.kicad_pcb` — Declares solid (~27686 tok)
-
-## logs/M10-T1/
-
-- `quality-review-prompt-t1.md` — M10-T1 QUALITY REVIEW — charter (~1016 tok)
-- `quality-review-t1-1.md` — M10-T1 QUALITY REVIEW (reviewer 1) — the stop-flag WIRING at `01b6b2f93` (~3171 tok)
-- `report-t1.md` — M10-T1 IMPLEMENTER REPORT — the stop-flag WIRING (buglog 224's closure) (~3633 tok)
-- `spec-review-prompt-t1.md` — M10-T1 SPEC REVIEW — charter (~1292 tok)
-- `spec-review-t1-1.md` — M10-T1 SPEC REVIEW (reviewer 1) — the stop-flag WIRING at `01b6b2f93` (~3483 tok)
-
-## logs/M10-T2/
-
-- `dispatch-prompt-t2.md` — M10-T2 DISPATCH — the Q7 `final_state_for` hoist + the Q6 re-route product decision (~1432 tok)
-- `fix-round-t2-1.md` — M10-T2 FIX ROUND 1 REPORT — Q1/Q2 (quality review `quality-review-t2-1.md`) (~1181 tok)
-- `quality-review-prompt-t2.md` — M10-T2 QUALITY REVIEW — charter (~1461 tok)
-- `quality-review-t2-1.md` — M10-T2 QUALITY REVIEW — quality-review-t2-1.md (~3076 tok)
-- `report-t2.md` — M10-T2 IMPLEMENTER REPORT — the Q7 `final_state_for` hoist + the Q6 re-route product decision (~4152 tok)
-- `spec-review-prompt-t2.md` — M10-T2 SPEC REVIEW — charter (~1503 tok)
-- `spec-review-t2-1.md` — M10-T2 SPEC REVIEW — spec-review-t2-1.md (~2922 tok)
-
-## logs/M10-T3/
-
-- `dispatch-prompt-t3.md` — M10-T3 DISPATCH — the measurement moment (battery + the 13-row dispositionment; ZERO commits) (~1593 tok)
-- `quality-review-prompt-t3.md` — M10-T3 QUALITY REVIEW — charter (report-only; T3 landed ZERO commits by design) (~992 tok)
-- `quality-review-t3-1.md` — M10-T3 QUALITY REVIEW (review 1) — 2026-09-30, at `e47ce50f7` (~4257 tok)
-- `report-t3.md` — M10-T3 REPORT — the measurement moment (battery + the 13-row dispositionment; ZERO commits) (~6679 tok)
-- `spec-review-prompt-t3.md` — M10-T3 SPEC REVIEW — charter (report-only; the implementer made ZERO commits by design) (~1290 tok)
-- `spec-review-t3-1.md` — M10-T3 SPEC REVIEW (review 1) — 2026-09-30, at `e47ce50f7` (~3426 tok)
-
-## logs/M10-T3/scratch/
-
-- `battery.sh` — M10-T3 workflow battery (the charter's Step 1). Waits for the gate (~324 tok)
-- `gate-lap.sh` — M10-T3 gate lap (the CI-face items + the tier B/C full re-face walks). (~1070 tok)
-- `list-crafted.tsv` (~48 tok)
-- `list-tierA.tsv` (~191 tok)
-- `list-tierBC.tsv` (~52 tok)
-
-## logs/M10-T3/scratch/battery/src/
-
-- `battery.rs` — The workflow battery (Deliverable A). (~2627 tok)
-- `renderperf.rs` — The render-perf face (Deliverable B): load -> route -> snapshot x7 (~1993 tok)
-
-## rust/crates/epic-cli/src/
-
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~44332 tok)
-
-## rust/crates/epic-engine/src/
-
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~13078 tok)
-
-## rust/crates/epic-engine/tests/
-
-- `q6_reroute_probe.rs` — TEMPORARY M10-T2 Q6 probe (deleted after the run — not part of the (~732 tok)
-
-## rust/crates/epic-gui/src/desktop/
-
-- `worker.rs` — The M9-T6 desktop worker thread (desktop-gated; its PROTOCOL types (~2626 tok)
-
-## rust/crates/epic-router/src/pipeline/
-
-- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~24740 tok)
-- `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~13427 tok)
+- `quality-review-prompt-t4.md` — M10-T4 QUALITY REVIEW — charter (the Java sunset; five commits, config + one Rust repair) (~1200 tok)
+- `quality-review-t4-1.md` — M10-T4 QUALITY REVIEW (quality-review-t4-1) — the Java sunset (~4302 tok)
+- `report-t4.md` — M10-T4 IMPLEMENTER REPORT — the Java sunset (~8315 tok)
+- `spec-review-prompt-t4.md` — M10-T4 SPEC REVIEW — charter (the Java sunset; FIVE commits landed) (~1578 tok)
+- `spec-review-t4-1.md` — M10-T4 SPEC REVIEW (spec-review-t4-1) — the Java sunset (~4288 tok)
