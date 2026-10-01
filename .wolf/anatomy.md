@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T07:03:55.148Z
-> Files: 600 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T11:24:36.549Z
+> Files: 614 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -37,6 +37,7 @@
 
 ## .github/workflows/
 
+- `create-release.yml` — The Rust release workflow (M10-T5): reworks the retired Java (~735 tok)
 - `deploy-pages.yml` — CI: Deploy website to GitHub Pages (~266 tok)
 - `pre-commit.yml` — CI: pre-commit (~466 tok)
 - `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~2373 tok)
@@ -735,3 +736,34 @@
 - `report-t4.md` — M10-T4 IMPLEMENTER REPORT — the Java sunset (~8315 tok)
 - `spec-review-prompt-t4.md` — M10-T4 SPEC REVIEW — charter (the Java sunset; FIVE commits landed) (~1578 tok)
 - `spec-review-t4-1.md` — M10-T4 SPEC REVIEW (spec-review-t4-1) — the Java sunset (~4288 tok)
+
+## logs/M10-T5/
+
+- `dispatch-prompt-t5.md` — M10-T5 DISPATCH — version 2.0.0 + the Linux release artifact (+ the AM4 intake hygiene; two commits  (~2263 tok)
+- `quality-review-prompt-t5.md` — M10-T5 CODE-QUALITY REVIEW — DISPATCH PROMPT (fresh reviewer, zero prior context) (~2178 tok)
+- `report-t5.md` — M10-T5 IMPLEMENTER REPORT — ROUND 1: BLOCKED (probe-stage stop; zero edits, zero commits) (~3817 tok)
+- `spec-review-prompt-t5.md` — M10-T5 SPEC-COMPLIANCE REVIEW — DISPATCH PROMPT (fresh reviewer, zero prior context) (~3173 tok)
+
+## rust/
+
+- `Cargo.toml` — Rust package manifest (~150 tok)
+- `README.md` — Project documentation (~6130 tok)
+
+## rust/crates/epic-cli/src/
+
+- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~556 tok)
+
+## rust/crates/epic-cli/tests/
+
+- `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
+
+## rust/harness/src/
+
+- `baseline.rs` — Distills oracle runs into committed golden baselines and compares runs (~8255 tok)
+- `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
+- `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
+- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51080 tok)
+
+## rust/scripts/
+
+- `package-linux.sh` — The Linux release artifact, reproduced locally (M10-T5): the exact (~555 tok)

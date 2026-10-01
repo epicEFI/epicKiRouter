@@ -9466,3 +9466,35 @@ description: chronological action log per session, consolidated weekly
 | 00:52 | Created logs/M10-T4/quality-review-prompt-t4.md | — | ~1280 |
 | 01:02 | Created logs/M10-T4/quality-review-t4-1.md | — | ~4589 |
 | 01:03 | Edited logs/M10-T4/report-t4.md | modified lesson() | ~2427 |
+| 01:05 | Created logs/M10-T5/dispatch-prompt-t5.md | — | ~2449 |
+| 01:06 | Edited logs/M10-T5/dispatch-prompt-t5.md | inline fix | ~147 |
+| 01:18 | Created logs/M10-T5/report-t5.md | — | ~4072 |
+| 01:21 | Edited rust/harness/src/baseline.rs | 3→3 lines | ~30 |
+| 01:21 | Edited rust/harness/src/baseline.rs | modified sha256_file() | ~64 |
+| 01:22 | Edited rust/harness/src/baseline.rs | modified sha256_file() | ~735 |
+| 01:22 | Edited rust/harness/src/router_compare.rs | modified determinism_digests() | ~242 |
+| 01:22 | Edited rust/harness/src/router_compare.rs | inline fix | ~28 |
+| 01:22 | Edited rust/harness/src/global_golden.rs | inline fix | ~17 |
+| 01:22 | Edited rust/harness/src/global_golden.rs | modified face() | ~183 |
+| 01:22 | Edited rust/harness/src/baseline.rs | modified sha256_of_known_bytes_is_stable() | ~834 |
+| 01:23 | Edited rust/harness/src/baseline.rs | 14→14 lines | ~157 |
+| 01:24 | Edited rust/harness/src/baseline.rs | "\" → "__RED_MUTANT_{field}__\" | ~43 |
+| 03:38 | Created rust/scripts/package-linux.sh | — | ~523 |
+| 03:38 | Edited rust/scripts/package-linux.sh | inline fix | ~23 |
+| 03:39 | Created .github/workflows/create-release.yml | — | ~735 |
+| 03:49 | Edited rust/Cargo.toml | "0.1.0" → "2.0.0" | ~5 |
+| 03:49 | Edited rust/crates/epic-cli/src/main.rs | modified main() | ~145 |
+| 03:49 | Created rust/crates/epic-cli/tests/version_pin.rs | — | ~284 |
+| 04:02 | Edited rust/scripts/package-linux.sh | 18→21 lines | ~215 |
+| 04:12 | Edited rust/harness/src/oracle.rs | modified() → deleted() | ~24 |
+| 04:12 | Edited rust/harness/src/oracle.rs | modified find_repo_root() | ~226 |
+| 04:53 | Created logs/M10-T5/spec-review-prompt-t5.md | — | ~3384 |
+| 05:04 | Created logs/M10-T5/quality-review-prompt-t5.md | — | ~2323 |
+| 05:11 | Edited rust/crates/epic-cli/src/main.rs | "epicrouter {}" → "epicrouter 2.0.0" | ~11 |
+| 05:11 | Edited rust/harness/src/baseline.rs | "\" → "NEVER-MATCH\" | ~16 |
+| 05:18 | Edited rust/harness/src/baseline.rs | 5→8 lines | ~149 |
+| 05:18 | Edited rust/harness/src/baseline.rs | modified normalize_manifest_bytes() | ~210 |
+| 05:19 | Edited rust/harness/src/baseline.rs | modified manifest_digest_bails_on_marker_absent_bytes() | ~533 |
+| 05:19 | Edited rust/crates/epic-cli/tests/version_pin.rs | modified form() | ~210 |
+| 05:20 | Edited rust/harness/src/router_compare.rs | modified face() | ~167 |
+| 05:24 | Edited rust/README.md | 2→4 lines | ~68 |

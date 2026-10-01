@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-01T07:03:55.148Z",
-    "fileCount": 600,
+    "lastScanned": "2026-10-01T11:24:36.549Z",
+    "fileCount": 614,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "589ee8c7cd65115dd1360818bdcccc15413cc78c954a59a6b4e5f8fbdba95502",
-    "storeUpdatedAt": "2026-10-01T07:03:55.159Z",
-    "rootHash": "98fb013f56a42fb9"
+    "renderedHash": "32f5d7f77faa2c73f9022e6928ea06876397c506ace8388315784e235314d754",
+    "storeUpdatedAt": "2026-10-01T11:24:36.557Z",
+    "rootHash": "97d3cdb1efcee163"
   },
   "files": {
     ".dockerignore": {
@@ -5408,6 +5408,569 @@
       "size": 17329,
       "mtimeMs": 1790838133649.7239,
       "updatedAt": "2026-10-01T07:02:13.757Z",
+      "source": "hook"
+    },
+    "logs/M10-T5/dispatch-prompt-t5.md": {
+      "description": "M10-T5 DISPATCH — version 2.0.0 + the Linux release artifact (+ the AM4 intake hygiene; two commits ",
+      "tokens": 2263,
+      "hash": "ebb371181cd1a145",
+      "size": 9112,
+      "mtimeMs": 1790838367498.4556,
+      "updatedAt": "2026-10-01T07:06:07.605Z",
+      "source": "hook"
+    },
+    "logs/M10-T5/report-t5.md": {
+      "description": "M10-T5 IMPLEMENTER REPORT — ROUND 1: BLOCKED (probe-stage stop; zero edits, zero commits)",
+      "tokens": 3817,
+      "hash": "73282e9b5cc5db9c",
+      "size": 15445,
+      "mtimeMs": 1790839106486.0835,
+      "updatedAt": "2026-10-01T07:18:26.587Z",
+      "source": "hook"
+    },
+    "rust/harness/src/baseline.rs": {
+      "description": "Distills oracle runs into committed golden baselines and compares runs",
+      "tokens": 8255,
+      "hash": "927133688d83dbd5",
+      "size": 31011,
+      "mtimeMs": 1790853543716.4436,
+      "updatedAt": "2026-10-01T11:19:03.817Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "BaselineRecord",
+          "kind": "class",
+          "startLine": 20,
+          "endLine": 51,
+          "tokens": 388
+        },
+        {
+          "name": "sha256_file",
+          "kind": "fn",
+          "startLine": 52,
+          "endLine": 77,
+          "tokens": 427
+        },
+        {
+          "name": "normalized_manifest_sha256",
+          "kind": "fn",
+          "startLine": 78,
+          "endLine": 91,
+          "tokens": 205
+        },
+        {
+          "name": "normalize_manifest_bytes",
+          "kind": "fn",
+          "startLine": 92,
+          "endLine": 109,
+          "tokens": 228
+        },
+        {
+          "name": "find_subslice",
+          "kind": "fn",
+          "startLine": 110,
+          "endLine": 119,
+          "tokens": 136
+        },
+        {
+          "name": "distill_profiled",
+          "kind": "fn",
+          "startLine": 120,
+          "endLine": 206,
+          "tokens": 1015
+        },
+        {
+          "name": "GateFailure",
+          "kind": "class",
+          "startLine": 207,
+          "endLine": 239,
+          "tokens": 265
+        },
+        {
+          "name": "compare",
+          "kind": "fn",
+          "startLine": 240,
+          "endLine": 750,
+          "tokens": 5945
+        }
+      ]
+    },
+    "rust/harness/src/router_compare.rs": {
+      "description": "Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for",
+      "tokens": 51080,
+      "hash": "8c949f2fe3b32541",
+      "size": 192101,
+      "mtimeMs": 1790853629342.35,
+      "updatedAt": "2026-10-01T11:20:29.440Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "CompareProfile",
+          "kind": "class",
+          "startLine": 173,
+          "endLine": 182,
+          "tokens": 103
+        },
+        {
+          "name": "CompareProfile",
+          "kind": "section",
+          "startLine": 183,
+          "endLine": 281,
+          "tokens": 1239
+        },
+        {
+          "name": "route_argv",
+          "kind": "fn",
+          "startLine": 282,
+          "endLine": 306,
+          "tokens": 236
+        },
+        {
+          "name": "route_argv_threads",
+          "kind": "fn",
+          "startLine": 307,
+          "endLine": 334,
+          "tokens": 311
+        },
+        {
+          "name": "profile_banner_phrase",
+          "kind": "fn",
+          "startLine": 335,
+          "endLine": 364,
+          "tokens": 371
+        },
+        {
+          "name": "RouterCommand",
+          "kind": "class",
+          "startLine": 365,
+          "endLine": 453,
+          "tokens": 1203
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 454,
+          "endLine": 506,
+          "tokens": 494
+        },
+        {
+          "name": "profile_tier_baselines_dir",
+          "kind": "fn",
+          "startLine": 507,
+          "endLine": 519,
+          "tokens": 99
+        },
+        {
+          "name": "RouterFixture",
+          "kind": "class",
+          "startLine": 520,
+          "endLine": 536,
+          "tokens": 214
+        },
+        {
+          "name": "tier_a_fixtures",
+          "kind": "fn",
+          "startLine": 537,
+          "endLine": 543,
+          "tokens": 99
+        },
+        {
+          "name": "tier_fixtures",
+          "kind": "fn",
+          "startLine": 544,
+          "endLine": 572,
+          "tokens": 360
+        },
+        {
+          "name": "load_java_record_with_marker",
+          "kind": "fn",
+          "startLine": 573,
+          "endLine": 624,
+          "tokens": 617
+        },
+        {
+          "name": "resolve_epic_cli",
+          "kind": "fn",
+          "startLine": 625,
+          "endLine": 659,
+          "tokens": 391
+        },
+        {
+          "name": "newest_workspace_source",
+          "kind": "fn",
+          "startLine": 660,
+          "endLine": 713,
+          "tokens": 620
+        },
+        {
+          "name": "assert_epic_cli_fresh",
+          "kind": "fn",
+          "startLine": 714,
+          "endLine": 747,
+          "tokens": 451
+        },
+        {
+          "name": "resolve_fresh_epic_cli",
+          "kind": "fn",
+          "startLine": 748,
+          "endLine": 754,
+          "tokens": 68
+        },
+        {
+          "name": "CliRun",
+          "kind": "class",
+          "startLine": 755,
+          "endLine": 771,
+          "tokens": 215
+        },
+        {
+          "name": "run_cli_threads",
+          "kind": "fn",
+          "startLine": 772,
+          "endLine": 825,
+          "tokens": 546
+        },
+        {
+          "name": "stderr_tail",
+          "kind": "fn",
+          "startLine": 826,
+          "endLine": 843,
+          "tokens": 214
+        },
+        {
+          "name": "RustOutcome",
+          "kind": "class",
+          "startLine": 844,
+          "endLine": 855,
+          "tokens": 108
+        },
+        {
+          "name": "RustOutcome",
+          "kind": "section",
+          "startLine": 856,
+          "endLine": 881,
+          "tokens": 336
+        },
+        {
+          "name": "GateFailure",
+          "kind": "class",
+          "startLine": 882,
+          "endLine": 903,
+          "tokens": 184
+        },
+        {
+          "name": "epsilon_for",
+          "kind": "fn",
+          "startLine": 904,
+          "endLine": 912,
+          "tokens": 125
+        },
+        {
+          "name": "compare_directional",
+          "kind": "fn",
+          "startLine": 913,
+          "endLine": 987,
+          "tokens": 778
+        },
+        {
+          "name": "ReportOnly",
+          "kind": "class",
+          "startLine": 988,
+          "endLine": 1000,
+          "tokens": 140
+        },
+        {
+          "name": "extract_report_only",
+          "kind": "fn",
+          "startLine": 1001,
+          "endLine": 1024,
+          "tokens": 243
+        },
+        {
+          "name": "verdict_line",
+          "kind": "fn",
+          "startLine": 1025,
+          "endLine": 1060,
+          "tokens": 403
+        },
+        {
+          "name": "display_opt_i64",
+          "kind": "fn",
+          "startLine": 1061,
+          "endLine": 1064,
+          "tokens": 29
+        },
+        {
+          "name": "display_opt_f64",
+          "kind": "fn",
+          "startLine": 1065,
+          "endLine": 1068,
+          "tokens": 30
+        },
+        {
+          "name": "failure_name",
+          "kind": "fn",
+          "startLine": 1069,
+          "endLine": 4446,
+          "tokens": 41751
+        }
+      ]
+    },
+    "rust/harness/src/global_golden.rs": {
+      "description": "The M6-T7 settings-ON golden face (`epic-harness global-golden`) —",
+      "tokens": 4460,
+      "hash": "b07e3debc44690c5",
+      "size": 16757,
+      "mtimeMs": 1790839348748.8088,
+      "updatedAt": "2026-10-01T07:22:28.844Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "face_flags",
+          "kind": "fn",
+          "startLine": 99,
+          "endLine": 115,
+          "tokens": 131
+        },
+        {
+          "name": "GlobalGoldenCommand",
+          "kind": "class",
+          "startLine": 116,
+          "endLine": 163,
+          "tokens": 501
+        },
+        {
+          "name": "RunDigests",
+          "kind": "class",
+          "startLine": 164,
+          "endLine": 168,
+          "tokens": 25
+        },
+        {
+          "name": "RunDigests",
+          "kind": "section",
+          "startLine": 169,
+          "endLine": 176,
+          "tokens": 60
+        },
+        {
+          "name": "GlobalGolden",
+          "kind": "class",
+          "startLine": 177,
+          "endLine": 191,
+          "tokens": 130
+        },
+        {
+          "name": "echo_invocation",
+          "kind": "fn",
+          "startLine": 192,
+          "endLine": 196,
+          "tokens": 41
+        },
+        {
+          "name": "run_face",
+          "kind": "fn",
+          "startLine": 197,
+          "endLine": 261,
+          "tokens": 688
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 262,
+          "endLine": 270,
+          "tokens": 52
+        },
+        {
+          "name": "run_inner",
+          "kind": "fn",
+          "startLine": 271,
+          "endLine": 451,
+          "tokens": 1763
+        }
+      ]
+    },
+    "rust/scripts/package-linux.sh": {
+      "description": "The Linux release artifact, reproduced locally (M10-T5): the exact",
+      "tokens": 555,
+      "hash": "6a0407938084b4bd",
+      "size": 2085,
+      "mtimeMs": 1790848970921.5125,
+      "updatedAt": "2026-10-01T10:02:51.018Z",
+      "source": "hook"
+    },
+    ".github/workflows/create-release.yml": {
+      "description": "The Rust release workflow (M10-T5): reworks the retired Java",
+      "tokens": 735,
+      "hash": "5027dbbb01f8266c",
+      "size": 2580,
+      "mtimeMs": 1790847543248.3503,
+      "updatedAt": "2026-10-01T09:39:03.398Z",
+      "source": "hook"
+    },
+    "rust/Cargo.toml": {
+      "description": "Rust package manifest",
+      "tokens": 150,
+      "hash": "a62c92f6c2cfabfb",
+      "size": 560,
+      "mtimeMs": 1790848163876.6875,
+      "updatedAt": "2026-10-01T09:49:23.974Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-cli/src/main.rs": {
+      "description": "`epic-cli` — the EpicRouter headless command-line binary (M3-T13).",
+      "tokens": 556,
+      "hash": "bd89841f02141b8f",
+      "size": 2088,
+      "mtimeMs": 1790853085283.6992,
+      "updatedAt": "2026-10-01T11:11:25.377Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "main",
+          "kind": "fn",
+          "startLine": 20,
+          "endLine": 55,
+          "tokens": 336
+        }
+      ]
+    },
+    "rust/crates/epic-cli/tests/version_pin.rs": {
+      "description": "The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with",
+      "tokens": 446,
+      "hash": "54677df29b12d077",
+      "size": 1676,
+      "mtimeMs": 1790853555801.4207,
+      "updatedAt": "2026-10-01T11:19:15.895Z",
+      "source": "hook"
+    },
+    "rust/harness/src/oracle.rs": {
+      "description": "`, the corpus dirs, events-golden,",
+      "tokens": 8438,
+      "hash": "2f6dc34dbcb93f9b",
+      "size": 31697,
+      "mtimeMs": 1790849557152.9082,
+      "updatedAt": "2026-10-01T10:12:37.260Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "OracleProfile",
+          "kind": "class",
+          "startLine": 36,
+          "endLine": 47,
+          "tokens": 146
+        },
+        {
+          "name": "OracleProfile",
+          "kind": "section",
+          "startLine": 48,
+          "endLine": 122,
+          "tokens": 940
+        },
+        {
+          "name": "assert_router_only_manifest",
+          "kind": "fn",
+          "startLine": 123,
+          "endLine": 150,
+          "tokens": 300
+        },
+        {
+          "name": "OracleProfile",
+          "kind": "section",
+          "startLine": 151,
+          "endLine": 168,
+          "tokens": 234
+        },
+        {
+          "name": "OracleRun",
+          "kind": "class",
+          "startLine": 169,
+          "endLine": 184,
+          "tokens": 198
+        },
+        {
+          "name": "find_repo_root",
+          "kind": "fn",
+          "startLine": 185,
+          "endLine": 208,
+          "tokens": 283
+        },
+        {
+          "name": "resolve_java",
+          "kind": "fn",
+          "startLine": 209,
+          "endLine": 239,
+          "tokens": 319
+        },
+        {
+          "name": "jar_path",
+          "kind": "fn",
+          "startLine": 240,
+          "endLine": 244,
+          "tokens": 53
+        },
+        {
+          "name": "build_jar",
+          "kind": "fn",
+          "startLine": 245,
+          "endLine": 265,
+          "tokens": 219
+        },
+        {
+          "name": "oracle_argv",
+          "kind": "fn",
+          "startLine": 266,
+          "endLine": 302,
+          "tokens": 421
+        },
+        {
+          "name": "run_oracle",
+          "kind": "fn",
+          "startLine": 303,
+          "endLine": 368,
+          "tokens": 685
+        },
+        {
+          "name": "parse_manifest_file",
+          "kind": "fn",
+          "startLine": 369,
+          "endLine": 386,
+          "tokens": 200
+        },
+        {
+          "name": "wait_with_timeout",
+          "kind": "fn",
+          "startLine": 387,
+          "endLine": 778,
+          "tokens": 4521
+        }
+      ]
+    },
+    "logs/M10-T5/spec-review-prompt-t5.md": {
+      "description": "M10-T5 SPEC-COMPLIANCE REVIEW — DISPATCH PROMPT (fresh reviewer, zero prior context)",
+      "tokens": 3173,
+      "hash": "559f474ccb906c6d",
+      "size": 12825,
+      "mtimeMs": 1790851994911.9443,
+      "updatedAt": "2026-10-01T10:53:15.009Z",
+      "source": "hook"
+    },
+    "logs/M10-T5/quality-review-prompt-t5.md": {
+      "description": "M10-T5 CODE-QUALITY REVIEW — DISPATCH PROMPT (fresh reviewer, zero prior context)",
+      "tokens": 2178,
+      "hash": "9a5b2b24f4b056c8",
+      "size": 8817,
+      "mtimeMs": 1790852668212.5662,
+      "updatedAt": "2026-10-01T11:04:28.307Z",
+      "source": "hook"
+    },
+    "rust/README.md": {
+      "description": "Project documentation",
+      "tokens": 6130,
+      "hash": "6d556ecf227169fb",
+      "size": 24768,
+      "mtimeMs": 1790853876451.8054,
+      "updatedAt": "2026-10-01T11:24:36.549Z",
       "source": "hook"
     }
   },
