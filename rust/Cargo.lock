@@ -1129,6 +1129,7 @@ dependencies = [
  "epic-geometry",
  "epic-index",
  "epic-router",
+ "libc",
  "num-bigint",
  "serde",
  "serde_json",

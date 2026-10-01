@@ -19,6 +19,9 @@ epic-router = { path = "../epic-router" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = "0.10"
+# The readiness-fix M5 face: raw libc::sigaction for the SIGINT/SIGTERM
+# graceful stop (already in the tree transitively; no signal crate).
+libc = "0.2"
 
 [dev-dependencies]
 epic-index = { path = "../epic-index" }
