@@ -9361,3 +9361,25 @@ description: chronological action log per session, consolidated weekly
 | 15:30 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 5→7 lines | ~126 |
 | 15:30 | Edited rust/README.md | 6→11 lines | ~207 |
 | 15:31 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md | modified act() | ~801 |
+| 15:35 | Created docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md | — | ~7194 |
+| 15:35 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md | "logs/M9… logs/M10-T1/repo" → "logs/M10-T1/report-t1.md" | ~39 |
+| 15:36 | Created logs/M10-T1/dispatch-prompt-t1.md | — | ~1837 |
+| 15:45 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified T1() | ~252 |
+| 15:45 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified run_optimization_stage() | ~588 |
+| 15:45 | Edited rust/crates/epic-router/src/pipeline/full.rs | 10→11 lines | ~69 |
+| 15:46 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified info() | ~1520 |
+| 15:46 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified info() | ~209 |
+| 15:46 | Edited rust/crates/epic-router/src/pipeline/full.rs | 1→6 lines | ~48 |
+| 15:46 | Edited rust/crates/epic-router/src/pipeline/full.rs | 9→9 lines | ~73 |
+| 15:47 | Edited rust/crates/epic-engine/tests/session_workflow.rs | modified mid_optimization_cancel_is_observed_by_the_optimizer_stage() | ~977 |
+| 15:50 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified flag() | ~150 |
+| 15:51 | Edited rust/crates/epic-engine/tests/session_workflow.rs | 4→5 lines | ~76 |
+| 18:00 | Created logs/M10-T1/report-t1.md | — | ~3875 |
+| 18:01 | Created logs/M10-T1/spec-review-prompt-t1.md | — | ~1378 |
+| 18:07 | Created logs/M10-T1/spec-review-t1-1.md | — | ~3715 |
+| 18:08 | Created logs/M10-T1/quality-review-prompt-t1.md | — | ~1084 |
+| 18:13 | Edited rust/crates/epic-router/src/pipeline/full.rs | 3→3 lines | ~22 |
+| 18:16 | Created logs/M10-T1/quality-review-t1-1.md | — | ~3382 |
+| 18:18 | Edited rust/crates/epic-router/src/pipeline/full.rs | expanded (+9 lines) | ~268 |
+| 18:18 | Edited rust/crates/epic-router/src/pipeline/full.rs | 6→11 lines | ~188 |
+| 18:18 | Edited rust/crates/epic-router/src/pipeline/full.rs | expanded (+6 lines) | ~154 |
