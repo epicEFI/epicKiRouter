@@ -61,7 +61,7 @@ repos:
         name: ShellCheck
         types: [shell]
         exclude: ^(docs/reference/)
-        args: [-e, SC1090, -e, SC1091, -e, SC2148]
+        args: [-e, SC1090, -e, SC1091, -e, SC2148, -e, SC3050]
 
   # Code spell checking
   - repo: https://github.com/codespell-project/codespell
@@ -69,7 +69,7 @@ repos:
     hooks:
       - id: codespell
         name: CodeSpell
-        exclude: ^(fixtures/|docs/reference/|scripts/benchmark/fixtures/|website/|logs/|.*\.(dsn|ses|frb|png|jpe?g|svg|pdf|flex|jar|brd|exe|dll|so)$)
+        exclude: ^(fixtures/|docs/reference/|scripts/benchmark/fixtures/|website/|logs/|rust/harness/corpus/|rust/harness/oracle/|.*\.(dsn|ses|frb|png|jpe?g|svg|pdf|flex|jar|brd|exe|dll|so|jsonl)$)
         additional_dependencies:
           - tomli
 
@@ -81,4 +81,3 @@ repos:
         name: YAML Lint
         types: [yaml]
         args: [--strict, -c, .yamllint.yaml]
-
