@@ -384,7 +384,12 @@ pub struct RouteSummary {
 /// ships (route.rs:1024-1032; the session's consumer is the T3+ event
 /// stream, which needs no separate raw face — if one is ever needed,
 /// add a field, do not reinterpret these).
-#[derive(Debug, Clone)]
+///
+/// `PartialEq`, not `Eq`: the score fields are f64 (and
+/// [`BoardStatistics`] is `PartialEq`-only over its f32 fields). The
+/// consumer is the T2 fix-round pin's whole-struct equality witness —
+/// equality, never ordering, is the contract.
+#[derive(Debug, Clone, PartialEq)]
 pub struct SessionStatistics {
     /// The full `BoardStatistics::new` walk.
     pub stats: BoardStatistics,

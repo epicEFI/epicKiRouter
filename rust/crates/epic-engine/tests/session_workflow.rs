@@ -216,6 +216,20 @@ fn cancel_mid_run_cancels_and_refuses_export() {
         Ok(()) => panic!("CANCELLED must not produce a session file"),
     }
     assert!(!out.exists(), "the refused export writes NOTHING");
+    // The T2 fix round (quality Q1): the one-route law arms on ANY prior
+    // final state — witnessed here for CANCELLED (the Q6 pin covers
+    // COMPLETED). Kills BOTH review survivors at once: a mutant writing
+    // `final_state` only on the COMPLETED arm (a "retry after CANCELLED"
+    // future change) re-routes SILENTLY here and fails this pin, and a
+    // guard hardcoding the payload "COMPLETED" fails the state assert.
+    let second = session.route(&CliLayer::default(), &mut sink);
+    let RouteError::AlreadyRouted { final_state } = second.expect_err(
+        "a CANCELLED session MUST refuse a re-route too (ANY prior final state arms the guard)",
+    );
+    assert_eq!(
+        final_state, "CANCELLED",
+        "the refusal payload names THIS run's final state, not a hardcoded one"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
@@ -446,9 +460,18 @@ fn reroute_is_disabled_with_a_clean_error() {
         revision,
         "the refusal touched nothing: the board revision stands"
     );
+    // The T2 fix round (quality Q2): the witness is the WHOLE-STRUCT
+    // equality — strictly stronger than any field subset. Non-vacuous on
+    // this fixture: the captured post-run statistics carry
+    // router_score 1000 (evidence/10-q6-probe.log) where the empty face
+    // carries 0.0, so a mutant resetting `self.statistics` to `None`
+    // (the pre-route empty face) fails here. `PartialEq`, not `Eq`: the
+    // struct carries f64 score fields (and BoardStatistics is
+    // PartialEq-only over its f32 fields) — equality, never ordering,
+    // is all the witness needs.
     assert_eq!(
-        session.statistics().incomplete_count,
-        statistics.incomplete_count,
-        "the refusal touched nothing: the stored statistics stand"
+        session.statistics(),
+        statistics,
+        "the refusal touched nothing: the stored statistics stand (whole-struct)"
     );
 }
