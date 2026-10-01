@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T12:54:24.561Z
-> Files: 622 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T14:35:05.299Z
+> Files: 630 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -281,14 +281,14 @@
 
 ## docs/
 
-- `architecture.md` — Freerouting Architecture Map (~10150 tok)
+- `architecture.md` — Freerouting Architecture Map (~10200 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
 - `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
 - `CONTRIBUTING.md` — Introduction (~1392 tok)
 - `integrations.md` — EDA Integrations (~2331 tok)
 - `labels.md` — Issue and Pull Request Labels (~1529 tok)
-- `migration-guide.md` — Migrating from Freerouting to EpicRouter 2.0 (~3642 tok)
+- `migration-guide.md` — Migrating from Freerouting to EpicRouter 2.0 (~3729 tok)
 - `ProjectSchemeCodeStyle.xml` (~519 tok)
 - `scoring.md` — Board scoring (V2) (~3175 tok)
 - `self-hosting.md` — Self-Hosting the Freerouting API (~4256 tok)
@@ -369,7 +369,7 @@
 - `2026-09-26-epicrouter-m6-routing-intelligence.md` — EpicRouter M6 — Routing Intelligence: Plane-Aware Routing + Congestion-Aware Global Stage + Push-and-Shove Implementation Plan (~10997 tok)
 - `2026-09-28-epicrouter-m7-tuning.md` — EpicRouter M7 — Tuning: Length Constraints, Meander Insertion, Diff Pairs Implementation Plan (~13657 tok)
 - `2026-09-28-epicrouter-m8-gloss.md` — EpicRouter M8 — Gloss: Aesthetics Measurement, Bus Hugging, 45° Flow, Via Placement, Teardrops Implementation Plan (~18379 tok)
-- `2026-09-30-epicrouter-m10-sunset-and-release.md` — EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan (~10398 tok)
+- `2026-09-30-epicrouter-m10-sunset-and-release.md` — EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan (~16048 tok)
 - `2026-09-30-epicrouter-m9-gui.md` — EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan (~19183 tok)
 
 ## docs/superpowers/research/
@@ -380,7 +380,7 @@
 
 ## docs/superpowers/specs/
 
-- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~22700 tok)
+- `2026-09-11-epicrouter-rust-rewrite-design.md` — EpicRouter: Rust Rewrite Design (~27213 tok)
 
 ## examples/tutorial_board/
 
@@ -749,10 +749,27 @@
 
 - `dispatch-prompt-t6.md` — M10-T6 DISPATCH — the migration guide + release docs (fresh implementer) (~2212 tok)
 
+## logs/M10-T7/
+
+- `quality-review-prompt-t7.md` — M10-T7 QUALITY REVIEW (fresh eyes; the coordinator's charter) (~1414 tok)
+- `quality-review-t7-1.md` — M10-T7 QUALITY REVIEW — FINAL REPORT (materialized verbatim by the coordinator) (~3154 tok)
+- `report-t7.md` — M10-T7 — the exit note + the close-out (the M9-T8 pattern) (~4932 tok)
+- `spec-review-prompt-t7.md` — M10-T7 SPEC REVIEW (fresh eyes; the coordinator's charter) (~1765 tok)
+- `spec-review-t7-1.md` — M10-T7 SPEC COMPLIANCE REVIEW — FINAL REPORT (materialized verbatim by the coordinator) (~2564 tok)
+
+## logs/M10-T7/evidence/
+
+- `30-spec-census.log` — 30-spec-census.log — M10-T7 SPEC-COMPLIANCE REVIEWER (fresh eyes), primary re-derivation (~211 tok)
+- `40-quality-mutant-probe.log` (~561 tok)
+
+## logs/M10-T8/
+
+- `dispatch-prompt-t8.md` — M10-T8 DISPATCH — the terminal milestone adjudication (fresh adjudicator) (~1971 tok)
+
 ## rust/
 
 - `Cargo.toml` — Rust package manifest (~150 tok)
-- `README.md` — Project documentation (~6398 tok)
+- `README.md` — Project documentation (~6394 tok)
 
 ## rust/crates/epic-cli/src/
 
@@ -791,7 +808,7 @@
 - `baseline.rs` — Distills oracle runs into committed golden baselines and compares runs (~8255 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
-- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51080 tok)
+- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51351 tok)
 
 ## rust/scripts/
 

@@ -9528,3 +9528,27 @@ description: chronological action log per session, consolidated weekly
 | 06:54 | Edited rust/crates/epic-gui/tests/version_pin.rs | modified version_flag_prints_the_single_sourced_line_and_exits_zero() | ~276 |
 | 06:54 | Edited rust/crates/epic-gui/tests/version_pin.rs | modified version_flag_rejects_extra_arguments() | ~24 |
 | 06:54 | Edited rust/crates/epic-gui/tests/version_pin.rs | 4→3 lines | ~22 |
+| 07:29 | Edited rust/harness/src/router_compare.rs | 4→8 lines | ~166 |
+| 07:29 | Edited rust/harness/src/router_compare.rs | 4→4 lines | ~85 |
+| 07:30 | Edited docs/migration-guide.md | 3→7 lines | ~131 |
+| 07:30 | Edited rust/README.md | 1689() → 1690() | ~248 |
+| 07:30 | Edited docs/architecture.md | 5→8 lines | ~142 |
+| 07:32 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | modified T1() | ~4958 |
+| 07:32 | Created logs/M10-T8/dispatch-prompt-t8.md | — | ~1726 |
+| 07:46 | Edited rust/harness/src/router_compare.rs | 4→5 lines | ~88 |
+| 07:59 | Created logs/M10-T7/report-t7.md | — | ~2827 |
+| 07:59 | Created logs/M10-T7/spec-review-prompt-t7.md | — | ~1883 |
+| 08:00 | Created logs/M10-T8/dispatch-prompt-t8.md | — | ~2103 |
+| 08:03 | Created logs/M10-T7/evidence/30-spec-census.log | — | ~211 |
+| 08:10 | Created logs/M10-T7/spec-review-t7-1.md | — | ~2735 |
+| 08:10 | Created logs/M10-T7/quality-review-prompt-t7.md | — | ~1508 |
+| 08:13 | Edited rust/harness/src/router_compare.rs | 3→2 lines | ~34 |
+| 08:15 | Created logs/M10-T7/evidence/40-quality-mutant-probe.log | — | ~561 |
+| 08:17 | Created logs/M10-T7/quality-review-t7-1.md | — | ~3364 |
+| 08:20 | Edited rust/harness/src/router_compare.rs | 6→7 lines | ~73 |
+| 08:20 | Edited docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md | 2→5 lines | ~75 |
+| 08:20 | Edited docs/migration-guide.md | arming() → check() | ~75 |
+| 08:22 | Edited rust/harness/src/router_compare.rs | 5→6 lines | ~95 |
+| 08:23 | Edited rust/harness/src/router_compare.rs | 3→6 lines | ~47 |
+| 08:34 | Edited logs/M10-T7/report-t7.md | modified adjudication() | ~2466 |
+| 08:35 | Edited docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md | modified Chain() | ~1586 |

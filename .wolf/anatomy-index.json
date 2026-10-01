@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-01T12:54:24.561Z",
-    "fileCount": 622,
+    "lastScanned": "2026-10-01T14:35:05.299Z",
+    "fileCount": 630,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "bc28c6cd5a8390c2a2ebb1acc699716ca8a9167b475644fc6cdc967747e364f5",
-    "storeUpdatedAt": "2026-10-01T12:54:24.569Z",
-    "rootHash": "5dd4e4566d5e6468"
+    "renderedHash": "4e131327e3f81df2ef7ce86fd65b5cccf21d3d85d4aa20de7ddc774121c52226",
+    "storeUpdatedAt": "2026-10-01T14:35:05.308Z",
+    "rootHash": "c877e57e88611d27"
   },
   "files": {
     ".dockerignore": {
@@ -2163,11 +2163,11 @@
     },
     "docs/architecture.md": {
       "description": "Freerouting Architecture Map",
-      "tokens": 10150,
-      "hash": "5e3c034dd01e4913",
-      "size": 40759,
-      "mtimeMs": 1790856018945.0674,
-      "updatedAt": "2026-10-01T12:00:19.038Z",
+      "tokens": 10200,
+      "hash": "d8121d10de7b9268",
+      "size": 40963,
+      "mtimeMs": 1790861416914.6282,
+      "updatedAt": "2026-10-01T13:30:17.009Z",
       "source": "hook"
     },
     "docs/benchmarks.md": {
@@ -2730,12 +2730,12 @@
     },
     "docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md": {
       "description": "EpicRouter M10 — Sunset the Java Oracle, Release 2.0 — Implementation Plan",
-      "tokens": 10398,
-      "hash": "6eec331b24d22aa9",
-      "size": 41944,
-      "mtimeMs": 1790833047238.458,
-      "updatedAt": "2026-10-01T06:00:00.213Z",
-      "source": "scan"
+      "tokens": 16048,
+      "hash": "e39d3de6395e9c7f",
+      "size": 64808,
+      "mtimeMs": 1790865305205.3928,
+      "updatedAt": "2026-10-01T14:35:05.299Z",
+      "source": "hook"
     },
     "docs/superpowers/plans/2026-09-30-epicrouter-m9-gui.md": {
       "description": "EpicRouter M9 — GUI: Session/Event Core, Render Lists, Desktop Shell Implementation Plan",
@@ -2775,12 +2775,12 @@
     },
     "docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md": {
       "description": "EpicRouter: Rust Rewrite Design",
-      "tokens": 22700,
-      "hash": "cc6f1c97d725ea91",
-      "size": 91959,
-      "mtimeMs": 1790803835079.194,
-      "updatedAt": "2026-10-01T06:00:00.216Z",
-      "source": "scan"
+      "tokens": 27213,
+      "hash": "d01d35c5f3cd9f6d",
+      "size": 110169,
+      "mtimeMs": 1790864450878.038,
+      "updatedAt": "2026-10-01T14:20:50.973Z",
+      "source": "hook"
     },
     "examples/tutorial_board/tutorial_board.dsn": {
       "description": "Declares signal",
@@ -5497,11 +5497,11 @@
     },
     "rust/harness/src/router_compare.rs": {
       "description": "Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for",
-      "tokens": 51080,
-      "hash": "8c949f2fe3b32541",
-      "size": 192101,
-      "mtimeMs": 1790853629342.35,
-      "updatedAt": "2026-10-01T11:20:29.440Z",
+      "tokens": 51351,
+      "hash": "6a74eb523f0058d6",
+      "size": 193119,
+      "mtimeMs": 1790864624563.706,
+      "updatedAt": "2026-10-01T14:23:44.666Z",
       "source": "hook",
       "symbols": [
         {
@@ -5606,113 +5606,113 @@
           "name": "assert_epic_cli_fresh",
           "kind": "fn",
           "startLine": 714,
-          "endLine": 747,
-          "tokens": 451
+          "endLine": 753,
+          "tokens": 586
         },
         {
           "name": "resolve_fresh_epic_cli",
           "kind": "fn",
-          "startLine": 748,
-          "endLine": 754,
+          "startLine": 754,
+          "endLine": 760,
           "tokens": 68
         },
         {
           "name": "CliRun",
           "kind": "class",
-          "startLine": 755,
-          "endLine": 771,
+          "startLine": 761,
+          "endLine": 777,
           "tokens": 215
         },
         {
           "name": "run_cli_threads",
           "kind": "fn",
-          "startLine": 772,
-          "endLine": 825,
+          "startLine": 778,
+          "endLine": 831,
           "tokens": 546
         },
         {
           "name": "stderr_tail",
           "kind": "fn",
-          "startLine": 826,
-          "endLine": 843,
+          "startLine": 832,
+          "endLine": 849,
           "tokens": 214
         },
         {
           "name": "RustOutcome",
           "kind": "class",
-          "startLine": 844,
-          "endLine": 855,
+          "startLine": 850,
+          "endLine": 861,
           "tokens": 108
         },
         {
           "name": "RustOutcome",
           "kind": "section",
-          "startLine": 856,
-          "endLine": 881,
+          "startLine": 862,
+          "endLine": 887,
           "tokens": 336
         },
         {
           "name": "GateFailure",
           "kind": "class",
-          "startLine": 882,
-          "endLine": 903,
+          "startLine": 888,
+          "endLine": 909,
           "tokens": 184
         },
         {
           "name": "epsilon_for",
           "kind": "fn",
-          "startLine": 904,
-          "endLine": 912,
+          "startLine": 910,
+          "endLine": 918,
           "tokens": 125
         },
         {
           "name": "compare_directional",
           "kind": "fn",
-          "startLine": 913,
-          "endLine": 987,
+          "startLine": 919,
+          "endLine": 993,
           "tokens": 778
         },
         {
           "name": "ReportOnly",
           "kind": "class",
-          "startLine": 988,
-          "endLine": 1000,
+          "startLine": 994,
+          "endLine": 1006,
           "tokens": 140
         },
         {
           "name": "extract_report_only",
           "kind": "fn",
-          "startLine": 1001,
-          "endLine": 1024,
+          "startLine": 1007,
+          "endLine": 1030,
           "tokens": 243
         },
         {
           "name": "verdict_line",
           "kind": "fn",
-          "startLine": 1025,
-          "endLine": 1060,
+          "startLine": 1031,
+          "endLine": 1066,
           "tokens": 403
         },
         {
           "name": "display_opt_i64",
           "kind": "fn",
-          "startLine": 1061,
-          "endLine": 1064,
+          "startLine": 1067,
+          "endLine": 1070,
           "tokens": 29
         },
         {
           "name": "display_opt_f64",
           "kind": "fn",
-          "startLine": 1065,
-          "endLine": 1068,
+          "startLine": 1071,
+          "endLine": 1074,
           "tokens": 30
         },
         {
           "name": "failure_name",
           "kind": "fn",
-          "startLine": 1069,
-          "endLine": 4446,
-          "tokens": 41751
+          "startLine": 1075,
+          "endLine": 4476,
+          "tokens": 41906
         }
       ]
     },
@@ -5966,11 +5966,11 @@
     },
     "rust/README.md": {
       "description": "Project documentation",
-      "tokens": 6398,
-      "hash": "e4b19b68a8876804",
-      "size": 25852,
-      "mtimeMs": 1790856009186.0452,
-      "updatedAt": "2026-10-01T12:00:09.279Z",
+      "tokens": 6394,
+      "hash": "b39d05067b117492",
+      "size": 25840,
+      "mtimeMs": 1790861411531.6096,
+      "updatedAt": "2026-10-01T13:30:11.625Z",
       "source": "hook"
     },
     "logs/M10-T6/dispatch-prompt-t6.md": {
@@ -5984,11 +5984,11 @@
     },
     "docs/migration-guide.md": {
       "description": "Migrating from Freerouting to EpicRouter 2.0",
-      "tokens": 3642,
-      "hash": "708c34024fc13388",
-      "size": 14682,
-      "mtimeMs": 1790859109449.4055,
-      "updatedAt": "2026-10-01T12:51:49.542Z",
+      "tokens": 3729,
+      "hash": "8f7069c49a075adf",
+      "size": 15033,
+      "mtimeMs": 1790864459071.0696,
+      "updatedAt": "2026-10-01T14:20:59.168Z",
       "source": "hook"
     },
     "rust/crates/epic-gui/src/shell.rs": {
@@ -6339,6 +6339,78 @@
           "tokens": 94
         }
       ]
+    },
+    "logs/M10-T8/dispatch-prompt-t8.md": {
+      "description": "M10-T8 DISPATCH — the terminal milestone adjudication (fresh adjudicator)",
+      "tokens": 1971,
+      "hash": "d71b2e2988572b29",
+      "size": 7959,
+      "mtimeMs": 1790863243448.529,
+      "updatedAt": "2026-10-01T14:00:43.546Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/report-t7.md": {
+      "description": "M10-T7 — the exit note + the close-out (the M9-T8 pattern)",
+      "tokens": 4932,
+      "hash": "67c66a314f869e9e",
+      "size": 19988,
+      "mtimeMs": 1790865284977.3105,
+      "updatedAt": "2026-10-01T14:34:45.073Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/spec-review-prompt-t7.md": {
+      "description": "M10-T7 SPEC REVIEW (fresh eyes; the coordinator's charter)",
+      "tokens": 1765,
+      "hash": "1f0d4ce1e519950d",
+      "size": 7106,
+      "mtimeMs": 1790863193835.356,
+      "updatedAt": "2026-10-01T13:59:53.932Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/evidence/30-spec-census.log": {
+      "description": "30-spec-census.log — M10-T7 SPEC-COMPLIANCE REVIEWER (fresh eyes), primary re-derivation",
+      "tokens": 211,
+      "hash": "d791c45986e31998",
+      "size": 792,
+      "mtimeMs": 1790863409753.1213,
+      "updatedAt": "2026-10-01T14:03:29.847Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/spec-review-t7-1.md": {
+      "description": "M10-T7 SPEC COMPLIANCE REVIEW — FINAL REPORT (materialized verbatim by the coordinator)",
+      "tokens": 2564,
+      "hash": "feca24b8d7d998f2",
+      "size": 10360,
+      "mtimeMs": 1790863821931.6433,
+      "updatedAt": "2026-10-01T14:10:22.026Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/quality-review-prompt-t7.md": {
+      "description": "M10-T7 QUALITY REVIEW (fresh eyes; the coordinator's charter)",
+      "tokens": 1414,
+      "hash": "382b00deba771d7f",
+      "size": 5701,
+      "mtimeMs": 1790863855207.7686,
+      "updatedAt": "2026-10-01T14:10:55.305Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/evidence/40-quality-mutant-probe.log": {
+      "description": "",
+      "tokens": 561,
+      "hash": "5eab76765d3bd5ea",
+      "size": 2109,
+      "mtimeMs": 1790864133012.8213,
+      "updatedAt": "2026-10-01T14:15:33.110Z",
+      "source": "hook"
+    },
+    "logs/M10-T7/quality-review-t7-1.md": {
+      "description": "M10-T7 QUALITY REVIEW — FINAL REPORT (materialized verbatim by the coordinator)",
+      "tokens": 3154,
+      "hash": "b465e562224ec11a",
+      "size": 12730,
+      "mtimeMs": 1790864250577.2703,
+      "updatedAt": "2026-10-01T14:17:30.677Z",
+      "source": "hook"
     }
   },
   "preamble": [
