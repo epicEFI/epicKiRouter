@@ -83,7 +83,7 @@ use epic_engine::snapshot::{
 use epic_geometry::int_box::IntBox;
 use epic_geometry::int_point::IntPoint;
 use serde::Serialize;
-use serde::ser::{SerializeStruct, SerializeStructVariant, Serializer};
+use serde::ser::{SerializeStruct, SerializeStructVariant, Serializer}; // codespell:ignore (the serde::ser module path)
 use std::collections::BTreeMap;
 
 use crate::view::{ScreenTransform, ViewModel};

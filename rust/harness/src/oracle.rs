@@ -3,7 +3,8 @@
 
 //! Drives the Java engine as the parity oracle: builds the executable jar,
 //! runs headless CLI jobs per fixture, and returns their manifests.
-//! The Java tree is never modified (design §4.1).
+//! The Java tree was never modified and is now deleted (design §4.1;
+//! sunset M10-T4).
 //!
 //! **SUNSET (M10-T4, 2026-09-30): the Java tree is deleted — the capture
 //! modes are UNAVAILABLE post-sunset.** `build_jar`/`run_oracle` (gradle +
@@ -185,6 +186,16 @@ pub fn find_repo_root() -> Result<PathBuf> {
     let mut dir = std::env::current_dir().context("getting current directory")?;
     loop {
         if dir.join(".git").exists() {
+            // The Q-5 marker hardening (M10-T5 C′): a bare `.git` is not
+            // enough — a foreign repo (or an unrelated project's tree)
+            // would send every path join below haywire. An EpicRouter
+            // tree is the one that carries the harness itself.
+            if !dir.join("rust/harness").is_dir() {
+                bail!(
+                    "found .git at {} but not an EpicRouter tree (no rust/harness under it)",
+                    dir.display()
+                );
+            }
             return Ok(dir);
         }
         if !dir.pop() {

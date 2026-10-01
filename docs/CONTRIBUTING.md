@@ -65,17 +65,20 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-The generic hygiene hooks automatically repair trailing whitespace, final newlines, and
-LF line endings only in files selected for the current commit. Review and stage those
-changes, then rerun the hook when it reports that files were modified.
+The generic hygiene hooks automatically repair trailing whitespace and LF line endings
+only in files selected for the current commit; the final-newline repair is MANUAL-STAGE:
+the hook fixes the working tree, and the repaired content is staged by you (never
+auto-staged — a failed repair of a file you did not intend to touch must not slip into
+your commit). Review and stage those changes, then rerun the hook when it reports that
+files were modified.
 
 The repository uses LF for source, build, metadata, and documentation files on every
 platform through `.gitattributes`. Do not change `core.autocrlf` back and forth to fix a
 single working tree. If the repository needs one-time normalization, do it in a dedicated
 commit with no unrelated changes.
 
-GitHub Actions runs the same quality gates on pull requests (`rust-check.yml` plus the
-pre-commit workflow). A contributor should resolve local fmt, clippy, test, or
+GitHub Actions runs the quality gates (`rust-check.yml` on `rust/**` changes; the
+pre-commit workflow on `main` and `epic/main`). A contributor should resolve local fmt, clippy, test, or
 line-ending failures before opening or updating a pull request.
 
 As a rule of thumb, changes are obvious fixes if they do not introduce any new functionality or creative thinking. As long as the change does not affect functionality, some likely examples include the following:

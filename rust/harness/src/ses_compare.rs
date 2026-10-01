@@ -2083,7 +2083,7 @@ mod compare_pins {
     #[test]
     fn byte_diff_stats_first_offset_and_count() {
         // Plain mismatch.
-        assert_eq!(byte_diff_stats(b"abc", b"abd"), (1, Some(2)));
+        assert_eq!(byte_diff_stats(b"abc", b"abd"), (1, Some(2))); // codespell:ignore (a test byte triple)
         // Prefix: golden is a strict prefix of rust.
         assert_eq!(byte_diff_stats(b"ab", b"abXY"), (2, Some(2)));
         // Identical.

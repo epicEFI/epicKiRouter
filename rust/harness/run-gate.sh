@@ -16,6 +16,7 @@ fi
 label="$1"
 shift
 printf '# Invocation:'
+# shellcheck disable=SC3050  # %q is a deliberate bashism here (the invocation echo)
 printf ' %q' "$@"
 printf '\n'
 printf '# label: %s\n' "$label"

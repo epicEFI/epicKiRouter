@@ -16,7 +16,7 @@ This is **EpicRouter**, the Rust rewrite of [Freerouting](https://github.com/fre
 - Read `AGENTS.md` for the deep Java architecture notes (DRC internals, copper pours, settings merger invariants, analytics, MCP) and investigation history — **historical record of the sunsetted Java tree** (deleted at M10-T4, reachable in git history and via the grafted `origin/master` at `e7f9bdf1`).
 - `docs/architecture.md`: the Java-package map is marked HISTORICAL; the Rust workspace (`rust/`) is the product.
 - `src_v19/` and the Java tree lived under `src/` until the M10-T4 sunset; both are git history now.
-- The parity record post-sunset: the committed goldens (`rust/harness/baselines/`, corpus dirs, `config/tiers.yaml`) + the committed digest literals in AMENDMENT 3 of `docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md`.
+- The parity record post-sunset: the committed goldens (`rust/harness/baselines/`, corpus dirs, `rust/harness/config/tiers.yaml`) + the committed digest literals in AMENDMENT 3 of `docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md`.
 
 ## Build & Test Commands
 
@@ -43,7 +43,7 @@ Test-task timeout budget is 30 minutes. Bound long routing tests with tier timeo
 
 - Never stage files automatically (no `git add -A`); keep formatting-only changes separate from functional ones.
 - Don't touch `core.autocrlf` to fix line endings; inspect `.gitattributes` and the diff instead.
-- Golden baselines in `rust/harness/baselines/`, the corpus dirs, `config/tiers.yaml`, and ALL goldens are committed artifacts — never modified; NEW goldens are NEW files via sanctioned capture only.
+- Golden baselines in `rust/harness/baselines/`, the corpus dirs, `rust/harness/config/tiers.yaml`, and ALL goldens are committed artifacts — never modified; NEW goldens are NEW files via sanctioned capture only.
 - CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests + the geometry corpus compare (java-free, committed goldens) on any commit touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
 
 ## Architecture

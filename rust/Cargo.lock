@@ -1109,7 +1109,7 @@ checksum = "13ee4e1f553a3584c301f3a56ff1a775f1384781396cea301c8d952e9b93f560"
 
 [[package]]
 name = "epic-board"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-dsn",
  "epic-geometry",
@@ -1120,7 +1120,7 @@ dependencies = [
 
 [[package]]
 name = "epic-cli"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-board",
  "epic-drc",
@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "epic-drc"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-board",
  "epic-dsn",
@@ -1146,14 +1146,14 @@ dependencies = [
 
 [[package]]
 name = "epic-dsn"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-geometry",
 ]
 
 [[package]]
 name = "epic-engine"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-board",
  "epic-drc",
@@ -1167,14 +1167,14 @@ dependencies = [
 
 [[package]]
 name = "epic-geometry"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "num-bigint",
 ]
 
 [[package]]
 name = "epic-gui"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "eframe",
  "epic-engine",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "epic-harness"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1208,14 +1208,14 @@ dependencies = [
 
 [[package]]
 name = "epic-index"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-geometry",
 ]
 
 [[package]]
 name = "epic-router"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "epic-board",
  "epic-drc",

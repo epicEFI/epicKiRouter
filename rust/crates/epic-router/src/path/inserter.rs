@@ -1910,14 +1910,18 @@ mod tests {
     }
 
     /// F5 (spec review): the insert_via span gate REJECTION face —
-    /// a via rule whose only entry references PADD (a single-layer
-    /// F.Cu padstack, padstack_no 6) cannot cover the requested 0→1
+    /// a via rule whose only entry references PADD (a single-layer F.Cu padstack, padstack_no 6)  codespell:ignore
+    /// cannot cover the requested 0→1
     /// span; the scan finds no suitable span, emits the debug row AND
     /// the gated `via_mask_not_found` diag, and returns false with
     /// ZERO id burn (Java `:703-720`). The inverted-gate mutant admits
-    /// PADD and answers true (or hits the check) — the verdict +
+    /// PADD and answers true (or hits the check) — the verdict +  codespell:ignore
     /// id-burn + row asserts all flip.
     #[test]
+    // rustfmt::skip: the padstack-name line carries a same-line
+    // codespell:ignore marker — rustfmt would reflow the trailing
+    // comment onto its own line, detaching it from the flagged word.
+    #[rustfmt::skip]
     fn t11_insert_via_span_gate_rejects_missing_span() {
         let (mut manager, mut board) = parse_fixture();
         let layer_count = board.layers().layers.len();
@@ -1927,13 +1931,14 @@ mod tests {
             if board
                 .library()
                 .padstack(no)
-                .is_some_and(|p| p.name == "PADD")
+                .is_some_and(|p| p.name == "PADD") // codespell:ignore
+                // (the fixture padstack name)
             {
                 padd_no = no;
                 break;
             }
         }
-        assert_eq!(padd_no, 6, "PADD is the single-layer F.Cu padstack");
+        assert_eq!(padd_no, 6, "PADD is the single-layer F.Cu padstack"); // codespell:ignore
         let new_index = board.rules().via_infos.len() as i32;
         board.rules_mut().via_infos.push(ViaInfo {
             name: "PADD_VIA".to_string(),

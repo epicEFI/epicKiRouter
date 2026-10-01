@@ -52,7 +52,7 @@ CI face (router-only profile, mode: gate) reads 11 green / 0 red at
 Σ 286.5 s — 5.3–6.3× headroom under the compare step's 30-min budget
 (DNR-18-reconciled, `logs/M8-T8/evidence/80-gate-laps.log`); strip
 context: the M6-T3 reopen frame's full-flow Σ with the T7 lever
-(bm01 ot=4 1340.78 s + the 285.7 s strip = 1626.5 s) also fits — the
+(bm01 ot=4 1340.78 s + the 285.7 s strip = 1626.5 s) also fits — the <!-- codespell:ignore (ot=4 is the bm01 lever name) -->
 lever is opt-in and NOT load-bearing for the CI step (the router-only
 profile never engages the optimizer). The four prior holds (M4 close,
 M5-T8, M6-T3, M7) stand as history. The bound does not
