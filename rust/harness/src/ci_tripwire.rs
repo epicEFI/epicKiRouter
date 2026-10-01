@@ -222,18 +222,35 @@ jobs:
         assert_eq!(step_timeout_minutes(glued), None);
     }
 
-    /// THE tripwire (real repo file): the bare-suite test step keeps
-    /// its 30-minute wall AND its exact BARE argv (the T17b skip
-    /// protocol must not silently return), the router-compare step
-    /// rides its exact GATE argv (the M8-T8 EXIT FLIP: `--report-only`
-    /// is GONE — a silent return of the flag is a conscious-act
-    /// violation in the other direction now), the compare step keeps
-    /// the 30-minute wall, and the events-compare step (added by the
-    /// flip commit) exists UNIQUELY with its own wall bound. The
-    /// pre-flip mutant faces (T17c): removing `--report-only` and
-    /// moving the test wall to 29 each killed this pin; the post-flip
-    /// faces are pinned by the exact-argv assert below.
+    /// THE tripwire, post-retirement (real repo path): GitHub CI is
+    /// RETIRED for the standalone-repo era (2026-10-01, 8e018cfa5 —
+    /// all workflow files + dependabot removed; Tyler: runs quiet
+    /// "for now"). The retired file must STAY gone: the 2-core hosted
+    /// runner cannot fit the corpus-compare step (bm01 alone = 1770s
+    /// vs the 30-minute step budget; it failed on timeout with bm01
+    /// PASSING). Restoring CI is a conscious act that must first split
+    /// the compare step or raise its wall — then this pin returns to
+    /// its historical form (the pre-retirement faces: the bare-suite
+    /// argv + 30-min test wall, the post-M8-T8-flip gate argv, the
+    /// events step's 10-min wall, the M9-T6 desktop-clippy and
+    /// threads-invariance steps — the exact assertions live in git
+    /// history at 8e018cfa5^).
     #[test]
+    fn ci_workflow_is_retired_and_stays_gone() {
+        let root = crate::oracle::find_repo_root().expect("repo root");
+        let path = root.join(".github/workflows/rust-check.yml");
+        assert!(
+            !path.exists(),
+            "rust-check.yml is retired (8e018cfa5): the 2-core runner blew the \
+             compare step's 30-minute budget at bm01=1770s. To restore CI, split or \
+             re-budget the compare step FIRST, then re-pin the workflow here: {}",
+            path.display()
+        );
+    }
+
+    #[allow(dead_code)] // the pre-retirement pin body, kept for the
+    // restoration: re-attach to a #[test] when CI returns (see the
+    // absence pin above for the re-entry protocol).
     fn ci_workflow_pins_test_step_wall_and_compare_gate_argv() {
         let root = crate::oracle::find_repo_root().expect("repo root");
         let path = root.join(".github/workflows/rust-check.yml");
