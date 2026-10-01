@@ -32,10 +32,10 @@ cargo build --release -p epic-cli
 DSN in, SES out — the same face Freerouting's CLI users know:
 
 ```bash
-./target/release/epic-cli -de MyBoard.dsn -do MyBoard.ses
+./target/release/epic-cli route -de MyBoard.dsn -do MyBoard.ses
 ```
 
-`-de` loads the Specctra design file; `-do` writes the Specctra session file after routing. `epic-cli --help` lists the full flag surface (settings flags layered defaults → DSN → CLI).
+`-de` loads the Specctra design file; `-do` writes the Specctra session file after routing. `epic-cli` with no arguments (or `--help`) prints the full flag surface (settings flags layered defaults → DSN → CLI).
 
 ### The GUI
 
@@ -50,7 +50,7 @@ Load a `.dsn`, autoroute with live progress and a cancel face, export `.ses` —
 
 ## For Freerouting users
 
-EpicRouter keeps the Specctra DSN/SES interchange and the `-de`/`-do` CLI face. Differences at 2.0 are documented in the migration guide (`docs/migration-guide.md`, landing with the 2.0 release) — including the deterministic-budget faces (a wall-clock budget stops the router AT the budget on the identical final board), one route per Session, and the CANCELLED final-state semantics.
+EpicRouter keeps the Specctra DSN/SES interchange and the `-de`/`-do` CLI face. Differences at 2.0 are documented in the [migration guide](docs/migration-guide.md) — including the deterministic-budget faces (a wall-clock budget stops the router AT the budget on the identical final board), one route per Session, and the cancel final-state semantics (CANCELLED when the cancel lands mid-routing; COMPLETED — with the routed board exported — when it lands mid-optimization).
 
 ## License and attribution
 

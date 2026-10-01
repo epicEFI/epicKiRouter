@@ -12,10 +12,10 @@
 # `env!("CARGO_PKG_VERSION")` reads — the script can never drift from
 # the binary's `--version` face.
 #
-# NO migration-guide pointer ships here YET: the guide is T6's
-# deliverable — when it lands, T6 adds it to this script and the
-# workflow (a dangling pointer in the 2.0.0 tarball was explicitly
-# rejected at charter time).
+# Migration guide (T6): the guide SHIPS IN the tarball —
+# `docs/migration-guide.md` at the repo root is staged beside the
+# README (repo-relative reference; the doc's GitHub path is
+# `docs/migration-guide.md` on the default branch).
 
 set -euo pipefail
 
@@ -46,7 +46,11 @@ cargo build --release --jobs 4 -p epic-gui --features desktop
 cp target/release/epic-cli "$STAGE/$NAME/epic-cli"
 cp target/release/epic-gui "$STAGE/$NAME/epic-gui"
 cp "$REPO_ROOT/README.md" "$REPO_ROOT/LICENSE" "$STAGE/$NAME/"
+# The migration guide rides the artifact (the T5 slot: a dangling
+# pointer in the tarball was rejected at charter time — the doc itself
+# ships).
+cp "$REPO_ROOT/docs/migration-guide.md" "$STAGE/$NAME/migration-guide.md"
 
 tar -czf "$OUT_DIR/$NAME.tar.gz" -C "$STAGE" "$NAME"
-echo "wrote $OUT_DIR/$NAME.tar.gz (contents: epic-cli, epic-gui, README.md, LICENSE)"
+echo "wrote $OUT_DIR/$NAME.tar.gz (contents: epic-cli, epic-gui, README.md, LICENSE, migration-guide.md)"
 sha256sum "$OUT_DIR/$NAME.tar.gz"

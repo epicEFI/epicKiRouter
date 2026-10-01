@@ -6,9 +6,10 @@
 # jobs. The first GitHub-side run is the user's act (the never-push
 # law) — this workflow is authored, not pushed.
 #
-# Migration-guide pointer: NOT shipped yet — the guide is T6's
-# deliverable; T6 adds it to the tarball contents when it lands (a
-# dangling pointer was explicitly rejected at charter time).
+# Migration-guide pointer (T6): the guide SHIPS IN the tarball — the
+# packaging step stages `docs/migration-guide.md` from the checkout as
+# `migration-guide.md` beside the README (a dangling pointer was
+# explicitly rejected at charter time).
 name: create-release
 
 on:
@@ -46,7 +47,7 @@ jobs:
       # The desktop shell release build (no --jobs 4 on CI: that cap
       # is a dev-box memory guard, buglog 194 family).
       - run: cargo build --release -p epic-gui --features desktop
-      - name: Package the tarball (bins + README + LICENSE) + sha256
+      - name: Package the tarball (bins + README + LICENSE + migration guide) + sha256
         run: |
           VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)"
           NAME="epicrouter-${VERSION}-x86_64-unknown-linux-gnu"
@@ -54,6 +55,7 @@ jobs:
           cp target/release/epic-cli "dist/${NAME}/epic-cli"
           cp target/release/epic-gui "dist/${NAME}/epic-gui"
           cp ../README.md ../LICENSE "dist/${NAME}/"
+          cp ../docs/migration-guide.md "dist/${NAME}/migration-guide.md"
           tar -czf "../${NAME}.tar.gz" -C dist "${NAME}"
           cd ..
           sha256sum "${NAME}.tar.gz" > "${NAME}.tar.gz.sha256"

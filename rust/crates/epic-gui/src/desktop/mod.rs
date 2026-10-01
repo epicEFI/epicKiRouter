@@ -210,6 +210,9 @@ impl Smoke {
                 failures: Vec::new(),
             },
             LaunchMode::Interactive => unreachable("interactive has no smoke state"),
+            // The bin answers `--version` BEFORE `run` (the headless
+            // version face) — this arm exists for match totality only.
+            LaunchMode::Version => unreachable("version has no smoke state"),
         }
     }
 }

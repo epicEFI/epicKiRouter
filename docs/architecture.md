@@ -298,8 +298,13 @@ Several implementation areas live one level below the top-level package grouping
 
 The `rust/` tree is the ground-up Rust rewrite of the routing engine
 ([design](superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md));
-the Java packages above stay the frozen parity oracle until the rewrite's
-final milestone. Crates enter this map as their milestones complete
+the Java packages above were the frozen parity oracle until the rewrite's
+final milestone — at M10 the oracle was sunsetted (the Java tree deleted,
+history preserved in git history and the grafted `origin/master` at
+`e7f9bdf1`) and the Rust workspace became the product, released as
+**v2.0.0** with the Linux release artifact and the
+[migration guide](migration-guide.md) (Freerouting → EpicRouter 2.0).
+Crates enter this map as their milestones complete
 (M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS; M5 executed on top:
 arena/SoA allocation slices + deterministic per-net parallelism, closed
 M5_EXIT_WITH_DEVIATIONS; M6 executed on top: the routing-intelligence

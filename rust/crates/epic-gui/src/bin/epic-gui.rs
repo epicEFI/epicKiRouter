@@ -5,8 +5,17 @@
 
 #[cfg(feature = "desktop")]
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    match epic_gui::shell::parse_launch_args(args.into_iter()) {
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    match epic_gui::shell::parse_launch_args(argv.into_iter()) {
+        Ok(epic_gui::shell::LaunchMode::Version) => {
+            // The version face (M10-T6): printed and exited BEFORE any
+            // eframe/wgpu work — no DISPLAY required (the shipped
+            // desktop-only bin answers it headlessly). The line is the
+            // single-sourced `shell::version_line` (pinned ungated in
+            // shell.rs, AM5 lesson 14's derived-form equality).
+            println!("{}", epic_gui::shell::version_line());
+            std::process::exit(0);
+        }
         Ok(mode) => match epic_gui::desktop::run(mode) {
             Ok(code) => std::process::exit(code),
             Err(text) => {

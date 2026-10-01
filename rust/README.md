@@ -2,7 +2,23 @@
 
 Rust rewrite of the Freerouting autorouter (design:
 `docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`).
-The Java tree under `src/` stays untouched as the parity oracle.
+The Java tree (`src/`) was the frozen parity oracle through the rewrite —
+it was sunsetted at M10-T4 (deleted; history preserved in git history and
+the grafted `origin/master` at `e7f9bdf1`).
+
+Status: **M10 executed through T5** — the release posture, T5-closed facts
+only: the Java sunset landed (T4: `src/`, `src_v19/`, the gradle build, the
+Java CI faces deleted; the committed goldens are the post-sunset parity
+record); workspace version **2.0.0** + the `--version` face + the Linux
+release artifact `epicrouter-2.0.0-x86_64-unknown-linux-gnu.tar.gz`
+(sha256 `0d055d42fe00ab1f79e93d46beadd7b8b041fd2a4cac48e31983f43217ebe844`,
+smoke-tested from the unpacked artifact) (T5); the migration guide landed
+(`docs/migration-guide.md`, T6). Census **1689/0/19** at the T5 close,
+additions only 1682 → 1689 (the ledger chain in the plan AMENDMENTS 1–5;
+T6's migration face adds its pin on top). Canaries: ses `dc271114…`
+IMMOVABLE throughout; manifest `c6644a91…` (the version-blind successor
+since T5; the raw `cf607714…` retired there). The M10 VERDICT slot stays
+OPEN pending the terminal adjudication (T8). Earlier milestone history:
 
 Status: M0–M4 complete (M4 exited M4_EXIT_WITH_DEVIATIONS; design §6
 M4 exit note), M5 executed on top (wall slices + deterministic

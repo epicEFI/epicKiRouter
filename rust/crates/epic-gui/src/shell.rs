@@ -290,6 +290,22 @@ pub enum LaunchMode {
         /// The DSN to load.
         dsn: PathBuf,
     },
+    /// `--version`: print the version line and exit 0 WITHOUT
+    /// launching the GUI (no DISPLAY required — the shipped
+    /// desktop-only bin must answer it headlessly). The bin handles
+    /// this mode before `desktop::run`; the printed line is
+    /// [`version_line`], the single source.
+    Version,
+}
+
+/// The version face (M10-T6): the ONE source of the `--version` line,
+/// shared by the bin's print site and the census-visible pin. Equal to
+/// `epicrouter <CARGO_PKG_VERSION>` — the same workspace-manifest
+/// source the CLI's `--version` face and the result manifest's
+/// `app_version` read.
+#[must_use]
+pub fn version_line() -> String {
+    format!("epicrouter {}", env!("CARGO_PKG_VERSION"))
 }
 
 /// The first-display FIT ZOOM (the fix-round Q2 hoist — closes the
@@ -340,14 +356,20 @@ pub const SMOKE_FRAME_DT: f32 = 1.0 / 60.0;
 
 /// The launch-arg parser (the bin's argv face; total — every failure
 /// is a `Err` usage string, never a panic). Accepted shapes:
-/// `(no args)` | `--smoke <dsn> --frames <N> --out <png> [--route]`
-/// | `--cancel-smoke <dsn>`.
+/// `(no args)` | `--version` | `--smoke <dsn> --frames <N> --out <png>
+/// [--route]` | `--cancel-smoke <dsn>`.
 pub fn parse_launch_args<I: Iterator<Item = String>>(args: I) -> Result<LaunchMode, String> {
     let args: Vec<String> = args.collect();
     if args.is_empty() {
         return Ok(LaunchMode::Interactive);
     }
     match args.first().map(String::as_str) {
+        Some("--version") => {
+            if args.len() != 1 {
+                return Err("--version takes no arguments".to_string());
+            }
+            Ok(LaunchMode::Version)
+        }
         Some("--smoke") => {
             let mut dsn = None;
             let mut frames = None;
@@ -680,6 +702,41 @@ mod tests {
         // face).
         assert!(
             parse_launch_args(["--cancel-smoke", "b.dsn", "extra"].iter().map(|s| arg(s))).is_err()
+        );
+        // The M10-T6 version arm: `--version` parses to
+        // LaunchMode::Version; extra args are Err (the exact-arity
+        // face, the same shape as --cancel-smoke's).
+        assert_eq!(
+            parse_launch_args(["--version"].iter().map(|s| arg(s)))
+                .unwrap_or_else(|e| panic!("{e}")),
+            LaunchMode::Version
+        );
+        assert!(parse_launch_args(["--version", "extra"].iter().map(|s| arg(s))).is_err());
+    }
+
+    /// The M10-T6 `--version` pin (AM5 lesson 14): the version line is
+    /// EQUALITY against the DERIVED form
+    /// `format!("epicrouter {}", env!("CARGO_PKG_VERSION"))` — never a
+    /// bare `epicrouter 2.0.0` literal, which alone survives the
+    /// hardcode mutant (the literal drifts from a hardcoded arm only
+    /// at the next bump; the derived form dies there — the T5 witness
+    /// at `logs/M10-T5/` review evidence 61). The 2.0.0 checkpoint
+    /// assert rides beneath it, the same shape as the CLI's
+    /// `version_pin.rs`. Census-pinnability: this test module is
+    /// UNGATED (the shell.rs module law), so the pin is IN the
+    /// workspace census — it pins the pure `version_line` source the
+    /// bin's `--version` arm prints.
+    #[test]
+    fn version_line_equals_the_package_version_face() {
+        assert_eq!(
+            version_line(),
+            format!("epicrouter {}", env!("CARGO_PKG_VERSION")),
+            "the version line must be single-sourced from the workspace manifest"
+        );
+        assert!(
+            version_line().contains("epicrouter 2.0.0"),
+            "the 2.0.0 checkpoint: the line must carry `epicrouter 2.0.0`: {}",
+            version_line()
         );
     }
 }

@@ -1918,22 +1918,19 @@ mod tests {
     /// PADD and answers true (or hits the check) — the verdict +  codespell:ignore
     /// id-burn + row asserts all flip.
     #[test]
-    // rustfmt::skip: the padstack-name line carries a same-line
-    // codespell:ignore marker — rustfmt would reflow the trailing
-    // comment onto its own line, detaching it from the flagged word.
-    #[rustfmt::skip]
     fn t11_insert_via_span_gate_rejects_missing_span() {
         let (mut manager, mut board) = parse_fixture();
         let layer_count = board.layers().layers.len();
         let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
         let mut padd_no = 0;
         for no in 1..=32 {
-            if board
-                .library()
-                .padstack(no)
-                .is_some_and(|p| p.name == "PADD") // codespell:ignore
-                // (the fixture padstack name)
-            {
+            // (the fixture's single-layer F.Cu padstack carries the
+            // codespell-flagged name the inline marker below waives;
+            // the marker rides a single-line let — rustfmt leaves
+            // trailing comments there intact, the T6 probe verified.)
+            let name = board.library().padstack(no).map(|p| p.name.as_str());
+            let is_fixture_padstack = name == Some("PADD"); // codespell:ignore
+            if is_fixture_padstack {
                 padd_no = no;
                 break;
             }

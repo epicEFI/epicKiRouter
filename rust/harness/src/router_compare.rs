@@ -3464,9 +3464,17 @@ mod pins {
         std::fs::create_dir_all(dir.join("run2")).expect("run2 dir");
         // Planted-different bytes: run1 and run2 wrote DIFFERENT output.
         std::fs::write(dir.join("run1/out.ses"), b"session one").expect("ses1");
-        std::fs::write(dir.join("run1/manifest.json"), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}").expect("man1");
+        std::fs::write(
+            dir.join("run1/manifest.json"),
+            b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}",
+        )
+        .expect("man1");
         std::fs::write(dir.join("run2/out.ses"), b"session two").expect("ses2");
-        std::fs::write(dir.join("run2/manifest.json"), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":2}").expect("man2");
+        std::fs::write(
+            dir.join("run2/manifest.json"),
+            b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":2}",
+        )
+        .expect("man2");
         let pair = DeterminismPair {
             run1: DeterminismArtifacts {
                 ses: dir.join("run1/out.ses"),
@@ -3499,7 +3507,11 @@ mod pins {
 
         // Planted-equal bytes: identical output in both runs is the OK face.
         std::fs::write(dir.join("run2/out.ses"), b"session one").expect("ses2 equal");
-        std::fs::write(dir.join("run2/manifest.json"), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}").expect("man2 equal");
+        std::fs::write(
+            dir.join("run2/manifest.json"),
+            b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}",
+        )
+        .expect("man2 equal");
         let (ses_1, ses_2, man_1, man_2) = determinism_digests(&pair).expect("digests equal");
         assert_eq!(ses_1, ses_2, "equal bytes must hash equal");
         assert_eq!(man_1, man_2);
@@ -3532,9 +3544,17 @@ mod pins {
         // Different bytes per run: a pair that aliases run2 onto run1
         // cannot produce different digests.
         std::fs::write(dir.join("run1").join(RUN_SES_FILE), b"session one").expect("ses1");
-        std::fs::write(dir.join("run1").join(RUN_MANIFEST_FILE), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}").expect("man1");
+        std::fs::write(
+            dir.join("run1").join(RUN_MANIFEST_FILE),
+            b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}",
+        )
+        .expect("man1");
         std::fs::write(dir.join("run2").join(RUN_SES_FILE), b"session two").expect("ses2");
-        std::fs::write(dir.join("run2").join(RUN_MANIFEST_FILE), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":2}").expect("man2");
+        std::fs::write(
+            dir.join("run2").join(RUN_MANIFEST_FILE),
+            b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":2}",
+        )
+        .expect("man2");
 
         let pair = pair_from_runs(&dir.join("run1"), &dir.join("run2"));
         // Structural faces: each run's artifacts live in ITS OWN dir,

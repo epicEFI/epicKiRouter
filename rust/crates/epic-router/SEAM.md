@@ -2279,3 +2279,17 @@ epic-router touches are COMMENT-ONLY: the ten live
 (4) and `pipeline/full.rs` (1) — plus their epic-cli siblings in
 `route.rs` (5) — now cite the version-blind canary face. No behavior, no
 signature, no pin change in either engine crate.
+
+**M10-T6 (appended 2026-10-01, inside the task's commit — Opening rule 4):
+the codespell/rustfmt marker hygiene in the T11 span-gate test
+(`path/inserter.rs`).** TEST-ONLY, zero engine change: the test's same-line
+`codespell:ignore` marker previously rode the multi-line `.is_some_and`
+chain, so a `#[rustfmt::skip]` was load-bearing (rustfmt reflows trailing
+comments off chain lines, detaching the marker from the flagged word — and
+a standalone marker line does NOT engage, probed, `logs/M10-T6/evidence/05`).
+The test now binds the padstack name to a `let` and carries the marker on a
+single-line let statement — rustfmt-stable and codespell-green with the skip
+attribute DROPPED. Semantics unchanged (the same first-match 1..=32
+padstack-name scan; the verdict + id-burn + row asserts untouched). Probe
+rounds A–D logged (`logs/M10-T6/evidence/05-n3-probe.log`; red rounds B/C
+preserved).

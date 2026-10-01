@@ -1,7 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 # M6-T7 (rider: exit-printing by construction) — run a gate/instrument
 # command and ALWAYS leave the two charter faces in the log: the exact
 # invocation echo as the FIRST line and `exit=N` as the LAST line.
+# The shebang is deliberately BASH (M10-T6, AM4 Q-3): the invocation
+# echo's `%q` is a bash builtin here — the sh-dialect warning (SC3050)
+# is dropped, not suppressed.
 #
 # usage: run-gate.sh <label> <cmd> [args...]
 #   <label> — a short face name echoed between the invocation and the
@@ -16,7 +19,6 @@ fi
 label="$1"
 shift
 printf '# Invocation:'
-# shellcheck disable=SC3050  # %q is a deliberate bashism here (the invocation echo)
 printf ' %q' "$@"
 printf '\n'
 printf '# label: %s\n' "$label"
