@@ -1,5 +1,11 @@
 # Freerouting Command Line Interface (CLI) Documentation
 
+> **EpicRouter note (historical document):** this page describes the
+> Java-era Freerouting engine's command-line surface — flags the
+> EpicRouter 2.0 `epic-cli` binary does not implement. The 2.0 surface
+> lives in [docs/migration-guide.md](migration-guide.md) and in
+> `epic-cli --help`.
+
 ## Introduction
 
 The Freerouting Command Line Interface (CLI) allows you to automate PCB routing tasks without using the graphical user interface (GUI). This is particularly useful for integrating Freerouting into scripts, build systems, or other software tools where automated routing is required.

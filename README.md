@@ -35,7 +35,7 @@ DSN in, SES out — the same face Freerouting's CLI users know:
 ./target/release/epic-cli route -de MyBoard.dsn -do MyBoard.ses
 ```
 
-`-de` loads the Specctra design file; `-do` writes the Specctra session file after routing. `epic-cli` with no arguments (or `--help`) prints the full flag surface (settings flags layered defaults → DSN → CLI).
+`-de` loads the Specctra design file; `-do` writes the Specctra session file after routing. `epic-cli --help` (or `epic-cli help`) prints the usage line and the accepted settings surface to stdout (exit 0); running with no arguments prints the same text to stderr and exits 2. The settings layer defaults → DSN → CLI.
 
 ### The GUI
 

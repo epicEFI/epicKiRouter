@@ -1,5 +1,13 @@
 ## Freerouting Settings Documentation
 
+> **EpicRouter note (historical document):** this page describes the
+> Java-era Freerouting engine's settings system (the JSON settings
+> file, profiles, analytics) — surfaces the EpicRouter 2.0 `epic-cli`
+> binary does not implement. The 2.0 surface lives in
+> [docs/migration-guide.md](migration-guide.md) and in
+> `epic-cli --help`.
+
+
 Freerouting uses a flexible settings system that allows users to customize various aspects of the application's behavior. These settings can be managed through a JSON configuration file, command-line arguments, or environment variables.
 
 ### Settings File (JSON)
