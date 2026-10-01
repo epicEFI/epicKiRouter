@@ -322,9 +322,14 @@ impl RoutingStageResult {
 /// `parent_stop` is the caller's stop face: M10-T1's wiring (buglog
 /// 224's closure) shares its flag with the stage face, so an EXTERNAL
 /// raise mid-optimization stops the loop (Java's loop reads the shared
-/// `job.thread` face, `BatchOptimizer.java:384`). A flagless parent
-/// (the CLI production face) is field-identical to the pre-T1
-/// `StopFace::default()` — byte-invariance is structural.
+/// `job.thread` face, `BatchOptimizer.java:384`). The sharing also
+/// widens the OUTBOUND direction: the stage's internal `request_full`
+/// now stores the PARENT's shared flag (Java-faithful — Java's
+/// max-items `requestStop()` raises the shared thread flag,
+/// `AutoroutePassRunner.java:211-218`; CLI-invariant — the CLI parent
+/// is flagless). A flagless parent (the CLI production face) is
+/// field-identical to the pre-T1 `StopFace::default()` — byte-invariance
+/// is structural.
 #[allow(clippy::too_many_arguments)]
 pub fn run_optimization_stage(
     manager: &mut SearchTreeManager,
@@ -357,7 +362,16 @@ pub fn run_optimization_stage(
     // wiring fix) — a flagless parent (the CLI production face) yields
     // exactly the old `StopFace::default()`; a flagged parent (the
     // session/GUI face) makes external raises visible to the
-    // optimizer's polls (optimizer.rs:1238-1242/:1458/:1738/:1802).
+    // optimizer's polls (optimizer.rs:907 the loop head — the poll the
+    // M10-T1 raise pins' kill rides on — and :1234/:1458/:1738/:1802;
+    // the site list verified by the T1 quality review). The sharing
+    // also widens the OUTBOUND direction: the optimizer's internal
+    // `request_full` (the M8-T7 candidate-raise replay,
+    // optimizer.rs:1494) now STORES the parent's shared flag, so an
+    // internal full-stop request is visible to the session host —
+    // Java-faithful (Java's max-items `requestStop()` raises the shared
+    // thread flag, `AutoroutePassRunner.java:211-218`) and
+    // CLI-invariant (the CLI parent is flagless).
     let mut stage_stop = StopFace::from_flag(parent_stop.flag().cloned());
     let mut optimizer = BatchOptimizerStage::new(
         manager,
@@ -858,6 +872,12 @@ mod tests {
         assert!(
             !sink.saw_completed,
             "the loop must not have run to natural completion"
+        );
+        assert!(
+            !faces.outcome.is_timed_out,
+            "a user-stop interrupt is NOT a timeout — the outcome field's interrupt face (the \
+             T1 quality review's survivor 8: a mutant setting is_timed_out on a user raise died \
+             nowhere before this assert)"
         );
     }
 

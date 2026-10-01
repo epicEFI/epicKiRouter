@@ -2233,3 +2233,8 @@ governs; the state-name mapping is unchanged and Java-faithful —
 `StopFace::flag()` PRE-EXISTED (M3's `507eacc76`) — the recon's "has NO
 public flag accessor" was stale; only the accessor's doc gained the
 M10-T1 wiring-face note (batch.rs).
+[Erratum 2026-09-30: the poll-site list above is off-by-four — the true
+set is optimizer.rs:907/:1234/:1458/:1738/:1802 (:907 is the loop-head
+poll the raise pins' kill rides on), verified by the T1 quality review
+(logs/M10-T1/quality-review-t1-1.md, Q1); corrected in the live comment
+at the T1 quality fix commit.]
