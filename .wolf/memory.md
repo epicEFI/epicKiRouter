@@ -9498,3 +9498,33 @@ description: chronological action log per session, consolidated weekly
 | 05:19 | Edited rust/crates/epic-cli/tests/version_pin.rs | modified form() | ~210 |
 | 05:20 | Edited rust/harness/src/router_compare.rs | modified face() | ~167 |
 | 05:24 | Edited rust/README.md | 2→4 lines | ~68 |
+| 05:45 | Created logs/M10-T6/dispatch-prompt-t6.md | — | ~2359 |
+| 05:59 | Created docs/migration-guide.md | — | ~3844 |
+| 05:59 | Edited README.md | 5→5 lines | ~77 |
+| 05:59 | Edited README.md | inline fix | ~127 |
+| 06:00 | Edited rust/README.md | expanded (+16 lines) | ~355 |
+| 06:00 | Edited docs/architecture.md | 4→9 lines | ~160 |
+| 06:00 | Edited rust/scripts/package-linux.sh | modified guide() | ~63 |
+| 06:00 | Edited rust/scripts/package-linux.sh | 6→10 lines | ~146 |
+| 06:00 | Edited .github/workflows/create-release.yml | modified pointer() | ~70 |
+| 06:00 | Edited .github/workflows/create-release.yml | 13→14 lines | ~217 |
+| 06:00 | Edited rust/crates/epic-gui/src/shell.rs | modified version_line() | ~256 |
+| 06:00 | Edited rust/crates/epic-gui/src/shell.rs | modified parse_launch_args() | ~187 |
+| 06:01 | Edited rust/crates/epic-gui/src/shell.rs | modified version_line_equals_the_package_version_face() | ~510 |
+| 06:01 | Edited rust/crates/epic-gui/src/bin/epic-gui.rs | modified main() | ~322 |
+| 06:01 | Edited rust/crates/epic-gui/src/bin/epic-gui.rs | modified main() | ~28 |
+| 06:01 | Edited rust/crates/epic-gui/src/desktop/mod.rs | 1→4 lines | ~82 |
+| 06:01 | Edited rust/harness/run-gate.sh | modified BASH() | ~104 |
+| 06:01 | Edited rust/harness/run-gate.sh | 3→2 lines | ~11 |
+| 06:02 | Edited rust/crates/epic-router/src/path/inserter.rs | modified t11_insert_via_span_gate_rejects_missing_span() | ~233 |
+| 06:51 | Created rust/crates/epic-gui/tests/version_pin.rs | — | ~711 |
+| 06:51 | Edited rust/scripts/package-linux.sh | 7→11 lines | ~182 |
+| 06:51 | Edited .github/workflows/create-release.yml | 2→6 lines | ~121 |
+| 06:51 | Edited rust/scripts/package-linux.sh | modified guide() | ~58 |
+| 06:51 | Edited docs/migration-guide.md | 3→4 lines | ~69 |
+| 06:51 | Edited docs/migration-guide.md | 5→6 lines | ~102 |
+| 06:51 | Edited docs/migration-guide.md | 2→3 lines | ~53 |
+| 06:51 | Edited docs/migration-guide.md | 4→5 lines | ~80 |
+| 06:54 | Edited rust/crates/epic-gui/tests/version_pin.rs | modified version_flag_prints_the_single_sourced_line_and_exits_zero() | ~276 |
+| 06:54 | Edited rust/crates/epic-gui/tests/version_pin.rs | modified version_flag_rejects_extra_arguments() | ~24 |
+| 06:54 | Edited rust/crates/epic-gui/tests/version_pin.rs | 4→3 lines | ~22 |

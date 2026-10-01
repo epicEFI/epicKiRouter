@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T11:24:36.549Z
-> Files: 614 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T12:54:24.561Z
+> Files: 622 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -21,7 +21,7 @@
 - `GEMINI.md` — OpenWolf (~75 tok)
 - `LICENSE` — Project license (~9366 tok)
 - `pyproject.toml` — Configuration for development tools (~262 tok)
-- `README.md` — Project documentation (~870 tok)
+- `README.md` — Project documentation (~900 tok)
 - `rewrite.yml` — Freerouting OpenRewrite phases. (~1676 tok)
 
 ## .github/
@@ -37,7 +37,7 @@
 
 ## .github/workflows/
 
-- `create-release.yml` — The Rust release workflow (M10-T5): reworks the retired Java (~735 tok)
+- `create-release.yml` — The Rust release workflow (M10-T5): reworks the retired Java (~924 tok)
 - `deploy-pages.yml` — CI: Deploy website to GitHub Pages (~266 tok)
 - `pre-commit.yml` — CI: pre-commit (~466 tok)
 - `rust-check.yml` — ", ".github/workflows/rust-check.yml"] (~2373 tok)
@@ -281,13 +281,14 @@
 
 ## docs/
 
-- `architecture.md` — Freerouting Architecture Map (~10072 tok)
+- `architecture.md` — Freerouting Architecture Map (~10150 tok)
 - `benchmarks.md` — Freerouting Benchmarks (~1655 tok)
 - `code_of_conduct.md` — Contributor Covenant Code of Conduct (~1372 tok)
 - `command_line_arguments.md` — Freerouting Command Line Interface (CLI) Documentation (~3437 tok)
 - `CONTRIBUTING.md` — Introduction (~1392 tok)
 - `integrations.md` — EDA Integrations (~2331 tok)
 - `labels.md` — Issue and Pull Request Labels (~1529 tok)
+- `migration-guide.md` — Migrating from Freerouting to EpicRouter 2.0 (~3642 tok)
 - `ProjectSchemeCodeStyle.xml` (~519 tok)
 - `scoring.md` — Board scoring (V2) (~3175 tok)
 - `self-hosting.md` — Self-Hosting the Freerouting API (~4256 tok)
@@ -744,10 +745,14 @@
 - `report-t5.md` — M10-T5 IMPLEMENTER REPORT — ROUND 1: BLOCKED (probe-stage stop; zero edits, zero commits) (~3817 tok)
 - `spec-review-prompt-t5.md` — M10-T5 SPEC-COMPLIANCE REVIEW — DISPATCH PROMPT (fresh reviewer, zero prior context) (~3173 tok)
 
+## logs/M10-T6/
+
+- `dispatch-prompt-t6.md` — M10-T6 DISPATCH — the migration guide + release docs (fresh implementer) (~2212 tok)
+
 ## rust/
 
 - `Cargo.toml` — Rust package manifest (~150 tok)
-- `README.md` — Project documentation (~6130 tok)
+- `README.md` — Project documentation (~6398 tok)
 
 ## rust/crates/epic-cli/src/
 
@@ -756,6 +761,30 @@
 ## rust/crates/epic-cli/tests/
 
 - `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
+
+## rust/crates/epic-gui/src/
+
+- `shell.rs` — The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED (~8528 tok)
+
+## rust/crates/epic-gui/src/bin/
+
+- `epic-gui.rs` — The epic-gui bin: the desktop shell's entry face. DEFAULT-OFF: (~412 tok)
+
+## rust/crates/epic-gui/src/desktop/
+
+- `mod.rs` — The M9-T6 desktop shell (desktop-gated): the THIN eframe host — (~8688 tok)
+
+## rust/crates/epic-gui/tests/
+
+- `version_pin.rs` — The M10-T6 fix-round Q1 pin: the built `epic-gui` bin, spawned with (~704 tok)
+
+## rust/crates/epic-router/src/path/
+
+- `inserter.rs` — Java `autoroute/path/FoundConnectionInserter.java` — inserts the (~22375 tok)
+
+## rust/harness/
+
+- `run-gate.sh` — M6-T7 (rider: exit-printing by construction) — run a gate/instrument (~250 tok)
 
 ## rust/harness/src/
 
@@ -766,4 +795,4 @@
 
 ## rust/scripts/
 
-- `package-linux.sh` — The Linux release artifact, reproduced locally (M10-T5): the exact (~555 tok)
+- `package-linux.sh` — The Linux release artifact, reproduced locally (M10-T5): the exact (~697 tok)
