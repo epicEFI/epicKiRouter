@@ -19,6 +19,11 @@ includes:
 
 # Code Quality Automation Skill
 
+> **SUNSET NOTE (M10-T4, 2026-09-30):** the Java/Spotless/Checkstyle/gradle faces
+> documented below were retired with the Java tree; the live gates are `cargo fmt`,
+> `cargo clippy --all-targets -D warnings`, `cargo test --workspace`, and the
+> java-free pre-commit hooks. The rest of this skill is preserved as history.
+
 ## 1. Overview
 
 This skill documents best practices for configuring and maintaining code quality automation in the Freerouting project. It covers pre-commit hooks, linter configuration patterns, and GitHub Actions integration for consistent code quality enforcement.

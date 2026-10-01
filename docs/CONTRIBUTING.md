@@ -6,7 +6,7 @@ Following these guidelines helps to communicate that you respect the time of the
 
 Freerouting is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Freerouting itself.
 
-**UI translations:** Freerouting uses an LLM translation pipeline. Please read [`docs/translations.md`](translations.md) before changing non-English UI strings — edit glossary files and request a full-locale re-translation; do not patch `*_{locale}.properties` directly.
+**Note on UI translations:** the Java-era LLM translation pipeline (`scripts/i18n/`) was retired with the M10-T4 Java sunset; the historical translation workflow is preserved in git history.
 
 # Ground Rules
 
@@ -44,9 +44,9 @@ For something that is bigger than a one or two line fix:
 
 ## Code quality and formatting
 
-Freerouting uses Google Java Format through Spotless, Checkstyle, pre-commit hooks, and
-GitHub Actions. Formatting and validation are part of the contribution contract: a change
-that fails these checks is not ready to commit.
+EpicRouter (the Rust rewrite of Freerouting) uses `cargo fmt`, `cargo clippy`, the Rust
+test census, pre-commit hooks, and GitHub Actions. Formatting and validation are part of
+the contribution contract: a change that fails these checks is not ready to commit.
 
 Install the local checks once:
 
@@ -55,40 +55,28 @@ python -m pip install pre-commit
 pre-commit install
 ```
 
-Run the same checks locally before committing:
+Run the same checks locally before committing (the Rust tree is `rust/`; run cargo from
+there):
 
 ```bash
 pre-commit run --all-files
-./gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleRewriteRecipes
-python scripts/i18n/extract-context.py --check
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 ```
 
-On Windows, use `.\gradlew.bat` instead of `./gradlew`. The Gradle quality hook and
-`scripts/pre-commit` are check-only: they report failures rather than applying formatting
-to unrelated files or staging changes automatically. The generic hygiene hooks
-automatically repair trailing whitespace, final newlines, and LF line endings only in
-files selected for the current commit. Review and stage those changes, then rerun the
-hook when it reports that files were modified.
-
-`spotlessApply` is an intentional formatting operation, not a normal pre-commit step.
-It formats every configured Java source. Run it only when you explicitly intend to make
-a formatting change, then inspect the complete diff and keep that normalization separate
-from functional changes:
-
-```bash
-./gradlew spotlessApply
-git diff --ignore-space-at-eol --check
-git diff --stat
-```
+The generic hygiene hooks automatically repair trailing whitespace, final newlines, and
+LF line endings only in files selected for the current commit. Review and stage those
+changes, then rerun the hook when it reports that files were modified.
 
 The repository uses LF for source, build, metadata, and documentation files on every
 platform through `.gitattributes`. Do not change `core.autocrlf` back and forth to fix a
 single working tree. If the repository needs one-time normalization, do it in a dedicated
 commit with no unrelated changes.
 
-GitHub Actions runs the same quality gates on pull requests. A contributor should resolve
-local Checkstyle, Spotless, line-ending, or i18n-context failures before opening or
-updating a pull request.
+GitHub Actions runs the same quality gates on pull requests (`rust-check.yml` plus the
+pre-commit workflow). A contributor should resolve local fmt, clippy, test, or
+line-ending failures before opening or updating a pull request.
 
 As a rule of thumb, changes are obvious fixes if they do not introduce any new functionality or creative thinking. As long as the change does not affect functionality, some likely examples include the following:
 * Spelling / grammar fixes

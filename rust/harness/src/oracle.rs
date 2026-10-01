@@ -4,6 +4,20 @@
 //! Drives the Java engine as the parity oracle: builds the executable jar,
 //! runs headless CLI jobs per fixture, and returns their manifests.
 //! The Java tree is never modified (design §4.1).
+//!
+//! **SUNSET (M10-T4, 2026-09-30): the Java tree is deleted — the capture
+//! modes are UNAVAILABLE post-sunset.** `build_jar`/`run_oracle` (gradle +
+//! JDK 25) and every harness subcommand of the `golden`/capture family
+//! (`dsn golden`, `ses golden`, `ses-snap golden`, `index golden`,
+//! `undo golden`, `drc golden`, `events golden`, geometry `golden`,
+//! `oracle build`/`oracle run`) fail cleanly when `./gradlew` or `src/`
+//! is absent. The last executable jar can be rebuilt only from the
+//! PRE-SUNSET commit (`9c967a937^`, i.e. `62a68a8e5`) — `git checkout
+//! 62a68a8e5` + `./gradlew executableJar` under JDK 25. The committed
+//! goldens (`rust/harness/baselines/**`, the corpus dirs, events-golden,
+//! `config/tiers.yaml`) ARE the parity record from here on; the COMPARE
+//! faces are java-free and unaffected (they read the committed goldens
+//! and re-run the Rust engine).
 
 use crate::manifest::RoutingResultManifest;
 use anyhow::{Context, Result, bail};

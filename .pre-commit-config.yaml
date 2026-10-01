@@ -1,8 +1,10 @@
 ---
-# Pre-commit hooks for Freerouting (Java project)
+# Pre-commit hooks for EpicRouter (the Rust PCB autorouter — the sunset
+# successor of the Freerouting Java tree; GPLv3, Freerouting attribution
+# preserved).
 # This configuration defines hooks that run automatically on git commit
 # to ensure code quality and consistency.
-exclude: ^(src_v19/|docs/(issues|reference)/|.*fixtures/|examples/|.*/results/|\.DS_Store$|.*\.run/|.*\.(hs|dsn|ses|TAG|http|gradle)$|.*/OFFSETS$)
+exclude: ^(docs/(issues|reference)/|.*fixtures/|examples/|.*/results/|\.DS_Store$|.*\.run/|.*\.(hs|dsn|ses|TAG|http|gradle)$|.*/OFFSETS$)
 repos:
   # Markdown formatting
   - repo: https://github.com/executablebooks/mdformat
@@ -67,7 +69,7 @@ repos:
     hooks:
       - id: codespell
         name: CodeSpell
-        exclude: ^(src_v19/|fixtures/|docs/reference/|scripts/i18n/|scripts/benchmark/fixtures/|website/|src/rewrite/|config/checkstyle/|build/|\.gradle/|logs/|src/main/resources/app/freerouting/helpset/(de|es|fr)/|src_v19/main/resources/app/freerouting/helpset/(de|es|fr)/|.*\.(dsn|ses|frb|png|jpe?g|svg|pdf|flex|class|jar|brd|exe|dll|so)$|src/main/resources/app/freerouting/[^/]*_.*\.properties$)
+        exclude: ^(fixtures/|docs/reference/|scripts/benchmark/fixtures/|website/|logs/|.*\.(dsn|ses|frb|png|jpe?g|svg|pdf|flex|jar|brd|exe|dll|so)$)
         additional_dependencies:
           - tomli
 
@@ -80,24 +82,3 @@ repos:
         types: [yaml]
         args: [--strict, -c, .yamllint.yaml]
 
-  # Java - Use Gradle Spotless (already configured in build.gradle)
-  - repo: local
-    hooks:
-      - id: spotless-apply
-        name: Spotless (Java)
-        entry: ./gradlew spotlessApply --no-daemon
-        language: system
-        types: [java]
-        pass_filenames: false
-        stages: [manual]
-      - id: extract-context
-        name: Extract Context Metadata
-        entry: python scripts/i18n/extract-context.py --check
-        language: system
-        pass_filenames: false
-        files: |
-          (?x)^(
-            .*_en\.properties$|
-            src/main/java/.*\.java$
-          )
-        stages: [pre-commit, pre-merge-commit]

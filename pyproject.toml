@@ -1,12 +1,13 @@
 # Configuration for development tools
-# Note: This is a Java project, but we use some Python-based tools for linting
+# Note: EpicRouter is the Rust rewrite of Freerouting; Python-based tools
+# here support repo linting (codespell, yamlfix).
 
 [tool.codespell]
 # The configuration must be kept here to ensure that
 # `codespell` can be run as a standalone program from the CLI
 # with the appropriate default options.
 
-skip = "*.dsn,*.ses,*.frb,*.png,*.jpg,*.svg,*.pdf,build,logs,.git,src_v19,fixtures,docs/reference,scripts/i18n,scripts/benchmark/fixtures,src/main/resources/app/freerouting/*_*.properties,.*,website,src/rewrite,config/checkstyle"
+skip = "*.dsn,*.ses,*.frb,*.png,*.jpg,*.svg,*.pdf,build,logs,.git,fixtures,docs/reference,scripts/benchmark/fixtures,.*,website,config/tiers.yaml"
 
 check-hidden = true
 quiet-level = 2

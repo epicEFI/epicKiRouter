@@ -31,7 +31,7 @@ Converted DSNs land in `scripts/benchmark/fixtures/PCBench/` (gitignored). Cache
 
 - Python 3.8+
 - KiCad 10 `kicad-cli` (DRC) and `python.exe` + pcbnew (DSN export / SES import)
-- Freerouting executable JAR (`gradlew.bat executableJar`) for optional DsnReader smoke-load
+- ~~Freerouting executable JAR (`gradlew.bat executableJar`) for optional DsnReader smoke-load~~ (retired at the M10-T4 Java sunset — the smoke-load face is historical; the pipeline's core faces are java-free)
 
 ## Stratified PoC boards (Phase 0)
 

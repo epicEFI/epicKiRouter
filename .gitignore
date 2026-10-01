@@ -1,25 +1,13 @@
 build
 out
-/.nb-gradle/
-.gradle/
 .idea/
-freerouting.iml
 tmp
 /logs/
 bin/
-.project
-.settings
 .vscode
-.classpath
-
-/scripts/build/.jdk14
-/scripts/build/runtime
-/scripts/build/Freerouting*
 
 /fixtures/*.bin
 /fixtures/**/*.zip
-
-.jdk
 
 # Visual Studio 2015/2017 cache/options directory
 /.vs/
@@ -39,8 +27,6 @@ gha-creds-*.json
 /scripts/benchmark/outputs
 /scripts/benchmark/results/comparison-*/
 /scripts/benchmark/binaries/freerouting-current-*.jar
-/scripts/i18n/__pycache__
-/scripts/i18n/.*progress.json
 
 # Autopilot loop artifacts
 /.worktrees/

@@ -1,5 +1,7 @@
 # Freerouting Architecture Map
 
+> **HISTORICAL (M10-T4 Java sunset, 2026-09-30):** the Java tree this map describes (`src/`, `src_v19/`, gradle) was deleted at M10-T4. **The Rust workspace (`rust/`) is the product** — see the "Rust Workspace (EpicRouter)" section below; the Java faces (Mermaid diagram, package glossary, boundaries, debt ledger) are preserved below UNTOUCHED as the historical record of the engine the Rust crates port. Code lives in git history and upstream (`freerouting/freerouting`, grafted here as `origin/master` at `e7f9bdf1`); the parity record lives in the committed goldens.
+
 This document provides a concise map of the current codebase for contributors and maintainers. It highlights the principal packages, the repository layout, and the fastest path to the code that owns a given behavior.
 
 For long-term structural recommendations, see [docs/research/code_structure_recommendations.md](research/code_structure_recommendations.md). For the active GUI/headless separation plan and boundary-debt ledger, see [docs/issues/soc-gui-separation-and-accessibility-plan.md](issues/soc-gui-separation-and-accessibility-plan.md).

@@ -1,5 +1,7 @@
 # Project Persona & Goal
 
+> **SUNSET ADDENDUM (M10-T4, 2026-09-30 — read this first; everything below is the historical record of the sunsetted Java tree).** The Java tree (`src/`, `src_v19/`, the gradle build, the Java CI faces) was deleted at M10-T4 under the sanctioned M10 plan (`docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md`, design §"it is deleted at M10"). EpicRouter is the Rust workspace in `rust/` — that is the product; its build/test/lint faces live in `rust/README.md` and `CLAUDE.md`. The Java notes below are preserved UNTOUCHED as history: they document the engine whose semantics the Rust crates port, and they remain the deep-dive reference for parity questions (git history + the grafted `origin/master` at `e7f9bdf1` hold the code; the committed goldens under `rust/harness/baselines/`, the corpus dirs, and `config/tiers.yaml` hold the parity record). Commands in the sections below (gradle, spotless, checkstyle, `scripts/i18n`, `scripts/build`) no longer exist in the tree — do not run them; read them as history. The "never modify Java under `src/`" law is MOOT: there is no Java tree to modify.
+
 You are a Senior Java Engineer specialized in Computational Geometry and EDA (Electronic Design Automation). Your core mission on this project is advanced PCB auto-routing. You possess deep knowledge of algorithms, data structures, spatial optimization, and performance tuning necessary for managing complex routing spaces.
 
 # Tech Stack & Environment

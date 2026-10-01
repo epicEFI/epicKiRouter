@@ -11,62 +11,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Context
 
-This is **EpicRouter**, a fork of [Freerouting](https://github.com/freerouting/freerouting) (the post-2026-refactor codebase) intended as a ground-up improvement of the PCB autorouter: speed, routing quality, DRC accuracy, and human-quality route aesthetics — with zero regressions vs the Freerouting baseline.
+This is **EpicRouter**, the Rust rewrite of [Freerouting](https://github.com/freerouting/freerouting) (GPLv3, a fork of the post-2026-refactor Java codebase) intended as a ground-up improvement of the PCB autorouter: speed, routing quality, DRC accuracy, and human-quality route aesthetics — with zero regressions vs the Freerouting baseline. The product name in prose is always "**Freerouting**" where it refers to the upstream project.
 
-- Read `AGENTS.md` first for the full project persona, deep architecture notes (DRC internals, copper pours, settings merger invariants, analytics, MCP), and investigation history. It is the canonical long-form reference.
-- `docs/architecture.md` is the authoritative architecture map with a package glossary and Mermaid diagram — keep it updated when structure changes.
-- `src_v19/` is the frozen v1.9 historical tree, compiled for compatibility only. Never refactor, format, or Checkstyle it.
-- The routing/correctness baseline for parity work is stable **Freerouting v2.3.0** (not v1.9).
+- Read `AGENTS.md` for the deep Java architecture notes (DRC internals, copper pours, settings merger invariants, analytics, MCP) and investigation history — **historical record of the sunsetted Java tree** (deleted at M10-T4, reachable in git history and via the grafted `origin/master` at `e7f9bdf1`).
+- `docs/architecture.md`: the Java-package map is marked HISTORICAL; the Rust workspace (`rust/`) is the product.
+- `src_v19/` and the Java tree lived under `src/` until the M10-T4 sunset; both are git history now.
+- The parity record post-sunset: the committed goldens (`rust/harness/baselines/`, corpus dirs, `config/tiers.yaml`) + the committed digest literals in AMENDMENT 3 of `docs/superpowers/plans/2026-09-30-epicrouter-m10-sunset-and-release.md`.
 
 ## Build & Test Commands
 
-Java 25, Gradle 9 (use `./gradlew`):
+Rust workspace at `rust/` (run cargo from there), toolchain pinned 1.93:
 
 **Environment setup (this machine):**
-- Temurin JDK 25 is installed at `~/.jdks/jdk-25.0.4.1+1` (Gradle auto-detects it). The system default JDK is 21 — insufficient.
-- The tree requires a git repo (`build.gradle` embeds `git rev-parse HEAD`); it fails with exit 128 otherwise. Upstream history is grafted as `origin/master` (baseline commit `e7f9bdf1`).
-- Do not rely on Gradle toolchain auto-provisioning (foojay-resolver 0.8.0 + Gradle 9.7.1 fails with `JvmVendorSpec.IBM_SEMERU` missing).
+- Rust toolchain via rustup, pinned 1.93 (`rust/` rust-toolchain).
+- Upstream history is grafted as `origin/master` (baseline commit `e7f9bdf1`).
+- Historical (Java era): the gradle/JDK notes lived here; the Java tree was deleted at M10-T4 (commit history has the full build story, the parity oracle jar was built with JDK 25 at `~/.jdks/jdk-25.0.4.1+1`).
 
-- `./gradlew test` — fast unit tests (default; excludes slow/gui)
-- `./gradlew testSlow` — slow fixture/benchmark tests only (`@Tag("slow")`, enable with `-PincludeSlowTests=true`)
-- `./gradlew testAll` — fast + slow + serial + gui
-- `./gradlew check` — full verification (Spotless + Checkstyle + tests incl. serial)
-- Single test: `./gradlew test --tests app.freerouting.fixtures.Dac2020Bm01RoutingTest` (quickest routing smoke test)
-- `./gradlew executableJar` — build runnable JAR → `build/libs/freerouting-current-executable.jar`
-- `./gradlew run` — run current dev build; `./gradlew runV19` — run legacy v1.9 build
-- `./gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleRewriteRecipes` — quality gates (run before handoff)
+- `cargo build` — build the workspace
+- `cargo test --workspace` — the test census (fast pins + harness pins; the engine census ledger lives in the milestone plans)
+- `cargo test -p <crate>` — single crate
+- `cargo run -p epic-harness --release -- <subcommand>` — the parity/comparison harness (compare faces are java-free; the capture family is retired with the sunset — see `rust/harness/src/oracle.rs`)
+- `cargo run -p epic-cli -- -de board.dsn -do out.ses` — headless routing
+- `cargo clippy --workspace --all-targets -- -D warnings` — lint gate (incl. `clippy::unwrap_used`); desktop-feature cargo additionally capped `--jobs 4`
 - `pre-commit run --all-files` — repo hygiene hooks
-- Headless routing: `java -jar build/libs/freerouting-current-executable.jar -de board.dsn -do out.ses`
 
-Test-task timeout budget is 30 minutes. Bound long routing tests with `TestingSettings.setMaxPasses(n)` / `setMaxItems(m)`; use `setJobTimeoutString("HH:MM:SS")` only as a supplement — the timeout fires after a pass completes.
+**Every cargo/test/harness/pre-commit command on this box is capped `systemd-run --user --scope -p MemoryMax=6G`** (buglog 194; desktop-feature cargo also `--jobs 4`).
 
-## Rust rewrite (EpicRouter)
-
-The approved design lives at
-`docs/superpowers/specs/2026-09-11-epicrouter-rust-rewrite-design.md`; the M0
-plan at `docs/superpowers/plans/2026-09-11-epicrouter-m0-rust-scaffold-and-baselines.md`.
-The Rust workspace is `rust/` (run cargo from there). Rules:
-
-- NEVER modify Java sources under `src/` — the Java engine is the parity
-  oracle frozen at `e7f9bdf1` until M10.
-- Golden baselines in `rust/harness/baselines/` are committed artifacts;
-  regenerate only via `epic-harness capture` and explain why in the commit.
-- The oracle jar needs JDK 25 (`~/.jdks/jdk-25.0.4.1+1/bin/java`), not the
-  system Java 21; `epic-harness` resolves this automatically.
-- CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests + the
-  geometry corpus compare (java-free, committed goldens) on any commit
-  touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
+Test-task timeout budget is 30 minutes. Bound long routing tests with tier timeouts; timeouts are never raised.
 
 ## Quality Gate Rules (do not violate)
 
-- **Never** run `spotlessApply` as automatic cleanup — it rewrites hundreds of files. Use `spotlessCheck`.
-- Never stage files automatically; keep formatting-only changes separate from functional ones.
+- Never stage files automatically (no `git add -A`); keep formatting-only changes separate from functional ones.
 - Don't touch `core.autocrlf` to fix line endings; inspect `.gitattributes` and the diff instead.
-- Run `python scripts/i18n/extract-context.py --check` when Java or translation sources change.
+- Golden baselines in `rust/harness/baselines/`, the corpus dirs, `config/tiers.yaml`, and ALL goldens are committed artifacts — never modified; NEW goldens are NEW files via sanctioned capture only.
+- CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests + the geometry corpus compare (java-free, committed goldens) on any commit touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
 
 ## Architecture
 
-Runtime flow: `DSN input → io.specctra parser → board/rules model → autorouter → drc → SES output`. GUI (Swing), REST API (`api.v1`/`api.mcp`), and job scheduler (`management`) all build on this headless core pipeline.
+Runtime flow: `DSN input → epic-dsn parser → epic-board model → epic-router (fanout → batch autorouter passes → optimizer) → epic-drc → SES output`. GUI (epic-gui, egui), CLI (epic-cli), and the harness all build on this core pipeline. The workspace crates: `epic-geometry` (shape/point math), `epic-index` (spatial index), `epic-board`, `epic-dsn`, `epic-drc`, `epic-router`, `epic-engine` (session), `epic-cli`, `epic-gui`, `epic-harness`.
+
+### Historical (Java era) architecture knowledge
+
+The sections below describe the sunsetted Java engine — preserved as history and because the Rust engine ports its semantics; the authoritative map is `docs/architecture.md` (Java faces marked HISTORICAL, Rust section current).
 
 ### Routing engine (the algorithmic heart)
 
@@ -75,29 +61,27 @@ Runtime flow: `DSN input → io.specctra parser → board/rules model → autoro
 - `rules` — nets, clearance classes, via rules; `drc` — violation detection; `geometry.planar` — shape/point math used everywhere.
 - Two distinct scores, both 0–1000: **router score** (incomplete connections + DRC) and **optimizer score** (length/via/bend excess vs lower bounds). See `docs/scoring.md`.
 
-### Boundaries (enforced by ArchUnit — keep green)
+### Boundaries (was enforced by ArchUnit — historical)
 
-- Core packages (`autoroute`, `board`, `rules`, `drc`, `geometry`) must not depend on GUI or API packages.
+- Core packages (`autoroute`, `board`, "rules", `drc`, `geometry`) must not depend on GUI or API packages.
 - Headless paths (`api`, `management`, `core`) must not touch `GuiBoardManager`/`InteractiveState`/`WorkspaceSettings`.
 - `io.specctra.parser` internals are private to `io.specctra` public entry points.
-- Boundary rules live in `src/test/java/app/freerouting/architecture/ModuleBoundariesArchTest.java`; accepted debt is listed in `docs/architecture.md` and `docs/issues/soc-gui-separation-and-accessibility-plan.md` §12.
 
-### Settings system invariant
+### Settings system invariant (historical — the Rust engine inherits the layering)
 
-`SettingsMerger` layers nine `SettingsSource`s by priority (0=defaults → 70=API), copying a field only when non-null and non-default. Therefore **all `RouterSettings` fields must be nullable reference types with no initializers** — an initialized field would silently break source precedence. Defaults belong only in `DefaultSettings.getSettings()`.
+`SettingsMerger` layers nine `SettingsSource`s by priority (0=defaults → 70=CLI/API), copying a field only when non-null and non-default. Therefore **all `RouterSettings` fields must be nullable reference types with no initializers** — an initialized field would silently break source precedence. Defaults belong only in `DefaultSettings.getSettings()`.
 
-### GUI vs headless
+### GUI vs headless (historical)
 
-`HeadlessBoardManager` is the base; `GuiBoardManager` adds Swing/`WorkspaceSettings`/`.frb` serialization. Shared logic goes in headless; anything needing a display goes in GUI. `WorkspaceSettings.getWorkspaceSettings()` returns `null` in headless mode by design — guard before use.
+`HeadlessBoardManager` is the base; `GuiBoardManager` adds Swing/`WorkspaceSettings`/`.frb` serialization. Shared logic goes in headless; anything needing a display goes in GUI.
 
 ## Critical Project Knowledge
 
-- **Routing algorithm changes are high-risk.** Minor changes can regress trace optimization, clearance, or completion rates. Always validate against the test suite plus real `.dsn` fixtures (`src/test/java/app/freerouting/fixtures/RoutingFixtureTest.java`, boards in `fixtures/`, 160+ real boards).
-- **DRC completeness:** `BoardStatistics.clearanceViolations.totalCount` is incomplete (uses outline-only count). Use `DesignRulesChecker.getAllClearanceViolations()` for real violation counts.
+- **Routing algorithm changes are high-risk.** Minor changes can regress trace optimization, clearance, or completion rates. Always validate against the Rust census + the harness compares (committed goldens) + real `.dsn` fixtures (root `fixtures/`, 160+ real boards; harness fixtures under `rust/harness/fixtures/` and `scripts/benchmark/fixtures/`).
+- **DRC completeness:** the Java `BoardStatistics.clearanceViolations.totalCount` face was incomplete (outline-only count); the Rust `epic-drc` full-violation face is the truthful count — cite the harness drc-corpus record, not an outline-only count.
 - **KiCad quirk:** DSN export omits copper-to-edge clearance, so Freerouting routes to default class at the board edge and KiCad DRC flags it afterwards (see `docs/issues/Issue558-...md`).
-- **Copper pours:** modeled as `ConductionArea`; `rules.Net.contains_plane` switches plane-routing mode (stub+via to plane). Known open bug: plane routing can introduce clearance violations (Issue 093/152).
-- **Logging:** use `FRLogger.trace(method, operation, message, impactedItems, impactedPoints)` for algorithmic detail; keep diagnostic payloads synchronized between WIP and baseline builds before diffing logs.
-- **Regression workflow:** compare WIP vs v2.3.0 on golden fixtures; classify divergence (numeric drift vs ordering/tie-break) before fixing; exit criteria = no new clearance violations + no completion regression + stable compare metrics.
-- Issue specs live in `docs/issues/`; scratch analysis goes in git-ignored `logs/<IssueNNN>/`.
-- Test placement: issue-regression/full-pipeline → `fixtures/` package; package-scoped unit tests → matching test package.
-- License: GPLv3 — keep dependencies compatible. The product name in prose is always "**Freerouting**".
+- **Copper pours:** modeled as `ConductionArea` (Java) / the Rust pour model; `rules.Net.contains_plane` switched plane-routing mode. Known open bug carried from Java: plane routing can introduce clearance violations (Issue 093/152).
+- **Logging:** the Java `FRLogger.trace(...)` face is retired; the Rust engine's event/trace faces are pinned by the harness events-golden compare.
+- **Regression workflow (post-sunset):** compare against the committed goldens (the parity record); classify divergence (numeric drift vs ordering/tie-break) before fixing; exit criteria = no new clearance violations + no completion regression + stable compare metrics.
+- Issue specs live in `docs/issues/` (historical Java-era investigations); scratch analysis goes in git-ignored `logs/<task>/`.
+- License: GPLv3 — keep dependencies compatible.
