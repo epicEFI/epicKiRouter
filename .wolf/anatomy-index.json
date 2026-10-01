@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-01T00:18:25.193Z",
-    "fileCount": 587,
+    "lastScanned": "2026-10-01T01:24:41.991Z",
+    "fileCount": 599,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "3ba6ec5dba4868403e9e5d55479fa72c3eb2ed3a852046f67da3bc98bbbba127",
-    "storeUpdatedAt": "2026-10-01T00:18:25.202Z",
-    "rootHash": "aa44640b1a47f4e5"
+    "renderedHash": "337e4d5a84aabb6852633f2652816c585b76320dfc57fceff42eb10c597e8c02",
+    "storeUpdatedAt": "2026-10-01T01:24:42.000Z",
+    "rootHash": "94d40f965b5eaad2"
   },
   "files": {
     ".dockerignore": {
@@ -5356,6 +5356,663 @@
       "size": 12764,
       "mtimeMs": 1790813815163.6045,
       "updatedAt": "2026-10-01T00:16:55.273Z",
+      "source": "hook"
+    },
+    "logs/M10-T2/dispatch-prompt-t2.md": {
+      "description": "M10-T2 DISPATCH — the Q7 `final_state_for` hoist + the Q6 re-route product decision",
+      "tokens": 1432,
+      "hash": "aef5d17e54187ba0",
+      "size": 5785,
+      "mtimeMs": 1790814057579.6274,
+      "updatedAt": "2026-10-01T00:20:57.677Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-engine/tests/q6_reroute_probe.rs": {
+      "description": "TEMPORARY M10-T2 Q6 probe (deleted after the run — not part of the",
+      "tokens": 732,
+      "hash": "4dfcbb6e54cacb89",
+      "size": 2747,
+      "mtimeMs": 1790814470109.2937,
+      "updatedAt": "2026-10-01T00:27:50.228Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "SilentSink",
+          "kind": "class",
+          "startLine": 15,
+          "endLine": 16,
+          "tokens": 6
+        },
+        {
+          "name": "SilentSink",
+          "kind": "section",
+          "startLine": 17,
+          "endLine": 19,
+          "tokens": 12
+        },
+        {
+          "name": "q6_second_route_probe",
+          "kind": "fn",
+          "startLine": 20,
+          "endLine": 68,
+          "tokens": 613
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/pipeline/batch.rs": {
+      "description": "Java `autoroute/pipeline/BatchAutorouter.java` +",
+      "tokens": 24740,
+      "hash": "81033eccc1f3be3f",
+      "size": 93037,
+      "mtimeMs": 1790814509213.445,
+      "updatedAt": "2026-10-01T00:28:29.315Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "BatchFanoutListener",
+          "kind": "class",
+          "startLine": 106,
+          "endLine": 107,
+          "tokens": 8
+        },
+        {
+          "name": "BatchFanoutListener",
+          "kind": "section",
+          "startLine": 108,
+          "endLine": 163,
+          "tokens": 749
+        },
+        {
+          "name": "StopFace",
+          "kind": "class",
+          "startLine": 164,
+          "endLine": 179,
+          "tokens": 204
+        },
+        {
+          "name": "StopFace",
+          "kind": "section",
+          "startLine": 180,
+          "endLine": 283,
+          "tokens": 1211
+        },
+        {
+          "name": "StopReason",
+          "kind": "class",
+          "startLine": 284,
+          "endLine": 311,
+          "tokens": 359
+        },
+        {
+          "name": "final_state_for",
+          "kind": "fn",
+          "startLine": 312,
+          "endLine": 328,
+          "tokens": 190
+        },
+        {
+          "name": "BatchLoopError",
+          "kind": "class",
+          "startLine": 329,
+          "endLine": 333,
+          "tokens": 36
+        },
+        {
+          "name": "BatchLoopError",
+          "kind": "section",
+          "startLine": 334,
+          "endLine": 343,
+          "tokens": 84
+        },
+        {
+          "name": "BatchLoopError",
+          "kind": "section",
+          "startLine": 344,
+          "endLine": 352,
+          "tokens": 112
+        },
+        {
+          "name": "BatchSettings",
+          "kind": "class",
+          "startLine": 353,
+          "endLine": 514,
+          "tokens": 2651
+        },
+        {
+          "name": "BatchSettings",
+          "kind": "section",
+          "startLine": 515,
+          "endLine": 570,
+          "tokens": 648
+        },
+        {
+          "name": "BatchDriver",
+          "kind": "class",
+          "startLine": 571,
+          "endLine": 618,
+          "tokens": 682
+        },
+        {
+          "name": "StageBoundaries",
+          "kind": "class",
+          "startLine": 619,
+          "endLine": 630,
+          "tokens": 133
+        },
+        {
+          "name": "BatchDriver",
+          "kind": "section",
+          "startLine": 631,
+          "endLine": 1192,
+          "tokens": 7944
+        },
+        {
+          "name": "calculate_incomplete_count",
+          "kind": "fn",
+          "startLine": 1193,
+          "endLine": 1213,
+          "tokens": 339
+        },
+        {
+          "name": "remove_tails",
+          "kind": "fn",
+          "startLine": 1214,
+          "endLine": 1249,
+          "tokens": 324
+        },
+        {
+          "name": "format_score",
+          "kind": "fn",
+          "startLine": 1250,
+          "endLine": 1267,
+          "tokens": 261
+        },
+        {
+          "name": "get_autoroute_items",
+          "kind": "fn",
+          "startLine": 1268,
+          "endLine": 1358,
+          "tokens": 1057
+        },
+        {
+          "name": "java_simple_name",
+          "kind": "fn",
+          "startLine": 1359,
+          "endLine": 1372,
+          "tokens": 167
+        },
+        {
+          "name": "build_unrouted_connections_report",
+          "kind": "fn",
+          "startLine": 1373,
+          "endLine": 1410,
+          "tokens": 396
+        },
+        {
+          "name": "describe_item",
+          "kind": "fn",
+          "startLine": 1411,
+          "endLine": 1993,
+          "tokens": 7341
+        }
+      ]
+    },
+    "rust/crates/epic-cli/src/route.rs": {
+      "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
+      "tokens": 44332,
+      "hash": "f3df45700ac61820",
+      "size": 166568,
+      "mtimeMs": 1790814522346.4956,
+      "updatedAt": "2026-10-01T00:28:42.457Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "CliDriverSink",
+          "kind": "class",
+          "startLine": 66,
+          "endLine": 70,
+          "tokens": 51
+        },
+        {
+          "name": "CliDriverSink",
+          "kind": "section",
+          "startLine": 71,
+          "endLine": 93,
+          "tokens": 271
+        },
+        {
+          "name": "ManifestPhaseDetail",
+          "kind": "class",
+          "startLine": 94,
+          "endLine": 117,
+          "tokens": 338
+        },
+        {
+          "name": "ManifestPhaseSnapshot",
+          "kind": "class",
+          "startLine": 118,
+          "endLine": 146,
+          "tokens": 446
+        },
+        {
+          "name": "ManifestPhaseStats",
+          "kind": "class",
+          "startLine": 147,
+          "endLine": 164,
+          "tokens": 215
+        },
+        {
+          "name": "ManifestViasTotal",
+          "kind": "class",
+          "startLine": 165,
+          "endLine": 171,
+          "tokens": 55
+        },
+        {
+          "name": "ManifestTracesLength",
+          "kind": "class",
+          "startLine": 172,
+          "endLine": 179,
+          "tokens": 74
+        },
+        {
+          "name": "ManifestPhases",
+          "kind": "class",
+          "startLine": 180,
+          "endLine": 197,
+          "tokens": 220
+        },
+        {
+          "name": "ManifestFixture",
+          "kind": "class",
+          "startLine": 198,
+          "endLine": 206,
+          "tokens": 84
+        },
+        {
+          "name": "ManifestBoardStats",
+          "kind": "class",
+          "startLine": 207,
+          "endLine": 217,
+          "tokens": 130
+        },
+        {
+          "name": "ManifestConnections",
+          "kind": "class",
+          "startLine": 218,
+          "endLine": 228,
+          "tokens": 141
+        },
+        {
+          "name": "ManifestClearanceViolations",
+          "kind": "class",
+          "startLine": 229,
+          "endLine": 242,
+          "tokens": 199
+        },
+        {
+          "name": "ManifestPourIslands",
+          "kind": "class",
+          "startLine": 243,
+          "endLine": 261,
+          "tokens": 196
+        },
+        {
+          "name": "ManifestGlobalPlan",
+          "kind": "class",
+          "startLine": 262,
+          "endLine": 286,
+          "tokens": 297
+        },
+        {
+          "name": "ManifestLengthNeed",
+          "kind": "class",
+          "startLine": 287,
+          "endLine": 308,
+          "tokens": 299
+        },
+        {
+          "name": "ManifestPairRow",
+          "kind": "class",
+          "startLine": 309,
+          "endLine": 336,
+          "tokens": 299
+        },
+        {
+          "name": "ManifestPairUnresolved",
+          "kind": "class",
+          "startLine": 337,
+          "endLine": 345,
+          "tokens": 71
+        },
+        {
+          "name": "RouteManifest",
+          "kind": "class",
+          "startLine": 346,
+          "endLine": 398,
+          "tokens": 776
+        },
+        {
+          "name": "RouteTelemetry",
+          "kind": "class",
+          "startLine": 399,
+          "endLine": 448,
+          "tokens": 743
+        },
+        {
+          "name": "exit_code_for",
+          "kind": "fn",
+          "startLine": 449,
+          "endLine": 469,
+          "tokens": 313
+        },
+        {
+          "name": "java_two_decimal",
+          "kind": "fn",
+          "startLine": 470,
+          "endLine": 489,
+          "tokens": 242
+        },
+        {
+          "name": "JavaDecimal",
+          "kind": "class",
+          "startLine": 490,
+          "endLine": 491,
+          "tokens": 17
+        },
+        {
+          "name": "JavaDecimal",
+          "kind": "section",
+          "startLine": 492,
+          "endLine": 515,
+          "tokens": 296
+        },
+        {
+          "name": "PhaseScoreKind",
+          "kind": "class",
+          "startLine": 516,
+          "endLine": 532,
+          "tokens": 212
+        },
+        {
+          "name": "phase_snapshot",
+          "kind": "fn",
+          "startLine": 533,
+          "endLine": 593,
+          "tokens": 729
+        },
+        {
+          "name": "render_manifest",
+          "kind": "fn",
+          "startLine": 594,
+          "endLine": 684,
+          "tokens": 1244
+        },
+        {
+          "name": "sha256_hex",
+          "kind": "fn",
+          "startLine": 685,
+          "endLine": 696,
+          "tokens": 158
+        },
+        {
+          "name": "clearance_face",
+          "kind": "fn",
+          "startLine": 697,
+          "endLine": 709,
+          "tokens": 164
+        },
+        {
+          "name": "manifest_global_plan",
+          "kind": "fn",
+          "startLine": 710,
+          "endLine": 730,
+          "tokens": 256
+        },
+        {
+          "name": "pair_report_rows",
+          "kind": "fn",
+          "startLine": 731,
+          "endLine": 3737,
+          "tokens": 37941
+        }
+      ]
+    },
+    "rust/crates/epic-engine/src/session.rs": {
+      "description": "The headless application session — the M9-T2 `Session` (the Java",
+      "tokens": 13078,
+      "hash": "0ff1c93f75f03dcb",
+      "size": 49230,
+      "mtimeMs": 1790816200612.4165,
+      "updatedAt": "2026-10-01T00:56:40.717Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "apply_copper_to_edge_clearance_override",
+          "kind": "fn",
+          "startLine": 149,
+          "endLine": 240,
+          "tokens": 1105
+        },
+        {
+          "name": "ReadOutcome",
+          "kind": "class",
+          "startLine": 241,
+          "endLine": 254,
+          "tokens": 182
+        },
+        {
+          "name": "classify_read_result",
+          "kind": "fn",
+          "startLine": 255,
+          "endLine": 291,
+          "tokens": 430
+        },
+        {
+          "name": "LoadError",
+          "kind": "class",
+          "startLine": 292,
+          "endLine": 307,
+          "tokens": 210
+        },
+        {
+          "name": "LoadError",
+          "kind": "section",
+          "startLine": 308,
+          "endLine": 331,
+          "tokens": 341
+        },
+        {
+          "name": "RouteError",
+          "kind": "class",
+          "startLine": 332,
+          "endLine": 344,
+          "tokens": 146
+        },
+        {
+          "name": "RouteError",
+          "kind": "section",
+          "startLine": 345,
+          "endLine": 356,
+          "tokens": 120
+        },
+        {
+          "name": "RouteError",
+          "kind": "section",
+          "startLine": 357,
+          "endLine": 365,
+          "tokens": 115
+        },
+        {
+          "name": "RouteSummary",
+          "kind": "class",
+          "startLine": 366,
+          "endLine": 387,
+          "tokens": 285
+        },
+        {
+          "name": "SessionStatistics",
+          "kind": "class",
+          "startLine": 388,
+          "endLine": 402,
+          "tokens": 156
+        },
+        {
+          "name": "SessionStatistics",
+          "kind": "section",
+          "startLine": 403,
+          "endLine": 423,
+          "tokens": 220
+        },
+        {
+          "name": "Session",
+          "kind": "class",
+          "startLine": 424,
+          "endLine": 472,
+          "tokens": 659
+        },
+        {
+          "name": "Session",
+          "kind": "section",
+          "startLine": 473,
+          "endLine": 902,
+          "tokens": 5843
+        },
+        {
+          "name": "project_heatmap",
+          "kind": "fn",
+          "startLine": 903,
+          "endLine": 936,
+          "tokens": 326
+        },
+        {
+          "name": "java_two_decimal",
+          "kind": "fn",
+          "startLine": 937,
+          "endLine": 964,
+          "tokens": 402
+        },
+        {
+          "name": "PassTrackingSink",
+          "kind": "class",
+          "startLine": 965,
+          "endLine": 969,
+          "tokens": 29
+        },
+        {
+          "name": "PassTrackingSink",
+          "kind": "section",
+          "startLine": 970,
+          "endLine": 987,
+          "tokens": 150
+        },
+        {
+          "name": "PassTrackingSink",
+          "kind": "section",
+          "startLine": 988,
+          "endLine": 1078,
+          "tokens": 972
+        }
+      ]
+    },
+    "rust/crates/epic-gui/src/desktop/worker.rs": {
+      "description": "The M9-T6 desktop worker thread (desktop-gated; its PROTOCOL types",
+      "tokens": 2626,
+      "hash": "2cc81211f3015a5b",
+      "size": 9875,
+      "mtimeMs": 1790814675051.0786,
+      "updatedAt": "2026-10-01T00:31:15.155Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "NoopSink",
+          "kind": "class",
+          "startLine": 42,
+          "endLine": 43,
+          "tokens": 5
+        },
+        {
+          "name": "NoopSink",
+          "kind": "section",
+          "startLine": 44,
+          "endLine": 47,
+          "tokens": 43
+        },
+        {
+          "name": "spawn",
+          "kind": "fn",
+          "startLine": 48,
+          "endLine": 65,
+          "tokens": 169
+        },
+        {
+          "name": "Worker",
+          "kind": "class",
+          "startLine": 66,
+          "endLine": 74,
+          "tokens": 75
+        },
+        {
+          "name": "Worker",
+          "kind": "section",
+          "startLine": 75,
+          "endLine": 225,
+          "tokens": 1940
+        }
+      ]
+    },
+    "logs/M10-T2/report-t2.md": {
+      "description": "M10-T2 IMPLEMENTER REPORT — the Q7 `final_state_for` hoist + the Q6 re-route product decision",
+      "tokens": 4152,
+      "hash": "ccafa5b5d7e5a687",
+      "size": 16804,
+      "mtimeMs": 1790817881882.9604,
+      "updatedAt": "2026-10-01T01:24:41.991Z",
+      "source": "hook"
+    },
+    "logs/M10-T2/spec-review-prompt-t2.md": {
+      "description": "M10-T2 SPEC REVIEW — charter",
+      "tokens": 1503,
+      "hash": "165eca63bbf91b20",
+      "size": 6063,
+      "mtimeMs": 1790816332961.8164,
+      "updatedAt": "2026-10-01T00:58:53.075Z",
+      "source": "hook"
+    },
+    "logs/M10-T2/spec-review-t2-1.md": {
+      "description": "M10-T2 SPEC REVIEW — spec-review-t2-1.md",
+      "tokens": 2922,
+      "hash": "cfdb7ccdd8c174f1",
+      "size": 11783,
+      "mtimeMs": 1790816633416.7664,
+      "updatedAt": "2026-10-01T01:03:53.531Z",
+      "source": "hook"
+    },
+    "logs/M10-T2/quality-review-prompt-t2.md": {
+      "description": "M10-T2 QUALITY REVIEW — charter",
+      "tokens": 1461,
+      "hash": "6806fb474fb38d28",
+      "size": 5893,
+      "mtimeMs": 1790816688909.9465,
+      "updatedAt": "2026-10-01T01:04:49.042Z",
+      "source": "hook"
+    },
+    "logs/M10-T2/quality-review-t2-1.md": {
+      "description": "M10-T2 QUALITY REVIEW — quality-review-t2-1.md",
+      "tokens": 3076,
+      "hash": "5af512dd2e7b4a74",
+      "size": 12397,
+      "mtimeMs": 1790817058875.1697,
+      "updatedAt": "2026-10-01T01:10:58.970Z",
+      "source": "hook"
+    },
+    "logs/M10-T2/fix-round-t2-1.md": {
+      "description": "M10-T2 FIX ROUND 1 REPORT — Q1/Q2 (quality review `quality-review-t2-1.md`)",
+      "tokens": 1181,
+      "hash": "b30710b8e6c5abdd",
+      "size": 4790,
+      "mtimeMs": 1790817870118.9204,
+      "updatedAt": "2026-10-01T01:24:30.237Z",
       "source": "hook"
     }
   },

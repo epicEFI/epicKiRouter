@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T00:18:25.193Z
-> Files: 587 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T01:24:41.991Z
+> Files: 599 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -776,6 +776,33 @@
 - `spec-review-prompt-t1.md` — M10-T1 SPEC REVIEW — charter (~1292 tok)
 - `spec-review-t1-1.md` — M10-T1 SPEC REVIEW (reviewer 1) — the stop-flag WIRING at `01b6b2f93` (~3483 tok)
 
+## logs/M10-T2/
+
+- `dispatch-prompt-t2.md` — M10-T2 DISPATCH — the Q7 `final_state_for` hoist + the Q6 re-route product decision (~1432 tok)
+- `fix-round-t2-1.md` — M10-T2 FIX ROUND 1 REPORT — Q1/Q2 (quality review `quality-review-t2-1.md`) (~1181 tok)
+- `quality-review-prompt-t2.md` — M10-T2 QUALITY REVIEW — charter (~1461 tok)
+- `quality-review-t2-1.md` — M10-T2 QUALITY REVIEW — quality-review-t2-1.md (~3076 tok)
+- `report-t2.md` — M10-T2 IMPLEMENTER REPORT — the Q7 `final_state_for` hoist + the Q6 re-route product decision (~4152 tok)
+- `spec-review-prompt-t2.md` — M10-T2 SPEC REVIEW — charter (~1503 tok)
+- `spec-review-t2-1.md` — M10-T2 SPEC REVIEW — spec-review-t2-1.md (~2922 tok)
+
+## rust/crates/epic-cli/src/
+
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~44332 tok)
+
+## rust/crates/epic-engine/src/
+
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~13078 tok)
+
+## rust/crates/epic-engine/tests/
+
+- `q6_reroute_probe.rs` — TEMPORARY M10-T2 Q6 probe (deleted after the run — not part of the (~732 tok)
+
+## rust/crates/epic-gui/src/desktop/
+
+- `worker.rs` — The M9-T6 desktop worker thread (desktop-gated; its PROTOCOL types (~2626 tok)
+
 ## rust/crates/epic-router/src/pipeline/
 
+- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~24740 tok)
 - `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~13427 tok)
