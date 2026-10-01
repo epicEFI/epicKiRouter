@@ -25,3 +25,13 @@ unsafe_code = "warn"
 
 [workspace.lints.clippy]
 unwrap_used = "warn"
+
+# The readiness-fix M3 face: the i32 geometry core must fail LOUDLY on
+# overflow in production builds, not silently wrap (the audit's
+# large-coordinate scenario). Debug profiles already check; this makes
+# release match. Config-only — the byte faces (SES/manifest on normal
+# boards) are unchanged by construction (overflow paths were never
+# exercised by any committed golden run); the wall-clock cost is
+# measured by the coordinator's release battery, not here.
+[profile.release]
+overflow-checks = true

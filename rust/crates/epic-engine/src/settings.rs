@@ -533,7 +533,66 @@ pub fn parse_route_args(args: &[String]) -> Result<ParsedRouteArgs, String> {
     if parsed.batch_mode() && !has_explicit_router_enabled {
         parsed.layer.autorouter_enabled = Some(true);
     }
+
+    // The readiness-fix m3 guard: `-de X -do X` would read the design,
+    // DELETE it as the pre-existing output (Java parity, route.rs's
+    // load-success pre-delete), and overwrite it with the SES — a
+    // destructive surprise, rejected as a usage error BEFORE any file
+    // I/O (read-only canonicalize probes aside).
+    if parsed.batch_mode()
+        && let (Some(dsn), Some(ses)) = (&parsed.dsn, &parsed.ses)
+        && same_output_target(dsn, ses)
+    {
+        return Err(format!(
+            "-de and -do resolve to the same file ('{dsn}' == '{ses}'); the design would \
+             be deleted as the pre-existing output and overwritten by the session — \
+             give -do a different path"
+        ));
+    }
+
     Ok(parsed)
+}
+
+/// The readiness-fix m3 face: do the two path arguments name the SAME
+/// file? Canonicalized comparison when both paths exist (symlinks and
+/// relative/absolute spellings resolve); otherwise a lexical
+/// normalization of the absolutized forms (`.`/`..` folded, joined to
+/// the cwd).
+///
+/// RESIDUAL LIMITATION (documented per charter): when at least one
+/// path does not exist, textual aliases (a symlink pointing at a
+/// not-yet-created file, a hardlink, a case-insensitive mount) are NOT
+/// resolved — the lexical comparison can then false-negative (miss a
+/// sameness the filesystem would see). False positives are impossible
+/// in that branch: the lexical forms differ only if the spellings do.
+fn same_output_target(dsn: &str, ses: &str) -> bool {
+    let (dsn_path, ses_path) = (std::path::Path::new(dsn), std::path::Path::new(ses));
+    if let (Ok(dsn_canonical), Ok(ses_canonical)) = (
+        std::fs::canonicalize(dsn_path),
+        std::fs::canonicalize(ses_path),
+    ) {
+        return dsn_canonical == ses_canonical;
+    }
+    fn lexical_absolute(path: &std::path::Path) -> std::path::PathBuf {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let joined = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            cwd.join(path)
+        };
+        let mut normalized = std::path::PathBuf::new();
+        for component in joined.components() {
+            match component {
+                std::path::Component::CurDir => {}
+                std::path::Component::ParentDir => {
+                    normalized.pop();
+                }
+                other => normalized.push(other),
+            }
+        }
+        normalized
+    }
+    lexical_absolute(dsn_path) == lexical_absolute(ses_path)
 }
 
 /// The `-flag value` value rule (`CliSettings.java:75`): the next arg
@@ -1618,6 +1677,24 @@ pub fn apply_board_specific_optimizations(
     let horizontal_width = f64::from(bounds.width());
     let vertical_width = f64::from(bounds.height());
 
+    // The readiness-fix M6 warning face: a degenerate axis (a
+    // collinear outline is valid DSN) makes the aspect ratio below
+    // 0-or-inf; with the totality fix above the COSTS now stay finite,
+    // but the user should know the geometry pass degraded — name the
+    // axis, warn-and-continue (one stderr row, never the manifest).
+    if bounds.width() == 0 {
+        eprintln!(
+            "Warning: board bounding box has zero WIDTH; the aspect-ratio trace-cost \
+             pass degrades on this geometry"
+        );
+    }
+    if bounds.height() == 0 {
+        eprintln!(
+            "Warning: board bounding box has zero HEIGHT; the aspect-ratio trace-cost \
+             pass degrades on this geometry"
+        );
+    }
+
     // Additional costs against the preferred direction, one digit behind
     // the decimal point (`:117-121`; Java Math.round(double) =
     // floor(x + 0.5)).
@@ -1692,9 +1769,21 @@ pub fn apply_board_specific_optimizations(
     settings.undesired_trace_costs = undesired_costs;
 }
 
-/// Java `Math.round(double)`: `floor(x + 0.5)`.
+/// Java `Math.round(double)` made TOTAL — delegated to the exact
+/// JDK-6430675 implementation ([`epic_geometry::java_round`], the
+/// bug-024 single source). The non-finite face is exactly the charter's
+/// literals: NaN → 0.0, +inf → `Long.MAX_VALUE` as f64 =
+/// 9.223372036854776e18, -inf → `Long.MIN_VALUE` as f64 =
+/// -9.223372036854776e18. The readiness-fix M6 face: the
+/// degenerate-aspect path previously fed NaN/inf into the per-layer
+/// trace-cost arrays (the audit's collinear-outline board — weird but
+/// valid DSN); the old local `floor(x + 0.5)` body also carried the
+/// bug-024 one-ulp-below-a-half artifact, gone with the delegation.
 fn java_math_round(value: f64) -> f64 {
-    (value + 0.5).floor()
+    // Java's caller converts the `long` result back to double for the
+    // `0.1 *` multiply — the `as f64` IS that conversion, so the
+    // arithmetic face is Java-faithful, not just total.
+    epic_geometry::rounding::java_round(value) as f64
 }
 
 // ---------------------------------------------------------------------------
@@ -2655,6 +2744,23 @@ mod tests {
         assert_eq!(parsed.layer.autorouter_enabled, None);
     }
 
+    /// Readiness-fix M6: `java_math_round` is TOTAL with Java's exact
+    /// non-finite semantics (the charter literals), and its finite face
+    /// now rides the bug-024 single source (the JDK-6430675 one-ulp case
+    /// included).
+    #[test]
+    fn java_math_round_is_total_java_math_round() {
+        assert_eq!(java_math_round(f64::NAN), 0.0);
+        assert_eq!(java_math_round(f64::INFINITY), 9.223372036854776e18);
+        assert_eq!(java_math_round(f64::NEG_INFINITY), -9.223372036854776e18);
+        // The finite face: ties toward +infinity (and the bug-024
+        // one-ulp witness, now single-sourced through
+        // epic_geometry::java_round).
+        assert_eq!(java_math_round(2.5), 3.0);
+        assert_eq!(java_math_round(-2.5), -2.0);
+        assert_eq!(java_math_round(0.49999999999999994), 0.0);
+    }
+
     /// The narrowed `-de`/`-do`: a second file is a hard error, a `+`
     /// concatenation is a hard error, a missing value is a hard error.
     #[test]
@@ -2676,6 +2782,32 @@ mod tests {
             "second -do rejected"
         );
         assert!(parse_route_args(&args(&["-de", "a.dsn", "-do", ""])).is_err());
+        assert!(
+            parse_route_args(&args(&["-de", "path.dsn", "-do", "path.dsn"])).is_err(),
+            "readiness-fix m3: -de and -do resolving to the same EXISTING file rejected \
+             (canonicalized equal)"
+        );
+        assert!(
+            parse_route_args(&args(&["-de", "same.dsn", "-do", "./same.dsn"])).is_err(),
+            "readiness-fix m3: the same not-yet-existing file via differing relative \
+             spellings rejected (lexical-normalization face)"
+        );
+        assert!(
+            parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses"])).is_ok(),
+            "readiness-fix m3: distinct files stay accepted (the guard must not false-\
+             positive on the normal face)"
+        );
+    }
+
+    /// Readiness-fix m3: the same-path guard's lexical face folds `.`/`..`
+    /// and joins the cwd for not-yet-existing paths, so `./x.dsn` and a
+    /// parent-spelled sibling name as DIFFERENT files, while `..`-spelled
+    /// aliases of one path compare EQUAL.
+    #[test]
+    fn same_output_target_lexical_normalization() {
+        assert!(same_output_target("a.dsn", "./a.dsn"));
+        assert!(same_output_target("a.dsn", "sub/../a.dsn"));
+        assert!(!same_output_target("a.dsn", "b.ses"));
     }
 
     /// `canonical_cli_path` (`LegacyRouterSettingsBridge:24-39`): the
