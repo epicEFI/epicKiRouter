@@ -1033,6 +1033,224 @@ pattern; the deviations/carry table and the criterion verdicts above
 were its inputs; the adjudicator's E-ADJ-1/E-ADJ-2 precision errata are
 applied in this commit — its body is the record).
 
+M10 exit note (T7, 2026-10-01, at tree `36bcc7cd2` — the prior commit;
+the close-out commit is its child — the deviation-3 lesson: the note
+names the prior commit, the T8 fill names its own parent).
+**VERDICT: <per milestone adjudication>** — the slot is OPEN; the
+terminal adjudication (T8, the M4-T17d/M5/M6/M7/M8/M9 pattern) fills it
+at the M10-final tree.
+
+Criterion verdicts — each **OPEN** here; the terminal adjudication
+judges THESE (the plan's concrete criteria) against the cited evidence
+chains:
+
+1. **The stop-flag wiring landed and proven — OPEN.** Landed at T1
+   (`01b6b2f93`): `run_optimization_stage` gains `parent_stop:
+   &StopFace` and builds its stage face OVER the parent's shared flag
+   (buglog 224 → `status: fixed`); the fix round `21f24b982` corrected
+   the poll-site citations and documented the outbound direction
+   (AMENDMENT 1). The deterministic mid-optimization cancel pin exists
+   in both hosts (epic-router wiring pin; epic-engine end-to-end pin,
+   DNR-16 both directions at T2's fix round — two mutants dying at two
+   different assertion sites, AM2). CLI byte-invariance holds
+   STRUCTURALLY (the CLI production stop face is flagless by
+   construction — a `None` flag can never be raised) and was re-proven
+   MEASURED at T1 and T3: all 17 battery session shas byte-identical
+   across both laps, 15 comparable rows `byte_equal TRUE`, bm01/bm10
+   watchdog-honored rows whose session shas match their T1 records (a
+   literal bm10 session-vs-CLI compare cannot read TRUE post-T1 by
+   construction — see the carry-table preamble). The seven compares +
+   canaries green at every lap (T1/T3/T4/T5/T6).
+2. **The Q7 hoist landed and the Q6 decision recorded — OPEN.** T2
+   (`a0b49a726`): one `final_state_for` beside `StopReason` in
+   `epic-router` (body byte-verbatim from both deleted copies), both
+   hosts consume; the epic-engine-cannot-depend-on-epic-cli constraint
+   resolved. The Q6 product decision: the probe measured a SILENT
+   `Ok` re-route; the landed face is `RouteError::AlreadyRouted {
+   final_state }`, the guard firing before any merge/pipeline work
+   (fix round `21285ae8e` adds the second-route CANCELLED pin killing
+   both review survivors, AM2). The AM2 decision text is what the
+   migration guide carries.
+3. **The deviations table dispositioned at the M10 moment — OPEN.** T3
+   (zero commits, tree `e47ce50f7`; AMENDMENT 3 banked at
+   `f9e9ef6e9`): every one of the 13 carried rows re-faced against
+   fresh battery/walk runs and dispositioned — CLOSED (row 13, Q6) or
+   re-owned post-2.0 with a named owner + exit condition; the parity
+   floors re-recorded HOLDING EXACT (multichannel_mixer 160 = 160;
+   mm-unrouted 128 = 128, cv 285 = 285). The table below is the
+   verbatim record.
+4. **The Java oracle sunsetted — OPEN.** T4's five-commit chain
+   (`9c967a937` the enumeration — 3,359 files, −319,384 lines —
+   `ed07e2cfc` CI/scripts/docs, `8da5a20fe` the find_repo_root repair,
+   `cfa8a1bef` + `97e587e0c` the pre-commit greens; never rewritten;
+   AMENDMENT 4 at `02f55313f`). `rust-check.yml` green on the
+   Java-free tree, UNTOUCHED itself (ci_tripwire pins hold). The
+   count-errata chain, quoted: java keepers = **47 `.java` files**
+   (erratum 1), reconciled by erratum 4 as **49 total files** in
+   `rust/harness/oracle/` (47 `.java` + `t2agent/README.md` +
+   `manifest.txt`); the live-reference grep = **33 lines**, all
+   banner/addendum/struck-through governed, zero LIVE refs (erratum 3
+   supersedes erratum 2's "21"); codespell ignore-list = **43
+   entries**. The parity record's preservation stated in the sunset
+   commit body: git history + the grafted `origin/master` at
+   `e7f9bdf1` + the committed goldens.
+5. **2.0 released — OPEN.** T5's four-commit chain (`af1b1471b` the
+   version-blind digest + the sanctioned 7-golden re-capture +
+   the canary handoff; `b7d90011f` Cargo 2.0.0 + `--version` +
+   `package-linux.sh` + the reworked `create-release.yml` + the
+   artifact smoke; `8d5e3a4c9` the AM4 intakes; `50a43bce0` fix round
+   1; AMENDMENT 5 at `a3b9bc91f`): workspace version 2.0.0, the
+   `--version` face, the CI-built Linux x86_64 tarball
+   `epicrouter-2.0.0-x86_64-unknown-linux-gnu.tar.gz`, sha256
+   `0d055d42fe00ab1f79e93d46beadd7b8b041fd2a4cac48e31983f43217ebe844`,
+   smoke-tested from the unpacked artifact. T6 (`bb976d8a7` + fix
+   `39c64b732`; AMENDMENT 6 at `f61b5af06`): the migration guide
+   (`docs/migration-guide.md`, ships IN the tarball), the README/
+   architecture faces. The C2 KiCad decision recorded: 2.0 ships
+   CLI + GUI, no jar/plugin face — the DSN/SES interchange IS the
+   integration.
+6. **Zero regressions to the last — OPEN.** Census additions only:
+   1682 → 1690 (the ledger chain below). Canaries: ses
+   `dc271114627632d6a959891559d2ee837c180142c06fb36fde20f441f0f91deb`
+   IMMOVABLE at every lap; the manifest canary moved ONCE, by
+   SANCTIONED rotation (T5 A′, the Option-B adjudication — the raw
+   `cf607714…` retired, the version-blind successor `c6644a91…`
+   reproduced exactly at 2.0.0 and at every later tree). Nothing
+   pushed. The committed artifacts untouched except the sanctioned
+   delta faces (the T5 7-golden `manifest_sha256` re-capture; the
+   T4-era NEW-golden captures all preceded M10). The goldens-
+   integrity probe over ALL of M10's span (`74f17bd9e..36bcc7cd2`)
+   reads EMPTY except the sanctioned A′ face (see the close-out
+   verification faces below).
+
+Deviations/carry table — T3's dispositionment, the cells VERBATIM (the
+verbatim-cell law; full digests where the record carries them; the
+post-2.0 ownership in the disposition cells, intact). Preamble, per
+the banked intakes: the battery behind these rows is **15 comparable
+rows `byte_equal TRUE` + bm01/bm10 watchdog-honored CLI_KILLED rows
+whose session shas match their T1 records** — NOT a "17/17" headline
+(a literal bm10 session-vs-CLI compare cannot read TRUE post-T1 by
+construction: the flagless CLI at natural wall produces the
+pre-wiring board `9063a828…`; a natural-wall re-run has witness value
+only as a policy-divergence record). The load-bearing session-sha
+literals, carried FULL because git-ignored `logs/` is not a
+comparability carrier post-sunset: bm01
+`5c34ef4c4c51f4144d1aeb092e51c63bc5a707841a32f4a5cdc4c9a8270ffc9a`,
+bm10
+`66803c464baf628c2a93878a6b4c18ff04a3a0c69951e6f9fdd3cc3229d40955`.
+**The committed goldens (`rust/harness/baselines|corpus`, the
+events-golden, `config/tiers.yaml`) are the post-sunset comparability
+carrier** — every T3 face is golden- or Rust-internal, no live-Java
+dependency, so the T4 sunset made nothing incomparable. In the rows,
+**ot=4 is the opt-in optimizer-threads=4 wall lever** (design `:800`,
+the deterministic candidate-parallelism face). The two budget-stop
+rows carry erratum 2's scoping: bm01's wall-clock stop is
+**convergence-backed** (its 1800 s board is byte-identical to its
+3465 s natural-wall board — structurally byte-stable); bm10's is
+**load-positioned** (its 900 s board differs from its 1446 s natural
+board — byte-reproducible at the budget face EMPIRICALLY, observed at
+T1 and T3 under comparable load, no structural guarantee). The M9
+14-row intake loses two rows before this table — bm04's threads-gate
+row CLOSED at M9-T6 (`e7508f974`+`94e17f873`); the stop-flag WIRING
+row CLOSED at T1 (`01b6b2f93` + fix `21f24b982`, buglog 224 fixed).
+
+| # | row | fresh face | disposition |
+|---|---|---|---|
+| 1 | **teardrop instrument-vs-consumer (DECISION)** | M10 landed zero geometry (T1 wiring, T2 API guard); all 17 battery shas = T1 → zero aesthetics movement; no M10 aesthetics criterion | **DECISION: the instrument letter is KEPT; the tension stands documented.** The four-metric instrument is an M8-vintage measurement instrument, not a 2.0 product face; changing it now is the re-baseline the M8 criterion forbids and M10 has no criterion to serve. Any instrument change (teardrop-aware term / explicit exclusion) is a POST-2.0 aesthetics-milestone act, chartered BEFORE any metric-facing pass. Owner: post-2.0 aesthetics milestone; exit condition: that instrument decision before any metric-facing pass. (ev 30/31/32; design `:680`) |
+| 2 | **flow engagement (DECISION)** | flow pass remains an exact no-op on every fresh face — walk rows `introduced 0/<0> passes 18/<18>` throughout | **DECISION: documented decline for 2.0.** No aesthetics criterion exists to engage flow for; the pass ships available-but-unengaged; the migration guide states the default pipeline does not engage it. Owner: post-2.0 aesthetics milestone; exit condition: recalibration or pre-flow normalizer making flow engage without regressions, or the decline made permanent in product docs. (ev 22/23) |
+| 3 | **via_density lever (DECISION)** | no M10 routing-stage work; via faces byte-stable; corrected band **1.5752** (F-ADJ-1) is the record — DNR-19 re-derivation: 2.4752 matches no recorded face, bend's 2.6488 matches its own gap proving the gap-of-means law; gap stands 1.7738 > 1.5752 | **DECISION: carried post-2.0; M10 does not open the lever** (engine work under an aesthetics criterion M10 lacks). Owner: post-2.0 aesthetics/routing milestone; exit condition: a chartered lever targeting the via_density gap, measured under the corrected 1.5752 band. (design `:680`, `:848`) |
+| 4 | F3 trigger re-check | **probe run: ZERO commits touched `rust/harness/corpus|fixtures|baselines` in 379ee6c47..e47ce50f7** (empty log + empty diff; the M10 span is plan + T1 wiring/pins + T2 hoist/guard + wolf/docs only) | **CARRIED (armed, corpora-gated)** — no new geometry-corpus face in M10; the next corpus-touching milestone act must re-check. Owner: M10+ first corpus act. (ev 40) |
+| 5 | StickHub/CM5 pour battery | **RUN** (the M6-T6 advisory `islands` face, seconds/board): StickHub pours=5 islands=0; CM5 pours=18 islands=1 (+5V layer=3 island, bbox (783043,−811000)−(1329000,−239000)); both rc=0; CM5's completion face re-confirmed green in the walk (6=6, cv 29=29 @754.2 s) | **SHARPENED, not closed — carried post-2.0.** First measured pour faces = INPUT-pour population + island detection (advisory); the ROUTING-side pour face (`contains_plane`, Issue 093/152 plane-routing clearance risk) remains UNMEASURED — no argv measures it. Owner: post-2.0 first routing-side pour battery; exit condition: measured post-route pour faces. (ev 41; ev 23) |
+| 6 | **bm01 adoption + P2 skew (DECISION)** | battery session side COMPLETED at 1800.493 s, **watchdog HONORED (the T1 wiring), bytes IDENTICAL** (`5c34ef4c…`) to the M9-T7 natural-wall completion (3464.982 s) — the lost 1664 s of post-watchdog passes were provably no-ops; router-only gate face 11/0 | **DECISION: DECLINE ot=4 adoption (stays opt-in, non-load-bearing); ADOPT the watchdog-honored budget face as bm01's 2.0 posture.** Post-T1 the session path stops AT budget on the identical final board, so the natural-wall overrun face no longer exists on the product path; the CLI path stays flagless by design (its in-slice face is the honest kill). The wall motivation for ot=4 evaporates on the session path; the router-only CI face never engaged it. **P2 skew: untouched, carried post-2.0** (owner: post-2.0 partition act; exit: skew measured and dispositioned). (ev 30, ev 17) |
+| 7 | bm05 29>18 | RE-FACED EXACT: RED 29>18 @289.3 s (M9-T7 256.1; M8 282.3); localizer NOTE bounded 1800 s | CARRIED post-2.0 (engine capability, congestion family). Exit: red cleared or an owned lever. (ev 22) |
+| 8 | **bm10 budget-policy (DECISION)** | battery session side COMPLETED at 900.914 s, watchdog honored, sha `66803c46…` = T1's (reproduced twice now); CLI killed in-slice @900.176; walk kill @900.1 unchanged | **DECISION: the tier budget IS the binding policy — keep it; timeouts never raised.** Post-T1 the session path honors the 900 s budget; the walk red is a budget-kill record face, not an engine defect; M9-T7's natural-wall completion (1446 s) proved the engine completes unbounded, so "budget vs natural wall" is answered IN FAVOR OF THE BUDGET for 2.0 (bounded, deterministic, byte-reproducible at the budget face). A wall lever (beating rather than honoring the budget) is owned post-2.0. Exit: bm10 under 900 s, or this decision quoted as bm10's product face. (ev 32, ev 22) |
+| 9 | interf_u 1>0 | RE-FACED EXACT: RED 1>0 @71.8 s; battery row incomplete 1, sha = T1 | CARRIED post-2.0 (must not silently freeze at 1). Exit: 0 incompletes or re-owned. (ev 22, 32) |
+| 10 | multichannel parity floors | **RE-RECORDED:** multichannel_mixer **160=160** @108.0 s; mm-unrouted **128=128, cv 285=285** @167.3 s — HOLDING EXACT, no drift | Floors re-recorded (this table is the record). Re-record each milestone. (ev 22) |
+| 11 | StickHub/LimeSDR kills | RE-FACED EXACT: both kill @900.1 s (B and C walks); StickHub's pour face now additionally measured (row 5) | CARRIED post-2.0. Exit: kills cleared or wall-attributed (row 8's budget-face decision is the attribution precedent). (ev 22, 23) |
+| 12 | 1Bitsy 2>1 | RE-FACED EXACT: RED 2>1 @271.1 s; battery row incomplete 2, sha = T1 | CARRIED post-2.0. Exit: completion parity (1≤1). (ev 22, 32) |
+| 13 | Q6 product decision | decided + landed at T2: `RouteError::AlreadyRouted { final_state }`, guard fires before any merge/pipeline work | **CLOSED**: code `a0b49a726`, fix `21285ae8e`, AMENDMENT 2 banked (incl. the T6 migration-guide intake). Live corroboration this cycle: the pre-T2 M9-T7 runner no longer compiles against the current `Session::route` signature — the Result face is now the API surface (ev 00; session.rs `:332-343`) |
+
+M10's arc, honestly stated (the milestone's real shape, not a
+sanitized one; every beat from AMENDMENTS 1–6 and the task reports):
+
+(a) **The milestone's one engine-code change was preceded by a
+charter-time falsified premise.** The plan's recon said `StopFace`
+"has NO public flag accessor" — stale (it landed at M3 `507eacc76`).
+The T1 implementer probed, refused the duplicate, and filed the
+erratum; the law since: charter-time symbol-absence claims get a
+`git log -S` probe.
+
+(b) **The honest cancel face.** The T1 wiring makes external raises
+visible mid-optimization, but the session's final state on a
+mid-optimization cancel is **COMPLETED**, not CANCELLED (the cancel
+lands after routing returned `Ok(true)`; Java propagates no stop
+state) — the state-name question is a PRODUCT decision deferred to
+the exit note and migration guide (T6 carried the two-case face).
+
+(c) **The T5 BLOCKED → Option-B adjudication.** The 2.0.0 version
+bump necessarily rotates the raw-bytes manifest canary; the T5
+implementer went BLOCKED at probe stage, the coordinator widened the
+exposure (2 census pins + 7 committed goldens + the latent
+`FREEROUTING_GIT_SHA`), and Option B was chosen over re-rotation:
+normalize `app_version`/`git_sha` out of the sha256 at BOTH digest
+call sites — the manifest artifact keeps its true version,
+`route.rs` behavior untouched, and the digest is bump-neutral at
+every future bump by construction. The ONE sanctioned canary
+rotation of the milestone; the raw `cf607714…` retired, the
+version-blind successor `c6644a91…` reproduced exactly at 2.0.0 and
+every later tree.
+
+(d) **The reboot-interrupted census, kept as a witness.** T5's census
+run was killed mid-run by a machine reboot (AM5 lesson 16: a warm
+SendMessage-resume across a reboot preserves the evidence chain —
+DNR-17's nothing-survives-a-reboot applies to bins, not
+transcripts); the killed run is kept as a witness, re-run declared
+and green after the resume.
+
+(e) **The count-errata discipline.** T4's java-keeper count went
+16 → 21 → 33 on one grep (errata chain, AM4 lesson 9: a count
+correction is a count — re-derive the full enumeration before
+publishing an erratum), and the 47-vs-49 reconciliation (erratum 4)
+closed it: 47 `.java` + `t2agent/README.md` + `manifest.txt` = 49
+files, no fabrication.
+
+(f) **The false-green pre-commit lesson, twice witnessed.** T5's
+"pre-commit 13/13 green" was 11 MEASURED (`stages: [manual]` hooks
+are silently omitted from `--all-files`; AM5 erratum 2 / lesson 11's
+recurrence — the configured count is not evidence); T6's round-1
+pre-commit ran BEFORE the new guide was staged and was therefore a
+false green over an untracked file (AM6 lesson 18: `pre-commit
+--all-files` judges `git ls-files` — unjudged ≠ passed; run it AFTER
+staging). This close-out runs its pre-commit AFTER staging (lesson
+18) and reports the MEASURED hook count (lesson 11).
+
+(g) **The stale-bin lesson hardened twice.** T5's fix round committed
+15 unformatted `router_compare.rs` lines (its fmt gate ran BEFORE the
+ripple edit; T6 repaired formatting-only, red round kept — erratum
+3, lesson 17: gates judge the COMMIT); and the DNR-17 stale-bin
+guard's own bail message named a remedy that cannot always clear the
+flag (a workspace-wide newest-source scan + no-op builds don't
+refresh mtime) — reworded THIS commit to the forced-relink remedy
+(lesson 19; the reword rides this close-out).
+
+(h) **The contained T4 incident.** The mixed-line-ending hook
+CRLF-normalized 23 committed golden files in the WORKING TREE during
+pre-commit rounds — never staged (explicit-path staging held),
+restored byte-exact, hardened structurally at `97e587e0c` (the
+top-level exclude).
+
+The census ledger: 1682 (M9) → 1685 (T1, +3) → 1686 (T2, +1) → 1686
+(T3, +0 — the measurement task adds no pins) → 1686 (T4, +0) → 1687
+(T5 A′, +1 `manifest_digest_is_version_blind_and_content_sensitive`)
+→ 1688 (T5 B′, +1 `version_flag_prints_epicrouter_2_0_0_and_exits_zero`)
+→ 1688 (T5 C′, +0) → 1689 (T5 fix round, +1
+`manifest_digest_bails_on_marker_absent_bytes`) → 1690 (T6, +1
+`version_line_equals_the_package_version_face`) → the close-out
+declares 1690 + 0 = 1690/0/19 expected (the two riding intakes add
+no pins: a bail-message reword + a doc footnote), measured at this
+close-out. The verdict slot stays OPEN pending the terminal
+adjudication (T8).
+
 Sequencing rationale: speed (M5) lands before intelligence (M6–M8) so new stages are built on the settled parallel/arena architecture. The Java tree remains runnable throughout. Upstream `master` stays fetchable for DSN parser behavioral updates.
 
 ## 7. GUI

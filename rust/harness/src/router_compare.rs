@@ -731,7 +731,12 @@ pub fn assert_epic_cli_fresh(repo_root: &Path, cli_bin: &Path) -> Result<()> {
          The gate would spawn OLD engine code and can stay GREEN on stale bytes (buglog-184; \
          the profile-sibling face was witnessed live 2026-09-22 — a fresh release build plus \
          a stale debug sibling reproduced the dormant digest with exit 0).\n  \
-         Rebuild BOTH profiles before judging any digest:\n    \
+         The staleness scan is WORKSPACE-WIDE: an edit in ANY crate stale-flags this bin\n  \
+         even when epic-cli's own sources are untouched, and a plain `cargo build -p\n  \
+         epic-cli` may NOT clear the flag — an up-to-date target can skip the relink,\n  \
+         leaving the bin's mtime old (M10 AM6 lesson 19).\n  \
+         FORCE the relink, then rebuild BOTH profiles before judging any digest:\n    \
+         cargo clean -p epic-cli        # the witnessed TRUE relink (buglog 220)\n    \
          cargo build -p epic-cli\n    \
          cargo build -p epic-cli --release\n  \
          (from rust/; or point EPIC_CLI at a freshly built bin)",

@@ -304,6 +304,9 @@ history preserved in git history and the grafted `origin/master` at
 `e7f9bdf1`) and the Rust workspace became the product, released as
 **v2.0.0** with the Linux release artifact and the
 [migration guide](migration-guide.md) (Freerouting → EpicRouter 2.0).
+The milestone executed through T6 and is **CLOSED pending the terminal
+adjudication (T8)** — the verdict slot is OPEN in design §6's M10 exit
+note, to be filled by the terminal milestone adjudication.
 Crates enter this map as their milestones complete
 (M0–M4 done — M4 exited M4_EXIT_WITH_DEVIATIONS; M5 executed on top:
 arena/SoA allocation slices + deterministic per-net parallelism, closed
