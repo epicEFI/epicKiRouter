@@ -4,7 +4,7 @@
 # preserved).
 # This configuration defines hooks that run automatically on git commit
 # to ensure code quality and consistency.
-exclude: ^(docs/(issues|reference)/|.*fixtures/|examples/|.*/results/|\.DS_Store$|.*\.run/|.*\.(hs|dsn|ses|TAG|http|gradle)$|.*/OFFSETS$)
+exclude: ^(docs/(issues|reference)/|.*fixtures/|rust/harness/corpus/|rust/harness/baselines/|examples/|.*/results/|\.DS_Store$|.*\.run/|.*\.(hs|dsn|ses|TAG|http|gradle)$|.*/OFFSETS$)
 repos:
   # Markdown formatting
   - repo: https://github.com/executablebooks/mdformat
