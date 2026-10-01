@@ -17,18 +17,19 @@ on:
       - 'v*'
   workflow_dispatch: # allows a manual run (the retired workflow's face)
 
-permissions:
-  contents: write
-
 env:
-  # The release tag comes from the push event, never from any
-  # user-authored content — passed to the upload step via env, not
-  # inline interpolation in a run: block.
+  # Tag-safe by construction (Q5): the upload step is gated on tag
+  # events (`if: startsWith(github.ref, 'refs/tags/')`), so this value
+  # is a real tag at upload time — never a branch name from a
+  # workflow_dispatch run (which would target a nonexistent release).
+  # Env indirection, not inline interpolation in a run: block.
   RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
   build-linux-x64:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 30
     defaults:
       run:
@@ -59,6 +60,7 @@ jobs:
           sha256sum "${NAME}.tar.gz"
           echo "ARTIFACT_NAME=${NAME}" >> "$GITHUB_ENV"
       - name: Upload the release assets
+        if: startsWith(github.ref, 'refs/tags/')
         uses: AButler/upload-release-assets@v3.0
         with:
           files: '${{ env.ARTIFACT_NAME }}.tar.gz;${{ env.ARTIFACT_NAME }}.tar.gz.sha256'

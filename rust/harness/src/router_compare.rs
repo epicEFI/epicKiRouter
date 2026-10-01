@@ -1866,9 +1866,15 @@ fn threads_invariance_cmd(
                 .ok()
                 .and_then(|_| sha256_file(&run.ses_path).ok());
             let manifest_path = run_dir.join(RUN_MANIFEST_FILE);
+            // The version-blind face (the fix-round Q3 — the one
+            // manifest-digest site the A' handoff missed): a release
+            // bump can never rotate a threads-invariance digest either.
+            // Intra-build the verdict was already version-invariant
+            // (the same binary across -mt 1/3/4); this closes the last
+            // raw manifest-hash site.
             let manifest_digest = std::fs::File::open(&manifest_path)
                 .ok()
-                .and_then(|_| sha256_file(&manifest_path).ok());
+                .and_then(|_| normalized_manifest_sha256(&manifest_path).ok());
             println!(
                 "  -mt {threads}: exit {:?} wall {:.1}s ses {:?}",
                 run.exit_code,
@@ -3458,9 +3464,9 @@ mod pins {
         std::fs::create_dir_all(dir.join("run2")).expect("run2 dir");
         // Planted-different bytes: run1 and run2 wrote DIFFERENT output.
         std::fs::write(dir.join("run1/out.ses"), b"session one").expect("ses1");
-        std::fs::write(dir.join("run1/manifest.json"), b"{\"m\":1}").expect("man1");
+        std::fs::write(dir.join("run1/manifest.json"), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}").expect("man1");
         std::fs::write(dir.join("run2/out.ses"), b"session two").expect("ses2");
-        std::fs::write(dir.join("run2/manifest.json"), b"{\"m\":2}").expect("man2");
+        std::fs::write(dir.join("run2/manifest.json"), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":2}").expect("man2");
         let pair = DeterminismPair {
             run1: DeterminismArtifacts {
                 ses: dir.join("run1/out.ses"),
@@ -3493,7 +3499,7 @@ mod pins {
 
         // Planted-equal bytes: identical output in both runs is the OK face.
         std::fs::write(dir.join("run2/out.ses"), b"session one").expect("ses2 equal");
-        std::fs::write(dir.join("run2/manifest.json"), b"{\"m\":1}").expect("man2 equal");
+        std::fs::write(dir.join("run2/manifest.json"), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}").expect("man2 equal");
         let (ses_1, ses_2, man_1, man_2) = determinism_digests(&pair).expect("digests equal");
         assert_eq!(ses_1, ses_2, "equal bytes must hash equal");
         assert_eq!(man_1, man_2);
@@ -3526,9 +3532,9 @@ mod pins {
         // Different bytes per run: a pair that aliases run2 onto run1
         // cannot produce different digests.
         std::fs::write(dir.join("run1").join(RUN_SES_FILE), b"session one").expect("ses1");
-        std::fs::write(dir.join("run1").join(RUN_MANIFEST_FILE), b"{\"m\":1}").expect("man1");
+        std::fs::write(dir.join("run1").join(RUN_MANIFEST_FILE), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":1}").expect("man1");
         std::fs::write(dir.join("run2").join(RUN_SES_FILE), b"session two").expect("ses2");
-        std::fs::write(dir.join("run2").join(RUN_MANIFEST_FILE), b"{\"m\":2}").expect("man2");
+        std::fs::write(dir.join("run2").join(RUN_MANIFEST_FILE), b"{\"app_version\":\"0\",\"git_sha\":\"x\",\"m\":2}").expect("man2");
 
         let pair = pair_from_runs(&dir.join("run1"), &dir.join("run2"));
         // Structural faces: each run's artifacts live in ITS OWN dir,

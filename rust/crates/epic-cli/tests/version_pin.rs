@@ -24,8 +24,19 @@ fn version_flag_prints_epicrouter_2_0_0_and_exits_zero() {
         output.status.code()
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // EQUALITY against the derived form (the fix-round Q2): the test
+    // crate sits in the epic-cli package, so it inherits the same
+    // workspace version a hardcoded arm in main.rs would drift from —
+    // such a mutant goes red here at the next bump (the `contains`
+    // literal alone survived it, witnessed at review evidence/61).
+    // The 2.0.0 literal stays as the checkpoint assert beneath it.
+    assert_eq!(
+        stdout.trim(),
+        format!("epicrouter {}", env!("CARGO_PKG_VERSION")),
+        "--version must print exactly the package version face"
+    );
     assert!(
         stdout.contains("epicrouter 2.0.0"),
-        "stdout must carry `epicrouter 2.0.0`: {stdout}"
+        "the 2.0.0 checkpoint: stdout must carry `epicrouter 2.0.0`: {stdout}"
     );
 }

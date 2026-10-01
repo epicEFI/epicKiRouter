@@ -46,7 +46,9 @@ version-blind since M10-T5: `app_version`/`git_sha` are normalized out
 of the digest face, the raw-bytes `cf607714…` retired there), and the
 in-tree
 threads-invariance gate is green (bm06 SES `77caf2099a2f…` / manifest
-`90f08ad2…` byte-identical across `-mt 1/3/4`). The CI router gate
+`dbf7a6f9…` byte-identical across `-mt 1/3/4` — the manifest digest is
+version-blind since M10-T5; the raw `90f08ad2…` literal is no longer
+reproducible at 2.0.0). The CI router gate
 FLIPPED at M8-T8 (2026-09-29, tree `9fe3a0751`): the exact post-flip
 CI face (router-only profile, mode: gate) reads 11 green / 0 red at
 Σ 286.5 s — 5.3–6.3× headroom under the compare step's 30-min budget

@@ -66,8 +66,11 @@ pub fn sha256_file(path: &Path) -> Result<String> {
 /// keeps its true values (`route.rs` is untouched); only this digest
 /// face is scoped. The replace is byte-level and surgical: the CLI
 /// manifest is single-line canonical JSON, each field appears exactly
-/// once, and a version/sha string cannot contain a quote — the value
-/// runs from the marker's opening quote to the next `"` byte.
+/// once. The scan stops at the next `"` byte — exact for today's
+/// values (semver app_version; hex or `"unknown"` git_sha), and for a
+/// hypothetical `FREEROUTING_GIT_SHA` containing an escaped quote the
+/// value splices SHORT: the digest changes (loud, pinned), it cannot
+/// crash — an honest residual, not a claim that a quote is impossible.
 ///
 /// Both digest faces route through this helper: the determinism pair
 /// face (`router_compare::determinism_digests`) and the global-golden
@@ -80,14 +83,18 @@ pub fn normalized_manifest_sha256(path: &Path) -> Result<String> {
 }
 
 /// Replaces the `"app_version":"<any>"` / `"git_sha":"<any>"` values
-/// with `"-"`. An absent field is left alone (a manifest without it
-/// needs no scoping; a digest over it is already version-blind).
+/// with `"-"`. BOTH fields are unconditional in the CLI's renderer
+/// (`route.rs` writes them on every manifest), so a manifest missing
+/// either is MALFORMED input for this face and bails loudly — the
+/// strict-reader philosophy this module states at its top; a silent
+/// raw passthrough would quietly re-arm the version-rotation face the
+/// handoff closed.
 fn normalize_manifest_bytes(bytes: &[u8]) -> Result<Vec<u8>> {
     let mut out = bytes.to_vec();
     for field in ["app_version", "git_sha"] {
         let marker = format!("\"{field}\":\"");
         let Some(start) = find_subslice(&out, marker.as_bytes()) else {
-            continue;
+            bail!("malformed manifest: missing canonical \"{field}\" field");
         };
         let value_start = start + marker.len();
         let Some(rel) = out[value_start..].iter().position(|&b| b == b'"') else {
@@ -567,6 +574,46 @@ mod tests {
         assert_ne!(
             d1, raw1,
             "the normalized digest of a version-bearing manifest must differ from its raw sha256"
+        );
+    }
+
+    /// The fix-round Q1 bail: the two canonical fields are unconditional
+    /// in the CLI renderer, so marker-ABSENT bytes are malformed input
+    /// for this face and must bail loudly — the silent raw passthrough
+    /// would quietly re-arm the version-rotation face the handoff
+    /// closed. Two absence shapes: the field omitted, and a
+    /// pretty-printed face where the space after the colon defeats the
+    /// no-space marker.
+    #[test]
+    fn manifest_digest_bails_on_marker_absent_bytes() {
+        let dir = std::env::temp_dir().join("epic-harness-baseline-test");
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        // (a) the field omitted entirely.
+        let no_field = dir.join("manifest-no-version.json");
+        std::fs::write(
+            &no_field,
+            r#"{"schema_version":1,"git_sha":"unknown","final_state":"COMPLETED"}"#,
+        )
+        .expect("write no-field");
+        let err = normalized_manifest_sha256(&no_field)
+            .expect_err("an app_version-less manifest must bail");
+        assert!(
+            err.to_string().contains("missing canonical"),
+            "the bail must name the missing canonical field: {err}"
+        );
+        // (b) pretty-printed: `"app_version": "2.0.0"` (space after the
+        // colon) — the canonical marker never matches.
+        let pretty = dir.join("manifest-pretty.json");
+        std::fs::write(
+            &pretty,
+            r#"{"schema_version":1,"app_version": "2.0.0","git_sha":"unknown","final_state":"COMPLETED"}"#,
+        )
+        .expect("write pretty");
+        let err = normalized_manifest_sha256(&pretty)
+            .expect_err("a pretty-printed app_version must bail (marker absent)");
+        assert!(
+            err.to_string().contains("missing canonical"),
+            "the bail must name the missing canonical field: {err}"
         );
     }
 }
