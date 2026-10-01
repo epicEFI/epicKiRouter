@@ -44,7 +44,7 @@ Test-task timeout budget is 30 minutes. Bound long routing tests with tier timeo
 - Never stage files automatically (no `git add -A`); keep formatting-only changes separate from functional ones.
 - Don't touch `core.autocrlf` to fix line endings; inspect `.gitattributes` and the diff instead.
 - Golden baselines in `rust/harness/baselines/`, the corpus dirs, `rust/harness/config/tiers.yaml`, and ALL goldens are committed artifacts — never modified; NEW goldens are NEW files via sanctioned capture only.
-- CI (rust-check.yml) runs fmt + clippy `-D warnings` + unit tests + the geometry corpus compare (java-free, committed goldens) on any commit touching `rust/`; keep clippy clean including `clippy::unwrap_used`.
+- GitHub CI (rust-check.yml) and the other workflow files are RETIRED for the standalone-repo era (2026-10-01; runs quiet "for now" — the 2-core runner also blew the corpus-compare's 30-min step budget at bm01=1770s; files recoverable in git history). The authoritative gate battery is LOCAL: fmt + clippy `-D warnings` + the census + the committed-golden compares via `logs/<campaign>/run_gates.sh`; keep clippy clean including `clippy::unwrap_used`.
 
 ## Architecture
 
