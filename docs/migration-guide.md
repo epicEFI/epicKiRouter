@@ -50,7 +50,8 @@ epic-cli route -de board.dsn -do out.ses
 ```
 
 The `-de`/`-do` trigger face is the same: passing both starts an immediate
-headless route (`CliSettings.java:100-107`'s implicit router-enable, ported
+headless route (`CliSettings.java:100-107` — git history, `e7f9bdf1` — its
+implicit router-enable, ported
 verbatim — `epic-engine/src/settings.rs`). One addition: `epic-cli` takes an
 explicit `route` subcommand, and `epic-cli --version` (new at 2.0) prints
 the version face and exits 0.
@@ -130,7 +131,8 @@ depends on where the route is:
   routing stage had already finished, so the SES export carries the full
   routed board with the remaining optimization passes cut short. This is
   the M10-T1 stop-flag wiring finding: Java's pipeline propagates no stop
-  state out of the optimizer (`RoutingPipeline.java:121-134` is void), and
+  state out of the optimizer (`RoutingPipeline.java:121-134` — git
+  history, `e7f9bdf1` — is void), and
   EpicRouter keeps the COMPLETED face for that window.
 - **A cancel raised before the route starts** is a documented pass-through:
   the session completes COMPLETED.
@@ -170,7 +172,8 @@ carrying the prior run's final state) instead of a silent re-run.
 - **Speed: only the committed record speaks.** The CI router gate — the
   Tier A router-only battery in gate mode — runs 11 green / 0 red at
   **Σ 286.5 s**, 5.3–6.3× headroom under the compare step's 30-minute
-  budget (`rust/README.md`; `logs/M8-T8/evidence/80-gate-laps.log`). The
+  budget (the committed record: `rust/README.md`; the gate-lap evidence
+  itself is internal dev-box scratch, not shipped). The
   Tier A full-comparison record is 11 pass / 0 red against the Freerouting
   Java records (completion ≥, violations ≤, score ≥, row for row). No
   wall-clock claim against a local Java install is made here; run your own
@@ -186,12 +189,13 @@ carrying the prior run's final state) instead of a silent re-run.
 
 The M10 measurement moment (T3) re-faced every carried deviation and
 dispositioned each row; the rows below rode **post-2.0** with named owners
-and exit conditions (the full table: `logs/M10-T3/report-t3.md` §3,
-banked in the M10 plan AMENDMENT 3). In user terms:
+and exit conditions (the full table is committed in the M10 plan,
+AMENDMENT 3; the fuller report is internal dev-box scratch, not shipped). In
+user terms:
 
 | Board / face | What you may see at 2.0 | Record |
 |---|---|---|
-| bm01 (Tier A) | Completes; on the session path the 1800 s tier budget stops it AT the budget on a final board byte-identical to its natural-wall completion. The router-only CI face is green (11/0). | T3 row 6 (the ot=4 lever stays opt-in, declined) |
+| bm01 (Tier A) | Completes; on the session path the 1800 s tier budget stops it AT the budget on a final board byte-identical to its natural-wall completion. The router-only CI face is green (11/0). | T3 row 6 (the ot=4 <!-- codespell:ignore (ot=4 is the bm01 lever name, design :800) --> lever stays opt-in, declined) |
 | bm05 (Tier B) | A completion red: 29 vs 18 (Rust vs Java record) at the re-faced battery, ~289 s — an engine-capability gap in the congestion family, owned post-2.0. | T3 row 7 |
 | bm10 (Tier B) | The 900 s tier budget is the binding product face: the session path stops AT budget (byte-reproducible at the budget face, empirically); the engine completes unbounded at its natural wall (~1446 s recorded). Budgets are never raised. | T3 row 8 |
 | interf_u (Issue 093) | One router-introduced clearance violation vs Java's 0 (~72 s), flag-independent — the plane-routing clearance family carried from upstream. | T3 row 9; Issue 093/152 |

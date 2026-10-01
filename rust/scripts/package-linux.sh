@@ -13,9 +13,9 @@
 # the binary's `--version` face.
 #
 # Migration guide (T6): the guide SHIPS IN the tarball —
-# `docs/migration-guide.md` at the repo root is staged beside the
-# README (repo-relative reference; the doc's GitHub path is
-# `docs/migration-guide.md` on the default branch).
+# `docs/migration-guide.md` is staged beside the README (repo-relative
+# reference; the doc's GitHub path is `docs/migration-guide.md` on the
+# default branch).
 
 set -euo pipefail
 
@@ -50,6 +50,10 @@ cp "$REPO_ROOT/README.md" "$REPO_ROOT/LICENSE" "$STAGE/$NAME/"
 # pointer in the tarball was rejected at charter time — the doc itself
 # ships).
 cp "$REPO_ROOT/docs/migration-guide.md" "$STAGE/$NAME/migration-guide.md"
+# The staged README's guide link is repo-relative for GitHub; the guide
+# sits BESIDE the README in the artifact, so rewrite it on the STAGED
+# copy only (the repo file keeps its relative link; T6 fix-round Q2).
+sed -i 's#(docs/migration-guide.md)#(migration-guide.md)#' "$STAGE/$NAME/README.md"
 
 tar -czf "$OUT_DIR/$NAME.tar.gz" -C "$STAGE" "$NAME"
 echo "wrote $OUT_DIR/$NAME.tar.gz (contents: epic-cli, epic-gui, README.md, LICENSE, migration-guide.md)"

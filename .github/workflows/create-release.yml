@@ -56,6 +56,10 @@ jobs:
           cp target/release/epic-gui "dist/${NAME}/epic-gui"
           cp ../README.md ../LICENSE "dist/${NAME}/"
           cp ../docs/migration-guide.md "dist/${NAME}/migration-guide.md"
+          # The staged README's guide link is repo-relative for GitHub;
+          # the guide sits BESIDE the README in the artifact — rewrite
+          # it on the STAGED copy only (T6 fix-round Q2).
+          sed -i 's#(docs/migration-guide.md)#(migration-guide.md)#' "dist/${NAME}/README.md"
           tar -czf "../${NAME}.tar.gz" -C dist "${NAME}"
           cd ..
           sha256sum "${NAME}.tar.gz" > "${NAME}.tar.gz.sha256"
