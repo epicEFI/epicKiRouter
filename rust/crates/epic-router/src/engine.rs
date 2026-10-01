@@ -1032,7 +1032,7 @@ impl<'a> AutorouteEngine<'a> {
     ) -> AutorouteAttemptResult {
         // Pre-maze reads (the maze mutably borrows the engine).
         let net = ctrl.net_number;
-        let describe = describe_connection(self.board, start_items, dest_items);
+        let describe = describe_connection(self.board, ripped_item_list, start_items, dest_items);
         let angle_restriction =
             router_angle_restriction(self.board.rules().trace_angle_restriction);
 
@@ -2360,7 +2360,20 @@ fn expandable_object_type_name(object: &ExpandableObject) -> &'static str {
 /// falls back to the same face — one port, two consumers (T12).
 pub(crate) fn item_to_string(board: &Board, key: u64) -> String {
     let id = ItemId::new(u32::try_from(key).expect("item key fits u32"));
-    let entry = board.get(id).expect("a routed set holds live items");
+    let Some(entry) = board.get(id) else {
+        // Java reads `Item.toString()` on the OBJECT REFERENCES held by
+        // the connection sets — an item removed from the board (a
+        // fanout retry after a same-net ripup removed it) still prints
+        // there, because GC keeps the object alive. The arena drops the
+        // data on removal, so a dead key degrades to a marker instead
+        // of aborting the run (E2E witness: Issue420-contribution-board,
+        // fanout attempt 2, panic at this line). Callers that can
+        // recover the ripped name use `describe_connection`'s seed
+        // lookup. Intentional log-face divergence from Java: the marker
+        // is truthful about removal where Java would silently print a
+        // stale-but-valid name.
+        return format!("item #{key} (removed)");
+    };
     let mut name = match &entry.data {
         ItemData::Pin { pin_index, .. } => {
             let mut name = String::from("pin");
@@ -2387,16 +2400,37 @@ pub(crate) fn item_to_string(board: &Board, key: u64) -> String {
 }
 
 /// Java `describeConnection`: the start set's items joined with
-/// `", "`, then `" and "`, then the destination set.
-fn describe_connection(board: &Board, start_items: &[u64], dest_items: &[u64]) -> String {
+/// `", "`, then `" and "`, then the destination set. A key whose item
+/// the board no longer holds falls back to the ripped-item seeds —
+/// `RippedItemSeed::simple_name` IS the Java class face, harvested
+/// while the item was live — and only then to the plain removed
+/// marker. The seed lookup covers the case that makes a key dead in
+/// practice: attempt 1 of a fanout pin rips a same-net item out of the
+/// connection set, and attempt 2 (sharing `ripped_item_list`) describes
+/// the set at entry.
+fn describe_connection(
+    board: &Board,
+    ripped_items: &BTreeMap<i32, RippedItemSeed>,
+    start_items: &[u64],
+    dest_items: &[u64],
+) -> String {
+    let describe_key = |&key: &u64| {
+        let live = board
+            .get(ItemId::new(u32::try_from(key).expect("item key fits u32")))
+            .is_some();
+        if !live && let Some(seed) = ripped_items.values().find(|seed| seed.key == key) {
+            return format!("{} (ripped up)", seed.simple_name);
+        }
+        item_to_string(board, key)
+    };
     let start = start_items
         .iter()
-        .map(|&key| item_to_string(board, key))
+        .map(&describe_key)
         .collect::<Vec<_>>()
         .join(", ");
     let dest = dest_items
         .iter()
-        .map(|&key| item_to_string(board, key))
+        .map(&describe_key)
         .collect::<Vec<_>>()
         .join(", ");
     format!("{start} and {dest}")
@@ -3689,7 +3723,12 @@ mod tests {
             FixedState::Unfixed,
         )
         .expect("anchor trace");
-        let describe = describe_connection(&board, &[pin_key], &[u64::from(trace.get())]);
+        let describe = describe_connection(
+            &board,
+            &BTreeMap::new(),
+            &[pin_key],
+            &[u64::from(trace.get())],
+        );
         assert!(
             describe.starts_with("pin") && describe.contains(" and polylinetrace"),
             "describe: {describe}"
@@ -3713,12 +3752,49 @@ mod tests {
         .expect("second trace");
         let multi = describe_connection(
             &board,
+            &BTreeMap::new(),
             &[pin_key, u64::from(trace.get())],
             &[u64::from(second.get())],
         );
         assert!(
             multi.contains(", polylinetrace and polylinetrace"),
             "describe: {multi}"
+        );
+    }
+
+    /// The dead-key degradation (E2E witness: Issue420-contribution-board
+    /// panicked at the old `expect("a routed set holds live items")`
+    /// during fanout attempt 2, after attempt 1's same-net ripup removed
+    /// a start-set item): a key the board no longer holds renders from
+    /// the ripped-item seed when one exists (the Java class face,
+    /// harvested while live) and as the plain removed marker otherwise —
+    /// never a panic. Java keeps such items printable via GC'd object
+    /// references; the marker is the deliberate truthfulness divergence.
+    #[test]
+    fn t11_describe_connection_dead_keys_degrade() {
+        let (_manager, board) = parse_fixture();
+        let pin_key = net_pin_key(&board, 94);
+        // A seed harvested for a key that is NOT on the board (the
+        // post-ripup state of attempt 2) and a bare dead key with no
+        // seed (removed by an earlier fanout pin).
+        let ripped = BTreeMap::from([(
+            94,
+            RippedItemSeed {
+                key: 424_242,
+                simple_name: "via",
+                nets: vec![94],
+            },
+        )]);
+        let describe = describe_connection(&board, &ripped, &[pin_key, 424_242], &[646_464]);
+        assert!(
+            describe.contains("pin of component #93, via (ripped up) and item #646464 (removed)"),
+            "describe: {describe}"
+        );
+        // Live items are unaffected by the seed map's presence.
+        let live = describe_connection(&board, &ripped, &[pin_key], &[pin_key]);
+        assert!(
+            live.starts_with("pin") && live.contains(" and pin"),
+            "describe: {live}"
         );
     }
 
