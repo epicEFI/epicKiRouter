@@ -28,6 +28,7 @@ fn help_flag_exits_zero_and_lists_the_surface() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     for needle in [
         "usage: epic-cli route -de <board.dsn> -do <out.ses>",
+        "router.enabled=<on|off>",
         "router.via_costs=<integer>",
         "router.strict_drc=<on|off>",
         "router.fanout.enabled=<on|off>",

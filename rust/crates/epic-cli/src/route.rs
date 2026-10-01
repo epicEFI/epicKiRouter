@@ -154,6 +154,15 @@ extern "C" fn handle_stop_signal(signal: i32) {
     }
 }
 
+/// Null the signal slot (the R2-2 face, review finding 3): the slot
+/// holds a raw pointer into the `Arc`'s flag; the `Arc` drops when
+/// `run_route` returns, so the slot must go back to null the moment
+/// the pipeline is no longer running — a signal in the post-run window
+/// hits the handler's null check, never a dangling pointee.
+fn clear_stop_signal_slot() {
+    STOP_FLAG_SLOT.store(std::ptr::null_mut(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Install the SIGINT/SIGTERM handlers against `flag`. Raw
 /// `libc::sigaction` (no new dependency class: `libc` was already in
 /// the tree transitively). Errors are the caller's WARN-and-degrade
@@ -1164,6 +1173,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         stop_face,
         &mut sink,
     );
+    // The R2-2 face: the pipeline is done — null the slot BEFORE the
+    // flag's Arc can ever drop (the rest of the run is synchronous
+    // post-processing on the way out of run_route).
+    clear_stop_signal_slot();
     let run_result = outcome.routing;
     let stop_reason = outcome.stop_reason;
 
@@ -1609,6 +1622,30 @@ mod tests {
         );
         flag.store(true, std::sync::atomic::Ordering::Relaxed);
         assert!(face.is_requested(), "a raise must reach the pipeline face");
+    }
+
+    /// The R2-2 face (review finding 3): the slot clears to null — a
+    /// signal after the pipeline must hit the handler's null check,
+    /// never a dangling pointee (the Arc drops at `run_route`'s exit).
+    #[test]
+    fn clear_stop_signal_slot_nulls_the_slot() {
+        let flag = Arc::new(AtomicBool::new(false));
+        STOP_FLAG_SLOT.store(
+            Arc::as_ptr(&flag) as *mut AtomicBool,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+        assert!(
+            !STOP_FLAG_SLOT
+                .load(std::sync::atomic::Ordering::Relaxed)
+                .is_null()
+        );
+        clear_stop_signal_slot();
+        assert!(
+            STOP_FLAG_SLOT
+                .load(std::sync::atomic::Ordering::Relaxed)
+                .is_null(),
+            "the post-run window must not hold a live pointer"
+        );
     }
 
     /// Readiness-fix M2: an unwritable output parent is the usage

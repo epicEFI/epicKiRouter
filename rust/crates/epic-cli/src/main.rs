@@ -33,6 +33,8 @@ const SETTINGS_REFERENCE: &str = "\
 accepted settings (`--router.<property>=<value>` / `--optimizer.<property>=<value>`; \
 the same properties layer defaults -> DSN -> CLI):
 
+  router.enabled=<on|off>                     (deprecated flat spelling; \
+warns; maps to autorouter.enabled)
   router.autorouter.enabled=<on|off>
   router.autorouter.max_passes=<integer>
   router.autorouter.max_items=<integer>
@@ -89,7 +91,14 @@ the same properties layer defaults -> DSN -> CLI):
   camelCase aliases of the optimizer.* names (maxPasses, maxItems,
   maxThreads, enablePreflightGuards, maxConsecutiveFailures[Pass1],
   additionalRipupCostFactorAtStart, traceRipupCostFactor,
-  maxAutoroutePasses, timeoutString) parse to the same settings.
+  maxAutoroutePasses, timeoutString) parse under the bare
+  `--optimizer.` prefix ONLY — the `--router.` prefix lowercases the
+  path first (`canonical_cli_path`), so `--router.optimizer.maxPasses`
+  would silently match nothing.
+  Other deprecated flat spellings that still parse (each warns and
+  maps to its autorouter.* home): router.max_passes, router.algorithm,
+  router.max_items, router.save_intermediate_stages,
+  router.ignore_net_classes.
 
 other flags:
   --result-json <manifest.json>   write the run manifest (JSON) to the path
