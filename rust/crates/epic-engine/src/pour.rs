@@ -61,7 +61,7 @@ pub fn is_ground_like(name: &str) -> bool {
 /// The on-board pin count for one net (the pour candidate's load
 /// measure — a pour for a 0-pin net connects nothing and is not a
 /// candidate).
-fn pin_count(board: &Board, net_number: i32) -> usize {
+pub(crate) fn pin_count(board: &Board, net_number: i32) -> usize {
     board
         .iter_ascending()
         .filter(|entry| entry.on_the_board)
