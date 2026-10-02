@@ -490,6 +490,35 @@ pub struct ManifestPinSwap {
     pub new_net_name: String,
 }
 
+/// One F2 current-driven widening row (the manifest face of
+/// `epic_engine::current_width::CurrentWidthRow`). Advisory by
+/// construction — the mutation itself already rode the route head.
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestWidthLayer {
+    /// The 0-based layer index.
+    pub layer: i32,
+    /// The class's half width BEFORE the widening (board units).
+    pub old_half_width: i32,
+    /// The IPC-2221-floored half width AFTER (board units).
+    pub new_half_width: i32,
+}
+
+/// One F2 current-driven widening (see [`ManifestWidthLayer`]).
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestCurrentWidth {
+    pub net_number: i32,
+    pub net_name: String,
+    /// The requested current (A).
+    pub amps: f64,
+    /// The class the net LEFT (name).
+    pub old_class: String,
+    /// The synthetic widened class the net now rides (name).
+    pub new_class: String,
+    /// The WIDENED layers only (a layer already wide enough is
+    /// omitted).
+    pub layers: Vec<ManifestWidthLayer>,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -534,6 +563,13 @@ pub struct RouteManifest<'a> {
     /// The F1 unresolved refs with reasons (skip-if-empty).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub pin_assign_unresolved: Vec<String>,
+    /// The F2 current-driven width rows (empty = absent — the
+    /// zero-rotation face; canary manifests never rotate).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub current_width_rows: Vec<ManifestCurrentWidth>,
+    /// The F2 unresolved requests with reasons (skip-if-empty).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub current_width_unresolved: Vec<String>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -603,6 +639,10 @@ pub struct RouteTelemetry {
     pub pin_assign_rows: Vec<ManifestPinSwap>,
     /// The F1 unresolved refs with reasons (empty = absent).
     pub pin_assign_unresolved: Vec<String>,
+    /// The F2 current-driven width rows (empty = absent).
+    pub current_width_rows: Vec<ManifestCurrentWidth>,
+    /// The F2 unresolved requests with reasons (empty = absent).
+    pub current_width_unresolved: Vec<String>,
 }
 
 /// The exit-code mapping (Java `MainResult`): 0 iff the state is
@@ -826,6 +866,8 @@ pub fn render_manifest(
         pair_unresolved: telemetry.pair_unresolved.clone(),
         pin_assign_rows: telemetry.pin_assign_rows.clone(),
         pin_assign_unresolved: telemetry.pin_assign_unresolved.clone(),
+        current_width_rows: telemetry.current_width_rows.clone(),
+        current_width_unresolved: telemetry.current_width_unresolved.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -1125,6 +1167,28 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             sink.warn(&format!("pin assignment: {reason}"));
         }
     }
+    // F2 (Rust-only): the current-driven width face — directly after
+    // pin assignment (the SAME head placement as `Session::route`),
+    // so the widened net classes exist before the geometry pass reads
+    // any width. Unresolved nets and applied-with-warning faces warn
+    // and never fail the run; the report rides the manifest
+    // (skip-if-empty).
+    let current_width_report = merged.current_nets.as_ref().map(|requests| {
+        epic_engine::current_width::apply_current_widths(
+            &mut board,
+            requests,
+            merged.current_copper_oz.unwrap_or(1.0),
+            merged.current_temp_rise_c.unwrap_or(10.0),
+        )
+    });
+    if let Some(report) = &current_width_report {
+        for reason in &report.unresolved {
+            sink.warn(&format!("current width: {reason}"));
+        }
+        for warning in &report.warnings {
+            sink.warn(&format!("current width: {warning}"));
+        }
+    }
     // 3. The unconditional geometry pass (bug-compat fact 1; Java
     //    `applyRouterSettingsForLoadedBoard` `:749`, which runs after
     //    the `:346` override — the pass reads only the board's
@@ -1352,8 +1416,9 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         &final_state,
     );
 
-    // 7. The manifest. The F1 rows/unresolved pair, extracted in ONE
-    // consumption of the Option (skip-if-empty at render time).
+    // 7. The manifest. The F1 rows/unresolved pair and the F2
+    // rows/unresolved pair, each extracted in ONE consumption of the
+    // Option (skip-if-empty at render time).
     let (pin_assign_rows, pin_assign_unresolved) = pin_assign_report
         .map(|report| {
             let rows = report
@@ -1366,6 +1431,33 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
                     old_net_name: row.old_net_name.clone(),
                     new_net_number: row.new_net_number,
                     new_net_name: row.new_net_name.clone(),
+                })
+                .collect();
+            (rows, report.unresolved)
+        })
+        .unwrap_or_default();
+    let (current_width_rows, current_width_unresolved) = current_width_report
+        .map(|report| {
+            let rows = report
+                .rows
+                .iter()
+                .map(|row| ManifestCurrentWidth {
+                    net_number: row.net_number,
+                    net_name: row.net_name.clone(),
+                    amps: row.amps,
+                    old_class: row.old_class.clone(),
+                    new_class: row.new_class.clone(),
+                    layers: row
+                        .layers
+                        .iter()
+                        .map(
+                            |&(layer, old_half_width, new_half_width)| ManifestWidthLayer {
+                                layer,
+                                old_half_width,
+                                new_half_width,
+                            },
+                        )
+                        .collect(),
                 })
                 .collect();
             (rows, report.unresolved)
@@ -1389,6 +1481,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         pair_unresolved: unresolved_pairs,
         pin_assign_rows,
         pin_assign_unresolved,
+        current_width_rows,
+        current_width_unresolved,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1803,6 +1897,8 @@ mod tests {
             pair_unresolved: Vec::new(),
             pin_assign_rows: Vec::new(),
             pin_assign_unresolved: Vec::new(),
+            current_width_rows: Vec::new(),
+            current_width_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             ..RouteTelemetry::default()
@@ -1871,6 +1967,8 @@ mod tests {
             pair_unresolved: Vec::new(),
             pin_assign_rows: Vec::new(),
             pin_assign_unresolved: Vec::new(),
+            current_width_rows: Vec::new(),
+            current_width_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
@@ -1909,6 +2007,8 @@ mod tests {
             pair_unresolved: Vec::new(),
             pin_assign_rows: Vec::new(),
             pin_assign_unresolved: Vec::new(),
+            current_width_rows: Vec::new(),
+            current_width_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
@@ -2073,6 +2173,8 @@ mod tests {
             pair_unresolved: Vec::new(),
             pin_assign_rows: Vec::new(),
             pin_assign_unresolved: Vec::new(),
+            current_width_rows: Vec::new(),
+            current_width_unresolved: Vec::new(),
             global_plan: None,
             last_counters: None,
             connections: Some(ManifestConnections {
@@ -2178,6 +2280,8 @@ mod tests {
             pair_unresolved: Vec::new(),
             pin_assign_rows: Vec::new(),
             pin_assign_unresolved: Vec::new(),
+            current_width_rows: Vec::new(),
+            current_width_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
@@ -2436,6 +2540,8 @@ mod tests {
             pair_unresolved: Vec::new(),
             pin_assign_rows: Vec::new(),
             pin_assign_unresolved: Vec::new(),
+            current_width_rows: Vec::new(),
+            current_width_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             connections: Some(ManifestConnections {
