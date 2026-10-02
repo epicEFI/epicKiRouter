@@ -107,6 +107,34 @@ pub(crate) const DSN_TIE: &str = include_str!("../../../harness/corpus/craft/drc
 pub(crate) const DSN_TIE_CONTRAST: &str =
     include_str!("../../../harness/corpus/craft/drc-tie-contrast.dsn");
 
+/// The #925b Pin-Pin-exemption craft (upstream 14b28b6ff, P4): five
+/// components on the y=10000 row, every close pair 3000 µm apart
+/// (PAD_R ±1000 → raw gap 1000 < the 2000 rule):
+///
+/// * CMPA (image IPA) — pins PS1/PS2, BOTH on net NS: the
+///   same-component SAME-NET pair → exemption 2 clears it.
+/// * CMPB + CMPB2 (BOTH placements of image IPB, 3000 apart) — the
+///   single pin PB on each, both on net NS2: same net, DIFFERENT
+///   components → still an obstacle (the exemption is
+///   component-scoped).
+/// * CMPC (image IPC) — NETLESS pins PX@1/PX@2 (referenced by no
+///   net): same base name `PX` → exemption 1 (netless sub-pads of
+///   one logical pad) clears it.
+/// * CMPD (image IPD) — NETLESS pins PY@1/PZ@1: same component,
+///   netless, but base names differ (`PY` vs `PZ`) → still an
+///   obstacle (the base-name check is what fires, not mere
+///   co-component netlessness).
+/// * CMPE (image IPE) — PW@1 on net NS3, PW@2 NETLESS: same
+///   component, same base, but exemption 1 requires BOTH netless →
+///   still an obstacle.
+///
+/// Expected walk: exactly THREE rows — the NS2 pair, the CMPD pair,
+/// the CMPE pair; no others (all cross-component distances ≥ 25000).
+/// Pin names use the `@` sub-pad form (the parser accepts `@`/`#`
+/// and mid-word `_`/`-` as plain word characters; the net pin-ref
+/// split takes the component at the FIRST `-`).
+pub(crate) const DSN_P4: &str = include_str!("../../../harness/fixtures/p4/p4-pins.dsn");
+
 /// Parse a crafted DSN through the SAME reader + board build + tree
 /// fill the corpus harness (`evaluate_rust`) parity-verifies.
 pub(crate) fn parse(text: &str) -> (SearchTreeManager, Board) {

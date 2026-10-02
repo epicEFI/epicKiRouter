@@ -1,0 +1,62 @@
+(pcb p4-pins.dsn
+
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 250000 140000))
+    (rule (width 250) (clearance 2000))
+  )
+  (placement
+    (component IPA
+      (place CMPA 10000 10000 front 0)
+    )
+    (component IPB
+      (place CMPB 40000 10000 front 0)
+      (place CMPB2 43000 10000 front 0)
+    )
+    (component IPC
+      (place CMPC 70000 10000 front 0)
+    )
+    (component IPD
+      (place CMPD 100000 10000 front 0)
+    )
+    (component IPE
+      (place CMPE 130000 10000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_R
+      (shape (rect F.Cu -1000 -1000 1000 1000))
+    )
+    (image IPA
+      (pin PAD_R PS1 0 0)
+      (pin PAD_R PS2 3000 0)
+    )
+    (image IPB
+      (pin PAD_R PB 0 0)
+    )
+    (image IPC
+      (pin PAD_R PX@1 0 0)
+      (pin PAD_R PX@2 3000 0)
+    )
+    (image IPD
+      (pin PAD_R PY@1 0 0)
+      (pin PAD_R PZ@1 3000 0)
+    )
+    (image IPE
+      (pin PAD_R PW@1 0 0)
+      (pin PAD_R PW@2 3000 0)
+    )
+  )
+  (network
+    (net NS (pins CMPA-PS1) (pins CMPA-PS2))
+    (net NS2 (pins CMPB-PB) (pins CMPB2-PB))
+    (net NS3 (pins CMPE-PW@1))
+  )
+)

@@ -742,6 +742,16 @@ pub struct BoardRules {
     /// Java is the transient-deserialization twin); only the
     /// settings override writes it (epic_engine::drc_tolerance).
     pub clearance_tolerance_um: f64,
+    /// The upstream `14b28b6ff` (#925b) Pin-Pin exemptions — same-net
+    /// pins of one component, and netless sub-pads of one logical
+    /// pad on one component, are not clearance obstacles (composite
+    /// pads, thermal vias in pad, internally connected footprint
+    /// pins). Upstream ships NO knob for this; the flag exists only
+    /// so the frozen drc corpus can walk the pre-#925b face (P4's
+    /// corpus law, the `clearance_tolerance_um` precedent). Seeded
+    /// `true` (upstream HEAD) at both construction faces; no
+    /// settings override ever writes it.
+    pub same_component_pin_exemptions: bool,
 }
 
 impl BoardRules {
@@ -907,6 +917,7 @@ impl BoardRules {
             pin_edge_to_turn_dist: rules.pin_edge_to_turn_dist,
             default_item_clearance_classes: rules.default_item_clearance_classes,
             clearance_tolerance_um: 1.0,
+            same_component_pin_exemptions: true,
         }
     }
 }
@@ -927,6 +938,7 @@ impl Default for BoardRules {
             pin_edge_to_turn_dist: 0.0,
             default_item_clearance_classes: [0; 6],
             clearance_tolerance_um: 1.0,
+            same_component_pin_exemptions: true,
         }
     }
 }
@@ -1241,6 +1253,16 @@ mod tests {
             "the Default seed"
         );
         assert_eq!(BoardRules::new().clearance_tolerance_um, 1.0);
+    }
+
+    /// The #925b knob (P4): `true` = upstream HEAD at BOTH
+    /// construction faces — the exemptions govern every product walk;
+    /// only the frozen drc corpus (and unit controls) flips it to
+    /// read the pre-#925b face.
+    #[test]
+    fn same_component_pin_exemptions_seed_true_at_both_construction_faces() {
+        assert!(BoardRules::default().same_component_pin_exemptions);
+        assert!(BoardRules::new().same_component_pin_exemptions);
     }
 
     /// `AngleRestriction.java`: the ordinal round-trip — `valueOf(i)` /

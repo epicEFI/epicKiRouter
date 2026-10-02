@@ -364,7 +364,16 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
     // residual class a 0.0 tolerance cannot restore). The gate POLICY
     // is pinned by the epic-drc gate unit test and the epic-cli e2e,
     // not by this corpus.
+    //
+    // The SAME law covers P4 (upstream #925b, the same commit's
+    // Pin-Pin exemptions): the exemptions would drop golden rows on
+    // drc-0003 (DAC2020_bm06 — ALL 8 rows are same-component pin-pin
+    // pairs) and drc-0009 (ecc83-pp_v2, 2 of 16), so this walk reads
+    // the frozen pre-#925b face too — same_component_pin_exemptions =
+    // false. The exemption POLICY is pinned by the epic-drc unit
+    // pins, not by this corpus.
     board.rules_mut().clearance_tolerance_um = 0.0;
+    board.rules_mut().same_component_pin_exemptions = false;
     let mut manager = SearchTreeManager::new();
     // Protocol step 2: the uniform fill normalization, no other
     // pre-steps (the drc surface is pure parse-time).

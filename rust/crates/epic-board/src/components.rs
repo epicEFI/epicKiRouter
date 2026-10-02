@@ -988,6 +988,74 @@ pub fn pin_center(
 }
 
 // ---------------------------------------------------------------------------
+// Pin-name normalization (upstream 14b28b6ff, #925b)
+// ---------------------------------------------------------------------------
+
+/// Java `Pin.getBasePinName` (upstream `14b28b6ff`, #925 — the second
+/// half, P4): normalizes a pin name by stripping a composite sub-pad
+/// suffix to expose the base logical pad two sub-pads share. Two
+/// separator families, tried in order:
+///
+/// * everything from the FIRST `@` or `#` (`PAD@1` / `PAD@2` →
+///   `PAD`; no digit requirement on these suffixes — `@` marks a
+///   sub-pad unconditionally);
+/// * the LAST `_` or `-` when the suffix after it is ALL DIGITS and
+///   the separator is neither the first nor the last character
+///   (`pad_1_1` → `pad_1`, `1-1` → `1`; `A_B` / `A-B` keep their
+///   non-digit suffixes, `_1` / `PAD_` keep their edge separators).
+///
+/// The `_` family is tried BEFORE `-` (`pad_1-1` → the `_` suffix
+/// `1-1` is not all digits → falls through → the `-` suffix `1` is →
+/// `pad_1`). The digit test is ASCII where Java's
+/// `Character.isDigit` also admits Unicode decimal digits — DSN pin
+/// names are ASCII tokens, and ASCII is the safe subset.
+#[must_use]
+pub fn base_pin_name(pin_name: &str) -> &str {
+    if let Some(at) = pin_name.find('@') {
+        return &pin_name[..at];
+    }
+    if let Some(hash) = pin_name.find('#') {
+        return &pin_name[..hash];
+    }
+    strip_digits_suffixed(pin_name, '_')
+        .or_else(|| strip_digits_suffixed(pin_name, '-'))
+        .unwrap_or(pin_name)
+}
+
+/// The `_`/`-` family of [`base_pin_name`]: strip at the LAST
+/// `separator` iff the trailing run after it is non-empty and all
+/// digits (Java `isAllDigits` on the `substring(last + 1)`, guarded
+/// by `last > 0 && last < length - 1`).
+fn strip_digits_suffixed(name: &str, separator: char) -> Option<&str> {
+    let last = name.rfind(separator)?;
+    if last == 0 || last == name.len() - 1 {
+        return None;
+    }
+    name[last + 1..]
+        .bytes()
+        .all(|b| b.is_ascii_digit())
+        .then_some(&name[..last])
+}
+
+/// The package pin NAME a board pin refers to — the resolution half
+/// of upstream `Pin.isSameLogicalPad` (`14b28b6ff`): component →
+/// package (by side) → pin (by index) → `name`. `None` for unknown
+/// components, unresolvable packages, and out-of-bounds pin indices
+/// (Java's three null/bounds guards collapse to `Option` here — the
+/// resolution chain is `resolve_package_pin`; the pin name itself is
+/// a `String`, never null).
+#[must_use]
+pub fn pin_name<'a>(
+    components: &'a Components,
+    library: &'a BoardLibrary,
+    component_id: u32,
+    pin_index: i32,
+) -> Option<&'a str> {
+    let (_, package_pin) = resolve_package_pin(components, library, component_id, pin_index)?;
+    Some(package_pin.name.as_str())
+}
+
+// ---------------------------------------------------------------------------
 // Pin trace-exit restrictions (M4-T6, the pull-tight pin-connection tail)
 // ---------------------------------------------------------------------------
 
@@ -2014,6 +2082,46 @@ mod tests {
                 assert_eq!((center.x, center.y), (1_484_000, -920_500), "gravity round")
             }
             other => panic!("expected an integer center, got {other:?}"),
+        }
+    }
+
+    /// Upstream `Pin.getBasePinName` (14b28b6ff, the
+    /// `testBasePinNameNormalization` analogue): every separator
+    /// family, the family ORDER (`@` before `#` before `_` before
+    /// `-`), the digit-only suffix rule, and the edge guards. Each
+    /// row kills its own mutant family: order mutants die on the
+    /// cross-family rows, digit-check mutants on `A_B`/`A-B`, and
+    /// guard mutants on `_1`/`PAD_`.
+    #[test]
+    fn base_pin_name_strips_composite_subpad_suffixes() {
+        let cases: &[(&str, &str)] = &[
+            // @ family: first occurrence, no digit requirement.
+            ("PAD@1", "PAD"),
+            ("PAD@10", "PAD"),
+            ("PAD@x", "PAD"),
+            ("PAD@1@2", "PAD"),
+            // # family: after @, before _.
+            ("P#2", "P"),
+            ("PAD_1#1", "PAD_1"),
+            // _ family: LAST separator, all-digits suffix, not at an edge.
+            ("pad_1", "pad"),
+            ("pad_1_1", "pad_1"),
+            ("1_1", "1"),
+            ("P_12", "P"),
+            ("A_B", "A_B"),
+            ("_1", "_1"),
+            ("PAD_", "PAD_"),
+            // - family: tried after _ fails its digit test.
+            ("1-1", "1"),
+            ("P-2", "P"),
+            ("pad_1-1", "pad_1"),
+            ("A-B", "A-B"),
+            // No separator at all.
+            ("9", "9"),
+            ("", ""),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(base_pin_name(input), *expected, "input {input:?}");
         }
     }
 }
