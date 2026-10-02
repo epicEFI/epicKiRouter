@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T20:37:27.571Z",
-    "fileCount": 732,
+    "lastScanned": "2026-10-02T21:25:32.710Z",
+    "fileCount": 734,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "fba1f3d86e3b211433ddebf817430c8bf076b7ad8c3bab4d6821551cde817103",
-    "storeUpdatedAt": "2026-10-02T20:37:27.587Z",
-    "rootHash": "96e929e9355ba80c"
+    "renderedHash": "a4a719accb972a4febdd67472b9bb531f2f6fcb5d205ddc65be1139413fb341e",
+    "storeUpdatedAt": "2026-10-02T21:25:32.724Z",
+    "rootHash": "ee03e21937114e5f"
   },
   "files": {
     ".dockerignore": {
@@ -11024,11 +11024,11 @@
     },
     "logs/readiness-2026-10-01/M11-931.md": {
       "description": "M11 — the #931 Tier-B completion campaign (upstream `aa909a345`)",
-      "tokens": 4473,
-      "hash": "8fb20c7b809aa0b5",
-      "size": 18119,
-      "mtimeMs": 1790973447454.0798,
-      "updatedAt": "2026-10-02T20:37:27.570Z",
+      "tokens": 5292,
+      "hash": "bb8f1addec08b154",
+      "size": 21424,
+      "mtimeMs": 1790976188471.917,
+      "updatedAt": "2026-10-02T21:23:08.581Z",
       "source": "hook"
     },
     "rust/crates/epic-router/src/pipeline/pass_runner.rs": {
@@ -11352,6 +11352,24 @@
       "size": 1339,
       "mtimeMs": 1790971856245.159,
       "updatedAt": "2026-10-02T20:10:56.355Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t9i.sh": {
+      "description": "M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown",
+      "tokens": 715,
+      "hash": "9eab550ab5a7d858",
+      "size": 2686,
+      "mtimeMs": 1790976323463.593,
+      "updatedAt": "2026-10-02T21:25:23.661Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t9i-commit-msg.txt": {
+      "description": "",
+      "tokens": 431,
+      "hash": "a05902f079ce9240",
+      "size": 1731,
+      "mtimeMs": 1790976332586.6382,
+      "updatedAt": "2026-10-02T21:25:32.709Z",
       "source": "hook"
     }
   },

@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T20:37:27.571Z
-> Files: 732 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T21:25:32.710Z
+> Files: 734 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -802,9 +802,10 @@
 - `f4c-commit-msg.txt` — Declares width (~739 tok)
 - `fix-round-charter.md` — Readiness fix round — 2.0.1 hardening charter (2026-10-01) (~787 tok)
 - `fixa-commit-msg.txt` (~344 tok)
-- `M11-931.md` — M11 — the #931 Tier-B completion campaign (upstream `aa909a345`) (~4473 tok)
+- `M11-931.md` — M11 — the #931 Tier-B completion campaign (upstream `aa909a345`) (~5292 tok)
 - `m11cd-commit-msg.txt` (~1009 tok)
 - `m11t1-commit-msg.txt` (~615 tok)
+- `m11t9i-commit-msg.txt` (~431 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
 - `p2-commit-msg.txt` (~988 tok)
 - `p3-commit-msg.txt` — Declares cell (~1737 tok)
@@ -822,6 +823,7 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
+- `run_gates_m11t9i.sh` — M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown (~715 tok)
 - `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
 - `run_gates_p4.sh` — P4 (#925b same-component Pin-Pin exemptions) gate battery: fmt + clippy (~590 tok)
 - `run_gates_p5.sh` — P5 (upstream 8fb76a61b convex-split stop guard) gate battery: fmt + (~586 tok)

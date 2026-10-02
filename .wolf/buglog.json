@@ -3868,6 +3868,24 @@
     "cp-fingerprints",
     "content-verify"
    ]
+  },
+  {
+   "id": 246,
+   "error_message": "M11 Java-oracle window 2 (logs/java-oracle-m11/pre-t2): gradle build verdict MISREAD twice \u2014 (a) `tail -2 build.log` showed only the configuration-cache line ('Configuration cache entry reused.') because it prints LAST even when BUILD FAILED appears earlier, so a FAILED build looked successful; (b) the freshness check `unzip -p jar C.class > f && cmp f ref && echo FRESH || echo DIFFERS-FRESH` printed DIFFERS on a build that never produced a jar (empty extract vs non-empty ref) \u2014 a FALSE 'content differs' that reads as fresh-if-different. The pre-t2 tree is genuinely UNBUILDABLE (T2's HeadlessBoardManager call site requires BasicBoard's T6 diff: `outline.invalidateEdgePinNets()` \u2014 compile error), and only the java run's 'Unable to access jarfile' exposed it. Also: unquoted `$CAP` under zsh does NOT word-split (zsh default) \u2014 `systemd-run --user ...` as one word = exit 127 'command not found'; and the Bash tool's persisted cwd can revert to the session dir between calls \u2014 `./gradlew` from the wrong tree = env exit 127 with an empty jar dir.",
+   "root_cause": "Three independent verification-layer traps stack on the buglog-245 family: (1) gradle's last log line is NOT the verdict line when configuration cache is on; (2) `A && B || echo` chains make command-not-found (empty extract) indistinguishable from content-difference \u2014 `cmp` on an empty vs non-empty file fails the same way a real diff does, and the || arm mislabels it; (3) zsh keeps variables whole where bash splits them, so recipe scripts with `CAP=\"systemd-run ...\"; $CAP cmd` that worked under bash's shebang silently 127 under the interactive shell. Plus the first real CROSS-CLUSTER COMPILE ENTANGLEMENT of #931: T2's call site depends on T6's BoardOutline diff \u2014 single-cluster probe trees must respect compile dependencies, not just hunk boundaries.",
+   "fix": "Hardened oracle protocol (used for all window-2 trees, all green): (1) build log to FILE, then `echo exit=$?` + `grep -c \"BUILD FAILED\" log` + `ls -la jar` \u2014 never tail-N for the verdict; (2) freshness = `unzip -p > f` THEN `test -s f` THEN cmp, each step separate \u2014 no `&&...||` chains across extract+compare; (3) spell out `systemd-run --user --scope -p MemoryMax=6G` literally in every command (never through a variable); (4) `cd <abs-tree-path>` at the START of every build/run command (cwd does not reliably persist); (5) probe design law: read the hunk's callees BEFORE staging a single-cluster tree \u2014 T2 probes must carry at least T6's invalidateEdgePinNets piece (pre-t6t2 pattern: board-side superset + the one call-site line).",
+   "tags": [
+    "java-oracle",
+    "gradle",
+    "build-verification",
+    "zsh",
+    "word-splitting",
+    "cwd",
+    "M11",
+    "compile-entanglement",
+    "T2",
+    "T6"
+   ]
   }
  ]
 }
