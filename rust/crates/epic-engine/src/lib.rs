@@ -32,6 +32,7 @@
 //!   [`BoardSnapshot`](snapshot::BoardSnapshot) render projection
 //!   (`&Board` read faces only — the renders-never-mutates law).
 
+pub mod current_width;
 pub mod events;
 pub mod export;
 pub mod pin_assign;
