@@ -3786,11 +3786,17 @@ mod pins {
     /// deterministic result. ecc83-pp_v2 is the buglog-176 fingerprint
     /// fixture (the T17b-measured POST-fix battery row: incomplete 0 —
     /// the isTraceObstacle parity fix let the maze route net 6 — 16
-    /// violation pairs, wall ~0.2s release; the PRE-fix row was
-    /// incomplete 1 / ~6.4s) — the unwatched subprocess run and the
-    /// watched in-process run must agree on all of them (the
-    /// subprocess row equals the committed JAVA record exactly: 991.32
-    /// / 0 unrouted / 16 violations). M4-T4 geometry rotation: with
+    /// violation pairs at the time, wall ~0.2s release; the PRE-fix
+    /// row was incomplete 1 / ~6.4s) — the unwatched subprocess run
+    /// and the watched in-process run must agree on all of them (the
+    /// subprocess row equaled the committed JAVA record exactly then:
+    /// 991.32 / 0 unrouted / 16 violations). P4 rotation (upstream
+    /// 14b28b6ff, #925b): the same-component Pin-Pin exemptions drop
+    /// exactly this board's two same-component pin-pin pairs from the
+    /// walk — the fingerprint violations count is 14 now (the same two
+    /// rows the frozen drc-0009 golden pins; the tierA gate still
+    /// holds by its ≤-law, fewer violations only help). M4-T4
+    /// geometry rotation: with
     /// the 45° tightener live the detail pass straightens its own
     /// output — 15 traces / 0 vias / 66 bends became 14 traces / 0
     /// vias / 19 bends. M4-T6 rotation: with the engine's
@@ -3828,8 +3834,11 @@ mod pins {
         );
         assert_eq!(
             detail.violations.len(),
-            16,
-            "buglog-176 fingerprint: 16 violation pairs"
+            14,
+            "buglog-176 fingerprint: 14 violation pairs (P4, upstream 14b28b6ff \
+             #925b — the two same-component pin-pin pairs this board carries \
+             are exempt now, the same two rows the frozen drc-0009 golden \
+             holds; was 16 pre-P4)"
         );
         assert_eq!(
             (detail.trace_count, detail.via_count, detail.bend_count),

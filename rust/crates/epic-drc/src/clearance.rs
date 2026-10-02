@@ -34,7 +34,7 @@
 //!    intersection has dimension 2.
 //!
 //!    **The #925a shortfall-tolerance gate** (upstream `14b28b6ff`,
-//!    post-`e7f9bdf1` — the ONE deliberate divergence from the frozen
+//!    post-`e7f9bdf1` — deliberate divergence 1 from the frozen
 //!    walk): a violation whose shortfall `minimumClearance −
 //!    actualClearance` converts to ≤ the board's clearance tolerance
 //!    in MICROMETRES (default 1.0 — floating-point discretization and
@@ -54,6 +54,34 @@
 //!    is dropped at EVERY tolerance, 0.0 included (`0.0 > 0.0` is
 //!    false) — upstream's gate behaves identically, so this is
 //!    upstream-faithful, not a divergence.
+//!
+//! ## The Pin-Pin exemptions (upstream `14b28b6ff`, #925b — deliberate
+//! divergence 2)
+//!
+//! The `Pin` row of the `isObstacle` matrix gains TWO same-component
+//! exemptions (the composite-pad half of #925; both live inside
+//! [`is_obstacle`], so every walk face and every router consumer of
+//! the matrix sees them):
+//!
+//! * **Same-net, same component** (after the Trace check): two pins
+//!   of ONE component that share a net are never obstacles —
+//!   composite pads, thermal vias in pad, internally connected
+//!   footprint pins (`this.getComponentId() > 0 && equal`).
+//! * **Netless sub-pads of one logical pad** (inside the
+//!   no-shared-net arm): BOTH pins netless, same component, and
+//!   [`base_pin_name`] equal and non-empty (`PAD@1`/`PAD@2`,
+//!   `pad_1_1`/`pad_1_2` — one logical pad split into sub-pads that
+//!   the netlist leaves unconnected).
+//!
+//! Upstream ships NO knob for either exemption (unlike #925a's
+//! tolerance) — but the frozen corpus DOES carry such pairs (drc-0003
+//! DAC2020_bm06: ALL 8 golden rows; drc-0009 ecc83-pp_v2: 2 of 16 —
+//! real reference boards place same-component pins inside their
+//! clearance rules). `BoardRules::same_component_pin_exemptions`
+//! (seeded `true` = upstream HEAD) exists solely so the corpus walk
+//! can read the frozen pre-#925b face — the P4 corpus law, the exact
+//! `clearance_tolerance_um` precedent. The gate POLICY is pinned by
+//! the epic-drc unit pins, not by the corpus.
 //!
 //! `smallestClearance` stays unported (label-only in every surface).
 //! `actualClearance` was label-only until T12: the V2 router score's
@@ -77,6 +105,7 @@
 use std::collections::HashSet;
 
 use epic_board::board::Board;
+use epic_board::components::{base_pin_name, pin_name};
 use epic_board::contacts::{items_share_net, normal_contacts};
 use epic_board::id::ItemId;
 use epic_board::items::{BoardItemType, ItemData};
@@ -204,6 +233,70 @@ fn pin_drill_allowed(board: &mut Board, pin: ItemId) -> bool {
     board.item_first_layer(pin) == board.item_last_layer(pin)
 }
 
+/// Upstream `14b28b6ff` (#925b), the shared guard of both Pin-Pin
+/// exemptions: `this.getComponentId() > 0 &&
+/// this.getComponentId() == otherPin.getComponentId()` — both items
+/// belong to the SAME placed component (id 0 belongs to no
+/// component).
+fn same_component_pins(board: &Board, a: ItemId, b: ItemId) -> bool {
+    board.get(a).is_some_and(|ea| {
+        board
+            .get(b)
+            .is_some_and(|eb| ea.component_id > 0 && ea.component_id == eb.component_id)
+    })
+}
+
+/// Upstream `14b28b6ff`, the netless-sub-pad guard:
+/// `this.netCount() == 0 && otherPin.netCount() == 0`.
+fn both_netless(board: &Board, a: ItemId, b: ItemId) -> bool {
+    board.get(a).is_some_and(|ea| {
+        board
+            .get(b)
+            .is_some_and(|eb| ea.nets.is_empty() && eb.nets.is_empty())
+    })
+}
+
+/// Upstream `Pin.isSameLogicalPad` (`14b28b6ff`): both pins resolve a
+/// package pin NAME from the shared component's package, and the
+/// composite-sub-pad base names ([`base_pin_name`]) are equal and
+/// non-empty. Java's null guards (`board`, `components`, `package`,
+/// null pin names) collapse to `Option` here; the pin-index bounds
+/// check is epic-board's `resolve_package_pin`/`get_pin`.
+fn same_logical_pad(board: &Board, a: ItemId, b: ItemId) -> bool {
+    let Some(ea) = board.get(a) else {
+        return false;
+    };
+    let ItemData::Pin {
+        pin_index: index_a, ..
+    } = ea.data
+    else {
+        return false;
+    };
+    let Some(eb) = board.get(b) else {
+        return false;
+    };
+    let ItemData::Pin {
+        pin_index: index_b, ..
+    } = eb.data
+    else {
+        return false;
+    };
+    // The callers guarantee `ea.component_id == eb.component_id`, so
+    // BOTH names resolve from pin a's component — upstream reads
+    // `pin1.board.components.get(pin1.getComponentId())` for both.
+    let Some(component_id) = u32::try_from(ea.component_id).ok() else {
+        return false;
+    };
+    let Some(name_a) = pin_name(board.components(), board.library(), component_id, index_a) else {
+        return false;
+    };
+    let Some(name_b) = pin_name(board.components(), board.library(), component_id, index_b) else {
+        return false;
+    };
+    let (base_a, base_b) = (base_pin_name(name_a), base_pin_name(name_b));
+    !base_a.is_empty() && base_a == base_b
+}
+
 /// Java `isObstacle(Item other)` — the per-kind override matrix, with
 /// the WALK-DAY orientation of the call site: `receiver` is
 /// `currentItem` (the tree entry), `other` is the walking item
@@ -262,17 +355,38 @@ pub fn is_obstacle(board: &mut Board, receiver: ItemId, other: ItemId) -> bool {
                 || !matches!(other_kind, Some(BoardItemType::Pin))
                 || !pin_drill_allowed(board, other)
         }
-        // Pin.java:353-365 — the exemption is the whole ObstacleArea
-        // BASE class (all three keepout kinds AND the conduction
-        // areas — ConductionArea extends ObstacleArea).
+        // Pin.java:353-365 + the #925b exemptions (upstream
+        // 14b28b6ff) — the ObstacleArea BASE class exemption (all
+        // three keepout kinds AND the conduction areas —
+        // ConductionArea extends ObstacleArea), then TWO
+        // same-component Pin-Pin exemptions (gated on
+        // BoardRules::same_component_pin_exemptions, the P4 corpus
+        // law): netless sub-pads of one logical pad inside the
+        // no-shared-net arm, and same-net pins of one component
+        // after the Trace check.
         BoardItemType::Pin => {
             if receiver == other || is_any_obstacle_area(other_kind) {
                 return false;
             }
+            let pin_exemptions_on = board.rules().same_component_pin_exemptions;
             if !shares_net {
+                if pin_exemptions_on
+                    && matches!(other_kind, Some(BoardItemType::Pin))
+                    && same_component_pins(board, receiver, other)
+                    && both_netless(board, receiver, other)
+                    && same_logical_pad(board, receiver, other)
+                {
+                    return false;
+                }
                 return true;
             }
             if matches!(other_kind, Some(BoardItemType::Trace)) {
+                return false;
+            }
+            if pin_exemptions_on
+                && matches!(other_kind, Some(BoardItemType::Pin))
+                && same_component_pins(board, receiver, other)
+            {
                 return false;
             }
             !pin_drill_allowed(board, receiver) || !matches!(other_kind, Some(BoardItemType::Via))
@@ -660,9 +774,13 @@ mod pins {
     use epic_board::id::ItemId;
     use epic_board::items::BoardItemType;
 
-    use super::{ViolationRow, all_clearance_violations, is_obstacle};
+    use super::{
+        ViolationRow, all_clearance_violations, both_netless, is_obstacle, same_component_pins,
+        same_logical_pad,
+    };
     use crate::test_util::{
-        DSN_MAIN, DSN_TIE, DSN_TIE_CONTRAST, ca_is_open, id_at_corner, ids_of_kind, net_list, parse,
+        DSN_MAIN, DSN_P4, DSN_TIE, DSN_TIE_CONTRAST, ca_is_open, id_at_corner, ids_of_kind,
+        net_list, nets_of, parse,
     };
 
     fn kind_of(board: &Board, id: ItemId) -> Option<BoardItemType> {
@@ -757,11 +875,21 @@ mod pins {
         );
     }
 
-    /// Via/trace cells plus the Java VERBATIM quirk: two SAME-net
-    /// pins are still obstacles for a pin receiver — the tail of
-    /// `Pin.isObstacle` (`Pin.java:364`) is
-    /// `!drillAllowed || !(other instanceof Via)`, and `other` being
-    /// a Pin makes the disjunction true.
+    /// Via/trace cells plus the SAME-net pin cell. PARITY DECISION
+    /// (P4, upstream `14b28b6ff`): this pin originally asserted the
+    /// pre-#925b verbatim quirk — "SAME-net pins are still obstacles
+    /// (Pin.java:364 verbatim)" — because at the frozen baseline
+    /// `e7f9bdf1` the tail `!drillAllowed || !(other instanceof Via)`
+    /// made ANY same-net Pin-Pin pair an obstacle. Upstream then
+    /// added the same-component exemption for exactly this shape
+    /// (composite pads / thermals in pad / internally connected
+    /// footprint pins), and P1/P2 both sit on CMP1 — so the assert
+    /// now pins the EXEMPT verdict, deliberately diverging from the
+    /// frozen walk (the drc-main golden rows are unaffected: the
+    /// craft's pin gaps are 20000 µm, far outside the 2000 rule, so
+    /// no golden row ever encoded the old matrix cell). The
+    /// different-component same-net contrast lives on the P4 craft
+    /// ([`same_component_pin_exemptions`]).
     #[test]
     fn via_trace_cells_and_same_net_pin_quirk() {
         let (manager, mut board) = parse(DSN_MAIN);
@@ -782,9 +910,118 @@ mod pins {
         assert!(is_obstacle(&mut board, nx, ny1), "foreign traces");
         assert!(is_obstacle(&mut board, via, p1), "via vs foreign pin");
         assert!(
-            is_obstacle(&mut board, p1, p2),
-            "SAME-net pins are still obstacles (Pin.java:364 verbatim)"
+            !is_obstacle(&mut board, p1, p2),
+            "SAME-net pins of ONE component are exempt (upstream 14b28b6ff, #925b)"
         );
+    }
+
+    /// #925b (upstream `14b28b6ff`): the same-component Pin-Pin
+    /// exemptions on the P4 craft — every close pair sits 3000 µm
+    /// apart under the 2000 µm rule, so the MATRIX verdicts and the
+    /// walk rows agree pair-for-pair. Each contrast kills its own
+    /// mutant: a component-blind port exempts the NS2 pair (same
+    /// net, DIFFERENT components), a netless-blind port exempts the
+    /// CMPE pair (netted vs netless, same base), a name-blind port
+    /// exempts the CMPD pair (netless, different bases), and a
+    /// deletion mutant of either exemption fails its own 0-row
+    /// assert.
+    #[test]
+    fn same_component_pin_exemptions() {
+        use epic_board::components::pin_name;
+        use epic_board::items::ItemData;
+
+        let (mut manager, mut board) = parse(DSN_P4);
+        let pins = ids_of_kind(&board, BoardItemType::Pin);
+        let at = |x: f64, board: &mut Board| id_at_corner(&manager, board, &pins, x, 10000.0);
+        let (ps1, ps2) = (at(10000.0, &mut board), at(13000.0, &mut board));
+        let (pb_b, pb_b2) = (at(40000.0, &mut board), at(43000.0, &mut board));
+        let (px1, px2) = (at(70000.0, &mut board), at(73000.0, &mut board));
+        let (py1, pz1) = (at(100000.0, &mut board), at(103000.0, &mut board));
+        let (pw1, pw2) = (at(130000.0, &mut board), at(133000.0, &mut board));
+
+        // The craft parses as intended: sub-pads netless where the
+        // netlist omits them, netted where it names them.
+        assert!(
+            nets_of(&board, px1).is_empty() && nets_of(&board, px2).is_empty(),
+            "PX@1/PX@2 are netless"
+        );
+        assert!(nets_of(&board, pw2).is_empty(), "PW@2 is netless");
+        assert_eq!(nets_of(&board, pw1).len(), 1, "PW@1 is on NS3");
+        assert_eq!(nets_of(&board, ps1), nets_of(&board, ps2), "PS1/PS2 on NS");
+
+        // The name-resolution chain (isSameLogicalPad's lookup) through
+        // the REAL parse: entry → component → package → pin name.
+        let entry = board.get(px1).expect("px1 exists");
+        let ItemData::Pin {
+            pin_index: px1_index,
+            ..
+        } = entry.data
+        else {
+            panic!("px1 is a pin");
+        };
+        let component_id = u32::try_from(entry.component_id).expect("component id");
+        assert_eq!(
+            pin_name(board.components(), board.library(), component_id, px1_index),
+            Some("PX@1"),
+            "the package pin name resolves through the parse"
+        );
+
+        // Exemption 2: same component, same net — exempt both ways.
+        assert!(!is_obstacle(&mut board, ps1, ps2));
+        assert!(!is_obstacle(&mut board, ps2, ps1), "symmetric");
+        // Contrast: same net, DIFFERENT components — still obstacles.
+        assert!(is_obstacle(&mut board, pb_b, pb_b2));
+        assert!(is_obstacle(&mut board, pb_b2, pb_b));
+        // Exemption 1: netless sub-pads of one logical pad — exempt.
+        assert!(!is_obstacle(&mut board, px1, px2));
+        assert!(!is_obstacle(&mut board, px2, px1), "symmetric");
+        // Contrast: netless, different bases — still obstacles.
+        assert!(is_obstacle(&mut board, py1, pz1));
+        // Contrast: netted vs netless, same base — still obstacles.
+        assert!(is_obstacle(&mut board, pw1, pw2));
+        assert!(is_obstacle(&mut board, pw2, pw1));
+
+        // Helper-level faces (the shared guards).
+        assert!(same_component_pins(&board, ps1, ps2));
+        assert!(!same_component_pins(&board, pb_b, pb_b2));
+        assert!(both_netless(&board, px1, px2));
+        assert!(!both_netless(&board, pw1, pw2));
+        assert!(same_logical_pad(&board, px1, px2));
+        assert!(!same_logical_pad(&board, py1, pz1));
+        // PS1/PS2: same component + same net, but the logical names
+        // DIFFER — insertion 2 exempts without ever asking.
+        assert!(!same_logical_pad(&board, ps1, ps2));
+
+        // The walk agrees row-for-row: exactly the three contrasting
+        // pairs (shortfall 1000 µm each, far above the 1.0 tolerance).
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(total, 3, "exactly the three contrasts: {rows:?}");
+        assert_eq!(rows_contain(&rows, pb_b, pb_b2), 1, "NS2 pair");
+        assert_eq!(rows_contain(&rows, py1, pz1), 1, "CMPD pair");
+        assert_eq!(rows_contain(&rows, pw1, pw2), 1, "CMPE pair");
+        assert_eq!(rows_contain(&rows, ps1, ps2), 0, "exemption 2 drops NS");
+        assert_eq!(rows_contain(&rows, px1, px2), 0, "exemption 1 drops CMPC");
+
+        // The knob-off CONTROL: the frozen pre-#925b face (the corpus
+        // law's read) — every exemption verdict flips back, and the
+        // walk gains exactly the two exempt pairs (5 rows). A
+        // knob-blind port cannot produce this split.
+        board.rules_mut().same_component_pin_exemptions = false;
+        assert!(
+            is_obstacle(&mut board, ps1, ps2),
+            "frozen face: NS pair is an obstacle"
+        );
+        assert!(
+            is_obstacle(&mut board, px1, px2),
+            "frozen face: CMPC pair is an obstacle"
+        );
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(
+            total, 5,
+            "the frozen face records both exempt pairs too: {rows:?}"
+        );
+        assert_eq!(rows_contain(&rows, ps1, ps2), 1);
+        assert_eq!(rows_contain(&rows, px1, px2), 1);
     }
 
     /// The board walk on DSN_MAIN: exactly THREE deduped rows — the
