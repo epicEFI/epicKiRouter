@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T16:35:47.484Z
-> Files: 716 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T16:45:10.263Z
+> Files: 721 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -786,6 +786,7 @@
 - `export-msg-f4.txt` — Declares width (~494 tok)
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
 - `export-msg-p4.txt` (~243 tok)
+- `export-msg-p5.txt` (~115 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
 - `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
@@ -802,6 +803,7 @@
 - `p3-recon.md` — P3 recon — DRC 1µm shortfall tolerance (#925a, upstream 14b28b6ff) (~1744 tok)
 - `p3extract.py` — grab (~152 tok)
 - `p4-commit-msg.txt` — Declares as (~846 tok)
+- `p5-commit-msg.txt` (~618 tok)
 - `probe_sigint.new.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~1037 tok)
 - `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
@@ -811,6 +813,7 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
 - `run_gates_p4.sh` — P4 (#925b same-component Pin-Pin exemptions) gate battery: fmt + clippy (~590 tok)
+- `run_gates_p5.sh` — P5 (upstream 8fb76a61b convex-split stop guard) gate battery: fmt + (~586 tok)
 - `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
 - `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3262 tok)
@@ -910,6 +913,11 @@
 
 - `control.rs` — Java `autoroute/maze/AutorouteControl.java` — the per-net cost table (~13865 tok)
 - `engine.rs` — Java `autoroute/maze/AutorouteEngine.java` — the per-net routing (~50493 tok)
+
+## rust/crates/epic-router/src/drill/
+
+- `drill_page.rs` — Java `autoroute/drill/DrillPage.java` (194 lines) — one grid cell's (~3514 tok)
+- `tests.rs` — Synthetic-world unit pins for the drill subsystem (no capture rows (~21968 tok)
 
 ## rust/crates/epic-router/src/global/
 
