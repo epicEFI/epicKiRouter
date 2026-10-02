@@ -7,17 +7,20 @@
 //! `rust/harness/oracle/DsnParseOracle.java`, which must byte-match the
 //! canonical geometry text and the D12 warning normalization.
 //!
-//! ## The divergence ledger (Task 12 — RETIRED by M2 Task 13, D22)
+//! ## The divergence ledger (Task 12; retired by M2 Task 13/D22, re-landed
+//! ## 2026-10-02 for the #935 promotion)
 //!
-//! [`DIVERGENCE_LEDGER`] held the fixtures whose Java goldens encode Java
-//! board machinery deliberately NOT ported yet (documented divergence
-//! accounting — NEVER a comparator weakening): an entry reclassified a
-//! mismatch only when every differing field was in its `allowed_fields`,
-//! any other divergence failed, and a ledgered fixture that MATCHED
-//! failed as a stale entry to prune. Its one entry — dsn-0151, the
+//! [`DIVERGENCE_LEDGER`] holds fixtures whose goldens encode parser
+//! behavior the tree has deliberately moved past (documented divergence
+//! accounting — NEVER a comparator weakening): an entry reclassifies a
+//! mismatch only when every differing field is in its `allowed_fields`,
+//! any other divergence fails, and a ledgered fixture that MATCHES fails
+//! as a stale entry to prune. Its first era's one entry — dsn-0151, the
 //! M1b-shaped `normalizeAllTraces` gap — died with the T13 port (the
 //! Rust digest is now post-normalize like the oracle; the StaleMatch
-//! rule fired and the entry was pruned; see the const docs). The
+//! rule fired and the entry was pruned; see the const docs). The second
+//! era is the 72-entry #935 promotion set (upstream a917044ff): 71
+//! layer_table-only flips + soak-0330's keepout-expansion cascade. The
 //! classify machinery remains generic, pinned over synthetic entries.
 //!
 //! ## Manifest path determinism (the plan's "abs_path", interpreted)
@@ -862,12 +865,13 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, set: &str, jvm_xmx: &st
 // ---------------------------------------------------------------------------
 
 /// One DOCUMENTED divergence between the goldens and the Rust port: a
-/// fixture whose Java golden encodes Java board machinery deliberately NOT
-/// ported in M1b. This is divergence ACCOUNTING, not comparator weakening —
-/// the fixture is still fully parsed and field-for-field diffed, and an
-/// entry only reclassifies a mismatch when EVERY differing field is in
-/// `allowed_fields`; anything else fails the compare. A ledgered fixture
-/// that unexpectedly MATCHES also fails (stale entry to prune).
+/// fixture whose golden encodes parser/board behavior the tree has
+/// deliberately moved past. This is divergence ACCOUNTING, not comparator
+/// weakening — the fixture is still fully parsed and field-for-field
+/// diffed, and an entry only reclassifies a mismatch when EVERY differing
+/// field is in `allowed_fields`; anything else fails the compare. A
+/// ledgered fixture that unexpectedly MATCHES also fails (stale entry to
+/// prune).
 ///
 /// RETIRED (M2 Task 13, decision D22): the ledger's one entry — dsn-0151
 /// (`fixtures/Issue723-CombineStackOverflow.dsn`, "Java ends the wiring
@@ -879,9 +883,15 @@ fn golden(repo_root: &Path, manifest: &Path, out: &Path, set: &str, jvm_xmx: &st
 /// stats + geometry_sha256) — died with the T13 port: the Rust digest
 /// now sources stats/geometry from the post-normalize Board exactly like
 /// the Java oracle, dsn-0151 matches on EVERY field, the StaleMatch rule
-/// fired on the pre-prune compare, and the entry was pruned. The list is
-/// expected to stay empty; the classify machinery below remains generic
-/// (pinned over synthetic entries) for any future documented divergence.
+/// fired on the pre-prune compare, and the entry was pruned.
+///
+/// RE-LANDED (2026-10-02, P1 of the Tier-1 upstream ports): upstream #935
+/// (a917044ff, `promotePowerLayersWithoutPlane`) promoted to the port —
+/// 72 entries covering every corpus fixture whose golden predates the
+/// promotion (71 layer_table-only + soak-0330's keepout-expansion
+/// cascade; see the consts below and the pin
+/// `divergence_ledger_holds_the_935_promotion_set`). The classify
+/// machinery below stays generic (pinned over synthetic entries).
 struct LedgerEntry {
     /// The manifest fixture id.
     id: &'static str,
@@ -893,7 +903,462 @@ struct LedgerEntry {
     allowed_fields: &'static [&'static str],
 }
 
-const DIVERGENCE_LEDGER: &[LedgerEntry] = &[];
+/// Reason shared by the 71 layer_table-only #935 entries.
+const P_935_LAYER_ONLY: &str = "upstream #935 (a917044ff) promotePowerLayersWithoutPlane: this \
+    fixture declares (type power) layer(s) with no (plane ...) scope and no (use_net ...) names; \
+    the port promotes them to signal in create_board — intentional divergence from the e7f9bdf1 \
+    golden, byte-convergence with upstream HEAD. Only layer_table.signal may differ";
+/// Reason for the one #935 fixture with a downstream item cascade.
+const P_935_KEEPOUT_CASCADE: &str = "upstream #935 (a917044ff): this fixture's planeless power \
+    layers (Ground_1, Ground_2, V+2) are promoted to signal, which makes the parser layer \
+    structure all-signal, so its four signal-pseudo-layer keepouts expand over 4 parser signal \
+    layers instead of 1 (+12 items: 4 keepouts x 3 promoted layers; stats.items 562 -> 574) and \
+    the pre/post geometry hashes follow. Upstream HEAD produces the same items — createBoard \
+    builds the parser LayerStructure from the PROMOTED layerInfo and insertKeepout's signal \
+    expansion reads it. Intentional divergence from the e7f9bdf1 golden.";
+/// The trap-table class of every #935 entry.
+const P_935_TRAP: &str = "P1 #935 planeless-power promotion (e7f9bdf1 -> a917044ff)";
+
+const DIVERGENCE_LEDGER: &[LedgerEntry] = &[
+    LedgerEntry {
+        id: "dsn-0014",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "dsn-0074",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "dsn-0075",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "dsn-0076",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "dsn-0077",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "dsn-0156",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0007",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0039",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0049",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0063",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0067",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0068",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0084",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0107",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0127",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0138",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0214",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0312",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0313",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0314",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0352",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0400",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0408",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0409",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0411",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0419",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0422",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0438",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0443",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0486",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0506",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0511",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0548",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0549",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0610",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0618",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0619",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0620",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0621",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0622",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0623",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0661",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0705",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0720",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0742",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0746",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0751",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0760",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0791",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0798",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0815",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0816",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0824",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0876",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0905",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0909",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0916",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0930",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0931",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0932",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0933",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0944",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0960",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0964",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0975",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0987",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0989",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-1002",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-1047",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-1063",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-1126",
+        reason: P_935_LAYER_ONLY,
+        trap: P_935_TRAP,
+        allowed_fields: &["layer_table"],
+    },
+    LedgerEntry {
+        id: "soak-0330",
+        reason: P_935_KEEPOUT_CASCADE,
+        trap: P_935_TRAP,
+        allowed_fields: &[
+            "layer_table",
+            "stats",
+            "geometry_sha256",
+            "post_stats",
+            "post_geometry_sha256",
+        ],
+    },
+];
 
 fn ledger_entry<'a>(ledger: &'a [LedgerEntry], id: &str) -> Option<&'a LedgerEntry> {
     ledger.iter().find(|entry| entry.id == id)
@@ -1154,22 +1619,68 @@ mod pins {
         assert!(SetSel::parse("bogus").is_err());
     }
 
-    /// The ledger's committed content (doc-of-record): EMPTY — retired by
-    /// M2 Task 13 (D22). The dsn-0151 normalizeAllTraces entry died with
-    /// the port: the Rust digest now sources stats/geometry from the
-    /// post-normalize Board exactly like the Java oracle, the fixture
-    /// matches on EVERY field, and the StaleMatch rule fired on the
-    /// pre-prune compare (the retirement demonstration). A re-landed
-    /// entry without a real divergence fails the compare as stale — the
-    /// prune direction is one-way.
+    /// The ledger's committed content (doc-of-record): the 72 #935
+    /// promotion entries — 71 layer_table-only fixtures plus soak-0330's
+    /// keepout-expansion cascade — re-landed 2026-10-02 with the P1 port
+    /// of upstream #935 (a917044ff). History: the M1b ledger's one entry
+    /// (dsn-0151) was retired by M2 Task 13 (D22) when the port caught up
+    /// and the StaleMatch rule fired on the pre-prune compare. The prune
+    /// direction stays one-way: every entry here documents a LIVE
+    /// divergence against the e7f9bdf1 goldens, and the StaleMatch rule
+    /// below prunes any entry whose divergence closes.
     #[test]
-    fn divergence_ledger_is_retired() {
+    fn divergence_ledger_holds_the_935_promotion_set() {
         assert_eq!(
             DIVERGENCE_LEDGER.len(),
-            0,
-            "the M1b divergence ledger was retired by T13 (dsn-0151 matches on every field); \
-             a new entry requires a documented divergence and a fresh census"
+            72,
+            "72 #935 entries: 71 layer_table-only + soak-0330 (measured on the P1 tree, \
+             logs/readiness-2026-10-01/p1-dsn-compare-full.log; reconciled 71+1 == 72 \
+             against the compare's own census)"
         );
+        let by_id = |id: &str| DIVERGENCE_LEDGER.iter().find(|e| e.id == id);
+        // the set's boundary members
+        assert_eq!(
+            by_id("dsn-0014").expect("first digest flip").allowed_fields,
+            &["layer_table"]
+        );
+        let soak_0330 = by_id("soak-0330").expect("the cascade entry");
+        assert_eq!(
+            soak_0330.allowed_fields,
+            &[
+                "layer_table",
+                "stats",
+                "geometry_sha256",
+                "post_stats",
+                "post_geometry_sha256"
+            ]
+        );
+        // the allowance vocabulary is CLOSED: no entry may excuse a field
+        // outside the #935 cascade — anything new is a fresh divergence
+        // that must classify on its own, not ride this ledger.
+        for entry in DIVERGENCE_LEDGER {
+            let allowed = entry.allowed_fields;
+            let in_cascade = |f: &str| {
+                matches!(
+                    f,
+                    "layer_table"
+                        | "stats"
+                        | "geometry_sha256"
+                        | "post_stats"
+                        | "post_geometry_sha256"
+                )
+            };
+            assert!(
+                allowed.iter().all(|f| in_cascade(f)),
+                "{} allows a field outside the #935 cascade: {:?}",
+                entry.id,
+                allowed
+            );
+            assert!(
+                allowed.contains(&"layer_table"),
+                "{} must at least document the layer_table flip (every #935 fixture has one)",
+                entry.id
+            );
+        }
     }
 
     /// A synthetic ledger entry exercising the same shape the retired
