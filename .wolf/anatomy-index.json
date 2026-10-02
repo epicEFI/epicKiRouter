@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T09:33:35.844Z",
-    "fileCount": 676,
+    "lastScanned": "2026-10-02T10:31:23.258Z",
+    "fileCount": 681,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "7097728a9b3840b3c5425cb9dfbab7dd70bf9507649db4ba81cdd5ec0effa8f1",
-    "storeUpdatedAt": "2026-10-02T09:33:35.853Z",
-    "rootHash": "a605eed27dea460d"
+    "renderedHash": "cce483feb00e8b578d2a2d7a4c176d147728531fa3352da4a0020c1245cd1403",
+    "storeUpdatedAt": "2026-10-02T10:31:23.267Z",
+    "rootHash": "0f167abe90f9653c"
   },
   "files": {
     ".dockerignore": {
@@ -6507,232 +6507,232 @@
     },
     "rust/crates/epic-engine/src/settings.rs": {
       "description": "The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings`",
-      "tokens": 56192,
-      "hash": "5ec3b6b6129ae175",
-      "size": 211209,
-      "mtimeMs": 1790883807045.239,
-      "updatedAt": "2026-10-01T19:43:27.165Z",
+      "tokens": 57386,
+      "hash": "7925b8f9192e7aa7",
+      "size": 215707,
+      "mtimeMs": 1790936644429.7124,
+      "updatedAt": "2026-10-02T10:24:04.541Z",
       "source": "hook",
       "symbols": [
         {
           "name": "CliLayer",
           "kind": "class",
           "startLine": 54,
-          "endLine": 341,
-          "tokens": 4822
+          "endLine": 348,
+          "tokens": 4945
         },
         {
           "name": "OptimScoringVersion",
           "kind": "class",
-          "startLine": 342,
-          "endLine": 355,
+          "startLine": 349,
+          "endLine": 362,
           "tokens": 150
         },
         {
           "name": "ParsedRouteArgs",
           "kind": "class",
-          "startLine": 356,
-          "endLine": 373,
+          "startLine": 363,
+          "endLine": 380,
           "tokens": 225
         },
         {
           "name": "ParsedRouteArgs",
           "kind": "section",
-          "startLine": 374,
-          "endLine": 392,
+          "startLine": 381,
+          "endLine": 399,
           "tokens": 207
         },
         {
           "name": "parse_route_args",
           "kind": "fn",
-          "startLine": 393,
-          "endLine": 567,
+          "startLine": 400,
+          "endLine": 574,
           "tokens": 2436
         },
         {
           "name": "same_output_target",
           "kind": "fn",
-          "startLine": 568,
-          "endLine": 600,
+          "startLine": 575,
+          "endLine": 607,
           "tokens": 346
         },
         {
           "name": "next_value",
           "kind": "fn",
-          "startLine": 601,
-          "endLine": 610,
+          "startLine": 608,
+          "endLine": 617,
           "tokens": 112
         },
         {
           "name": "apply_router_setting",
           "kind": "fn",
-          "startLine": 611,
-          "endLine": 940,
-          "tokens": 4461
+          "startLine": 618,
+          "endLine": 951,
+          "tokens": 4512
         },
         {
           "name": "canonical_cli_path",
           "kind": "fn",
-          "startLine": 941,
-          "endLine": 955,
+          "startLine": 952,
+          "endLine": 966,
           "tokens": 128
         },
         {
           "name": "is_deprecated_flat_autorouter_path",
           "kind": "fn",
-          "startLine": 956,
-          "endLine": 972,
+          "startLine": 967,
+          "endLine": 983,
           "tokens": 184
         },
         {
           "name": "parse_pairs",
           "kind": "fn",
-          "startLine": 973,
-          "endLine": 990,
-          "tokens": 148
+          "startLine": 984,
+          "endLine": 1004,
+          "tokens": 200
+        },
+        {
+          "name": "parse_ref_list",
+          "kind": "fn",
+          "startLine": 1005,
+          "endLine": 1016,
+          "tokens": 83
         },
         {
           "name": "parse_on_off",
           "kind": "fn",
-          "startLine": 991,
-          "endLine": 998,
+          "startLine": 1017,
+          "endLine": 1024,
           "tokens": 61
         },
         {
           "name": "warn_bad_value",
           "kind": "fn",
-          "startLine": 999,
-          "endLine": 1012,
+          "startLine": 1025,
+          "endLine": 1038,
           "tokens": 190
         },
         {
           "name": "DsnLayerSlot",
           "kind": "class",
-          "startLine": 1013,
-          "endLine": 1026,
+          "startLine": 1039,
+          "endLine": 1052,
           "tokens": 175
         },
         {
           "name": "DsnLayer",
           "kind": "class",
-          "startLine": 1027,
-          "endLine": 1049,
+          "startLine": 1053,
+          "endLine": 1075,
           "tokens": 278
         },
         {
           "name": "DsnLayer",
           "kind": "section",
-          "startLine": 1050,
-          "endLine": 1104,
+          "startLine": 1076,
+          "endLine": 1130,
           "tokens": 655
         },
         {
           "name": "MergedLayerSlot",
           "kind": "class",
-          "startLine": 1105,
-          "endLine": 1113,
+          "startLine": 1131,
+          "endLine": 1139,
           "tokens": 76
         },
         {
           "name": "MergedLayerSlot",
           "kind": "section",
-          "startLine": 1114,
-          "endLine": 1134,
+          "startLine": 1140,
+          "endLine": 1160,
           "tokens": 259
         },
         {
           "name": "MergedSettings",
           "kind": "class",
-          "startLine": 1135,
-          "endLine": 1281,
-          "tokens": 2143
+          "startLine": 1161,
+          "endLine": 1311,
+          "tokens": 2209
         },
         {
           "name": "MergedSettings",
           "kind": "section",
-          "startLine": 1282,
-          "endLine": 1363,
-          "tokens": 1126
+          "startLine": 1312,
+          "endLine": 1394,
+          "tokens": 1135
         },
         {
           "name": "default_router_score_settings",
           "kind": "fn",
-          "startLine": 1364,
-          "endLine": 1379,
+          "startLine": 1395,
+          "endLine": 1410,
           "tokens": 192
         },
         {
           "name": "default_optimizer_score_settings",
           "kind": "fn",
-          "startLine": 1380,
-          "endLine": 1394,
+          "startLine": 1411,
+          "endLine": 1425,
           "tokens": 172
         },
         {
           "name": "merge",
           "kind": "fn",
-          "startLine": 1395,
-          "endLine": 1603,
-          "tokens": 2178
+          "startLine": 1426,
+          "endLine": 1637,
+          "tokens": 2204
         },
         {
           "name": "validate",
           "kind": "fn",
-          "startLine": 1604,
-          "endLine": 1667,
+          "startLine": 1638,
+          "endLine": 1701,
           "tokens": 727
         },
         {
           "name": "apply_board_specific_optimizations",
           "kind": "fn",
-          "startLine": 1668,
-          "endLine": 1781,
+          "startLine": 1702,
+          "endLine": 1815,
           "tokens": 1445
         },
         {
           "name": "java_math_round",
           "kind": "fn",
-          "startLine": 1782,
-          "endLine": 1796,
+          "startLine": 1816,
+          "endLine": 1830,
           "tokens": 208
         },
         {
           "name": "ResolvedRouteSettings",
           "kind": "class",
-          "startLine": 1797,
-          "endLine": 1876,
-          "tokens": 1080
+          "startLine": 1831,
+          "endLine": 1915,
+          "tokens": 1166
         },
         {
           "name": "ResolvedRouteSettings",
           "kind": "section",
-          "startLine": 1877,
-          "endLine": 2022,
-          "tokens": 2161
+          "startLine": 1916,
+          "endLine": 2062,
+          "tokens": 2176
         },
         {
           "name": "settings_default_bend_cost",
           "kind": "fn",
-          "startLine": 2023,
-          "endLine": 2046,
-          "tokens": 334
-        },
-        {
-          "name": "build_batch_settings",
-          "kind": "fn",
-          "startLine": 2047,
-          "endLine": 4771,
-          "tokens": 32657
+          "startLine": 2063,
+          "endLine": 4876,
+          "tokens": 33760
         }
       ]
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 50126,
-      "hash": "4854c96c5a8c5fb5",
-      "size": 188347,
-      "mtimeMs": 1790929869608.2793,
-      "updatedAt": "2026-10-02T08:31:09.717Z",
+      "tokens": 51010,
+      "hash": "53e6bc9796f02be6",
+      "size": 191670,
+      "mtimeMs": 1790936693384.9219,
+      "updatedAt": "2026-10-02T10:24:53.488Z",
       "source": "hook",
       "symbols": [
         {
@@ -6894,56 +6894,56 @@
           "kind": "class",
           "startLine": 473,
           "endLine": 481,
-          "tokens": 71
+          "tokens": 92
+        },
+        {
+          "name": "ManifestPinSwap",
+          "kind": "class",
+          "startLine": 482,
+          "endLine": 496,
+          "tokens": 127
         },
         {
           "name": "RouteManifest",
           "kind": "class",
-          "startLine": 482,
-          "endLine": 534,
-          "tokens": 776
+          "startLine": 497,
+          "endLine": 557,
+          "tokens": 895
         },
         {
           "name": "RouteTelemetry",
           "kind": "class",
-          "startLine": 535,
-          "endLine": 584,
-          "tokens": 743
+          "startLine": 558,
+          "endLine": 611,
+          "tokens": 804
         },
         {
           "name": "exit_code_for",
           "kind": "fn",
-          "startLine": 585,
-          "endLine": 605,
+          "startLine": 612,
+          "endLine": 632,
           "tokens": 313
         },
         {
           "name": "java_two_decimal",
           "kind": "fn",
-          "startLine": 606,
-          "endLine": 625,
+          "startLine": 633,
+          "endLine": 652,
           "tokens": 242
         },
         {
           "name": "JavaDecimal",
           "kind": "class",
-          "startLine": 626,
-          "endLine": 627,
+          "startLine": 653,
+          "endLine": 654,
           "tokens": 17
         },
         {
           "name": "JavaDecimal",
           "kind": "section",
-          "startLine": 628,
-          "endLine": 651,
-          "tokens": 296
-        },
-        {
-          "name": "PhaseScoreKind",
-          "kind": "class",
-          "startLine": 652,
-          "endLine": 4229,
-          "tokens": 45066
+          "startLine": 655,
+          "endLine": 4304,
+          "tokens": 45982
         }
       ]
     },
@@ -7441,11 +7441,11 @@
     },
     "logs/readiness-2026-10-01/TASKS.md": {
       "description": "Campaign task list (living) — 2026-10-01",
-      "tokens": 2992,
-      "hash": "63d4dabdfa07ac07",
-      "size": 12092,
-      "mtimeMs": 1790932717903.1252,
-      "updatedAt": "2026-10-02T09:18:37.997Z",
+      "tokens": 2997,
+      "hash": "cce9142acf1f4d8e",
+      "size": 12110,
+      "mtimeMs": 1790934930527.3416,
+      "updatedAt": "2026-10-02T09:55:30.637Z",
       "source": "hook"
     },
     ".claude/rules/discord-untrusted-input.md": {
@@ -8612,11 +8612,11 @@
     },
     "rust/crates/epic-engine/src/session.rs": {
       "description": "The headless application session — the M9-T2 `Session` (the Java",
-      "tokens": 13591,
-      "hash": "bbe5e2a419a5bded",
-      "size": 51168,
-      "mtimeMs": 1790932064797.6692,
-      "updatedAt": "2026-10-02T09:07:44.892Z",
+      "tokens": 13965,
+      "hash": "b39024de97729736",
+      "size": 52578,
+      "mtimeMs": 1790936491143.0537,
+      "updatedAt": "2026-10-02T10:21:31.251Z",
       "source": "hook",
       "symbols": [
         {
@@ -8700,49 +8700,49 @@
           "name": "Session",
           "kind": "class",
           "startLine": 463,
-          "endLine": 511,
-          "tokens": 659
+          "endLine": 516,
+          "tokens": 751
         },
         {
           "name": "Session",
           "kind": "section",
-          "startLine": 512,
-          "endLine": 938,
-          "tokens": 5788
+          "startLine": 517,
+          "endLine": 964,
+          "tokens": 6098
         },
         {
           "name": "project_heatmap",
           "kind": "fn",
-          "startLine": 939,
-          "endLine": 972,
+          "startLine": 965,
+          "endLine": 998,
           "tokens": 326
         },
         {
           "name": "java_two_decimal",
           "kind": "fn",
-          "startLine": 973,
-          "endLine": 1000,
+          "startLine": 999,
+          "endLine": 1026,
           "tokens": 402
         },
         {
           "name": "PassTrackingSink",
           "kind": "class",
-          "startLine": 1001,
-          "endLine": 1005,
+          "startLine": 1027,
+          "endLine": 1031,
           "tokens": 29
         },
         {
           "name": "PassTrackingSink",
           "kind": "section",
-          "startLine": 1006,
-          "endLine": 1023,
+          "startLine": 1032,
+          "endLine": 1049,
           "tokens": 150
         },
         {
           "name": "PassTrackingSink",
           "kind": "section",
-          "startLine": 1024,
-          "endLine": 1114,
+          "startLine": 1050,
+          "endLine": 1140,
           "tokens": 972
         }
       ]
@@ -9059,6 +9059,223 @@
           "tokens": 19
         }
       ]
+    },
+    "rust/crates/epic-engine/src/pin_assign.rs": {
+      "description": "The F1 pin auto-assignment core: a self-contained min-cost",
+      "tokens": 7713,
+      "hash": "1fe4d7f65b131f9a",
+      "size": 29001,
+      "mtimeMs": 1790936663040.7922,
+      "updatedAt": "2026-10-02T10:24:23.154Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "Assignment",
+          "kind": "class",
+          "startLine": 30,
+          "endLine": 62,
+          "tokens": 422
+        },
+        {
+          "name": "hungarian",
+          "kind": "fn",
+          "startLine": 63,
+          "endLine": 155,
+          "tokens": 851
+        },
+        {
+          "name": "PinSwapRow",
+          "kind": "class",
+          "startLine": 156,
+          "endLine": 175,
+          "tokens": 215
+        },
+        {
+          "name": "PinAssignReport",
+          "kind": "class",
+          "startLine": 176,
+          "endLine": 185,
+          "tokens": 114
+        },
+        {
+          "name": "net_name",
+          "kind": "fn",
+          "startLine": 186,
+          "endLine": 195,
+          "tokens": 96
+        },
+        {
+          "name": "point_xy",
+          "kind": "fn",
+          "startLine": 196,
+          "endLine": 205,
+          "tokens": 90
+        },
+        {
+          "name": "Candidate",
+          "kind": "class",
+          "startLine": 206,
+          "endLine": 245,
+          "tokens": 556
+        },
+        {
+          "name": "apply_pin_assignments",
+          "kind": "fn",
+          "startLine": 246,
+          "endLine": 732,
+          "tokens": 5462
+        }
+      ]
+    },
+    "rust/crates/epic-engine/src/lib.rs": {
+      "description": "The headless application core: jobs, the layered settings",
+      "tokens": 732,
+      "hash": "7026a47a61d3bff8",
+      "size": 2752,
+      "mtimeMs": 1790935271381.3638,
+      "updatedAt": "2026-10-02T10:01:11.531Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/board.rs": {
+      "description": "The live board: the item arena, the id generator, and the",
+      "tokens": 31305,
+      "hash": "ff72258dfbfa7199",
+      "size": 117755,
+      "mtimeMs": 1790936721991.0442,
+      "updatedAt": "2026-10-02T10:25:22.089Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "ItemEntry",
+          "kind": "class",
+          "startLine": 66,
+          "endLine": 82,
+          "tokens": 163
+        },
+        {
+          "name": "ItemEntry",
+          "kind": "section",
+          "startLine": 83,
+          "endLine": 100,
+          "tokens": 207
+        },
+        {
+          "name": "BoardCommunication",
+          "kind": "class",
+          "startLine": 101,
+          "endLine": 110,
+          "tokens": 102
+        },
+        {
+          "name": "BoardCommunication",
+          "kind": "section",
+          "startLine": 111,
+          "endLine": 122,
+          "tokens": 85
+        },
+        {
+          "name": "BoardCommunication",
+          "kind": "section",
+          "startLine": 123,
+          "endLine": 151,
+          "tokens": 345
+        },
+        {
+          "name": "TraceHalfWidthRange",
+          "kind": "class",
+          "startLine": 152,
+          "endLine": 158,
+          "tokens": 68
+        },
+        {
+          "name": "TraceHalfWidthRange",
+          "kind": "section",
+          "startLine": 159,
+          "endLine": 171,
+          "tokens": 115
+        },
+        {
+          "name": "Board",
+          "kind": "class",
+          "startLine": 172,
+          "endLine": 285,
+          "tokens": 1929
+        },
+        {
+          "name": "Board",
+          "kind": "section",
+          "startLine": 286,
+          "endLine": 1646,
+          "tokens": 16961
+        },
+        {
+          "name": "convert_item",
+          "kind": "fn",
+          "startLine": 1647,
+          "endLine": 1777,
+          "tokens": 1575
+        },
+        {
+          "name": "fixed_from_ir",
+          "kind": "fn",
+          "startLine": 1778,
+          "endLine": 1791,
+          "tokens": 172
+        },
+        {
+          "name": "obstacle_kind_from_ir",
+          "kind": "fn",
+          "startLine": 1792,
+          "endLine": 1802,
+          "tokens": 140
+        },
+        {
+          "name": "board_shape_from_ir",
+          "kind": "fn",
+          "startLine": 1803,
+          "endLine": 1811,
+          "tokens": 111
+        },
+        {
+          "name": "area_from_ir",
+          "kind": "fn",
+          "startLine": 1812,
+          "endLine": 1818,
+          "tokens": 52
+        },
+        {
+          "name": "ItemEntry",
+          "kind": "section",
+          "startLine": 1819,
+          "endLine": 1839,
+          "tokens": 253
+        },
+        {
+          "name": "Board",
+          "kind": "section",
+          "startLine": 1840,
+          "endLine": 2738,
+          "tokens": 10403
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/f1b-commit-msg.txt": {
+      "description": "Declares placements",
+      "tokens": 747,
+      "hash": "128d726f6c76c47f",
+      "size": 3004,
+      "mtimeMs": 1790936821727.2678,
+      "updatedAt": "2026-10-02T10:27:01.827Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-405709959.txt": {
+      "description": "Declares placements",
+      "tokens": 649,
+      "hash": "ef13d58f827d216a",
+      "size": 2614,
+      "mtimeMs": 1790937083162.7932,
+      "updatedAt": "2026-10-02T10:31:23.258Z",
+      "source": "hook"
     }
   },
   "preamble": [

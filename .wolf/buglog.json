@@ -3699,6 +3699,22 @@
         "release-profile-clean",
         "census-reconciliation"
       ]
+    },
+    {
+      "id": 237,
+      "task": "F1 pin auto-assignment Commit B (integration: apply face + settings + session/CLI wiring) \u2014 landed 405709959 on top of solver 14eb4d23b",
+      "error_message": "Integration compile traps, none behavioral: (1) E0382 \u2014 telemetry fill consumed `pin_assign_report` in the `pin_assign_rows` field initializer, second use in `pin_assign_unresolved` failed; (2) E0063 x5 \u2014 the new `assign_pins`/`pin_assign_rows`+`pin_assign_unresolved` fields missing from exhaustive struct literals in epic-engine settings tests (CliLayer ~:3413, SessionLayer ~:4687) and three epic-cli RouteTelemetry test literals; (3) clippy::needless_borrow on `[...]`.as_slice(); (4) `cargo test -p epic-engine pin_assign assign` silently matched nothing (multi-filter is AND-of-name-substrings, not two filters); a tail showing 'running 0 tests / 8 filtered out' was the DOC-TEST target, not the lib.",
+      "root_cause": "Rust move semantics on Option<Report> inside a struct literal (one consumption must extract ALL derived fields before the literal); exhaustive struct literals are a feature-plumbing tax at every site (the settings 6-site pattern + telemetry twins each demand seed edits at every test literal); cargo's test name filtering takes ONE filter argument \u2014 multiple bare words AND as a single pattern.",
+      "fix": "Single-consume destructure before the literal: `let (pin_assign_rows, pin_assign_unresolved) = pin_assign_report.map(|r| (rows, r.unresolved)).unwrap_or_default();`. Seeded every exhaustive literal (`assign_pins: None,` x2; `pin_assign_rows: Vec::new(), pin_assign_unresolved: Vec::new(),` x6 via one replace_all on the identical pair_report context). Correct single-suite invocation: `cargo test -p <crate> --lib -- <filter>` and `-- --list` to confirm presence. Census landed green: 42/1731/0/19 (declared before the run: 1725+6, reconciled against per-suite lines in python).",
+      "tags": [
+        "rust",
+        "move-semantics",
+        "struct-literals",
+        "cargo-test-filter",
+        "f1",
+        "pin-assignment",
+        "settings-plumbing"
+      ]
     }
   ]
 }
