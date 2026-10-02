@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T07:56:17.104Z",
-    "fileCount": 670,
+    "lastScanned": "2026-10-02T09:33:35.844Z",
+    "fileCount": 676,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "1559ec177e2c0d8bdb56420968487b157180758f9401127c3f9f1fb0c76d4f6e",
-    "storeUpdatedAt": "2026-10-02T07:56:17.113Z",
-    "rootHash": "8ee41da1c06decd4"
+    "renderedHash": "7097728a9b3840b3c5425cb9dfbab7dd70bf9507649db4ba81cdd5ec0effa8f1",
+    "storeUpdatedAt": "2026-10-02T09:33:35.853Z",
+    "rootHash": "a605eed27dea460d"
   },
   "files": {
     ".dockerignore": {
@@ -6000,11 +6000,11 @@
     },
     "rust/crates/epic-gui/src/shell.rs": {
       "description": "The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED",
-      "tokens": 8528,
-      "hash": "f12fe0f5cce03d35",
-      "size": 32093,
-      "mtimeMs": 1790856076075.2075,
-      "updatedAt": "2026-10-01T12:01:16.173Z",
+      "tokens": 11532,
+      "hash": "40a2e860703c1d20",
+      "size": 43393,
+      "mtimeMs": 1790933490365.14,
+      "updatedAt": "2026-10-02T09:31:30.466Z",
       "source": "hook",
       "symbols": [
         {
@@ -6060,43 +6060,57 @@
           "name": "rational_zoom_step",
           "kind": "fn",
           "startLine": 252,
-          "endLine": 267,
-          "tokens": 210
+          "endLine": 282,
+          "tokens": 462
+        },
+        {
+          "name": "wheel_notch_steps",
+          "kind": "fn",
+          "startLine": 283,
+          "endLine": 314,
+          "tokens": 425
+        },
+        {
+          "name": "zoom_about_point",
+          "kind": "fn",
+          "startLine": 315,
+          "endLine": 350,
+          "tokens": 466
         },
         {
           "name": "LaunchMode",
           "kind": "class",
-          "startLine": 268,
-          "endLine": 306,
+          "startLine": 351,
+          "endLine": 389,
           "tokens": 453
         },
         {
           "name": "version_line",
           "kind": "fn",
-          "startLine": 307,
-          "endLine": 322,
+          "startLine": 390,
+          "endLine": 405,
           "tokens": 219
         },
         {
           "name": "fit_zoom",
           "kind": "fn",
-          "startLine": 323,
-          "endLine": 341,
+          "startLine": 406,
+          "endLine": 424,
           "tokens": 257
         },
         {
           "name": "smoke_overlay_flags",
           "kind": "fn",
-          "startLine": 342,
-          "endLine": 360,
+          "startLine": 425,
+          "endLine": 443,
           "tokens": 208
         },
         {
           "name": "parse_launch_args",
           "kind": "fn",
-          "startLine": 361,
-          "endLine": 743,
-          "tokens": 4508
+          "startLine": 444,
+          "endLine": 971,
+          "tokens": 6583
         }
       ]
     },
@@ -6111,11 +6125,11 @@
     },
     "rust/crates/epic-gui/src/desktop/mod.rs": {
       "description": "The M9-T6 desktop shell (desktop-gated): the THIN eframe host —",
-      "tokens": 8688,
-      "hash": "af56adfbff52ceeb",
-      "size": 32627,
-      "mtimeMs": 1790856110362.2986,
-      "updatedAt": "2026-10-01T12:01:50.471Z",
+      "tokens": 9810,
+      "hash": "f08536e1ee4e5a82",
+      "size": 36848,
+      "mtimeMs": 1790933615748.6165,
+      "updatedAt": "2026-10-02T09:33:35.844Z",
       "source": "hook",
       "symbols": [
         {
@@ -6129,70 +6143,70 @@
           "name": "ShellApp",
           "kind": "class",
           "startLine": 108,
-          "endLine": 160,
-          "tokens": 630
+          "endLine": 168,
+          "tokens": 753
         },
         {
           "name": "Smoke",
           "kind": "class",
-          "startLine": 161,
-          "endLine": 176,
+          "startLine": 169,
+          "endLine": 184,
           "tokens": 88
         },
         {
           "name": "Smoke",
           "kind": "section",
-          "startLine": 177,
-          "endLine": 223,
+          "startLine": 185,
+          "endLine": 231,
           "tokens": 514
         },
         {
           "name": "unreachable",
           "kind": "fn",
-          "startLine": 224,
-          "endLine": 227,
+          "startLine": 232,
+          "endLine": 235,
           "tokens": 20
         },
         {
           "name": "ShellApp",
           "kind": "section",
-          "startLine": 228,
-          "endLine": 416,
-          "tokens": 2171
+          "startLine": 236,
+          "endLine": 464,
+          "tokens": 2711
         },
         {
           "name": "SmokeAction",
           "kind": "class",
-          "startLine": 417,
-          "endLine": 427,
+          "startLine": 465,
+          "endLine": 475,
           "tokens": 80
         },
         {
           "name": "ShellApp",
           "kind": "section",
-          "startLine": 428,
-          "endLine": 605,
+          "startLine": 476,
+          "endLine": 653,
           "tokens": 2025
         },
         {
           "name": "ShellApp",
           "kind": "section",
-          "startLine": 606,
-          "endLine": 778,
-          "tokens": 2223
+          "startLine": 654,
+          "endLine": 860,
+          "tokens": 2762
         },
         {
           "name": "ShellApp",
           "kind": "section",
-          "startLine": 779,
-          "endLine": 788,
+          "startLine": 861,
+          "endLine": 870,
           "tokens": 69
         },
         {
           "name": "color_of_background",
           "kind": "fn",
-          "startLine": 789,
-          "endLine": 798,
+          "startLine": 871,
+          "endLine": 880,
           "tokens": 104
         }
       ]
@@ -6714,11 +6728,11 @@
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 48807,
-      "hash": "e742f86d7c8e816f",
-      "size": 183386,
-      "mtimeMs": 1790924788080.946,
-      "updatedAt": "2026-10-02T07:06:28.192Z",
+      "tokens": 50126,
+      "hash": "4854c96c5a8c5fb5",
+      "size": 188347,
+      "mtimeMs": 1790929869608.2793,
+      "updatedAt": "2026-10-02T08:31:09.717Z",
       "source": "hook",
       "symbols": [
         {
@@ -6928,8 +6942,8 @@
           "name": "PhaseScoreKind",
           "kind": "class",
           "startLine": 652,
-          "endLine": 4104,
-          "tokens": 43652
+          "endLine": 4229,
+          "tokens": 45066
         }
       ]
     },
@@ -7427,11 +7441,11 @@
     },
     "logs/readiness-2026-10-01/TASKS.md": {
       "description": "Campaign task list (living) — 2026-10-01",
-      "tokens": 1849,
-      "hash": "c0e25fb9a1ddb1b2",
-      "size": 7474,
-      "mtimeMs": 1790923917545.7417,
-      "updatedAt": "2026-10-02T06:51:57.655Z",
+      "tokens": 2992,
+      "hash": "63d4dabdfa07ac07",
+      "size": 12092,
+      "mtimeMs": 1790932717903.1252,
+      "updatedAt": "2026-10-02T09:18:37.997Z",
       "source": "hook"
     },
     ".claude/rules/discord-untrusted-input.md": {
@@ -8500,6 +8514,551 @@
       "mtimeMs": 1790927777000.9014,
       "updatedAt": "2026-10-02T07:56:17.104Z",
       "source": "hook"
+    },
+    "rust/crates/epic-board/src/items/outline.rs": {
+      "description": "Board outline — keepout derivations (M2 Task 4).",
+      "tokens": 7938,
+      "hash": "7f7d69d575d7cef8",
+      "size": 29883,
+      "mtimeMs": 1790931080181.8635,
+      "updatedAt": "2026-10-02T08:51:20.282Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "half_width",
+          "kind": "fn",
+          "startLine": 55,
+          "endLine": 66,
+          "tokens": 132
+        },
+        {
+          "name": "line_count",
+          "kind": "fn",
+          "startLine": 67,
+          "endLine": 85,
+          "tokens": 225
+        },
+        {
+          "name": "keepout_area",
+          "kind": "fn",
+          "startLine": 86,
+          "endLine": 102,
+          "tokens": 212
+        },
+        {
+          "name": "keepout_lines",
+          "kind": "fn",
+          "startLine": 103,
+          "endLine": 118,
+          "tokens": 225
+        },
+        {
+          "name": "own_corner_points",
+          "kind": "fn",
+          "startLine": 119,
+          "endLine": 141,
+          "tokens": 331
+        },
+        {
+          "name": "pad_corner_points",
+          "kind": "fn",
+          "startLine": 142,
+          "endLine": 153,
+          "tokens": 145
+        },
+        {
+          "name": "shape_contains_point",
+          "kind": "fn",
+          "startLine": 154,
+          "endLine": 169,
+          "tokens": 234
+        },
+        {
+          "name": "distance_to_outline",
+          "kind": "fn",
+          "startLine": 170,
+          "endLine": 191,
+          "tokens": 216
+        },
+        {
+          "name": "corner_gap",
+          "kind": "fn",
+          "startLine": 192,
+          "endLine": 199,
+          "tokens": 86
+        },
+        {
+          "name": "shape_border_lines",
+          "kind": "fn",
+          "startLine": 200,
+          "endLine": 235,
+          "tokens": 483
+        },
+        {
+          "name": "line_keepout_tiles",
+          "kind": "fn",
+          "startLine": 236,
+          "endLine": 264,
+          "tokens": 303
+        },
+        {
+          "name": "crate",
+          "kind": "section",
+          "startLine": 265,
+          "endLine": 672,
+          "tokens": 5176
+        }
+      ]
+    },
+    "rust/crates/epic-engine/src/session.rs": {
+      "description": "The headless application session — the M9-T2 `Session` (the Java",
+      "tokens": 13591,
+      "hash": "bbe5e2a419a5bded",
+      "size": 51168,
+      "mtimeMs": 1790932064797.6692,
+      "updatedAt": "2026-10-02T09:07:44.892Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "apply_copper_to_edge_clearance_override",
+          "kind": "fn",
+          "startLine": 160,
+          "endLine": 274,
+          "tokens": 1461
+        },
+        {
+          "name": "ReadOutcome",
+          "kind": "class",
+          "startLine": 275,
+          "endLine": 288,
+          "tokens": 182
+        },
+        {
+          "name": "classify_read_result",
+          "kind": "fn",
+          "startLine": 289,
+          "endLine": 325,
+          "tokens": 430
+        },
+        {
+          "name": "LoadError",
+          "kind": "class",
+          "startLine": 326,
+          "endLine": 341,
+          "tokens": 210
+        },
+        {
+          "name": "LoadError",
+          "kind": "section",
+          "startLine": 342,
+          "endLine": 365,
+          "tokens": 341
+        },
+        {
+          "name": "RouteError",
+          "kind": "class",
+          "startLine": 366,
+          "endLine": 378,
+          "tokens": 146
+        },
+        {
+          "name": "RouteError",
+          "kind": "section",
+          "startLine": 379,
+          "endLine": 390,
+          "tokens": 120
+        },
+        {
+          "name": "RouteError",
+          "kind": "section",
+          "startLine": 391,
+          "endLine": 399,
+          "tokens": 115
+        },
+        {
+          "name": "RouteSummary",
+          "kind": "class",
+          "startLine": 400,
+          "endLine": 426,
+          "tokens": 360
+        },
+        {
+          "name": "SessionStatistics",
+          "kind": "class",
+          "startLine": 427,
+          "endLine": 441,
+          "tokens": 156
+        },
+        {
+          "name": "SessionStatistics",
+          "kind": "section",
+          "startLine": 442,
+          "endLine": 462,
+          "tokens": 220
+        },
+        {
+          "name": "Session",
+          "kind": "class",
+          "startLine": 463,
+          "endLine": 511,
+          "tokens": 659
+        },
+        {
+          "name": "Session",
+          "kind": "section",
+          "startLine": 512,
+          "endLine": 938,
+          "tokens": 5788
+        },
+        {
+          "name": "project_heatmap",
+          "kind": "fn",
+          "startLine": 939,
+          "endLine": 972,
+          "tokens": 326
+        },
+        {
+          "name": "java_two_decimal",
+          "kind": "fn",
+          "startLine": 973,
+          "endLine": 1000,
+          "tokens": 402
+        },
+        {
+          "name": "PassTrackingSink",
+          "kind": "class",
+          "startLine": 1001,
+          "endLine": 1005,
+          "tokens": 29
+        },
+        {
+          "name": "PassTrackingSink",
+          "kind": "section",
+          "startLine": 1006,
+          "endLine": 1023,
+          "tokens": 150
+        },
+        {
+          "name": "PassTrackingSink",
+          "kind": "section",
+          "startLine": 1024,
+          "endLine": 1114,
+          "tokens": 972
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/p2-commit-msg.txt": {
+      "description": "",
+      "tokens": 988,
+      "hash": "2899df65272c07ac",
+      "size": 3957,
+      "mtimeMs": 1790932144539.9678,
+      "updatedAt": "2026-10-02T09:09:04.639Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/tests/render_goldens.rs": {
+      "description": "M9-T4: the render-golden pins (the dispatch charter for",
+      "tokens": 15990,
+      "hash": "31b5c40b42e84418",
+      "size": 60118,
+      "mtimeMs": 1790933008676.283,
+      "updatedAt": "2026-10-02T09:23:31.145Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "repo_root",
+          "kind": "fn",
+          "startLine": 42,
+          "endLine": 55,
+          "tokens": 174
+        },
+        {
+          "name": "load_snapshot",
+          "kind": "fn",
+          "startLine": 56,
+          "endLine": 78,
+          "tokens": 328
+        },
+        {
+          "name": "fixed_test_transform",
+          "kind": "fn",
+          "startLine": 79,
+          "endLine": 91,
+          "tokens": 111
+        },
+        {
+          "name": "full_viewport",
+          "kind": "fn",
+          "startLine": 92,
+          "endLine": 100,
+          "tokens": 74
+        },
+        {
+          "name": "populated_layers",
+          "kind": "fn",
+          "startLine": 101,
+          "endLine": 119,
+          "tokens": 163
+        },
+        {
+          "name": "golden_view",
+          "kind": "fn",
+          "startLine": 120,
+          "endLine": 128,
+          "tokens": 106
+        },
+        {
+          "name": "render_json",
+          "kind": "fn",
+          "startLine": 129,
+          "endLine": 134,
+          "tokens": 60
+        },
+        {
+          "name": "read_golden",
+          "kind": "fn",
+          "startLine": 135,
+          "endLine": 151,
+          "tokens": 156
+        },
+        {
+          "name": "assert_golden_matches",
+          "kind": "fn",
+          "startLine": 152,
+          "endLine": 176,
+          "tokens": 242
+        },
+        {
+          "name": "bm08_golden_matches_in_process_rederivation",
+          "kind": "fn",
+          "startLine": 177,
+          "endLine": 181,
+          "tokens": 33
+        },
+        {
+          "name": "kit2_led_cube_golden_matches_in_process_rederivation",
+          "kind": "fn",
+          "startLine": 182,
+          "endLine": 186,
+          "tokens": 41
+        },
+        {
+          "name": "e1_ripup_golden_matches_in_process_rederivation",
+          "kind": "fn",
+          "startLine": 187,
+          "endLine": 197,
+          "tokens": 136
+        },
+        {
+          "name": "two_layer_snapshot",
+          "kind": "fn",
+          "startLine": 198,
+          "endLine": 242,
+          "tokens": 398
+        },
+        {
+          "name": "crafted_view",
+          "kind": "fn",
+          "startLine": 243,
+          "endLine": 249,
+          "tokens": 63
+        },
+        {
+          "name": "layer_visibility_exclusion_by_construction",
+          "kind": "fn",
+          "startLine": 250,
+          "endLine": 323,
+          "tokens": 896
+        },
+        {
+          "name": "trace_color_per_layer_override_face",
+          "kind": "fn",
+          "startLine": 324,
+          "endLine": 374,
+          "tokens": 476
+        },
+        {
+          "name": "cull_boundary_plus_minus_one_dbu",
+          "kind": "fn",
+          "startLine": 375,
+          "endLine": 457,
+          "tokens": 896
+        },
+        {
+          "name": "one_via_snapshot",
+          "kind": "fn",
+          "startLine": 458,
+          "endLine": 509,
+          "tokens": 525
+        },
+        {
+          "name": "via_mapping_ops_match_the_doc_table",
+          "kind": "fn",
+          "startLine": 510,
+          "endLine": 622,
+          "tokens": 1386
+        },
+        {
+          "name": "trace_half_width_expansion_cull_face",
+          "kind": "fn",
+          "startLine": 623,
+          "endLine": 689,
+          "tokens": 768
+        },
+        {
+          "name": "populated_overlay_snapshot",
+          "kind": "fn",
+          "startLine": 690,
+          "endLine": 744,
+          "tokens": 482
+        },
+        {
+          "name": "overlay_flags_off_is_inert_and_each_flag_adds_its_own_family",
+          "kind": "fn",
+          "startLine": 745,
+          "endLine": 903,
+          "tokens": 1854
+        },
+        {
+          "name": "overlay_flags_round_trip_through_the_view_model",
+          "kind": "fn",
+          "startLine": 904,
+          "endLine": 948,
+          "tokens": 486
+        },
+        {
+          "name": "sample_world_points",
+          "kind": "fn",
+          "startLine": 949,
+          "endLine": 970,
+          "tokens": 182
+        },
+        {
+          "name": "world_round_trip_exact_at_the_i64_faces",
+          "kind": "fn",
+          "startLine": 971,
+          "endLine": 1023,
+          "tokens": 549
+        },
+        {
+          "name": "screen_round_trip_exact_at_the_i32_faces",
+          "kind": "fn",
+          "startLine": 1024,
+          "endLine": 1093,
+          "tokens": 752
+        },
+        {
+          "name": "narrowing_saturates_at_the_i32_faces",
+          "kind": "fn",
+          "startLine": 1094,
+          "endLine": 1122,
+          "tokens": 373
+        },
+        {
+          "name": "overlay_airline_cull_participation_both_directions",
+          "kind": "fn",
+          "startLine": 1123,
+          "endLine": 1197,
+          "tokens": 709
+        },
+        {
+          "name": "SilentSink",
+          "kind": "class",
+          "startLine": 1198,
+          "endLine": 1199,
+          "tokens": 6
+        },
+        {
+          "name": "SilentSink",
+          "kind": "section",
+          "startLine": 1200,
+          "endLine": 1539,
+          "tokens": 4168
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/export-msg-ca0e785cc.txt": {
+      "description": "",
+      "tokens": 429,
+      "hash": "8be27dc3d5fe1986",
+      "size": 1723,
+      "mtimeMs": 1790933097952.6313,
+      "updatedAt": "2026-10-02T09:24:58.055Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-gui/src/desktop/canvas.rs": {
+      "description": "The M9-T6 canvas (desktop-gated): the egui painter over the pure",
+      "tokens": 1811,
+      "hash": "03536b8272834353",
+      "size": 6805,
+      "mtimeMs": 1790933570283.4438,
+      "updatedAt": "2026-10-02T09:32:50.387Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "paint",
+          "kind": "fn",
+          "startLine": 44,
+          "endLine": 57,
+          "tokens": 132
+        },
+        {
+          "name": "world_viewport",
+          "kind": "fn",
+          "startLine": 58,
+          "endLine": 66,
+          "tokens": 120
+        },
+        {
+          "name": "paint_ops",
+          "kind": "fn",
+          "startLine": 67,
+          "endLine": 126,
+          "tokens": 655
+        },
+        {
+          "name": "flush_path",
+          "kind": "fn",
+          "startLine": 127,
+          "endLine": 137,
+          "tokens": 125
+        },
+        {
+          "name": "fill_polygon",
+          "kind": "fn",
+          "startLine": 138,
+          "endLine": 152,
+          "tokens": 113
+        },
+        {
+          "name": "color",
+          "kind": "fn",
+          "startLine": 153,
+          "endLine": 156,
+          "tokens": 36
+        },
+        {
+          "name": "point",
+          "kind": "fn",
+          "startLine": 157,
+          "endLine": 166,
+          "tokens": 124
+        },
+        {
+          "name": "saturate_i32",
+          "kind": "fn",
+          "startLine": 167,
+          "endLine": 170,
+          "tokens": 28
+        },
+        {
+          "name": "StrokeState",
+          "kind": "class",
+          "startLine": 171,
+          "endLine": 175,
+          "tokens": 19
+        }
+      ]
     }
   },
   "preamble": [
