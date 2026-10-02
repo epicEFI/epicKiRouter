@@ -10022,3 +10022,19 @@ description: chronological action log per session, consolidated weekly
 | 10:44 | Created logs/readiness-2026-10-01/run_gates_p5.sh | — | ~586 |
 | 10:45 | Created logs/readiness-2026-10-01/p5-commit-msg.txt | — | ~659 |
 | 10:45 | Created logs/readiness-2026-10-01/export-msg-p5.txt | — | ~123 |
+| 10:59 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+14 lines) | ~256 |
+| 10:59 | Edited logs/readiness-2026-10-01/TASKS.md | 2→2 lines | ~35 |
+| 11:08 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified t9_candidate_metrics_are_weighted_both_sides_with_zero_fallback() | ~1176 |
+| 11:08 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified a39ad0efd() | ~236 |
+| 11:08 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | expanded (+8 lines) | ~277 |
+| 11:09 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 13→14 lines | ~224 |
+| 11:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~328 |
+| 11:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified passed() | ~346 |
+| 11:11 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified row() | ~76 |
+| 11:11 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~163 |
+| 11:13 | Created logs/readiness-2026-10-01/p6-commit-msg.txt | — | ~855 |
+| 11:13 | Created logs/readiness-2026-10-01/export-msg-p6.txt | — | ~130 |
+| 11:32 | Edited logs/readiness-2026-10-01/p6-commit-msg.txt | 9→10 lines | ~174 |
+| 11:32 | Edited logs/readiness-2026-10-01/p6-commit-msg.txt | modified notes() | ~571 |
+| 11:32 | Edited logs/readiness-2026-10-01/export-msg-p6.txt | modified door() | ~99 |
+| 11:37 | Edited logs/readiness-2026-10-01/TASKS.md | modified e986721b6() | ~267 |

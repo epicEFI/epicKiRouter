@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T16:45:10.263Z",
-    "fileCount": 721,
+    "lastScanned": "2026-10-02T17:37:59.180Z",
+    "fileCount": 723,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "df9b6359f65a1e3bb89bfe935364c39c17e7ae456f0dd8b35c7a5f1dc97434c8",
-    "storeUpdatedAt": "2026-10-02T16:45:10.273Z",
-    "rootHash": "a2d186463d3f120c"
+    "renderedHash": "774bb108920c02d5d0cc6905dd51c1f2aee2c5120a363fea7aa0fb2cc90d74fd",
+    "storeUpdatedAt": "2026-10-02T17:37:59.190Z",
+    "rootHash": "a4bf38bfe5f8c774"
   },
   "files": {
     ".dockerignore": {
@@ -7291,159 +7291,159 @@
     },
     "rust/crates/epic-router/src/pipeline/optimizer.rs": {
       "description": "Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute",
-      "tokens": 44251,
-      "hash": "683a18c6e1183e49",
-      "size": 166357,
-      "mtimeMs": 1790887335977.5125,
-      "updatedAt": "2026-10-01T20:42:16.083Z",
+      "tokens": 45931,
+      "hash": "40ea85f5d54fc942",
+      "size": 172684,
+      "mtimeMs": 1790961072862.4011,
+      "updatedAt": "2026-10-02T17:11:12.964Z",
       "source": "hook",
       "symbols": [
         {
           "name": "OptimizerSettingsIr",
           "kind": "class",
           "startLine": 112,
-          "endLine": 178,
-          "tokens": 1001
+          "endLine": 179,
+          "tokens": 1020
         },
         {
           "name": "ItemRouteResult",
           "kind": "class",
-          "startLine": 179,
-          "endLine": 192,
+          "startLine": 180,
+          "endLine": 193,
           "tokens": 107
         },
         {
           "name": "ItemRouteResult",
           "kind": "section",
-          "startLine": 193,
-          "endLine": 348,
+          "startLine": 194,
+          "endLine": 349,
           "tokens": 1560
         },
         {
           "name": "contains_only_unfixed_traces",
           "kind": "fn",
-          "startLine": 349,
-          "endLine": 361,
+          "startLine": 350,
+          "endLine": 362,
           "tokens": 148
         },
         {
           "name": "optimizer_candidate_rejection_reason",
           "kind": "fn",
-          "startLine": 362,
-          "endLine": 395,
+          "startLine": 363,
+          "endLine": 396,
           "tokens": 460
         },
         {
           "name": "are_all_vias_mandatory_layer_transitions",
           "kind": "fn",
-          "startLine": 396,
-          "endLine": 475,
+          "startLine": 397,
+          "endLine": 476,
           "tokens": 852
         },
         {
           "name": "RouteItemKey",
           "kind": "class",
-          "startLine": 476,
-          "endLine": 481,
+          "startLine": 477,
+          "endLine": 482,
           "tokens": 19
         },
         {
           "name": "RouteItemKey",
           "kind": "section",
-          "startLine": 482,
-          "endLine": 523,
+          "startLine": 483,
+          "endLine": 524,
           "tokens": 470
         },
         {
           "name": "read_sorted_route_items",
           "kind": "fn",
-          "startLine": 524,
-          "endLine": 636,
+          "startLine": 525,
+          "endLine": 637,
           "tokens": 1205
         },
         {
           "name": "OptimizerOutcome",
           "kind": "class",
-          "startLine": 637,
-          "endLine": 646,
+          "startLine": 638,
+          "endLine": 647,
           "tokens": 111
         },
         {
           "name": "BatchOptimizerStage",
           "kind": "class",
-          "startLine": 647,
-          "endLine": 678,
+          "startLine": 648,
+          "endLine": 679,
           "tokens": 353
         },
         {
           "name": "BatchOptimizerStage",
           "kind": "section",
-          "startLine": 679,
-          "endLine": 1556,
+          "startLine": 680,
+          "endLine": 1557,
           "tokens": 11780
         },
         {
           "name": "CandidateEvalBase",
           "kind": "class",
-          "startLine": 1557,
-          "endLine": 1596,
+          "startLine": 1558,
+          "endLine": 1597,
           "tokens": 590
         },
         {
           "name": "worker_stop_face",
           "kind": "fn",
-          "startLine": 1597,
-          "endLine": 1607,
+          "startLine": 1598,
+          "endLine": 1608,
           "tokens": 115
         },
         {
           "name": "candidate_ripup_costs_for",
           "kind": "fn",
-          "startLine": 1608,
-          "endLine": 1627,
+          "startLine": 1609,
+          "endLine": 1628,
           "tokens": 169
         },
         {
           "name": "candidate_settings_for",
           "kind": "fn",
-          "startLine": 1628,
-          "endLine": 1651,
+          "startLine": 1629,
+          "endLine": 1652,
           "tokens": 211
         },
         {
           "name": "deadline_passed_at",
           "kind": "fn",
-          "startLine": 1652,
-          "endLine": 1660,
+          "startLine": 1653,
+          "endLine": 1661,
           "tokens": 136
         },
         {
           "name": "optimizer_partition_of",
           "kind": "fn",
-          "startLine": 1661,
-          "endLine": 1678,
+          "startLine": 1662,
+          "endLine": 1679,
           "tokens": 301
         },
         {
           "name": "opt_route_item_body",
           "kind": "fn",
-          "startLine": 1679,
-          "endLine": 1843,
-          "tokens": 1917
+          "startLine": 1680,
+          "endLine": 1862,
+          "tokens": 2199
         },
         {
           "name": "total_weighted_trace_length",
           "kind": "fn",
-          "startLine": 1844,
-          "endLine": 1876,
+          "startLine": 1863,
+          "endLine": 1895,
           "tokens": 277
         },
         {
           "name": "now_millis",
           "kind": "fn",
-          "startLine": 1877,
-          "endLine": 3762,
-          "tokens": 23963
+          "startLine": 1896,
+          "endLine": 3893,
+          "tokens": 25462
         }
       ]
     },
@@ -7476,11 +7476,11 @@
     },
     "logs/readiness-2026-10-01/TASKS.md": {
       "description": "Campaign task list (living) — 2026-10-01",
-      "tokens": 3262,
-      "hash": "387088fdbc1c6cb2",
-      "size": 13184,
-      "mtimeMs": 1790958947377.1711,
-      "updatedAt": "2026-10-02T16:35:47.484Z",
+      "tokens": 3680,
+      "hash": "533a86711cb040f1",
+      "size": 14867,
+      "mtimeMs": 1790962679074.996,
+      "updatedAt": "2026-10-02T17:37:59.179Z",
       "source": "hook"
     },
     ".claude/rules/discord-untrusted-input.md": {
@@ -10995,6 +10995,24 @@
       "size": 460,
       "mtimeMs": 1790959510151.6467,
       "updatedAt": "2026-10-02T16:45:10.263Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/p6-commit-msg.txt": {
+      "description": "",
+      "tokens": 1176,
+      "hash": "5fb608abd346f94d",
+      "size": 4745,
+      "mtimeMs": 1790962359380.8335,
+      "updatedAt": "2026-10-02T17:32:39.478Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-p6.txt": {
+      "description": "",
+      "tokens": 191,
+      "hash": "6393773488ea0513",
+      "size": 768,
+      "mtimeMs": 1790962364820.853,
+      "updatedAt": "2026-10-02T17:32:44.921Z",
       "source": "hook"
     }
   },

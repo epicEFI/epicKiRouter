@@ -3833,6 +3833,27 @@
     "upstream-convergent",
     "bug-227-family"
    ]
+  },
+  {
+   "id": 244,
+   "error_message": "settings_on_golden_verifies_against_a_fresh_run panicked: settings-ON SES drifted: golden eececc41fea0dcad78d665a274a1c2806ca2b52429270e3eaa1c399e41a0f5c1 vs current Some(09463e57db274e9a1ef601c2002d75e9935ea198d3bf7d421ffe12c3d1a5d7a2) (P6 battery census red; cargo test --workspace is fail-fast so later suites were hidden)",
+   "root_cause": "The P6 port (upstream a39ad0efd, #811) legitimately rotates the t7_ripup settings-ON master face: pre-P6 the optimizer's cross-measure quirk (weighted baseline vs PLAIN after-length) read ANY lateral reroute 'improved', and on this one board a quirk-accepted candidate's pass board genuinely improved the pass score (640.83), surviving the pass gate to the final output. The coherent weighted-vs-weighted metric never adopts that candidate (stage ends at 269.92). Causality proven by revert-check (stashed pre-P6 tree + force-relinked bins verifies the OLD golden green; both digests reproduced by hand CLI runs — the quality faces ARE the golden faces: incomplete=0/violations=0/1000.00 on BOTH sides).",
+   "fix": "Golden advanced in place via the sanctioned door: epic-harness global-golden capture --dsn rust/harness/fixtures/maze-spike/t7_ripup.dsn --out <golden> (determinism self-gate, two runs; ses 09463e57…, manifest 08f294ec…; dsn_sha256/flags unchanged). Precedent: a7b00639b (buglog 210) and af1b147b advanced this exact file the same way. Parity decision + full disposition recorded in the P6 commit message (e986721b6). Census re-run green: 42/1766/0/19 as declared. Trap notes: (1) git stash rewrites source mtimes -> the harness staleness gate (buglog 184/220) refuses to run — honor it, force-relink BOTH epic-cli profiles before any revert-check verdict; (2) a battery summary line ('which happens on none of the goldens' boards') written BEFORE the red must be corrected in the landed message — never land a claim the tree has already falsified.",
+   "tags": [
+    "P6",
+    "a39ad0efd",
+    "#811",
+    "global-golden",
+    "t7_ripup",
+    "sanctioned-capture",
+    "golden-rotation",
+    "optimizer-score",
+    "revert-check",
+    "stale-bin-tripwire",
+    "buglog-184-family",
+    "fail-fast-census",
+    "upstream-convergent"
+   ]
   }
  ]
 }

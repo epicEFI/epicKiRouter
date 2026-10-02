@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T16:45:10.263Z
-> Files: 721 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T17:37:59.180Z
+> Files: 723 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -787,6 +787,7 @@
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
 - `export-msg-p4.txt` (~243 tok)
 - `export-msg-p5.txt` (~115 tok)
+- `export-msg-p6.txt` (~191 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
 - `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
@@ -804,6 +805,7 @@
 - `p3extract.py` — grab (~152 tok)
 - `p4-commit-msg.txt` — Declares as (~846 tok)
 - `p5-commit-msg.txt` (~618 tok)
+- `p6-commit-msg.txt` (~1176 tok)
 - `probe_sigint.new.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~1037 tok)
 - `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
@@ -816,7 +818,7 @@
 - `run_gates_p5.sh` — P5 (upstream 8fb76a61b convex-split stop guard) gate battery: fmt + (~586 tok)
 - `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
-- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3262 tok)
+- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3680 tok)
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
 
@@ -933,7 +935,7 @@
 
 - `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~25620 tok)
 - `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~13513 tok)
-- `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~44251 tok)
+- `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~45931 tok)
 
 ## rust/harness/
 
