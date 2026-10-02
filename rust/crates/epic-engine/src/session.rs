@@ -572,6 +572,23 @@ impl Session {
         manager.reinsert_tree_items(&mut board);
         apply_copper_to_edge_clearance_override(&load_merged, &mut manager, &mut board);
         epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        // 4b. P3 (#925a): the tolerance override applies BEFORE the
+        //     load-time seed — Java's order (settings load
+        //     `:598-623` precedes the deferred DRC seed `:788-793`),
+        //     so the seed walk counts with the caller's tolerance
+        //     (the DEFAULT drops sub-µm rows from the pre-existing
+        //     count exactly as it does from the final walk). The
+        //     load merge carries Default+DSN+SESSION (no CLI yet);
+        //     the route head re-applies the fully-merged view (same
+        //     value in the common case — idempotent). The warn
+        //     rides the load warnings (the parse-warning channel).
+        if let Some(value) = load_merged.drc_clearance_tolerance_um
+            && let Err(bad) = crate::drc_tolerance::apply_clearance_tolerance(&mut board, value)
+        {
+            warnings.push(format!(
+                "ignoring router.drc.clearance_tolerance_um (must be finite and >= 0): {bad}"
+            ));
+        }
         // 5. The load-time violation seed (route.rs:930-931).
         let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
         board.pre_existing_clearance_violations_count =
@@ -649,6 +666,25 @@ impl Session {
         merge_session(&mut merged, &self.session_layer);
         for warning in validate(&mut merged) {
             sink.warn(&warning);
+        }
+        // P3 (#925a, upstream 14b28b6ff): the DRC clearance-tolerance
+        // override, re-applied from the FULLY-merged view (the load
+        // path already applied Default+DSN+SESSION before the seed —
+        // `load_dsn` step 4b; this pass lands the CLI layer and any
+        // post-load session value, the same value in the common
+        // case, idempotent) before every feature face and the
+        // pipeline's first violation read (the router's
+        // `item_clearance_violations` callers and the final DRC walk
+        // both read the mutated tolerance). An invalid value warns +
+        // keeps the board default (Java HeadlessBoardManager parity),
+        // never fails the run.
+        if let Some(value) = merged.drc_clearance_tolerance_um
+            && let Err(bad) =
+                crate::drc_tolerance::apply_clearance_tolerance(&mut self.board, value)
+        {
+            sink.warn(&format!(
+                "ignoring router.drc.clearance_tolerance_um (must be finite and >= 0): {bad}"
+            ));
         }
         // F1 (Rust-only): the pin auto-assignment face runs at the
         // route head — AFTER the merge (the list can arrive from any

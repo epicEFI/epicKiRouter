@@ -2,7 +2,7 @@
 # boundary: load (snapshot_with_overlays pre-route; markers carry Parse)
 # snapshot revision: 25
 # snapshot items: traces=7 vias=3 pads=10 areas=4 outline_pts=4 nets=11
-# overlay counts: airlines=8 markers=3 congestion=None tuning=None
+# overlay counts: airlines=8 markers=2 congestion=None tuning=None
 # transform: pan=(-1000, -1000) zoom=1/1 (the T4 derivation: 1/1 is the unique
 #   full-bijection px-per-DBU ratio — view.rs's exactness contract; pan = bounds.ll)
 # viewport: the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX)); culled=0
@@ -762,23 +762,6 @@
       "LineTo": {
         "x": 221000,
         "y": 21000
-      }
-    },
-    {
-      "SetColor": [
-        255,
-        0,
-        255,
-        255
-      ]
-    },
-    {
-      "Circle": {
-        "center": {
-          "x": 126250,
-          "y": 53750
-        },
-        "radius": 4
       }
     },
     {

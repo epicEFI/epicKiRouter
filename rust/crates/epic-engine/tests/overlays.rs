@@ -277,8 +277,18 @@ fn congestion_engaged_yields_some_and_default_yields_none() {
 
 // --- PIN 3b — the F1 fix-round face: PostRoute on REAL content -------
 
+/// The P3 pin-pair craft: two cross-net pins 1000 µm apart under a
+/// 2000 µm rule — a REAL shortfall (1000 µm) the #925a gate cannot
+/// drop at any sane tolerance, on pins no router can move. drc-main
+/// itself is NO LONGER a violation-retaining craft post-#925a: its
+/// only routing-surviving row was the outline/edge-pin pair whose
+/// rule cell the copper-to-edge override leaves at 0 (shortfall
+/// exactly 0.0 — dropped at EVERY tolerance; see the P3 recon), and
+/// its trace rows get ripped.
+const PINPAIR_CRAFT: &str = "harness/fixtures/p3/p3-pinpair.dsn";
+
 /// The violation-retaining post-route face (spec-review F1, mutant
-/// M3): the drc craft ROUTED at defaults RETAINS violations (the
+/// M3): the pin-pair craft ROUTED at defaults RETAINS violations (the
 /// non-vacuousness assert comes FIRST — a phase forced to Parse now
 /// fails here on real content, where the vacuous routed-bm08 face
 /// could not catch it). Also pins the marker count == the depth-walk
@@ -287,7 +297,7 @@ fn congestion_engaged_yields_some_and_default_yields_none() {
 /// attach step runs).
 #[test]
 fn post_route_markers_survive_on_the_violation_retaining_craft() {
-    let bytes = read_fixture(DRC_CRAFT);
+    let bytes = read_fixture(PINPAIR_CRAFT);
     let mut session = match Session::load_dsn(&bytes, SessionLayer::default()) {
         Ok(session) => session,
         Err(error) => panic!("the drc craft loads: {error:?}"),
@@ -372,20 +382,40 @@ fn attach_counts_match_the_independent_drc_walks() {
     };
     let snapshot = session.snapshot_with_overlays();
 
-    // The independent walk: parse fresh, replicate the load prelude
-    // (board build + tree fill + normalization; the copper-to-edge
-    // override touches only the outline's clearance class — no
-    // effect on the incompletes walk, which reads connectivity — so
-    // the replicated prelude ends at normalize_all_traces).
+    // The independent walk: parse fresh, replicate the FULL load
+    // prelude (board build + tree fill + the copper-to-edge override
+    // + normalization). P3 falsified the old "the override touches
+    // only the outline's clearance class — no effect" claim FOR THE
+    // CLEARANCE WALK: class promotion rewrites the pair's rule cell
+    // (drc-main's outline/edge-pin row reads min 0 post-override),
+    // and the #925a gate then drops the 0-shortfall row — so an
+    // override-less replica diverges (raw 3 vs session 2). The
+    // incompletes half of the walk is still connectivity-only (the
+    // override remains inert there), so one replicated prelude serves
+    // both asserts.
     let mut ses = SesBoard::new();
     let result = read_board(&bytes, &mut ses);
     assert!(
         matches!(result, epic_dsn::reader::DsnReadResult::Success { .. }),
         "the craft parses"
     );
+    let dsn_layer = epic_engine::settings::DsnLayer::from_metadata(
+        ses.metadata.autoroute_settings.as_ref(),
+        usize::try_from(ses.metadata.layer_count).unwrap_or(0),
+    );
+    let merged = epic_engine::settings::merge(
+        &epic_engine::settings::MergedSettings::default(),
+        &dsn_layer,
+        &epic_engine::settings::CliLayer::default(),
+    );
     let mut board = Board::from_ses_board(&ses);
     let mut manager = SearchTreeManager::new();
     manager.reinsert_tree_items(&mut board);
+    epic_engine::session::apply_copper_to_edge_clearance_override(
+        &merged,
+        &mut manager,
+        &mut board,
+    );
     epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
     let (_max_conn, rows) = all_incompletes(&manager, &mut board);
     let sum: usize = rows.iter().map(|row| row.incomplete_count).sum();

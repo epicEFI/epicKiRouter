@@ -210,6 +210,16 @@ pub struct CliLayer {
     /// every `pour.nets` request; absent = the LAST signal layer, the
     /// bottom copper of classic 2-layer practice).
     pub pour_layer: Option<String>,
+    /// `router.drc.clearance_tolerance_um` — the #925a DRC
+    /// clearance-violation shortfall tolerance in micrometres
+    /// (upstream `14b28b6ff`): shortfalls ≤ this are floating-point
+    /// discretization / imperial↔metric rounding noise and are not
+    /// recorded (STRICT `>` at the boundary). `None` (the default) =
+    /// the board rules' own seed (1.0); the apply face
+    /// ([`crate::drc_tolerance`]) warns + IGNORES a non-finite or
+    /// negative value, keeping the board default (Java
+    /// `HeadlessBoardManager` parity).
+    pub drc_clearance_tolerance_um: Option<f64>,
     /// `router.gloss.bus` — the M8-T3 GLOSS BUS tri-state (RUST-ONLY,
     /// no Java counterpart; the gloss family block beside the
     /// `router.tuning` family). `None` (the default) = OFF: the gloss
@@ -868,6 +878,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
         "pour.layer" => {
             layer.pour_layer = Some(value.to_string());
         }
+        "drc.clearance_tolerance_um" => match value.parse::<f64>() {
+            Ok(v) => layer.drc_clearance_tolerance_um = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
         "gloss.bus" => match parse_on_off(value) {
             Some(v) => layer.gloss_bus = Some(v),
             None => warn_bad_value(layer, property, value),
@@ -1336,6 +1350,11 @@ pub struct MergedSettings {
     /// `router.pour.layer` — the F3 pour layer (absent = the last
     /// signal layer; CLI/session-only, Default seed `None`).
     pub pour_layer: Option<String>,
+    /// `router.drc.clearance_tolerance_um` — the #925a DRC shortfall
+    /// tolerance (µm; absent = the board rules' 1.0 seed; CLI/
+    /// session-only, Default seed `None` — the apply face rejects
+    /// non-finite/negative with a warn).
+    pub drc_clearance_tolerance_um: Option<f64>,
     /// `router.gloss.bus` — the M8-T3 gloss-bus tri-state (absent =
     /// OFF; CLI-only — no DSN/default source writes it, the Default
     /// seed is `None`).
@@ -1470,6 +1489,7 @@ impl Default for MergedSettings {
             current_temp_rise_c: None,
             pour_nets: None,
             pour_layer: None,
+            drc_clearance_tolerance_um: None,
             gloss_bus: None,
             gloss_flow: None,
             gloss_via_place: None,
@@ -1647,6 +1667,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.pour_layer.clone() {
         merged.pour_layer = Some(v);
+    }
+    if let Some(v) = cli.drc_clearance_tolerance_um {
+        merged.drc_clearance_tolerance_um = Some(v);
     }
     if let Some(v) = cli.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -2067,6 +2090,10 @@ pub struct ResolvedRouteSettings {
     /// CLI twin: [`CliLayer::pour_layer`] — the F3 pour layer (absent
     /// = the last signal layer).
     pub pour_layer: Option<String>,
+    /// CLI twin: [`CliLayer::drc_clearance_tolerance_um`] — the #925a
+    /// DRC shortfall tolerance (µm; absent = the board rules' 1.0
+    /// seed).
+    pub drc_clearance_tolerance_um: Option<f64>,
     /// The M8-T3 gloss-bus flag (`router.gloss.bus`), resolved to its
     /// effective face: ON only when explicitly `on` (the pass has no
     /// input-driven activation — absent and `off` are both OFF, the
@@ -2203,6 +2230,7 @@ impl ResolvedRouteSettings {
             current_temp_rise_c: merged.current_temp_rise_c,
             pour_nets: merged.pour_nets.clone(),
             pour_layer: merged.pour_layer.clone(),
+            drc_clearance_tolerance_um: merged.drc_clearance_tolerance_um,
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
             gloss_via_place: merged.gloss_via_place.unwrap_or(false),
@@ -2500,6 +2528,9 @@ pub struct SessionLayer {
     pub pour_nets: Option<Vec<String>>,
     /// CLI twin: [`CliLayer::pour_layer`] — the F3 pour layer.
     pub pour_layer: Option<String>,
+    /// CLI twin: [`CliLayer::drc_clearance_tolerance_um`] — the #925a
+    /// DRC shortfall tolerance (µm).
+    pub drc_clearance_tolerance_um: Option<f64>,
     /// CLI twin: [`CliLayer::gloss_bus`] — the M8-T3 gloss-bus flag.
     pub gloss_bus: Option<bool>,
     /// CLI twin: [`CliLayer::gloss_flow`] — the M8-T4 gloss-flow flag.
@@ -2608,6 +2639,9 @@ pub fn merge_session(merged: &mut MergedSettings, session: &SessionLayer) {
     }
     if let Some(v) = session.pour_layer.clone() {
         merged.pour_layer = Some(v);
+    }
+    if let Some(v) = session.drc_clearance_tolerance_um {
+        merged.drc_clearance_tolerance_um = Some(v);
     }
     if let Some(v) = session.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -3639,6 +3673,7 @@ mod tests {
             current_temp_rise_c: None,
             pour_nets: None,
             pour_layer: None,
+            drc_clearance_tolerance_um: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -4921,6 +4956,7 @@ mod tests {
             current_temp_rise_c: None,
             pour_nets: None,
             pour_layer: None,
+            drc_clearance_tolerance_um: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -5195,6 +5231,56 @@ mod tests {
         merge_session(&mut none_layer, &SessionLayer::default());
         assert_eq!(none_layer.pour_nets, None, "None never overwrites");
         assert_eq!(none_layer.pour_layer, None);
+    }
+
+    /// #925a: the `drc.clearance_tolerance_um` plumbing end to end —
+    /// the float grammar (a non-float value warns and lands `None`,
+    /// the `current.copper_oz` law), `merge`/`resolve` carry it
+    /// VERBATIM (the validity check is the APPLY face's job —
+    /// `drc_tolerance` warns + ignores non-finite/negative, Java
+    /// HeadlessBoardManager parity), the session layer wins over the
+    /// CLI, and `None` never overwrites.
+    #[test]
+    fn drc_clearance_tolerance_um_grammar_and_lifecycle() {
+        let mut layer = CliLayer::default();
+        apply_router_setting(&mut layer, "drc.clearance_tolerance_um", "2.5");
+        assert_eq!(layer.drc_clearance_tolerance_um, Some(2.5));
+        // The default stays OFF (the board rules' own 1.0 seed rules).
+        assert_eq!(CliLayer::default().drc_clearance_tolerance_um, None);
+
+        // A non-float warns and never lands (the parse-Err arm).
+        let mut bad = CliLayer::default();
+        apply_router_setting(&mut bad, "drc.clearance_tolerance_um", "wide");
+        assert_eq!(bad.drc_clearance_tolerance_um, None);
+        let expected = "Failed to apply CLI router setting: drc.clearance_tolerance_um: For input string: \"wide\"";
+        assert_eq!(bad.warnings.last().map(String::as_str), Some(expected));
+
+        // NOTE: a parseable-but-invalid value (negative, NaN text) is
+        // DELIBERATELY accepted by the grammar — validity is judged at
+        // the apply face, which warns + keeps the board default
+        // (pinned in drc_tolerance.rs).
+        apply_router_setting(&mut layer, "drc.clearance_tolerance_um", "-0.5");
+        assert_eq!(layer.drc_clearance_tolerance_um, Some(-0.5));
+
+        let cli = CliLayer {
+            drc_clearance_tolerance_um: Some(2.5),
+            ..CliLayer::default()
+        };
+        let mut merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
+        assert_eq!(merged.drc_clearance_tolerance_um, Some(2.5));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(resolved.drc_clearance_tolerance_um, Some(2.5));
+
+        let session = SessionLayer {
+            drc_clearance_tolerance_um: Some(0.0),
+            ..SessionLayer::default()
+        };
+        merge_session(&mut merged, &session);
+        assert_eq!(merged.drc_clearance_tolerance_um, Some(0.0), "session wins");
+
+        let mut none_layer = MergedSettings::default();
+        merge_session(&mut none_layer, &SessionLayer::default());
+        assert_eq!(none_layer.drc_clearance_tolerance_um, None);
     }
 
     /// F4: the `--interview` flag grammar — the three modes parse,
