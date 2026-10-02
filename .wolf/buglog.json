@@ -3812,6 +3812,27 @@
     "pin-pin-exemptions",
     "P4"
    ]
+  },
+  {
+   "id": 243,
+   "date": "2026-10-02",
+   "error_message": "panic 'splitToConvex stop requested (Java would NPE on null)' at drill_page.rs:238 — a user stop (SIGINT via StopFace::from_external_flag) landing in a DrillPage recompute with >=1 2D cutout aborted the whole run",
+   "root_cause": "The port mirrored upstream's PRE-fix bug literally: Java PolylineArea.splitToConvex(thread) signals stop with null and DrillPage.getDrills dereferenced it at drillShapes.length (NPE). The exception-to-panic discipline turned a reachable Java crash into a reachable Rust panic — unlike the other 'Java would NPE' mirrors, which guard statically-unreachable faces, this one is LIVE on the user-stop path (buglog 227 wiring).",
+   "fix": "Ported upstream 8fb76a61b (commit f0fdb120d): the stop arm returns the EMPTY memoized drills instead of panicking. Java's guard `if (drillShapes == null) return this.drills` returns the LinkedList assigned EMPTY at the TOP of the recompute branch; the Rust memo assignment lives at the END, so the port materializes self.drills = Some(Vec::new()) at the stop site (net_number was already set up top — memo key stays consistent: same-net re-asks answer empty, net change re-derives). Structural divergence, zero semantic divergence. Census 42/1765/0/19 (+1 three-arm pin: no-panic+empty / memo survival after stop cleared / net-change recovery — each arm kills its own mutant; witnessed RED with the exact panic first). Battery green on the exact tree: corpus 5000/5000, dsn 1332/0/72-ledgered, ses/sessnap/index/undo/drc/events ok, det1+threads canaries byte-identical, tierA 11/0.",
+   "tags": [
+    "8fb76a61b",
+    "P5",
+    "stop-flag",
+    "SIGINT",
+    "splitToConvex",
+    "NPE-mirror",
+    "reachable-panic",
+    "drill-page",
+    "memoization",
+    "exception-to-panic-discipline",
+    "upstream-convergent",
+    "bug-227-family"
+   ]
   }
  ]
 }

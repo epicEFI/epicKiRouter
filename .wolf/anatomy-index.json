@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T16:35:47.484Z",
-    "fileCount": 716,
+    "lastScanned": "2026-10-02T16:45:10.263Z",
+    "fileCount": 721,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "95513872ad97b50aa82cbe8a37eb9f553a1d2b8262ab150dc793a5c2a158abe5",
-    "storeUpdatedAt": "2026-10-02T16:35:47.494Z",
-    "rootHash": "9d8c028be22456e5"
+    "renderedHash": "df9b6359f65a1e3bb89bfe935364c39c17e7ae456f0dd8b35c7a5f1dc97434c8",
+    "storeUpdatedAt": "2026-10-02T16:45:10.273Z",
+    "rootHash": "a2d186463d3f120c"
   },
   "files": {
     ".dockerignore": {
@@ -10715,6 +10715,286 @@
       "size": 975,
       "mtimeMs": 1790957919472.6526,
       "updatedAt": "2026-10-02T16:18:39.579Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-router/src/drill/tests.rs": {
+      "description": "Synthetic-world unit pins for the drill subsystem (no capture rows",
+      "tokens": 21968,
+      "hash": "eecd2226e516b6a5",
+      "size": 82515,
+      "mtimeMs": 1790959394708.0254,
+      "updatedAt": "2026-10-02T16:43:14.810Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "SynthItem",
+          "kind": "class",
+          "startLine": 42,
+          "endLine": 58,
+          "tokens": 135
+        },
+        {
+          "name": "SynthRoom",
+          "kind": "class",
+          "startLine": 59,
+          "endLine": 67,
+          "tokens": 41
+        },
+        {
+          "name": "SynthPadstack",
+          "kind": "class",
+          "startLine": 68,
+          "endLine": 73,
+          "tokens": 26
+        },
+        {
+          "name": "SynthWorld",
+          "kind": "class",
+          "startLine": 74,
+          "endLine": 107,
+          "tokens": 411
+        },
+        {
+          "name": "box_tile",
+          "kind": "fn",
+          "startLine": 108,
+          "endLine": 114,
+          "tokens": 59
+        },
+        {
+          "name": "SynthWorld",
+          "kind": "section",
+          "startLine": 115,
+          "endLine": 245,
+          "tokens": 1044
+        },
+        {
+          "name": "SynthWorld",
+          "kind": "section",
+          "startLine": 246,
+          "endLine": 464,
+          "tokens": 1628
+        },
+        {
+          "name": "SynthWorld",
+          "kind": "section",
+          "startLine": 465,
+          "endLine": 697,
+          "tokens": 1853
+        },
+        {
+          "name": "ScriptedChecker",
+          "kind": "class",
+          "startLine": 698,
+          "endLine": 703,
+          "tokens": 45
+        },
+        {
+          "name": "ScriptedChecker",
+          "kind": "section",
+          "startLine": 704,
+          "endLine": 718,
+          "tokens": 104
+        },
+        {
+          "name": "ScriptedChecker",
+          "kind": "section",
+          "startLine": 719,
+          "endLine": 748,
+          "tokens": 244
+        },
+        {
+          "name": "FixedDistance",
+          "kind": "class",
+          "startLine": 749,
+          "endLine": 750,
+          "tokens": 8
+        },
+        {
+          "name": "FixedDistance",
+          "kind": "section",
+          "startLine": 751,
+          "endLine": 758,
+          "tokens": 64
+        },
+        {
+          "name": "square_bounds",
+          "kind": "fn",
+          "startLine": 759,
+          "endLine": 766,
+          "tokens": 118
+        },
+        {
+          "name": "test_ctrl",
+          "kind": "fn",
+          "startLine": 767,
+          "endLine": 837,
+          "tokens": 648
+        },
+        {
+          "name": "drill_with_rooms",
+          "kind": "fn",
+          "startLine": 838,
+          "endLine": 850,
+          "tokens": 100
+        },
+        {
+          "name": "rooms_world",
+          "kind": "fn",
+          "startLine": 851,
+          "endLine": 858,
+          "tokens": 75
+        },
+        {
+          "name": "shape_entry",
+          "kind": "fn",
+          "startLine": 859,
+          "endLine": 865,
+          "tokens": 41
+        },
+        {
+          "name": "emit_keys",
+          "kind": "fn",
+          "startLine": 866,
+          "endLine": 880,
+          "tokens": 164
+        },
+        {
+          "name": "max_drill_page_width_truncates_then_clamps",
+          "kind": "fn",
+          "startLine": 881,
+          "endLine": 909,
+          "tokens": 249
+        },
+        {
+          "name": "page_grid_arithmetic_snaps_last_row_column",
+          "kind": "fn",
+          "startLine": 910,
+          "endLine": 951,
+          "tokens": 403
+        },
+        {
+          "name": "overlapping_pages_strict_upper_bound_at_exact_integer",
+          "kind": "fn",
+          "startLine": 952,
+          "endLine": 993,
+          "tokens": 477
+        },
+        {
+          "name": "expansion_drill_get_id_wraps_like_java_int",
+          "kind": "fn",
+          "startLine": 994,
+          "endLine": 1016,
+          "tokens": 328
+        },
+        {
+          "name": "get_drills_skipped_entries_do_not_update_prev_shape",
+          "kind": "fn",
+          "startLine": 1017,
+          "endLine": 1054,
+          "tokens": 502
+        },
+        {
+          "name": "get_drills_duplicate_shapes_do_not_duplicate_drills",
+          "kind": "fn",
+          "startLine": 1055,
+          "endLine": 1100,
+          "tokens": 554
+        },
+        {
+          "name": "get_drills_attach_smd_pin_center_last_match_wins",
+          "kind": "fn",
+          "startLine": 1101,
+          "endLine": 1146,
+          "tokens": 614
+        },
+        {
+          "name": "get_drills_memoization_ignores_attach_smd_but_not_net",
+          "kind": "fn",
+          "startLine": 1147,
+          "endLine": 1213,
+          "tokens": 826
+        },
+        {
+          "name": "get_drills_stop_returns_empty_memo_instead_of_panicking",
+          "kind": "fn",
+          "startLine": 1214,
+          "endLine": 1268,
+          "tokens": 773
+        },
+        {
+          "name": "page_reset_keeps_the_drills_memo",
+          "kind": "fn",
+          "startLine": 1269,
+          "endLine": 1305,
+          "tokens": 423
+        },
+        {
+          "name": "get_drills_rejects_drill_when_completion_yields_not_exactly_one_room",
+          "kind": "fn",
+          "startLine": 1306,
+          "endLine": 2389,
+          "tokens": 11124
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/drill/drill_page.rs": {
+      "description": "Java `autoroute/drill/DrillPage.java` (194 lines) — one grid cell's",
+      "tokens": 3514,
+      "hash": "9a3fbcb7c9974011",
+      "size": 13215,
+      "mtimeMs": 1790959421564.1736,
+      "updatedAt": "2026-10-02T16:43:41.666Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "DrillPage",
+          "kind": "class",
+          "startLine": 16,
+          "endLine": 33,
+          "tokens": 244
+        },
+        {
+          "name": "calc_pin_center_in_drill",
+          "kind": "fn",
+          "startLine": 34,
+          "endLine": 56,
+          "tokens": 163
+        },
+        {
+          "name": "DrillPage",
+          "kind": "section",
+          "startLine": 57,
+          "endLine": 306,
+          "tokens": 3189
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/run_gates_p5.sh": {
+      "description": "P5 (upstream 8fb76a61b convex-split stop guard) gate battery: fmt +",
+      "tokens": 586,
+      "hash": "1f2c34e224251dbd",
+      "size": 2196,
+      "mtimeMs": 1790959476624.4702,
+      "updatedAt": "2026-10-02T16:44:36.721Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/p5-commit-msg.txt": {
+      "description": "",
+      "tokens": 618,
+      "hash": "75e1a8210662144b",
+      "size": 2489,
+      "mtimeMs": 1790959508781.6396,
+      "updatedAt": "2026-10-02T16:45:08.892Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-p5.txt": {
+      "description": "",
+      "tokens": 115,
+      "hash": "9055826805967944",
+      "size": 460,
+      "mtimeMs": 1790959510151.6467,
+      "updatedAt": "2026-10-02T16:45:10.263Z",
       "source": "hook"
     }
   },
