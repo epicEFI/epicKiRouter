@@ -1239,7 +1239,14 @@ const OVERLAY_GOLDEN_CASES: [OverlayGoldenCase; 6] = [
     },
     // 2. markers golden: the crafted DRC world (a probed >= 1
     //    violation bearer — the drc corpus craft), drc flag ON only,
-    //    Parse phase.
+    //    Parse phase. PARITY DECISION (upstream #935 pin-gap cap,
+    //    freerouting@a917044ff): this is the one golden family that
+    //    drives Session::load_dsn, so the cap fires here — P10's pad
+    //    crosses the outline edge (minimumPinGap 0) and the
+    //    outline x P10 marker depth collapses 250 -> 0 (radius 64 -> 4;
+    //    count, centers, and both copper-copper rows unchanged).
+    //    Upstream HEAD applies the same cap on the same board; golden
+    //    re-captured same-commit through capture_overlay_goldens.
     OverlayGoldenCase {
         fixture: "harness/corpus/craft/drc-main.dsn",
         golden: "drc-craft.overlay-markers.json",

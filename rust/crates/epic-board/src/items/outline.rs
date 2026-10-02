@@ -35,6 +35,8 @@
 //! `OUTLINE_SHAPE`/`OUTLINE_KEEPOUT`/`OUTLINE_HOLE`/`OUTLINE_TILES`
 //! lines.
 
+use epic_geometry::float_line::FloatLine;
+use epic_geometry::float_point::FloatPoint;
 use epic_geometry::int_box::IntBox;
 use epic_geometry::line::Line;
 use epic_geometry::polyline::Polyline;
@@ -100,6 +102,98 @@ pub fn keepout_area(bounding_box: IntBox, shapes: &[BoardShape]) -> Area {
 #[must_use]
 pub fn keepout_lines() -> Vec<TileShape> {
     Vec::new()
+}
+
+/// The shape's OWN border corners as float points — Java
+/// `PolylineShape.cornerApprox(no)` (`PolylineShape.java:68-70`) over
+/// the `borderLineCount()` corners. Tiles go through
+/// [`TileShape::corner_approx`]: a simplex corner where adjacent
+/// border lines are parallel answers the UNBOUNDED arm (Java's
+/// MAX_VALUE coordinates — the point lands outside every outline
+/// shape, so its distance is 0, the conservative direction) instead
+/// of panicking the way the exact [`TileShape::corner`] face does;
+/// polygon corners are stored points, exact as in Java. Empty for
+/// circles (they carry no border corners; the pin-gap consumers
+/// route them through the bounding box instead —
+/// [`pad_corner_points`]).
+fn own_corner_points(shape: &BoardShape) -> Vec<FloatPoint> {
+    match shape {
+        BoardShape::Tile(tile) => (0..tile.border_line_count() as i32)
+            .filter_map(|no| tile.corner_approx(no))
+            .collect(),
+        BoardShape::PolygonShape(polygon) => (0..polygon.border_line_count() as i32)
+            .map(|no| polygon.corner(no).to_float())
+            .collect(),
+        BoardShape::Circle(_) => Vec::new(),
+    }
+}
+
+/// The corners a PAD is sampled at for
+/// [`Board::outline_minimum_pin_gap`] — Java `BoardOutline.cornerGap`
+/// (a917044ff, upstream #935). Polygonal and tile pads sample their
+/// OWN corners: the upstream branch is `instanceof PolylineShape`,
+/// which catches `PolygonShape` AND `TileShape` (both extend it;
+/// the upstream review patch initially broke exactly this arm by
+/// sending only polygons through it — "only round pads fall back to
+/// the bounding box"). Round pads sample the bounding-box corners —
+/// conservative (never larger than the true gap) for round copper.
+/// The Java `isEmpty`/`!isBounded` skip is structural here: every
+/// [`BoardShape`] is non-empty and bounded by construction.
+fn pad_corner_points(pad_shape: &BoardShape) -> Vec<FloatPoint> {
+    if matches!(pad_shape, BoardShape::Circle(_)) {
+        let bounds = pad_shape.bounding_box();
+        return (0..4).map(|no| bounds.corner(no).to_float()).collect();
+    }
+    own_corner_points(pad_shape)
+}
+
+/// The outline-contains face of Java `BoardOutline.contains` —
+/// inside ANY outline shape (the any-shape loop,
+/// `BoardOutline.java:266-289`; NOT the `keepoutOutsideOutline`
+/// inversion, which only the tree shapes apply).
+fn shape_contains_point(shape: &BoardShape, point: &FloatPoint) -> bool {
+    match shape {
+        BoardShape::Tile(tile) => tile.contains_float(point),
+        BoardShape::PolygonShape(polygon) => polygon.contains_float(point),
+        BoardShape::Circle(circle) => circle.contains_float(point),
+    }
+}
+
+/// Java `BoardOutline.distanceToOutline(FloatPoint)` (a917044ff,
+/// upstream #935) — 0 for points that are not inside the outline;
+/// otherwise the smallest distance to any outline border SEGMENT
+/// (upstream measures the corner-to-corner segments directly because
+/// `PolygonShape.borderDistance` is not implemented there either).
+/// A CIRCLE outline shape contributes nothing — unreachable from a
+/// parsed boundary (see [`line_count`]); Java cannot even express it
+/// in the `PolylineShape[]` field.
+fn distance_to_outline(outline_shapes: &[BoardShape], point: FloatPoint) -> f64 {
+    if !outline_shapes
+        .iter()
+        .any(|shape| shape_contains_point(shape, &point))
+    {
+        return 0.0;
+    }
+    let mut result = f64::INFINITY;
+    for shape in outline_shapes {
+        let corners = own_corner_points(shape);
+        let corner_count = corners.len();
+        for i in 0..corner_count {
+            let segment = FloatLine::new(corners[i], corners[(i + 1) % corner_count]);
+            result = result.min(segment.segment_distance(&point));
+        }
+    }
+    result
+}
+
+/// Java `BoardOutline.cornerGap(Shape)` (a917044ff, upstream #935) —
+/// the smallest outline distance over the pad's sampled corners
+/// ([`pad_corner_points`]).
+fn corner_gap(pad_shape: &BoardShape, outline_shapes: &[BoardShape]) -> f64 {
+    pad_corner_points(pad_shape)
+        .into_iter()
+        .map(|corner| distance_to_outline(outline_shapes, corner))
+        .fold(f64::INFINITY, f64::min)
 }
 
 /// The border lines of an outline shape in Java's order.
@@ -182,6 +276,50 @@ impl crate::board::Board {
         let bounding_box = self.bounding_box()?;
         Some(keepout_area(bounding_box, shapes))
     }
+
+    /// Java `BoardOutline.minimumPinGap()` (a917044ff, upstream #935)
+    /// — the smallest gap, in board units, between the copper of any
+    /// pin and the outline lines: 0 if a pin touches or crosses the
+    /// outline, `+∞` if the board has no pins. Pad corners are
+    /// sampled ([`corner_gap`]) — exact for polygonal/tile pads,
+    /// conservative (never larger than the true gap) for round ones.
+    /// Java's `this.board == null` early return is structural here
+    /// (the method lives ON the board); a non-outline id answers
+    /// `+∞` the same way Java's null board does.
+    ///
+    /// `&mut self` because the per-pin layer span resolves through
+    /// [`Board::item_first_layer`]/[`Board::item_last_layer`].
+    pub fn outline_minimum_pin_gap(&mut self, id: crate::id::ItemId) -> f64 {
+        let outline_shapes: Vec<BoardShape> = match self.get(id).map(|entry| &entry.data) {
+            Some(ItemData::BoardOutline { shapes, .. }) => shapes.clone(),
+            _ => return f64::INFINITY,
+        };
+        let pin_ids: Vec<crate::id::ItemId> = self
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.id)
+            .collect();
+        let mut result = f64::INFINITY;
+        for pin_id in pin_ids {
+            let (Some(first_layer), Some(last_layer)) =
+                (self.item_first_layer(pin_id), self.item_last_layer(pin_id))
+            else {
+                continue;
+            };
+            for layer in first_layer..=last_layer {
+                // Java `pin.getShape(layer - pin.firstLayer())` — the
+                // null shape slot is the skip.
+                let Some(pad_shape) = self.pin_shape(pin_id, layer - first_layer) else {
+                    continue;
+                };
+                result = result.min(corner_gap(&pad_shape, &outline_shapes));
+                if result <= 0.0 {
+                    return 0.0;
+                }
+            }
+        }
+        result
+    }
 }
 
 #[cfg(test)]
@@ -191,8 +329,10 @@ mod tests {
     use crate::id::ItemId;
     use crate::items::ItemData;
     use epic_dsn::reader::{DsnReadResult, read_board};
+    use epic_geometry::circle::Circle;
     use epic_geometry::int_point::IntPoint;
     use epic_geometry::point::Point;
+    use epic_geometry::polygon_shape::PolygonShape;
 
     /// The bm08 fixture path — the smallest tier-A fixture WITH an
     /// outline (module docs).
@@ -419,5 +559,113 @@ mod tests {
         );
         assert_eq!(area.holes, vec![shape], "the hole IS the outline shape");
         assert_eq!(shapes.len(), 1, "the input is untouched");
+    }
+
+    // -------------------------------------------------------------------
+    // The minimum-pin-gap corner-sampling pins (a917044ff, upstream
+    // #935). World: a right-triangle outline — legs on the axes,
+    // hypotenuse x + y = 2000 — with pads placed so the OWN-corner and
+    // bounding-box answers genuinely differ: a diamond polygon whose
+    // bbox corner (1000,1000) sits exactly ON the hypotenuse (bbox
+    // answer 0) while its own nearest corner is 200 above the y=0
+    // leg; and a circle whose bbox corners measure 400/sqrt(2) to the
+    // hypotenuse while the round copper is genuinely farther.
+    // -------------------------------------------------------------------
+
+    /// The right-triangle outline: (0,0), (2000,0), (0,2000).
+    fn triangle_outline() -> Vec<BoardShape> {
+        vec![BoardShape::PolygonShape(PolygonShape::new(&[
+            Point::Int(IntPoint::new(0, 0)),
+            Point::Int(IntPoint::new(2000, 0)),
+            Point::Int(IntPoint::new(0, 2000)),
+        ]))]
+    }
+
+    /// The diamond pad: corners (600,200), (1000,600), (600,1000),
+    /// (200,600) — every own corner strictly inside the triangle.
+    fn diamond_pad() -> BoardShape {
+        BoardShape::PolygonShape(PolygonShape::new(&[
+            Point::Int(IntPoint::new(600, 200)),
+            Point::Int(IntPoint::new(1000, 600)),
+            Point::Int(IntPoint::new(600, 1000)),
+            Point::Int(IntPoint::new(200, 600)),
+        ]))
+    }
+
+    /// **The own-corners pin** — polygonal pads sample their OWN
+    /// corners, not the bounding box. The diamond's nearest own corner
+    /// is (600,200), 200 above the y=0 leg (the other three corners
+    /// measure 400/√2 ≈ 282.84, 400/√2, and 200 to the x=0 leg), so
+    /// the own-corner gap is exactly 200. The BOUNDING BOX would
+    /// answer 0: its corner (1000,1000) lies exactly ON the
+    /// hypotenuse (the upstream review patch that routed polygons
+    /// through the bbox produced exactly this class of wrong answer).
+    #[test]
+    fn corner_gap_samples_polygon_corners_not_the_bounding_box() {
+        let outline = triangle_outline();
+        assert_eq!(
+            corner_gap(&diamond_pad(), &outline),
+            200.0,
+            "own corners: 200 from (600,200) to the y=0 leg"
+        );
+    }
+
+    /// A pad corner outside every outline shape measures 0 — the
+    /// `distanceToOutline` outside arm (and, through it, the
+    /// minimumPinGap early return for pads that poke out).
+    #[test]
+    fn corner_gap_answers_zero_for_pads_outside_the_outline() {
+        let outline = triangle_outline();
+        let outside = BoardShape::PolygonShape(PolygonShape::new(&[
+            Point::Int(IntPoint::new(2600, 200)),
+            Point::Int(IntPoint::new(3000, 600)),
+            Point::Int(IntPoint::new(2600, 1000)),
+            Point::Int(IntPoint::new(2200, 600)),
+        ]));
+        assert_eq!(
+            corner_gap(&outside, &outline),
+            0.0,
+            "every corner of the shifted diamond is outside the triangle"
+        );
+    }
+
+    /// **The round-pad bbox pin** — circles have no border corners, so
+    /// they fall back to the bounding box (the upstream final
+    /// semantics: "only round pads fall back"). Circle center (600,600)
+    /// radius 200: the bbox corner (800,800) measures 400/√2 ≈ 282.84
+    /// to the hypotenuse, CONSERVATIVE against the true round-copper
+    /// gap (600·√2-ish 565.69 − 200 ≈ 365.69) — never larger, exactly
+    /// as the Java doc comment promises.
+    #[test]
+    fn corner_gap_falls_back_to_the_bounding_box_for_round_pads() {
+        let outline = triangle_outline();
+        let circle = BoardShape::Circle(Circle::new(IntPoint::new(600, 600), 200));
+        let expected = 400.0 / 2.0_f64.sqrt();
+        assert!(
+            (corner_gap(&circle, &outline) - expected).abs() < 1e-9,
+            "bbox corner (800,800) -> 400/sqrt(2) = {expected}"
+        );
+    }
+
+    /// The TILE arm of the own-corner walk — a box tile's own corners
+    /// ARE its bbox corners (400,400)-(800,800), so the box measures
+    /// the same 400/√2 at (800,800) here; the pin covers the
+    /// `TileShape` branch of `own_corner_points` (Java: `TileShape
+    /// extends PolylineShape`, the branch the broken upstream review
+    /// patch missed).
+    #[test]
+    fn corner_gap_samples_tile_corners_through_the_polyline_branch() {
+        let outline = triangle_outline();
+        let box_tile = BoardShape::Tile(TileShape::RegularTileShape(
+            epic_geometry::regular_tile_shape::RegularTileShape::IntBox(IntBox::new(
+                IntPoint::new(400, 400),
+                IntPoint::new(800, 800),
+            )),
+        ));
+        let expected = 400.0 / 2.0_f64.sqrt();
+        assert!(
+            (corner_gap(&box_tile, &outline) - expected).abs() < 1e-9,
+            "box corner (800,800) -> 400/sqrt(2) = {expected}"
+        );
     }
 }
