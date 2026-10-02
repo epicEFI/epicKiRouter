@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T13:27:24.951Z",
-    "fileCount": 696,
+    "lastScanned": "2026-10-02T14:50:38.183Z",
+    "fileCount": 710,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "6a424877b756d0a2358ab576558966436be1aed4ce56d9c182c5ae219a1716d0",
-    "storeUpdatedAt": "2026-10-02T13:27:24.961Z",
-    "rootHash": "0d17cabb40f85cdf"
+    "renderedHash": "1bd85a3043044c1bdc1e13f711688782ddc948bcfff6761ef38c73310fe7714a",
+    "storeUpdatedAt": "2026-10-02T14:50:38.195Z",
+    "rootHash": "d6f5027a11d69a19"
   },
   "files": {
     ".dockerignore": {
@@ -5819,25 +5819,25 @@
     },
     "rust/crates/epic-cli/src/main.rs": {
       "description": "`epic-cli` — the EpicRouter headless command-line binary (M3-T13).",
-      "tokens": 2315,
-      "hash": "df11dc0a33ab2228",
-      "size": 8696,
-      "mtimeMs": 1790946133561.4507,
-      "updatedAt": "2026-10-02T13:02:13.659Z",
+      "tokens": 2327,
+      "hash": "be16c7cf661f22a0",
+      "size": 8740,
+      "mtimeMs": 1790948955583.9817,
+      "updatedAt": "2026-10-02T13:49:15.695Z",
       "source": "hook",
       "symbols": [
         {
           "name": "help_text",
           "kind": "fn",
-          "startLine": 131,
-          "endLine": 134,
+          "startLine": 132,
+          "endLine": 135,
           "tokens": 24
         },
         {
           "name": "main",
           "kind": "fn",
-          "startLine": 135,
-          "endLine": 192,
+          "startLine": 136,
+          "endLine": 193,
           "tokens": 622
         }
       ]
@@ -6535,232 +6535,232 @@
     },
     "rust/crates/epic-engine/src/settings.rs": {
       "description": "The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings`",
-      "tokens": 62260,
-      "hash": "9acb04c43a52bd16",
-      "size": 234054,
-      "mtimeMs": 1790946125629.4236,
-      "updatedAt": "2026-10-02T13:02:05.732Z",
+      "tokens": 63469,
+      "hash": "28ea2ab8f29651bf",
+      "size": 238611,
+      "mtimeMs": 1790949205762.053,
+      "updatedAt": "2026-10-02T13:53:25.938Z",
       "source": "hook",
       "symbols": [
         {
           "name": "CliLayer",
           "kind": "class",
           "startLine": 55,
-          "endLine": 378,
-          "tokens": 5446
+          "endLine": 388,
+          "tokens": 5617
         },
         {
           "name": "OptimScoringVersion",
           "kind": "class",
-          "startLine": 379,
-          "endLine": 392,
+          "startLine": 389,
+          "endLine": 402,
           "tokens": 150
         },
         {
           "name": "ParsedRouteArgs",
           "kind": "class",
-          "startLine": 393,
-          "endLine": 419,
+          "startLine": 403,
+          "endLine": 429,
           "tokens": 378
         },
         {
           "name": "InterviewMode",
           "kind": "class",
-          "startLine": 420,
-          "endLine": 431,
+          "startLine": 430,
+          "endLine": 441,
           "tokens": 104
         },
         {
           "name": "ParsedRouteArgs",
           "kind": "section",
-          "startLine": 432,
-          "endLine": 450,
+          "startLine": 442,
+          "endLine": 460,
           "tokens": 207
         },
         {
           "name": "parse_route_args",
           "kind": "fn",
-          "startLine": 451,
-          "endLine": 638,
+          "startLine": 461,
+          "endLine": 648,
           "tokens": 2608
         },
         {
           "name": "same_output_target",
           "kind": "fn",
-          "startLine": 639,
-          "endLine": 671,
+          "startLine": 649,
+          "endLine": 681,
           "tokens": 346
         },
         {
           "name": "next_value",
           "kind": "fn",
-          "startLine": 672,
-          "endLine": 681,
+          "startLine": 682,
+          "endLine": 691,
           "tokens": 112
         },
         {
           "name": "apply_router_setting",
           "kind": "fn",
-          "startLine": 682,
-          "endLine": 1034,
-          "tokens": 4749
+          "startLine": 692,
+          "endLine": 1048,
+          "tokens": 4808
         },
         {
           "name": "canonical_cli_path",
           "kind": "fn",
-          "startLine": 1035,
-          "endLine": 1049,
+          "startLine": 1049,
+          "endLine": 1063,
           "tokens": 128
         },
         {
           "name": "is_deprecated_flat_autorouter_path",
           "kind": "fn",
-          "startLine": 1050,
-          "endLine": 1066,
+          "startLine": 1064,
+          "endLine": 1080,
           "tokens": 184
         },
         {
           "name": "parse_pairs",
           "kind": "fn",
-          "startLine": 1067,
-          "endLine": 1087,
+          "startLine": 1081,
+          "endLine": 1101,
           "tokens": 200
         },
         {
           "name": "parse_ref_list",
           "kind": "fn",
-          "startLine": 1088,
-          "endLine": 1107,
+          "startLine": 1102,
+          "endLine": 1121,
           "tokens": 228
         },
         {
           "name": "parse_current_nets",
           "kind": "fn",
-          "startLine": 1108,
-          "endLine": 1131,
+          "startLine": 1122,
+          "endLine": 1145,
           "tokens": 178
         },
         {
           "name": "parse_on_off",
           "kind": "fn",
-          "startLine": 1132,
-          "endLine": 1139,
+          "startLine": 1146,
+          "endLine": 1153,
           "tokens": 61
         },
         {
           "name": "warn_bad_value",
           "kind": "fn",
-          "startLine": 1140,
-          "endLine": 1153,
+          "startLine": 1154,
+          "endLine": 1167,
           "tokens": 190
         },
         {
           "name": "DsnLayerSlot",
           "kind": "class",
-          "startLine": 1154,
-          "endLine": 1167,
+          "startLine": 1168,
+          "endLine": 1181,
           "tokens": 175
         },
         {
           "name": "DsnLayer",
           "kind": "class",
-          "startLine": 1168,
-          "endLine": 1190,
+          "startLine": 1182,
+          "endLine": 1204,
           "tokens": 278
         },
         {
           "name": "DsnLayer",
           "kind": "section",
-          "startLine": 1191,
-          "endLine": 1245,
+          "startLine": 1205,
+          "endLine": 1259,
           "tokens": 655
         },
         {
           "name": "MergedLayerSlot",
           "kind": "class",
-          "startLine": 1246,
-          "endLine": 1254,
+          "startLine": 1260,
+          "endLine": 1268,
           "tokens": 76
         },
         {
           "name": "MergedLayerSlot",
           "kind": "section",
-          "startLine": 1255,
-          "endLine": 1275,
+          "startLine": 1269,
+          "endLine": 1289,
           "tokens": 259
         },
         {
           "name": "MergedSettings",
           "kind": "class",
-          "startLine": 1276,
-          "endLine": 1445,
-          "tokens": 2514
+          "startLine": 1290,
+          "endLine": 1464,
+          "tokens": 2597
         },
         {
           "name": "MergedSettings",
           "kind": "section",
-          "startLine": 1446,
-          "endLine": 1533,
-          "tokens": 1183
+          "startLine": 1465,
+          "endLine": 1553,
+          "tokens": 1196
         },
         {
           "name": "default_router_score_settings",
           "kind": "fn",
-          "startLine": 1534,
-          "endLine": 1549,
+          "startLine": 1554,
+          "endLine": 1569,
           "tokens": 192
         },
         {
           "name": "default_optimizer_score_settings",
           "kind": "fn",
-          "startLine": 1550,
-          "endLine": 1564,
+          "startLine": 1570,
+          "endLine": 1584,
           "tokens": 172
         },
         {
           "name": "merge",
           "kind": "fn",
-          "startLine": 1565,
-          "endLine": 1791,
-          "tokens": 2337
+          "startLine": 1585,
+          "endLine": 1814,
+          "tokens": 2369
         },
         {
           "name": "validate",
           "kind": "fn",
-          "startLine": 1792,
-          "endLine": 1855,
+          "startLine": 1815,
+          "endLine": 1878,
           "tokens": 727
         },
         {
           "name": "apply_board_specific_optimizations",
           "kind": "fn",
-          "startLine": 1856,
-          "endLine": 1969,
+          "startLine": 1879,
+          "endLine": 1992,
           "tokens": 1445
         },
         {
           "name": "java_math_round",
           "kind": "fn",
-          "startLine": 1970,
-          "endLine": 1984,
+          "startLine": 1993,
+          "endLine": 2007,
           "tokens": 208
         },
         {
           "name": "ResolvedRouteSettings",
           "kind": "class",
-          "startLine": 1985,
-          "endLine": 5285,
-          "tokens": 40335
+          "startLine": 2008,
+          "endLine": 5377,
+          "tokens": 41272
         }
       ]
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 54834,
-      "hash": "e4fe6975a64e0030",
-      "size": 206040,
-      "mtimeMs": 1790946054527.1829,
-      "updatedAt": "2026-10-02T13:00:54.635Z",
+      "tokens": 56475,
+      "hash": "2b0d6a0c6d42447a",
+      "size": 212228,
+      "mtimeMs": 1790951394146.89,
+      "updatedAt": "2026-10-02T14:29:54.250Z",
       "source": "hook",
       "symbols": [
         {
@@ -6970,8 +6970,8 @@
           "name": "exit_code_for",
           "kind": "fn",
           "startLine": 678,
-          "endLine": 4632,
-          "tokens": 49860
+          "endLine": 4754,
+          "tokens": 51618
         }
       ]
     },
@@ -8647,11 +8647,11 @@
     },
     "rust/crates/epic-engine/src/session.rs": {
       "description": "The headless application session — the M9-T2 `Session` (the Java",
-      "tokens": 15237,
-      "hash": "f03665c4a4fc9ead",
-      "size": 57368,
-      "mtimeMs": 1790945407490.2068,
-      "updatedAt": "2026-10-02T12:50:07.626Z",
+      "tokens": 15793,
+      "hash": "dcc57dc75bef79b5",
+      "size": 59459,
+      "mtimeMs": 1790950636503.0212,
+      "updatedAt": "2026-10-02T14:17:16.606Z",
       "source": "hook",
       "symbols": [
         {
@@ -8742,42 +8742,42 @@
           "name": "Session",
           "kind": "section",
           "startLine": 524,
-          "endLine": 1061,
-          "tokens": 7326
+          "endLine": 1100,
+          "tokens": 7922
         },
         {
           "name": "project_heatmap",
           "kind": "fn",
-          "startLine": 1062,
-          "endLine": 1095,
+          "startLine": 1101,
+          "endLine": 1134,
           "tokens": 326
         },
         {
           "name": "java_two_decimal",
           "kind": "fn",
-          "startLine": 1096,
-          "endLine": 1123,
+          "startLine": 1135,
+          "endLine": 1162,
           "tokens": 402
         },
         {
           "name": "PassTrackingSink",
           "kind": "class",
-          "startLine": 1124,
-          "endLine": 1128,
+          "startLine": 1163,
+          "endLine": 1167,
           "tokens": 29
         },
         {
           "name": "PassTrackingSink",
           "kind": "section",
-          "startLine": 1129,
-          "endLine": 1146,
+          "startLine": 1168,
+          "endLine": 1185,
           "tokens": 150
         },
         {
           "name": "PassTrackingSink",
           "kind": "section",
-          "startLine": 1147,
-          "endLine": 1237,
+          "startLine": 1186,
+          "endLine": 1276,
           "tokens": 972
         }
       ]
@@ -8793,11 +8793,11 @@
     },
     "rust/crates/epic-gui/tests/render_goldens.rs": {
       "description": "M9-T4: the render-golden pins (the dispatch charter for",
-      "tokens": 15990,
-      "hash": "31b5c40b42e84418",
-      "size": 60118,
-      "mtimeMs": 1790933008676.283,
-      "updatedAt": "2026-10-02T09:23:31.145Z",
+      "tokens": 16171,
+      "hash": "b3bde8e03759699c",
+      "size": 60800,
+      "mtimeMs": 1790952043812.3574,
+      "updatedAt": "2026-10-02T14:40:44.157Z",
       "source": "hook",
       "symbols": [
         {
@@ -9007,8 +9007,8 @@
           "name": "SilentSink",
           "kind": "section",
           "startLine": 1200,
-          "endLine": 1539,
-          "tokens": 4168
+          "endLine": 1549,
+          "tokens": 4362
         }
       ]
     },
@@ -9164,11 +9164,11 @@
     },
     "rust/crates/epic-engine/src/lib.rs": {
       "description": "The headless application core: jobs, the layered settings",
-      "tokens": 747,
-      "hash": "80334c668cddf7b9",
-      "size": 2808,
-      "mtimeMs": 1790945403161.1956,
-      "updatedAt": "2026-10-02T12:50:03.258Z",
+      "tokens": 754,
+      "hash": "06208bffe415f16e",
+      "size": 2831,
+      "mtimeMs": 1790948924297.8528,
+      "updatedAt": "2026-10-02T13:48:44.397Z",
       "source": "hook"
     },
     "rust/crates/epic-board/src/board.rs": {
@@ -9404,11 +9404,11 @@
     },
     "rust/crates/epic-board/src/rules_surf.rs": {
       "description": "The rules READ surface (M2 Task 3): the clearance matrix, the net",
-      "tokens": 17387,
-      "hash": "77a498f72e0be83e",
-      "size": 65426,
-      "mtimeMs": 1790942679603.96,
-      "updatedAt": "2026-10-02T12:04:39.710Z",
+      "tokens": 17731,
+      "hash": "0fbfa311213e7476",
+      "size": 66727,
+      "mtimeMs": 1790949102048.6016,
+      "updatedAt": "2026-10-02T13:51:42.146Z",
       "source": "hook",
       "symbols": [
         {
@@ -9513,22 +9513,22 @@
           "name": "BoardRules",
           "kind": "class",
           "startLine": 707,
-          "endLine": 737,
-          "tokens": 360
+          "endLine": 746,
+          "tokens": 522
         },
         {
           "name": "BoardRules",
           "kind": "section",
-          "startLine": 738,
-          "endLine": 903,
-          "tokens": 2206
+          "startLine": 747,
+          "endLine": 913,
+          "tokens": 2217
         },
         {
           "name": "BoardRules",
           "kind": "section",
-          "startLine": 904,
-          "endLine": 1549,
-          "tokens": 7934
+          "startLine": 914,
+          "endLine": 1570,
+          "tokens": 8130
         }
       ]
     },
@@ -9798,6 +9798,578 @@
       "size": 2973,
       "mtimeMs": 1790947644845.2656,
       "updatedAt": "2026-10-02T13:27:24.950Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-f4.txt": {
+      "description": "Declares width",
+      "tokens": 494,
+      "hash": "cda05271d787da62",
+      "size": 1988,
+      "mtimeMs": 1790947699948.5337,
+      "updatedAt": "2026-10-02T13:28:20.046Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/p3-recon.md": {
+      "description": "P3 recon — DRC 1µm shortfall tolerance (#925a, upstream 14b28b6ff)",
+      "tokens": 1744,
+      "hash": "92fc0cfd83dd5b3e",
+      "size": 7066,
+      "mtimeMs": 1790952628397.1118,
+      "updatedAt": "2026-10-02T14:50:28.497Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/aesthetics.rs": {
+      "description": "The M8 aesthetics measurer (design :86 — the four metrics): ONE",
+      "tokens": 11338,
+      "hash": "92b927ea5ba6fc75",
+      "size": 42729,
+      "mtimeMs": 1790948783438.2705,
+      "updatedAt": "2026-10-02T13:46:23.540Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "AestheticsMetrics",
+          "kind": "class",
+          "startLine": 91,
+          "endLine": 123,
+          "tokens": 456
+        },
+        {
+          "name": "BoardTally",
+          "kind": "class",
+          "startLine": 124,
+          "endLine": 153,
+          "tokens": 295
+        },
+        {
+          "name": "Segment",
+          "kind": "class",
+          "startLine": 154,
+          "endLine": 175,
+          "tokens": 240
+        },
+        {
+          "name": "SegmentIndex",
+          "kind": "class",
+          "startLine": 176,
+          "endLine": 180,
+          "tokens": 24
+        },
+        {
+          "name": "SegmentIndex",
+          "kind": "section",
+          "startLine": 181,
+          "endLine": 226,
+          "tokens": 571
+        },
+        {
+          "name": "board_unit_to_mm_factor",
+          "kind": "fn",
+          "startLine": 227,
+          "endLine": 240,
+          "tokens": 197
+        },
+        {
+          "name": "board_unit_to_um_factor",
+          "kind": "fn",
+          "startLine": 241,
+          "endLine": 251,
+          "tokens": 146
+        },
+        {
+          "name": "aesthetics_metrics",
+          "kind": "fn",
+          "startLine": 252,
+          "endLine": 503,
+          "tokens": 2951
+        },
+        {
+          "name": "render_json_value",
+          "kind": "fn",
+          "startLine": 504,
+          "endLine": 519,
+          "tokens": 190
+        },
+        {
+          "name": "render_json",
+          "kind": "fn",
+          "startLine": 520,
+          "endLine": 533,
+          "tokens": 228
+        },
+        {
+          "name": "prim_mst_length",
+          "kind": "fn",
+          "startLine": 534,
+          "endLine": 576,
+          "tokens": 386
+        },
+        {
+          "name": "nets_disjoint",
+          "kind": "fn",
+          "startLine": 577,
+          "endLine": 587,
+          "tokens": 163
+        },
+        {
+          "name": "segment_distance",
+          "kind": "fn",
+          "startLine": 588,
+          "endLine": 605,
+          "tokens": 255
+        },
+        {
+          "name": "orientation",
+          "kind": "fn",
+          "startLine": 606,
+          "endLine": 646,
+          "tokens": 337
+        },
+        {
+          "name": "segments_properly_cross",
+          "kind": "fn",
+          "startLine": 647,
+          "endLine": 657,
+          "tokens": 147
+        },
+        {
+          "name": "point_segment_distance",
+          "kind": "fn",
+          "startLine": 658,
+          "endLine": 674,
+          "tokens": 165
+        },
+        {
+          "name": "conduction_gravity",
+          "kind": "fn",
+          "startLine": 675,
+          "endLine": 694,
+          "tokens": 210
+        },
+        {
+          "name": "layer_is_signal",
+          "kind": "fn",
+          "startLine": 695,
+          "endLine": 705,
+          "tokens": 131
+        },
+        {
+          "name": "pin_signal_layers",
+          "kind": "fn",
+          "startLine": 706,
+          "endLine": 1013,
+          "tokens": 3633
+        }
+      ]
+    },
+    "rust/crates/epic-drc/src/clearance.rs": {
+      "description": "The clearance-violation walk — the port of Java",
+      "tokens": 12453,
+      "hash": "e15358e67114c651",
+      "size": 46882,
+      "mtimeMs": 1790951366994.7253,
+      "updatedAt": "2026-10-02T14:29:27.090Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "ViolationRow",
+          "kind": "class",
+          "startLine": 91,
+          "endLine": 106,
+          "tokens": 170
+        },
+        {
+          "name": "ViolationRec",
+          "kind": "class",
+          "startLine": 107,
+          "endLine": 123,
+          "tokens": 194
+        },
+        {
+          "name": "DepthRow",
+          "kind": "class",
+          "startLine": 124,
+          "endLine": 140,
+          "tokens": 185
+        },
+        {
+          "name": "calculate_clearance_between_two_shapes",
+          "kind": "fn",
+          "startLine": 141,
+          "endLine": 177,
+          "tokens": 264
+        },
+        {
+          "name": "kind_of",
+          "kind": "fn",
+          "startLine": 178,
+          "endLine": 187,
+          "tokens": 135
+        },
+        {
+          "name": "is_any_obstacle_area",
+          "kind": "fn",
+          "startLine": 188,
+          "endLine": 202,
+          "tokens": 131
+        },
+        {
+          "name": "pin_drill_allowed",
+          "kind": "fn",
+          "startLine": 203,
+          "endLine": 212,
+          "tokens": 148
+        },
+        {
+          "name": "is_obstacle",
+          "kind": "fn",
+          "startLine": 213,
+          "endLine": 335,
+          "tokens": 1412
+        },
+        {
+          "name": "outline_contains_tile_shape",
+          "kind": "fn",
+          "startLine": 336,
+          "endLine": 356,
+          "tokens": 325
+        },
+        {
+          "name": "tie_pin_exemption",
+          "kind": "fn",
+          "startLine": 357,
+          "endLine": 386,
+          "tokens": 300
+        },
+        {
+          "name": "item_clearance_violation_records",
+          "kind": "fn",
+          "startLine": 387,
+          "endLine": 586,
+          "tokens": 2304
+        },
+        {
+          "name": "item_clearance_violations",
+          "kind": "fn",
+          "startLine": 587,
+          "endLine": 603,
+          "tokens": 190
+        },
+        {
+          "name": "all_clearance_violation_depths",
+          "kind": "fn",
+          "startLine": 604,
+          "endLine": 639,
+          "tokens": 457
+        },
+        {
+          "name": "all_clearance_violations",
+          "kind": "fn",
+          "startLine": 640,
+          "endLine": 1126,
+          "tokens": 5719
+        }
+      ]
+    },
+    "rust/crates/epic-engine/src/drc_tolerance.rs": {
+      "description": "The #925a DRC clearance-tolerance apply face (upstream",
+      "tokens": 848,
+      "hash": "26de47608cf2befc",
+      "size": 3189,
+      "mtimeMs": 1790949969329.2708,
+      "updatedAt": "2026-10-02T14:06:09.455Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "apply_clearance_tolerance",
+          "kind": "fn",
+          "startLine": 24,
+          "endLine": 73,
+          "tokens": 544
+        }
+      ]
+    },
+    "rust/crates/epic-drc/examples/p3probe.rs": {
+      "description": "Scratch probe for the #925a boundary worlds — prints communication,",
+      "tokens": 364,
+      "hash": "b51016562f235044",
+      "size": 1365,
+      "mtimeMs": 1790949306685.4873,
+      "updatedAt": "2026-10-02T13:55:06.784Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/p3extract.py": {
+      "description": "grab",
+      "tokens": 152,
+      "hash": "b24f64b6fd6bf05b",
+      "size": 529,
+      "mtimeMs": 1790949398764.1125,
+      "updatedAt": "2026-10-02T13:56:38.930Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_p3.sh": {
+      "description": "P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces +",
+      "tokens": 582,
+      "hash": "36d0b832cb5c21e6",
+      "size": 2184,
+      "mtimeMs": 1790951462080.292,
+      "updatedAt": "2026-10-02T14:31:02.178Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/p3-commit-msg.txt": {
+      "description": "Declares cell",
+      "tokens": 1737,
+      "hash": "570854f2dc428792",
+      "size": 7021,
+      "mtimeMs": 1790952426156.1772,
+      "updatedAt": "2026-10-02T14:47:06.284Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-cli/examples/p3rows.rs": {
+      "description": "Scratch probe: the drc-main load walk rows at tolerance 1.0 vs 0.0.",
+      "tokens": 631,
+      "hash": "1c21215296480870",
+      "size": 2374,
+      "mtimeMs": 1790951260440.0554,
+      "updatedAt": "2026-10-02T14:27:40.542Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "main",
+          "kind": "fn",
+          "startLine": 12,
+          "endLine": 50,
+          "tokens": 512
+        }
+      ]
+    },
+    "rust/harness/src/drc_corpus.rs": {
+      "description": "DRC parity corpus (M3 Task 2): the two counts every M3 quality gate",
+      "tokens": 11548,
+      "hash": "ce6f116c3b001000",
+      "size": 43430,
+      "mtimeMs": 1790951785522.0603,
+      "updatedAt": "2026-10-02T14:36:25.631Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "DrcCommand",
+          "kind": "class",
+          "startLine": 128,
+          "endLine": 157,
+          "tokens": 363
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 158,
+          "endLine": 199,
+          "tokens": 624
+        },
+        {
+          "name": "build_manifest",
+          "kind": "fn",
+          "startLine": 200,
+          "endLine": 236,
+          "tokens": 377
+        },
+        {
+          "name": "build_manifest_bytes",
+          "kind": "fn",
+          "startLine": 237,
+          "endLine": 241,
+          "tokens": 49
+        },
+        {
+          "name": "load_manifest",
+          "kind": "fn",
+          "startLine": 242,
+          "endLine": 245,
+          "tokens": 28
+        },
+        {
+          "name": "manifest",
+          "kind": "fn",
+          "startLine": 246,
+          "endLine": 274,
+          "tokens": 322
+        },
+        {
+          "name": "ViolationRecord",
+          "kind": "class",
+          "startLine": 275,
+          "endLine": 286,
+          "tokens": 111
+        },
+        {
+          "name": "RatsnestRecord",
+          "kind": "class",
+          "startLine": 287,
+          "endLine": 301,
+          "tokens": 190
+        },
+        {
+          "name": "PerNetRecord",
+          "kind": "class",
+          "startLine": 302,
+          "endLine": 312,
+          "tokens": 80
+        },
+        {
+          "name": "GoldenRecord",
+          "kind": "class",
+          "startLine": 313,
+          "endLine": 323,
+          "tokens": 90
+        },
+        {
+          "name": "GoldenRecord",
+          "kind": "section",
+          "startLine": 324,
+          "endLine": 329,
+          "tokens": 30
+        },
+        {
+          "name": "result_only",
+          "kind": "fn",
+          "startLine": 330,
+          "endLine": 347,
+          "tokens": 178
+        },
+        {
+          "name": "evaluate_rust",
+          "kind": "fn",
+          "startLine": 348,
+          "endLine": 427,
+          "tokens": 986
+        },
+        {
+          "name": "golden",
+          "kind": "fn",
+          "startLine": 428,
+          "endLine": 632,
+          "tokens": 2181
+        },
+        {
+          "name": "diff_records",
+          "kind": "fn",
+          "startLine": 633,
+          "endLine": 748,
+          "tokens": 1221
+        },
+        {
+          "name": "compare",
+          "kind": "fn",
+          "startLine": 749,
+          "endLine": 1061,
+          "tokens": 3660
+        }
+      ]
+    },
+    "rust/harness/fixtures/p3/p3-pinpair.dsn": {
+      "description": "Declares signal",
+      "tokens": 164,
+      "hash": "21de2779aebcf3ed",
+      "size": 615,
+      "mtimeMs": 1790951846437.3733,
+      "updatedAt": "2026-10-02T14:37:26.532Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-engine/tests/overlays.rs": {
+      "description": "M9-T5: the overlay DATA faces' engine pins:",
+      "tokens": 5156,
+      "hash": "6c68c309218ef95a",
+      "size": 19387,
+      "mtimeMs": 1790951864446.4648,
+      "updatedAt": "2026-10-02T14:37:44.554Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "repo_root",
+          "kind": "fn",
+          "startLine": 38,
+          "endLine": 49,
+          "tokens": 127
+        },
+        {
+          "name": "read_fixture",
+          "kind": "fn",
+          "startLine": 50,
+          "endLine": 54,
+          "tokens": 57
+        },
+        {
+          "name": "SilentSink",
+          "kind": "class",
+          "startLine": 55,
+          "endLine": 56,
+          "tokens": 6
+        },
+        {
+          "name": "SilentSink",
+          "kind": "section",
+          "startLine": 57,
+          "endLine": 66,
+          "tokens": 119
+        },
+        {
+          "name": "tee_snapshots_carry_the_empty_overlay_default",
+          "kind": "fn",
+          "startLine": 67,
+          "endLine": 106,
+          "tokens": 407
+        },
+        {
+          "name": "parse_boundary_overlays_on_the_drc_craft",
+          "kind": "fn",
+          "startLine": 107,
+          "endLine": 162,
+          "tokens": 612
+        },
+        {
+          "name": "post_route_faces_and_the_statistics_cross_check",
+          "kind": "fn",
+          "startLine": 163,
+          "endLine": 208,
+          "tokens": 455
+        },
+        {
+          "name": "congestion_engaged_yields_some_and_default_yields_none",
+          "kind": "fn",
+          "startLine": 209,
+          "endLine": 298,
+          "tokens": 1045
+        },
+        {
+          "name": "post_route_markers_survive_on_the_violation_retaining_craft",
+          "kind": "fn",
+          "startLine": 299,
+          "endLine": 335,
+          "tokens": 420
+        },
+        {
+          "name": "tuning_face_on_the_tuning_fixture",
+          "kind": "fn",
+          "startLine": 336,
+          "endLine": 371,
+          "tokens": 434
+        },
+        {
+          "name": "attach_counts_match_the_independent_drc_walks",
+          "kind": "fn",
+          "startLine": 372,
+          "endLine": 484,
+          "tokens": 1341
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/export-msg-p3.txt": {
+      "description": "Declares promotion",
+      "tokens": 452,
+      "hash": "ed20ca9ec3b58247",
+      "size": 1829,
+      "mtimeMs": 1790952638076.1562,
+      "updatedAt": "2026-10-02T14:50:38.182Z",
       "source": "hook"
     }
   },

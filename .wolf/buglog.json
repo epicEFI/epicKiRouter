@@ -3765,6 +3765,33 @@
     "egui",
     "first-window"
    ]
+  },
+  {
+   "id": 241,
+   "date": "2026-10-02",
+   "error_message": "P3 (#925a clearance-shortfall \u00b5m tolerance port, upstream 14b28b6ff) integration traps, six families: (1) The epic-cli seeding test asserted final-face clearance totals that a CLAMPED subtraction face cannot discriminate: router_introduced_count = 0.max(total - pre_existing) is clamped at 0, so a deleted-seed mutant reports max(0, 2-0) == max(0, 2-2) == 0 \u2014 identical on the final face; the mutant was invisible to the pin. (2) With the gate live, `drc compare` diverged 2/17 (drc-0013 73->72, drc-0014 14->5): real reference boards carry sub-\u00b5m phantoms the committed goldens recorded unconditionally. (3) The drc-main golden's third row (the RAW walk, drc-0015 = 3) did NOT come back at any tolerance, including 0.0 \u2014 the probe-confirmed reason: the row is BoardOutline x an edge-crossing pin whose RULE clearance cell is 0 (the copper-to-edge override writes board_edge cells for classes 1 and up only, Java :534-539; class 0 cells untouched) against measured 0 \u2014 shortfall EXACTLY 0.0, and the STRICT `>` gate drops it at every tolerance, 0.0 included. (4) cargo test --workspace is FAIL-FAST per-target: a failing crate stops the run, so epic-gui render goldens further down the queue never ran \u2014 a latent divergence (overlay markers 3 vs 2) hid behind the census's earlier failure and would have surfaced at landing time. (5) clippy doc-quote lint (9 errors): doc-comment lines starting with `>=` ('classes >= 1 only') parse as broken blockquotes. (6) NaN assert traps: assert_eq!(x, f64::NAN) never fires \u2014 NaN != NaN; equality on floats needs to_bits() for the NaN face.",
+   "root_cause": "(1) Clamped-difference faces are mutant-blind on the saturating side: max(0, total - seed) erases the seed exactly when total <= seed, which is the common routed case; the discriminating information lives on an UNCLAMPED face. (2) Corpus-law conflict: the committed drc goldens are the retired Java oracle's PRE-#925a unconditional-record face, captured before the gate existed \u2014 a gate that changes the record policy by design cannot be validated against a frozen record of the opposite policy. (3) The tolerance lever only spans strictly-positive shortfalls; a zero-RULE cell (clearance 0) with overlapping raw shapes yields shortfall 0.0, which STRICT `>` drops at tolerance 0.0 too \u2014 tolerance 0.0 is NOT a general pre-gate control. (4) Fail-fast workspace runs make 'census green' mean 'green until the first red', not 'all green' \u2014 downstream targets' verdicts are unknown, not passing. (5) rustdoc parses `>= ` at line start as a blockquote continuation of the preceding list item. (6) IEEE-754: NaN is non-reflexive under ==.",
+   "fix": "(1) Redesigned the seeding pin onto the FANOUT-BEFORE PHASE face (JSON pointer /phases/fanout/before/board_statistics/clearance_violations): total 2 / introduced 0 \u2014 the deleted-seed mutant reports introduced 2 there (unclamped), the gate-removed mutant reports total 3; renamed the sibling e2e to clearance_tolerance_gate_drops_zero_shortfall_edge_pin_row_e2e with orthogonal-kill docs. (2) Harness corpus law, not golden edits: evaluate_rust walks at tolerance 0.0 (the frozen face \u2014 records every strictly-positive shortfall; pre-P3 ungated 17/17 proves no fixture carries a 0.0-shortfall row); gate POLICY pinned by the epic-drc unit test + CLI e2e instead. (3) Probe closed the mystery (scratch example replicating run_route's load flow, then deleted): module docs corrected ('upstream-faithful, not a divergence'); overlays independent-walk replica now applies apply_copper_to_edge_clearance_override (the old no-effect claim was falsified for the clearance walk); the violation-retaining PostRoute face moved to NEW fixture harness/fixtures/p3/p3-pinpair.dsn (two cross-net pins 1000 \u00b5m apart under a 2000 \u00b5m rule \u2014 a real shortfall no gate drops). (4) The one gui golden that drives Session::load_dsn (drc-craft.overlay-markers.json, markers 3->2) re-captured same-commit through the sanctioned capture_overlay_goldens door with the parity decision recorded in the golden-case comment; the battery adds --no-fail-fast discovery runs when any earlier target is red. (5) Reworded to 'classes 1 and up only'. (6) NaN asserts via to_bits(). Census law 42/1761/0/19 (+5); full battery green on the exact landing tree.",
+   "tags": [
+    "P3",
+    "925a",
+    "drc",
+    "clearance-tolerance",
+    "mutant-kill",
+    "clamped-face",
+    "corpus-law",
+    "frozen-goldens",
+    "strict-greater",
+    "zero-shortfall",
+    "fail-fast",
+    "census",
+    "doc-quote",
+    "clippy",
+    "nan",
+    "to_bits",
+    "overlays",
+    "render-goldens"
+   ]
   }
  ]
 }
