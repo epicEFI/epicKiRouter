@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T14:50:38.183Z
-> Files: 710 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T16:35:47.484Z
+> Files: 716 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -784,7 +784,8 @@
 - `export-msg-ca0e785cc.txt` (~429 tok)
 - `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
 - `export-msg-f4.txt` — Declares width (~494 tok)
-- `export-msg-p3.txt` — Declares promotion (~452 tok)
+- `export-msg-p3.txt` — Declares promotion (~488 tok)
+- `export-msg-p4.txt` (~243 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
 - `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
@@ -800,6 +801,7 @@
 - `p3-commit-msg.txt` — Declares cell (~1737 tok)
 - `p3-recon.md` — P3 recon — DRC 1µm shortfall tolerance (#925a, upstream 14b28b6ff) (~1744 tok)
 - `p3extract.py` — grab (~152 tok)
+- `p4-commit-msg.txt` — Declares as (~846 tok)
 - `probe_sigint.new.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~1037 tok)
 - `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
@@ -808,9 +810,10 @@
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
+- `run_gates_p4.sh` — P4 (#925b same-component Pin-Pin exemptions) gate battery: fmt + clippy (~590 tok)
 - `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
-- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~2997 tok)
+- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3262 tok)
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
 
@@ -831,7 +834,8 @@
 
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
 - `board.rs` — The live board: the item arena, the id generator, and the (~31305 tok)
-- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~17731 tok)
+- `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24487 tok)
+- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~18048 tok)
 
 ## rust/crates/epic-board/src/items/
 
@@ -861,7 +865,8 @@
 
 ## rust/crates/epic-drc/src/
 
-- `clearance.rs` — The clearance-violation walk — the port of Java (~12453 tok)
+- `clearance.rs` — The clearance-violation walk — the port of Java (~15401 tok)
+- `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~2802 tok)
 
 ## rust/crates/epic-dsn/src/scope/
 
@@ -934,15 +939,19 @@
 
 - `p3-pinpair.dsn` — Declares signal (~164 tok)
 
+## rust/harness/fixtures/p4/
+
+- `p4-pins.dsn` — Declares signal (~332 tok)
+
 ## rust/harness/src/
 
 - `baseline.rs` — Distills oracle runs into committed golden baselines and compares runs (~8255 tok)
 - `ci_tripwire.rs` — THE workflow tripwire pin (M3-T17c; closes banked mutant S6): the CI (~5283 tok)
-- `drc_corpus.rs` — DRC parity corpus (M3 Task 2): the two counts every M3 quality gate (~11548 tok)
+- `drc_corpus.rs` — DRC parity corpus (M3 Task 2): the two counts every M3 quality gate (~11685 tok)
 - `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~18880 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
-- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51351 tok)
+- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51512 tok)
 
 ## rust/scripts/
 
