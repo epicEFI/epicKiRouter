@@ -259,6 +259,88 @@ pub fn rational_zoom_step(zoom_num: i64, zoom_den: i64, direction: ZoomDirection
 }
 
 // ---------------------------------------------------------------------------
+// the G1 navigation faces (notch-accumulated, cursor-anchored zoom)
+// ---------------------------------------------------------------------------
+
+/// ONE wheel notch in egui `smooth_scroll_delta` points (the G1
+/// derivation): a physical wheel click delivers ~50 points on the
+/// observed X11/Wayland faces (the egui convention), so ONE notch =
+/// ONE rational ×2 step. The pre-G1 defect consumed the delta
+/// per-FRAME as a full step — a flick's smooth-scroll momentum
+/// applied dozens of octave doublings per second and "lost the board
+/// in 1s". The constant is the tuning knob: bigger = slower zoom.
+pub const WHEEL_NOTCH_POINTS: f32 = 50.0;
+
+/// The wheel→step mapping (pure, G1): fold one frame's scroll delta
+/// into the accumulator and emit WHOLE notches only — `(steps,
+/// residual)` with the residual kept for the next frame (magnitude
+/// `< WHEEL_NOTCH_POINTS`; the sign carries direction: positive steps
+/// = In). Total on every f32: a non-finite total resets the
+/// accumulator `(0, 0.0)` (a poisoned accumulator would eat every
+/// future notch — the documented NaN face), and the step count
+/// saturates at the i32 faces rather than wrapping.
+#[must_use]
+pub fn wheel_notch_steps(accumulated: f32, delta: f32) -> (i32, f32) {
+    let total = accumulated + delta;
+    if !total.is_finite() {
+        return (0, 0.0);
+    }
+    let steps = (total / WHEEL_NOTCH_POINTS).trunc() as i32;
+    let residual = total - steps as f32 * WHEEL_NOTCH_POINTS;
+    (steps, residual)
+}
+
+/// The CURSOR-ANCHORED zoom re-anchoring (pure, G1): given the pan
+/// before and the (num, den) zoom pair before/after one rational
+/// step, return the pan that keeps the WORLD POINT UNDER THE CURSOR
+/// under the cursor. Per axis, mirroring
+/// [`crate::view::ScreenTransform`]'s OWN faces exactly (i128
+/// intermediates, truncating division — the AM4 exactness contract's
+/// sibling):
+///
+/// * `world = pan + trunc(cursor · old_den / old_num)` (the
+///   transform's `screen_to_world` at the cursor);
+/// * `pan_new = world − trunc(cursor · new_den / new_num)` (the world
+///   offset whose `world_to_screen` lands on the cursor).
+///
+/// Factors are clamped `>= 1` first (the constructor-total twin), and
+/// `pan_new` saturates at the i64 faces (never a wrap). ANCHOR ERROR:
+/// at a zoom where the world lattice is coarser than 1 px per DBU
+/// (`new_num / new_den > 1`), no integer pan can hold the cursor
+/// EXACTLY — the returned pan's error at the cursor is bounded by
+/// `< new_num` px (one lattice step on screen, the minimum any
+/// integer transform guarantees); at `new_num | cursor · new_den` the
+/// anchor round-trips EXACTLY (pinned).
+#[must_use]
+pub fn zoom_about_point(
+    pan: epic_engine::snapshot::PointPrimitive,
+    cursor: (i32, i32),
+    old: (i64, i64),
+    new: (i64, i64),
+) -> epic_engine::snapshot::PointPrimitive {
+    let old_num = old.0.max(1);
+    let old_den = old.1.max(1);
+    let new_num = new.0.max(1);
+    let new_den = new.1.max(1);
+    // The world axis under the cursor at zoom num/den (i128
+    // intermediate — pan and the cursor product cannot overflow it).
+    let world_axis = |pan_axis: i64, cursor_axis: i32, den: i64, num: i64| -> i128 {
+        i128::from(pan_axis) + i128::from(cursor_axis) * i128::from(den) / i128::from(num)
+    };
+    // The pan that re-anchors (saturating at the i64 faces).
+    let pan_axis = |world: i128, cursor_axis: i32, den: i64, num: i64| -> i64 {
+        let value = world - i128::from(cursor_axis) * i128::from(den) / i128::from(num);
+        value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+    };
+    let world_x = world_axis(pan.x, cursor.0, old_den, old_num);
+    let world_y = world_axis(pan.y, cursor.1, old_den, old_num);
+    epic_engine::snapshot::PointPrimitive {
+        x: pan_axis(world_x, cursor.0, new_den, new_num),
+        y: pan_axis(world_y, cursor.1, new_den, new_num),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // the launch modes (the smoke faces' arg face; the bin parses argv
 // through this and hands the mode to the gated shell)
 // ---------------------------------------------------------------------------
@@ -634,6 +716,160 @@ mod tests {
         assert_eq!(fit_zoom(-50), (1, 1));
         // A realistic board face (bm08-class ~1.5M DBU).
         assert_eq!(fit_zoom(1_500_000), (1, 1072));
+    }
+
+    /// THE NOTCH-ACCUMULATOR PIN (G1): whole notches only, the
+    /// residual carried across frames (a partial notch is a NO-STEP —
+    /// the pre-G1 defect applied one FULL x2 step per FRAME); the
+    /// sign carries direction; a non-finite total resets the
+    /// accumulator (a NaN would otherwise poison every future
+    /// notch). Kills the per-frame-consumption mutant and the
+    /// truncation-lost-residual mutant.
+    #[test]
+    fn wheel_notch_steps_faces() {
+        // Exactly one notch -> one step, zero residual.
+        assert_eq!(wheel_notch_steps(0.0, WHEEL_NOTCH_POINTS), (1, 0.0));
+        // A big flick emits MULTIPLE steps and keeps the remainder.
+        assert_eq!(wheel_notch_steps(0.0, 120.0), (2, 20.0));
+        // The residual carries: 30 held + 30 new = one notch.
+        assert_eq!(wheel_notch_steps(30.0, 30.0), (1, 10.0));
+        // Sub-notch deltas accumulate to NOTHING (the no-step face).
+        assert_eq!(wheel_notch_steps(0.0, 25.0), (0, 25.0));
+        // Downward scroll: negative steps, negative residual carried.
+        assert_eq!(wheel_notch_steps(0.0, -75.0), (-1, -25.0));
+        assert_eq!(wheel_notch_steps(-25.0, -30.0), (-1, -5.0));
+        // Non-finite total: reset, never a poisoned accumulator.
+        assert_eq!(wheel_notch_steps(f32::NAN, 10.0), (0, 0.0));
+        assert_eq!(wheel_notch_steps(0.0, f32::INFINITY), (0, 0.0));
+        // Pathological magnitude: the step count saturates at the i32
+        // faces (a saturated `as` cast) rather than wrapping — no
+        // panic, and the residual stays finite.
+        let (steps, residual) = wheel_notch_steps(0.0, f32::MAX);
+        assert_eq!(steps, i32::MAX);
+        assert!(residual.is_finite());
+    }
+
+    /// THE ANCHOR PIN, In arm (G1): after ONE In-step with the pan
+    /// re-anchored at the cursor, the transform's OWN
+    /// `world_to_screen` maps the world-under-cursor BACK to the
+    /// cursor — EXACTLY, at cursor coordinates on the screen lattice
+    /// (`new_num | cursor · new_den`). This is the face the defect
+    /// broke: pre-G1 the pan was untouched, so a centered board flew
+    /// off-screen one octave per frame.
+    #[test]
+    fn zoom_about_point_holds_the_anchor_on_the_in_arm() {
+        use crate::view::ScreenTransform;
+        use epic_geometry::int_point::IntPoint;
+        let pan = epic_engine::snapshot::PointPrimitive {
+            x: 10_000,
+            y: -5_000,
+        };
+        let cursor = (100, 50);
+        let old = (1, 1);
+        let new = rational_zoom_step(old.0, old.1, ZoomDirection::In);
+        let pan_new = zoom_about_point(pan, cursor, old, new);
+        let after = ScreenTransform::new(pan_new, new.0, new.1);
+        // The world point that WAS under the cursor before the step.
+        let before = ScreenTransform::new(pan, old.0, old.1);
+        let world = before.screen_to_world(IntPoint::new(cursor.0, cursor.1));
+        let screen_after = after.world_to_screen(world);
+        assert_eq!((screen_after.x, screen_after.y), cursor);
+        // And the anchor moved the pan (the re-anchoring is not a
+        // no-op): cursor 100 at 1/1 -> 2/1 halves its world offset.
+        assert_eq!(pan_new.x, pan.x + 100 - 50);
+        assert_eq!(pan_new.y, pan.y + 50 - 25);
+    }
+
+    /// THE ANCHOR PIN, Out arm (G1): the same exactness face on a
+    /// zoom-OUT step (`1/2 -> 1/4` — the door below ratio 1), where
+    /// the world offset under the cursor DOUBLES per axis.
+    #[test]
+    fn zoom_about_point_holds_the_anchor_on_the_out_arm() {
+        use crate::view::ScreenTransform;
+        use epic_geometry::int_point::IntPoint;
+        let pan = epic_engine::snapshot::PointPrimitive { x: 0, y: 250_000 };
+        let cursor = (200, 0);
+        let old = (1, 2);
+        let new = rational_zoom_step(old.0, old.1, ZoomDirection::Out);
+        assert_eq!(new, (1, 4)); // the zoom-out door: ratio 1/4
+        let pan_new = zoom_about_point(pan, cursor, old, new);
+        let before = ScreenTransform::new(pan, old.0, old.1);
+        let after = ScreenTransform::new(pan_new, new.0, new.1);
+        let world = before.screen_to_world(IntPoint::new(cursor.0, cursor.1));
+        assert_eq!(
+            (
+                after.world_to_screen(world).x,
+                after.world_to_screen(world).y
+            ),
+            cursor
+        );
+    }
+
+    /// THE DRIFT-BOUND PIN (G1): at a coarse zoom the screen lattice
+    /// cannot represent every cursor px — the re-anchored pan's error
+    /// at the cursor is bounded by `< new_num` px (one world lattice
+    /// step on screen), the documented minimum for ANY integer
+    /// transform. Kills the exactness-overshoot mutant (a wrong
+    /// truncation face would drift by the RATIO, not one lattice
+    /// step).
+    #[test]
+    fn zoom_about_point_drift_is_bounded_by_one_lattice_step() {
+        use crate::view::ScreenTransform;
+        use epic_geometry::int_point::IntPoint;
+        let pan = epic_engine::snapshot::PointPrimitive {
+            x: 1_000_000,
+            y: 1_000_000,
+        };
+        // 2/1 -> 4/1: at 4 px/DBU, screen x=3 has NO exact world
+        // point — the best any pan can do is within one lattice step.
+        let cursor = (3, 7);
+        let old = (2, 1);
+        let new = rational_zoom_step(old.0, old.1, ZoomDirection::In);
+        assert_eq!(new, (4, 1));
+        let pan_new = zoom_about_point(pan, cursor, old, new);
+        let before = ScreenTransform::new(pan, old.0, old.1);
+        let after = ScreenTransform::new(pan_new, new.0, new.1);
+        let world = before.screen_to_world(IntPoint::new(cursor.0, cursor.1));
+        let screen_after = after.world_to_screen(world);
+        assert!(
+            (screen_after.x - cursor.0).abs() < i32::try_from(new.0).unwrap_or(i32::MAX),
+            "x drift {} must be < new_num {}",
+            screen_after.x - cursor.0,
+            new.0
+        );
+        assert!(
+            (screen_after.y - cursor.1).abs() < i32::try_from(new.0).unwrap_or(i32::MAX),
+            "y drift {} must be < new_num {}",
+            screen_after.y - cursor.1,
+            new.0
+        );
+    }
+
+    /// THE SATURATION PIN (G1): pans near the i64 faces with a big
+    /// cursor re-anchor SATURATE (clamp) instead of wrapping or
+    /// panicking — the shell's zoom stays total on every extreme
+    /// input (the AM4 narrow-face twin).
+    #[test]
+    fn zoom_about_point_saturates_at_the_i64_faces() {
+        let at_max = epic_engine::snapshot::PointPrimitive {
+            x: i64::MAX - 1,
+            y: i64::MIN + 1,
+        };
+        let cursor = (10, -10);
+        let old = (1, 1);
+        let new = (2, 1);
+        let pan_new = zoom_about_point(at_max, cursor, old, new);
+        // x: MAX-1 + 10 world (i128-fine) - 5 = MAX+4 -> clamps to MAX.
+        assert_eq!(pan_new.x, i64::MAX);
+        // y: MIN+1 - 10 + 5 = MIN-4 -> clamps to MIN.
+        assert_eq!(pan_new.y, i64::MIN);
+        // The degenerate zero/negative factors clamp to 1 (the
+        // constructor-total twin — never a zero divisor); both pairs
+        // clamping to 1/1 makes the step the IDENTITY, so the
+        // re-anchor is a fixpoint at pan.
+        let pan = epic_engine::snapshot::PointPrimitive { x: 5, y: 5 };
+        let sane = zoom_about_point(pan, (4, 4), (0, 0), (0, 0));
+        assert_eq!((sane.x, sane.y), (pan.x, pan.y));
     }
 
     /// THE SMOKE OVERLAY PIN (fix-round F1): all four toggles ON

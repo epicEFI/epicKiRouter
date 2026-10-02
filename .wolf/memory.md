@@ -9711,3 +9711,41 @@ description: chronological action log per session, consolidated weekly
 | 01:34 | Created logs/readiness-2026-10-01/fixa-commit-msg.txt | — | ~367 |
 | 01:36 | Edited logs/readiness-2026-10-01/p1-commit-msg.txt | modified pins() | ~354 |
 | 01:56 | Created logs/readiness-2026-10-01/export-msg-96492284c.txt | — | ~330 |
+| 02:28 | Edited rust/crates/epic-board/src/items/outline.rs | added 2 import(s) | ~76 |
+| 02:28 | Edited rust/crates/epic-board/src/items/outline.rs | modified own_corner_points() | ~1054 |
+| 02:28 | Edited rust/crates/epic-board/src/items/outline.rs | modified outline_keepout_area() | ~632 |
+| 02:29 | Edited rust/crates/epic-engine/src/session.rs | modified from() | ~351 |
+| 02:29 | Edited rust/crates/epic-engine/src/session.rs | modified units() | ~215 |
+| 02:30 | Edited rust/crates/epic-board/src/items/outline.rs | modified keepout_area_clones_the_shapes_into_holes() | ~1534 |
+| 02:30 | Edited rust/crates/epic-board/src/items/outline.rs | added 2 import(s) | ~61 |
+| 02:30 | Edited rust/crates/epic-cli/src/route.rs | expanded (+47 lines) | ~358 |
+| 02:31 | Edited rust/crates/epic-cli/src/route.rs | modified default_edge_clearance_is_capped_by_the_pin_to_outline_gap() | ~1048 |
+| 02:31 | Edited rust/crates/epic-engine/src/session.rs | modified cap() | ~152 |
+| 02:32 | Edited rust/crates/epic-engine/src/session.rs | cap() → a917044ff() | ~222 |
+| 02:32 | Edited rust/crates/epic-board/src/items/outline.rs | modified corner_gap_samples_tile_corners_through_the_polyline_branch() | ~797 |
+| 02:33 | Edited rust/crates/epic-board/src/items/outline.rs | 8→9 lines | ~82 |
+| 02:34 | Edited rust/crates/epic-board/src/items/outline.rs | 8→10 lines | ~99 |
+| 02:35 | Edited rust/crates/epic-board/src/items/outline.rs | 20→24 lines | ~226 |
+| 02:35 | Edited rust/crates/epic-board/src/items/outline.rs | 8→9 lines | ~78 |
+| 02:37 | Edited rust/crates/epic-board/src/items/outline.rs | modified own_corner_points() | ~312 |
+| 02:51 | Edited rust/crates/epic-board/src/items/outline.rs | removed 72 lines | ~58 |
+| 03:06 | Edited rust/crates/epic-engine/src/session.rs | modified scratch_p2_drc_main_probe() | ~691 |
+| 03:06 | Edited rust/crates/epic-engine/src/session.rs | modified try_from() | ~127 |
+| 03:07 | Edited rust/crates/epic-engine/src/session.rs | inline fix | ~17 |
+| 03:07 | Edited rust/crates/epic-engine/src/session.rs | removed 54 lines | ~34 |
+| 03:09 | Created logs/readiness-2026-10-01/p2-commit-msg.txt | — | ~1054 |
+| 03:18 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+40 lines) | ~774 |
+| 03:23 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified DECISION() | ~181 |
+| 03:24 | Created logs/readiness-2026-10-01/export-msg-ca0e785cc.txt | — | ~458 |
+| 03:28 | Edited rust/crates/epic-gui/src/shell.rs | modified wheel_notch_steps() | ~1144 |
+| 03:31 | Edited rust/crates/epic-gui/src/shell.rs | modified wheel_notch_steps_faces() | ~1978 |
+| 03:31 | Edited rust/crates/epic-gui/src/shell.rs | 5→7 lines | ~115 |
+| 03:31 | Edited rust/crates/epic-gui/src/shell.rs | inline fix | ~17 |
+| 03:31 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified accumulator() | ~161 |
+| 03:31 | Edited rust/crates/epic-gui/src/desktop/mod.rs | 5→6 lines | ~29 |
+| 03:32 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified initialize_view_for() | ~798 |
+| 03:32 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified dragged() | ~911 |
+| 03:32 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified clicked() | ~210 |
+| 03:32 | Edited rust/crates/epic-gui/src/desktop/canvas.rs | origin() → screen() | ~192 |
+| 03:33 | Edited rust/crates/epic-gui/src/desktop/mod.rs | inline fix | ~12 |
+| 03:33 | Edited rust/crates/epic-gui/src/desktop/mod.rs | wants_text_input() → widgets() | ~151 |

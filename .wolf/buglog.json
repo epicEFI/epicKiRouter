@@ -3664,6 +3664,41 @@
         "divergence-ledger",
         "parity"
       ]
+    },
+    {
+      "date": "2026-10-02",
+      "id": 235,
+      "task": "readiness Tier-1 port P2: upstream #935b default copper-to-edge clearance pin-gap cap (freerouting@a917044ff), landed ca0e785cc",
+      "error_message": "Router demanded the full default 250um copper-to-edge clearance even when the input design's own pins sat closer to (or crossing) the outline, blocking every near-edge connection (the Issue558 family); the port inherited the pre-#935 behavior. Surfaces: census RED at epic-gui overlay_goldens_verify_in_process (drc-craft marker radius 64 -> 4) and a stale-bin tripwire refusal at epic-harness global_golden_pin (release epic-cli bin mtime older than session.rs).",
+      "root_cause": "apply_copper_to_edge_clearance_override had no pin-gap floor: upstream a917044ff added step 5b \u2014 when the DEFAULT value is active, floor the demanded clearance at floor(max(0, outline.minimumPinGap())). Two process traps hit en route: (1) Simplex exact-corner panic on parallel border lines during the pre-flight corpus sweep \u2014 the pad-corner sampler must use corner_approx (Java cornerApprox's own MAX_VALUE contract: the unbounded arm lands outside every outline shape -> distance 0, the conservative direction), never the exact corner face; (2) the pre-flight immunity analysis enumerated the 12 harness compare faces but MISSED the census-internal epic-gui golden face that drives Session::load_dsn \u2014 direct-read faces never invoke the override, Session-path faces do; and cargo test --workspace aborts at the first failing suite, so an earlier red HID the harness staleness suite from the battery census.",
+      "fix": "Ported step 5b verbatim into the relocated override (epic-engine session.rs) + Board::outline_minimum_pin_gap / corner_gap / distance_to_outline / own_corner_points / pad_corner_points (epic-board outline.rs; tiles via corner_approx, only round pads sample the bbox). Golden divergence classified INTENTIONAL/upstream-convergent (probe: outline x P10 row expected 250 actual 0 depth 250 -> 0/0/0; count/centers/copper-copper rows stable; upstream HEAD applies the same cap on the same board) and re-captured same-commit through capture_overlay_goldens (one-line diff), parity decision recorded at the case table (render_goldens.rs). Census 42/1715/0/19 declared-then-matched (1709 + 4 epic-board + 2 epic-cli); battery 11 faces green incl. drc-corpus on the same fixture; det1 canaries + threads byte-identical; Tier A 11/0 in 285.1s. Pre-flight sweep: 2544/2546 corpus boards parsed, 419 capped, all tier-A gaps cap-inert. Stale bin cleared per the tripwire's own prescription (cargo clean -p epic-cli + both profiles).",
+      "tags": [
+        "upstream-port",
+        "clearance",
+        "board-edge",
+        "gui-golden",
+        "capture-door",
+        "corner-approx-trap",
+        "stale-bin-tripwire",
+        "divergence-ledger"
+      ]
+    },
+    {
+      "id": 236,
+      "task": "G1 GUI navigation fix (Tyler: scrolling/moving loses the board in ~1s) \u2014 landed 967166cc8",
+      "error_message": "Desktop shell zoom consumed input.smooth_scroll_delta per FRAME as a full x2 rational step (a flick's momentum = dozens of octave doublings/sec) AND anchored every step at the canvas screen ORIGIN (pan untouched, a centered board flies off one octave per step), with no re-fit escape hatch (fit fires only at the first attach). Second-order: the G1 battery re-hit the buglog-235 stale-bin tripwire from the OTHER side \u2014 the epic-gui-only edit stale-flagged the epic-cli release bin (workspace-wide scan), and the plain `cargo build -p epic-cli --release` no-opped (0.11s Finished, no relink, mtime unchanged).",
+      "root_cause": "egui smooth scroll delivers per-frame deltas (~50 points per physical notch spread across frames), not per-notch events \u2014 treating frame delta as notch quanta multiplies the zoom rate by the frame count of the momentum. The pan re-anchor was never wired: rational_zoom_step changed num/den only. NEW trap face: `cargo clean -p epic-cli` cleaned ONLY the dev profile (761 files) and left target/release/epic-cli untouched \u2014 the tripwire's own printed prescription (`clean -p; build; build --release`) silently no-ops on the release half; the force needs `cargo clean -p epic-cli --release` explicitly (real Compiling line + 2.17s relink).",
+      "fix": "shell.rs (ungated, census-pinned): WHEEL_NOTCH_POINTS=50.0 + wheel_notch_steps (whole notches only, residual carries, non-finite resets, i32-saturating step count) + zoom_about_point (cursor-anchored pan re-anchor using ScreenTransform's OWN truncating i128 faces; factors clamped >=1; pan saturating at i64; anchor exact on the screen lattice, drift < new_num px = one world lattice step at coarse zooms) + 5 pins. desktop/mod.rs: zoom_accum field; wheel loop fires zoom_step per whole notch with the hover-pos cursor (canvas-relative, rect returned from the closure); F/Home keybind + Fit view (F) button through fit_transform shared with initialize_view_for (layer visibility = first-display-only). Gates on the exact tree: census 42/1720/0/19 (1715+5, declared-then-reconciled), corpus 5000/5000, dsn 1332/0/72-ledgered, ses 20/20, sessnap 5/5, index/undo 33/33, drc 17/17, events aligned, det1 canaries byte-identical, threads 6/6, Tier A 11/0 257.3s (per-fixture 257.2s). Bins force-relinked with the profile-explicit clean.",
+      "tags": [
+        "gui",
+        "zoom",
+        "notch-accumulator",
+        "cursor-anchor",
+        "fit-escape-hatch",
+        "stale-bin-tripwire",
+        "release-profile-clean",
+        "census-reconciliation"
+      ]
     }
   ]
 }
