@@ -3747,6 +3747,24 @@
     "buglog-236-amendment",
     "f3"
    ]
+  },
+  {
+   "id": 240,
+   "date": "2026-10-02",
+   "error_message": "F4 (pre-route interview) integration traps, three families: (1) the craft-board integration test showed USB_DP/USB_DN NOT offered as a pair while CLK_P/CLK_N was \u2014 pair_partner_upper('USB_DP') returned None because 'USB_DP' ends in 'DP', not '_P', so the single-letter terminal table missed it. (2) The InterviewQuestions dispatch arm first drafted as self.push_log(...) \u2014 a helper that does not exist (the shell's idiom is self.message_log.push((level, text))). (3) F4 Commit C's census went RED at global_golden_pin with a stale RELEASE epic-cli AFTER the buglog-220 ritual 'cargo clean -p epic-cli && cargo build -p epic-cli && cargo build -p epic-cli --release' had 'run': cargo clean -p without a profile flag cleaned ONLY the dev profile, the release bin survived untouched, and the subsequent --release build honestly said up-to-date in 0.07s (its inputs had not changed) \u2014 the ritual's release leg silently skipped.",
+   "root_cause": "(1) Name-heuristic ordering: single-letter suffix tables (_P/_N/_M) shadow two-char terminals (_DP/_DN/_DM); USB nets are the canonical collision. (2) Inventing an API from plausible naming instead of checking the file's own idiom. (3) cargo 1.93's `cargo clean -p <pkg>` scopes to the DEFAULT profile only; the buglog-220/239 rebuild-both-profiles ritual never needed this distinction before because prior witnesses had stale DEV bins (cleaned) with release bins that DID relink via dependency churn.",
+   "fix": "(1) pair_partner_upper tries TWO-char terminals BEFORE single-letter after a separator, longest-match-wins, with the law in the code comment ('or USB_DP would miss entirely'); pinned by unit test pair_partners (ETH0_DP->ETH0_DN included). (2) Replaced with the direct self.message_log.push idiom at the dispatch arm. (3) The ritual's canonical form is now profile-scoped: `cargo clean -p epic-cli; cargo clean -p epic-cli --release; cargo build -p epic-cli; cargo build -p epic-cli --release` \u2014 verified by mtime (release bin 1790947367 > newest source 1790947090); census then 42/1756/0/19 GREEN. Commits e9088a135 + d7f65aa76 + b282f6a87.",
+   "tags": [
+    "interview",
+    "F4",
+    "name-heuristics",
+    "usb-dp",
+    "stale-bin",
+    "cargo-clean",
+    "release-profile",
+    "egui",
+    "first-window"
+   ]
   }
  ]
 }

@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T12:32:46.728Z
-> Files: 690 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T13:27:24.951Z
+> Files: 696 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -780,6 +780,7 @@
 - `export-msg-405709959.txt` — Declares placements (~649 tok)
 - `export-msg-918cb6648.txt` (~179 tok)
 - `export-msg-96492284c.txt` — Declares power (~309 tok)
+- `export-msg-96688fa3f.txt` (~296 tok)
 - `export-msg-ca0e785cc.txt` (~429 tok)
 - `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
@@ -787,6 +788,9 @@
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
 - `f3a-commit-msg.txt` — Declares 0 (~569 tok)
 - `f3b-commit-msg.txt` (~599 tok)
+- `f4a-commit-msg.txt` (~556 tok)
+- `f4b-commit-msg.txt` — Declares width (~530 tok)
+- `f4c-commit-msg.txt` — Declares width (~739 tok)
 - `fix-round-charter.md` — Readiness fix round — 2.0.1 hardening charter (2026-10-01) (~787 tok)
 - `fixa-commit-msg.txt` (~344 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
@@ -832,12 +836,12 @@
 
 ## rust/crates/epic-cli/src/
 
-- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2168 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~53418 tok)
+- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2315 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~54834 tok)
 
 ## rust/crates/epic-cli/tests/
 
-- `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~1326 tok)
+- `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~2563 tok)
 - `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
 
 ## rust/crates/epic-dsn/src/scope/
@@ -847,15 +851,16 @@
 ## rust/crates/epic-engine/src/
 
 - `current_width.rs` — The F2 current-driven trace-width core: the IPC-2221B closed-form (~7142 tok)
-- `lib.rs` — The headless application core: jobs, the layered settings (~742 tok)
+- `interview.rs` — F4: the pre-route interview — constraint inference from the board (~4966 tok)
+- `lib.rs` — The headless application core: jobs, the layered settings (~747 tok)
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
-- `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5743 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~14995 tok)
-- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~61532 tok)
+- `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15237 tok)
+- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~62260 tok)
 
 ## rust/crates/epic-gui/src/
 
-- `shell.rs` — The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED (~11532 tok)
+- `shell.rs` — The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED (~13443 tok)
 
 ## rust/crates/epic-gui/src/bin/
 
@@ -864,7 +869,8 @@
 ## rust/crates/epic-gui/src/desktop/
 
 - `canvas.rs` — The M9-T6 canvas (desktop-gated): the egui painter over the pure (~1811 tok)
-- `mod.rs` — The M9-T6 desktop shell (desktop-gated): the THIN eframe host — (~9810 tok)
+- `mod.rs` — The M9-T6 desktop shell (desktop-gated): the THIN eframe host — (~12196 tok)
+- `worker.rs` — The M9-T6 desktop worker thread (desktop-gated; its PROTOCOL types (~2751 tok)
 
 ## rust/crates/epic-gui/tests/
 
