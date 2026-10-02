@@ -3715,6 +3715,23 @@
         "pin-assignment",
         "settings-plumbing"
       ]
+    },
+    {
+      "id": 238,
+      "date": "2026-10-02",
+      "error_message": "F2 Commit B integration traps (none behavioral): (1) craft-DSN class-name literal 'kicad_default' asserted in apply_tests, actual 'default' \u2014 the Java-parity ALIAS (network.rs:985, Network.java:694: default/kicad_default case-insensitive merges into board class 0 named 'default'; every KiCad DSN export names its class kicad_default, so the ALIASED path IS the production path). (2) smoke run showed an EMPTY manifest row for a valid request: NOT a bug \u2014 the DSN (width 2000) is in the board's declared UNIT (um) so the parsed class half width is 10000 DBU (2mm full), far above the 2A IPC minimum (2580 half); the only-widen floor correctly emitted no row. First diagnostic instinct on an empty report should be to dump the parsed class widths + resolution_mil, not to suspect the merge (the merge was unit-test-proven the whole time). (3) a warning-echo face: reports/warnings must name the CANONICAL resolved net name (board spelling), not the raw request string (the request may carry any case).",
+      "root_cause": "Fixture-semantics + naming-law gaps: DSN class aliasing, DSN width values living in the board unit (converted at parse to DBU), and canonical-vs-request naming in report faces.",
+      "fix": "Test literals corrected to 'default'/'default~10A' with the alias documented in the test; the smoke craft DSN width fixed to 200um (0.2mm, the realistic signal width) and re-run at N1:10,N3:2 \u2014 rows/warnings/SES widths all verified live; apply fn hoists net.name for every report face.",
+      "tags": [
+        "f2",
+        "current-width",
+        "dsn-alias",
+        "kicad_default",
+        "unit-conversion",
+        "only-widen-floor",
+        "craft-dsn",
+        "test-literals"
+      ]
     }
   ]
 }
