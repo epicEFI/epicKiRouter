@@ -150,6 +150,14 @@ struct ShellApp {
     smoke: Option<Smoke>,
     /// The shared exit code (set before the viewport closes).
     exit: Arc<Mutex<Option<i32>>>,
+    /// The wheel-notch accumulator (G1): `smooth_scroll_delta`
+    /// arrives per FRAME but a step fires per WHOLE NOTCH
+    /// ([`crate::shell::WHEEL_NOTCH_POINTS`] points) — the sub-notch
+    /// residual carries across frames. Pre-G1 the delta was consumed
+    /// as a full x2 step per frame, so a flick's momentum applied
+    /// dozens of octave doublings per second ("lost the board in
+    /// 1s").
+    zoom_accum: f32,
 }
 
 /// The bounded smoke state machine (the evidence face; never a
@@ -273,6 +281,7 @@ impl ShellApp {
             op_count: 0,
             smoke,
             exit,
+            zoom_accum: 0.0,
         })
     }
 
@@ -342,6 +351,20 @@ impl ShellApp {
     /// initial viewport, and make every snapshot layer visible (the
     /// caller populates — there is no implicit all-layers view).
     fn initialize_view_for(&mut self, _revision: u64, bounds: epic_engine::snapshot::BoxPrimitive) {
+        self.fit_transform(bounds);
+        if let Some(display) = &self.display {
+            for layer in panels::present_layers(display) {
+                self.view.visible_layers.insert(layer);
+            }
+        }
+    }
+
+    /// The FIT face shared by the first display and the G1 escape
+    /// hatch (F/Home keybind + the panel button): pan = bounds.ll +
+    /// [`crate::shell::fit_zoom`] — WITHOUT touching layer
+    /// visibility (the visibility state is the user's; only the
+    /// FIRST display reveals every present layer).
+    fn fit_transform(&mut self, bounds: epic_engine::snapshot::BoxPrimitive) {
         self.view.transform.pan = epic_engine::snapshot::PointPrimitive {
             x: bounds.ll_x,
             y: bounds.ll_y,
@@ -354,11 +377,37 @@ impl ShellApp {
             .max(1);
         (self.view.transform.zoom_num, self.view.transform.zoom_den) =
             crate::shell::fit_zoom(longest);
+    }
+
+    /// The user-facing fit (the G1 escape hatch for a lost view):
+    /// re-fit the CURRENT display's bounds. A no-op with nothing
+    /// displayed (the pre-attach face — there is nothing to fit).
+    fn fit_view(&mut self) {
         if let Some(display) = &self.display {
-            for layer in panels::present_layers(display) {
-                self.view.visible_layers.insert(layer);
-            }
+            let bounds = display.bounds;
+            self.fit_transform(bounds);
         }
+        // A fit invalidates any sub-notch wheel residual the old
+        // view had banked (cosmetic; keeps the accumulator honest).
+        self.zoom_accum = 0.0;
+    }
+
+    /// ONE rational zoom step (G1) with the pan re-anchored at the
+    /// CURSOR when known: the world point under the pointer stays
+    /// under the pointer across the step
+    /// ([`crate::shell::zoom_about_point`]). `None` keeps the legacy
+    /// origin-anchored face (no hover position — e.g. a synthetic
+    /// step from a non-canvas context).
+    fn zoom_step(&mut self, direction: crate::shell::ZoomDirection, cursor: Option<(i32, i32)>) {
+        let transform = self.view.transform;
+        let old = (transform.zoom_num, transform.zoom_den);
+        let new = crate::shell::rational_zoom_step(old.0, old.1, direction);
+        if let Some(cursor) = cursor {
+            self.view.transform.pan =
+                crate::shell::zoom_about_point(transform.pan, cursor, old, new);
+        }
+        self.view.transform.zoom_num = new.0;
+        self.view.transform.zoom_den = new.1;
     }
 
     fn process_engine(&mut self, event: EngineEvent) {
@@ -694,6 +743,14 @@ impl eframe::App for ShellApp {
                         }
                     };
                 }
+                // The G1 fit escape hatch — the same fit_view face as
+                // the F/Home keybind (re-fit the current board after
+                // a zoom/pan excursion lost it).
+                ui.add_enabled_ui(self.display.is_some(), |ui| {
+                    if ui.button("Fit view (F)").clicked() {
+                        self.fit_view();
+                    }
+                });
                 ui.separator();
                 if let Some(display) = &self.display {
                     panels::layers(ui, display, &mut self.view);
@@ -724,7 +781,7 @@ impl eframe::App for ShellApp {
         });
 
         // The canvas.
-        let canvas_response = egui::CentralPanel::default()
+        let (canvas_rect, canvas_response) = egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
                 let (rect, response) =
@@ -735,7 +792,7 @@ impl eframe::App for ShellApp {
                     ui.painter()
                         .rect_filled(rect, 0.0, color_of_background(&self.view));
                 }
-                response
+                (rect, response)
             })
             .inner;
 
@@ -748,25 +805,51 @@ impl eframe::App for ShellApp {
             self.view.transform.pan.x -= (delta.x as f64 * den as f64 / num as f64) as i64;
             self.view.transform.pan.y -= (delta.y as f64 * den as f64 / num as f64) as i64;
         }
-        // Zoom: wheel -> the rational step (x2 // /2 on the ratio;
-        // the factors stay >= 1 — the zoom-out door stays open).
+        // Zoom (G1): the wheel accumulates into NOTCH units — ONE
+        // notch (crate::shell::WHEEL_NOTCH_POINTS points of
+        // smooth_scroll_delta) = ONE rational x2 step, NEVER one step
+        // per frame (the pre-G1 defect: a flick's smooth-scroll
+        // momentum applied dozens of octave doublings per second and
+        // lost the board). Each step re-anchors the pan AT THE CURSOR
+        // (crate::shell::zoom_about_point) — the world point under
+        // the pointer stays under the pointer instead of flying with
+        // the screen origin.
         if canvas_response.hovered() {
             let scroll = ctx.input(|input| input.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                let direction = if scroll > 0.0 {
+            let (steps, residual) = crate::shell::wheel_notch_steps(self.zoom_accum, scroll);
+            self.zoom_accum = residual;
+            if steps != 0 {
+                // The cursor in CANVAS-relative px (the transform's
+                // screen space); None would keep the legacy
+                // origin-anchored face, but hovered() implies a
+                // position — the None arm is unreachable here.
+                let cursor = canvas_response.hover_pos().map(|pos| {
+                    (
+                        (pos.x - canvas_rect.min.x) as i32,
+                        (pos.y - canvas_rect.min.y) as i32,
+                    )
+                });
+                let direction = if steps > 0 {
                     crate::shell::ZoomDirection::In
                 } else {
                     crate::shell::ZoomDirection::Out
                 };
-                let transform = self.view.transform;
-                let (zoom_num, zoom_den) = crate::shell::rational_zoom_step(
-                    transform.zoom_num,
-                    transform.zoom_den,
-                    direction,
-                );
-                self.view.transform.zoom_num = zoom_num;
-                self.view.transform.zoom_den = zoom_den;
+                for _ in 0..steps.unsigned_abs() {
+                    self.zoom_step(direction, cursor);
+                }
             }
+        }
+        // Fit (G1): F or Home re-fits the board — the escape hatch
+        // for a lost view (pre-G1 the fit fired only at the first
+        // attach). No text-input disambiguation is needed: this
+        // shell renders no text edit widgets (buttons/checkboxes
+        // only), so an unguarded F can never eat a keystroke meant
+        // for a field. If a text field ever lands here, gate this on
+        // that field's focus.
+        let fit_requested = ctx
+            .input(|input| input.key_pressed(egui::Key::F) || input.key_pressed(egui::Key::Home));
+        if fit_requested {
+            self.fit_view();
         }
 
         // Repaint while the engine is active (the drain cadence).

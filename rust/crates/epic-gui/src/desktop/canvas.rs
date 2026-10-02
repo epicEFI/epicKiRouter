@@ -25,9 +25,12 @@
 //!   outline covers the diagonal seam of a slightly concave
 //!   polygon). A strongly concave polygon can show fill seams — a
 //!   presentation face only (the ops stream is the pinned face).
-//! * The zoom anchors at the canvas's screen origin (pan unchanged
-//!   across a wheel step) — the zoom-about-cursor refinement is
-//!   future polish, not M9.
+//! * The zoom RE-ANCHORS the pan at the cursor across a wheel step
+//!   (G1: `shell::zoom_about_point` — the world point under the
+//!   pointer stays under the pointer; the pre-G1 origin-anchored
+//!   face lost a centered board one octave per step). The residual
+//!   sub-lattice anchor error at coarse zooms is bounded by one
+//!   world lattice step on screen (the pinned drift face).
 
 use crate::render::{RenderList, RenderOp, project};
 use crate::view::{ScreenTransform, ViewModel};
