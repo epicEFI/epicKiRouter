@@ -716,6 +716,14 @@ fn fanout_pin_order_congestion_primary_key() {
 /// the map's layer rows, answers false, and the fast path never fires.
 /// The pin: with master + pattern ON, routing NA's pair emits the
 /// `global_pattern_route` seam row.
+///
+/// PARITY DECISION (2026-10-02, upstream #935 / a917044ff): the POWER
+/// layer now carries `(use_net "NPLANE")` (plane synthesized by
+/// `insertMissingPowerPlanes`) — the bare planeless `(type power)` row
+/// this fixture had is PROMOTED to signal by the #935 port, which
+/// would collapse the mixed-layer board to 3 signal layers and orphan
+/// the ordinal-conversion face. Net-named power layers are the
+/// post-#935 upstream-HEAD shape of a non-signal physical layer.
 #[test]
 fn pattern_route_mixed_layer_ordinal_conversion() {
     use crate::pipeline::connection_router;
@@ -753,7 +761,12 @@ fn pattern_route_mixed_layer_ordinal_conversion() {
     settings.congestion_global = true;
     settings.congestion_global_pattern = true;
 
-    let net = 1;
+    // PARITY DECISION (2026-10-02, #935): resolve NA BY NAME — the
+    // fixture's NPLANE plane net (registered at structure-close
+    // create_board, BEFORE the network scope appends NA — Java order)
+    // holds net number 1, so a hardcoded `net = 1` would select the
+    // plane, not the pair.
+    let net = crate::test_util::net_no(&board, "NA");
     let items = board.get_connectable_items(net);
     assert_eq!(items.len(), 2, "the g5 pair");
     let item_id = items[0];
@@ -787,9 +800,36 @@ fn pattern_route_mixed_layer_ordinal_conversion() {
     assert!(
         sink.rows
             .iter()
-            .any(|(_level, row)| row.starts_with("global_pattern_route net=1")),
+            .any(|(_level, row)| row.starts_with(&format!("global_pattern_route net={net}"))),
         "the fast path must fire at the SIGNAL ORDINAL: {:?}",
         sink.rows
+    );
+}
+
+/// buglog-233 pin: `signal_ordinal` answers None for a NON-SIGNAL
+/// physical layer. `get_signal_layer_no` alone counts only the signal
+/// layers strictly BEFORE the index, so a power layer aliased the
+/// NEXT signal layer's ordinal — a filled pour on the power layer
+/// then rasterized into that signal row's occupancy and suppressed
+/// the pattern fast path (the g5 mixed-layer witness above, once its
+/// POWER layer carried a synthesized plane).
+#[test]
+fn signal_ordinal_rejects_non_signal_layers() {
+    const G5: &str = include_str!("../../../../harness/fixtures/global-spike/g5_mixedlayer.dsn");
+    let (_manager, board) = parse(G5);
+    use super::map::CongestionMap;
+    assert_eq!(CongestionMap::signal_ordinal(&board, 0), Some(0), "F.Cu");
+    assert_eq!(
+        CongestionMap::signal_ordinal(&board, 1),
+        None,
+        "POWER is non-signal — no ordinal, never B.Cu's"
+    );
+    assert_eq!(CongestionMap::signal_ordinal(&board, 2), Some(1), "B.Cu");
+    assert_eq!(CongestionMap::signal_ordinal(&board, -1), None, "negative");
+    assert_eq!(
+        CongestionMap::signal_ordinal(&board, 3),
+        None,
+        "out of range"
     );
 }
 
