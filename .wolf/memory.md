@@ -9786,3 +9786,94 @@ description: chronological action log per session, consolidated weekly
 | 04:25 | Edited rust/crates/epic-board/src/board.rs | modified on_the_board_is_set_by_insert_and_cleared_by_remove() | ~563 |
 | 04:27 | Created logs/readiness-2026-10-01/f1b-commit-msg.txt | — | ~797 |
 | 04:31 | Created logs/readiness-2026-10-01/export-msg-405709959.txt | — | ~693 |
+| 04:36 | Created rust/crates/epic-engine/src/current_width.rs | — | ~2696 |
+| 04:36 | Edited rust/crates/epic-engine/src/current_width.rs | reduced (-7 lines) | ~169 |
+| 04:38 | Edited rust/crates/epic-engine/src/current_width.rs | unwrap_err() → expect_err() | ~221 |
+| 04:38 | Edited rust/crates/epic-engine/src/current_width.rs | modified validate() | ~84 |
+| 04:41 | Created logs/readiness-2026-10-01/f2a-commit-msg.txt | — | ~480 |
+| 04:44 | Edited rust/crates/epic-board/src/rules_surf.rs | modified from_ir() | ~401 |
+| 04:45 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_net_class() | ~197 |
+| 04:45 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_net_class() | ~80 |
+| 04:45 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_net_class_repoints_and_ignores_foreign_numbers() | ~353 |
+| 04:48 | Edited rust/crates/epic-engine/src/current_width.rs | modified apply_current_widths() | ~2112 |
+| 04:48 | Edited rust/crates/epic-engine/src/current_width.rs | 8→12 lines | ~94 |
+| 04:54 | Edited rust/crates/epic-engine/src/current_width.rs | 2→7 lines | ~113 |
+| 04:54 | Edited rust/crates/epic-engine/src/current_width.rs | 4→4 lines | ~33 |
+| 04:54 | Edited rust/crates/epic-engine/src/current_width.rs | 2→5 lines | ~68 |
+| 04:55 | Edited rust/crates/epic-engine/src/current_width.rs | 5→5 lines | ~79 |
+| 04:55 | Edited rust/crates/epic-engine/src/current_width.rs | 7→4 lines | ~32 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | modified parse_ref_list() | ~199 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | modified parse_current_nets() | ~315 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | modified list() | ~286 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | 2→5 lines | ~45 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~101 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | 1→4 lines | ~60 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~105 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+12 lines) | ~240 |
+| 04:57 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+12 lines) | ~197 |
+| 04:58 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+9 lines) | ~160 |
+| 04:58 | Edited rust/crates/epic-engine/src/settings.rs | added 1 import(s) | ~29 |
+| 04:59 | Edited rust/crates/epic-engine/src/settings.rs | 5→8 lines | ~80 |
+| 04:59 | Edited rust/crates/epic-engine/src/settings.rs | 5→8 lines | ~79 |
+| 04:59 | Edited rust/crates/epic-engine/src/settings.rs | modified current_nets_grammar() | ~1219 |
+| 05:00 | Edited rust/crates/epic-engine/src/settings.rs | 7→5 lines | ~86 |
+| 05:00 | Edited rust/crates/epic-engine/src/session.rs | 2→6 lines | ~96 |
+| 05:00 | Edited rust/crates/epic-engine/src/session.rs | 1→2 lines | ~23 |
+| 05:00 | Edited rust/crates/epic-engine/src/session.rs | modified F2() | ~304 |
+| 05:00 | Edited rust/crates/epic-engine/src/session.rs | modified pin_assign_report() | ~117 |
+| 05:01 | Edited rust/crates/epic-cli/src/route.rs | expanded (+29 lines) | ~289 |
+| 05:01 | Edited rust/crates/epic-cli/src/route.rs | expanded (+7 lines) | ~147 |
+| 05:01 | Edited rust/crates/epic-cli/src/route.rs | 3→7 lines | ~90 |
+| 05:01 | Edited rust/crates/epic-cli/src/route.rs | 2→4 lines | ~74 |
+| 05:01 | Edited rust/crates/epic-cli/src/route.rs | modified F2() | ~299 |
+| 05:02 | Edited rust/crates/epic-cli/src/route.rs | 3→4 lines | ~66 |
+| 05:02 | Edited rust/crates/epic-cli/src/route.rs | expanded (+25 lines) | ~278 |
+| 05:02 | Edited rust/crates/epic-cli/src/route.rs | 3→5 lines | ~34 |
+| 05:02 | Edited rust/crates/epic-cli/src/route.rs | 2→4 lines | ~49 |
+| 05:03 | Edited rust/crates/epic-engine/src/current_width.rs | 5→4 lines | ~49 |
+| 05:03 | Edited rust/crates/epic-engine/src/current_width.rs | 1→2 lines | ~34 |
+| 05:03 | Edited rust/crates/epic-engine/src/current_width.rs | 7→3 lines | ~29 |
+| 05:05 | Edited rust/crates/epic-cli/src/main.rs | 1→5 lines | ~56 |
+| 05:05 | Created logs/readiness-2026-10-01/f2-smoke/width-craft.dsn | — | ~336 |
+| 05:09 | Edited rust/crates/epic-cli/src/route.rs | 1→2 lines | ~60 |
+| 05:09 | Edited rust/crates/epic-cli/src/route.rs | 2→2 lines | ~81 |
+| 05:10 | Edited rust/crates/epic-cli/src/route.rs | 2→1 lines | ~21 |
+| 05:10 | Edited logs/readiness-2026-10-01/f2-smoke/width-craft.dsn | inline fix | ~11 |
+| 05:11 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 2→5 lines | ~57 |
+| 05:14 | Created logs/readiness-2026-10-01/f2b-commit-msg.txt | — | ~823 |
+| 05:19 | Created logs/readiness-2026-10-01/export-msg-d93cb388a.txt | — | ~245 |
+| 06:04 | Created rust/crates/epic-engine/src/pour.rs | — | ~5709 |
+| 06:04 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_net_class() | ~263 |
+| 06:04 | Edited rust/crates/epic-board/src/rules_surf.rs | modified set_contains_plane_flips_and_ignores_foreign_numbers() | ~468 |
+| 06:04 | Edited rust/crates/epic-engine/src/lib.rs | 2→3 lines | ~14 |
+| 06:05 | Edited rust/crates/epic-engine/src/pour.rs | 3→2 lines | ~29 |
+| 06:05 | Edited rust/crates/epic-engine/src/pour.rs | added 1 import(s) | ~33 |
+| 06:05 | Edited rust/crates/epic-engine/src/pour.rs | 24→22 lines | ~277 |
+| 06:06 | Edited rust/crates/epic-engine/src/pour.rs | last() → next_back() | ~71 |
+| 06:06 | Edited rust/crates/epic-engine/src/pour.rs | inline fix | ~19 |
+| 06:07 | Created logs/readiness-2026-10-01/f3a-commit-msg.txt | — | ~607 |
+| 06:21 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+13 lines) | ~292 |
+| 06:21 | Edited rust/crates/epic-engine/src/settings.rs | modified parse_ref_list() | ~136 |
+| 06:21 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+7 lines) | ~165 |
+| 06:22 | Edited rust/crates/epic-engine/src/settings.rs | 3→5 lines | ~45 |
+| 06:22 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~74 |
+| 06:22 | Edited rust/crates/epic-engine/src/settings.rs | 3→8 lines | ~107 |
+| 06:23 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+7 lines) | ~169 |
+| 06:23 | Edited rust/crates/epic-engine/src/settings.rs | 1→3 lines | ~43 |
+| 06:23 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~77 |
+| 06:23 | Edited rust/crates/epic-engine/src/settings.rs | modified pour_settings_grammar_and_lifecycle() | ~856 |
+| 06:23 | Edited rust/crates/epic-engine/src/session.rs | 1→4 lines | ~71 |
+| 06:23 | Edited rust/crates/epic-engine/src/session.rs | 1→2 lines | ~22 |
+| 06:23 | Edited rust/crates/epic-engine/src/session.rs | modified F3() | ~319 |
+| 06:24 | Edited rust/crates/epic-engine/src/session.rs | modified current_width_report() | ~292 |
+| 06:24 | Edited rust/crates/epic-cli/src/route.rs | expanded (+15 lines) | ~272 |
+| 06:24 | Edited rust/crates/epic-cli/src/route.rs | expanded (+7 lines) | ~229 |
+| 06:24 | Edited rust/crates/epic-cli/src/route.rs | 5→9 lines | ~123 |
+| 06:24 | Edited rust/crates/epic-cli/src/route.rs | 2→4 lines | ~78 |
+| 06:24 | Edited rust/crates/epic-cli/src/route.rs | 2→4 lines | ~51 |
+| 06:25 | Edited rust/crates/epic-cli/src/route.rs | modified F3() | ~631 |
+| 06:25 | Edited rust/crates/epic-cli/src/route.rs | expanded (+16 lines) | ~175 |
+| 06:25 | Edited rust/crates/epic-cli/src/route.rs | 5→7 lines | ~51 |
+| 06:25 | Edited rust/crates/epic-cli/src/main.rs | 4→6 lines | ~57 |
+| 06:25 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 2→4 lines | ~50 |
+| 06:32 | Created logs/readiness-2026-10-01/f3b-commit-msg.txt | — | ~639 |

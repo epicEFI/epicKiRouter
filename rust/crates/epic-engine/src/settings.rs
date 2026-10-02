@@ -197,6 +197,19 @@ pub struct CliLayer {
     /// temperature rise above ambient (deg C; the apply face defaults
     /// to 10.0 when absent) shared by every `current.nets` request.
     pub current_temp_rise_c: Option<f64>,
+    /// `router.pour.nets` — the F3 ground-pour synthesis request list
+    /// (RUST-ONLY, no Java counterpart): comma-separated net names
+    /// (`GND,AGND`) — each named net gets a full-board copper pour
+    /// (the parse's own plane construction) before routing starts,
+    /// flipping the net's `contains_plane` so the router's plane
+    /// handling takes over (epic_engine::pour). `None` (the default)
+    /// = the face is off; the ask never fires and pours come from
+    /// the board verbatim.
+    pub pour_nets: Option<Vec<String>>,
+    /// `router.pour.layer` — the F3 pour layer (a layer NAME shared by
+    /// every `pour.nets` request; absent = the LAST signal layer, the
+    /// bottom copper of classic 2-layer practice).
+    pub pour_layer: Option<String>,
     /// `router.gloss.bus` — the M8-T3 GLOSS BUS tri-state (RUST-ONLY,
     /// no Java counterpart; the gloss family block beside the
     /// `router.tuning` family). `None` (the default) = OFF: the gloss
@@ -814,6 +827,13 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Ok(v) => layer.current_temp_rise_c = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
         },
+        "pour.nets" => match parse_ref_list(value) {
+            Some(v) => layer.pour_nets = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "pour.layer" => {
+            layer.pour_layer = Some(value.to_string());
+        }
         "gloss.bus" => match parse_on_off(value) {
             Some(v) => layer.gloss_bus = Some(v),
             None => warn_bad_value(layer, property, value),
@@ -1275,6 +1295,13 @@ pub struct MergedSettings {
     /// (deg C; absent = the apply face's 10.0 default;
     /// CLI/session-only, Default seed `None`).
     pub current_temp_rise_c: Option<f64>,
+    /// `router.pour.nets` — the F3 ground-pour synthesis request list
+    /// (absent = the face is off; CLI/session-only — no DSN/default
+    /// source writes it, the Default seed is `None`).
+    pub pour_nets: Option<Vec<String>>,
+    /// `router.pour.layer` — the F3 pour layer (absent = the last
+    /// signal layer; CLI/session-only, Default seed `None`).
+    pub pour_layer: Option<String>,
     /// `router.gloss.bus` — the M8-T3 gloss-bus tri-state (absent =
     /// OFF; CLI-only — no DSN/default source writes it, the Default
     /// seed is `None`).
@@ -1407,6 +1434,8 @@ impl Default for MergedSettings {
             current_nets: None,
             current_copper_oz: None,
             current_temp_rise_c: None,
+            pour_nets: None,
+            pour_layer: None,
             gloss_bus: None,
             gloss_flow: None,
             gloss_via_place: None,
@@ -1578,6 +1607,12 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.current_temp_rise_c {
         merged.current_temp_rise_c = Some(v);
+    }
+    if let Some(v) = cli.pour_nets.clone() {
+        merged.pour_nets = Some(v);
+    }
+    if let Some(v) = cli.pour_layer.clone() {
+        merged.pour_layer = Some(v);
     }
     if let Some(v) = cli.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -1991,6 +2026,13 @@ pub struct ResolvedRouteSettings {
     /// temperature rise (deg C; the apply face defaults to 10.0 when
     /// absent).
     pub current_temp_rise_c: Option<f64>,
+    /// CLI twin: [`CliLayer::pour_nets`] — the F3 ground-pour
+    /// synthesis request list; `None` (the default) = the face is
+    /// off and pours come from the board verbatim.
+    pub pour_nets: Option<Vec<String>>,
+    /// CLI twin: [`CliLayer::pour_layer`] — the F3 pour layer (absent
+    /// = the last signal layer).
+    pub pour_layer: Option<String>,
     /// The M8-T3 gloss-bus flag (`router.gloss.bus`), resolved to its
     /// effective face: ON only when explicitly `on` (the pass has no
     /// input-driven activation — absent and `off` are both OFF, the
@@ -2125,6 +2167,8 @@ impl ResolvedRouteSettings {
             current_nets: merged.current_nets.clone(),
             current_copper_oz: merged.current_copper_oz,
             current_temp_rise_c: merged.current_temp_rise_c,
+            pour_nets: merged.pour_nets.clone(),
+            pour_layer: merged.pour_layer.clone(),
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
             gloss_via_place: merged.gloss_via_place.unwrap_or(false),
@@ -2417,6 +2461,11 @@ pub struct SessionLayer {
     /// CLI twin: [`CliLayer::current_temp_rise_c`] — the F2 allowed
     /// temperature rise (deg C).
     pub current_temp_rise_c: Option<f64>,
+    /// CLI twin: [`CliLayer::pour_nets`] — the F3 ground-pour
+    /// synthesis request list (`GND, AGND, ...`).
+    pub pour_nets: Option<Vec<String>>,
+    /// CLI twin: [`CliLayer::pour_layer`] — the F3 pour layer.
+    pub pour_layer: Option<String>,
     /// CLI twin: [`CliLayer::gloss_bus`] — the M8-T3 gloss-bus flag.
     pub gloss_bus: Option<bool>,
     /// CLI twin: [`CliLayer::gloss_flow`] — the M8-T4 gloss-flow flag.
@@ -2519,6 +2568,12 @@ pub fn merge_session(merged: &mut MergedSettings, session: &SessionLayer) {
     }
     if let Some(v) = session.current_temp_rise_c {
         merged.current_temp_rise_c = Some(v);
+    }
+    if let Some(v) = session.pour_nets.clone() {
+        merged.pour_nets = Some(v);
+    }
+    if let Some(v) = session.pour_layer.clone() {
+        merged.pour_layer = Some(v);
     }
     if let Some(v) = session.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -3548,6 +3603,8 @@ mod tests {
             current_nets: None,
             current_copper_oz: None,
             current_temp_rise_c: None,
+            pour_nets: None,
+            pour_layer: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -4828,6 +4885,8 @@ mod tests {
             current_nets: None,
             current_copper_oz: None,
             current_temp_rise_c: None,
+            pour_nets: None,
+            pour_layer: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -5037,6 +5096,71 @@ mod tests {
         assert_eq!(none_layer.current_nets, None, "None never overwrites");
         assert_eq!(none_layer.current_copper_oz, None);
         assert_eq!(none_layer.current_temp_rise_c, None);
+    }
+
+    /// F3: the `pour_*` plumbing end to end — the names parse through
+    /// the SAME ref-list grammar as `assign.pins` (trims, skips empty
+    /// entries, an all-empty value fails the whole parse), the layer
+    /// is a plain string (any name resolves at the apply face, the
+    /// honest-refusal law), the session layer wins over the CLI,
+    /// `None` never overwrites, and `resolve` carries both VERBATIM
+    /// (the name->net resolution is the route head's job).
+    #[test]
+    fn pour_settings_grammar_and_lifecycle() {
+        let mut layer = CliLayer::default();
+        apply_router_setting(&mut layer, "pour.nets", "GND,  AGND ,VSS");
+        assert_eq!(
+            layer.pour_nets,
+            Some(vec![
+                "GND".to_string(),
+                "AGND".to_string(),
+                "VSS".to_string()
+            ])
+        );
+        apply_router_setting(&mut layer, "pour.layer", "B.Cu");
+        assert_eq!(layer.pour_layer.as_deref(), Some("B.Cu"));
+
+        // The all-empty value fails the whole parse (the ref-list law
+        // — a silently-empty list would read as "off" with no signal).
+        let mut bad = CliLayer::default();
+        apply_router_setting(&mut bad, "pour.nets", " , ");
+        assert_eq!(bad.pour_nets, None, "' , ' must be rejected");
+        let expected = "Failed to apply CLI router setting: pour.nets: For input string: \" , \"";
+        assert_eq!(bad.warnings.last().map(String::as_str), Some(expected));
+
+        let cli = CliLayer {
+            pour_nets: Some(vec!["GND".to_string()]),
+            pour_layer: Some("B.Cu".to_string()),
+            ..CliLayer::default()
+        };
+        let mut merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
+        assert_eq!(merged.pour_nets, Some(vec!["GND".to_string()]));
+        assert_eq!(merged.pour_layer.as_deref(), Some("B.Cu"));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(resolved.pour_nets, Some(vec!["GND".to_string()]));
+        assert_eq!(resolved.pour_layer.as_deref(), Some("B.Cu"));
+
+        let session = SessionLayer {
+            pour_nets: Some(vec!["GND".to_string(), "AGND".to_string()]),
+            pour_layer: None, // the apply face defaults to the last signal layer
+            ..SessionLayer::default()
+        };
+        merge_session(&mut merged, &session);
+        assert_eq!(
+            merged.pour_nets.as_ref().map_or(0, Vec::len),
+            2,
+            "session wins"
+        );
+        assert_eq!(
+            merged.pour_layer.as_deref(),
+            Some("B.Cu"),
+            "untouched slot survives"
+        );
+
+        let mut none_layer = MergedSettings::default();
+        merge_session(&mut none_layer, &SessionLayer::default());
+        assert_eq!(none_layer.pour_nets, None, "None never overwrites");
+        assert_eq!(none_layer.pour_layer, None);
     }
 
     /// PIN SL-3: `None` session fields NEVER overwrite — every CLI

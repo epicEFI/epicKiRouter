@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T10:31:23.258Z
-> Files: 681 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T12:32:46.728Z
+> Files: 690 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -781,7 +781,12 @@
 - `export-msg-918cb6648.txt` (~179 tok)
 - `export-msg-96492284c.txt` — Declares power (~309 tok)
 - `export-msg-ca0e785cc.txt` (~429 tok)
+- `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
+- `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
+- `f2b-commit-msg.txt` — Declares cloned (~771 tok)
+- `f3a-commit-msg.txt` — Declares 0 (~569 tok)
+- `f3b-commit-msg.txt` (~599 tok)
 - `fix-round-charter.md` — Readiness fix round — 2.0.1 hardening charter (2026-10-01) (~787 tok)
 - `fixa-commit-msg.txt` (~344 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
@@ -799,6 +804,10 @@
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
 
+## logs/readiness-2026-10-01/f2-smoke/
+
+- `width-craft.dsn` — Declares signal (~336 tok)
+
 ## logs/readiness-2026-10-01/gates-overflow/
 
 - `ANALYSIS.md` — Tier A wall delta: 242.5s → 318.4s — CLOSED (attributed, not a regression) (~1185 tok)
@@ -811,6 +820,7 @@
 ## rust/crates/epic-board/src/
 
 - `board.rs` — The live board: the item arena, the id generator, and the (~31305 tok)
+- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~17387 tok)
 
 ## rust/crates/epic-board/src/items/
 
@@ -822,12 +832,12 @@
 
 ## rust/crates/epic-cli/src/
 
-- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2109 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~51010 tok)
+- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2168 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~53418 tok)
 
 ## rust/crates/epic-cli/tests/
 
-- `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~1265 tok)
+- `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~1326 tok)
 - `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
 
 ## rust/crates/epic-dsn/src/scope/
@@ -836,10 +846,12 @@
 
 ## rust/crates/epic-engine/src/
 
-- `lib.rs` — The headless application core: jobs, the layered settings (~732 tok)
+- `current_width.rs` — The F2 current-driven trace-width core: the IPC-2221B closed-form (~7142 tok)
+- `lib.rs` — The headless application core: jobs, the layered settings (~742 tok)
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~13965 tok)
-- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~57386 tok)
+- `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5743 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~14995 tok)
+- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~61532 tok)
 
 ## rust/crates/epic-gui/src/
 

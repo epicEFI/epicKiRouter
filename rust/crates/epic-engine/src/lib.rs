@@ -36,6 +36,7 @@ pub mod current_width;
 pub mod events;
 pub mod export;
 pub mod pin_assign;
+pub mod pour;
 pub mod session;
 pub mod settings;
 pub mod snapshot;
