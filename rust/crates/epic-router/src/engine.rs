@@ -91,8 +91,11 @@
 //!   event-row surface).
 //! * **Java-crash mappings.** A warm-cache peek miss on a live
 //!   on-board item panics (Java would have the shape or crash
-//!   earlier); the `touchingSides[1]` index and the layer index reads
-//!   keep Java's AIOOBE face as panics.
+//!   earlier); a key whose item is OFF the board degrades to
+//!   empty/None — Java's `board == null` faces in `treeShapeCount`
+//!   and `getTreeShape` (bug-229 lifecycle: ripped items stay in
+//!   connection sets and maze doors); the `touchingSides[1]` index
+//!   and the layer index reads keep Java's AIOOBE face as panics.
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -416,6 +419,10 @@ impl CompleteShapeObjects for EngineShapeView<'_> {
                 .map(|room| room.shape().clone());
         }
         let id = ItemId::new(u32::try_from(object_key).expect("item key fits u32"));
+        // Java `getTreeShape` on a removed item: `this.board == null`
+        // → null. The key survives in doors/connection sets after a
+        // ripup (bug-229 lifecycle); no shapes remain to read.
+        self.board.get(id)?;
         self.board
             .tree_shape_precalc_peek(id, self.tree_object_id)
             .expect("warm-cache peek miss")
@@ -562,9 +569,20 @@ impl<'a> AutorouteEngine<'a> {
 
     /// The warm-cache item shapes (Java `item.getTreeShape` reads the
     /// same stored shapes; a live on-board item always has them — a
-    /// miss is an engine-contract bug, hence the panic).
+    /// miss on a LIVE item is an engine-contract bug, hence the panic).
+    /// A key whose item is no longer on the board degrades to EMPTY:
+    /// Java `Item.treeShapeCount` opens with `if (this.board == null)
+    /// return 0;` and `getTreeShape` answers null — connection sets and
+    /// maze target doors can still carry the key after a same-net
+    /// ripup (the bug-229 lifecycle), and the arena has dropped the
+    /// data, so the warm cache cannot answer (E2E witness:
+    /// Issue420-contribution-board, fanout pass 1, maze init counting
+    /// shapes of a ripped connection item).
     fn item_tree_shapes(&self, item_key: u64) -> &[Option<TileShape>] {
         let id = ItemId::new(u32::try_from(item_key).expect("item key fits u32"));
+        if self.board.get(id).is_none() {
+            return &[];
+        }
         self.board
             .tree_shape_precalc_peek(id, self.tree_object_id())
             .expect("warm-cache peek miss")
@@ -2740,6 +2758,40 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Bug-232 pin (the second contribution-board crash): keys of items
+    /// no longer on the board — the post-ripup state carried by maze
+    /// init's connection items and target doors — answer Java's
+    /// `board == null` faces (zero shapes / None) instead of panicking.
+    /// LIVE items keep the warm-cache invariant (a live miss still
+    /// panics; t11_peek_and_layer_read_match_fresh_derivation pins the
+    /// live answers against fresh derivation).
+    #[test]
+    fn t11_dead_item_keys_answer_no_shapes_not_panic() {
+        use crate::drill::DrillEngine;
+        let (mut manager, mut board) = parse_fixture();
+        let (engine, _ctrl) = build_engine(&mut manager, &mut board, 94, true);
+        for dead in [424_242u64, 646_464] {
+            assert!(
+                engine.item_tree_shapes(dead).is_empty(),
+                "dead key {dead}: no shapes remain"
+            );
+            assert_eq!(
+                DrillEngine::item_tree_shape_count(&engine, dead),
+                0,
+                "dead key {dead}: Java treeShapeCount board == null → 0"
+            );
+            assert!(
+                NeighbourEngine::tree_shape(&engine, dead, 0).is_none(),
+                "dead key {dead}: Java getTreeShape board == null → null"
+            );
+        }
+        let pin_key = net_pin_key(engine.board, 94);
+        assert!(
+            !engine.item_tree_shapes(pin_key).is_empty(),
+            "live pin {pin_key}: the warm cache still answers"
+        );
     }
 
     /// THE end-to-end world: net 94's single pin routes to a seeded
