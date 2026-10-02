@@ -54,6 +54,8 @@ warns; maps to autorouter.enabled)
   router.current.nets=<NET:AMPS[,NET:AMPS...]>
   router.current.copper_oz=<float>
   router.current.temp_rise_c=<float>
+  router.pour.nets=<NET[,NET...]>
+  router.pour.layer=<layer name>
   router.gloss.bus=<on|off>
   router.gloss.flow=<on|off>
   router.gloss.via_place=<on|off>

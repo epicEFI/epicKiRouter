@@ -38,6 +38,8 @@ fn help_flag_exits_zero_and_lists_the_surface() {
         "router.assign.pins=<REF[,REF...]>",
         "router.current.nets=<NET:AMPS[,NET:AMPS...]>",
         "router.current.copper_oz=<float>",
+        "router.pour.nets=<NET[,NET...]>",
+        "router.pour.layer=<layer name>",
         "router.gloss.bus=<on|off>",
         "optimizer.* mirrors",
         "-mp <passes>",

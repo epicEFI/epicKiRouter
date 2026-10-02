@@ -516,6 +516,9 @@ pub struct Session {
     /// `current.nets` face — `None` until a route ran with the face
     /// declared). Read via [`Session::current_width_report`].
     last_current_width_report: Option<crate::current_width::CurrentWidthReport>,
+    /// The F3 ground-pour synthesis report of the LAST route (the
+    /// manifest/telemetry source; `None` until a route runs).
+    last_pour_report: Option<crate::pour::PourReport>,
 }
 
 impl Session {
@@ -592,6 +595,7 @@ impl Session {
             congestion_engaged: false,
             last_pin_assign_report: None,
             last_current_width_report: None,
+            last_pour_report: None,
         };
         match outcome {
             ReadOutcome::Loaded => Ok(session),
@@ -681,6 +685,29 @@ impl Session {
                 sink.warn(&format!("current width: {warning}"));
             }
             self.last_current_width_report = Some(report);
+        }
+        // F3 (Rust-only): the ground-pour synthesis face — directly
+        // after the current-width face (the SAME head placement as
+        // the CLI), so the synthesized pours exist before the
+        // geometry pass and the pipeline's plane handling (the
+        // flipped `contains_plane` lowers via costs and gates
+        // completion through the pour). Unresolved requests warn
+        // through the sink and never fail the run; the report is
+        // kept for the host/manifest.
+        if let Some(nets) = merged.pour_nets.clone() {
+            let requests: Vec<crate::pour::PourRequest> = nets
+                .into_iter()
+                .map(|net| crate::pour::PourRequest {
+                    net,
+                    layer: merged.pour_layer.clone(),
+                })
+                .collect();
+            let report =
+                crate::pour::synthesize_pours(&mut self.board, &mut self.manager, &requests);
+            for reason in &report.unresolved {
+                sink.warn(&format!("ground pour: {reason}"));
+            }
+            self.last_pour_report = Some(report);
         }
         // 3. The unconditional geometry pass (route.rs:938-939).
         apply_board_specific_optimizations(&mut merged, &self.board);
@@ -871,6 +898,24 @@ impl Session {
     #[must_use]
     pub fn current_width_report(&self) -> Option<&crate::current_width::CurrentWidthReport> {
         self.last_current_width_report.as_ref()
+    }
+
+    /// The last run's F3 ground-pour synthesis report (`None` until a
+    /// route ran with `pour.nets` declared — the field docs).
+    #[must_use]
+    pub fn pour_report(&self) -> Option<&crate::pour::PourReport> {
+        self.last_pour_report.as_ref()
+    }
+
+    /// The F3 ground-pour ASK, on demand (pure — the pre-route
+    /// detection face, [`crate::pour::pour_candidates`]): the
+    /// ground-like nets with no pour anywhere. The host surfaces
+    /// these BEFORE routing (the CLI prints the note; the F4
+    /// interview layer will make it a dialog). Deliberately NOT a
+    /// sink event — the event stream is a golden-pinned face.
+    #[must_use]
+    pub fn pour_candidates(&self) -> Vec<crate::pour::PourCandidate> {
+        crate::pour::pour_candidates(&self.board)
     }
 
     /// The input file name the SES design face is derived from (the

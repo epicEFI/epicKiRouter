@@ -519,6 +519,21 @@ pub struct ManifestCurrentWidth {
     pub layers: Vec<ManifestWidthLayer>,
 }
 
+/// One F3 synthesized ground pour (the manifest face of
+/// `epic_engine::pour::PourRow`). Advisory by construction — the
+/// insert itself already rode the route head.
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestSynthPour {
+    pub net_number: i32,
+    pub net_name: String,
+    /// The poured layer (0-based board index).
+    pub layer_no: i32,
+    /// The layer's own name.
+    pub layer_name: String,
+    /// The net's on-board pin count at synthesis time.
+    pub pin_count: usize,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -570,6 +585,13 @@ pub struct RouteManifest<'a> {
     /// The F2 unresolved requests with reasons (skip-if-empty).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub current_width_unresolved: Vec<String>,
+    /// The F3 synthesized ground pours (empty = absent — the
+    /// zero-rotation face; canary manifests never rotate).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pour_synthesis_rows: Vec<ManifestSynthPour>,
+    /// The F3 unresolved pour requests with reasons (skip-if-empty).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pour_synthesis_unresolved: Vec<String>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -643,6 +665,10 @@ pub struct RouteTelemetry {
     pub current_width_rows: Vec<ManifestCurrentWidth>,
     /// The F2 unresolved requests with reasons (empty = absent).
     pub current_width_unresolved: Vec<String>,
+    /// The F3 synthesized ground pours (empty = absent).
+    pub pour_synthesis_rows: Vec<ManifestSynthPour>,
+    /// The F3 unresolved pour requests with reasons (empty = absent).
+    pub pour_synthesis_unresolved: Vec<String>,
 }
 
 /// The exit-code mapping (Java `MainResult`): 0 iff the state is
@@ -868,6 +894,8 @@ pub fn render_manifest(
         pin_assign_unresolved: telemetry.pin_assign_unresolved.clone(),
         current_width_rows: telemetry.current_width_rows.clone(),
         current_width_unresolved: telemetry.current_width_unresolved.clone(),
+        pour_synthesis_rows: telemetry.pour_synthesis_rows.clone(),
+        pour_synthesis_unresolved: telemetry.pour_synthesis_unresolved.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -1189,6 +1217,51 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             sink.warn(&format!("current width: {warning}"));
         }
     }
+    // F3 (Rust-only): the ground-pour synthesis face — directly after
+    // the current-width face (the SAME head placement as
+    // `Session::route`), so the synthesized pours exist before the
+    // geometry pass and the pipeline's plane handling. Unresolved
+    // requests warn and never fail the run; the report rides the
+    // manifest (skip-if-empty).
+    let pour_report = merged.pour_nets.as_ref().map(|nets| {
+        let requests: Vec<epic_engine::pour::PourRequest> = nets
+            .iter()
+            .map(|net| epic_engine::pour::PourRequest {
+                net: net.clone(),
+                layer: merged.pour_layer.clone(),
+            })
+            .collect();
+        epic_engine::pour::synthesize_pours(&mut board, &mut manager, &requests)
+    });
+    if let Some(report) = &pour_report {
+        for reason in &report.unresolved {
+            sink.warn(&format!("ground pour: {reason}"));
+        }
+    }
+    // F3: THE ASK — Tyler's complaint verbatim ("it routed gnd - so it
+    // doesnt ask if you want to do a gnd pour"): every ground-like net
+    // still without a pour after synthesis surfaces as a NOTE before
+    // the routing starts. Deliberately on STDERR, NOT through the
+    // sink — the event stream is a golden-pinned face, and the ask is
+    // a host-console concern (the F4 interview layer will make this a
+    // dialog). Nets the caller already requested are not re-asked
+    // (their refusal already warned through the sink).
+    let requested_nets: Vec<String> = merged
+        .pour_nets
+        .clone()
+        .unwrap_or_default()
+        .iter()
+        .map(|net| net.to_lowercase())
+        .collect();
+    for candidate in epic_engine::pour::pour_candidates(&board) {
+        if requested_nets.contains(&candidate.net_name.to_lowercase()) {
+            continue;
+        }
+        eprintln!(
+            "note: net {} ({} pins) has no copper pour — routing as traces; pass --router.pour.nets={} to synthesize one",
+            candidate.net_name, candidate.pin_count, candidate.net_name
+        );
+    }
     // 3. The unconditional geometry pass (bug-compat fact 1; Java
     //    `applyRouterSettingsForLoadedBoard` `:749`, which runs after
     //    the `:346` override — the pass reads only the board's
@@ -1463,6 +1536,22 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             (rows, report.unresolved)
         })
         .unwrap_or_default();
+    let (pour_synthesis_rows, pour_synthesis_unresolved) = pour_report
+        .map(|report| {
+            let rows = report
+                .rows
+                .iter()
+                .map(|row| ManifestSynthPour {
+                    net_number: row.net_number,
+                    net_name: row.net_name.clone(),
+                    layer_no: row.layer_no,
+                    layer_name: row.layer_name.clone(),
+                    pin_count: row.pin_count,
+                })
+                .collect();
+            (rows, report.unresolved)
+        })
+        .unwrap_or_default();
     let telemetry = RouteTelemetry {
         final_state,
         last_counters,
@@ -1483,6 +1572,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         pin_assign_unresolved,
         current_width_rows,
         current_width_unresolved,
+        pour_synthesis_rows,
+        pour_synthesis_unresolved,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1899,6 +1990,8 @@ mod tests {
             pin_assign_unresolved: Vec::new(),
             current_width_rows: Vec::new(),
             current_width_unresolved: Vec::new(),
+            pour_synthesis_rows: Vec::new(),
+            pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             ..RouteTelemetry::default()
@@ -1969,6 +2062,8 @@ mod tests {
             pin_assign_unresolved: Vec::new(),
             current_width_rows: Vec::new(),
             current_width_unresolved: Vec::new(),
+            pour_synthesis_rows: Vec::new(),
+            pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
@@ -2009,6 +2104,8 @@ mod tests {
             pin_assign_unresolved: Vec::new(),
             current_width_rows: Vec::new(),
             current_width_unresolved: Vec::new(),
+            pour_synthesis_rows: Vec::new(),
+            pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
@@ -2175,6 +2272,8 @@ mod tests {
             pin_assign_unresolved: Vec::new(),
             current_width_rows: Vec::new(),
             current_width_unresolved: Vec::new(),
+            pour_synthesis_rows: Vec::new(),
+            pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
             last_counters: None,
             connections: Some(ManifestConnections {
@@ -2282,6 +2381,8 @@ mod tests {
             pin_assign_unresolved: Vec::new(),
             current_width_rows: Vec::new(),
             current_width_unresolved: Vec::new(),
+            pour_synthesis_rows: Vec::new(),
+            pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
@@ -2542,6 +2643,8 @@ mod tests {
             pin_assign_unresolved: Vec::new(),
             current_width_rows: Vec::new(),
             current_width_unresolved: Vec::new(),
+            pour_synthesis_rows: Vec::new(),
+            pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             connections: Some(ManifestConnections {
