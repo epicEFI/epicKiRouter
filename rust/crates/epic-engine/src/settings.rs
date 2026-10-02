@@ -33,6 +33,7 @@
 //!    fallback into `[0.0, 9.9]` (the setter clamps on write, but the
 //!    geometry pass writes `scoring.defaultBendCost` through raw).
 
+use crate::current_width::CurrentNetRequest;
 use epic_dsn::scope::autoroute_settings::AutorouteSettingsIr;
 use epic_router::control::{ExpansionCostFactor, FanoutSettingsIr, RouterSettingsIr};
 use epic_router::pipeline::batch::BatchSettings;
@@ -180,6 +181,22 @@ pub struct CliLayer {
     /// (epic_engine::pin_assign). `None` (the default) = the face is
     /// off; the board is routed exactly as parsed.
     pub assign_pins: Option<Vec<String>>,
+    /// `router.current.nets` — the F2 current-driven width request
+    /// list (RUST-ONLY, no Java counterpart): comma-separated
+    /// `NET:AMPS` pairs (`GND:10,PWR:2.5`) — each named net is moved
+    /// onto a synthetic net class widened to the IPC-2221 minimum for
+    /// its declared current before routing starts
+    /// (epic_engine::current_width). `None` (the default) = the face
+    /// is off; widths come from the board's own classes verbatim.
+    pub current_nets: Option<Vec<CurrentNetRequest>>,
+    /// `router.current.copper_oz` — the F2 board-level copper weight
+    /// (oz; the apply face defaults to 1.0 when absent) shared by
+    /// every `current.nets` request.
+    pub current_copper_oz: Option<f64>,
+    /// `router.current.temp_rise_c` — the F2 board-level allowed
+    /// temperature rise above ambient (deg C; the apply face defaults
+    /// to 10.0 when absent) shared by every `current.nets` request.
+    pub current_temp_rise_c: Option<f64>,
     /// `router.gloss.bus` — the M8-T3 GLOSS BUS tri-state (RUST-ONLY,
     /// no Java counterpart; the gloss family block beside the
     /// `router.tuning` family). `None` (the default) = OFF: the gloss
@@ -785,6 +802,18 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.assign_pins = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "current.nets" => match parse_current_nets(value) {
+            Some(v) => layer.current_nets = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "current.copper_oz" => match value.parse::<f64>() {
+            Ok(v) => layer.current_copper_oz = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
+        "current.temp_rise_c" => match value.parse::<f64>() {
+            Ok(v) => layer.current_temp_rise_c = Some(v),
+            Err(_) => warn_bad_value(layer, property, value),
+        },
         "gloss.bus" => match parse_on_off(value) {
             Some(v) => layer.gloss_bus = Some(v),
             None => warn_bad_value(layer, property, value),
@@ -1014,6 +1043,38 @@ fn parse_ref_list(value: &str) -> Option<Vec<String>> {
     Some(refs)
 }
 
+/// The F2 current-request grammar: comma-separated `NET:AMPS` pairs
+/// (`GND:10, PWR:2.5`) — each name trimmed non-empty, each amps a
+/// parseable f64. A MALFORMED entry fails the WHOLE parse (`None`,
+/// the caller warns and continues) — a silently-dropped `PWR:abc`
+/// typo would route PWR at the default width with no signal.
+/// POSITIVITY is deliberately not this gate: a non-positive value
+/// parses here and lands in the report's `unresolved` naming the net
+/// (the honest face, never a guess).
+fn parse_current_nets(value: &str) -> Option<Vec<CurrentNetRequest>> {
+    let mut requests = Vec::new();
+    for entry in value.split(',') {
+        let entry = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+        let (net, amps) = entry.split_once(':')?;
+        let net = net.trim();
+        if net.is_empty() {
+            return None;
+        }
+        let amps = amps.trim().parse::<f64>().ok()?;
+        requests.push(CurrentNetRequest {
+            net: net.to_string(),
+            amps,
+        });
+    }
+    if requests.is_empty() {
+        return None;
+    }
+    Some(requests)
+}
+
 fn parse_on_off(value: &str) -> Option<bool> {
     match value.trim().to_lowercase().as_str() {
         "on" | "true" | "1" => Some(true),
@@ -1202,6 +1263,18 @@ pub struct MergedSettings {
     /// (absent = the face is off; CLI/session-only — no DSN/default
     /// source writes it, the Default seed is `None`).
     pub assign_pins: Option<Vec<String>>,
+    /// `router.current.nets` — the F2 current-driven width request
+    /// list (absent = the face is off; CLI/session-only — no
+    /// DSN/default source writes it, the Default seed is `None`).
+    pub current_nets: Option<Vec<CurrentNetRequest>>,
+    /// `router.current.copper_oz` — the F2 copper weight (oz; absent
+    /// = the apply face's 1.0 default; CLI/session-only, Default seed
+    /// `None`).
+    pub current_copper_oz: Option<f64>,
+    /// `router.current.temp_rise_c` — the F2 allowed temperature rise
+    /// (deg C; absent = the apply face's 10.0 default;
+    /// CLI/session-only, Default seed `None`).
+    pub current_temp_rise_c: Option<f64>,
     /// `router.gloss.bus` — the M8-T3 gloss-bus tri-state (absent =
     /// OFF; CLI-only — no DSN/default source writes it, the Default
     /// seed is `None`).
@@ -1331,6 +1404,9 @@ impl Default for MergedSettings {
             tuning_meander: None,
             tuning_pairs: None,
             assign_pins: None,
+            current_nets: None,
+            current_copper_oz: None,
+            current_temp_rise_c: None,
             gloss_bus: None,
             gloss_flow: None,
             gloss_via_place: None,
@@ -1493,6 +1569,15 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.assign_pins.clone() {
         merged.assign_pins = Some(v);
+    }
+    if let Some(v) = cli.current_nets.clone() {
+        merged.current_nets = Some(v);
+    }
+    if let Some(v) = cli.current_copper_oz {
+        merged.current_copper_oz = Some(v);
+    }
+    if let Some(v) = cli.current_temp_rise_c {
+        merged.current_temp_rise_c = Some(v);
     }
     if let Some(v) = cli.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -1894,6 +1979,18 @@ pub struct ResolvedRouteSettings {
     /// assignment itself happen at the board seam (route head) where
     /// the netlist exists — epic_engine::pin_assign.
     pub assign_pins: Option<Vec<String>>,
+    /// CLI twin: [`CliLayer::current_nets`] — the F2 current-driven
+    /// width request list; the route head applies it (after pin
+    /// assignment, before any routing pass) — epic_engine::
+    /// current_width.
+    pub current_nets: Option<Vec<CurrentNetRequest>>,
+    /// CLI twin: [`CliLayer::current_copper_oz`] — the F2 copper
+    /// weight (oz; the apply face defaults to 1.0 when absent).
+    pub current_copper_oz: Option<f64>,
+    /// CLI twin: [`CliLayer::current_temp_rise_c`] — the F2 allowed
+    /// temperature rise (deg C; the apply face defaults to 10.0 when
+    /// absent).
+    pub current_temp_rise_c: Option<f64>,
     /// The M8-T3 gloss-bus flag (`router.gloss.bus`), resolved to its
     /// effective face: ON only when explicitly `on` (the pass has no
     /// input-driven activation — absent and `off` are both OFF, the
@@ -2025,6 +2122,9 @@ impl ResolvedRouteSettings {
             tuning_meander: merged.tuning_meander,
             tuning_pairs: merged.tuning_pairs.clone(),
             assign_pins: merged.assign_pins.clone(),
+            current_nets: merged.current_nets.clone(),
+            current_copper_oz: merged.current_copper_oz,
+            current_temp_rise_c: merged.current_temp_rise_c,
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
             gloss_via_place: merged.gloss_via_place.unwrap_or(false),
@@ -2308,6 +2408,15 @@ pub struct SessionLayer {
     /// CLI twin: [`CliLayer::assign_pins`] — the F1 pin
     /// auto-assignment ref list (`CONN1, J2, ...`).
     pub assign_pins: Option<Vec<String>>,
+    /// CLI twin: [`CliLayer::current_nets`] — the F2 current-driven
+    /// width request list (`GND:10, PWR:2.5, ...`).
+    pub current_nets: Option<Vec<CurrentNetRequest>>,
+    /// CLI twin: [`CliLayer::current_copper_oz`] — the F2 copper
+    /// weight (oz).
+    pub current_copper_oz: Option<f64>,
+    /// CLI twin: [`CliLayer::current_temp_rise_c`] — the F2 allowed
+    /// temperature rise (deg C).
+    pub current_temp_rise_c: Option<f64>,
     /// CLI twin: [`CliLayer::gloss_bus`] — the M8-T3 gloss-bus flag.
     pub gloss_bus: Option<bool>,
     /// CLI twin: [`CliLayer::gloss_flow`] — the M8-T4 gloss-flow flag.
@@ -2401,6 +2510,15 @@ pub fn merge_session(merged: &mut MergedSettings, session: &SessionLayer) {
     }
     if let Some(v) = session.assign_pins.clone() {
         merged.assign_pins = Some(v);
+    }
+    if let Some(v) = session.current_nets.clone() {
+        merged.current_nets = Some(v);
+    }
+    if let Some(v) = session.current_copper_oz {
+        merged.current_copper_oz = Some(v);
+    }
+    if let Some(v) = session.current_temp_rise_c {
+        merged.current_temp_rise_c = Some(v);
     }
     if let Some(v) = session.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -3427,6 +3545,9 @@ mod tests {
                 ("PC".to_string(), "PD".to_string()),
             ]),
             assign_pins: None,
+            current_nets: None,
+            current_copper_oz: None,
+            current_temp_rise_c: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -4704,6 +4825,9 @@ mod tests {
                 ("P".to_string(), "Q".to_string()),
             ]),
             assign_pins: None,
+            current_nets: None,
+            current_copper_oz: None,
+            current_temp_rise_c: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -4818,6 +4942,101 @@ mod tests {
         let mut none_layer = MergedSettings::default();
         merge_session(&mut none_layer, &SessionLayer::default());
         assert_eq!(none_layer.assign_pins, None, "None never overwrites");
+    }
+
+    /// F2: the `current.nets` request grammar — comma-separated
+    /// `NET:AMPS` pairs, trimmed; a MALFORMED entry (no colon, a
+    /// non-numeric amps, an empty name) fails the WHOLE value (warns,
+    /// leaves the slot `None`) — a silently-dropped typo would route
+    /// the net at the default width with no signal. The two numeric
+    /// siblings parse plain f64s.
+    #[test]
+    fn current_nets_grammar() {
+        let mut layer = CliLayer::default();
+        apply_router_setting(&mut layer, "current.nets", "GND:10,  PWR:2.5 ,VCC:0.75");
+        let requests = layer.current_nets.clone().unwrap_or_default();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].net, "GND");
+        assert_eq!(requests[0].amps, 10.0);
+        assert_eq!(requests[1].net, "PWR");
+        assert_eq!(requests[1].amps, 2.5);
+        assert_eq!(requests[2].net, "VCC");
+        assert_eq!(requests[2].amps, 0.75);
+
+        apply_router_setting(&mut layer, "current.copper_oz", "2");
+        assert_eq!(layer.current_copper_oz, Some(2.0));
+        apply_router_setting(&mut layer, "current.temp_rise_c", "20.5");
+        assert_eq!(layer.current_temp_rise_c, Some(20.5));
+
+        // Malformed entries fail the whole value: no colon, bad amps,
+        // an empty name, and a fully-empty value.
+        for bad_value in ["GND", "GND:abc", ":10", " , "] {
+            let mut bad = CliLayer::default();
+            apply_router_setting(&mut bad, "current.nets", bad_value);
+            assert_eq!(bad.current_nets, None, "{bad_value} must be rejected");
+            let expected = format!(
+                "Failed to apply CLI router setting: current.nets: For input string: \"{bad_value}\""
+            );
+            assert_eq!(
+                bad.warnings.last().map(String::as_str),
+                Some(expected.as_str())
+            );
+        }
+        // A NON-POSITIVE amps PARSES (positivity is the apply face's
+        // gate — it lands in the report's `unresolved` naming the net,
+        // the honest face, never a silent drop).
+        let mut zero = CliLayer::default();
+        apply_router_setting(&mut zero, "current.nets", "GND:0");
+        assert_eq!(zero.current_nets.map(|r| r.len()), Some(1));
+    }
+
+    /// F2: the `current_*` plumbing end to end — CLI merge installs
+    /// the requests + both numeric siblings, the session layer wins
+    /// over the CLI, `None` never overwrites, and `resolve` carries
+    /// all three VERBATIM (the name->net resolution is the route
+    /// head's job).
+    #[test]
+    fn current_nets_merge_session_and_resolve() {
+        let request = CurrentNetRequest {
+            net: "GND".to_string(),
+            amps: 10.0,
+        };
+        let cli = CliLayer {
+            current_nets: Some(vec![request.clone()]),
+            current_copper_oz: Some(2.0),
+            current_temp_rise_c: None, // the apply face defaults to 10
+            ..CliLayer::default()
+        };
+        let mut merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
+        assert_eq!(merged.current_nets, Some(vec![request.clone()]));
+        assert_eq!(merged.current_copper_oz, Some(2.0));
+        assert_eq!(merged.current_temp_rise_c, None);
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(resolved.current_nets, Some(vec![request.clone()]));
+        assert_eq!(resolved.current_copper_oz, Some(2.0));
+        assert_eq!(resolved.current_temp_rise_c, None);
+
+        let session = SessionLayer {
+            current_nets: Some(vec![
+                request,
+                CurrentNetRequest {
+                    net: "PWR".to_string(),
+                    amps: 2.5,
+                },
+            ]),
+            current_temp_rise_c: Some(20.0),
+            ..SessionLayer::default()
+        };
+        merge_session(&mut merged, &session);
+        assert_eq!(merged.current_nets.as_ref().map_or(0, Vec::len), 2);
+        assert_eq!(merged.current_copper_oz, Some(2.0), "CLI survives");
+        assert_eq!(merged.current_temp_rise_c, Some(20.0), "session wins");
+
+        let mut none_layer = MergedSettings::default();
+        merge_session(&mut none_layer, &SessionLayer::default());
+        assert_eq!(none_layer.current_nets, None, "None never overwrites");
+        assert_eq!(none_layer.current_copper_oz, None);
+        assert_eq!(none_layer.current_temp_rise_c, None);
     }
 
     /// PIN SL-3: `None` session fields NEVER overwrite — every CLI

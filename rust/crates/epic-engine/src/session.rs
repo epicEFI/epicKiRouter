@@ -512,6 +512,10 @@ pub struct Session {
     /// declared; an empty-refs run stores the empty report). Read via
     /// [`Session::pin_assign_report`].
     last_pin_assign_report: Option<crate::pin_assign::PinAssignReport>,
+    /// The last run's F2 current-driven width report (the route head's
+    /// `current.nets` face — `None` until a route ran with the face
+    /// declared). Read via [`Session::current_width_report`].
+    last_current_width_report: Option<crate::current_width::CurrentWidthReport>,
 }
 
 impl Session {
@@ -587,6 +591,7 @@ impl Session {
             statistics: None,
             congestion_engaged: false,
             last_pin_assign_report: None,
+            last_current_width_report: None,
         };
         match outcome {
             ReadOutcome::Loaded => Ok(session),
@@ -654,6 +659,28 @@ impl Session {
                 sink.warn(&format!("pin assignment: {reason}"));
             }
             self.last_pin_assign_report = Some(report);
+        }
+        // F2 (Rust-only): the current-driven width face runs directly
+        // after pin assignment — the widened net classes must exist
+        // before the geometry pass reads any width. Unresolved nets
+        // and applied-with-warning faces warn through the sink and
+        // never fail the run; the report is kept for the host/manifest.
+        if let Some(requests) = merged.current_nets.clone() {
+            let copper_oz = merged.current_copper_oz.unwrap_or(1.0);
+            let temp_rise_c = merged.current_temp_rise_c.unwrap_or(10.0);
+            let report = crate::current_width::apply_current_widths(
+                &mut self.board,
+                &requests,
+                copper_oz,
+                temp_rise_c,
+            );
+            for reason in &report.unresolved {
+                sink.warn(&format!("current width: {reason}"));
+            }
+            for warning in &report.warnings {
+                sink.warn(&format!("current width: {warning}"));
+            }
+            self.last_current_width_report = Some(report);
         }
         // 3. The unconditional geometry pass (route.rs:938-939).
         apply_board_specific_optimizations(&mut merged, &self.board);
@@ -837,6 +864,13 @@ impl Session {
     #[must_use]
     pub fn pin_assign_report(&self) -> Option<&crate::pin_assign::PinAssignReport> {
         self.last_pin_assign_report.as_ref()
+    }
+
+    /// The last run's F2 current-driven width report (`None` until a
+    /// route ran with `current.nets` declared — the field docs).
+    #[must_use]
+    pub fn current_width_report(&self) -> Option<&crate::current_width::CurrentWidthReport> {
+        self.last_current_width_report.as_ref()
     }
 
     /// The input file name the SES design face is derived from (the

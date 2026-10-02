@@ -9749,3 +9749,40 @@ description: chronological action log per session, consolidated weekly
 | 03:32 | Edited rust/crates/epic-gui/src/desktop/canvas.rs | origin() → screen() | ~192 |
 | 03:33 | Edited rust/crates/epic-gui/src/desktop/mod.rs | inline fix | ~12 |
 | 03:33 | Edited rust/crates/epic-gui/src/desktop/mod.rs | wants_text_input() → widgets() | ~151 |
+| 03:55 | Edited logs/readiness-2026-10-01/TASKS.md | 10→8 lines | ~139 |
+| 04:01 | Created rust/crates/epic-engine/src/pin_assign.rs | — | ~3204 |
+| 04:01 | Edited rust/crates/epic-engine/src/lib.rs | 5→6 lines | ~28 |
+| 04:01 | Edited rust/crates/epic-engine/src/pin_assign.rs | inline fix | ~10 |
+| 04:13 | Edited rust/crates/epic-board/src/board.rs | modified set_item_clearance_class() | ~389 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+7 lines) | ~148 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | modified parse_pairs() | ~95 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | modified parse_ref_list() | ~145 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | 2→6 lines | ~95 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | 1→2 lines | ~17 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~49 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | 2→7 lines | ~114 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | 1→2 lines | ~29 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | 3→6 lines | ~84 |
+| 04:16 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~51 |
+| 04:19 | Edited rust/crates/epic-engine/src/pin_assign.rs | modified net_name() | ~2367 |
+| 04:20 | Edited rust/crates/epic-engine/src/pin_assign.rs | modified crossed_board() | ~2280 |
+| 04:20 | Edited rust/crates/epic-engine/src/settings.rs | modified assign_pins_ref_list_grammar() | ~669 |
+| 04:20 | Edited rust/crates/epic-engine/src/session.rs | 3→8 lines | ~107 |
+| 04:21 | Edited rust/crates/epic-engine/src/session.rs | 3→4 lines | ~33 |
+| 04:21 | Edited rust/crates/epic-engine/src/session.rs | modified validate() | ~243 |
+| 04:21 | Edited rust/crates/epic-engine/src/session.rs | modified warnings() | ~134 |
+| 04:22 | Edited rust/crates/epic-cli/src/route.rs | expanded (+15 lines) | ~161 |
+| 04:22 | Edited rust/crates/epic-cli/src/route.rs | expanded (+8 lines) | ~159 |
+| 04:22 | Edited rust/crates/epic-cli/src/route.rs | 3→7 lines | ~91 |
+| 04:22 | Edited rust/crates/epic-cli/src/route.rs | 2→4 lines | ~65 |
+| 04:22 | Edited rust/crates/epic-cli/src/route.rs | modified and() | ~283 |
+| 04:22 | Edited rust/crates/epic-cli/src/route.rs | expanded (+19 lines) | ~235 |
+| 04:23 | Edited rust/crates/epic-cli/src/route.rs | removed 23 lines | ~40 |
+| 04:23 | Edited rust/crates/epic-cli/src/route.rs | expanded (+18 lines) | ~224 |
+| 04:24 | Edited rust/crates/epic-engine/src/settings.rs | 5→6 lines | ~61 |
+| 04:24 | Edited rust/crates/epic-engine/src/settings.rs | 5→6 lines | ~60 |
+| 04:24 | Edited rust/crates/epic-engine/src/pin_assign.rs | 2→2 lines | ~31 |
+| 04:24 | Edited rust/crates/epic-cli/src/route.rs | 2→4 lines | ~44 |
+| 04:25 | Edited rust/crates/epic-board/src/board.rs | modified on_the_board_is_set_by_insert_and_cleared_by_remove() | ~563 |
+| 04:27 | Created logs/readiness-2026-10-01/f1b-commit-msg.txt | — | ~797 |
+| 04:31 | Created logs/readiness-2026-10-01/export-msg-405709959.txt | — | ~693 |

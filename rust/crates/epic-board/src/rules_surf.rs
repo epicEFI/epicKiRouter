@@ -493,6 +493,22 @@ impl Nets {
                 .collect(),
         }
     }
+
+    /// F2 (Rust-only, no Java counterpart — the current-driven width
+    /// face): repoint a net's class membership — the plain field write
+    /// for `Net.netClass` (a 0-based index into the board's
+    /// net-class table; Java writes the same field at parse, the port
+    /// writes it pre-route when a synthetic widened class is appended).
+    /// A foreign net number is a quiet no-op (the `set_item_*` family
+    /// convention).
+    pub fn set_net_class(&mut self, net_number: i32, class_index: i32) {
+        if net_number < 1 || net_number > self.nets.len() as i32 {
+            return;
+        }
+        if let Some(net) = self.nets.get_mut(net_number as usize - 1) {
+            net.net_class = class_index;
+        }
+    }
 }
 
 /// Java `rules.NetClass` — the READ surface of the per-class routing
@@ -1115,6 +1131,36 @@ mod tests {
         assert!(nets.get_by_name("GND", 2).is_none(), "subnet mismatch");
         assert!(nets.get_by_name("missing", 1).is_none());
         assert!(nets.get(1).expect("plane flag").contains_plane);
+    }
+
+    /// F2: [`Nets::set_net_class`] — the 1-based positional class
+    /// repoint (the plain `Net.netClass` write the synthetic widened
+    /// class needs): the field flips for a live number, and a foreign
+    /// number (0, past the end, negative) is a quiet no-op.
+    #[test]
+    fn set_net_class_repoints_and_ignores_foreign_numbers() {
+        let mut nets = Nets::from_ir(&[
+            NetIr {
+                name: "GND".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+            NetIr {
+                name: "VCC".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+        ]);
+        nets.set_net_class(2, 5);
+        assert_eq!(nets.get(2).expect("net 2").net_class, 5, "repointed");
+        assert_eq!(nets.get(1).expect("net 1").net_class, 0, "untouched");
+        nets.set_net_class(0, 9);
+        nets.set_net_class(3, 9);
+        nets.set_net_class(-1, 9);
+        assert_eq!(nets.get(1).expect("net 1").net_class, 0, "no-ops");
+        assert_eq!(nets.get(2).expect("net 2").net_class, 5, "no-ops");
     }
 
     /// `AngleRestriction.java`: the ordinal round-trip — `valueOf(i)` /

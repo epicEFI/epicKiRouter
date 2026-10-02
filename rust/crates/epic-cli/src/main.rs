@@ -50,6 +50,10 @@ warns; maps to autorouter.enabled)
   router.tuning=<on|off>
   router.tuning.meander=<on|off>
   router.tuning.pairs=<NET_A:NET_B[,NET_C:NET_D...]>
+  router.assign.pins=<REF[,REF...]>
+  router.current.nets=<NET:AMPS[,NET:AMPS...]>
+  router.current.copper_oz=<float>
+  router.current.temp_rise_c=<float>
   router.gloss.bus=<on|off>
   router.gloss.flow=<on|off>
   router.gloss.via_place=<on|off>
