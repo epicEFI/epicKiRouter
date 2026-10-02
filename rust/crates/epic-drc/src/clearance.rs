@@ -33,6 +33,28 @@
 //!    `enlarge(0)` is not applied); the violation exists iff the
 //!    intersection has dimension 2.
 //!
+//!    **The #925a shortfall-tolerance gate** (upstream `14b28b6ff`,
+//!    post-`e7f9bdf1` — the ONE deliberate divergence from the frozen
+//!    walk): a violation whose shortfall `minimumClearance −
+//!    actualClearance` converts to ≤ the board's clearance tolerance
+//!    in MICROMETRES (default 1.0 — floating-point discretization and
+//!    imperial↔metric rounding noise, not an electrical defect) is
+//!    DROPPED, STRICT `>` at the boundary. The tolerance is
+//!    `BoardRules::clearance_tolerance_um` (seeded 1.0 at both
+//!    construction faces; the settings override writes it through
+//!    `epic_engine::drc_tolerance`); non-finite/negative CLAMP to 0.0
+//!    in the measure loop (defense in depth — the settings face
+//!    rejects them with a warn). Upstream's guard also wraps the
+//!    `smallestClearance` bookkeeping; that face stays unported, so
+//!    the port reduces to the record push. Tolerance 0.0 reproduces
+//!    the pre-#925a behavior for every STRICTLY-POSITIVE shortfall —
+//!    but a shortfall of EXACTLY 0.0 (a zero-rule, zero-measured
+//!    pair, e.g. drc-main's outline vs its edge-crossing pin after
+//!    the copper-to-edge override leaves the pin's class cell at 0)
+//!    is dropped at EVERY tolerance, 0.0 included (`0.0 > 0.0` is
+//!    false) — upstream's gate behaves identically, so this is
+//!    upstream-faithful, not a divergence.
+//!
 //! `smallestClearance` stays unported (label-only in every surface).
 //! `actualClearance` was label-only until T12: the V2 router score's
 //! `clearanceViolations.totalViolationUm` (BoardStatistics) consumes
@@ -399,6 +421,22 @@ pub fn item_clearance_violation_records(
             None
         };
 
+    // The #925a gate inputs (module docs, item 3): the tolerance in
+    // MICROMETRES with the measure-loop clamp (non-finite/negative →
+    // 0.0 — the settings face warns+rejects, this is defense in
+    // depth), and the board-unit→µm factor so the tolerance is
+    // resolution- and unit-independent (a 1-DBU shortfall is 2.54 µm
+    // on a resolution-mil-10 board but 0.1 µm on resolution-um-10).
+    let tolerance_um = {
+        let value = board.rules().clearance_tolerance_um;
+        if value.is_finite() && value >= 0.0 {
+            value
+        } else {
+            0.0
+        }
+    };
+    let um_factor = epic_board::aesthetics::board_unit_to_um_factor(board);
+
     let mut result = Vec::new();
     for (i, shape_slot) in shapes.iter().enumerate() {
         // A None slot holds no leaf (Java's precalculated array slot
@@ -522,12 +560,21 @@ pub fn item_clearance_violation_records(
                     cl_comp1,
                     cl_comp2,
                 );
-                result.push(ViolationRec {
-                    other: current,
-                    layer,
-                    expected_clearance: f64::from(minimum_clearance),
-                    actual_clearance,
-                });
+                // The #925a gate (module docs, item 3): a shortfall
+                // within the µm tolerance is discretization/rounding
+                // noise — dropped, STRICT `>` (exactly-at-tolerance
+                // drops). Upstream wraps the smallestClearance
+                // bookkeeping too; that face is unported, so the port
+                // reduces to this push.
+                let shortfall_um = (f64::from(minimum_clearance) - actual_clearance) * um_factor;
+                if shortfall_um > tolerance_um {
+                    result.push(ViolationRec {
+                        other: current,
+                        layer,
+                        expected_clearance: f64::from(minimum_clearance),
+                        actual_clearance,
+                    });
+                }
             }
         }
     }
@@ -902,5 +949,177 @@ mod pins {
         assert_eq!(total, 1, "the flag stands without the tie pin: {rows:?}");
         assert_eq!(rows_contain(&rows, tw1, tw2), 1);
         assert_eq!(rows_contain(&rows, tw1, tw1), 0);
+    }
+
+    /// The #925a comparison world — unit um, resolution 5 (1 DBU =
+    /// 0.2 µm). CRAFT LAW (probe-verified): the parser scales every
+    /// file value ×resolution into DBU (`resolution.rs` t47 pin:
+    /// "um 10: DSN 2000 -> board 20000"), so a shortfall's µm depth
+    /// always equals its value in the DECLARED unit — integer file
+    /// gaps give integer-µm shortfalls, which cannot straddle the
+    /// 1.0 default. The ODD-clearance lever breaks the quantization:
+    /// clearance 201 file → 1005 DBU → `set_value` rounds ODD UP to
+    /// 1006 (T54), leaving a 1-DBU = 0.2 µm reachable shortfall.
+    /// Two parallel pairs (octagon flats facing: gap = center dy −
+    /// 2×half width, exact): SA/SB gap 1005 DBU → shortfall 1 DBU =
+    /// 0.2 µm (rounding noise); SC/SD gap 975 → shortfall 31 DBU =
+    /// 6.2 µm (a real violation). Width 50 file (half 125 DBU).
+    const DSN_TOL_UM5: &str = "\
+(pcb p3-tol-um.dsn\n\
+  (parser\n\
+    (string_quote \")\n\
+    (space_in_quoted_tokens on)\n\
+  )\n\
+  (resolution um 5)\n\
+  (unit um)\n\
+  (structure\n\
+    (layer F.Cu (type signal))\n\
+    (layer B.Cu (type signal))\n\
+    (boundary (rect pcb 0 0 250000 400000))\n\
+    (rule (width 50) (clearance 201))\n\
+  )\n\
+  (placement\n\
+    (component CMP1\n\
+      (place CMP1 20000 20000 front 0)\n\
+    )\n\
+  )\n\
+  (library\n\
+    (padstack PAD_C600\n\
+      (shape (circle F.Cu 600 0 0))\n\
+    )\n\
+    (image CMP1\n\
+      (pin PAD_C600 P1 0 0)\n\
+    )\n\
+  )\n\
+  (network\n\
+    (net PU (pins CMP1-P1))\n\
+    (net SA)\n\
+    (net SB)\n\
+    (net SC)\n\
+    (net SD)\n\
+  )\n\
+  (wiring\n\
+    (wire (path F.Cu 50  50000 100000  150000 100000) (net SA))\n\
+    (wire (path F.Cu 50  50000 100251  150000 100251) (net SB))\n\
+    (wire (path F.Cu 50  50000 300000  150000 300000) (net SC))\n\
+    (wire (path F.Cu 50  50000 300245  150000 300245) (net SD))\n\
+  )\n\
+)\n";
+
+    /// The #925a FACTOR world — unit mil, resolution 5 (factor
+    /// 25.4/5 = 5.08 µm/DBU). Same odd-clearance lever: clearance 81
+    /// file → 405 DBU → rounds to 406; the pair's gap 405 leaves a
+    /// 1-DBU shortfall = 5.08 µm. Width 10 file (half 25 DBU).
+    const DSN_TOL_MIL5: &str = "\
+(pcb p3-tol-mil.dsn\n\
+  (parser\n\
+    (string_quote \")\n\
+    (space_in_quoted_tokens on)\n\
+  )\n\
+  (resolution mil 5)\n\
+  (unit mil)\n\
+  (structure\n\
+    (layer F.Cu (type signal))\n\
+    (layer B.Cu (type signal))\n\
+    (boundary (rect pcb 0 0 250000 140000))\n\
+    (rule (width 10) (clearance 81))\n\
+  )\n\
+  (placement\n\
+    (component CMP1\n\
+      (place CMP1 20000 20000 front 0)\n\
+    )\n\
+  )\n\
+  (library\n\
+    (padstack PAD_C600\n\
+      (shape (circle F.Cu 600 0 0))\n\
+    )\n\
+    (image CMP1\n\
+      (pin PAD_C600 P1 0 0)\n\
+    )\n\
+  )\n\
+  (network\n\
+    (net PU (pins CMP1-P1))\n\
+    (net TA)\n\
+    (net TB)\n\
+  )\n\
+  (wiring\n\
+    (wire (path F.Cu 10  50000 100000  150000 100000) (net TA))\n\
+    (wire (path F.Cu 10  50000 100091  150000 100091) (net TB))\n\
+  )\n\
+)\n";
+
+    /// #925a (upstream `14b28b6ff`): the µm shortfall-tolerance gate.
+    /// Two worlds, margins ≥ 0.3 µm everywhere (far beyond the
+    /// bisection face's ≤0.003 µm error at these bracket sizes):
+    ///
+    /// * COMPARISON (um-5 world): the 0.2 µm pair drops at the 1.0
+    ///   default, the 6.2 µm pair records. The tolerance-0.0 control
+    ///   reproduces the pre-#925a face exactly (BOTH record);
+    ///   tolerance 0.5 keeps the split (a raw-DBU compare or a
+    ///   factor-blind port records the 1-DBU pair — both mutants
+    ///   die); 7.0 drops both; negative/NaN CLAMP to 0.0 in the
+    ///   measure loop (the settings face warns+ignores them — this
+    ///   is the defense in depth).
+    /// * FACTOR (mil-5 world): the 1-DBU shortfall is 5.08 µm —
+    ///   RECORDED at the default. A raw-DBU compare (1 ≤ 1.0 drops
+    ///   it), a resolution-blind factor (0.2 µm drops it), and a
+    ///   unit-blind factor (um assumed: 0.2 µm drops it) all die on
+    ///   this one row.
+    #[test]
+    fn clearance_tolerance_um_gate_drops_rounding_noise() {
+        // World 1 (um-5): the parsed board carries the from_ir seed.
+        let (mut manager, mut board) = parse(DSN_TOL_UM5);
+        assert_eq!(
+            board.rules().clearance_tolerance_um,
+            1.0,
+            "the from_ir seed"
+        );
+        // The odd-clearance bump: matrix 1006, not 1005 (T54 round-up).
+        assert_eq!(board.rules().clearance.get_value(1, 1, 0), 1006);
+        let sa = net_list(&board, "SA")[0];
+        let sb = net_list(&board, "SB")[0];
+        let sc = net_list(&board, "SC")[0];
+        let sd = net_list(&board, "SD")[0];
+
+        // Default 1.0: only the 6.2 µm pair records.
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(total, 1, "only the 6.2um pair: {rows:?}");
+        assert_eq!(rows_contain(&rows, sa, sb), 0, "0.2um shortfall dropped");
+        assert_eq!(rows_contain(&rows, sc, sd), 1, "6.2um shortfall recorded");
+
+        // Tolerance 0.0 — the pre-#925a face exactly.
+        board.rules_mut().clearance_tolerance_um = 0.0;
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(total, 2, "both pairs at tolerance 0: {rows:?}");
+        assert_eq!(rows_contain(&rows, sa, sb), 1);
+        assert_eq!(rows_contain(&rows, sc, sd), 1);
+
+        // 0.5 keeps the split — the mutant-killing control (see docs).
+        board.rules_mut().clearance_tolerance_um = 0.5;
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(total, 1, "0.2um still dropped at 0.5: {rows:?}");
+        assert_eq!(rows_contain(&rows, sa, sb), 0);
+        assert_eq!(rows_contain(&rows, sc, sd), 1, "6.2um still records");
+
+        // 7.0 drops both (6.2 ≤ 7.0 — the STRICT > boundary family).
+        board.rules_mut().clearance_tolerance_um = 7.0;
+        let (total, _) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(total, 0, "7.0um tolerance drops both");
+
+        // The measure-loop clamp: negative and NaN read as 0.0.
+        for bad in [-3.0, f64::NAN] {
+            board.rules_mut().clearance_tolerance_um = bad;
+            let (total, _) = all_clearance_violations(&mut manager, &mut board);
+            assert_eq!(total, 2, "{bad} clamps to 0.0 in the measure loop");
+        }
+
+        // World 2 (mil-5): 1 DBU = 5.08 µm — the factor pin.
+        let (mut manager, mut board) = parse(DSN_TOL_MIL5);
+        assert_eq!(board.rules().clearance.get_value(1, 1, 0), 406);
+        let ta = net_list(&board, "TA")[0];
+        let tb = net_list(&board, "TB")[0];
+        let (total, rows) = all_clearance_violations(&mut manager, &mut board);
+        assert_eq!(total, 1, "1-DBU shortfall = 5.08um > 1.0: {rows:?}");
+        assert_eq!(rows_contain(&rows, ta, tb), 1);
     }
 }

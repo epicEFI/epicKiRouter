@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T13:27:24.951Z
-> Files: 696 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T14:50:38.183Z
+> Files: 710 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -783,6 +783,8 @@
 - `export-msg-96688fa3f.txt` (~296 tok)
 - `export-msg-ca0e785cc.txt` (~429 tok)
 - `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
+- `export-msg-f4.txt` — Declares width (~494 tok)
+- `export-msg-p3.txt` — Declares promotion (~452 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
 - `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
@@ -795,6 +797,9 @@
 - `fixa-commit-msg.txt` (~344 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
 - `p2-commit-msg.txt` (~988 tok)
+- `p3-commit-msg.txt` — Declares cell (~1737 tok)
+- `p3-recon.md` — P3 recon — DRC 1µm shortfall tolerance (#925a, upstream 14b28b6ff) (~1744 tok)
+- `p3extract.py` — grab (~152 tok)
 - `probe_sigint.new.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~1037 tok)
 - `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
@@ -802,6 +807,7 @@
 - `review-fixround.md` — Fresh-eyes review — 2.0.0 hardening diff (2026-10-01) (~2186 tok)
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
+- `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
 - `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
 - `TASKS.md` — Campaign task list (living) — 2026-10-01 (~2997 tok)
@@ -823,8 +829,9 @@
 
 ## rust/crates/epic-board/src/
 
+- `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
 - `board.rs` — The live board: the item arena, the id generator, and the (~31305 tok)
-- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~17387 tok)
+- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~17731 tok)
 
 ## rust/crates/epic-board/src/items/
 
@@ -834,15 +841,27 @@
 
 - `Cargo.toml` — Rust package manifest (~219 tok)
 
+## rust/crates/epic-cli/examples/
+
+- `p3rows.rs` — Scratch probe: the drc-main load walk rows at tolerance 1.0 vs 0.0. (~631 tok)
+
 ## rust/crates/epic-cli/src/
 
-- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2315 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~54834 tok)
+- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2327 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56475 tok)
 
 ## rust/crates/epic-cli/tests/
 
 - `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~2563 tok)
 - `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
+
+## rust/crates/epic-drc/examples/
+
+- `p3probe.rs` — Scratch probe for the #925a boundary worlds — prints communication, (~364 tok)
+
+## rust/crates/epic-drc/src/
+
+- `clearance.rs` — The clearance-violation walk — the port of Java (~12453 tok)
 
 ## rust/crates/epic-dsn/src/scope/
 
@@ -851,12 +870,17 @@
 ## rust/crates/epic-engine/src/
 
 - `current_width.rs` — The F2 current-driven trace-width core: the IPC-2221B closed-form (~7142 tok)
+- `drc_tolerance.rs` — The #925a DRC clearance-tolerance apply face (upstream (~848 tok)
 - `interview.rs` — F4: the pre-route interview — constraint inference from the board (~4966 tok)
-- `lib.rs` — The headless application core: jobs, the layered settings (~747 tok)
+- `lib.rs` — The headless application core: jobs, the layered settings (~754 tok)
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
 - `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15237 tok)
-- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~62260 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15793 tok)
+- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~63469 tok)
+
+## rust/crates/epic-engine/tests/
+
+- `overlays.rs` — M9-T5: the overlay DATA faces' engine pins: (~5156 tok)
 
 ## rust/crates/epic-gui/src/
 
@@ -874,7 +898,7 @@
 
 ## rust/crates/epic-gui/tests/
 
-- `render_goldens.rs` — M9-T4: the render-golden pins (the dispatch charter for (~15990 tok)
+- `render_goldens.rs` — M9-T4: the render-golden pins (the dispatch charter for (~16171 tok)
 - `version_pin.rs` — The M10-T6 fix-round Q1 pin: the built `epic-gui` bin, spawned with (~704 tok)
 
 ## rust/crates/epic-router/src/
@@ -906,10 +930,15 @@
 
 - `g5_mixedlayer.dsn` — Declares signal (~377 tok)
 
+## rust/harness/fixtures/p3/
+
+- `p3-pinpair.dsn` — Declares signal (~164 tok)
+
 ## rust/harness/src/
 
 - `baseline.rs` — Distills oracle runs into committed golden baselines and compares runs (~8255 tok)
 - `ci_tripwire.rs` — THE workflow tripwire pin (M3-T17c; closes banked mutant S6): the CI (~5283 tok)
+- `drc_corpus.rs` — DRC parity corpus (M3 Task 2): the two counts every M3 quality gate (~11548 tok)
 - `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~18880 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)

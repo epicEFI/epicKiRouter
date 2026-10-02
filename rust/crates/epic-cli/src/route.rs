@@ -1265,6 +1265,23 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
     epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
 
+    // 2a-b. P3 (#925a, upstream 14b28b6ff): the DRC clearance-tolerance
+    //       override applies BEFORE the load-time seed — Java's order
+    //       (settings load `:598-623` precedes the deferred DRC seed
+    //       `:788-793`), so the pre-existing count is taken with the
+    //       caller's tolerance (the 1.0 default drops sub-µm rows from
+    //       the seed exactly as from the final walk). Re-applied after
+    //       the interview below (an interviewed answer must land); the
+    //       pre-sink warn rides the eprintln Warning channel (the
+    //       parse-warnings idiom — the driver sink does not exist yet).
+    if let Some(value) = merged.drc_clearance_tolerance_um
+        && let Err(bad) = epic_engine::drc_tolerance::apply_clearance_tolerance(&mut board, value)
+    {
+        eprintln!(
+            "Warning: ignoring router.drc.clearance_tolerance_um (must be finite and >= 0): {bad}"
+        );
+    }
+
     // 2b. The load-time violation seed (`HeadlessBoardManager.java:
     //     788-793`: `preExistingClearanceViolationsCount =
     //     getAllClearanceViolations().size()` before any routing —
@@ -1301,6 +1318,21 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     if args.interview != epic_engine::settings::InterviewMode::Off {
         let questions = epic_engine::interview::interview_questions(&board, &merged);
         run_interview(args.interview, &questions, &mut merged);
+    }
+
+    // P3 (#925a) re-apply from the POST-INTERVIEW merged view (the
+    // seed-pass apply at 2a-b above governs the pre-existing count;
+    // this pass lands an interviewed answer and matches
+    // `Session::route`'s route-head re-apply — the same value in the
+    // common case, idempotent). An invalid value warns + keeps the
+    // board default (Java HeadlessBoardManager parity), never fails
+    // the run.
+    if let Some(value) = merged.drc_clearance_tolerance_um
+        && let Err(bad) = epic_engine::drc_tolerance::apply_clearance_tolerance(&mut board, value)
+    {
+        sink.warn(&format!(
+            "ignoring router.drc.clearance_tolerance_um (must be finite and >= 0): {bad}"
+        ));
     }
 
     // F1 (Rust-only): the pin auto-assignment face — the SAME head
@@ -2942,11 +2974,30 @@ mod tests {
 
     /// F3 wiring witness (review F3/PG3): on a violation-bearing input
     /// (harness/corpus/craft/drc-main.dsn, golden drc-0015 = 3
-    /// load-time violations) the manifest must NOT report the
+    /// RAW-walk violations) the manifest must NOT report the
     /// load-time rows as router-introduced — the seed walk (flow step
-    /// 2b) runs BEFORE the driver, so `router_introduced < total`.
-    /// Mutant face: deleting the seed block leaves the count at 0 and
-    /// `router_introduced == total`.
+    /// 2b) runs BEFORE the driver. The discriminating face moved with
+    /// #925a: the FINAL face is now 0 (see below), where a
+    /// deleted-seed mutant is invisible (`max(0, 0-0) == max(0, 0-2)
+    /// == 0`), so the pin reads the FANOUT-BEFORE phase face —
+    /// total 2 with router_introduced 0. Mutant faces: a deleted-seed
+    /// block reports before-introduced = 2 (the un-subtracted walk);
+    /// a gate-removed (#925a-deleted) gate reports before-total = 3.
+    ///
+    /// P3 note (the deliberate #925a flip, verified by probe
+    /// 2026-10-02): the golden 3's third row is the OUTLINE vs a
+    /// pin-crossing-the-edge pair whose RULE clearance is 0 (the
+    /// copper-to-edge override writes board_edge cells for classes
+    /// 1 and up only — Java `:534-539` — leaving this pin's class
+    /// cell at the append-init 0) and whose measured clearance is 0
+    /// (the raw shapes overlap) — shortfall EXACTLY 0.0. The STRICT gate
+    /// drops it at EVERY tolerance (0.0 > 0.0 is false), so no
+    /// tolerance — including the 0.0 control — restores the pre-925a
+    /// face; upstream #925a behaves identically. The honest CLI load
+    /// face is 2 (the trace rows, shortfalls 2000/1649 µm), pinned
+    /// with the gate face by
+    /// `clearance_tolerance_gate_drops_zero_shortfall_edge_pin_row_e2e`
+    /// below.
     #[test]
     fn pre_existing_violations_seeded_from_load() {
         let fixture_path = concat!(
@@ -2974,22 +3025,90 @@ mod tests {
 
         let manifest_text = std::fs::read_to_string(&manifest_path).expect("manifest written");
         let value: serde_json::Value = serde_json::from_str(&manifest_text).expect("json");
+        let before = value
+            .pointer("/phases/fanout/before/board_statistics/clearance_violations")
+            .expect("fanout-before clearance face present");
+        let before_total = before["total_count"]
+            .as_i64()
+            .expect("before total count present");
+        let before_introduced = before["router_introduced_count"]
+            .as_i64()
+            .expect("before router-introduced count present");
+        assert_eq!(
+            before_total, 2,
+            "the post-#925a load face: the two trace rows (a gate-removed mutant reports 3, \
+             the raw-walk golden drc-0015)"
+        );
+        assert_eq!(
+            before_introduced, 0,
+            "load-time rows must be excluded from router_introduced (a deleted-seed mutant \
+             reports the un-subtracted 2)"
+        );
+        let final_total = value["board_statistics"]["clearance_violations"]["total_count"]
+            .as_i64()
+            .expect("final total count present");
+        assert_eq!(
+            final_total, 0,
+            "the bounded route rips the two pin-less trace rows — the honest post-#925a \
+             final face"
+        );
+
+        let _ = std::fs::remove_dir_all(&out_dir);
+    }
+
+    /// P3 (#925a) end-to-end gate face on the SAME craft at the DEFAULT
+    /// tolerance (no flag): the golden 3's third row — outline vs the
+    /// edge-crossing pin, RULE clearance 0 (the copper-to-edge override
+    /// writes board_edge cells for classes >= 1 only) and measured
+    /// clearance 0 (the raw shapes overlap), shortfall EXACTLY 0.0 —
+    /// is dropped by the STRICT gate at the load seed (fanout.before =
+    /// 2), and the bounded route rips the two remaining trace rows
+    /// (final total 0). Pinned through the full CLI manifest path
+    /// (parse → seed walk → phases → final). A gate-removed mutant
+    /// reports before = 3 and fails the first assert. The two tests
+    /// deliberately overlap on the 2/0 face: THIS one pins the gate
+    /// (its `#925a`-deleted mutant), the seeding test above pins the
+    /// seed subtraction (its deleted-seed mutant) — orthogonal kills.
+    #[test]
+    fn clearance_tolerance_gate_drops_zero_shortfall_edge_pin_row_e2e() {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/corpus/craft/drc-main.dsn"
+        );
+        let out_dir = std::env::temp_dir().join(format!("epic-p3-e2e-{}", std::process::id()));
+        std::fs::create_dir_all(&out_dir).expect("temp dir");
+        let ses_path = out_dir.join("out.ses");
+        let manifest_path = out_dir.join("out.json");
+
+        let argv = vec![
+            "-de".to_string(),
+            fixture_path.to_string(),
+            "-do".to_string(),
+            ses_path.to_string_lossy().into_owned(),
+            "--result-json".to_string(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--router.autorouter.max_passes=1".to_string(),
+            "--router.autorouter.max_items=1".to_string(),
+        ];
+        let args = parse_route_args(&argv).expect("args parse");
+        let exit = run_route(&args).expect("route run");
+        assert_eq!(exit, 0);
+
+        let manifest_text = std::fs::read_to_string(&manifest_path).expect("manifest written");
+        let value: serde_json::Value = serde_json::from_str(&manifest_text).expect("json");
+        let before = value["phases"]["fanout"]["before"]["board_statistics"]
+            ["clearance_violations"]["total_count"]
+            .as_i64()
+            .expect("phase before-count present");
+        assert_eq!(
+            before, 2,
+            "the STRICT gate drops the zero-shortfall edge-pin row at the load seed \
+             (golden drc-0015 = 3 without the gate)"
+        );
         let total = value["board_statistics"]["clearance_violations"]["total_count"]
             .as_i64()
             .expect("total count present");
-        let introduced =
-            value["board_statistics"]["clearance_violations"]["router_introduced_count"]
-                .as_i64()
-                .expect("router-introduced count present");
-        assert!(
-            total >= 1,
-            "the craft board loads with violations (golden drc-0015 = 3), got {total}"
-        );
-        assert!(
-            introduced < total,
-            "load-time rows must be excluded from router_introduced \
-             (a deleted-seed mutant reports {introduced} == {total})"
-        );
+        assert_eq!(total, 0, "the bounded route rips the two trace rows");
 
         let _ = std::fs::remove_dir_all(&out_dir);
     }

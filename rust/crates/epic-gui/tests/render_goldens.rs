@@ -1247,6 +1247,16 @@ const OVERLAY_GOLDEN_CASES: [OverlayGoldenCase; 6] = [
     //    count, centers, and both copper-copper rows unchanged).
     //    Upstream HEAD applies the same cap on the same board; golden
     //    re-captured same-commit through capture_overlay_goldens.
+    //    SECOND PARITY DECISION (P3, upstream #925a clearance-shortfall
+    //    tolerance, freerouting@14b28b6ff): the #935-collapsed
+    //    outline x P10 row carries a rule cell of 0 (the
+    //    copper-to-edge override writes board_edge cells for classes
+    //    1 and up only) against a measured 0 — shortfall exactly
+    //    0.0, which the STRICT gate drops at EVERY tolerance — so
+    //    the marker leaves the set entirely (markers 3 -> 2; the two
+    //    copper-copper trace rows unchanged). Upstream HEAD's gate
+    //    behaves identically; golden re-captured same-commit through
+    //    capture_overlay_goldens (the other five goldens byte-stable).
     OverlayGoldenCase {
         fixture: "harness/corpus/craft/drc-main.dsn",
         golden: "drc-craft.overlay-markers.json",

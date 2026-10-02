@@ -1,0 +1,33 @@
+(pcb p3-pinpair.dsn
+
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 250000 140000))
+    (rule (width 250) (clearance 2000))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 10000 10000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_R
+      (shape (rect F.Cu -1000 -1000 1000 1000))
+    )
+    (image CMP1
+      (pin PAD_R P1 50000 50000)
+      (pin PAD_R P2 53000 50000)
+    )
+  )
+  (network
+    (net NA (pins CMP1-P1))
+    (net NB (pins CMP1-P2))
+  )
+)

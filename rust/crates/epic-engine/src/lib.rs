@@ -33,6 +33,7 @@
 //!   (`&Board` read faces only — the renders-never-mutates law).
 
 pub mod current_width;
+pub mod drc_tolerance;
 pub mod events;
 pub mod export;
 pub mod interview;

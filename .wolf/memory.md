@@ -9912,3 +9912,73 @@ description: chronological action log per session, consolidated weekly
 | 07:17 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified Fit() | ~1841 |
 | 07:18 | Edited rust/crates/epic-gui/src/desktop/mod.rs | wants_text_input() → text_edit_focused() | ~191 |
 | 07:27 | Created logs/readiness-2026-10-01/f4c-commit-msg.txt | — | ~788 |
+| 07:28 | Created logs/readiness-2026-10-01/export-msg-f4.txt | — | ~527 |
+| 07:31 | Created logs/readiness-2026-10-01/p3-recon.md | — | ~997 |
+| 07:41 | Edited rust/crates/epic-board/src/rules_surf.rs | expanded (+9 lines) | ~183 |
+| 07:41 | Edited rust/crates/epic-board/src/rules_surf.rs | modified default() | ~232 |
+| 07:46 | Edited rust/crates/epic-board/src/aesthetics.rs | modified board_unit_to_mm_factor() | ~263 |
+| 07:46 | Edited rust/crates/epic-drc/src/clearance.rs | expanded (+17 lines) | ~420 |
+| 07:46 | Edited rust/crates/epic-drc/src/clearance.rs | modified inputs() | ~191 |
+| 07:46 | Edited rust/crates/epic-drc/src/clearance.rs | modified gate() | ~361 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+10 lines) | ~221 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | 3→7 lines | ~80 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | 3→8 lines | ~122 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | 7→8 lines | ~73 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~54 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | 3→7 lines | ~92 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | 2→3 lines | ~47 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | 2→5 lines | ~69 |
+| 07:47 | Edited rust/crates/epic-engine/src/settings.rs | modified clone() | ~56 |
+| 07:48 | Edited rust/crates/epic-engine/src/settings.rs | 6→7 lines | ~69 |
+| 07:48 | Created rust/crates/epic-engine/src/drc_tolerance.rs | — | ~807 |
+| 07:48 | Edited rust/crates/epic-engine/src/lib.rs | 2→3 lines | ~17 |
+| 07:48 | Edited rust/crates/epic-engine/src/session.rs | modified validate() | ~264 |
+| 07:49 | Edited rust/crates/epic-cli/src/route.rs | modified P3() | ~251 |
+| 07:49 | Edited rust/crates/epic-cli/src/main.rs | 2→3 lines | ~30 |
+| 07:51 | Edited rust/crates/epic-engine/src/settings.rs | modified drc_clearance_tolerance_um_grammar_and_lifecycle() | ~758 |
+| 07:51 | Edited rust/crates/epic-board/src/rules_surf.rs | modified clearance_tolerance_um_seeds_one_at_both_construction_faces() | ~227 |
+| 07:52 | Edited rust/crates/epic-drc/src/clearance.rs | modified clearance_tolerance_um_gate_drops_rounding_noise() | ~1606 |
+| 07:53 | Edited rust/crates/epic-engine/src/settings.rs | 1→2 lines | ~35 |
+| 07:55 | Created rust/crates/epic-drc/examples/p3probe.rs | — | ~364 |
+| 07:55 | Created logs/readiness-2026-10-01/p3extract.py | — | ~151 |
+| 07:55 | Edited logs/readiness-2026-10-01/p3extract.py | inline fix | ~22 |
+| 07:56 | Edited logs/readiness-2026-10-01/p3extract.py | inline fix | ~22 |
+| 08:02 | Edited rust/crates/epic-drc/src/clearance.rs | modified clearance_tolerance_um_gate_drops_rounding_noise() | ~1832 |
+| 08:06 | Edited rust/crates/epic-engine/src/drc_tolerance.rs | 10→15 lines | ~166 |
+| 08:08 | Created logs/readiness-2026-10-01/run_gates_p3.sh | — | ~577 |
+| 08:09 | Created logs/readiness-2026-10-01/p3-commit-msg.txt | — | ~883 |
+| 08:14 | Edited rust/crates/epic-cli/src/route.rs | modified apply_clearance_tolerance() | ~80 |
+| 08:14 | Edited rust/crates/epic-engine/src/session.rs | modified apply_clearance_tolerance() | ~87 |
+| 08:15 | Edited rust/crates/epic-cli/src/route.rs | modified pre_existing_violations_seeded_from_load() | ~1503 |
+| 08:17 | Edited rust/crates/epic-engine/src/session.rs | modified P3() | ~329 |
+| 08:17 | Edited rust/crates/epic-engine/src/session.rs | modified P3() | ~280 |
+| 08:17 | Edited rust/crates/epic-cli/src/route.rs | modified P3() | ~443 |
+| 08:18 | Edited rust/crates/epic-cli/src/route.rs | modified apply_clearance_tolerance() | ~191 |
+| 08:21 | Created rust/crates/epic-cli/examples/p3rows.rs | — | ~699 |
+| 08:24 | Edited rust/crates/epic-drc/src/clearance.rs | modified is_some() | ~251 |
+| 08:24 | Edited rust/crates/epic-drc/src/clearance.rs | 5→5 lines | ~80 |
+| 08:24 | Edited rust/crates/epic-cli/examples/p3rows.rs | reduced (-7 lines) | ~168 |
+| 08:25 | Edited rust/crates/epic-cli/examples/p3rows.rs | 3→2 lines | ~29 |
+| 08:27 | Edited rust/crates/epic-cli/examples/p3rows.rs | modified iter_ascending() | ~63 |
+| 08:27 | Edited rust/crates/epic-cli/examples/p3rows.rs | modified iter_ascending() | ~30 |
+| 08:27 | Edited rust/crates/epic-cli/examples/p3rows.rs | "item {} data={:?}" → "item {:?} data={:?}" | ~17 |
+| 08:28 | Edited rust/crates/epic-cli/src/route.rs | modified pre_existing_violations_seeded_from_load() | ~447 |
+| 08:28 | Edited rust/crates/epic-cli/src/route.rs | expanded (+10 lines) | ~530 |
+| 08:29 | Edited rust/crates/epic-cli/src/route.rs | modified clearance_tolerance_gate_drops_zero_shortfall_edge_pin_row_e2e() | ~266 |
+| 08:29 | Edited rust/crates/epic-cli/src/route.rs | 9→9 lines | ~112 |
+| 08:29 | Edited rust/crates/epic-drc/src/clearance.rs | reduced (-8 lines) | ~113 |
+| 08:29 | Edited rust/crates/epic-drc/src/clearance.rs | exactly() → included() | ~138 |
+| 08:29 | Edited rust/crates/epic-cli/src/route.rs | modified note() | ~126 |
+| 08:30 | Created logs/readiness-2026-10-01/p3-commit-msg.txt | — | ~1367 |
+| 08:31 | Edited logs/readiness-2026-10-01/run_gates_p3.sh | 2→3 lines | ~43 |
+| 08:31 | Edited logs/readiness-2026-10-01/p3-recon.md | modified Probe() | ~638 |
+| 08:36 | Edited rust/harness/src/drc_corpus.rs | expanded (+13 lines) | ~252 |
+| 08:37 | Created rust/harness/fixtures/p3/p3-pinpair.dsn | — | ~164 |
+| 08:37 | Edited rust/crates/epic-engine/tests/overlays.rs | modified post_route_markers_survive_on_the_violation_retaining_craft() | ~333 |
+| 08:37 | Edited rust/crates/epic-engine/tests/overlays.rs | expanded (+16 lines) | ~427 |
+| 08:38 | Edited logs/readiness-2026-10-01/p3-commit-msg.txt | modified face() | ~536 |
+| 08:38 | Edited logs/readiness-2026-10-01/p3-commit-msg.txt | 2→5 lines | ~70 |
+| 08:40 | Edited rust/crates/epic-gui/tests/render_goldens.rs | modified DECISION() | ~362 |
+| 08:47 | Edited logs/readiness-2026-10-01/p3-commit-msg.txt | modified law() | ~437 |
+| 08:50 | Edited logs/readiness-2026-10-01/p3-recon.md | modified families() | ~399 |
+| 08:50 | Created logs/readiness-2026-10-01/export-msg-p3.txt | — | ~482 |

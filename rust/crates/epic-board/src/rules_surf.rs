@@ -733,6 +733,15 @@ pub struct BoardRules {
     pub pin_edge_to_turn_dist: f64,
     /// Java the default class's `defaultItemClearanceClasses`.
     pub default_item_clearance_classes: [i32; 6],
+    /// Java `clearanceToleranceUm` (#925a, upstream 14b28b6ff): the
+    /// clearance-violation shortfall tolerance in micrometres —
+    /// shortfalls ≤ this are floating-point discretization /
+    /// imperial-to-metric rounding noise, not electrical violations
+    /// (the DRC measure loop drops them, STRICT `>` at the boundary).
+    /// Seeded 1.0 at BOTH construction faces (the ctor re-seed in
+    /// Java is the transient-deserialization twin); only the
+    /// settings override writes it (epic_engine::drc_tolerance).
+    pub clearance_tolerance_um: f64,
 }
 
 impl BoardRules {
@@ -897,6 +906,7 @@ impl BoardRules {
             hole_clearance: 0,
             pin_edge_to_turn_dist: rules.pin_edge_to_turn_dist,
             default_item_clearance_classes: rules.default_item_clearance_classes,
+            clearance_tolerance_um: 1.0,
         }
     }
 }
@@ -916,6 +926,7 @@ impl Default for BoardRules {
             hole_clearance: 0,
             pin_edge_to_turn_dist: 0.0,
             default_item_clearance_classes: [0; 6],
+            clearance_tolerance_um: 1.0,
         }
     }
 }
@@ -1214,6 +1225,22 @@ mod tests {
             !nets.get(1).expect("net 1").contains_plane,
             "flips both ways"
         );
+    }
+
+    /// #925a (upstream `14b28b6ff`): the tolerance seeds 1.0 at BOTH
+    /// construction faces — `Default` (the `Board::new()` face) and
+    /// `from_ir` (every parsed board; the epic-drc parse pin covers
+    /// that arm end-to-end) — so the DRC measure loop's default drops
+    /// sub-µm rounding noise everywhere, and only a settings override
+    /// (`epic_engine::drc_tolerance`) ever writes another value.
+    #[test]
+    fn clearance_tolerance_um_seeds_one_at_both_construction_faces() {
+        assert_eq!(
+            BoardRules::default().clearance_tolerance_um,
+            1.0,
+            "the Default seed"
+        );
+        assert_eq!(BoardRules::new().clearance_tolerance_um, 1.0);
     }
 
     /// `AngleRestriction.java`: the ordinal round-trip — `valueOf(i)` /

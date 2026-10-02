@@ -231,6 +231,20 @@ fn board_unit_to_mm_factor(board: &Board) -> f64 {
     Unit::scale(1.0, communication.unit, Unit::Mm) / resolution as f64
 }
 
+/// The MICROMETRE twin of [`board_unit_to_mm_factor`] — upstream
+/// `Unit.scale(1.0, unit, UM) / max(1, resolution)` — pub because the
+/// epic-drc #925a shortfall-tolerance gate (upstream `14b28b6ff`)
+/// compares clearance shortfalls against a µm tolerance and needs the
+/// board-unit→µm conversion without a direct epic-dsn dependency edge
+/// (epic-dsn is dev-only there).
+#[must_use]
+pub fn board_unit_to_um_factor(board: &Board) -> f64 {
+    let communication = board.communication();
+    let resolution = i64::from(communication.resolution);
+    let resolution = if resolution > 0 { resolution } else { 1 };
+    Unit::scale(1.0, communication.unit, Unit::Um) / resolution as f64
+}
+
 /// The M8 aesthetics measurer — the four metrics over one board (the
 /// module docs carry the metric definitions; the plan's Key facts is
 /// the contract). Pure: reads the board, mutates nothing.

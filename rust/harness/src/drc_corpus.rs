@@ -352,6 +352,19 @@ pub fn evaluate_rust(id: &str, path: &str, bytes: &[u8]) -> GoldenRecord {
         return result_only(id, path, "read-failed");
     };
     let mut board = Board::from_ses_board(&ses);
+    // The corpus is the FROZEN pre-#925a parity record: the committed
+    // goldens are the retired Java oracle's UNCONDITIONAL-record face
+    // (captured pre-gate; the oracle went with the M10-T4 sunset, so
+    // re-capture is impossible by design). P3 (upstream #925a) seeds a
+    // 1.0 µm shortfall gate into BoardRules at from_ir; this walk
+    // deliberately reads the frozen face instead — tolerance 0.0
+    // records every strictly-positive shortfall, which is exactly the
+    // oracle's face on this corpus (pre-P3 the UNGATED walk matched
+    // 17/17, proving no fixture carries a 0.0-shortfall row — the one
+    // residual class a 0.0 tolerance cannot restore). The gate POLICY
+    // is pinned by the epic-drc gate unit test and the epic-cli e2e,
+    // not by this corpus.
+    board.rules_mut().clearance_tolerance_um = 0.0;
     let mut manager = SearchTreeManager::new();
     // Protocol step 2: the uniform fill normalization, no other
     // pre-steps (the drc surface is pure parse-time).
