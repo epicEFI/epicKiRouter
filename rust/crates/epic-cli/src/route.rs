@@ -475,6 +475,21 @@ pub struct ManifestPairUnresolved {
     pub name_b: String,
 }
 
+/// One F1 pin auto-assignment row (a performed re-netting; the
+/// manifest face of `epic_engine::pin_assign::PinSwapRow`). Advisory
+/// by construction — the mutation itself already rode the route.
+#[derive(Clone, Debug, Serialize)]
+pub struct ManifestPinSwap {
+    /// The component REF the caller named.
+    pub component: String,
+    /// The pin's name in its package.
+    pub pin: String,
+    pub old_net_number: i32,
+    pub old_net_name: String,
+    pub new_net_number: i32,
+    pub new_net_name: String,
+}
+
 /// The whole emitted manifest. Every optional member is
 /// skip-serialized, so the non-determinism family never appears even
 /// as a key.
@@ -511,6 +526,14 @@ pub struct RouteManifest<'a> {
     /// The M7-T6 advisory unresolved-declaration rows (skip-if-empty).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub pair_unresolved: Vec<ManifestPairUnresolved>,
+    /// The F1 pin auto-assignment rows (empty = absent from the
+    /// rendered manifest — the zero-rotation face; the canary
+    /// manifests never rotate).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pin_assign_rows: Vec<ManifestPinSwap>,
+    /// The F1 unresolved refs with reasons (skip-if-empty).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pin_assign_unresolved: Vec<String>,
     /// The router score, 0-1000 (`None` when no scoring face — the
     /// Java iff-gate; unreachable in the T13 flow which always carries
     /// DefaultSettings' scoring box). The `%.2f` adapter literal face.
@@ -576,6 +599,10 @@ pub struct RouteTelemetry {
     pub pair_report: Vec<ManifestPairRow>,
     /// The M7-T6 advisory unresolved-declaration rows (empty = absent).
     pub pair_unresolved: Vec<ManifestPairUnresolved>,
+    /// The F1 pin auto-assignment rows (empty = absent).
+    pub pin_assign_rows: Vec<ManifestPinSwap>,
+    /// The F1 unresolved refs with reasons (empty = absent).
+    pub pin_assign_unresolved: Vec<String>,
 }
 
 /// The exit-code mapping (Java `MainResult`): 0 iff the state is
@@ -797,6 +824,8 @@ pub fn render_manifest(
         length_report: telemetry.length_report.clone(),
         pair_report: telemetry.pair_report.clone(),
         pair_unresolved: telemetry.pair_unresolved.clone(),
+        pin_assign_rows: telemetry.pin_assign_rows.clone(),
+        pin_assign_unresolved: telemetry.pin_assign_unresolved.clone(),
         normalized_score: telemetry.normalized_score.and_then(JavaDecimal::of),
         // Java `:200-202` — the optimizer_score iff-gate: the key rides
         // only when the optimizer phase's before/after faces exist.
@@ -1082,6 +1111,20 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         load_started.elapsed().as_secs_f64(),
     ));
 
+    // F1 (Rust-only): the pin auto-assignment face — the SAME head
+    // placement as `Session::route` (after the merge, before every
+    // geometry/pass face), so the CLI and session flows share one
+    // apply fn and one ordering. Unresolved refs warn and never fail
+    // the run; the report rides the manifest (skip-if-empty).
+    let pin_assign_report = merged
+        .assign_pins
+        .as_ref()
+        .map(|refs| epic_engine::pin_assign::apply_pin_assignments(&mut board, &mut manager, refs));
+    if let Some(report) = &pin_assign_report {
+        for reason in &report.unresolved {
+            sink.warn(&format!("pin assignment: {reason}"));
+        }
+    }
     // 3. The unconditional geometry pass (bug-compat fact 1; Java
     //    `applyRouterSettingsForLoadedBoard` `:749`, which runs after
     //    the `:346` override — the pass reads only the board's
@@ -1309,7 +1352,25 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         &final_state,
     );
 
-    // 7. The manifest.
+    // 7. The manifest. The F1 rows/unresolved pair, extracted in ONE
+    // consumption of the Option (skip-if-empty at render time).
+    let (pin_assign_rows, pin_assign_unresolved) = pin_assign_report
+        .map(|report| {
+            let rows = report
+                .rows
+                .iter()
+                .map(|row| ManifestPinSwap {
+                    component: row.component.clone(),
+                    pin: row.pin.clone(),
+                    old_net_number: row.old_net_number,
+                    old_net_name: row.old_net_name.clone(),
+                    new_net_number: row.new_net_number,
+                    new_net_name: row.new_net_name.clone(),
+                })
+                .collect();
+            (rows, report.unresolved)
+        })
+        .unwrap_or_default();
     let telemetry = RouteTelemetry {
         final_state,
         last_counters,
@@ -1326,6 +1387,8 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         length_report,
         pair_report,
         pair_unresolved: unresolved_pairs,
+        pin_assign_rows,
+        pin_assign_unresolved,
     };
     let manifest = render_manifest(
         &telemetry,
@@ -1738,6 +1801,8 @@ mod tests {
             length_report: Vec::new(),
             pair_report: Vec::new(),
             pair_unresolved: Vec::new(),
+            pin_assign_rows: Vec::new(),
+            pin_assign_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             ..RouteTelemetry::default()
@@ -1804,6 +1869,8 @@ mod tests {
             length_report: Vec::new(),
             pair_report: Vec::new(),
             pair_unresolved: Vec::new(),
+            pin_assign_rows: Vec::new(),
+            pin_assign_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             ..RouteTelemetry::default()
@@ -1840,6 +1907,8 @@ mod tests {
             length_report: Vec::new(),
             pair_report: Vec::new(),
             pair_unresolved: Vec::new(),
+            pin_assign_rows: Vec::new(),
+            pin_assign_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(optimizer_counters),
             ..RouteTelemetry::default()
@@ -2002,6 +2071,8 @@ mod tests {
             length_report: Vec::new(),
             pair_report: Vec::new(),
             pair_unresolved: Vec::new(),
+            pin_assign_rows: Vec::new(),
+            pin_assign_unresolved: Vec::new(),
             global_plan: None,
             last_counters: None,
             connections: Some(ManifestConnections {
@@ -2105,6 +2176,8 @@ mod tests {
             length_report: Vec::new(),
             pair_report: Vec::new(),
             pair_unresolved: Vec::new(),
+            pin_assign_rows: Vec::new(),
+            pin_assign_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(fanout_counters),
             connections: Some(ManifestConnections {
@@ -2361,6 +2434,8 @@ mod tests {
             length_report: Vec::new(),
             pair_report: Vec::new(),
             pair_unresolved: Vec::new(),
+            pin_assign_rows: Vec::new(),
+            pin_assign_unresolved: Vec::new(),
             global_plan: None,
             last_counters: Some(counters),
             connections: Some(ManifestConnections {

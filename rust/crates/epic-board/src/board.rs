@@ -871,6 +871,24 @@ impl Board {
         self.mirror_node(id);
     }
 
+    /// F1 (Rust-only, no Java counterpart — the pin auto-assignment
+    /// face): replace an item's NET LIST wholesale. The plain field
+    /// write + undo-mirror in the `set_item_*` family's shape. The
+    /// search trees index GEOMETRY, not electrical grouping, so the
+    /// caller does NOT need a tree remove/insert for a nets-only
+    /// change — but [`crate::board::Board::clear_derived_data`] is
+    /// still the conservative companion (the canonical mutation
+    /// recipe, `apply_copper_to_edge_clearance_override`, pairs
+    /// them). Nets are net NUMBERS into the append-only
+    /// [`Nets`](crate::rules_surf::Nets) table — stable, never
+    /// renumbered.
+    pub fn set_item_nets(&mut self, id: ItemId, nets: Vec<i32>) {
+        if let Some(entry) = self.items.get_mut(&Reverse(id)) {
+            entry.nets = nets;
+        }
+        self.mirror_node(id);
+    }
+
     /// Java `DrillItem.getPadstack()` — the padstack of a pin or via
     /// (`None` for a non-drill item or an unresolvable padstack number).
     #[must_use]
@@ -1999,6 +2017,40 @@ mod tests {
         assert!(board.get(id).expect("inserted").on_the_board);
         let removed = board.remove_item(id).expect("removed");
         assert!(!removed.on_the_board, "remove must clear the flag");
+    }
+
+    /// F1: [`Board::set_item_nets`] — the `set_item_*` family shape
+    /// (plain field write + undo-node mirror). The field write, the
+    /// arena read back, the mirror keeping the undo node equal to the
+    /// arena entry, and the foreign-id no-op (no panic, nothing
+    /// bumped). The mutation CHOREOGRAPHY (tree remove/insert around
+    /// it) is pinned end-to-end by the epic-engine uncrossing test.
+    #[test]
+    fn set_item_nets_writes_the_field_and_mirrors_the_undo_node() {
+        let mut board = Board::new();
+        let id = board.alloc_id();
+        board.insert_item(pin_entry(id)); // nets: vec![1]
+        let revision = board.revision();
+
+        board.set_item_nets(id, vec![7, 9]);
+
+        assert_eq!(board.get(id).expect("entry").nets, vec![7, 9]);
+        assert_eq!(
+            board
+                .item_undo
+                .value_mut(&Reverse(id))
+                .map(|node| node.nets.clone()),
+            Some(vec![7, 9]),
+            "the undo node carries the SAME nets (mirror_node's contract)"
+        );
+        assert_eq!(
+            board.revision(),
+            revision,
+            "a field write never bumps the revision (insert/remove own it, T69)"
+        );
+        // A foreign id is a quiet no-op.
+        board.set_item_nets(ItemId::new(999_999), vec![1]);
+        assert_eq!(board.get(id).expect("entry").nets, vec![7, 9]);
     }
 
     /// The generator survives a forced wrap THROUGH the board seam:
