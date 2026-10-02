@@ -110,6 +110,13 @@ other flags:
   --result-json <manifest.json>   write the run manifest (JSON) to the path
   --dump-aesthetics <file.json>   write the aesthetics sidecar (never the manifest)
   --deterministic-budgets=on|off  engine budget faces (deterministic; no wall clock)
+  --interview=on|off|show         the pre-route interview (F4): the router derives
+                                    questions from the board itself — unpoured
+                                    ground nets, diff-pair-looking nets, power
+                                    rails; show prints each with the --router
+                                    fragment that answers it; on asks them on a
+                                    terminal stdin and applies the answers (a
+                                    non-terminal stdin degrades to show)
   -mp <passes>                    router.autorouter.max_passes
   -mt <threads>                   router.max_threads
   -oit <threshold>                router.optimizer.improvement_threshold

@@ -1054,6 +1054,116 @@ pub fn length_needs(manager: &SearchTreeManager, board: &mut Board) -> Vec<Manif
 }
 
 // ---------------------------------------------------------------------------
+// F4: the pre-route interview
+// ---------------------------------------------------------------------------
+
+/// The question's interactive prompt (the CLI phrasing; the GUI
+/// dialog asks the same thing its own way).
+fn interview_prompt(question: &epic_engine::interview::InterviewQuestion) -> String {
+    use epic_engine::interview::InterviewQuestion;
+    match question {
+        InterviewQuestion::GroundPour {
+            net_name,
+            pin_count,
+        } => format!(
+            "net {net_name} ({pin_count} pins) has no copper pour — \
+             synthesize one on the last signal layer? [Y/n]"
+        ),
+        InterviewQuestion::DiffPair { net_a, net_b } => format!(
+            "{net_a} and {net_b} look like a differential pair — \
+             tune them as a pair? [y/N]"
+        ),
+        InterviewQuestion::CurrentWidth {
+            net_name,
+            pin_count,
+        } => format!(
+            "{net_name} ({pin_count} pins) looks like a power rail — \
+             current in amps for its width (blank = keep class width)"
+        ),
+    }
+}
+
+/// Show or ask the interview (the `--interview` face). SHOW prints
+/// every question with the `--router.` fragment that answers it and
+/// routes unchanged; ON reads stdin line-by-line and patches
+/// `merged` — before ANY consumer runs, so F1/F2/F3 and the F3 ask
+/// see the answers as ordinary settings (an interviewed pour retires
+/// the ask through the ask's own requested-nets filter). A
+/// non-terminal stdin under ON degrades to SHOW: a piped run must
+/// never hang.
+fn run_interview(
+    mode: epic_engine::settings::InterviewMode,
+    questions: &[epic_engine::interview::InterviewQuestion],
+    merged: &mut MergedSettings,
+) {
+    use epic_engine::interview::InterviewQuestion;
+    use epic_engine::settings::InterviewMode;
+    use std::io::IsTerminal as _;
+    if questions.is_empty() {
+        eprintln!("interview: the board and settings raise no questions");
+        return;
+    }
+    let interactive = mode == InterviewMode::On && std::io::stdin().is_terminal();
+    if mode == InterviewMode::On && !interactive {
+        eprintln!("interview: stdin is not a terminal — showing the questions instead of asking");
+    }
+    for question in questions {
+        let prompt = interview_prompt(question);
+        if !interactive {
+            eprintln!("interview: {prompt}");
+            eprintln!("interview:   answer with {}", question.setting_hint());
+            continue;
+        }
+        eprint!("interview: {prompt} ");
+        let mut line = String::new();
+        if std::io::stdin().read_line(&mut line).unwrap_or(0) == 0 {
+            return; // EOF mid-interview: stop asking, route what we have
+        }
+        let answer = line.trim();
+        match question {
+            InterviewQuestion::GroundPour { net_name, .. } => {
+                let yes = answer.is_empty()
+                    || answer.eq_ignore_ascii_case("y")
+                    || answer.eq_ignore_ascii_case("yes");
+                if yes {
+                    merged
+                        .pour_nets
+                        .get_or_insert_with(Vec::new)
+                        .push(net_name.clone());
+                    eprintln!("interview: will pour {net_name}");
+                }
+            }
+            InterviewQuestion::DiffPair { net_a, net_b } => {
+                if answer.eq_ignore_ascii_case("y") || answer.eq_ignore_ascii_case("yes") {
+                    merged
+                        .tuning_pairs
+                        .get_or_insert_with(Vec::new)
+                        .push((net_a.clone(), net_b.clone()));
+                    eprintln!("interview: will tune {net_a}:{net_b}");
+                }
+            }
+            InterviewQuestion::CurrentWidth { net_name, .. } => {
+                if answer.is_empty() {
+                    continue;
+                }
+                match answer.parse::<f64>() {
+                    Ok(amps) if amps.is_finite() && amps > 0.0 => {
+                        merged.current_nets.get_or_insert_with(Vec::new).push(
+                            epic_engine::current_width::CurrentNetRequest {
+                                net: net_name.clone(),
+                                amps,
+                            },
+                        );
+                        eprintln!("interview: will width {net_name} for {amps}A");
+                    }
+                    _ => eprintln!("interview: skipped {net_name} (not a positive current)"),
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // the flow
 // ---------------------------------------------------------------------------
 
@@ -1180,6 +1290,18 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         pre_total,
         load_started.elapsed().as_secs_f64(),
     ));
+
+    // F4 (Rust-only): the pre-route interview — the board-derived
+    // questions, shown (`--interview=show`) or asked on a terminal
+    // (`--interview=on`) BEFORE any consumer runs. Answers patch
+    // `merged` here, so F1/F2/F3 and the F3 ask see them as ordinary
+    // settings (an interviewed pour retires the ask through the
+    // ask's own requested-nets filter — no special case either
+    // side). OFF at the default: byte-identical scripted runs.
+    if args.interview != epic_engine::settings::InterviewMode::Off {
+        let questions = epic_engine::interview::interview_questions(&board, &merged);
+        run_interview(args.interview, &questions, &mut merged);
+    }
 
     // F1 (Rust-only): the pin auto-assignment face — the SAME head
     // placement as `Session::route` (after the merge, before every

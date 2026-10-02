@@ -404,8 +404,29 @@ pub struct ParsedRouteArgs {
     /// file at manifest-write time, never in the manifest (the
     /// rotation trap named at the write site).
     pub dump_aesthetics: Option<String>,
+    /// `--interview=on|off|show` (default OFF) — the F4 pre-route
+    /// interview: `show` prints the inferred questions (with the
+    /// `--router.` fragment that answers each) and routes unchanged;
+    /// `on` asks them interactively (stdin; a non-terminal stdin
+    /// degrades to `show`). OFF by default so every golden face and
+    /// scripted pipeline is byte-identical.
+    pub interview: InterviewMode,
     /// The parsed router-settings layer (warnings included).
     pub layer: CliLayer,
+}
+
+/// The `--interview` mode (F4): the pre-route question surface.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InterviewMode {
+    /// No interview (the default — zero output change).
+    #[default]
+    Off,
+    /// Print the questions and their answer fragments; route
+    /// unchanged (the scripted/pipeline face).
+    Show,
+    /// Ask interactively on stdin and apply the answers (a
+    /// non-terminal stdin degrades to [`InterviewMode::Show`]).
+    On,
 }
 
 impl ParsedRouteArgs {
@@ -452,6 +473,19 @@ pub fn parse_route_args(args: &[String]) -> Result<ParsedRouteArgs, String> {
                                      (expected on|off)"
                                 )
                             })?);
+                    }
+                    "interview" => {
+                        parsed.interview = match value {
+                            "off" => InterviewMode::Off,
+                            "show" => InterviewMode::Show,
+                            "on" => InterviewMode::On,
+                            _ => {
+                                return Err(format!(
+                                    "invalid --interview value '{value}' \
+                                     (expected on|off|show)"
+                                ));
+                            }
+                        };
                     }
                     _ if property.starts_with("router.") || property.starts_with("optimizer.") => {
                         apply_router_setting(&mut parsed.layer, property, value);
@@ -5161,6 +5195,39 @@ mod tests {
         merge_session(&mut none_layer, &SessionLayer::default());
         assert_eq!(none_layer.pour_nets, None, "None never overwrites");
         assert_eq!(none_layer.pour_layer, None);
+    }
+
+    /// F4: the `--interview` flag grammar — the three modes parse,
+    /// the default is OFF (the golden-safety face: an unset flag must
+    /// never print anything), and a malformed value is a hard usage
+    /// error (the deterministic-budgets class, not warn-and-continue).
+    #[test]
+    fn interview_flag_modes_default_and_rejects_garbage() {
+        let default = parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses"])).expect("parses");
+        assert_eq!(default.interview, InterviewMode::Off);
+
+        for (value, mode) in [
+            ("off", InterviewMode::Off),
+            ("show", InterviewMode::Show),
+            ("on", InterviewMode::On),
+        ] {
+            let flag = format!("--interview={value}");
+            let parsed =
+                parse_route_args(&args(&["-de", "a.dsn", "-do", "b.ses", &flag])).expect("parses");
+            assert_eq!(parsed.interview, mode);
+        }
+
+        let bad = parse_route_args(&args(&[
+            "-de",
+            "a.dsn",
+            "-do",
+            "b.ses",
+            "--interview=maybe",
+        ]));
+        assert_eq!(
+            bad.err().as_deref(),
+            Some("invalid --interview value 'maybe' (expected on|off|show)")
+        );
     }
 
     /// PIN SL-3: `None` session fields NEVER overwrite — every CLI

@@ -47,6 +47,7 @@ fn help_flag_exits_zero_and_lists_the_surface() {
         "-oit <threshold>",
         "--result-json <manifest.json>",
         "--deterministic-budgets=on|off",
+        "--interview=on|off|show",
     ] {
         assert!(
             stdout.contains(needle),
@@ -89,6 +90,132 @@ fn no_args_prints_help_to_stderr_and_exits_two() {
     assert!(stderr.contains("usage: epic-cli route -de <board.dsn> -do <out.ses>"));
     assert!(stderr.contains("router.via_costs=<integer>"));
     assert!(String::from_utf8_lossy(&output.stdout).is_empty());
+}
+
+/// F4, bin level: `--interview=show` prints the board-derived
+/// questions (each with the `--router.` fragment that answers it)
+/// and routes unchanged — and WITHOUT the flag the stderr carries
+/// no interview lines at all (the OFF default: scripted pipelines
+/// and every golden face stay byte-identical). The F3 ask still
+/// fires in both runs (its own default-on face, unchanged).
+#[test]
+fn interview_show_lists_questions_and_off_default_prints_none() {
+    // The lean interview craft: GND (ground, unpoured, 3 pins),
+    // USB_DP/USB_DN (the 2-char pair family), 3V3 (a power rail),
+    // DATA0/DATA1 (ordinary nets that must raise nothing).
+    const INTERVIEW_DSN: &str = r#"(pcb interview-cli.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal)(property(index 0)))
+    (layer B.Cu (type signal)(property(index 1)))
+    (boundary (path pcb 0  0 0  128000 0  128000 128000  0 128000  0 0))
+    (rule (clearance 250))
+  )
+  (placement
+    (component "CONN" (place "CONN1" 20000 64000 Front 0.000000))
+    (component "TGT" (place "T9" 36000 4000 Front 0.000000))
+    (component "TGT" (place "T8" 36000 8000 Front 0.000000))
+    (component "TGT" (place "T7" 36000 12000 Front 0.000000))
+    (component "TGT" (place "T6" 36000 16000 Front 0.000000))
+    (component "TGT" (place "T5" 36000 20000 Front 0.000000))
+    (component "TGT" (place "T4" 100000 32000 Front 0.000000))
+    (component "TGT" (place "T3" 100000 40000 Front 0.000000))
+    (component "TGT" (place "T2" 100000 48000 Front 0.000000))
+    (component "TGT" (place "T1" 100000 56000 Front 0.000000))
+  )
+  (library
+    (image "CONN"
+      (pin "PAD" "CA1" 0 0)
+      (pin "PAD" "CA2" 0 -8000)
+      (pin "PAD" "CA3" 0 -16000)
+      (pin "PAD" "CA4" 0 -24000)
+    )
+    (image "TGT"
+      (pin "PAD" "TA" 0 0)
+    )
+    (padstack "PAD"
+      (shape (circle F.Cu 2000))
+      (attach off)
+    )
+  )
+  (network
+    (net "GND" (pins "CONN1"-"CA1" "T1"-"TA" "T2"-"TA"))
+    (net "USB_DP" (pins "CONN1"-"CA2" "T3"-"TA"))
+    (net "USB_DN" (pins "CONN1"-"CA3" "T4"-"TA"))
+    (net "3V3" (pins "CONN1"-"CA4" "T5"-"TA"))
+    (net "DATA0" (pins "T6"-"TA" "T7"-"TA"))
+    (net "DATA1" (pins "T8"-"TA" "T9"-"TA"))
+    (class kicad_default "GND" "USB_DP" "USB_DN" "3V3" "DATA0" "DATA1"
+      (rule (clearance 250)(width 200))
+    )
+  )
+)"#;
+    let dir = std::env::temp_dir().join(format!("epic-f4-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let dsn = dir.join("interview.dsn");
+    std::fs::write(&dsn, INTERVIEW_DSN).expect("write dsn");
+
+    // SHOW: the questions + their answering fragments, exit 0.
+    let show = Command::new(CLI_BIN)
+        .args([
+            "route",
+            "-de",
+            dsn.to_string_lossy().as_ref(),
+            "-do",
+            dir.join("show.ses").to_string_lossy().as_ref(),
+            "--interview=show",
+        ])
+        .output()
+        .expect("the epic-cli bin runs");
+    assert_eq!(show.status.code(), Some(0), "show routes normally");
+    let stderr = String::from_utf8_lossy(&show.stderr);
+    assert!(
+        stderr.contains("interview: net GND (3 pins) has no copper pour"),
+        "the pour question prints:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("--router.tuning.pairs=USB_DP:USB_DN"),
+        "the pair question carries its answer fragment:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("--router.current.nets=3V3:<amps>"),
+        "the current question carries its answer fragment:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("DATA0"),
+        "ordinary nets raise no question:\n{stderr}"
+    );
+
+    // The OFF control: the same run without the flag prints NO
+    // interview lines (byte-identical default), and the F3 ask is
+    // unchanged.
+    let off = Command::new(CLI_BIN)
+        .args([
+            "route",
+            "-de",
+            dsn.to_string_lossy().as_ref(),
+            "-do",
+            dir.join("off.ses").to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("the epic-cli bin runs");
+    assert_eq!(off.status.code(), Some(0));
+    let off_stderr = String::from_utf8_lossy(&off.stderr);
+    assert!(
+        !off_stderr.contains("interview:"),
+        "no flag, no interview output:\n{off_stderr}"
+    );
+    assert!(
+        off_stderr.contains("note: net GND (3 pins) has no copper pour"),
+        "the F3 ask still fires by default:\n{off_stderr}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Readiness-fix M2, bin level: `-do` under a path that cannot be a
