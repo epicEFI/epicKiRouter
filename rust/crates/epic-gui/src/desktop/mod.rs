@@ -139,6 +139,17 @@ struct ShellApp {
     route_done: Option<Result<RouteSummary, String>>,
     /// The finished export's face.
     export_status: Option<Result<(), String>>,
+    /// F4: the pre-route interview's state (the worker's questions
+    /// + the dialog's answers), set when the reply arrives.
+    interview: Option<crate::shell::InterviewState>,
+    /// F4: whether the interview WINDOW is open (the questions stay
+    /// cached after a close — reopening is instant, no worker round
+    /// trip unless the board reloads).
+    show_interview: bool,
+    /// F4: the amps text-field buffers (one per CurrentWidth
+    /// question, parallel to the interview's answers — egui text
+    /// edits own a String; the parse lands in the answers on Route).
+    interview_amps_texts: Vec<String>,
     /// The stages seen (StageEntered order — a Vec keeps first-sight
     /// order for the panel).
     stages: Vec<String>,
@@ -276,6 +287,9 @@ impl ShellApp {
             route_running: false,
             route_done: None,
             export_status: None,
+            interview: None,
+            show_interview: false,
+            interview_amps_texts: Vec::new(),
             stages: Vec::new(),
             protocol_error: None,
             op_count: 0,
@@ -336,6 +350,12 @@ impl ShellApp {
                 Ok(report) => {
                     self.load_error = None;
                     self.load_report = Some(report);
+                    // A fresh board invalidates any cached interview
+                    // (the questions are board-derived — a stale ask
+                    // about the previous board is worse than none).
+                    self.interview = None;
+                    self.show_interview = false;
+                    self.interview_amps_texts.clear();
                 }
                 Err(text) => {
                     self.load_report = None;
@@ -343,6 +363,21 @@ impl ShellApp {
                 }
             },
             WorkerToGui::ExportResult(result) => self.export_status = Some(result),
+            WorkerToGui::InterviewQuestions(questions) => {
+                // The empty face is a status line, never an empty
+                // window (no session, or nothing to ask).
+                if questions.is_empty() {
+                    self.show_interview = false;
+                    self.message_log.push((
+                        "interview".to_string(),
+                        "the board and settings raise no questions".to_string(),
+                    ));
+                } else {
+                    self.interview_amps_texts = vec![String::new(); questions.len()];
+                    self.interview = Some(crate::shell::InterviewState::from_questions(questions));
+                    self.show_interview = true;
+                }
+            }
         }
     }
 
@@ -713,6 +748,18 @@ impl eframe::App for ShellApp {
                             epic_engine::settings::CliLayer::default(),
                         ));
                     }
+                    // F4: the pre-route interview. The questions are
+                    // cached after the first ask, so reopening a
+                    // closed dialog is instant — no worker round trip
+                    // until a new board loads (LoadResult clears the
+                    // cache).
+                    if ui.button("Interview...").clicked() {
+                        if self.interview.is_some() {
+                            self.show_interview = true;
+                        } else {
+                            self.send(GuiToWorker::InterviewRequest);
+                        }
+                    }
                 });
                 ui.add_enabled_ui(self.route_running, |ui| {
                     if ui.button("Cancel").clicked() {
@@ -841,15 +888,135 @@ impl eframe::App for ShellApp {
         }
         // Fit (G1): F or Home re-fits the board — the escape hatch
         // for a lost view (pre-G1 the fit fired only at the first
-        // attach). No text-input disambiguation is needed: this
-        // shell renders no text edit widgets (buttons/checkboxes
-        // only), so an unguarded F can never eat a keystroke meant
-        // for a field. If a text field ever lands here, gate this on
-        // that field's focus.
-        let fit_requested = ctx
-            .input(|input| input.key_pressed(egui::Key::F) || input.key_pressed(egui::Key::Home));
+        // attach). Gated on `text_edit_focused` because the F4
+        // interview dialog landed this shell's first text field (the
+        // amps box): a keystroke meant for that field must never fire
+        // the fit (Home is a text-editing key too — the gate covers
+        // both; the face is precise — a focused BUTTON still allows
+        // the fit, only a TextEdit blocks it).
+        let fit_requested = !ctx.text_edit_focused()
+            && ctx.input(|input| {
+                input.key_pressed(egui::Key::F) || input.key_pressed(egui::Key::Home)
+            });
         if fit_requested {
             self.fit_view();
+        }
+
+        // The F4 pre-route interview dialog — the shell's first
+        // egui::Window. The state is MOVED out of self for the render
+        // (the window closure needs &mut to the answers and the amps
+        // text buffers; the buttons below need &mut self to send) and
+        // restored after — the smoke step's clone-drive-writeback
+        // dance, minus the clone.
+        if self.show_interview {
+            let mut interview = self.interview.take();
+            let mut amps_texts = std::mem::take(&mut self.interview_amps_texts);
+            let mut route_clicked = false;
+            let mut close_clicked = false;
+            if let Some(interview) = interview.as_mut() {
+                egui::Window::new("Pre-route interview")
+                    .open(&mut self.show_interview)
+                    .show(&ctx, |ui| {
+                        use epic_engine::interview::InterviewQuestion;
+                        ui.label(
+                            "The board raises these questions. Answers feed the route \
+                             as ordinary settings (same as the CLI flags); leave a box \
+                             unchecked to change nothing.",
+                        );
+                        ui.separator();
+                        for (index, question) in interview.questions.iter().enumerate() {
+                            match question {
+                                InterviewQuestion::GroundPour {
+                                    net_name,
+                                    pin_count,
+                                } => {
+                                    let mut yes = matches!(
+                                        interview.answers[index],
+                                        crate::shell::InterviewAnswer::YesNo(true)
+                                    );
+                                    if ui
+                                        .checkbox(
+                                            &mut yes,
+                                            format!("Pour ground on {net_name} ({pin_count} pins)"),
+                                        )
+                                        .changed()
+                                    {
+                                        interview.answers[index] =
+                                            crate::shell::InterviewAnswer::YesNo(yes);
+                                    }
+                                }
+                                InterviewQuestion::DiffPair { net_a, net_b } => {
+                                    let mut yes = matches!(
+                                        interview.answers[index],
+                                        crate::shell::InterviewAnswer::YesNo(true)
+                                    );
+                                    if ui
+                                        .checkbox(
+                                            &mut yes,
+                                            format!("Route {net_a}/{net_b} as a matched pair"),
+                                        )
+                                        .changed()
+                                    {
+                                        interview.answers[index] =
+                                            crate::shell::InterviewAnswer::YesNo(yes);
+                                    }
+                                }
+                                InterviewQuestion::CurrentWidth { net_name, .. } => {
+                                    ui.horizontal(|ui| {
+                                        ui.label(format!("{net_name} carries current — amps:"));
+                                        ui.text_edit_singleline(&mut amps_texts[index]);
+                                        ui.weak("(blank keeps the class width)");
+                                    });
+                                }
+                            }
+                        }
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            if ui.button("Route with answers").clicked() {
+                                route_clicked = true;
+                            }
+                            if ui.button("Close").clicked() {
+                                close_clicked = true;
+                            }
+                        });
+                    });
+            }
+            if route_clicked && let Some(interview) = interview.as_mut() {
+                // The amps text buffers fold into the answers HERE (one
+                // parse per Route click — the text field is the single
+                // source of truth while the dialog is open). Blank
+                // keeps the class width; a non-blank non-positive parse
+                // keeps it TOO, with the same note the CLI prints —
+                // never a guess.
+                use epic_engine::interview::InterviewQuestion;
+                for (index, question) in interview.questions.iter().enumerate() {
+                    if let InterviewQuestion::CurrentWidth { net_name, .. } = question {
+                        let trimmed = amps_texts[index].trim();
+                        let parsed = trimmed
+                            .parse::<f64>()
+                            .ok()
+                            .filter(|amps| amps.is_finite() && *amps > 0.0);
+                        if parsed.is_none() && !trimmed.is_empty() {
+                            self.message_log.push((
+                                "interview".to_string(),
+                                format!("skipped {net_name} (not a positive current)"),
+                            ));
+                        }
+                        interview.answers[index] = crate::shell::InterviewAnswer::Amps(parsed);
+                    }
+                }
+                let mut layer = epic_engine::settings::CliLayer::default();
+                interview.apply_to(&mut layer);
+                self.show_interview = false;
+                self.route_running = true;
+                self.route_done = None;
+                self.send(GuiToWorker::StartRoute(layer));
+            }
+            if close_clicked {
+                self.show_interview = false;
+            }
+            self.interview = interview;
+            self.interview_amps_texts = amps_texts;
         }
 
         // Repaint while the engine is active (the drain cadence).

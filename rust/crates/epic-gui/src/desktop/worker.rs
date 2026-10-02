@@ -87,7 +87,20 @@ impl Worker {
             }
             GuiToWorker::ExportSes(path) => self.export(path),
             GuiToWorker::Snapshot => self.attach_snapshot(),
+            GuiToWorker::InterviewRequest => self.interview_questions(),
         }
+    }
+
+    /// The F4 interview face: the session's board-derived questions
+    /// (empty when no session is loaded — the GUI renders the empty
+    /// face as a status line, never an empty dialog). PURE on the
+    /// session (the getter is the load-time model; nothing mutates).
+    fn interview_questions(&self) {
+        let questions = self
+            .session
+            .as_ref()
+            .map_or_else(Vec::new, Session::interview_questions);
+        let _ = self.tx.send(WorkerToGui::InterviewQuestions(questions));
     }
 
     /// The load face: read the file, `Session::load_dsn` (all four
