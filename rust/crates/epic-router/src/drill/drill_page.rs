@@ -231,11 +231,20 @@ impl DrillPage {
                         if let Some(flag) = ctx.stop_flag()
                             && flag.load(std::sync::atomic::Ordering::Relaxed)
                         {
-                            // Java returns null here, and the null
-                            // flows into `drillShapes.length` and
-                            // throws NPE — the exception-to-panic
-                            // discipline mirrors that.
-                            panic!("splitToConvex stop requested (Java would NPE on null)");
+                            // Upstream 8fb76a61b: `if (drillShapes ==
+                            // null) return this.drills;` — splitToConvex
+                            // signals stop with null (checked per divide
+                            // piece, PolylineArea.java:188-190) and the
+                            // guard returns the LinkedList assigned EMPTY
+                            // at the top of the recompute branch.
+                            // `this.netNumber` was set up top too, so the
+                            // memo key stays consistent: same-net re-asks
+                            // answer the empty memo, a net change
+                            // re-derives. Pre-fix Java NPE'd at
+                            // `drillShapes.length`; the port had mirrored
+                            // that as the panic this replaces.
+                            self.drills = Some(Vec::new());
+                            return &[];
                         }
                         // Java `dividePiece.cutout(holePiece)`: the
                         // DIVIDE piece's dynamic type selects the leaf

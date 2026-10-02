@@ -9982,3 +9982,38 @@ description: chronological action log per session, consolidated weekly
 | 08:47 | Edited logs/readiness-2026-10-01/p3-commit-msg.txt | modified law() | ~437 |
 | 08:50 | Edited logs/readiness-2026-10-01/p3-recon.md | modified families() | ~399 |
 | 08:50 | Created logs/readiness-2026-10-01/export-msg-p3.txt | — | ~482 |
+| 09:05 | Edited logs/readiness-2026-10-01/export-msg-p3.txt | 3→5 lines | ~65 |
+| 09:07 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+7 lines) | ~228 |
+| 09:48 | Created rust/harness/fixtures/p4/p4-pins.dsn | — | ~332 |
+| 09:49 | Edited rust/crates/epic-board/src/components.rs | modified base_pin_name() | ~810 |
+| 09:49 | Edited rust/crates/epic-board/src/components.rs | modified base_pin_name_strips_composite_subpad_suffixes() | ~484 |
+| 09:49 | Edited rust/crates/epic-drc/src/clearance.rs | modified exemptions() | ~696 |
+| 09:50 | Edited rust/crates/epic-drc/src/clearance.rs | added 1 import(s) | ~39 |
+| 09:50 | Edited rust/crates/epic-drc/src/clearance.rs | modified is_any_obstacle_area() | ~369 |
+| 09:50 | Edited rust/crates/epic-drc/src/clearance.rs | modified pin_drill_allowed() | ~692 |
+| 09:50 | Edited rust/crates/epic-drc/src/clearance.rs | 4→4 lines | ~70 |
+| 09:50 | Edited rust/crates/epic-board/src/components.rs | 5→6 lines | ~99 |
+| 09:51 | Edited rust/crates/epic-drc/src/test_util.rs | modified craft() | ~426 |
+| 09:51 | Edited rust/crates/epic-drc/src/clearance.rs | modified via_trace_cells_and_same_net_pin_quirk() | ~551 |
+| 09:52 | Edited rust/crates/epic-drc/src/clearance.rs | modified same_component_pin_exemptions() | ~1288 |
+| 09:52 | Edited rust/crates/epic-drc/src/clearance.rs | 4→8 lines | ~82 |
+| 09:53 | Edited rust/crates/epic-board/src/components.rs | modified pin_name() | ~78 |
+| 09:53 | Edited rust/crates/epic-board/src/components.rs | modified pin_name() | ~79 |
+| 09:55 | Edited rust/crates/epic-board/src/rules_surf.rs | expanded (+10 lines) | ~230 |
+| 09:55 | Edited rust/crates/epic-board/src/rules_surf.rs | 5→6 lines | ~51 |
+| 09:55 | Edited rust/crates/epic-board/src/rules_surf.rs | 5→6 lines | ~43 |
+| 09:55 | Edited rust/crates/epic-board/src/rules_surf.rs | modified clearance_tolerance_um_seeds_one_at_both_construction_faces() | ~202 |
+| 09:56 | Edited rust/crates/epic-drc/src/clearance.rs | modified is_any_obstacle_area() | ~295 |
+| 09:56 | Edited rust/crates/epic-drc/src/clearance.rs | golden() → pairs() | ~412 |
+| 09:56 | Edited rust/crates/epic-drc/src/clearance.rs | modified exemptions() | ~150 |
+| 09:56 | Edited rust/harness/src/drc_corpus.rs | modified P4() | ~376 |
+| 09:56 | Edited rust/crates/epic-drc/src/clearance.rs | 2→2 lines | ~27 |
+| 09:56 | Edited rust/crates/epic-drc/src/clearance.rs | expanded (+19 lines) | ~287 |
+| 09:56 | Edited rust/crates/epic-drc/src/clearance.rs | 8→4 lines | ~88 |
+| 10:01 | Created logs/readiness-2026-10-01/run_gates_p4.sh | — | ~590 |
+| 10:01 | Created logs/readiness-2026-10-01/p4-commit-msg.txt | — | ~786 |
+| 10:12 | Edited rust/harness/src/router_compare.rs | 5→8 lines | ~95 |
+| 10:12 | Edited rust/harness/src/router_compare.rs | modified rotation() | ~305 |
+| 10:18 | Edited logs/readiness-2026-10-01/p4-commit-msg.txt | expanded (+7 lines) | ~167 |
+| 10:18 | Created logs/readiness-2026-10-01/export-msg-p4.txt | — | ~259 |
+| 10:35 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+9 lines) | ~192 |

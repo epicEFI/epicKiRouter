@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-02T14:50:38.183Z",
-    "fileCount": 710,
+    "lastScanned": "2026-10-02T16:35:47.484Z",
+    "fileCount": 716,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "1bd85a3043044c1bdc1e13f711688782ddc948bcfff6761ef38c73310fe7714a",
-    "storeUpdatedAt": "2026-10-02T14:50:38.195Z",
-    "rootHash": "d6f5027a11d69a19"
+    "renderedHash": "95513872ad97b50aa82cbe8a37eb9f553a1d2b8262ab150dc793a5c2a158abe5",
+    "storeUpdatedAt": "2026-10-02T16:35:47.494Z",
+    "rootHash": "9d8c028be22456e5"
   },
   "files": {
     ".dockerignore": {
@@ -5497,11 +5497,11 @@
     },
     "rust/harness/src/router_compare.rs": {
       "description": "Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for",
-      "tokens": 51351,
-      "hash": "6a74eb523f0058d6",
-      "size": 193119,
-      "mtimeMs": 1790864624563.706,
-      "updatedAt": "2026-10-01T14:23:44.666Z",
+      "tokens": 51512,
+      "hash": "f940d086a842614f",
+      "size": 193726,
+      "mtimeMs": 1790957570972.6504,
+      "updatedAt": "2026-10-02T16:12:51.081Z",
       "source": "hook",
       "symbols": [
         {
@@ -5711,8 +5711,8 @@
           "name": "failure_name",
           "kind": "fn",
           "startLine": 1075,
-          "endLine": 4476,
-          "tokens": 41906
+          "endLine": 4485,
+          "tokens": 42078
         }
       ]
     },
@@ -7476,11 +7476,11 @@
     },
     "logs/readiness-2026-10-01/TASKS.md": {
       "description": "Campaign task list (living) — 2026-10-01",
-      "tokens": 2997,
-      "hash": "cce9142acf1f4d8e",
-      "size": 12110,
-      "mtimeMs": 1790934930527.3416,
-      "updatedAt": "2026-10-02T09:55:30.637Z",
+      "tokens": 3262,
+      "hash": "387088fdbc1c6cb2",
+      "size": 13184,
+      "mtimeMs": 1790958947377.1711,
+      "updatedAt": "2026-10-02T16:35:47.484Z",
       "source": "hook"
     },
     ".claude/rules/discord-untrusted-input.md": {
@@ -9404,11 +9404,11 @@
     },
     "rust/crates/epic-board/src/rules_surf.rs": {
       "description": "The rules READ surface (M2 Task 3): the clearance matrix, the net",
-      "tokens": 17731,
-      "hash": "0fbfa311213e7476",
-      "size": 66727,
-      "mtimeMs": 1790949102048.6016,
-      "updatedAt": "2026-10-02T13:51:42.146Z",
+      "tokens": 18048,
+      "hash": "b834340d40a8ce69",
+      "size": 67919,
+      "mtimeMs": 1790956552736.2273,
+      "updatedAt": "2026-10-02T15:55:52.839Z",
       "source": "hook",
       "symbols": [
         {
@@ -9513,22 +9513,22 @@
           "name": "BoardRules",
           "kind": "class",
           "startLine": 707,
-          "endLine": 746,
-          "tokens": 522
+          "endLine": 756,
+          "tokens": 701
         },
         {
           "name": "BoardRules",
           "kind": "section",
-          "startLine": 747,
-          "endLine": 913,
-          "tokens": 2217
+          "startLine": 757,
+          "endLine": 924,
+          "tokens": 2231
         },
         {
           "name": "BoardRules",
           "kind": "section",
-          "startLine": 914,
-          "endLine": 1570,
-          "tokens": 8130
+          "startLine": 925,
+          "endLine": 1592,
+          "tokens": 8276
         }
       ]
     },
@@ -9964,110 +9964,131 @@
     },
     "rust/crates/epic-drc/src/clearance.rs": {
       "description": "The clearance-violation walk — the port of Java",
-      "tokens": 12453,
-      "hash": "e15358e67114c651",
-      "size": 46882,
-      "mtimeMs": 1790951366994.7253,
-      "updatedAt": "2026-10-02T14:29:27.090Z",
+      "tokens": 15401,
+      "hash": "5d050e3970fdd9da",
+      "size": 57981,
+      "mtimeMs": 1790956608971.4526,
+      "updatedAt": "2026-10-02T15:56:49.070Z",
       "source": "hook",
       "symbols": [
         {
           "name": "ViolationRow",
           "kind": "class",
-          "startLine": 91,
-          "endLine": 106,
+          "startLine": 120,
+          "endLine": 135,
           "tokens": 170
         },
         {
           "name": "ViolationRec",
           "kind": "class",
-          "startLine": 107,
-          "endLine": 123,
+          "startLine": 136,
+          "endLine": 152,
           "tokens": 194
         },
         {
           "name": "DepthRow",
           "kind": "class",
-          "startLine": 124,
-          "endLine": 140,
+          "startLine": 153,
+          "endLine": 169,
           "tokens": 185
         },
         {
           "name": "calculate_clearance_between_two_shapes",
           "kind": "fn",
-          "startLine": 141,
-          "endLine": 177,
+          "startLine": 170,
+          "endLine": 206,
           "tokens": 264
         },
         {
           "name": "kind_of",
           "kind": "fn",
-          "startLine": 178,
-          "endLine": 187,
+          "startLine": 207,
+          "endLine": 216,
           "tokens": 135
         },
         {
           "name": "is_any_obstacle_area",
           "kind": "fn",
-          "startLine": 188,
-          "endLine": 202,
+          "startLine": 217,
+          "endLine": 231,
           "tokens": 131
         },
         {
           "name": "pin_drill_allowed",
           "kind": "fn",
-          "startLine": 203,
-          "endLine": 212,
-          "tokens": 148
+          "startLine": 232,
+          "endLine": 240,
+          "tokens": 110
+        },
+        {
+          "name": "same_component_pins",
+          "kind": "fn",
+          "startLine": 241,
+          "endLine": 250,
+          "tokens": 100
+        },
+        {
+          "name": "both_netless",
+          "kind": "fn",
+          "startLine": 251,
+          "endLine": 264,
+          "tokens": 176
+        },
+        {
+          "name": "same_logical_pad",
+          "kind": "fn",
+          "startLine": 265,
+          "endLine": 305,
+          "tokens": 428
         },
         {
           "name": "is_obstacle",
           "kind": "fn",
-          "startLine": 213,
-          "endLine": 335,
-          "tokens": 1412
+          "startLine": 306,
+          "endLine": 449,
+          "tokens": 1700
         },
         {
           "name": "outline_contains_tile_shape",
           "kind": "fn",
-          "startLine": 336,
-          "endLine": 356,
+          "startLine": 450,
+          "endLine": 470,
           "tokens": 325
         },
         {
           "name": "tie_pin_exemption",
           "kind": "fn",
-          "startLine": 357,
-          "endLine": 386,
+          "startLine": 471,
+          "endLine": 500,
           "tokens": 300
         },
         {
           "name": "item_clearance_violation_records",
           "kind": "fn",
-          "startLine": 387,
-          "endLine": 586,
+          "startLine": 501,
+          "endLine": 700,
           "tokens": 2304
         },
         {
           "name": "item_clearance_violations",
           "kind": "fn",
-          "startLine": 587,
-          "endLine": 603,
+          "startLine": 701,
+          "endLine": 717,
           "tokens": 190
         },
         {
           "name": "all_clearance_violation_depths",
           "kind": "fn",
-          "startLine": 604,
-          "endLine": 639,
+          "startLine": 718,
+          "endLine": 753,
           "tokens": 457
         },
         {
           "name": "all_clearance_violations",
           "kind": "fn",
-          "startLine": 640,
-          "endLine": 1126,
-          "tokens": 5719
+          "startLine": 754,
+          "endLine": 1357,
+          "tokens": 7488
         }
       ]
     },
@@ -10145,11 +10166,11 @@
     },
     "rust/harness/src/drc_corpus.rs": {
       "description": "DRC parity corpus (M3 Task 2): the two counts every M3 quality gate",
-      "tokens": 11548,
-      "hash": "ce6f116c3b001000",
-      "size": 43430,
-      "mtimeMs": 1790951785522.0603,
-      "updatedAt": "2026-10-02T14:36:25.631Z",
+      "tokens": 11685,
+      "hash": "a5864b49a03a56cd",
+      "size": 43946,
+      "mtimeMs": 1790956586106.361,
+      "updatedAt": "2026-10-02T15:56:26.212Z",
       "source": "hook",
       "symbols": [
         {
@@ -10240,28 +10261,28 @@
           "name": "evaluate_rust",
           "kind": "fn",
           "startLine": 348,
-          "endLine": 427,
-          "tokens": 986
+          "endLine": 436,
+          "tokens": 1133
         },
         {
           "name": "golden",
           "kind": "fn",
-          "startLine": 428,
-          "endLine": 632,
+          "startLine": 437,
+          "endLine": 641,
           "tokens": 2181
         },
         {
           "name": "diff_records",
           "kind": "fn",
-          "startLine": 633,
-          "endLine": 748,
+          "startLine": 642,
+          "endLine": 757,
           "tokens": 1221
         },
         {
           "name": "compare",
           "kind": "fn",
-          "startLine": 749,
-          "endLine": 1061,
+          "startLine": 758,
+          "endLine": 1070,
           "tokens": 3660
         }
       ]
@@ -10365,11 +10386,335 @@
     },
     "logs/readiness-2026-10-01/export-msg-p3.txt": {
       "description": "Declares promotion",
-      "tokens": 452,
-      "hash": "ed20ca9ec3b58247",
-      "size": 1829,
-      "mtimeMs": 1790952638076.1562,
-      "updatedAt": "2026-10-02T14:50:38.182Z",
+      "tokens": 488,
+      "hash": "e08b80016f7118e2",
+      "size": 1976,
+      "mtimeMs": 1790953537128.884,
+      "updatedAt": "2026-10-02T15:05:37.240Z",
+      "source": "hook"
+    },
+    "rust/harness/fixtures/p4/p4-pins.dsn": {
+      "description": "Declares signal",
+      "tokens": 332,
+      "hash": "2443b7f9bf3063a9",
+      "size": 1242,
+      "mtimeMs": 1790956092684.3545,
+      "updatedAt": "2026-10-02T15:48:12.783Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/components.rs": {
+      "description": "Components, the board-side library mirror, and PIN PLACEMENT",
+      "tokens": 24487,
+      "hash": "864c96e7bd1c9f41",
+      "size": 92047,
+      "mtimeMs": 1790956404905.632,
+      "updatedAt": "2026-10-02T15:53:25.009Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "java_to_radians",
+          "kind": "fn",
+          "startLine": 103,
+          "endLine": 117,
+          "tokens": 202
+        },
+        {
+          "name": "BoardPadstack",
+          "kind": "class",
+          "startLine": 118,
+          "endLine": 137,
+          "tokens": 232
+        },
+        {
+          "name": "BoardPadstack",
+          "kind": "section",
+          "startLine": 138,
+          "endLine": 256,
+          "tokens": 1460
+        },
+        {
+          "name": "parse_name_number",
+          "kind": "fn",
+          "startLine": 257,
+          "endLine": 267,
+          "tokens": 103
+        },
+        {
+          "name": "BoardPackagePin",
+          "kind": "class",
+          "startLine": 268,
+          "endLine": 285,
+          "tokens": 215
+        },
+        {
+          "name": "BoardPackage",
+          "kind": "class",
+          "startLine": 286,
+          "endLine": 292,
+          "tokens": 57
+        },
+        {
+          "name": "BoardPackage",
+          "kind": "section",
+          "startLine": 293,
+          "endLine": 306,
+          "tokens": 143
+        },
+        {
+          "name": "BoardLibrary",
+          "kind": "class",
+          "startLine": 307,
+          "endLine": 313,
+          "tokens": 64
+        },
+        {
+          "name": "BoardLibrary",
+          "kind": "section",
+          "startLine": 314,
+          "endLine": 371,
+          "tokens": 662
+        },
+        {
+          "name": "package_pin_from_ir",
+          "kind": "fn",
+          "startLine": 372,
+          "endLine": 389,
+          "tokens": 196
+        },
+        {
+          "name": "Component",
+          "kind": "class",
+          "startLine": 390,
+          "endLine": 409,
+          "tokens": 222
+        },
+        {
+          "name": "Component",
+          "kind": "section",
+          "startLine": 410,
+          "endLine": 564,
+          "tokens": 1675
+        },
+        {
+          "name": "Components",
+          "kind": "class",
+          "startLine": 565,
+          "endLine": 574,
+          "tokens": 116
+        },
+        {
+          "name": "Components",
+          "kind": "section",
+          "startLine": 575,
+          "endLine": 771,
+          "tokens": 2234
+        },
+        {
+          "name": "resolve_package_pin",
+          "kind": "fn",
+          "startLine": 772,
+          "endLine": 799,
+          "tokens": 322
+        },
+        {
+          "name": "pin_relative_location",
+          "kind": "fn",
+          "startLine": 800,
+          "endLine": 840,
+          "tokens": 464
+        },
+        {
+          "name": "pin_first_layer",
+          "kind": "fn",
+          "startLine": 841,
+          "endLine": 854,
+          "tokens": 182
+        },
+        {
+          "name": "pin_last_layer",
+          "kind": "fn",
+          "startLine": 855,
+          "endLine": 867,
+          "tokens": 154
+        },
+        {
+          "name": "padstack_layer",
+          "kind": "fn",
+          "startLine": 868,
+          "endLine": 889,
+          "tokens": 285
+        },
+        {
+          "name": "pin_shape",
+          "kind": "fn",
+          "startLine": 890,
+          "endLine": 962,
+          "tokens": 773
+        },
+        {
+          "name": "pin_center",
+          "kind": "fn",
+          "startLine": 963,
+          "endLine": 1012,
+          "tokens": 652
+        },
+        {
+          "name": "base_pin_name",
+          "kind": "fn",
+          "startLine": 1013,
+          "endLine": 1028,
+          "tokens": 167
+        },
+        {
+          "name": "strip_digits_suffixed",
+          "kind": "fn",
+          "startLine": 1029,
+          "endLine": 1047,
+          "tokens": 214
+        },
+        {
+          "name": "pin_name",
+          "kind": "fn",
+          "startLine": 1048,
+          "endLine": 1065,
+          "tokens": 210
+        },
+        {
+          "name": "PinTraceExitRestriction",
+          "kind": "class",
+          "startLine": 1066,
+          "endLine": 1080,
+          "tokens": 208
+        },
+        {
+          "name": "padstack_trace_exit_directions",
+          "kind": "fn",
+          "startLine": 1081,
+          "endLine": 1121,
+          "tokens": 468
+        },
+        {
+          "name": "pin_trace_exit_restrictions",
+          "kind": "fn",
+          "startLine": 1122,
+          "endLine": 1205,
+          "tokens": 976
+        },
+        {
+          "name": "pin_calc_nearest_exit_restriction_direction",
+          "kind": "fn",
+          "startLine": 1206,
+          "endLine": 1299,
+          "tokens": 1248
+        },
+        {
+          "name": "shape_turn_90_degree",
+          "kind": "fn",
+          "startLine": 1300,
+          "endLine": 1312,
+          "tokens": 169
+        },
+        {
+          "name": "shape_rotate_approx",
+          "kind": "fn",
+          "startLine": 1313,
+          "endLine": 2128,
+          "tokens": 10637
+        }
+      ]
+    },
+    "rust/crates/epic-drc/src/test_util.rs": {
+      "description": "Crafted DSN boards + parse/lookup helpers for the epic-drc pin",
+      "tokens": 2802,
+      "hash": "805834c6ebf2bed4",
+      "size": 10638,
+      "mtimeMs": 1790956275782.1077,
+      "updatedAt": "2026-10-02T15:51:15.888Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "parse",
+          "kind": "fn",
+          "startLine": 140,
+          "endLine": 151,
+          "tokens": 133
+        },
+        {
+          "name": "net_no",
+          "kind": "fn",
+          "startLine": 152,
+          "endLine": 165,
+          "tokens": 121
+        },
+        {
+          "name": "net_list",
+          "kind": "fn",
+          "startLine": 166,
+          "endLine": 170,
+          "tokens": 59
+        },
+        {
+          "name": "ids_of_kind",
+          "kind": "fn",
+          "startLine": 171,
+          "endLine": 180,
+          "tokens": 90
+        },
+        {
+          "name": "corner",
+          "kind": "fn",
+          "startLine": 181,
+          "endLine": 187,
+          "tokens": 96
+        },
+        {
+          "name": "id_at_corner",
+          "kind": "fn",
+          "startLine": 188,
+          "endLine": 205,
+          "tokens": 144
+        },
+        {
+          "name": "ca_is_open",
+          "kind": "fn",
+          "startLine": 206,
+          "endLine": 213,
+          "tokens": 80
+        },
+        {
+          "name": "nets_of",
+          "kind": "fn",
+          "startLine": 214,
+          "endLine": 217,
+          "tokens": 34
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/run_gates_p4.sh": {
+      "description": "P4 (#925b same-component Pin-Pin exemptions) gate battery: fmt + clippy",
+      "tokens": 590,
+      "hash": "088ad4f5b21dc1dd",
+      "size": 2212,
+      "mtimeMs": 1790956876500.5186,
+      "updatedAt": "2026-10-02T16:01:16.594Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/p4-commit-msg.txt": {
+      "description": "Declares as",
+      "tokens": 846,
+      "hash": "af9c532a6296edcf",
+      "size": 3419,
+      "mtimeMs": 1790957913061.6328,
+      "updatedAt": "2026-10-02T16:18:33.190Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-p4.txt": {
+      "description": "",
+      "tokens": 243,
+      "hash": "fe8906fa3bf3fbf2",
+      "size": 975,
+      "mtimeMs": 1790957919472.6526,
+      "updatedAt": "2026-10-02T16:18:39.579Z",
       "source": "hook"
     }
   },

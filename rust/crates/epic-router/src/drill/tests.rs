@@ -1197,6 +1197,56 @@ fn get_drills_memoization_ignores_attach_smd_but_not_net() {
     );
 }
 
+/// P5 (upstream 8fb76a61b): a stop requested mid-split answers the
+/// EMPTY drills, never a panic. Java's `splitToConvex(thread)`
+/// signals stop with null; pre-fix Java NPE'd at
+/// `drillShapes.length`, and the port mirrored the NPE as a panic.
+/// The upstream guard `return this.drills` returns the LinkedList
+/// assigned EMPTY at the TOP of the recompute branch — so the stop
+/// answers empty AND MEMOIZES the empty face (`this.netNumber` was
+/// also set at the top, keeping the memo key consistent). Three
+/// arms, each killing its own mutant: (1) no-panic + empty (the
+/// pre-fix panic), (2) same-net re-ask after the stop is cleared
+/// still empty (a re-walking mutant returns the two real drills —
+/// the walk DOES succeed now), (3) a net change re-derives the real
+/// decomposition (a sticky-stop mutant wedges the page forever).
+#[test]
+fn get_drills_stop_returns_empty_memo_instead_of_panicking() {
+    let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 1);
+    // One non-drillable obstacle -> one 2D cutout -> the divide-piece
+    // loop runs and observes the stop flag before the first cut.
+    world.add_item(30, 0, vec![box_tile(0, 0, 1000, 1000)]);
+    world.complete_result = vec![SynthWorld::room_key(501)];
+    world.add_room(501, 0, box_tile(0, 0, 3000, 3000));
+    world.stop = Some(AtomicBool::new(true));
+
+    let mut array = DrillPageArray::new(&world, 10_000);
+    let page = &mut array.pages[0][0];
+    let drills = page.get_drills(&mut world, 1, false);
+    assert!(
+        drills.is_empty(),
+        "stopped split answers the fresh empty LinkedList (upstream returns this.drills)"
+    );
+
+    // MEMO SURVIVAL: same net, stop since cleared — the empty memo
+    // comes back (a re-walk mutant returns the two real drills here).
+    world.stop = None;
+    let drills = page.get_drills(&mut world, 1, false);
+    assert!(
+        drills.is_empty(),
+        "the stopped face is memoized on (net, empty)"
+    );
+
+    // NET-CHANGE RECOVERY: net 2 re-derives — the page is not wedged.
+    let drills = page.get_drills(&mut world, 2, false);
+    assert_eq!(
+        drills.len(),
+        2,
+        "page minus the corner cutout decomposes into the two boxes pinned by the \
+         skipped-entries test — the stop left no permanent mark"
+    );
+}
+
 /// Java `reset()` (`DrillPage.java:153-164`) KEEPS the drills memo:
 /// it resets each memoized drill's maze-search elements and the
 /// page's own elements; only `invalidate()` (`:170-172`) nulls the
