@@ -166,15 +166,16 @@ pub struct OptimizerSettingsIr {
 
 /// Java `autoroute.ItemRouteResult` — one candidate's before/after
 /// comparison. The `improved` ladder is Java's verbatim
-/// (`ItemRouteResult.java:31-59`), INCLUDING its cross-measure quirk:
-/// `traceLengthBefore` is the WHOLE BOARD's weighted length
-/// (`totalWeightedLength`, `BatchOptimizer.java:633`) while
-/// `traceLengthAfter` is the plain `traces.totalLength` — on an
-/// all-unfixed board the weighted face dominates, so a candidate that
-/// reroutes back to identical geometry still reads "improved" at the
-/// equal-incomplete/equal-via rung. That is Java's behavior, not the
-/// port's invention; the pass-level acceptance gates (strict score
-/// improvement) are what actually discipline the outcome.
+/// (`ItemRouteResult.java:31-59`). HISTORICAL (pre-a39ad0efd) quirk
+/// this module used to pin as Java parity: `traceLengthBefore` was
+/// the WHOLE BOARD's weighted length (`totalWeightedLength`,
+/// `BatchOptimizer.java:633`) while `traceLengthAfter` was the plain
+/// `traces.totalLength` — on an all-unfixed board the weighted face
+/// dominates, so a candidate that rerouted back to identical geometry
+/// still read "improved" at the equal-incomplete/equal-via rung.
+/// Upstream a39ad0efd (#811, P6) fixed the FEED to compare weighted
+/// against weighted with a zero-baseline fallback (see
+/// [`opt_route_item_body`]); the ladder itself is unchanged.
 #[derive(Clone, Debug)]
 pub struct ItemRouteResult {
     /// Java `itemId`.
@@ -1689,6 +1690,16 @@ fn opt_route_item_body(
     // the connections walk stays ON (Java's 3-arg ctor defaults it
     // to true), though only the via/length faces are read.
     let stats_before = BoardStatistics::with_options(worker_manager, worker_board, false, true);
+    // Upstream a39ad0efd (#811): the baseline falls back to the
+    // BEFORE snapshot's weighted length when the running minimum is
+    // 0 (a zero baseline compared every after-length "improved"
+    // before). Computed lazily — the snapshot walk only runs on the
+    // fallback arm; a positive minimum pays nothing.
+    let baseline = if base.min_cumulative_trace_length > 0.0 {
+        base.min_cumulative_trace_length
+    } else {
+        f64::from(total_weighted_trace_length(worker_board))
+    };
     let incomplete_before = calculate_incomplete_count(worker_manager, worker_board);
 
     let is_trace = worker_board
@@ -1808,15 +1819,23 @@ fn opt_route_item_body(
         reroute_pass_no
     };
 
-    // Java `:906-918` — the comparison faces.
+    // Java `:906-918` — the comparison faces. Upstream a39ad0efd
+    // (#811): both metrics are the WEIGHTED face — the baseline
+    // (with its zero fallback) against the post-reroute weighted
+    // length. The pre-fix port compared the weighted baseline
+    // against PLAIN `total_length` (Java's cross-measure quirk,
+    // pinned here as parity until this port): the weighted baseline
+    // dwarfs any plain after-length, so a reroute back to identical
+    // geometry read "improved" at the equal-incomplete/equal-via
+    // rung.
     let stats_after = BoardStatistics::with_options(worker_manager, worker_board, false, true);
     let incomplete_after = calculate_incomplete_count(worker_manager, worker_board);
     let mut result = ItemRouteResult::new(
         i32::try_from(item_id.get()).unwrap_or(i32::MAX),
         stats_before.items.via_count,
         stats_after.items.via_count,
-        base.min_cumulative_trace_length,
-        f64::from(stats_after.traces.total_length),
+        baseline,
+        f64::from(total_weighted_trace_length(worker_board)),
         incomplete_before,
         incomplete_after,
     );
@@ -3057,23 +3076,28 @@ mod tests {
         let mut stage = BatchOptimizerStage::new(&mut manager, &mut board, batch, opt, &mut stop);
         let outcome = stage.run_batch_loop(&mut sink);
 
-        assert_eq!(outcome.passes_completed, 2, "stop after pass 2 (0% < 2.5%)");
+        assert_eq!(outcome.passes_completed, 1, "stop after pass 1 (0% < 2.5%)");
         assert!(!outcome.is_timed_out);
         let info = sink.joined("info");
         assert!(
             info.contains("Optimization stage started on board"),
             "guards passed (no skip row): {info}",
         );
+        // P6 rotation (upstream a39ad0efd, #811): pre-P6 the quirk
+        // adopted pass 1's lateral candidate (item-level improved on
+        // the weighted-vs-PLAIN cross-measure), feeding a pass 2 whose
+        // different reroute scored worse (REGRESSED 942.92) — the
+        // threshold stopped the loop after pass 2. The consistent
+        // weighted metric rejects every candidate of this world at the
+        // item level: pass 1 stays UNCHANGED and the threshold stops
+        // the loop immediately — one pass, one rejection row, no
+        // pass-2 row at all.
         assert_eq!(
             info.matches("candidate rejected: OPTIMIZER_SCORE_NOT_IMPROVED")
                 .count(),
-            2,
-            "both passes rejected on the score gate: {info}",
+            1,
+            "pass 1 alone reaches the score gate: {info}",
         );
-        // Pass 1 (odd -> preferred directions kept): adopted candidate
-        // scored equal -> UNCHANGED. Pass 2 (even -> preferred direction
-        // REMOVED + increased ripup dropped): the different reroute
-        // scored WORSE -> REGRESSED. Both rows are pinned verbatim.
         assert!(
             info.contains(
                 "Optimizer pass #1: optimizer score 951.88 -> 951.88 (UNCHANGED, 0.0000%)"
@@ -3082,15 +3106,9 @@ mod tests {
         );
         assert!(
             info.contains(
-                "Optimizer pass #2: optimizer score 951.88 -> 942.92 (REGRESSED, -0.9414%)"
+                "Stopping optimizer because the improvement in this pass (0.0000%) is below the threshold (2.50%).",
             ),
-            "pass 2 delta row (the with-preferred-directions alternation changes the reroute): {info}",
-        );
-        assert!(
-            info.contains(
-                "Stopping optimizer because the improvement in this pass (-0.9414%) is below the threshold (2.50%).",
-            ),
-            "the threshold-stop row: {info}",
+            "the threshold-stop row (P6: fires on pass 1 now — was pass 2's -0.9414%): {info}",
         );
         assert!(
             !sink.any_contains("Restoring best board achieved"),
@@ -3221,15 +3239,25 @@ mod tests {
 
         assert_eq!(outcome.passes_completed, 1);
         let info = sink.joined("info");
+        // P6 rotation (upstream a39ad0efd, #811): pre-P6 the quirk
+        // accepted this world's lateral candidate at the item level
+        // (weighted baseline vs PLAIN after-length — always
+        // "improved"), so the pass row carried the ADOPTED
+        // candidate-local hash f3fcdc3c…; the consistent weighted
+        // metric rejects it (lateral: equal incomplete, equal vias,
+        // no weighted-length gain) and the pass row carries the
+        // incumbent hash instead — the same face the stage-start row
+        // prints.
         assert!(
             info.contains(
-                "Optimizer pass #1 on board 'f3fcdc3cdd2fb520061c3054c29afe21a9657eabac1bea29309ed1c7eaf846f9'",
+                "Optimizer pass #1 on board '981c19c52694569cdb146e196320738470cc0aac711803c7eb3f1e88d16c2791'",
             ),
-            "the pass-completed row carries the ADOPTED (candidate-local) board hash: {info}",
+            "the pass-completed row carries the INCUMBENT board hash (P6: the lateral \
+             candidate is no longer adopted): {info}",
         );
         assert!(
             info.contains("candidate rejected: OPTIMIZER_SCORE_NOT_IMPROVED"),
-            "the adopted candidate still loses the pass gate at an equal score: {info}",
+            "the equal-score pass board still loses the pass gate: {info}",
         );
         assert_eq!(board_hash(&board), baseline_hash, "incumbent restored");
     }
@@ -3278,6 +3306,100 @@ mod tests {
         let candidate_ids: Vec<u32> = candidates.iter().map(|id| id.get()).collect();
         assert_eq!(candidate_ids, vec![123, 152, 132], "candidate order face");
         (manager, board)
+    }
+
+    /// P6 (upstream a39ad0efd, #811): the candidate comparison feeds
+    /// the ladder WEIGHTED metrics on BOTH sides. `traceLengthBefore`
+    /// is the running weighted minimum, falling back to the worker
+    /// board's own weighted snapshot when that minimum is 0, and
+    /// `traceLengthAfter` is the post-reroute WEIGHTED length — was
+    /// plain `totalLength`, the cross-measure quirk this module had
+    /// pinned as Java parity (an identical-geometry reroute read
+    /// "improved" at the equal-incomplete/equal-via rung because the
+    /// weighted baseline dwarfs any plain after-length). Upstream's
+    /// test idiom, ported to the unit seam: `length_reduced() +
+    /// trace_length()` reconstructs the before-metric from the result
+    /// itself. Two arms: the zero-minimum fallback (before comes from
+    /// the snapshot, not 0.0) and a positive minimum (before IS the
+    /// minimum); both pin the after-metric against the recomputed
+    /// weighted walk (the board is not mutated between the compare
+    /// and the return, so the recomputation is exact).
+    #[test]
+    fn t9_candidate_metrics_are_weighted_both_sides_with_zero_fallback() {
+        let item_id = ItemId::new(123); // the world's own first candidate
+        let make_base = |min_cumulative: f64| CandidateEvalBase {
+            settings: BatchSettings::new(settings_ir(), RouterSettingsScoring::default()),
+            additional_ripup_cost_factor_at_start: 0,
+            trace_ripup_cost_factor: 0.0,
+            use_increased_ripup_costs: false,
+            min_cumulative_trace_length: min_cumulative,
+            max_autoroute_passes: 1,
+            stop_flag: None,
+            stop_external_only: false,
+            deadline_ms: None,
+        };
+        let world = via_costly_routed_world().1;
+        let expected_snapshot = f64::from(total_weighted_trace_length(&world));
+        assert!(
+            expected_snapshot > 0.0,
+            "the world carries unfixed traces (upstream's own precondition)"
+        );
+
+        // Arm 1 — the zero-baseline fallback (upstream
+        // `boardStatisticsBefore.traces.totalWeightedLength`).
+        let mut board = world.clone();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        let result = opt_route_item_body(
+            &make_base(0.0),
+            &mut stop,
+            &mut manager,
+            &mut board,
+            item_id,
+            false,
+            &mut sink,
+        );
+        let after_weighted = f64::from(total_weighted_trace_length(&board));
+        assert_eq!(
+            result.trace_length(),
+            after_weighted,
+            "the after-metric is the WEIGHTED length (pre-P6 this was plain total_length)"
+        );
+        assert_eq!(
+            result.length_reduced() + result.trace_length(),
+            expected_snapshot,
+            "zero minimum -> the before-metric falls back to the worker board's own \
+             weighted snapshot (pre-P6 the baseline 0.0 flowed straight through)"
+        );
+
+        // Arm 2 — a positive minimum wins over the snapshot.
+        let mut board = world.clone();
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        let mut stop = StopFace::default();
+        let mut sink = CaptureDriverSink::default();
+        let result = opt_route_item_body(
+            &make_base(4242.0),
+            &mut stop,
+            &mut manager,
+            &mut board,
+            item_id,
+            false,
+            &mut sink,
+        );
+        let after_weighted = f64::from(total_weighted_trace_length(&board));
+        assert_eq!(
+            result.trace_length(),
+            after_weighted,
+            "the after-metric is weighted on the positive-minimum arm too"
+        );
+        assert_eq!(
+            result.length_reduced() + result.trace_length(),
+            4242.0,
+            "a positive running minimum IS the baseline (the snapshot does not override it)"
+        );
     }
 
     /// The stage over a fresh clone of the routed world, configured
@@ -3682,9 +3804,17 @@ mod tests {
             .filter(|(tag, row)| *tag == "board_updated" && row.contains("phase=optimizer"))
             .map(|(_, row)| row)
             .collect();
-        assert!(
-            optimizer_counters.len() >= 3,
-            "pass-start + winner-applied(when adopted) + pass-end events: {optimizer_counters:?}",
+        // P6 rotation (upstream a39ad0efd, #811): pre-P6 the quirk
+        // adopted this world's lateral candidate and a third
+        // winner-applied row sat between pass-start and pass-end (the
+        // old `>= 3`); the consistent weighted metric rejects every
+        // candidate at the item level, so exactly TWO rows remain —
+        // pass-start and pass-end.
+        assert_eq!(
+            optimizer_counters.len(),
+            2,
+            "pass-start + pass-end (P6: no winner-applied row — no candidate is adopted \
+             in this world anymore): {optimizer_counters:?}",
         );
         assert!(
             optimizer_counters
