@@ -9628,3 +9628,86 @@ description: chronological action log per session, consolidated weekly
 | 14:43 | Edited rust/crates/epic-cli/src/main.rs | modified parse() | ~172 |
 | 14:43 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 3→4 lines | ~42 |
 | 14:53 | Created logs/readiness-2026-10-01/report-fixround2.md | — | ~1807 |
+| 15:22 | Created logs/readiness-2026-10-01/gates-overflow/ANALYSIS.md | — | ~1264 |
+| 15:50 | Created logs/readiness-2026-10-01/upstream-intake.md | — | ~1850 |
+| 15:51 | Created logs/readiness-2026-10-01/TASKS.md | — | ~780 |
+| 15:52 | Edited logs/readiness-2026-10-01/TASKS.md | 2→2 lines | ~40 |
+| 16:13 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+9 lines) | ~247 |
+| 16:38 | Edited CLAUDE.md | "-D warnings" → "for now" | ~121 |
+| 16:45 | Edited logs/readiness-2026-10-01/TASKS.md | modified List() | ~130 |
+| 17:09 | Edited .claude/rules/discord-untrusted-input.md | 3→8 lines | ~149 |
+| 17:09 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+10 lines) | ~251 |
+| 17:11 | Edited .claude/rules/discord-untrusted-input.md | 6→10 lines | ~185 |
+| 17:11 | Edited logs/readiness-2026-10-01/TASKS.md | 1→4 lines | ~72 |
+| 17:11 | Edited logs/readiness-2026-10-01/TASKS.md | modified List() | ~154 |
+| 17:16 | Edited logs/readiness-2026-10-01/TASKS.md | modified STATE() | ~152 |
+| 17:16 | Edited logs/readiness-2026-10-01/TASKS.md | 4→2 lines | ~23 |
+| 17:19 | Edited rust/crates/epic-router/src/engine.rs | modified item_to_string() | ~262 |
+| 17:19 | Edited rust/crates/epic-router/src/engine.rs | modified describe_connection() | ~350 |
+| 17:19 | Edited rust/crates/epic-router/src/engine.rs | 8→8 lines | ~51 |
+| 17:19 | Edited rust/crates/epic-router/src/engine.rs | 3→3 lines | ~53 |
+| 17:19 | Edited rust/crates/epic-router/src/engine.rs | 2→7 lines | ~54 |
+| 17:19 | Edited rust/crates/epic-router/src/engine.rs | modified t11_describe_connection_dead_keys_degrade() | ~543 |
+| 17:20 | Edited rust/crates/epic-router/src/engine.rs | 4→4 lines | ~43 |
+| 17:20 | Edited logs/readiness-2026-10-01/TASKS.md | modified List() | ~188 |
+| 17:20 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+11 lines) | ~252 |
+| 17:27 | Created logs/readiness-2026-10-01/e2e-REVIEW.md | — | ~630 |
+| 17:27 | Edited logs/readiness-2026-10-01/TASKS.md | 2→3 lines | ~45 |
+| 17:27 | Created logs/readiness-2026-10-01/verdict.md | — | ~1187 |
+| 17:34 | Edited rust/harness/src/ci_tripwire.rs | modified ci_workflow_is_retired_and_stays_gone() | ~441 |
+| 17:35 | Created logs/readiness-2026-10-01/run_gates_rerun.sh | — | ~238 |
+| 17:46 | Edited logs/readiness-2026-10-01/run_gates_rerun.sh | 2→2 lines | ~24 |
+| 17:57 | Edited logs/readiness-2026-10-01/TASKS.md | 11→10 lines | ~186 |
+| 17:57 | Edited logs/readiness-2026-10-01/TASKS.md | 10→7 lines | ~131 |
+| 18:00 | Edited logs/readiness-2026-10-01/TASKS.md | 6→5 lines | ~82 |
+| 18:39 | Created logs/readiness-2026-10-01/probe_sigint.new.sh | — | ~1037 |
+| 18:41 | Edited logs/readiness-2026-10-01/verdict.md | modified smoothieboard() | ~315 |
+| 18:41 | Edited logs/readiness-2026-10-01/TASKS.md | probe() → escaping() | ~131 |
+| 18:41 | Edited logs/readiness-2026-10-01/TASKS.md | GP8B() → tail() | ~94 |
+| 19:12 | Edited logs/readiness-2026-10-01/TASKS.md | 3→5 lines | ~90 |
+| 19:31 | Edited logs/readiness-2026-10-01/TASKS.md | 7→7 lines | ~120 |
+| 21:16 | Edited logs/readiness-2026-10-01/TASKS.md | 3→7 lines | ~129 |
+| 23:17 | Edited logs/readiness-2026-10-01/TASKS.md | modified RESULT() | ~143 |
+| 00:03 | Edited rust/crates/epic-router/src/engine.rs | added 1 condition(s) | ~294 |
+| 00:03 | Edited rust/crates/epic-router/src/engine.rs | modified tree_shape() | ~231 |
+| 00:03 | Edited rust/crates/epic-router/src/engine.rs | 4→7 lines | ~122 |
+| 00:04 | Edited rust/crates/epic-router/src/engine.rs | modified t11_dead_item_keys_answer_no_shapes_not_panic() | ~430 |
+| 00:06 | Edited rust/crates/epic-router/src/engine.rs | 7→5 lines | ~85 |
+| 00:06 | Edited rust/crates/epic-router/src/engine.rs | inline fix | ~14 |
+| 00:18 | Created logs/readiness-2026-10-01/export-msg-918cb6648.txt | — | ~191 |
+| 00:26 | Edited rust/crates/epic-dsn/src/scope/structure.rs | modified plane_shape_layers() | ~730 |
+| 00:26 | Edited rust/crates/epic-dsn/src/scope/structure.rs | modified 935() | ~166 |
+| 00:26 | Edited rust/crates/epic-dsn/src/scope/structure.rs | modified planeless_power_layer_promoted_plane_carrying_stays() | ~500 |
+| 00:28 | Edited rust/crates/epic-dsn/src/scope/structure.rs | modified DECISION() | ~217 |
+| 00:46 | Edited rust/harness/src/dsn_corpus.rs | modified RETIRED() | ~470 |
+| 00:46 | Edited rust/harness/src/dsn_corpus.rs | modified divergence_ledger_holds_the_935_promotion_set() | ~707 |
+| 00:47 | Edited rust/harness/src/dsn_corpus.rs | modified past() | ~262 |
+| 00:51 | Edited logs/readiness-2026-10-01/verdict.md | expanded (+14 lines) | ~296 |
+| 00:51 | Edited logs/readiness-2026-10-01/e2e-REVIEW.md | expanded (+13 lines) | ~268 |
+| 00:51 | Edited logs/readiness-2026-10-01/TASKS.md | modified doc() | ~371 |
+| 00:54 | Created logs/readiness-2026-10-01/p1-commit-msg.txt | — | ~410 |
+| 01:06 | Edited rust/crates/epic-cli/src/route.rs | modified no_signal_layer_dsn() | ~452 |
+| 01:16 | Edited rust/harness/fixtures/global-spike/g5_mixedlayer.dsn | 6→7 lines | ~29 |
+| 01:16 | Edited rust/harness/fixtures/global-spike/g5_mixedlayer.dsn | 6→7 lines | ~32 |
+| 01:16 | Edited rust/crates/epic-router/src/global/tests.rs | modified DECISION() | ~248 |
+| 01:16 | Edited rust/crates/epic-router/src/control.rs | 3→3 lines | ~32 |
+| 01:16 | Edited rust/crates/epic-router/src/control.rs | 2→3 lines | ~17 |
+| 01:16 | Edited rust/crates/epic-router/src/control.rs | modified OTHER() | ~351 |
+| 01:17 | Edited rust/crates/epic-router/src/global/tests.rs | modified DECISION() | ~121 |
+| 01:18 | Edited rust/crates/epic-router/src/control.rs | 5→8 lines | ~45 |
+| 01:18 | Edited rust/crates/epic-router/src/control.rs | modified DECISION() | ~199 |
+| 01:18 | Edited rust/crates/epic-router/src/control.rs | 6→9 lines | ~146 |
+| 01:19 | Edited rust/crates/epic-router/src/global/tests.rs | 8→7 lines | ~60 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | 3→4 lines | ~39 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | 3→4 lines | ~35 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | 3→4 lines | ~30 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | 4→5 lines | ~43 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | modified unwrap_or() | ~28 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | modified candidate_corners() | ~68 |
+| 01:21 | Edited rust/crates/epic-router/src/global/pattern.rs | modified is_none() | ~29 |
+| 01:22 | Edited rust/crates/epic-router/src/global/map.rs | modified capacity() | ~159 |
+| 01:23 | Edited rust/crates/epic-router/src/global/map.rs | modified signal_ordinal() | ~304 |
+| 01:24 | Edited rust/crates/epic-router/src/global/tests.rs | modified signal_ordinal_rejects_non_signal_layers() | ~363 |
+| 01:34 | Created logs/readiness-2026-10-01/fixa-commit-msg.txt | — | ~367 |
+| 01:36 | Edited logs/readiness-2026-10-01/p1-commit-msg.txt | modified pins() | ~354 |
+| 01:56 | Created logs/readiness-2026-10-01/export-msg-96492284c.txt | — | ~330 |

@@ -138,6 +138,17 @@ const BOARD_EDGE_CLEARANCE_CLASS_NAME: &str = "board_edge";
 /// 5. µm → board units (`:513-520`):
 ///    `round(um * max(1, resolution))`, `Unit.scale(.., UM, unit)` —
 ///    bm06: 250 µm × resolution 10 = 2500 DBU.
+///
+///    Step 5b, inserted by a917044ff (upstream #935) between 5 and 6:
+///    the DEFAULT-VALUE pin-gap cap — `floor(max(0,
+///    outline.minimumPinGap()))` when that gap is smaller than the
+///    converted default. The default is only a guess and must never
+///    exceed what the input design already has between its pins and
+///    the outline; inert without pins (+∞); never applied to explicit
+///    values. (Java re-runs the whole override after pin insertion
+///    via `edgeClearanceAppliedByOverride`; the port's single
+///    post-load call already has the pins — see the inline note.)
+///
 /// 6. `board_edge` class: `get_no` (`:523-524`), `append_class` when
 ///    absent (`:525`), warn+skip when still absent (`:528-532`).
 /// 7. Full symmetric set for EVERY class ≥ 1 on EVERY layer
@@ -189,6 +200,29 @@ pub fn apply_copper_to_edge_clearance_override(
         DsnUnit::Um,
         board.communication().unit,
     )) as i32;
+    // Java a917044ff `:544-557` (upstream #935): the default value is
+    // only a guess — never demand more edge clearance than the input
+    // design already has between its pins and the outline, or a pin
+    // near the edge blocks every connection. Explicit values are
+    // never capped (the gate is `usesDefaultEdgeClearanceValue`, the
+    // same predicate as the skip-gate). The FRLogger.debug row stays
+    // comment-only (the parity-warnings law). No re-run flag either:
+    // Java's FIRST call fires at parse time (`Structure.java:1268`,
+    // before the pins exist — `minimumPinGap` is +∞, the cap inert)
+    // and re-runs after pin insertion through
+    // `edgeClearanceAppliedByOverride`; this port calls the override
+    // ONCE post-load with the pins present — the capped second-call
+    // state directly.
+    let configured_clearance_board_units = if uses_default_edge_clearance_value {
+        let minimum_pin_gap = board.outline_minimum_pin_gap(outline_id);
+        if minimum_pin_gap < f64::from(configured_clearance_board_units) {
+            minimum_pin_gap.floor().max(0.0) as i32
+        } else {
+            configured_clearance_board_units
+        }
+    } else {
+        configured_clearance_board_units
+    };
     let matrix = &mut board.rules_mut().clearance;
     let mut board_edge_class_no = matrix.get_no(BOARD_EDGE_CLEARANCE_CLASS_NAME);
     if board_edge_class_no < 0 {

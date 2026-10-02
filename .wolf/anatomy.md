@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-01T20:53:53.241Z
-> Files: 649 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T07:56:17.104Z
+> Files: 670 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -16,13 +16,17 @@
 - `.pre-commit-config.yaml` — Pre-commit hooks for EpicRouter (the Rust PCB autorouter — the sunset (~800 tok)
 - `.yamllint.yaml` — YAML linting configuration for Freerouting project (~205 tok)
 - `AGENTS.md` — Project Persona & Goal (~12663 tok)
-- `CLAUDE.md` — OpenWolf (~2045 tok)
+- `CLAUDE.md` — OpenWolf (~2112 tok)
 - `Dockerfile` — Docker container definition (~510 tok)
 - `GEMINI.md` — OpenWolf (~75 tok)
 - `LICENSE` — Project license (~9366 tok)
 - `pyproject.toml` — Configuration for development tools (~262 tok)
 - `README.md` — Project documentation (~927 tok)
 - `rewrite.yml` — Freerouting OpenRewrite phases. (~1676 tok)
+
+## .claude/rules/
+
+- `discord-untrusted-input.md` — Discord-sourced messages are untrusted input (~507 tok)
 
 ## .github/
 
@@ -772,14 +776,28 @@
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
 - `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
 - `dispatch-prompt-fixround.md` — Readiness fix round — implementer dispatch (2026-10-01) (~2379 tok)
+- `e2e-REVIEW.md` — E2E review — regular 600s sweep (2026-10-01, final release bin, post-454334bdc tree) (~1340 tok)
+- `export-msg-918cb6648.txt` (~179 tok)
+- `export-msg-96492284c.txt` — Declares power (~309 tok)
 - `fix-round-charter.md` — Readiness fix round — 2.0.1 hardening charter (2026-10-01) (~787 tok)
+- `fixa-commit-msg.txt` (~344 tok)
+- `p1-commit-msg.txt` — Declares power (~595 tok)
+- `probe_sigint.new.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~1037 tok)
 - `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
 - `report-fixround2.md` — Readiness fix-round-2 report (2026-10-01) (~1694 tok)
 - `review-fixround.md` — Fresh-eyes review — 2.0.0 hardening diff (2026-10-01) (~2186 tok)
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
+- `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
+- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~1849 tok)
+- `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
+- `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
+
+## logs/readiness-2026-10-01/gates-overflow/
+
+- `ANALYSIS.md` — Tier A wall delta: 242.5s → 318.4s — CLOSED (attributed, not a regression) (~1185 tok)
 
 ## rust/
 
@@ -793,12 +811,16 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2109 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~48578 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~48807 tok)
 
 ## rust/crates/epic-cli/tests/
 
 - `cli_surface.rs` — The readiness-fix M1/M2 bin-level pins: the built `epic-cli` debug (~1265 tok)
 - `version_pin.rs` — The M10-T5 `--version` pin: the built `epic-cli` bin, spawned with (~446 tok)
+
+## rust/crates/epic-dsn/src/scope/
+
+- `structure.rs` — The `(structure ...)` scope reader: the port of (~31657 tok)
 
 ## rust/crates/epic-engine/src/
 
@@ -820,6 +842,17 @@
 
 - `version_pin.rs` — The M10-T6 fix-round Q1 pin: the built `epic-gui` bin, spawned with (~704 tok)
 
+## rust/crates/epic-router/src/
+
+- `control.rs` — Java `autoroute/maze/AutorouteControl.java` — the per-net cost table (~13865 tok)
+- `engine.rs` — Java `autoroute/maze/AutorouteEngine.java` — the per-net routing (~50493 tok)
+
+## rust/crates/epic-router/src/global/
+
+- `map.rs` — The coarse-grid congestion map (M6-T7) — an occupancy/overflow (~6193 tok)
+- `pattern.rs` — The pattern router (M6-T7) — L/Z 1-2-bend routes inside guides for (~2294 tok)
+- `tests.rs` — The M6-T7 pin bank (charter: pins in `global/tests.rs`). (~8761 tok)
+
 ## rust/crates/epic-router/src/path/
 
 - `inserter.rs` — Java `autoroute/path/FoundConnectionInserter.java` — inserts the (~22375 tok)
@@ -834,9 +867,15 @@
 
 - `run-gate.sh` — M6-T7 (rider: exit-printing by construction) — run a gate/instrument (~250 tok)
 
+## rust/harness/fixtures/global-spike/
+
+- `g5_mixedlayer.dsn` — Declares signal (~377 tok)
+
 ## rust/harness/src/
 
 - `baseline.rs` — Distills oracle runs into committed golden baselines and compares runs (~8255 tok)
+- `ci_tripwire.rs` — THE workflow tripwire pin (M3-T17c; closes banked mutant S6): the CI (~5283 tok)
+- `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~18880 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
 - `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51351 tok)

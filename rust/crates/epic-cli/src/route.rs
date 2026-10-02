@@ -3224,6 +3224,53 @@ mod tests {
 )
 "#;
 
+    /// The #935 near-pin world — COPPER_WORLD's own boundary plus ONE
+    /// round pad near the north edge: padstack circle diameter 400 um
+    /// (radius 200), the pin center placed at -91253.6 (250 um below
+    /// the -91003.6 north centerline), so the pad's bounding-box top
+    /// corners land at -91053.6 — 50 um / 500 DBU from the edge line,
+    /// inside the outline. Every other corner measures >= 4500 DBU.
+    /// `outline_minimum_pin_gap` is therefore exactly 500 DBU, a
+    /// fifth of the 2500 DBU default — the cap world for the a917044ff
+    /// port.
+    const COPPER_WORLD_NEAR_PIN_DSN: &str = r#"(pcb t3-copper-world-nearpin.dsn
+  (parser
+    (string_quote ')
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (rule (clearance 200))
+    (boundary
+      (path pcb 0  176001 -119004  121001 -119004  121001 -91003.6  176001 -91003.6
+            176001 -119004)
+    )
+  )
+  (placement
+    (component U1
+      (place U1 140000 -91253.6 front 0)
+    )
+  )
+  (library
+    (padstack PAD_NEAR
+      (shape (circle F.Cu 400 0 0))
+    )
+    (image U1
+      (pin PAD_NEAR 1 0 0)
+    )
+  )
+  (network
+    (net N1 (pins U1-1))
+    (class DEF N1
+      (rule (width 200))
+    )
+  )
+)
+"#;
+
     /// Parses a copper world into the post-load board + manager +
     /// outline id (the CLI load walk minus the override: read_board ->
     /// from_ses_board -> reinsert_tree_items -> normalize).
@@ -3459,6 +3506,84 @@ mod tests {
             leaf, -911_636,
             "2499 DBU stores 2500 (odd rounds up) — the boundary holds"
         );
+    }
+
+    /// PIN (the #935 default-value cap, a917044ff): a pin whose pad
+    /// sits 500 DBU from the outline caps the DEFAULT 250 um at
+    /// `floor(500) = 500` — every `board_edge` cell on EVERY layer
+    /// drops from 2500 to 500, both directions — because the default
+    /// is only a guess and must never exceed the gap the input design
+    /// already has. The pinless worlds above keep 2500:
+    /// `outline_minimum_pin_gap` answers +INF there (the no-pin arm),
+    /// so their 2500 literals are the cap-inert contrast.
+    #[test]
+    fn default_edge_clearance_is_capped_by_the_pin_to_outline_gap() {
+        let (mut manager, mut board, outline) = copper_world_from(COPPER_WORLD_NEAR_PIN_DSN);
+        assert_eq!(
+            board.outline_minimum_pin_gap(outline),
+            500.0,
+            "the pad's bbox top corners are 500 DBU south of the north edge"
+        );
+        let merged = MergedSettings::default();
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        let edge = board.rules().clearance.get_no("board_edge");
+        assert!(edge > 0, "the board_edge class was appended");
+        let classes = board.rules().clearance.class_count() as i32;
+        let layers = board.rules().clearance.layer_count() as i32;
+        for layer in 0..layers {
+            for class_no in 1..classes {
+                assert_eq!(
+                    board.rules().clearance.get_value(edge, class_no, layer),
+                    500,
+                    "v(board_edge, {class_no}, {layer}) = floor(min_pin_gap)"
+                );
+                assert_eq!(
+                    board.rules().clearance.get_value(class_no, edge, layer),
+                    500,
+                    "v({class_no}, board_edge, {layer}) = floor(min_pin_gap)"
+                );
+            }
+        }
+        // The cap-inert contrast: the PINLESS world answers +INF and
+        // keeps the full 2500 default (pinned above as -911_636).
+        let (_manager2, mut board2, outline2) = copper_world();
+        assert!(
+            board2.outline_minimum_pin_gap(outline2).is_infinite(),
+            "no pins -> +INF, the cap cannot fire"
+        );
+    }
+
+    /// PIN (the #935 cap gate): the cap rides the SAME predicate as
+    /// the skip-gate — `usesDefaultEdgeClearanceValue` — so an
+    /// EXPLICIT 400 um value applies UNCAPPED (4000 DBU) on the very
+    /// world where the default was capped to 500. The user's explicit
+    /// number is theirs; only the guess gets second-guessed.
+    #[test]
+    fn explicit_edge_clearance_is_not_capped_by_the_pin_to_outline_gap() {
+        let (mut manager, mut board, outline) = copper_world_from(COPPER_WORLD_NEAR_PIN_DSN);
+        assert_eq!(
+            board.outline_minimum_pin_gap(outline),
+            500.0,
+            "same near-pin world"
+        );
+        let merged = MergedSettings {
+            copper_to_edge_clearance_um: Some(400.0),
+            ..MergedSettings::default()
+        };
+        apply_copper_to_edge_clearance_override(&merged, &mut manager, &mut board);
+        let edge = board.rules().clearance.get_no("board_edge");
+        assert!(edge > 0, "the board_edge class was appended");
+        let classes = board.rules().clearance.class_count() as i32;
+        let layers = board.rules().clearance.layer_count() as i32;
+        for layer in 0..layers {
+            for class_no in 1..classes {
+                assert_eq!(
+                    board.rules().clearance.get_value(edge, class_no, layer),
+                    4000,
+                    "explicit 400 um -> 4000 DBU, uncapped"
+                );
+            }
+        }
     }
 
     /// PIN (the skip gate, contrast pair — DNR mode 7): the EXPLICIT
