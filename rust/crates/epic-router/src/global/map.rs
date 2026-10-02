@@ -426,7 +426,23 @@ impl CongestionMap {
         if layer_index < 0 {
             return None;
         }
-        let ordinal = board.layers().get_signal_layer_no(layer_index as usize);
+        let index = layer_index as usize;
+        // The layer itself must BE a signal layer:
+        // `get_signal_layer_no` only counts the signal layers strictly
+        // BEFORE the index, so a non-signal layer would alias the NEXT
+        // signal layer's ordinal — a filled pour on a power layer then
+        // rasterized into that signal row's occupancy and suppressed
+        // the pattern fast path (witnessed by the g5 mixed-layer pin
+        // once its POWER layer carried a synthesized plane; buglog-233).
+        if !board
+            .layers()
+            .layers
+            .get(index)
+            .is_some_and(|layer| layer.is_signal)
+        {
+            return None;
+        }
+        let ordinal = board.layers().get_signal_layer_no(index);
         if ordinal < 0 {
             None
         } else {

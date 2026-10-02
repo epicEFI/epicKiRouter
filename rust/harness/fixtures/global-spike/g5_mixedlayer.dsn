@@ -15,6 +15,7 @@
     )
     (layer POWER
       (type power)
+      (use_net "NPLANE")
       (property
         (index 1)
       )
@@ -62,6 +63,7 @@
     (net "NA"
       (pins "KA"-"PA" "KB"-"PB")
     )
+    (net "NPLANE")
   )
   (class kicad_default "NA"
     (rule

@@ -917,6 +917,53 @@ fn insert_missing_power_planes(
     }
 }
 
+/// The layer of one parsed plane shape (`area_first_layer`'s ALL-shapes
+/// twin — upstream's promotion set walks every shape, not just the
+/// first). A failed shape read contributes nothing (Java would NPE on
+/// the null entry; the port degrades — a null AREA is already
+/// parse-fatal later at `insert_plane`, so skipping here only reorders
+/// which face fires).
+fn plane_shape_layers(area: &AreaScopeResult) -> impl Iterator<Item = &Layer> {
+    area.shapes.iter().filter_map(|shape| match shape.as_ref() {
+        Some(Shape::Rectangle(shape)) => Some(&shape.layer),
+        Some(Shape::Polygon(shape)) => Some(&shape.layer),
+        Some(Shape::Circle(shape)) => Some(&shape.layer),
+        Some(Shape::PolylinePath(shape)) => shape.layer.as_ref(),
+        Some(Shape::PolygonPath(shape)) => Some(&shape.layer),
+        None => None,
+    })
+}
+
+/// Upstream #935 `Structure.promotePowerLayersWithoutPlane`
+/// (a917044ff, called from `createBoard` right after the layer-count
+/// check): a non-signal layer is only meaningfully unroutable when it
+/// really carries a plane — a `(plane ...)` scope covering it OR
+/// `(use_net ...)` names on the layer. KiCad exports layers as
+/// `(type power)` without the matching zone; keeping such a layer
+/// unroutable silently removes it from the router, so every OTHER
+/// non-signal layer is promoted to a signal layer here. Java logs
+/// `FRLogger.warn("Layer '...' is declared as a power layer but no
+/// plane is defined for it. It will be treated as a signal layer.")`
+/// — log-only in Java, and this port keeps `state.warnings` at zero on
+/// healthy parses (the parity-warnings law), so the message lives in
+/// this comment. INTENTIONAL divergence from the e7f9bdf1 parity
+/// point: digest-oracle records for planeless-power boards flip their
+/// `layer_table.signal` field (see the porting protocol).
+fn promote_power_layers_without_plane(plane_list: &[PlaneInfo], layer_info: &mut [Layer]) {
+    let layers_with_plane: std::collections::BTreeSet<i32> = plane_list
+        .iter()
+        .filter_map(|plane| plane.area.as_ref())
+        .flat_map(plane_shape_layers)
+        .map(|layer| layer.no)
+        .collect();
+    for layer in layer_info {
+        if !layer.is_signal && layer.net_names.is_empty() && !layers_with_plane.contains(&layer.no)
+        {
+            layer.is_signal = true;
+        }
+    }
+}
+
 /// Java `Structure.createBoard` (`:1139-1286`). Emits [`CreateBoardIr`]
 /// through the sink and inserts the outline holes as keepouts on every
 /// layer (`:1279-1283`).
@@ -932,6 +979,10 @@ fn create_board(
         // Task 9 assembly classifies this as a parse error.
         return false;
     }
+    // Upstream #935 (`createBoard :1191-1194`): promote planeless
+    // power layers to signal BEFORE the board is built, so the layer
+    // table the sink receives already carries the fix.
+    promote_power_layers_without_plane(&state.plane_list, &mut info.layer_info);
     if info.bounding_shape.is_none() {
         // happens if the boundary shape with layer pcb is missing
         if info.outline_shapes.is_empty() {
@@ -1821,6 +1872,42 @@ mod tests {
         assert_eq!(layers.layers[1].net_names, ["GND", "VDD", "rule"]);
     }
 
+    /// Upstream #935 (`promotePowerLayersWithoutPlane`, a917044ff): a
+    /// planeless `(type power)` layer is promoted to signal — KiCad
+    /// exports power layers without the matching zone, and keeping them
+    /// unroutable silently removes them from the router. A power layer
+    /// that CARRIES a plane stays non-signal. The `(use_net ...)` control
+    /// arm is `use_net_reads_names_in_name_state` (net names keep
+    /// `is_signal == false`). Intentional divergence from the e7f9bdf1
+    /// parity point — the promotion's doc comment carries the
+    /// classification.
+    #[test]
+    fn planeless_power_layer_promoted_plane_carrying_stays() {
+        let (ok, state, board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer In1.Cu (type power))\
+             (layer B.Cu (type power))\
+             (boundary (rect pcb 0 0 10000 8000))\
+             (plane GND (rect In1.Cu 1000 1000 9000 7000))",
+        );
+        assert!(ok);
+        let layers = board.layers.as_ref().expect("layers");
+        assert!(layers.layers[0].is_signal, "F.Cu is signal");
+        assert!(
+            !layers.layers[1].is_signal,
+            "In1.Cu carries the GND plane — stays a power layer"
+        );
+        assert!(
+            layers.layers[2].is_signal,
+            "B.Cu is planeless power — promoted to signal (upstream #935)"
+        );
+        assert!(
+            state.warnings.is_empty(),
+            "the promotion warns via FRLogger in Java (log-only); the \
+             parity-warnings law keeps state.warnings empty on healthy parses"
+        );
+    }
+
     /// `(via a b (spare c))` -> `["a", "b", "c"]` on the parse state
     /// (`Structure.java:979-980`, spares appended).
     #[test]
@@ -2686,11 +2773,17 @@ mod tests {
 
         let (ok, _state, mut power_layer) = run_structure(
             "(layer F.Cu (type signal))\
-             (layer PWR (type power))\
+             (layer PWR (type power) (use_net VDD))\
              (layer B.Cu (type signal))\
              (boundary (rect pcb 0 0 10000 8000))",
         );
         assert!(ok);
+        // PARITY DECISION (upstream #935, a917044ff): this arm originally
+        // used a planeless nameless `(type power)` layer, which the
+        // promotion now turns into a signal layer — the re-pinned form
+        // keeps the layer non-signal the way Java would see ANY power
+        // layer: via `(use_net ...)` names (net names block the
+        // promotion, see `promote_power_layers_without_plane`).
         assert!(
             !power_layer.adjust_plane_autoroute_settings(),
             "non-signal layer"

@@ -699,7 +699,7 @@ mod tests {
   (structure\n\
     (layer F.Cu (type signal))\n\
     (layer B.Cu (type signal))\n\
-    (layer GND (type power))\n\
+    (layer GND (type power) (use_net GNDPLANE))\n\
     (boundary (rect pcb 0 0 120000 60000))\n\
     (rule (width 200) (clearance 200))\n\
     (rule (clearance 400 (type THICK-THICK)))\n\
@@ -759,6 +759,7 @@ mod tests {
     (net THICKNET)\n\
     (net VIANET)\n\
     (net VIANET2)\n\
+    (net GNDPLANE)\n\
     (class W300 MINE\n\
       (clearance_class default)\n\
       (via_rule R1)\n\
@@ -797,6 +798,9 @@ mod tests {
     (class VCONTRAST VIANET2\n\
       (via_rule R5)\n\
       (rule (width 200))\n\
+    )\n\
+    (class PLANECLS GNDPLANE\n\
+      (rule (width 1000))\n\
     )\n\
   )\n\
   (wiring\n\
@@ -885,6 +889,14 @@ mod tests {
     ///   TRUE there, so a mutant dropping the `!is_signal` check
     ///   yields `true` on GND and fails this pin (the settings value
     ///   passing through is the contrast half of the witness).
+    ///
+    /// PARITY DECISION (2026-10-02, upstream #935 / a917044ff): GND
+    /// carries `(use_net GNDPLANE)` (plane synthesized at parse) —
+    /// the bare planeless `(type power)` row this fixture had is
+    /// PROMOTED to signal by the #935 port, which force-enables GND
+    /// and orphans the ctor's `!is_signal` branch. A net-named power
+    /// layer is the post-#935 upstream-HEAD shape of a non-signal
+    /// layer; the force-false arm is pinned on that shape.
     #[test]
     fn layer_active_force_false_both_sources() {
         let (_manager, mut board) = parse(CONTROL_DSN);
@@ -910,8 +922,11 @@ mod tests {
     /// (`AutorouteControl.java:223-225`).
     /// THE NET-0 FALLBACK: `getTraceHalfWidth(netNumber > 0 ?
     /// netNumber : 1, i)` — control(net 0) reads NET 1's widths
-    /// (MINE's `[300, 0, 0]`), NOT OTHER's `[700, …]` and NOT the
-    /// default class's `[100, …]`; its clearance class is the literal
+    /// (GNDPLANE's PLANECLS `[500, 500, 500]` — the plane net holds
+    /// number 1, registered at structure-close create_board BEFORE
+    /// the network scope numbers MINE/OTHER, the Java order), NOT
+    /// MINE's `[300, 0, 0]` and NOT the default class's `[100, …]`;
+    /// its clearance class is the literal
     /// fallback 1 and its via rule is the FIRST rule (R1) — the
     /// `viaRules.firstElement()` arm.
     #[test]
@@ -935,10 +950,17 @@ mod tests {
         );
 
         let zero_control = control_for(&mut board, 0, vec![true, true, true]);
-        assert_eq!(zero_control.trace_half_width, vec![300, 0, 0]);
+        // PARITY DECISION (2026-10-02, #935): net 1 is GNDPLANE now —
+        // the plane net registers at structure-close create_board,
+        // BEFORE the network scope numbers MINE/OTHER (Java order) —
+        // so the net-0 fallback reads GNDPLANE's PLANECLS widths
+        // [500, 500, 500], not MINE's. PLANECLS keeps the arm
+        // mutant-killing: a no-fallback mutant reads the DEFAULT class
+        // [100, 100, 100], a net-2 mutant reads MINE [300, 0, 0].
+        assert_eq!(zero_control.trace_half_width, vec![500, 500, 500]);
         assert_eq!(
             zero_control.compensated_trace_half_width,
-            vec![400, 100, 100]
+            vec![600, 600, 600]
         );
         assert_eq!(zero_control.trace_clearance_class_index, 1);
         assert_eq!(

@@ -2666,20 +2666,37 @@ mod tests {
     // -------------------------------------------------------------------
 
     /// The no-signal-layer variant of the locator fixture: both
-    /// `(type signal)` rows become `(type power)`. The parse succeeds,
-    /// but the driver refuses to start ("Cannot start autorouter: all
-    /// layers are disabled") and the run ends TERMINATED. Binary
-    /// witness on `2b62b09bc`: exit 1 with a 4290-byte SES of the
-    /// unrouted board on disk (Java leaves NO output —
-    /// `Freerouting.java:265-267`).
+    /// `(type signal)` rows become `(type power)` carrying a
+    /// `(use_net N001)` name. The parse succeeds, but the driver
+    /// refuses to start ("Cannot start autorouter: all layers are
+    /// disabled") and the run ends TERMINATED. Binary witness on
+    /// `2b62b09bc`: exit 1 with a 4290-byte SES of the unrouted board
+    /// on disk (Java leaves NO output — `Freerouting.java:265-267`).
+    ///
+    /// PARITY DECISION (2026-10-02, upstream #935 / a917044ff): the
+    /// pre-#935 variant patched in BARE `(type power)` rows — planeless
+    /// and nameless, which `promotePowerLayersWithoutPlane` (the P1
+    /// port) now PROMOTES to signal, so the bare patch routes and
+    /// COMPLETES instead of terminating. The `(use_net ...)` names keep
+    /// both layers genuinely non-signal under upstream HEAD semantics
+    /// (the promotion skips net-named layers, and
+    /// `insertMissingPowerPlanes` synthesizes their full-bbox planes) —
+    /// the post-#935 shape of "a board with nothing to route on".
     fn no_signal_layer_dsn() -> String {
         let fixture_path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../harness/fixtures/locator-spike/t9_locator45.dsn"
         );
         let text = std::fs::read_to_string(fixture_path).expect("fixture present");
-        let patched = text.replace("(type signal)", "(type power)");
-        assert_ne!(patched, text, "both layer types patched");
+        let patched = text.replace(
+            "      (type signal)\n",
+            "      (type power)\n      (use_net N001)\n",
+        );
+        assert_eq!(
+            patched.matches("(use_net N001)").count(),
+            2,
+            "both layer rows patched to named power layers"
+        );
         patched
     }
 
