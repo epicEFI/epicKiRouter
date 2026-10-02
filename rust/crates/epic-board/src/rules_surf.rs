@@ -509,6 +509,21 @@ impl Nets {
             net.net_class = class_index;
         }
     }
+
+    /// F3 (Rust-only, no Java counterpart — the ground-pour ask):
+    /// flip a net's `contains_plane` — the plain field write for
+    /// `Net.containsPlane` (the parse sets it at plane insertion;
+    /// the port writes it pre-route when a pour is synthesized). A
+    /// foreign net number is a quiet no-op (the `set_item_*` family
+    /// convention, and `set_net_class` above).
+    pub fn set_contains_plane(&mut self, net_number: i32, value: bool) {
+        if net_number < 1 || net_number > self.nets.len() as i32 {
+            return;
+        }
+        if let Some(net) = self.nets.get_mut(net_number as usize - 1) {
+            net.contains_plane = value;
+        }
+    }
 }
 
 /// Java `rules.NetClass` — the READ surface of the per-class routing
@@ -1161,6 +1176,44 @@ mod tests {
         nets.set_net_class(-1, 9);
         assert_eq!(nets.get(1).expect("net 1").net_class, 0, "no-ops");
         assert_eq!(nets.get(2).expect("net 2").net_class, 5, "no-ops");
+    }
+
+    /// F3: [`Nets::set_contains_plane`] — the plane-flag write the
+    /// synthesized pour needs (the parse's own `add_plane_net` sets
+    /// the same field): the flag flips for a live number, and a
+    /// foreign number (0, past the end, negative) is a quiet no-op.
+    #[test]
+    fn set_contains_plane_flips_and_ignores_foreign_numbers() {
+        let mut nets = Nets::from_ir(&[
+            NetIr {
+                name: "GND".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+            NetIr {
+                name: "VCC".to_string(),
+                subnet_number: 1,
+                contains_plane: false,
+                net_class: 0,
+            },
+        ]);
+        nets.set_contains_plane(1, true);
+        assert!(
+            nets.get(1).expect("net 1").contains_plane,
+            "the synthesized-pour flag"
+        );
+        assert!(!nets.get(2).expect("net 2").contains_plane, "untouched");
+        nets.set_contains_plane(0, true);
+        nets.set_contains_plane(3, true);
+        nets.set_contains_plane(-1, true);
+        assert!(!nets.get(2).expect("net 2").contains_plane, "no-ops");
+        // And back — the flag is a plain write, not a one-way latch.
+        nets.set_contains_plane(1, false);
+        assert!(
+            !nets.get(1).expect("net 1").contains_plane,
+            "flips both ways"
+        );
     }
 
     /// `AngleRestriction.java`: the ordinal round-trip — `valueOf(i)` /
