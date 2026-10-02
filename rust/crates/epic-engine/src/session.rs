@@ -918,6 +918,26 @@ impl Session {
         crate::pour::pour_candidates(&self.board)
     }
 
+    /// The F4 pre-route INTERVIEW questions, on demand (pure —
+    /// [`crate::interview::interview_questions`]): what the board
+    /// implies, minus everything the load-time settings model
+    /// already answers (defaults + DSN layer + session layer — the
+    /// same model the copper-to-edge override reads; a CLI layer is
+    /// the CALLER's knowledge, not the session's). The GUI's
+    /// pre-route dialog and the CLI's `--interview` render these.
+    /// Deliberately NOT a sink event — the event stream is a
+    /// golden-pinned face.
+    #[must_use]
+    pub fn interview_questions(&self) -> Vec<crate::interview::InterviewQuestion> {
+        let mut load_merged = merge(
+            &MergedSettings::default(),
+            &self.dsn_layer,
+            &CliLayer::default(),
+        );
+        merge_session(&mut load_merged, &self.session_layer);
+        crate::interview::interview_questions(&self.board, &load_merged)
+    }
+
     /// The input file name the SES design face is derived from (the
     /// CLI reads it off the `-de` path; the session gets bytes). MUST
     /// be set before [`Session::export_ses`] for byte parity with the

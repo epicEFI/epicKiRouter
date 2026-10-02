@@ -86,6 +86,10 @@ pub enum GuiToWorker {
     /// Request an attach-step `snapshot_with_overlays` for display
     /// (the worker ships `Attached` + `DepthTotal`).
     Snapshot,
+    /// Request the F4 pre-route interview questions (the worker
+    /// ships [`WorkerToGui::InterviewQuestions`] from the loaded
+    /// session's board — empty when no session is loaded).
+    InterviewRequest,
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +144,100 @@ pub enum WorkerToGui {
     LoadResult(Result<LoadReport, String>),
     /// The export face finished (Err carries the gate/write text).
     ExportResult(Result<(), String>),
+    /// The F4 interview face: the session's board-derived questions
+    /// (empty when no session is loaded, or the board and settings
+    /// raise nothing — the dialog renders the empty face as a
+    /// status line, never an empty window).
+    InterviewQuestions(Vec<epic_engine::interview::InterviewQuestion>),
+}
+
+// ---------------------------------------------------------------------------
+// F4: the pre-route interview (the dialog's whole state, pure)
+// ---------------------------------------------------------------------------
+
+/// One question's answer in the dialog. The defaults mirror the
+/// interactive CLI loop's cost asymmetry: a POUR defaults yes
+/// (Tyler's F3 intent), a PAIR defaults no (a false-positive pair
+/// actively re-constrains routing), a CURRENT needs the number
+/// (blank keeps the class width — never a guess).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InterviewAnswer {
+    /// The checkbox state (pours and pairs).
+    YesNo(bool),
+    /// The amps field (`None` = blank = keep the class width).
+    Amps(Option<f64>),
+}
+
+impl InterviewAnswer {
+    /// The default answer for a question kind.
+    #[must_use]
+    fn default_for(question: &epic_engine::interview::InterviewQuestion) -> Self {
+        use epic_engine::interview::InterviewQuestion;
+        match question {
+            InterviewQuestion::GroundPour { .. } => InterviewAnswer::YesNo(true),
+            InterviewQuestion::DiffPair { .. } => InterviewAnswer::YesNo(false),
+            InterviewQuestion::CurrentWidth { .. } => InterviewAnswer::Amps(None),
+        }
+    }
+}
+
+/// The pre-route dialog's whole state: the questions (from the
+/// worker's session) plus one answer slot each — parallel vectors,
+/// the questions never change while the dialog is open. PURE (no
+/// egui): the rendering reads it, [`InterviewState::apply_to`] folds
+/// it into the CLI layer the Route command sends.
+#[derive(Debug, Clone, Default)]
+pub struct InterviewState {
+    /// The board-derived questions (the worker's
+    /// [`WorkerToGui::InterviewQuestions`] payload).
+    pub questions: Vec<epic_engine::interview::InterviewQuestion>,
+    /// One answer per question (parallel; defaults from the kinds).
+    pub answers: Vec<InterviewAnswer>,
+}
+
+impl InterviewState {
+    /// From the worker's question list, answers defaulted.
+    #[must_use]
+    pub fn from_questions(questions: Vec<epic_engine::interview::InterviewQuestion>) -> Self {
+        let answers = questions.iter().map(InterviewAnswer::default_for).collect();
+        Self { questions, answers }
+    }
+
+    /// Fold the answers into the CLI layer the Route command sends
+    /// (APPENDED to whatever the layer already carries — the same
+    /// merge law the interactive CLI loop applies; a No answer and a
+    /// blank amps field change nothing).
+    pub fn apply_to(&self, layer: &mut epic_engine::settings::CliLayer) {
+        use epic_engine::interview::InterviewQuestion;
+        for (question, answer) in self.questions.iter().zip(&self.answers) {
+            match (question, answer) {
+                (InterviewQuestion::GroundPour { net_name, .. }, InterviewAnswer::YesNo(true)) => {
+                    layer
+                        .pour_nets
+                        .get_or_insert_with(Vec::new)
+                        .push(net_name.clone());
+                }
+                (InterviewQuestion::DiffPair { net_a, net_b }, InterviewAnswer::YesNo(true)) => {
+                    layer
+                        .tuning_pairs
+                        .get_or_insert_with(Vec::new)
+                        .push((net_a.clone(), net_b.clone()));
+                }
+                (
+                    InterviewQuestion::CurrentWidth { net_name, .. },
+                    InterviewAnswer::Amps(Some(amps)),
+                ) => {
+                    layer.current_nets.get_or_insert_with(Vec::new).push(
+                        epic_engine::current_width::CurrentNetRequest {
+                            net: net_name.clone(),
+                            amps: *amps,
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -974,5 +1072,68 @@ mod tests {
             "the 2.0.0 checkpoint: the line must carry `epicrouter 2.0.0`: {}",
             version_line()
         );
+    }
+
+    /// F4: the dialog state defaults — a pour checks YES, a pair
+    /// stays UNchecked, a current starts blank — and `apply_to`
+    /// folds exactly the YES answers and positive amps into the CLI
+    /// layer (a No and a blank change nothing; existing layer values
+    /// are APPENDED to, never replaced).
+    #[test]
+    fn interview_state_defaults_and_apply_to() {
+        use epic_engine::interview::InterviewQuestion;
+        let questions = vec![
+            InterviewQuestion::GroundPour {
+                net_name: "GND".to_string(),
+                pin_count: 3,
+            },
+            InterviewQuestion::DiffPair {
+                net_a: "USB_DP".to_string(),
+                net_b: "USB_DN".to_string(),
+            },
+            InterviewQuestion::CurrentWidth {
+                net_name: "3V3".to_string(),
+                pin_count: 2,
+            },
+        ];
+        let state = InterviewState::from_questions(questions);
+        assert_eq!(
+            state.answers,
+            vec![
+                InterviewAnswer::YesNo(true),
+                InterviewAnswer::YesNo(false),
+                InterviewAnswer::Amps(None),
+            ],
+            "the defaults mirror the CLI loop's cost asymmetry"
+        );
+
+        // Defaults applied: only the pour lands.
+        let mut layer = epic_engine::settings::CliLayer::default();
+        state.apply_to(&mut layer);
+        assert_eq!(layer.pour_nets, Some(vec!["GND".to_string()]));
+        assert_eq!(layer.tuning_pairs, None);
+        assert_eq!(layer.current_nets, None);
+
+        // Answered: pair yes, amps 2.5 — appended alongside the
+        // pour, and a PRE-EXISTING layer entry survives.
+        let mut answered = state.clone();
+        answered.answers[1] = InterviewAnswer::YesNo(true);
+        answered.answers[2] = InterviewAnswer::Amps(Some(2.5));
+        let mut layer = epic_engine::settings::CliLayer {
+            pour_nets: Some(vec!["AGND".to_string()]),
+            ..epic_engine::settings::CliLayer::default()
+        };
+        answered.apply_to(&mut layer);
+        assert_eq!(
+            layer.pour_nets,
+            Some(vec!["AGND".to_string(), "GND".to_string()]),
+            "answers append, never replace"
+        );
+        assert_eq!(
+            layer.tuning_pairs,
+            Some(vec![("USB_DP".to_string(), "USB_DN".to_string())])
+        );
+        let current = layer.current_nets.expect("the answered amps lands");
+        assert_eq!((current[0].net.as_str(), current[0].amps), ("3V3", 2.5));
     }
 }

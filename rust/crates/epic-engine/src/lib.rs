@@ -35,6 +35,7 @@
 pub mod current_width;
 pub mod events;
 pub mod export;
+pub mod interview;
 pub mod pin_assign;
 pub mod pour;
 pub mod session;

@@ -9877,3 +9877,38 @@ description: chronological action log per session, consolidated weekly
 | 06:25 | Edited rust/crates/epic-cli/src/main.rs | 4→6 lines | ~57 |
 | 06:25 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 2→4 lines | ~50 |
 | 06:32 | Created logs/readiness-2026-10-01/f3b-commit-msg.txt | — | ~639 |
+| 06:36 | Created logs/readiness-2026-10-01/export-msg-96688fa3f.txt | — | ~316 |
+| 06:48 | Created rust/crates/epic-engine/src/interview.rs | — | ~4262 |
+| 06:49 | Edited rust/crates/epic-engine/src/interview.rs | added 2 import(s) | ~1585 |
+| 06:50 | Edited rust/crates/epic-engine/src/lib.rs | 2→3 lines | ~15 |
+| 06:50 | Edited rust/crates/epic-engine/src/pour.rs | inline fix | ~18 |
+| 06:50 | Edited rust/crates/epic-engine/src/session.rs | modified pour_candidates() | ~297 |
+| 06:50 | Edited rust/crates/epic-engine/src/interview.rs | 10→8 lines | ~91 |
+| 06:52 | Edited rust/crates/epic-engine/src/interview.rs | modified pair_partner_upper() | ~418 |
+| 06:52 | Edited rust/crates/epic-engine/src/interview.rs | 3→4 lines | ~84 |
+| 06:53 | Edited rust/crates/epic-engine/src/interview.rs | modified pair_partner_upper() | ~394 |
+| 06:53 | Edited rust/crates/epic-engine/src/interview.rs | 9→11 lines | ~134 |
+| 06:58 | Created logs/readiness-2026-10-01/f4a-commit-msg.txt | — | ~593 |
+| 06:59 | Edited rust/crates/epic-engine/src/settings.rs | modified mode() | ~341 |
+| 06:59 | Edited rust/crates/epic-engine/src/settings.rs | expanded (+13 lines) | ~280 |
+| 07:00 | Edited rust/crates/epic-cli/src/route.rs | modified interview_prompt() | ~1277 |
+| 07:00 | Edited rust/crates/epic-cli/src/route.rs | modified F4() | ~202 |
+| 07:02 | Edited rust/crates/epic-engine/src/settings.rs | modified interview_flag_modes_default_and_rejects_garbage() | ~394 |
+| 07:02 | Edited rust/crates/epic-cli/src/main.rs | modified interview() | ~170 |
+| 07:02 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 2→3 lines | ~32 |
+| 07:02 | Edited rust/crates/epic-cli/tests/cli_surface.rs | 8→3 lines | ~55 |
+| 07:03 | Edited rust/crates/epic-cli/tests/cli_surface.rs | modified interview_show_lists_questions_and_off_default_prints_none() | ~1356 |
+| 07:08 | Created logs/readiness-2026-10-01/f4b-commit-msg.txt | — | ~566 |
+| 07:10 | Edited rust/crates/epic-gui/src/shell.rs | 4→8 lines | ~94 |
+| 07:10 | Edited rust/crates/epic-gui/src/shell.rs | modified default_for() | ~1183 |
+| 07:11 | Edited rust/crates/epic-gui/src/shell.rs | modified interview_state_defaults_and_apply_to() | ~723 |
+| 07:11 | Edited rust/crates/epic-gui/src/desktop/worker.rs | modified interview_questions() | ~198 |
+| 07:11 | Edited rust/crates/epic-gui/src/desktop/mod.rs | expanded (+11 lines) | ~188 |
+| 07:11 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified is_empty() | ~235 |
+| 07:12 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified is_empty() | ~84 |
+| 07:16 | Edited rust/crates/epic-gui/src/desktop/mod.rs | 3→6 lines | ~55 |
+| 07:16 | Edited rust/crates/epic-gui/src/desktop/mod.rs | expanded (+6 lines) | ~134 |
+| 07:16 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified clicked() | ~287 |
+| 07:17 | Edited rust/crates/epic-gui/src/desktop/mod.rs | modified Fit() | ~1841 |
+| 07:18 | Edited rust/crates/epic-gui/src/desktop/mod.rs | wants_text_input() → text_edit_focused() | ~191 |
+| 07:27 | Created logs/readiness-2026-10-01/f4c-commit-msg.txt | — | ~788 |
