@@ -507,6 +507,11 @@ pub struct Session {
     /// planning engaged. A session that never routed carries `false`
     /// → `None` (the Option-inertness pin).
     congestion_engaged: bool,
+    /// The last run's F1 pin auto-assignment report (the route head's
+    /// `assign.pins` face — `None` until a route ran with the face
+    /// declared; an empty-refs run stores the empty report). Read via
+    /// [`Session::pin_assign_report`].
+    last_pin_assign_report: Option<crate::pin_assign::PinAssignReport>,
 }
 
 impl Session {
@@ -581,6 +586,7 @@ impl Session {
             input_name: "board.dsn".to_string(),
             statistics: None,
             congestion_engaged: false,
+            last_pin_assign_report: None,
         };
         match outcome {
             ReadOutcome::Loaded => Ok(session),
@@ -634,6 +640,20 @@ impl Session {
         merge_session(&mut merged, &self.session_layer);
         for warning in validate(&mut merged) {
             sink.warn(&warning);
+        }
+        // F1 (Rust-only): the pin auto-assignment face runs at the
+        // route head — AFTER the merge (the list can arrive from any
+        // layer) and BEFORE every geometry/activation pass (the
+        // mutated netlist must be the one the pipeline routes).
+        // Unresolved refs warn through the sink and never fail the
+        // run; the report is kept for the host/manifest.
+        if let Some(refs) = merged.assign_pins.clone() {
+            let report =
+                crate::pin_assign::apply_pin_assignments(&mut self.board, &mut self.manager, &refs);
+            for reason in &report.unresolved {
+                sink.warn(&format!("pin assignment: {reason}"));
+            }
+            self.last_pin_assign_report = Some(report);
         }
         // 3. The unconditional geometry pass (route.rs:938-939).
         apply_board_specific_optimizations(&mut merged, &self.board);
@@ -810,6 +830,13 @@ impl Session {
     #[must_use]
     pub fn warnings(&self) -> &[String] {
         &self.warnings
+    }
+
+    /// The last run's F1 pin auto-assignment report (`None` until a
+    /// route ran with `assign.pins` declared — the field docs).
+    #[must_use]
+    pub fn pin_assign_report(&self) -> Option<&crate::pin_assign::PinAssignReport> {
+        self.last_pin_assign_report.as_ref()
     }
 
     /// The input file name the SES design face is derived from (the

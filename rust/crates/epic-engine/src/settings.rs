@@ -173,6 +173,13 @@ pub struct CliLayer {
     /// recorded in the manifest's advisory `pair_unresolved` rows —
     /// never guessed.
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// `router.assign.pins` — the F1 pin auto-assignment ref list
+    /// (RUST-ONLY, no Java counterpart): comma-separated component
+    /// REF designators (`CONN1,J2`) whose interchangeable pins the
+    /// router may RE-NET for the minimum-crossing assignment
+    /// (epic_engine::pin_assign). `None` (the default) = the face is
+    /// off; the board is routed exactly as parsed.
+    pub assign_pins: Option<Vec<String>>,
     /// `router.gloss.bus` — the M8-T3 GLOSS BUS tri-state (RUST-ONLY,
     /// no Java counterpart; the gloss family block beside the
     /// `router.tuning` family). `None` (the default) = OFF: the gloss
@@ -774,6 +781,10 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
             Some(v) => layer.tuning_pairs = Some(v),
             None => warn_bad_value(layer, property, value),
         },
+        "assign.pins" => match parse_ref_list(value) {
+            Some(v) => layer.assign_pins = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "gloss.bus" => match parse_on_off(value) {
             Some(v) => layer.gloss_bus = Some(v),
             None => warn_bad_value(layer, property, value),
@@ -988,6 +999,21 @@ fn parse_pairs(value: &str) -> Option<Vec<(String, String)>> {
     Some(pairs)
 }
 
+/// The F1 ref-list grammar: comma-separated component REF
+/// designators (each trimmed, non-empty — `CONN1, J2`). `None` =
+/// malformed / empty (the caller warns and continues).
+fn parse_ref_list(value: &str) -> Option<Vec<String>> {
+    let refs: Vec<String> = value
+        .split(',')
+        .map(|entry| entry.trim().to_string())
+        .filter(|entry| !entry.is_empty())
+        .collect();
+    if refs.is_empty() {
+        return None;
+    }
+    Some(refs)
+}
+
 fn parse_on_off(value: &str) -> Option<bool> {
     match value.trim().to_lowercase().as_str() {
         "on" | "true" | "1" => Some(true),
@@ -1172,6 +1198,10 @@ pub struct MergedSettings {
     /// `router.tuning.pairs` — the M7-T6 pair declaration list
     /// (absent = no pairs; CLI-only, the Default seed is `None`).
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// `router.assign.pins` — the F1 pin auto-assignment ref list
+    /// (absent = the face is off; CLI/session-only — no DSN/default
+    /// source writes it, the Default seed is `None`).
+    pub assign_pins: Option<Vec<String>>,
     /// `router.gloss.bus` — the M8-T3 gloss-bus tri-state (absent =
     /// OFF; CLI-only — no DSN/default source writes it, the Default
     /// seed is `None`).
@@ -1300,6 +1330,7 @@ impl Default for MergedSettings {
             tuning: None,
             tuning_meander: None,
             tuning_pairs: None,
+            assign_pins: None,
             gloss_bus: None,
             gloss_flow: None,
             gloss_via_place: None,
@@ -1459,6 +1490,9 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.tuning_pairs.clone() {
         merged.tuning_pairs = Some(v);
+    }
+    if let Some(v) = cli.assign_pins.clone() {
+        merged.assign_pins = Some(v);
     }
     if let Some(v) = cli.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -1855,6 +1889,11 @@ pub struct ResolvedRouteSettings {
     /// list alone). The name→number resolution happens at the board
     /// seam in route.rs where the netlist exists.
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// The F1 pin auto-assignment ref list, resolved VERBATIM (absent
+    /// = the face is off). The ref→component resolution and the
+    /// assignment itself happen at the board seam (route head) where
+    /// the netlist exists — epic_engine::pin_assign.
+    pub assign_pins: Option<Vec<String>>,
     /// The M8-T3 gloss-bus flag (`router.gloss.bus`), resolved to its
     /// effective face: ON only when explicitly `on` (the pass has no
     /// input-driven activation — absent and `off` are both OFF, the
@@ -1985,6 +2024,7 @@ impl ResolvedRouteSettings {
             tuning: merged.tuning,
             tuning_meander: merged.tuning_meander,
             tuning_pairs: merged.tuning_pairs.clone(),
+            assign_pins: merged.assign_pins.clone(),
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
             gloss_via_place: merged.gloss_via_place.unwrap_or(false),
@@ -2265,6 +2305,9 @@ pub struct SessionLayer {
     /// CLI twin: [`CliLayer::tuning_pairs`] — the M7-T6 pair
     /// declaration list (`NET_A:NET_B, ...`).
     pub tuning_pairs: Option<Vec<(String, String)>>,
+    /// CLI twin: [`CliLayer::assign_pins`] — the F1 pin
+    /// auto-assignment ref list (`CONN1, J2, ...`).
+    pub assign_pins: Option<Vec<String>>,
     /// CLI twin: [`CliLayer::gloss_bus`] — the M8-T3 gloss-bus flag.
     pub gloss_bus: Option<bool>,
     /// CLI twin: [`CliLayer::gloss_flow`] — the M8-T4 gloss-flow flag.
@@ -2355,6 +2398,9 @@ pub fn merge_session(merged: &mut MergedSettings, session: &SessionLayer) {
     }
     if let Some(v) = session.tuning_pairs.clone() {
         merged.tuning_pairs = Some(v);
+    }
+    if let Some(v) = session.assign_pins.clone() {
+        merged.assign_pins = Some(v);
     }
     if let Some(v) = session.gloss_bus {
         merged.gloss_bus = Some(v);
@@ -3380,6 +3426,7 @@ mod tests {
                 ("PA".to_string(), "PB".to_string()),
                 ("PC".to_string(), "PD".to_string()),
             ]),
+            assign_pins: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -4656,6 +4703,7 @@ mod tests {
                 ("X".to_string(), "Y".to_string()),
                 ("P".to_string(), "Q".to_string()),
             ]),
+            assign_pins: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
             gloss_via_place: Some(true),
@@ -4713,6 +4761,63 @@ mod tests {
         assert_eq!(merged.fanout_enabled, Some(true));
         assert_eq!(merged.optimizer_max_passes, Some(20));
         assert_eq!(merged.optimizer_max_items, Some(3000));
+    }
+
+    /// F1: the `assign.pins` ref-list grammar — comma-separated REF
+    /// designators, trimmed, empties dropped; a fully-empty value is
+    /// MALFORMED (warns, leaves the slot `None`), matching the
+    /// `parse_pairs` family contract.
+    #[test]
+    fn assign_pins_ref_list_grammar() {
+        let mut layer = CliLayer::default();
+        apply_router_setting(&mut layer, "assign.pins", "CONN1,  J2 ,U3");
+        assert_eq!(
+            layer.assign_pins,
+            Some(vec![
+                "CONN1".to_string(),
+                "J2".to_string(),
+                "U3".to_string()
+            ])
+        );
+        // Malformed (nothing left after trimming/splitting): the slot
+        // stays None and the warning names the property.
+        let mut bad = CliLayer::default();
+        apply_router_setting(&mut bad, "assign.pins", " , ");
+        assert_eq!(bad.assign_pins, None);
+        assert_eq!(
+            bad.warnings.last().map(String::as_str),
+            Some("Failed to apply CLI router setting: assign.pins: For input string: \" , \"")
+        );
+    }
+
+    /// F1: the `assign_pins` plumbing end to end — CLI merge installs
+    /// the list, the session layer wins over the CLI, `None` never
+    /// overwrites, and `resolve` carries the list VERBATIM (the
+    /// ref->component resolution is the route head's job).
+    #[test]
+    fn assign_pins_merge_session_and_resolve() {
+        let cli = CliLayer {
+            assign_pins: Some(vec!["CONN1".to_string()]),
+            ..CliLayer::default()
+        };
+        let mut merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
+        assert_eq!(merged.assign_pins, Some(vec!["CONN1".to_string()]));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(resolved.assign_pins, Some(vec!["CONN1".to_string()]));
+
+        let session = SessionLayer {
+            assign_pins: Some(vec!["CONN1".to_string(), "J2".to_string()]),
+            ..SessionLayer::default()
+        };
+        merge_session(&mut merged, &session);
+        assert_eq!(
+            merged.assign_pins,
+            Some(vec!["CONN1".to_string(), "J2".to_string()])
+        );
+
+        let mut none_layer = MergedSettings::default();
+        merge_session(&mut none_layer, &SessionLayer::default());
+        assert_eq!(none_layer.assign_pins, None, "None never overwrites");
     }
 
     /// PIN SL-3: `None` session fields NEVER overwrite — every CLI
