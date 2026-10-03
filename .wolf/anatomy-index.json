@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-03T18:36:38.098Z",
-    "fileCount": 802,
+    "lastScanned": "2026-10-03T20:44:24.928Z",
+    "fileCount": 806,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "923824825a5e53828e46ee85608812a2772f4294633df21c1ed739a9553cdd45",
-    "storeUpdatedAt": "2026-10-03T18:36:38.107Z",
-    "rootHash": "048f5ebae361f368"
+    "renderedHash": "04b16585a679e3d85cdb439e200ecaf2b2faea6db95058ea6e2f4ea240bce5d5",
+    "storeUpdatedAt": "2026-10-03T20:44:24.939Z",
+    "rootHash": "53f90a989b7ea6f7"
   },
   "files": {
     ".dockerignore": {
@@ -7032,159 +7032,159 @@
     },
     "rust/crates/epic-router/src/pipeline/batch.rs": {
       "description": "Java `autoroute/pipeline/BatchAutorouter.java` +",
-      "tokens": 26150,
-      "hash": "0f66c36a35db330e",
-      "size": 98344,
-      "mtimeMs": 1791009416307.516,
-      "updatedAt": "2026-10-03T06:36:56.423Z",
+      "tokens": 28160,
+      "hash": "76e6312eb455439b",
+      "size": 105902,
+      "mtimeMs": 1791060165162.9155,
+      "updatedAt": "2026-10-03T20:42:45.286Z",
       "source": "hook",
       "symbols": [
         {
           "name": "BatchFanoutListener",
           "kind": "class",
-          "startLine": 106,
-          "endLine": 107,
+          "startLine": 116,
+          "endLine": 117,
           "tokens": 8
         },
         {
           "name": "BatchFanoutListener",
           "kind": "section",
-          "startLine": 108,
-          "endLine": 163,
+          "startLine": 118,
+          "endLine": 173,
           "tokens": 749
         },
         {
           "name": "StopFace",
           "kind": "class",
-          "startLine": 164,
-          "endLine": 188,
+          "startLine": 174,
+          "endLine": 198,
           "tokens": 365
         },
         {
           "name": "StopFace",
           "kind": "section",
-          "startLine": 189,
-          "endLine": 324,
+          "startLine": 199,
+          "endLine": 334,
           "tokens": 1555
         },
         {
           "name": "StopReason",
           "kind": "class",
-          "startLine": 325,
-          "endLine": 352,
+          "startLine": 335,
+          "endLine": 362,
           "tokens": 359
         },
         {
           "name": "final_state_for",
           "kind": "fn",
-          "startLine": 353,
-          "endLine": 369,
+          "startLine": 363,
+          "endLine": 379,
           "tokens": 190
         },
         {
           "name": "BatchLoopError",
           "kind": "class",
-          "startLine": 370,
-          "endLine": 374,
+          "startLine": 380,
+          "endLine": 384,
           "tokens": 36
         },
         {
           "name": "BatchLoopError",
           "kind": "section",
-          "startLine": 375,
-          "endLine": 384,
+          "startLine": 385,
+          "endLine": 394,
           "tokens": 84
         },
         {
           "name": "BatchLoopError",
           "kind": "section",
-          "startLine": 385,
-          "endLine": 393,
+          "startLine": 395,
+          "endLine": 403,
           "tokens": 112
         },
         {
           "name": "BatchSettings",
           "kind": "class",
-          "startLine": 394,
-          "endLine": 555,
+          "startLine": 404,
+          "endLine": 565,
           "tokens": 2651
         },
         {
           "name": "BatchSettings",
           "kind": "section",
-          "startLine": 556,
-          "endLine": 611,
+          "startLine": 566,
+          "endLine": 621,
           "tokens": 648
         },
         {
           "name": "BatchDriver",
           "kind": "class",
-          "startLine": 612,
-          "endLine": 671,
+          "startLine": 622,
+          "endLine": 681,
           "tokens": 904
         },
         {
           "name": "StageBoundaries",
           "kind": "class",
-          "startLine": 672,
-          "endLine": 683,
+          "startLine": 682,
+          "endLine": 693,
           "tokens": 133
         },
         {
           "name": "BatchDriver",
           "kind": "section",
-          "startLine": 684,
-          "endLine": 1252,
-          "tokens": 8052
+          "startLine": 694,
+          "endLine": 1299,
+          "tokens": 8707
         },
         {
           "name": "calculate_incomplete_count",
           "kind": "fn",
-          "startLine": 1253,
-          "endLine": 1273,
+          "startLine": 1300,
+          "endLine": 1320,
           "tokens": 339
         },
         {
           "name": "remove_tails",
           "kind": "fn",
-          "startLine": 1274,
-          "endLine": 1309,
+          "startLine": 1321,
+          "endLine": 1356,
           "tokens": 324
         },
         {
           "name": "format_score",
           "kind": "fn",
-          "startLine": 1310,
-          "endLine": 1327,
+          "startLine": 1357,
+          "endLine": 1374,
           "tokens": 261
         },
         {
           "name": "get_autoroute_items",
           "kind": "fn",
-          "startLine": 1328,
-          "endLine": 1418,
+          "startLine": 1375,
+          "endLine": 1465,
           "tokens": 1057
         },
         {
           "name": "java_simple_name",
           "kind": "fn",
-          "startLine": 1419,
-          "endLine": 1432,
+          "startLine": 1466,
+          "endLine": 1479,
           "tokens": 167
         },
         {
           "name": "build_unrouted_connections_report",
           "kind": "fn",
-          "startLine": 1433,
-          "endLine": 1470,
+          "startLine": 1480,
+          "endLine": 1517,
           "tokens": 396
         },
         {
           "name": "describe_item",
           "kind": "fn",
-          "startLine": 1471,
-          "endLine": 2102,
-          "tokens": 8016
+          "startLine": 1518,
+          "endLine": 2253,
+          "tokens": 9370
         }
       ]
     },
@@ -12169,11 +12169,11 @@
     },
     "rust/crates/epic-board/src/trace_shover.rs": {
       "description": "The shove drivers: can a trace segment be forced into a live board,",
-      "tokens": 26879,
-      "hash": "38293d27a364244b",
-      "size": 100925,
-      "mtimeMs": 1790995952342.3096,
-      "updatedAt": "2026-10-03T02:52:32.458Z",
+      "tokens": 26962,
+      "hash": "fae37e2a5c65c306",
+      "size": 101238,
+      "mtimeMs": 1791056499422.7083,
+      "updatedAt": "2026-10-03T19:41:39.532Z",
       "source": "hook",
       "symbols": [
         {
@@ -12271,42 +12271,42 @@
           "name": "get_trace_tail",
           "kind": "fn",
           "startLine": 1387,
-          "endLine": 1433,
-          "tokens": 438
+          "endLine": 1438,
+          "tokens": 529
         },
         {
           "name": "remove_items",
           "kind": "fn",
-          "startLine": 1434,
-          "endLine": 1462,
-          "tokens": 266
+          "startLine": 1439,
+          "endLine": 1467,
+          "tokens": 264
         },
         {
           "name": "conduction_area_on_signal_layer",
           "kind": "fn",
-          "startLine": 1463,
-          "endLine": 1477,
+          "startLine": 1468,
+          "endLine": 1482,
           "tokens": 152
         },
         {
           "name": "combine_traces",
           "kind": "fn",
-          "startLine": 1478,
-          "endLine": 1511,
+          "startLine": 1483,
+          "endLine": 1516,
           "tokens": 359
         },
         {
           "name": "piece_compensated_half_width",
           "kind": "fn",
-          "startLine": 1512,
-          "endLine": 1522,
+          "startLine": 1517,
+          "endLine": 1527,
           "tokens": 101
         },
         {
           "name": "item_nets",
           "kind": "fn",
-          "startLine": 1523,
-          "endLine": 2651,
+          "startLine": 1528,
+          "endLine": 2656,
           "tokens": 11886
         }
       ]
@@ -13889,6 +13889,65 @@
       "size": 2681,
       "mtimeMs": 1791052597982.9111,
       "updatedAt": "2026-10-03T18:36:38.097Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-router/src/pipeline/last_mile.rs": {
+      "description": "Java `LastMileBlockerRipup` (#933, upstream 339e8bb50 — \"Speed up",
+      "tokens": 3805,
+      "hash": "e2fff215abf47c2f",
+      "size": 14318,
+      "mtimeMs": 1791060164415.913,
+      "updatedAt": "2026-10-03T20:42:44.537Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "rip_blockers",
+          "kind": "fn",
+          "startLine": 40,
+          "endLine": 73,
+          "tokens": 342
+        },
+        {
+          "name": "is_removable_blocker",
+          "kind": "fn",
+          "startLine": 74,
+          "endLine": 94,
+          "tokens": 207
+        },
+        {
+          "name": "corridor",
+          "kind": "fn",
+          "startLine": 95,
+          "endLine": 355,
+          "tokens": 2972
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/pipeline/mod.rs": {
+      "description": "The batch-autoroute pipeline (M3-T12): the multi-pass driver over",
+      "tokens": 192,
+      "hash": "393c3f799b07b9ab",
+      "size": 720,
+      "mtimeMs": 1791056500093.711,
+      "updatedAt": "2026-10-03T19:41:40.198Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_933s2.sh": {
+      "description": "#933 SURVIVOR-2 landing battery (2026-10-03) — the last-mile",
+      "tokens": 1212,
+      "hash": "70276a5560cfa8ab",
+      "size": 4550,
+      "mtimeMs": 1791057481315.601,
+      "updatedAt": "2026-10-03T19:58:01.420Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/933s2-commit-msg.txt": {
+      "description": "",
+      "tokens": 898,
+      "hash": "1e430684f905b085",
+      "size": 3616,
+      "mtimeMs": 1791060264817.2515,
+      "updatedAt": "2026-10-03T20:44:24.928Z",
       "source": "hook"
     }
   },

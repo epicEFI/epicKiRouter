@@ -10457,3 +10457,27 @@ description: chronological action log per session, consolidated weekly
 | 11:50 | Edited rust/crates/epic-router/src/pipeline/fanout.rs | modified fanout_skips_failed_pins_until_component_escapes() | ~732 |
 | 11:52 | Created logs/readiness-2026-10-01/run_gates_933s1.sh | — | ~1189 |
 | 12:36 | Created logs/readiness-2026-10-01/933s1-commit-msg.txt | — | ~712 |
+| 13:41 | Created rust/crates/epic-router/src/pipeline/last_mile.rs | — | ~1199 |
+| 13:41 | Edited rust/crates/epic-board/src/trace_shover.rs | modified remove_items() | ~116 |
+| 13:41 | Edited rust/crates/epic-router/src/pipeline/mod.rs | 3→4 lines | ~17 |
+| 13:41 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+9 lines) | ~156 |
+| 13:41 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 2→4 lines | ~55 |
+| 13:42 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+37 lines) | ~619 |
+| 13:42 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expect() → log() | ~377 |
+| 13:44 | Edited rust/crates/epic-router/src/pipeline/batch.rs | added 1 import(s) | ~58 |
+| 13:44 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | modified contains() | ~21 |
+| 13:48 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | modified corridor() | ~2748 |
+| 13:48 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | 11→11 lines | ~102 |
+| 13:48 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | 2→2 lines | ~30 |
+| 13:50 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | modified rip_witness_foreign_ripped_fixed_and_own_survive() | ~1158 |
+| 13:50 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | 3→5 lines | ~72 |
+| 13:52 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 7→7 lines | ~89 |
+| 13:52 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified t12_format_score_exact() | ~1169 |
+| 13:53 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+6 lines) | ~189 |
+| 13:53 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 8→5 lines | ~70 |
+| 13:53 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 12→17 lines | ~187 |
+| 13:57 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified t12_driver_last_mile_ripup_trigger() | ~1263 |
+| 13:58 | Edited logs/readiness-2026-10-01/run_gates_933s2.sh | 3→4 lines | ~63 |
+| 14:42 | Edited rust/crates/epic-router/src/pipeline/last_mile.rs | inline fix | ~17 |
+| 14:42 | Edited rust/crates/epic-router/src/pipeline/batch.rs | inline fix | ~23 |
+| 14:44 | Created logs/readiness-2026-10-01/933s2-commit-msg.txt | — | ~958 |

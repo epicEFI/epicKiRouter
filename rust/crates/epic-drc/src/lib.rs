@@ -20,6 +20,7 @@
 
 pub mod clearance;
 pub mod incompletes;
+pub mod routing_ledger;
 
 #[cfg(test)]
 pub(crate) mod test_util;

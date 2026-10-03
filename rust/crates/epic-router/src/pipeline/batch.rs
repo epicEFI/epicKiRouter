@@ -1289,18 +1289,19 @@ impl<'a> BatchDriver<'a> {
     }
 }
 
-/// Java `BatchAutorouter.calculateIncompleteCount` (`:556-564`) — the
-/// `DesignRulesChecker.calculateAllIncompletes` +
-/// `getIncompleteCount()` pair: the SUM of every net's Kruskal airline
-/// count (`NetIncompletes.count()`), NOT `maxConnections` — the two
-/// coincide only while nothing is routed (`all_incompletes`' first
-/// tuple slot is the endpoint lower bound; never use it as the
-/// incomplete total). Free so the pass runner shares it with the
-/// driver.
+/// Java `BatchAutorouter.calculateIncompleteCount` (`:556-564`
+/// pre-#933; post-339e8bb50 `:586-592` reads the board's
+/// `NetRoutingLedger`): the SUM of every net's Kruskal airline count
+/// (`NetIncompletes.count()`), NOT `maxConnections` — the two
+/// coincide only while nothing is routed (the endpoint lower bound
+/// is never the incomplete total). #933 survivor 3 swapped the
+/// per-read full scan for the incremental ledger
+/// (`epic_drc::routing_ledger::incomplete_count` — build once,
+/// recount dirty nets only; count-identical to the scan by
+/// construction, see that module's equivalence argument). Free so
+/// the pass runner shares it with the driver.
 pub fn calculate_incomplete_count(manager: &mut SearchTreeManager, board: &mut Board) -> i32 {
-    let (_max_connections, rows) = all_incompletes(manager, board);
-    let total: usize = rows.iter().map(|row| row.incomplete_count).sum();
-    i32::try_from(total).unwrap_or(i32::MAX)
+    epic_drc::routing_ledger::incomplete_count(manager, board)
 }
 
 /// Java `BatchAutorouter.TIME_LIMIT_TO_PREVENT_ENDLESS_LOOP` (`:43`,
@@ -1568,6 +1569,28 @@ mod tests {
             .join("../../harness/fixtures/locator-spike/t9_locator45.dsn");
         let text = std::fs::read_to_string(&path).expect("fixture present");
         parse(&text)
+    }
+
+    /// #933 survivor 3: the count face reads the LEDGER, not a fresh
+    /// scan — the first read builds (one full walk), re-reads are
+    /// pure cache hits. A reverted swap (back to `all_incompletes`
+    /// per read) leaves `builds` at 0 and fails both arms.
+    #[test]
+    fn incomplete_count_reads_the_ledger() {
+        let (mut manager, mut board) = parse_fixture();
+        assert_eq!(calculate_incomplete_count(&mut manager, &mut board), 2);
+        assert_eq!(
+            board.routing_ledger().builds,
+            1,
+            "the read built the ledger"
+        );
+        assert_eq!(board.routing_ledger().net_recounts, 0);
+        assert_eq!(calculate_incomplete_count(&mut manager, &mut board), 2);
+        assert_eq!(
+            board.routing_ledger().builds,
+            1,
+            "the re-read was a cache hit, not a rebuild"
+        );
     }
 
     /// The jar world's cost table (the t11 capture row `ctrl_costs`).
