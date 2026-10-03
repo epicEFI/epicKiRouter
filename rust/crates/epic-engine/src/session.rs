@@ -672,6 +672,16 @@ impl Session {
         for warning in validate(&mut merged) {
             sink.warn(&warning);
         }
+        // M11-T2 (#931): the board bounding box grows to cover every
+        // item at the route head (Java
+        // `HeadlessBoardManager.startRouting:835` —
+        // `expandBoundingBoxToIncludeAllItems()` immediately before
+        // `reduceNetsOfRouteItems()`): edge-connector pins placed
+        // outside the outline leave the parse box too small, and the
+        // outline's outside keepout (built over the bbox) then cuts
+        // into their pads. Idempotent on re-route heads (a second
+        // walk changes nothing).
+        self.board.expand_bounding_box_to_include_all_items();
         // P3 (#925a, upstream 14b28b6ff): the DRC clearance-tolerance
         // override, re-applied from the FULLY-merged view (the load
         // path already applied Default+DSN+SESSION before the seed —

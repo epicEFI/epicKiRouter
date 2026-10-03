@@ -741,6 +741,122 @@ impl Board {
         self.bounding_box
     }
 
+    /// Java `Item.boundingBox()` per kind (M11-T2, upstream #931) —
+    /// the RAW, uncompensated box (never the compensated tree
+    /// shapes): a Trace is `lines.boundingBox().offset(halfWidth)`
+    /// (`PolylineTraceGeometry.java:39-41`), a Pin/Via is the union
+    /// of the pad shapes' boxes over the layer span
+    /// (`DrillItem.java:191-200`; the `None` accumulator is Java's
+    /// `IntBox.EMPTY` fold identity — a slot with no shape is
+    /// skipped, an all-empty fold answers `None` and the expand walk
+    /// skips it like Java's `isEmpty()`), an ObstacleArea /
+    /// ConductionArea / ComponentOutline answers its area's BORDER
+    /// box only (`ObstacleArea.java:170-172` — the T49-transformed
+    /// [`Self::obstacle_area`]/[`Self::component_outline_area`] faces
+    /// for the two relative kinds; the conduction area is stored in
+    /// board coordinates at parse), and the BoardOutline is the union
+    /// of its shapes' boxes (`BoardOutline.java:173-179`).
+    ///
+    /// `&mut self` for the memoized drill layer span (the same
+    /// constraint as [`Self::item_first_layer`]).
+    pub fn item_bounding_box(&mut self, id: ItemId) -> Option<IntBox> {
+        let kind = self.get(id).map(|entry| entry.board_item_type())?;
+        match kind {
+            BoardItemType::Trace => {
+                let lines = self.trace_polyline(id)?.clone();
+                let half_width = self.trace_half_width(id)?;
+                Some(lines.bounding_box_total().offset(f64::from(half_width)))
+            }
+            BoardItemType::Pin | BoardItemType::Via => {
+                let first = self.item_first_layer(id)?;
+                let last = self.item_last_layer(id)?;
+                let mut bounds: Option<IntBox> = None;
+                for index in 0..=(last - first) {
+                    let shape = if kind == BoardItemType::Pin {
+                        self.pin_shape(id, index)
+                    } else {
+                        self.via_shape(id, index)
+                    };
+                    if let Some(shape_box) = shape.map(|shape| shape.bounding_box()) {
+                        bounds = Some(match bounds {
+                            Some(acc) => acc.union(&shape_box),
+                            None => shape_box,
+                        });
+                    }
+                }
+                bounds
+            }
+            BoardItemType::ObstacleArea
+            | BoardItemType::ViaObstacleArea
+            | BoardItemType::ComponentObstacleArea
+            | BoardItemType::ComponentOutline => {
+                let area = if kind == BoardItemType::ComponentOutline {
+                    self.component_outline_area(id)?
+                } else {
+                    self.obstacle_area(id)?
+                };
+                Some(area.border.bounding_box())
+            }
+            BoardItemType::ConductionArea => {
+                let area = self.get(id).map(|entry| match &entry.data {
+                    ItemData::ConductionArea { area, .. } => area.clone(),
+                    _ => unreachable!("the kind was read off the same entry"),
+                })?;
+                Some(area.border.bounding_box())
+            }
+            BoardItemType::BoardOutline => {
+                let shapes = self.outline_shapes(id)?;
+                let mut bounds: Option<IntBox> = None;
+                for shape_box in shapes.iter().map(|shape| shape.bounding_box()) {
+                    bounds = Some(match bounds {
+                        Some(acc) => acc.union(&shape_box),
+                        None => shape_box,
+                    });
+                }
+                bounds
+            }
+            // No Java item class maps to OTHER and no parse-time item
+            // carries it; Java's abstract boundingBox has no null arm.
+            BoardItemType::Other => None,
+        }
+    }
+
+    /// Java `BasicBoard.expandBoundingBoxToIncludeAllItems()`
+    /// (`BasicBoard.java:592-609`, M11-T2 upstream #931): grows the
+    /// board bounding box to cover EVERY item — pins placed outside
+    /// the outline (edge connectors) left the parse box too small, so
+    /// the outline's outside keepout (built over the bbox) cut into
+    /// their pads. The walk unions each non-empty item box the bounds
+    /// do not already contain; on change the box gains the 1000
+    /// margin (`offset(1000)`) and the outline's edge-pin cache is
+    /// invalidated (Java `outline.invalidateEdgePinNets()`; the eager
+    /// [`Self::recompute_edge_pin_nets`] is the `&self`-reader
+    /// equivalent). A no-op walk leaves the box (and the cache)
+    /// untouched. Java reads the field directly and would NPE on a
+    /// null bbox; the port early-returns on `None` (never set after a
+    /// successful parse — see [`Self::bounding_box`]).
+    pub fn expand_bounding_box_to_include_all_items(&mut self) {
+        let Some(mut bounds) = self.bounding_box else {
+            return;
+        };
+        let mut changed = false;
+        let ids: Vec<ItemId> = self.iter_ascending().map(|entry| entry.id).collect();
+        for id in ids {
+            let Some(item_box) = self.item_bounding_box(id) else {
+                continue;
+            };
+            if item_box.is_empty() || item_box.is_contained_in(&bounds) {
+                continue;
+            }
+            bounds = bounds.union(&item_box);
+            changed = true;
+        }
+        if changed {
+            self.bounding_box = Some(bounds.offset(1000.0));
+            self.recompute_edge_pin_nets();
+        }
+    }
+
     /// Java `DrillItem.firstLayer()` (`DrillItem.java:162-172`) for a
     /// pin or via item — [`crate::items::drill::via_first_layer`] for
     /// vias, [`crate::components::pin_first_layer`] for pins —
