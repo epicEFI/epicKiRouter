@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T21:25:32.710Z
-> Files: 734 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T01:18:43.787Z
+> Files: 745 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -788,10 +788,12 @@
 - `export-msg-ca0e785cc.txt` (~429 tok)
 - `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
 - `export-msg-f4.txt` — Declares width (~494 tok)
+- `export-msg-m11t9i.txt` (~317 tok)
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
 - `export-msg-p4.txt` (~243 tok)
 - `export-msg-p5.txt` (~115 tok)
 - `export-msg-p6.txt` (~191 tok)
+- `export-msg-seamfix.txt` (~286 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
 - `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
@@ -805,7 +807,7 @@
 - `M11-931.md` — M11 — the #931 Tier-B completion campaign (upstream `aa909a345`) (~5292 tok)
 - `m11cd-commit-msg.txt` (~1009 tok)
 - `m11t1-commit-msg.txt` (~615 tok)
-- `m11t9i-commit-msg.txt` (~431 tok)
+- `m11t9i-commit-msg.txt` (~2236 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
 - `p2-commit-msg.txt` (~988 tok)
 - `p3-commit-msg.txt` — Declares cell (~1737 tok)
@@ -823,12 +825,16 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
-- `run_gates_m11t9i.sh` — M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown (~715 tok)
+- `run_gates_m11t9i.sh` — M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown (~731 tok)
+- `run_gates_m11t9i2.sh` — M11-T9i battery, ROUND 2 — on the COMBINED tree (T9i working set + (~714 tok)
 - `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
 - `run_gates_p4.sh` — P4 (#925b same-component Pin-Pin exemptions) gate battery: fmt + clippy (~590 tok)
 - `run_gates_p5.sh` — P5 (upstream 8fb76a61b convex-split stop guard) gate battery: fmt + (~586 tok)
 - `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
+- `run_gates_seamfix.sh` — M11 seam-fix commit 1 (the pass-count reading seam: manifest (~1439 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
+- `run_golden_m11t9i2.sh` — M11-T9i golden-verify sweep — the face BOTH T9i batteries missed (the (~719 tok)
+- `seamfix-commit-msg.txt` (~938 tok)
 - `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3857 tok)
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
@@ -868,7 +874,7 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2327 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56475 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56133 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -896,12 +902,18 @@
 - `lib.rs` — The headless application core: jobs, the layered settings (~754 tok)
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
 - `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15793 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15790 tok)
 - `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~63469 tok)
 
 ## rust/crates/epic-engine/tests/
 
+- `events_stream.rs` — M9-T3: the event-stream pins (the dispatch's charter for (~5610 tok)
 - `overlays.rs` — M9-T5: the overlay DATA faces' engine pins: (~5156 tok)
+- `session_workflow.rs` — M9-T2: the `Session` workflow pins (the dispatch's charter for (~6336 tok)
+
+## rust/crates/epic-engine/tests/goldens/
+
+- `bm07.event-kinds.txt` — bm07 (scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm07.dsn) through (~4123 tok)
 
 ## rust/crates/epic-geometry/src/
 
@@ -926,9 +938,13 @@
 - `render_goldens.rs` — M9-T4: the render-golden pins (the dispatch charter for (~16171 tok)
 - `version_pin.rs` — The M10-T6 fix-round Q1 pin: the built `epic-gui` bin, spawned with (~704 tok)
 
+## rust/crates/epic-router/
+
+- `SEAM.md` — SEAM — the Java surface beyond `autoroute/` (M3-T3 audit) (~93053 tok)
+
 ## rust/crates/epic-router/src/
 
-- `control.rs` — Java `autoroute/maze/AutorouteControl.java` — the per-net cost table (~13865 tok)
+- `control.rs` — Java `autoroute/maze/AutorouteControl.java` — the per-net cost table (~13957 tok)
 - `engine.rs` — Java `autoroute/maze/AutorouteEngine.java` — the per-net routing (~50493 tok)
 
 ## rust/crates/epic-router/src/drill/
@@ -944,12 +960,13 @@
 
 ## rust/crates/epic-router/src/path/
 
-- `inserter.rs` — Java `autoroute/path/FoundConnectionInserter.java` — inserts the (~22375 tok)
+- `inserter.rs` — Java `autoroute/path/FoundConnectionInserter.java` — inserts the (~23784 tok)
 
 ## rust/crates/epic-router/src/pipeline/
 
-- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~26655 tok)
-- `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~13513 tok)
+- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~25938 tok)
+- `event_sink.rs` — The driver's log-only output seam: Java scatters `FRLogger.info` / (~2456 tok)
+- `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~14569 tok)
 - `java_random.rs` — `java.util.Random` + `java.util.Collections.shuffle` — the EXACT (~1533 tok)
 - `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~46048 tok)
 - `pass_runner.rs` — Java `autoroute/pipeline/AutoroutePassRunner.java` — the (~27683 tok)
@@ -978,7 +995,7 @@
 - `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~18880 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
-- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51512 tok)
+- `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51613 tok)
 
 ## rust/scripts/
 
