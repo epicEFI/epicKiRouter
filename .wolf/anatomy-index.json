@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-03T16:15:09.954Z",
-    "fileCount": 798,
+    "lastScanned": "2026-10-03T18:36:38.098Z",
+    "fileCount": 802,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "f611efb5cd092528c63195c282ae5836c38dc4bd4ba081680cdd0a552911e563",
-    "storeUpdatedAt": "2026-10-03T16:15:09.964Z",
-    "rootHash": "4eb2898eb1a453fd"
+    "renderedHash": "923824825a5e53828e46ee85608812a2772f4294633df21c1ed739a9553cdd45",
+    "storeUpdatedAt": "2026-10-03T18:36:38.107Z",
+    "rootHash": "048f5ebae361f368"
   },
   "files": {
     ".dockerignore": {
@@ -13641,6 +13641,254 @@
       "size": 1760,
       "mtimeMs": 1791041082808.0505,
       "updatedAt": "2026-10-03T15:24:42.908Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/933-survivors-intake.md": {
+      "description": "#933 survivors — upstream intake + port map (2026-10-03)",
+      "tokens": 1747,
+      "hash": "a1f5252a1570b461",
+      "size": 7058,
+      "mtimeMs": 1791048215329.066,
+      "updatedAt": "2026-10-03T17:23:35.440Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-router/src/pipeline/fanout.rs": {
+      "description": "Java `autoroute/pipeline/BatchFanout.java` — the fanout stage: the",
+      "tokens": 30123,
+      "hash": "2babb248489086d7",
+      "size": 113238,
+      "mtimeMs": 1791049813838.9304,
+      "updatedAt": "2026-10-03T17:50:13.945Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "EscapeStatistics",
+          "kind": "class",
+          "startLine": 115,
+          "endLine": 120,
+          "tokens": 35
+        },
+        {
+          "name": "EscapeStatistics",
+          "kind": "section",
+          "startLine": 121,
+          "endLine": 146,
+          "tokens": 218
+        },
+        {
+          "name": "escape_statistics_from_board",
+          "kind": "fn",
+          "startLine": 147,
+          "endLine": 181,
+          "tokens": 289
+        },
+        {
+          "name": "is_pin_escaped",
+          "kind": "fn",
+          "startLine": 182,
+          "endLine": 221,
+          "tokens": 470
+        },
+        {
+          "name": "PinSortingOrder",
+          "kind": "class",
+          "startLine": 222,
+          "endLine": 229,
+          "tokens": 35
+        },
+        {
+          "name": "PinSortingOrder",
+          "kind": "section",
+          "startLine": 230,
+          "endLine": 243,
+          "tokens": 142
+        },
+        {
+          "name": "cmp_sign_f64",
+          "kind": "fn",
+          "startLine": 244,
+          "endLine": 257,
+          "tokens": 95
+        },
+        {
+          "name": "SmdPinRow",
+          "kind": "class",
+          "startLine": 258,
+          "endLine": 275,
+          "tokens": 198
+        },
+        {
+          "name": "SmdPinRow",
+          "kind": "section",
+          "startLine": 276,
+          "endLine": 308,
+          "tokens": 384
+        },
+        {
+          "name": "ComponentFanout",
+          "kind": "class",
+          "startLine": 309,
+          "endLine": 319,
+          "tokens": 112
+        },
+        {
+          "name": "compare_components",
+          "kind": "fn",
+          "startLine": 320,
+          "endLine": 331,
+          "tokens": 145
+        },
+        {
+          "name": "all_pin_ids",
+          "kind": "fn",
+          "startLine": 332,
+          "endLine": 340,
+          "tokens": 81
+        },
+        {
+          "name": "via_count",
+          "kind": "fn",
+          "startLine": 341,
+          "endLine": 350,
+          "tokens": 91
+        },
+        {
+          "name": "resolution_um",
+          "kind": "fn",
+          "startLine": 351,
+          "endLine": 361,
+          "tokens": 122
+        },
+        {
+          "name": "FanoutState",
+          "kind": "class",
+          "startLine": 362,
+          "endLine": 400,
+          "tokens": 571
+        },
+        {
+          "name": "sort_by_congestion_rank",
+          "kind": "fn",
+          "startLine": 401,
+          "endLine": 407,
+          "tokens": 40
+        },
+        {
+          "name": "FanoutState",
+          "kind": "section",
+          "startLine": 408,
+          "endLine": 613,
+          "tokens": 2713
+        },
+        {
+          "name": "FanoutPassStatus",
+          "kind": "class",
+          "startLine": 614,
+          "endLine": 653,
+          "tokens": 493
+        },
+        {
+          "name": "FanoutRunSummary",
+          "kind": "class",
+          "startLine": 654,
+          "endLine": 660,
+          "tokens": 51
+        },
+        {
+          "name": "now_millis",
+          "kind": "fn",
+          "startLine": 661,
+          "endLine": 678,
+          "tokens": 247
+        },
+        {
+          "name": "parse_timespan_string",
+          "kind": "fn",
+          "startLine": 679,
+          "endLine": 704,
+          "tokens": 268
+        },
+        {
+          "name": "publish_progress",
+          "kind": "fn",
+          "startLine": 705,
+          "endLine": 759,
+          "tokens": 530
+        },
+        {
+          "name": "smd_pin_connection_counts",
+          "kind": "fn",
+          "startLine": 760,
+          "endLine": 788,
+          "tokens": 326
+        },
+        {
+          "name": "oscillation_step",
+          "kind": "fn",
+          "startLine": 789,
+          "endLine": 815,
+          "tokens": 249
+        },
+        {
+          "name": "fanout_board",
+          "kind": "fn",
+          "startLine": 816,
+          "endLine": 910,
+          "tokens": 1018
+        },
+        {
+          "name": "fanout_pass",
+          "kind": "fn",
+          "startLine": 911,
+          "endLine": 1255,
+          "tokens": 3972
+        },
+        {
+          "name": "retry_fanout",
+          "kind": "fn",
+          "startLine": 1256,
+          "endLine": 1270,
+          "tokens": 197
+        },
+        {
+          "name": "item_bounding_box",
+          "kind": "fn",
+          "startLine": 1271,
+          "endLine": 1303,
+          "tokens": 412
+        },
+        {
+          "name": "bounding_box_center_dist_sq",
+          "kind": "fn",
+          "startLine": 1304,
+          "endLine": 1319,
+          "tokens": 245
+        },
+        {
+          "name": "fanout_pin",
+          "kind": "fn",
+          "startLine": 1320,
+          "endLine": 2805,
+          "tokens": 16827
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/run_gates_933s1.sh": {
+      "description": "#933 SURVIVOR-1 landing battery (2026-10-03) — the fanout",
+      "tokens": 1189,
+      "hash": "e8f9c4d7bcad1ca4",
+      "size": 4462,
+      "mtimeMs": 1791049947097.4333,
+      "updatedAt": "2026-10-03T17:52:27.206Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/933s1-commit-msg.txt": {
+      "description": "",
+      "tokens": 667,
+      "hash": "c4712dbbe99ec821",
+      "size": 2681,
+      "mtimeMs": 1791052597982.9111,
+      "updatedAt": "2026-10-03T18:36:38.097Z",
       "source": "hook"
     }
   },

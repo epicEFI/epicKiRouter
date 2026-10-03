@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T16:15:09.954Z
-> Files: 798 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T18:36:38.098Z
+> Files: 802 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -778,6 +778,8 @@
 
 ## logs/readiness-2026-10-01/
 
+- `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
+- `933s1-commit-msg.txt` (~667 tok)
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
 - `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
 - `dispatch-prompt-fixround.md` — Readiness fix round — implementer dispatch (2026-10-01) (~2379 tok)
@@ -843,6 +845,7 @@
 - `rotate_gv_t3only.sh` — M11-T3-ONLY gv golden rotations (the two drifted faces; the other (~609 tok)
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
+- `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
 - `run_gates_m11t2t6.sh` — M11-T2+T6 battery — the outline edge-pin-net exemption (T6, 023fb1c8b) (~1218 tok)
@@ -1027,6 +1030,7 @@
 - `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~26150 tok)
 - `connection_router.rs` — Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the (~12481 tok)
 - `event_sink.rs` — The driver's log-only output seam: Java scatters `FRLogger.info` / (~2456 tok)
+- `fanout.rs` — Java `autoroute/pipeline/BatchFanout.java` — the fanout stage: the (~30123 tok)
 - `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~14569 tok)
 - `java_random.rs` — `java.util.Random` + `java.util.Collections.shuffle` — the EXACT (~1533 tok)
 - `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~46334 tok)

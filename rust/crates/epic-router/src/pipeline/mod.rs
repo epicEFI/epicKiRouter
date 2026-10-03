@@ -15,6 +15,7 @@ pub mod event_sink;
 pub mod fanout;
 pub mod full;
 pub mod gloss;
+pub mod last_mile;
 pub mod optimizer;
 pub mod pairs;
 pub mod pass_runner;
