@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-03T01:18:43.787Z",
-    "fileCount": 745,
+    "lastScanned": "2026-10-03T02:32:33.448Z",
+    "fileCount": 750,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "c88ebb4ac5582bec7c47472ffb688071a36e3062cef0caeaf1c293cdb27519bf",
-    "storeUpdatedAt": "2026-10-03T01:18:43.800Z",
-    "rootHash": "120bd416642bcb37"
+    "renderedHash": "0ed071f0c13eb7dbf2536e70fb4b2b9732ede2d8c4bd0b8cdf01b5d846c950da",
+    "storeUpdatedAt": "2026-10-03T02:32:33.461Z",
+    "rootHash": "b54ec69184d4e84b"
   },
   "files": {
     ".dockerignore": {
@@ -10719,232 +10719,232 @@
     },
     "rust/crates/epic-router/src/drill/tests.rs": {
       "description": "Synthetic-world unit pins for the drill subsystem (no capture rows",
-      "tokens": 21968,
-      "hash": "eecd2226e516b6a5",
-      "size": 82515,
-      "mtimeMs": 1790959394708.0254,
-      "updatedAt": "2026-10-02T16:43:14.810Z",
+      "tokens": 22972,
+      "hash": "4e35526898d27c66",
+      "size": 86287,
+      "mtimeMs": 1790990792434.5044,
+      "updatedAt": "2026-10-03T01:26:32.545Z",
       "source": "hook",
       "symbols": [
         {
           "name": "SynthItem",
           "kind": "class",
           "startLine": 42,
-          "endLine": 58,
-          "tokens": 135
+          "endLine": 63,
+          "tokens": 219
         },
         {
           "name": "SynthRoom",
           "kind": "class",
-          "startLine": 59,
-          "endLine": 67,
+          "startLine": 64,
+          "endLine": 72,
           "tokens": 41
         },
         {
           "name": "SynthPadstack",
           "kind": "class",
-          "startLine": 68,
-          "endLine": 73,
+          "startLine": 73,
+          "endLine": 78,
           "tokens": 26
         },
         {
           "name": "SynthWorld",
           "kind": "class",
-          "startLine": 74,
-          "endLine": 107,
+          "startLine": 79,
+          "endLine": 112,
           "tokens": 411
         },
         {
           "name": "box_tile",
           "kind": "fn",
-          "startLine": 108,
-          "endLine": 114,
+          "startLine": 113,
+          "endLine": 119,
           "tokens": 59
         },
         {
           "name": "SynthWorld",
           "kind": "section",
-          "startLine": 115,
-          "endLine": 245,
-          "tokens": 1044
+          "startLine": 120,
+          "endLine": 262,
+          "tokens": 1129
         },
         {
           "name": "SynthWorld",
           "kind": "section",
-          "startLine": 246,
-          "endLine": 464,
-          "tokens": 1628
+          "startLine": 263,
+          "endLine": 481,
+          "tokens": 1640
         },
         {
           "name": "SynthWorld",
           "kind": "section",
-          "startLine": 465,
-          "endLine": 697,
+          "startLine": 482,
+          "endLine": 714,
           "tokens": 1853
         },
         {
           "name": "ScriptedChecker",
           "kind": "class",
-          "startLine": 698,
-          "endLine": 703,
+          "startLine": 715,
+          "endLine": 720,
           "tokens": 45
         },
         {
           "name": "ScriptedChecker",
           "kind": "section",
-          "startLine": 704,
-          "endLine": 718,
+          "startLine": 721,
+          "endLine": 735,
           "tokens": 104
         },
         {
           "name": "ScriptedChecker",
           "kind": "section",
-          "startLine": 719,
-          "endLine": 748,
+          "startLine": 736,
+          "endLine": 765,
           "tokens": 244
         },
         {
           "name": "FixedDistance",
           "kind": "class",
-          "startLine": 749,
-          "endLine": 750,
+          "startLine": 766,
+          "endLine": 767,
           "tokens": 8
         },
         {
           "name": "FixedDistance",
           "kind": "section",
-          "startLine": 751,
-          "endLine": 758,
+          "startLine": 768,
+          "endLine": 775,
           "tokens": 64
         },
         {
           "name": "square_bounds",
           "kind": "fn",
-          "startLine": 759,
-          "endLine": 766,
+          "startLine": 776,
+          "endLine": 783,
           "tokens": 118
         },
         {
           "name": "test_ctrl",
           "kind": "fn",
-          "startLine": 767,
-          "endLine": 837,
+          "startLine": 784,
+          "endLine": 854,
           "tokens": 648
         },
         {
           "name": "drill_with_rooms",
           "kind": "fn",
-          "startLine": 838,
-          "endLine": 850,
+          "startLine": 855,
+          "endLine": 867,
           "tokens": 100
         },
         {
           "name": "rooms_world",
           "kind": "fn",
-          "startLine": 851,
-          "endLine": 858,
+          "startLine": 868,
+          "endLine": 875,
           "tokens": 75
         },
         {
           "name": "shape_entry",
           "kind": "fn",
-          "startLine": 859,
-          "endLine": 865,
+          "startLine": 876,
+          "endLine": 882,
           "tokens": 41
         },
         {
           "name": "emit_keys",
           "kind": "fn",
-          "startLine": 866,
-          "endLine": 880,
+          "startLine": 883,
+          "endLine": 897,
           "tokens": 164
         },
         {
           "name": "max_drill_page_width_truncates_then_clamps",
           "kind": "fn",
-          "startLine": 881,
-          "endLine": 909,
+          "startLine": 898,
+          "endLine": 926,
           "tokens": 249
         },
         {
           "name": "page_grid_arithmetic_snaps_last_row_column",
           "kind": "fn",
-          "startLine": 910,
-          "endLine": 951,
+          "startLine": 927,
+          "endLine": 968,
           "tokens": 403
         },
         {
           "name": "overlapping_pages_strict_upper_bound_at_exact_integer",
           "kind": "fn",
-          "startLine": 952,
-          "endLine": 993,
+          "startLine": 969,
+          "endLine": 1010,
           "tokens": 477
         },
         {
           "name": "expansion_drill_get_id_wraps_like_java_int",
           "kind": "fn",
-          "startLine": 994,
-          "endLine": 1016,
+          "startLine": 1011,
+          "endLine": 1033,
           "tokens": 328
         },
         {
           "name": "get_drills_skipped_entries_do_not_update_prev_shape",
           "kind": "fn",
-          "startLine": 1017,
-          "endLine": 1054,
+          "startLine": 1034,
+          "endLine": 1071,
           "tokens": 502
         },
         {
           "name": "get_drills_duplicate_shapes_do_not_duplicate_drills",
           "kind": "fn",
-          "startLine": 1055,
-          "endLine": 1100,
+          "startLine": 1072,
+          "endLine": 1117,
           "tokens": 554
         },
         {
           "name": "get_drills_attach_smd_pin_center_last_match_wins",
           "kind": "fn",
-          "startLine": 1101,
-          "endLine": 1146,
-          "tokens": 614
+          "startLine": 1118,
+          "endLine": 1170,
+          "tokens": 653
         },
         {
           "name": "get_drills_memoization_ignores_attach_smd_but_not_net",
           "kind": "fn",
-          "startLine": 1147,
-          "endLine": 1213,
-          "tokens": 826
+          "startLine": 1171,
+          "endLine": 1239,
+          "tokens": 839
+        },
+        {
+          "name": "get_drills_attach_smd_foreign_net_pin_stays_a_cutout",
+          "kind": "fn",
+          "startLine": 1240,
+          "endLine": 1300,
+          "tokens": 820
         },
         {
           "name": "get_drills_stop_returns_empty_memo_instead_of_panicking",
           "kind": "fn",
-          "startLine": 1214,
-          "endLine": 1268,
-          "tokens": 773
+          "startLine": 1301,
+          "endLine": 1358,
+          "tokens": 779
         },
         {
           "name": "page_reset_keeps_the_drills_memo",
           "kind": "fn",
-          "startLine": 1269,
-          "endLine": 1305,
-          "tokens": 423
-        },
-        {
-          "name": "get_drills_rejects_drill_when_completion_yields_not_exactly_one_room",
-          "kind": "fn",
-          "startLine": 1306,
-          "endLine": 2389,
-          "tokens": 11124
+          "startLine": 1359,
+          "endLine": 2485,
+          "tokens": 11564
         }
       ]
     },
     "rust/crates/epic-router/src/drill/drill_page.rs": {
       "description": "Java `autoroute/drill/DrillPage.java` (194 lines) — one grid cell's",
-      "tokens": 3514,
-      "hash": "9a3fbcb7c9974011",
-      "size": 13215,
-      "mtimeMs": 1790959421564.1736,
-      "updatedAt": "2026-10-02T16:43:41.666Z",
+      "tokens": 3622,
+      "hash": "f1caaa8a258cee78",
+      "size": 13621,
+      "mtimeMs": 1790990755554.345,
+      "updatedAt": "2026-10-03T01:25:55.664Z",
       "source": "hook",
       "symbols": [
         {
@@ -10965,8 +10965,8 @@
           "name": "DrillPage",
           "kind": "section",
           "startLine": 57,
-          "endLine": 306,
-          "tokens": 3189
+          "endLine": 312,
+          "tokens": 3304
         }
       ]
     },
@@ -11749,6 +11749,440 @@
       "mtimeMs": 1790988972584.5732,
       "updatedAt": "2026-10-03T00:56:12.697Z",
       "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t9d.sh": {
+      "description": "M11-T9d battery — the DrillPage containsNet conjunct (upstream #931,",
+      "tokens": 1169,
+      "hash": "f1a2425be566be26",
+      "size": 4387,
+      "mtimeMs": 1790990841230.7158,
+      "updatedAt": "2026-10-03T01:27:21.342Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t9d-commit-msg.txt": {
+      "description": "",
+      "tokens": 1782,
+      "hash": "062aaec0b0c9175d",
+      "size": 7169,
+      "mtimeMs": 1790994753342.907,
+      "updatedAt": "2026-10-03T02:32:33.448Z",
+      "source": "hook"
+    },
+    "rust/harness/src/route_events.rs": {
+      "description": "Route event-stream corpus (M3 Task 16) — the maze-level",
+      "tokens": 32336,
+      "hash": "f8f35bc850f610ae",
+      "size": 121533,
+      "mtimeMs": 1790992959115.8606,
+      "updatedAt": "2026-10-03T02:02:39.494Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "kind_of",
+          "kind": "fn",
+          "startLine": 69,
+          "endLine": 81,
+          "tokens": 105
+        },
+        {
+          "name": "EventsCommand",
+          "kind": "class",
+          "startLine": 82,
+          "endLine": 104,
+          "tokens": 286
+        },
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 105,
+          "endLine": 123,
+          "tokens": 276
+        },
+        {
+          "name": "EventsManifestEntry",
+          "kind": "class",
+          "startLine": 124,
+          "endLine": 137,
+          "tokens": 157
+        },
+        {
+          "name": "WitnessLayer",
+          "kind": "class",
+          "startLine": 138,
+          "endLine": 150,
+          "tokens": 143
+        },
+        {
+          "name": "SettingsWitness",
+          "kind": "class",
+          "startLine": 151,
+          "endLine": 174,
+          "tokens": 224
+        },
+        {
+          "name": "TraceRow",
+          "kind": "class",
+          "startLine": 175,
+          "endLine": 184,
+          "tokens": 74
+        },
+        {
+          "name": "RunRow",
+          "kind": "class",
+          "startLine": 185,
+          "endLine": 195,
+          "tokens": 92
+        },
+        {
+          "name": "IncompletesRow",
+          "kind": "class",
+          "startLine": 196,
+          "endLine": 207,
+          "tokens": 109
+        },
+        {
+          "name": "GoldenRow",
+          "kind": "class",
+          "startLine": 208,
+          "endLine": 220,
+          "tokens": 139
+        },
+        {
+          "name": "probe_argv",
+          "kind": "fn",
+          "startLine": 221,
+          "endLine": 231,
+          "tokens": 110
+        },
+        {
+          "name": "run_probe",
+          "kind": "fn",
+          "startLine": 232,
+          "endLine": 291,
+          "tokens": 619
+        },
+        {
+          "name": "golden",
+          "kind": "fn",
+          "startLine": 292,
+          "endLine": 434,
+          "tokens": 1556
+        },
+        {
+          "name": "sanity_check",
+          "kind": "fn",
+          "startLine": 435,
+          "endLine": 533,
+          "tokens": 1110
+        },
+        {
+          "name": "RustWorld",
+          "kind": "class",
+          "startLine": 534,
+          "endLine": 546,
+          "tokens": 134
+        },
+        {
+          "name": "batch_settings_from_witness",
+          "kind": "fn",
+          "startLine": 547,
+          "endLine": 663,
+          "tokens": 1433
+        },
+        {
+          "name": "parse_world_board",
+          "kind": "fn",
+          "startLine": 664,
+          "endLine": 697,
+          "tokens": 444
+        },
+        {
+          "name": "run_world_with_sink",
+          "kind": "fn",
+          "startLine": 698,
+          "endLine": 723,
+          "tokens": 300
+        },
+        {
+          "name": "run_rust_world",
+          "kind": "fn",
+          "startLine": 724,
+          "endLine": 744,
+          "tokens": 236
+        },
+        {
+          "name": "field_name_of_segment",
+          "kind": "fn",
+          "startLine": 745,
+          "endLine": 763,
+          "tokens": 209
+        },
+        {
+          "name": "first_differing_field",
+          "kind": "fn",
+          "startLine": 764,
+          "endLine": 782,
+          "tokens": 323
+        },
+        {
+          "name": "rows_by_kind",
+          "kind": "fn",
+          "startLine": 783,
+          "endLine": 808,
+          "tokens": 308
+        },
+        {
+          "name": "diff_kind_streams",
+          "kind": "fn",
+          "startLine": 809,
+          "endLine": 860,
+          "tokens": 799
+        },
+        {
+          "name": "check_manifest_entry",
+          "kind": "fn",
+          "startLine": 861,
+          "endLine": 890,
+          "tokens": 296
+        },
+        {
+          "name": "compare",
+          "kind": "fn",
+          "startLine": 891,
+          "endLine": 2692,
+          "tokens": 24183
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t9d.txt": {
+      "description": "",
+      "tokens": 373,
+      "hash": "83fb3b013f835689",
+      "size": 1496,
+      "mtimeMs": 1790993568163.5024,
+      "updatedAt": "2026-10-03T02:12:48.293Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-router/src/drill/pins.rs": {
+      "description": "M3-T5 drill-subsystem pins — literal replay of the DrillSpike",
+      "tokens": 28632,
+      "hash": "3aed85115aeb7a23",
+      "size": 107582,
+      "mtimeMs": 1790993529183.333,
+      "updatedAt": "2026-10-03T02:12:09.298Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "pt",
+          "kind": "fn",
+          "startLine": 225,
+          "endLine": 231,
+          "tokens": 74
+        },
+        {
+          "name": "point_xy",
+          "kind": "fn",
+          "startLine": 232,
+          "endLine": 236,
+          "tokens": 28
+        },
+        {
+          "name": "box_tile",
+          "kind": "fn",
+          "startLine": 237,
+          "endLine": 243,
+          "tokens": 64
+        },
+        {
+          "name": "float_line",
+          "kind": "fn",
+          "startLine": 244,
+          "endLine": 251,
+          "tokens": 72
+        },
+        {
+          "name": "entry_a",
+          "kind": "fn",
+          "startLine": 252,
+          "endLine": 256,
+          "tokens": 37
+        },
+        {
+          "name": "entry_a_rip",
+          "kind": "fn",
+          "startLine": 257,
+          "endLine": 261,
+          "tokens": 37
+        },
+        {
+          "name": "entry_b",
+          "kind": "fn",
+          "startLine": 262,
+          "endLine": 268,
+          "tokens": 70
+        },
+        {
+          "name": "default_settings_ir",
+          "kind": "fn",
+          "startLine": 269,
+          "endLine": 286,
+          "tokens": 168
+        },
+        {
+          "name": "Harness",
+          "kind": "class",
+          "startLine": 287,
+          "endLine": 355,
+          "tokens": 1092
+        },
+        {
+          "name": "Harness",
+          "kind": "section",
+          "startLine": 356,
+          "endLine": 677,
+          "tokens": 3788
+        },
+        {
+          "name": "Harness",
+          "kind": "section",
+          "startLine": 678,
+          "endLine": 1107,
+          "tokens": 4643
+        },
+        {
+          "name": "Harness",
+          "kind": "section",
+          "startLine": 1108,
+          "endLine": 1131,
+          "tokens": 242
+        },
+        {
+          "name": "Harness",
+          "kind": "section",
+          "startLine": 1132,
+          "endLine": 1756,
+          "tokens": 6604
+        },
+        {
+          "name": "CheckerCall",
+          "kind": "class",
+          "startLine": 1757,
+          "endLine": 1765,
+          "tokens": 72
+        },
+        {
+          "name": "StubChecker",
+          "kind": "class",
+          "startLine": 1766,
+          "endLine": 1769,
+          "tokens": 15
+        },
+        {
+          "name": "StubChecker",
+          "kind": "section",
+          "startLine": 1770,
+          "endLine": 1779,
+          "tokens": 57
+        },
+        {
+          "name": "StubChecker",
+          "kind": "section",
+          "startLine": 1780,
+          "endLine": 1805,
+          "tokens": 207
+        },
+        {
+          "name": "TargetlessDistance",
+          "kind": "class",
+          "startLine": 1806,
+          "endLine": 1807,
+          "tokens": 8
+        },
+        {
+          "name": "TargetlessDistance",
+          "kind": "section",
+          "startLine": 1808,
+          "endLine": 1818,
+          "tokens": 130
+        },
+        {
+          "name": "expected_free_calls",
+          "kind": "fn",
+          "startLine": 1819,
+          "endLine": 1860,
+          "tokens": 316
+        },
+        {
+          "name": "Replay",
+          "kind": "class",
+          "startLine": 1861,
+          "endLine": 1879,
+          "tokens": 204
+        },
+        {
+          "name": "replay_enumeration",
+          "kind": "fn",
+          "startLine": 1880,
+          "endLine": 2040,
+          "tokens": 1613
+        },
+        {
+          "name": "build_rip_drill",
+          "kind": "fn",
+          "startLine": 2041,
+          "endLine": 2067,
+          "tokens": 250
+        },
+        {
+          "name": "run_layer_change",
+          "kind": "fn",
+          "startLine": 2068,
+          "endLine": 2094,
+          "tokens": 210
+        },
+        {
+          "name": "assert_emits",
+          "kind": "fn",
+          "startLine": 2095,
+          "endLine": 2148,
+          "tokens": 560
+        },
+        {
+          "name": "page_grid_and_overlap_probes",
+          "kind": "fn",
+          "startLine": 2149,
+          "endLine": 2192,
+          "tokens": 551
+        },
+        {
+          "name": "candidate_enumeration_zero_set_and_full_pages",
+          "kind": "fn",
+          "startLine": 2193,
+          "endLine": 2223,
+          "tokens": 366
+        },
+        {
+          "name": "attach_relaxation_fresh_array_and_pin_drill_id",
+          "kind": "fn",
+          "startLine": 2224,
+          "endLine": 2258,
+          "tokens": 420
+        },
+        {
+          "name": "layer_change_mask_battery_net_a",
+          "kind": "fn",
+          "startLine": 2259,
+          "endLine": 2389,
+          "tokens": 1342
+        },
+        {
+          "name": "ripped_via_battery_and_via_insertions",
+          "kind": "fn",
+          "startLine": 2390,
+          "endLine": 2809,
+          "tokens": 4602
+        }
+      ]
     }
   },
   "preamble": [

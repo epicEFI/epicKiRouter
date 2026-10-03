@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T01:18:43.787Z
-> Files: 745 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T02:32:33.448Z
+> Files: 750 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -788,6 +788,7 @@
 - `export-msg-ca0e785cc.txt` (~429 tok)
 - `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
 - `export-msg-f4.txt` — Declares width (~494 tok)
+- `export-msg-m11t9d.txt` (~373 tok)
 - `export-msg-m11t9i.txt` (~317 tok)
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
 - `export-msg-p4.txt` (~243 tok)
@@ -807,6 +808,7 @@
 - `M11-931.md` — M11 — the #931 Tier-B completion campaign (upstream `aa909a345`) (~5292 tok)
 - `m11cd-commit-msg.txt` (~1009 tok)
 - `m11t1-commit-msg.txt` (~615 tok)
+- `m11t9d-commit-msg.txt` (~1782 tok)
 - `m11t9i-commit-msg.txt` (~2236 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
 - `p2-commit-msg.txt` (~988 tok)
@@ -825,6 +827,7 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
+- `run_gates_m11t9d.sh` — M11-T9d battery — the DrillPage containsNet conjunct (upstream #931, (~1169 tok)
 - `run_gates_m11t9i.sh` — M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown (~731 tok)
 - `run_gates_m11t9i2.sh` — M11-T9i battery, ROUND 2 — on the COMBINED tree (T9i working set + (~714 tok)
 - `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
@@ -949,8 +952,9 @@
 
 ## rust/crates/epic-router/src/drill/
 
-- `drill_page.rs` — Java `autoroute/drill/DrillPage.java` (194 lines) — one grid cell's (~3514 tok)
-- `tests.rs` — Synthetic-world unit pins for the drill subsystem (no capture rows (~21968 tok)
+- `drill_page.rs` — Java `autoroute/drill/DrillPage.java` (194 lines) — one grid cell's (~3622 tok)
+- `pins.rs` — M3-T5 drill-subsystem pins — literal replay of the DrillSpike (~28632 tok)
+- `tests.rs` — Synthetic-world unit pins for the drill subsystem (no capture rows (~22972 tok)
 
 ## rust/crates/epic-router/src/global/
 
@@ -995,6 +999,7 @@
 - `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~18880 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
+- `route_events.rs` — Route event-stream corpus (M3 Task 16) — the maze-level (~32336 tok)
 - `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51613 tok)
 
 ## rust/scripts/

@@ -3925,5 +3925,24 @@
    "export-7fb5f1183",
    "m11-t9i"
   ]
+ },
+ {
+  "id": 249,
+  "date": "2026-10-02",
+  "task": "M11-T9d (f7fcfb60b, export 8e7799d80)",
+  "error_message": "route_events suite 16 passed / 2 failed after the t7 golden re-base: parse_world_board_matches_the_jar_post_parse_id_sequence panicked 't7_ripup: post-parse item count left: 104, right: 19' \u2014 a NEW failure on a pin the battery census had passed 40 minutes earlier, with no parse-path change in the tree.",
+  "root_cause": "Unanchored scripted edit collision (2nd instance in the window): the temp t9 divergence probe was written with the wrong fixture path and 'fixed' via python str.replace of the path literal \u2014 the same literal also matched the parse pin's t7 arm, rewriting maze-spike/t7_ripup.dsn -> locator-spike/t9_locator45.dsn in the WORKING TREE. The pin then parsed the t9 board (104 items) against t7's pinned 19 rows. The battery-passed-then-fails-now signature was the tell: only working-tree edits had happened since.",
+  "fix": "Line-indexed edits only in route_events.rs (never bare str.replace across the file); restored the t7 path verbatim from HEAD. Rule: after ANY scripted multi-site edit, audit `git diff <file>` for unintended hunks before trusting a red OR a green run \u2014 the same collision class had already hit add_pin(3,...) earlier in the window (double-replace, caught immediately). Both collided edits shared the root cause: duplicate-ish literals + under-anchored patterns.",
+  "tags": [
+   "tooling",
+   "python-replace",
+   "under-anchored-edit",
+   "harness-pins",
+   "near-miss",
+   "working-tree-only",
+   "audit-the-diff",
+   "commit-f7fcfb60b",
+   "m11-t9d"
+  ]
  }
 ]
