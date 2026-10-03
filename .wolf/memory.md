@@ -10260,3 +10260,151 @@ description: chronological action log per session, consolidated weekly
 | 22:53 | Edited rust/crates/epic-cli/src/route.rs | modified min_stair_tuning_input_violation_pair_is_named() | ~831 |
 | 22:54 | Edited logs/readiness-2026-10-01/m11t7-commit-msg.txt | expanded (+8 lines) | ~238 |
 | 22:54 | Edited logs/readiness-2026-10-01/export-msg-m11t7.txt | 5→9 lines | ~119 |
+| 23:23 | Edited rust/crates/epic-router/src/expansion/neighbours_forty_five.rs | modified octagon_is_empty() | ~338 |
+| 23:23 | Edited rust/crates/epic-router/src/path/locator_45.rs | modified F() | ~679 |
+| 23:24 | Edited rust/crates/epic-router/src/path/locator_45.rs | modified F() | ~193 |
+| 23:37 | Edited rust/crates/epic-router/src/path/locator_45.rs | 8→9 lines | ~143 |
+| 23:38 | Edited rust/crates/epic-router/src/path/locator_45.rs | modified from() | ~131 |
+| 23:39 | Edited rust/crates/epic-router/src/path/locator_45.rs | 2→1 lines | ~27 |
+| 23:41 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified Ok() | ~68 |
+| 23:41 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified Ok() | ~97 |
+| 23:42 | Edited rust/crates/epic-router/src/path/locator_45.rs | modified from() | ~160 |
+| 23:49 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | inline fix | ~20 |
+| 23:52 | Edited rust/crates/epic-router/src/control.rs | 2→2 lines | ~25 |
+| 23:57 | Edited rust/crates/epic-router/src/control.rs | modified 931() | ~115 |
+| 23:58 | Edited rust/crates/epic-router/src/control.rs | modified has_smd_pin() | ~262 |
+| 23:58 | Edited rust/crates/epic-router/src/control.rs | modified Java() | ~278 |
+| 23:58 | Edited rust/crates/epic-router/src/control.rs | 3→3 lines | ~45 |
+| 23:58 | Edited rust/crates/epic-router/src/control.rs | modified 931() | ~79 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | modified pure_smd_net_forces_attach_and_halves_cost() | ~406 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | 3→7 lines | ~128 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | 5→8 lines | ~45 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | 5→9 lines | ~51 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | 1→2 lines | ~24 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | 5→10 lines | ~67 |
+| 23:59 | Edited rust/crates/epic-router/src/control.rs | modified mixed_smd_net_relaxes_attach_but_keeps_full_cost() | ~345 |
+| 00:00 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | reduced (-8 lines) | ~69 |
+| 00:00 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | inline fix | ~11 |
+| 00:17 | Edited rust/crates/epic-router/src/maze/pins.rs | modified zz_repin_harvest_931() | ~2483 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | modified rotation() | ~96 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | modified rotation() | ~204 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | 2→3 lines | ~44 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | modified rotation() | ~245 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | rotation() → split() | ~59 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | modified rotation() | ~184 |
+| 00:18 | Edited rust/crates/epic-router/src/maze/pins.rs | 3→4 lines | ~43 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~96 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified contains() | ~92 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified 1() | ~183 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | "candidate order face" → "candidate order face (#93" | ~25 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified validation() | ~88 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified contains() | ~124 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified world() | ~77 |
+| 00:24 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~43 |
+| 00:25 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified 1() | ~180 |
+| 00:25 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified validation() | ~78 |
+| 00:25 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified s() | ~131 |
+| 00:25 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified world() | ~78 |
+| 00:26 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~258 |
+| 00:26 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified of() | ~108 |
+| 00:26 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified s() | ~60 |
+| 00:26 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified contains() | ~114 |
+| 00:26 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 2→3 lines | ~50 |
+| 00:29 | Edited rust/crates/epic-router/src/path/pins.rs | modified rotation() | ~216 |
+| 00:29 | Edited rust/crates/epic-router/src/path/pins.rs | modified capture_abt_net98_backtrack() | ~57 |
+| 00:29 | Edited rust/crates/epic-router/src/path/pins.rs | modified rotation() | ~277 |
+| 00:29 | Edited rust/crates/epic-router/src/path/pins.rs | 3→3 lines | ~45 |
+| 00:30 | Edited rust/crates/epic-router/src/engine.rs | modified values() | ~413 |
+| 00:33 | Edited rust/crates/epic-router/src/engine.rs | modified captured() | ~680 |
+| 00:34 | Edited rust/crates/epic-router/src/engine.rs | expanded (+13 lines) | ~547 |
+| 00:34 | Edited rust/crates/epic-router/src/engine.rs | 4→5 lines | ~86 |
+| 00:35 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+6 lines) | ~87 |
+| 00:36 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified rotation() | ~212 |
+| 00:37 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | 5→8 lines | ~91 |
+| 01:10 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified p1() | ~103 |
+| 01:11 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified p1() | ~73 |
+| 01:11 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified in_corridor() | ~103 |
+| 01:12 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | modified p1() | ~59 |
+| 01:13 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | modified p1() | ~106 |
+| 01:14 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | modified p1() | ~37 |
+| 01:14 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified p1() | ~157 |
+| 01:16 | Edited rust/crates/epic-router/src/maze/search_engine.rs | reduced (-6 lines) | ~77 |
+| 01:19 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | 7→3 lines | ~45 |
+| 01:19 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | 4→2 lines | ~25 |
+| 01:19 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | 2→5 lines | ~44 |
+| 01:20 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | expanded (+21 lines) | ~456 |
+| 01:20 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | reduced (-6 lines) | ~49 |
+| 01:20 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified in_corridor() | ~59 |
+| 01:21 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | 8→5 lines | ~61 |
+| 01:23 | Created logs/readiness-2026-10-01/run_gates_m11t4t3.sh | — | ~1216 |
+| 01:25 | Edited logs/readiness-2026-10-01/run_gates_m11t4t3.sh | expanded (+6 lines) | ~171 |
+| 01:26 | Created logs/readiness-2026-10-01/m11t4-commit-msg.txt | — | ~772 |
+| 01:26 | Created logs/readiness-2026-10-01/m11t3-commit-msg.txt | — | ~440 |
+| 01:26 | Created logs/readiness-2026-10-01/export-msg-m11t4.txt | — | ~429 |
+| 01:26 | Created logs/readiness-2026-10-01/export-msg-m11t3.txt | — | ~258 |
+| 01:32 | Edited rust/crates/epic-cli/src/route.rs | modified rotation() | ~364 |
+| 01:33 | Edited rust/crates/epic-cli/src/route.rs | modified rotation() | ~264 |
+| 01:33 | Edited rust/crates/epic-router/src/pipeline/pairs.rs | 3→3 lines | ~57 |
+| 01:39 | Edited rust/harness/src/route_events.rs | modified T3() | ~112 |
+| 01:39 | Edited rust/harness/src/route_events.rs | modified T3() | ~253 |
+| 01:39 | Edited rust/harness/src/route_events.rs | 7→8 lines | ~118 |
+| 01:39 | Edited rust/harness/src/route_events.rs | modified PROVENANCE() | ~358 |
+| 01:41 | Created logs/readiness-2026-10-01/gates/m11t4t3/e1-manifest.jsonl | — | ~27 |
+| 01:41 | Created logs/readiness-2026-10-01/gates/m11t4t3/e1-oracle-probe.sh | — | ~273 |
+| 01:42 | Edited rust/harness/src/route_events.rs | modified T3() | ~111 |
+| 01:42 | Edited rust/harness/src/route_events.rs | 14→11 lines | ~203 |
+| 01:42 | Edited rust/harness/src/route_events.rs | 8→8 lines | ~114 |
+| 01:42 | Edited rust/harness/src/route_events.rs | modified PROVENANCE() | ~389 |
+| 01:46 | Edited rust/harness/src/route_events.rs | modified T9d() | ~198 |
+| 01:46 | Edited rust/harness/src/route_events.rs | modified T3() | ~110 |
+| 01:46 | Edited rust/harness/src/route_events.rs | modified T3() | ~130 |
+| 01:46 | Edited rust/harness/src/route_events.rs | 2→2 lines | ~25 |
+| 01:46 | Edited rust/harness/src/route_events.rs | modified T9d() | ~262 |
+| 01:46 | Edited rust/harness/src/route_events.rs | modified PROVENANCE() | ~441 |
+| 01:47 | Edited rust/harness/src/route_events.rs | modified T3() | ~502 |
+| 01:47 | Edited rust/harness/src/route_events.rs | 1→3 lines | ~51 |
+| 01:48 | Created logs/readiness-2026-10-01/run_gates_m11t4t3_r2.sh | — | ~1110 |
+| 01:50 | Edited logs/readiness-2026-10-01/m11t4-commit-msg.txt | modified along() | ~578 |
+| 01:50 | Edited logs/readiness-2026-10-01/export-msg-m11t4.txt | expanded (+7 lines) | ~286 |
+| 01:51 | Edited rust/harness/src/route_events.rs | 4→5 lines | ~67 |
+| 02:16 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified capture_bm07_kind_lines_probe_20261003() | ~174 |
+| 02:26 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified bm07_kind_sequence_matches_the_golden_twice() | ~60 |
+| 02:36 | Created logs/readiness-2026-10-01/run_gates_m11t4t3_r3.sh | — | ~1109 |
+| 02:36 | Edited logs/readiness-2026-10-01/m11t3-commit-msg.txt | modified CMP4() | ~226 |
+| 02:36 | Edited logs/readiness-2026-10-01/export-msg-m11t3.txt | modified port() | ~206 |
+| 03:04 | Created logs/readiness-2026-10-01/rotate_gv_m11t4t3.sh | — | ~585 |
+| 03:09 | Edited logs/readiness-2026-10-01/rotate_gv_m11t4t3.sh | 5→5 lines | ~332 |
+| 03:12 | Created logs/readiness-2026-10-01/run_gates_m11t4t3_r4.sh | — | ~1001 |
+| 03:14 | Edited logs/readiness-2026-10-01/run_gates_m11t4t3_r4.sh | inline fix | ~76 |
+| 03:21 | Edited logs/readiness-2026-10-01/m11t3-commit-msg.txt | modified line() | ~261 |
+| 03:21 | Edited logs/readiness-2026-10-01/export-msg-m11t3.txt | modified port() | ~151 |
+| 03:22 | Edited logs/readiness-2026-10-01/m11t4-commit-msg.txt | modified along() | ~211 |
+| 03:22 | Edited logs/readiness-2026-10-01/export-msg-m11t4.txt | 8→11 lines | ~167 |
+| 03:38 | Created logs/readiness-2026-10-01/run_gates_m11t4t3_r5.sh | — | ~947 |
+| 03:39 | Edited rust/harness/src/router_compare.rs | 8→11 lines | ~165 |
+| 03:39 | Edited logs/readiness-2026-10-01/run_gates_m11t4t3_r5.sh | modified run() | ~24 |
+| 03:42 | Edited logs/readiness-2026-10-01/m11t4-commit-msg.txt | modified along() | ~160 |
+| 03:42 | Edited logs/readiness-2026-10-01/export-msg-m11t4.txt | 1→3 lines | ~48 |
+| 04:15 | Edited logs/readiness-2026-10-01/m11t4-commit-msg.txt | 1→5 lines | ~86 |
+| 04:15 | Edited logs/readiness-2026-10-01/m11t3-commit-msg.txt | 1→5 lines | ~66 |
+| 04:55 | Created logs/java-oracle-m11/run-interfu-default.sh | — | ~318 |
+| 05:21 | Edited rust/crates/epic-router/src/path/locator_45.rs | reduced (-12 lines) | ~56 |
+| 05:26 | Edited rust/crates/epic-router/src/path/locator_45.rs | modified F() | ~239 |
+| 05:29 | Created logs/readiness-2026-10-01/run_t3only_landing.sh | — | ~723 |
+| 05:29 | Edited logs/readiness-2026-10-01/run_t3only_landing.sh | 6→6 lines | ~118 |
+| 05:30 | Edited logs/readiness-2026-10-01/run_t3only_landing.sh | 2→3 lines | ~47 |
+| 06:05 | Edited rust/crates/epic-cli/src/route.rs | modified rotation() | ~199 |
+| 06:06 | Edited rust/crates/epic-cli/src/route.rs | delta() → route() | ~167 |
+| 06:14 | Edited rust/harness/src/route_events.rs | modified T9d() | ~166 |
+| 06:14 | Edited rust/harness/src/route_events.rs | modified T9d() | ~93 |
+| 06:14 | Edited rust/harness/src/route_events.rs | modified T3() | ~159 |
+| 06:15 | Edited rust/harness/src/route_events.rs | modified PROVENANCE() | ~412 |
+| 06:15 | Created logs/readiness-2026-10-01/run_t3only_v2.sh | — | ~1021 |
+| 06:17 | Created logs/readiness-2026-10-01/m11t3-commit-msg.txt | — | ~1153 |
+| 06:50 | Edited rust/crates/epic-router/src/control.rs | 2→2 lines | ~25 |
+| 06:51 | Edited rust/crates/epic-router/src/control.rs | 2→2 lines | ~25 |
+| 06:51 | Edited rust/crates/epic-router/src/engine.rs | modified rotation() | ~315 |
+| 06:51 | Edited rust/crates/epic-router/src/maze/pins.rs | modified rotation() | ~74 |
+| 06:58 | Created logs/readiness-2026-10-01/rotate_gv_t3only.sh | — | ~609 |
+| 06:59 | Edited logs/readiness-2026-10-01/m11t3-commit-msg.txt | modified port() | ~658 |
+| 06:59 | Created logs/readiness-2026-10-01/export-msg-m11t3.txt | — | ~482 |
