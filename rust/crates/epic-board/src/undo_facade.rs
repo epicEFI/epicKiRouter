@@ -222,6 +222,13 @@ impl Board {
             manager.insert(self, entry.id);
         }
 
+        // M11-T6 (#931): Java `applyUndoRedoSideEffects`'s tail
+        // invalidates the outline's edge-pin cache UNCONDITIONALLY
+        // (`BasicBoard.java:1333-1336`, the `pre-t6` tree) — a restore
+        // can re-place any pin; the eager recompute is the `&self`
+        // reader's equivalent of Java's lazy recompute.
+        self.recompute_edge_pin_nets();
+
         UndoOutcome {
             changed: true,
             cancelled: cancelled_ids,

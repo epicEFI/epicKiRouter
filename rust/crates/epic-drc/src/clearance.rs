@@ -429,13 +429,25 @@ pub fn is_obstacle(board: &mut Board, receiver: ItemId, other: ItemId) -> bool {
         }
         // ComponentOutline.java:120-122.
         BoardItemType::ComponentOutline => false,
-        // BoardOutline.java:85-87 — `!(other instanceof BoardOutline
-        // || other instanceof ObstacleArea)`: the outline's own kind
-        // is exempt too, and the ObstacleArea base class includes the
-        // conduction areas.
+        // BoardOutline.java:162-171 + M11-T6 (upstream #931): the
+        // outline/ObstacleArea base exemptions (the ObstacleArea base
+        // class includes the conduction areas), then the Trace arm —
+        // a trace whose net list is ALL edge-pin nets is not an
+        // obstacle for the outline (`!blocksNets`).
         BoardItemType::BoardOutline => {
-            !matches!(other_kind, Some(BoardItemType::BoardOutline))
-                && !is_any_obstacle_area(other_kind)
+            if matches!(other_kind, Some(BoardItemType::BoardOutline))
+                || is_any_obstacle_area(other_kind)
+            {
+                return false;
+            }
+            if matches!(other_kind, Some(BoardItemType::Trace)) {
+                let nets: Vec<i32> = board
+                    .get(other)
+                    .map(|entry| entry.nets.clone())
+                    .unwrap_or_default();
+                return board.outline_blocks_nets(receiver, &nets);
+            }
+            true
         }
         // BoardItemType.OTHER has no Java item class (no parse-time
         // item maps to it) and `isObstacle` is abstract on Item, so
@@ -592,6 +604,33 @@ pub fn item_clearance_violation_records(
                 && let Some((first, last)) = &endpoints
             {
                 obstacle = tie_pin_exemption(manager, board, id, current, first, last);
+            }
+
+            // The outline exemption for TRACES (M11-T6, upstream #931,
+            // `Item.java:419-427` — both walker directions): an
+            // outline does not violate against a trace whose net list
+            // is ALL edge-pin nets. (The walker-is-trace direction is
+            // also decided by the outline-receiver arm of `is_obstacle`
+            // — Java carries the same redundancy in the override and
+            // the explicit arm.)
+            if obstacle
+                && ((walker_kind == Some(BoardItemType::BoardOutline)
+                    && current_kind == Some(BoardItemType::Trace))
+                    || (walker_kind == Some(BoardItemType::Trace)
+                        && current_kind == Some(BoardItemType::BoardOutline)))
+            {
+                let (outline_id, trace_id) = if walker_kind == Some(BoardItemType::BoardOutline) {
+                    (id, current)
+                } else {
+                    (current, id)
+                };
+                let trace_nets: Vec<i32> = board
+                    .get(trace_id)
+                    .map(|entry| entry.nets.clone())
+                    .unwrap_or_default();
+                if !board.outline_blocks_nets(outline_id, &trace_nets) {
+                    obstacle = false;
+                }
             }
 
             // The outline exemption (Item.java:415-430).

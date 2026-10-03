@@ -281,6 +281,30 @@ pub struct Board {
     /// gate is inert and all engine faces stay byte-identical. A plain
     /// field so board clones/restores carry the regime with them.
     pub tuning_active: bool,
+    /// M11-T6 (upstream #931) — Java `BoardOutline.edgePinNets`, the
+    /// outline's set of nets carried by an EDGE or OUTSIDE pin
+    /// (`BoardOutline.getEdgePinNets`, `pre-t6` tree: a pin is edge
+    /// when its center is outside the outline shapes OR any TILE pad
+    /// corner on any layer is). Java keeps it as a `transient` LAZY
+    /// cache on the outline item; the arena's read faces are
+    /// `&self` ([`Board::item_is_trace_obstacle`]), so the port lifts
+    /// it Board-side and EAGER, recomputed at exactly the seams Java
+    /// invalidates: the parse tail
+    /// ([`Board::from_ses_board`]), a pin net change
+    /// ([`Board::set_item_nets`]), and the undo/redo side-effects tail
+    /// ([`crate::undo_facade`]). Insert/remove only marks
+    /// [`Self::edge_pin_nets_dirty`] (O(1)) — routing inserts no pins,
+    /// so the set stays clean for the whole run and the parse stays
+    /// linear.
+    pub(crate) edge_pin_nets: std::collections::BTreeSet<i32>,
+    /// The dirty half of the eager [`Self::edge_pin_nets`] cache:
+    /// `true` after a pin/outline insert or remove that no recompute
+    /// seam has covered yet. Readers are `&self` and cannot recompute;
+    /// the outline arm of
+    /// [`Board::item_is_trace_obstacle`] debug-asserts the cache clean
+    /// so a future pin-mutating flow that misses a seam fails loudly
+    /// in tests instead of answering stale.
+    pub(crate) edge_pin_nets_dirty: bool,
 }
 
 impl Board {
@@ -378,11 +402,23 @@ impl Board {
             "insert_item: item id {} already on the board",
             entry.id.get()
         );
+        // M11-T6 (#931): Java `BasicBoard.insertItem` invalidates the
+        // outline's edge-pin cache for a pin or outline insert
+        // (`BasicBoard.java:1261-1268`); the port marks dirty only —
+        // `from_ses_board` recomputes once at its tail (a per-insert
+        // recompute would make the parse quadratic in the pin count).
+        let touches_edge_pin_nets = matches!(
+            entry.data,
+            ItemData::Pin { .. } | ItemData::BoardOutline { .. }
+        );
         entry.on_the_board = true;
         let key = Reverse(entry.id);
         self.items.insert(key, entry.clone());
         self.item_undo.insert(key, entry);
         self.revision += 1;
+        if touches_edge_pin_nets {
+            self.edge_pin_nets_dirty = true;
+        }
     }
 
     /// Removes the entry with the given id, returning it (Java holds
@@ -406,6 +442,14 @@ impl Board {
     pub fn remove_item(&mut self, id: ItemId) -> Option<ItemEntry> {
         let mut removed = self.items.remove(&Reverse(id));
         if let Some(entry) = removed.as_mut() {
+            // M11-T6 (#931): Java `BasicBoard.removeItem` invalidates
+            // the outline's edge-pin cache for a pin or outline remove
+            // (`BasicBoard.java:606-613`); dirty-mark only (see
+            // [`Board::insert_item`]).
+            let touches_edge_pin_nets = matches!(
+                entry.data,
+                ItemData::Pin { .. } | ItemData::BoardOutline { .. }
+            );
             entry.on_the_board = false;
             // The per-tree SHAPE cache must not outlive the arena slot
             // (T7 quality review NIT-4): in Java the item OBJECT goes
@@ -417,6 +461,9 @@ impl Board {
             self.shape_precalc.remove(&id);
             self.item_undo.delete(&Reverse(id));
             self.revision += 1;
+            if touches_edge_pin_nets {
+                self.edge_pin_nets_dirty = true;
+            }
         }
         removed
     }
@@ -883,10 +930,20 @@ impl Board {
     /// [`Nets`](crate::rules_surf::Nets) table — stable, never
     /// renumbered.
     pub fn set_item_nets(&mut self, id: ItemId, nets: Vec<i32>) {
+        // M11-T6 (#931): Java `changeNet`'s assignment tail invalidates
+        // the outline's edge-pin cache on a PIN net change
+        // (`Item.java:1049-1053` — the edge-pin set carries the pin's
+        // nets, so a re-netted pin changes it); the eager recompute is
+        // the `&self`-reader equivalent of Java's lazy recompute.
+        let mut pin_touched = false;
         if let Some(entry) = self.items.get_mut(&Reverse(id)) {
+            pin_touched = matches!(entry.data, ItemData::Pin { .. });
             entry.nets = nets;
         }
         self.mirror_node(id);
+        if pin_touched {
+            self.recompute_edge_pin_nets();
+        }
     }
 
     /// Java `DrillItem.getPadstack()` — the padstack of a pin or via
@@ -1244,6 +1301,11 @@ impl Board {
     ///   (`:100-102`): unconditionally `false` — place keepouts and
     ///   via keepouts never block traces (a via keepout blocks DRILLS,
     ///   not traces).
+    /// * `BoardOutline` (M11-T6, upstream #931,
+    ///   `BoardOutline.java:138-143`): `false` for a POSITIVE net in
+    ///   the outline's edge-pin set — an edge/outside pin's net may
+    ///   route across the outline boundary (edge connectors,
+    ///   castellated pads); everything else stays blocked.
     ///
     /// A foreign id keeps the net-less verdict `true` (`Item` with no
     /// shared net), matching [`Board::item_is_obstacle`] on unknown keys.
@@ -1260,6 +1322,13 @@ impl Board {
                 },
                 _,
             )) => false,
+            Some((ItemData::BoardOutline { .. }, _)) => {
+                debug_assert!(
+                    !self.edge_pin_nets_dirty,
+                    "edge-pin net cache read dirty — a pin/outline mutation missed its recompute seam"
+                );
+                !(net_number > 0 && self.edge_pin_nets.contains(&net_number))
+            }
             Some((_, nets)) => !nets.contains(&net_number),
             None => true,
         }
@@ -1638,6 +1707,11 @@ impl Board {
         // before any item is inserted; None only on a board without a
         // boundary (Java leaves the field null there).
         board.bounding_box = ses.bounding_box;
+        // M11-T6 (#931): the edge-pin net cache's first fill — Java's
+        // lazy field computes on first read after parse; the eager
+        // port computes once here (every insert_item above only
+        // dirtied it).
+        board.recompute_edge_pin_nets();
         board
     }
 }
