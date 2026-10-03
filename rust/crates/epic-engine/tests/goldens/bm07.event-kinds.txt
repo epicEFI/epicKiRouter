@@ -7,16 +7,11 @@
 # geometry are exactly the ones that must never gate a golden.
 # `#`-prefixed lines are ignored by the reader (events_stream.rs).
 #
-# Captured 2026-09-30 at the M9-T3 tree; RE-CAPTURED 2026-10-02 at the
-# M11-T9i tree (the micro-neckdown gate widening, upstream aa909a345) —
-# the sanctioned 757814af3 procedure (same in-process capture, temp
-# #[ignore] probe, two-run determinism re-proven by the pin). The T9i
-# rotation: autoroute now FINISHES at pass 3 (was self-cancelled at the
-# 18-pass cap) and the OPTIMIZER task rows follow to FINISHED — the
-# trailing task state is the pipeline's end-of-batch task_state face (a
-# parity-stream row, not the RouteSummary final state — the pin asserts
-# COMPLETED separately). StreamStarted is FIRST by the tee's
-# lazy-ship guard.
+# RE-CAPTURED 2026-10-03 at the M11-T3-ONLY tree (the 2026-10-02 capture
+# ran at the T4+T3 combined tree; T4 is parked on the gv-iu pathfinder
+# composition regression — cluster F oscillates/explodes pass #35 there;
+# at this tree the autoroute stream reverts to the pre-T4 face while the
+# optimizer tail keeps T3's depths 5->8 + attach-relax envelope).
 StreamStarted version=1
 StageEntered stage=STARTED
 TaskState state=STARTED pass=0
@@ -25,15 +20,15 @@ StageEntered stage=fanout
 PassProgress pass=1 phase=fanout
 Snapshot revision=141
 PassProgress pass=1 phase=fanout
-Snapshot revision=1354
+Snapshot revision=1347
 Message level=info
 PassProgress pass=2 phase=fanout
 PassProgress pass=2 phase=fanout
-Snapshot revision=1525
+Snapshot revision=1518
 Message level=info
 PassProgress pass=3 phase=fanout
 PassProgress pass=3 phase=fanout
-Snapshot revision=1579
+Snapshot revision=1572
 Message level=info
 PassProgress pass=4 phase=fanout
 PassProgress pass=4 phase=fanout
@@ -45,12 +40,12 @@ TaskState state=RUNNING pass=1
 StageEntered stage=autoroute
 PassProgress pass=1 phase=autoroute
 PassProgress pass=1 phase=autoroute
-Snapshot revision=3542
+Snapshot revision=3475
 Message level=info
 TaskState state=RUNNING pass=2
 PassProgress pass=2 phase=autoroute
 PassProgress pass=2 phase=autoroute
-Snapshot revision=4500
+Snapshot revision=4435
 Message level=info
 TaskState state=RUNNING pass=3
 Message level=info
@@ -62,482 +57,1817 @@ TaskState state=RUNNING pass=1
 StageEntered stage=optimizer
 PassProgress pass=1 phase=optimizer
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4528
+Snapshot revision=4467
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4528
+Snapshot revision=4467
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4631
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4544
+Snapshot revision=4566
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4549
+Snapshot revision=4473
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
+Snapshot revision=4447
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4650
+Snapshot revision=4505
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
+Snapshot revision=4447
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
+Snapshot revision=4447
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4528
+Snapshot revision=4467
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=5470
+Snapshot revision=5405
 PassProgress pass=2 phase=autoroute
 PassProgress pass=2 phase=autoroute
-Snapshot revision=5883
+Snapshot revision=5838
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4508
+Snapshot revision=4443
 PassProgress pass=1 phase=autoroute
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4565
+Snapshot revision=4509
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4508
+Snapshot revision=4443
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4574
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4574
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4582
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4543
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4568
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4568
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4508
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4508
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4635
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4688
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4516
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4568
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4868
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4688
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4598
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4586
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4515
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4513
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
+Snapshot revision=4509
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4538
+Snapshot revision=4517
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4478
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4604
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4587
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4523
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4581
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4503
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4758
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4503
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4570
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4623
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4451
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4493
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4803
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4623
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4533
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4521
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4450
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4448
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4473
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4539
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4498
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4458
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4515
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4513
+Snapshot revision=4693
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
+Snapshot revision=4445
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4618
+Snapshot revision=4453
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4618
+Snapshot revision=4450
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4534
+Snapshot revision=4448
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4516
+Snapshot revision=4447
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4553
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4534
+Snapshot revision=4553
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4746
+Snapshot revision=4469
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4514
+Snapshot revision=4451
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4545
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4469
 PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4525
+Snapshot revision=4681
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4521
+Snapshot revision=4449
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4545
+Snapshot revision=4480
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4436
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4516
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4525
+Snapshot revision=4460
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4525
+Snapshot revision=4456
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4508
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4558
+Snapshot revision=4480
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4628
+Snapshot revision=4451
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4631
+Snapshot revision=4460
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4535
+Snapshot revision=4460
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4443
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4618
+Snapshot revision=4493
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4521
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4521
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4770
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4594
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4594
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4594
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4550
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4550
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4587
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4635
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4587
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4505
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4815
-PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4563
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4524
+Snapshot revision=4566
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4536
+Snapshot revision=4470
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4561
+Snapshot revision=4553
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4456
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4456
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4705
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4529
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4529
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4529
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4481
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4481
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4526
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4463
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4570
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4526
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4745
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4498
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4459
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4471
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4496
 PassProgress pass=2 phase=autoroute
 PassProgress pass=2 phase=autoroute
-Snapshot revision=4922
+Snapshot revision=4857
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4650
+Snapshot revision=4505
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4650
+Snapshot revision=4505
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4504
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4532
+Snapshot revision=4459
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
+Snapshot revision=4453
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4543
+Snapshot revision=4478
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4455
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4459
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4471
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4484
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4478
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4505
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4505
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4509
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4505
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4509
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4509
+PassProgress pass=1 phase=optimizer
+Snapshot revision=5838
+PassProgress pass=1 phase=optimizer
+Message level=info
+Message level=info
+Message level=info
+TaskState state=RUNNING pass=2
+PassProgress pass=2 phase=optimizer
+Snapshot revision=4435
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4448
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4739
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4959
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5042
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5230
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4493
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4501
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4584
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4512
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4501
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4520
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4443
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4452
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4471
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4509
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4517
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4478
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4503
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4503
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4524
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4447
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4536
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4539
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4674
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4898
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=4997
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4506
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4637
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=4746
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=4923
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4460
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4482
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4604
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4866
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5138
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5407
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5531
+PassProgress pass=6 phase=autoroute
+PassProgress pass=6 phase=autoroute
+Snapshot revision=5649
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4506
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4637
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=4746
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=4923
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4552
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4832
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4984
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5269
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=6276
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=6529
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4450
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4448
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4473
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4496
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4558
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4549
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4839
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4518
+Snapshot revision=4458
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4440
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
+Snapshot revision=4507
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4503
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4532
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4654
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4893
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5115
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4450
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4448
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4447
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4543
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4590
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4502
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4510
+Snapshot revision=4543
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4590
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4570
+Snapshot revision=4469
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4437
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4570
+Snapshot revision=4459
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4527
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4639
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4449
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4480
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4523
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4456
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4480
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4451
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4523
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4469
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4523
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4521
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4646
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4577
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4616
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4741
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4739
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4959
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5042
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5230
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4486
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4523
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4617
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4543
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4456
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4456
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4721
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4505
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4505
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4505
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4485
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4440
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4485
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4508
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4565
+Snapshot revision=4438
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4506
+Snapshot revision=4463
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4570
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4539
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4674
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4898
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=4997
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
 PassProgress pass=1 phase=autoroute
 Snapshot revision=4508
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4565
+Snapshot revision=4440
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4508
+Snapshot revision=4507
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4578
 PassProgress pass=1 phase=autoroute
-Snapshot revision=4565
-PassProgress pass=1 phase=optimizer
-Snapshot revision=4574
-PassProgress pass=1 phase=optimizer
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4482
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4459
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4471
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4503
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4636
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4764
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=4819
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4507
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4507
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4439
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4471
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4461
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4509
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4464
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4436
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4455
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4459
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4471
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4501
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4606
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4453
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4438
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4461
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4509
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4437
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4445
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4529
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4650
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4529
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4650
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4452
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4441
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4529
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4650
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4452
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4443
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4452
+PassProgress pass=2 phase=optimizer
+Snapshot revision=4584
+PassProgress pass=2 phase=optimizer
+Message level=info
+Message level=info
+TaskState state=RUNNING pass=3
+PassProgress pass=3 phase=optimizer
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4616
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4616
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4740
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=5046
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5203
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4626
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4654
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4616
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4658
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4635
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4760
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4677
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4627
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4656
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4629
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4656
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4676
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4701
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=5000
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5276
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5837
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5872
+PassProgress pass=6 phase=autoroute
+PassProgress pass=6 phase=autoroute
+Snapshot revision=5917
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4676
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4676
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4790
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4836
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4600
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4642
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4802
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4930
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5075
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5266
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5327
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4790
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4836
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4682
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4783
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4827
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4599
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4597
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4626
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4692
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4636
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4653
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4607
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4664
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4714
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4800
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4599
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4597
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4703
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4754
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4820
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4703
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4754
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4820
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4618
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4600
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4618
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4680
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4793
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4872
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4598
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4629
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4618
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4704
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4605
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4629
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4600
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4618
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4704
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4618
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4704
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4666
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4800
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4714
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4740
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=5046
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5203
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4635
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4686
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4717
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4703
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4754
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4820
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4605
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4605
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4854
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4674
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4818
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4908
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4674
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4818
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4908
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4674
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4818
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4908
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4630
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4630
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4675
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4658
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4739
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4776
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4701
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=5000
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5276
+PassProgress pass=4 phase=autoroute
+PassProgress pass=4 phase=autoroute
+Snapshot revision=5837
+PassProgress pass=5 phase=autoroute
+PassProgress pass=5 phase=autoroute
+Snapshot revision=5872
+PassProgress pass=6 phase=autoroute
+PassProgress pass=6 phase=autoroute
+Snapshot revision=5917
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4675
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4589
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4656
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4692
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5045
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4647
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4608
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4620
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4660
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=5081
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=5116
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4654
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4654
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4588
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4621
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4610
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4635
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4669
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4596
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4585
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4604
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4608
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4620
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4650
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4764
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4602
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4587
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4610
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4635
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4669
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4586
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4594
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4678
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4846
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4897
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4678
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4846
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4897
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4642
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4688
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4590
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4678
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4846
+PassProgress pass=3 phase=autoroute
+PassProgress pass=3 phase=autoroute
+Snapshot revision=4897
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4642
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4688
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4592
+PassProgress pass=1 phase=autoroute
+Snapshot revision=4642
+PassProgress pass=2 phase=autoroute
+PassProgress pass=2 phase=autoroute
+Snapshot revision=4688
+PassProgress pass=3 phase=optimizer
+Snapshot revision=4760
+PassProgress pass=3 phase=optimizer
 Message level=info
 Message level=info
 Message level=info
-TaskState state=FINISHED pass=1
+TaskState state=FINISHED pass=3
 Message level=info

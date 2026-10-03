@@ -21,20 +21,30 @@
 //!   FIELD-level (`key=value, ` grammar). The first divergence names
 //!   the row pair and the FIRST DIFFERING FIELD.
 //!
-//! PROVENANCE (M11-T9d, 2026-10-02): the `t7_ripup` block is a
-//! RUST-SIDE record now. The upstream #931 attach-SMD cutout conjunct
-//! (drill-page: foreign-net SMD pins stay obstacles) moved the Rust
-//! maze trajectory off the committed Java-pre capture (496 -> 396
-//! assign rows, first divergence at 0-based 182) — and Java-POST's
-//! own stream diverges from the Rust engine too (it moves e1_ripup,
-//! which the Rust engine does not; measured,
+//! PROVENANCE (M11-T9d 2026-10-02, amended M11-T3 2026-10-03): the
+//! `t7_ripup` block is a RUST-SIDE record now, re-based TWICE. The
+//! upstream #931 attach-SMD cutout conjunct (drill-page: foreign-net
+//! SMD pins stay obstacles) first moved the Rust maze trajectory off
+//! the committed Java-pre capture (496 -> 396 assign rows, first
+//! divergence at 0-based 182) — and Java-POST's own stream diverges
+//! from the Rust engine too (it moves e1_ripup, which the Rust
+//! engine does not; measured,
 //! `logs/readiness-2026-10-01/gates/m11t9d/events-golden-post.jsonl`
-//! and `t7-golden-post.jsonl`). No single Java tree matches the
-//! engine row-for-row any more, so the affected block re-based to
-//! the engine's own stream via the door discipline (two-run
-//! determinism self-gate; e1/t9 blocks byte-preserved as the Java
-//! capture — both still aligned). The Java-pre capture is preserved
-//! in git history (this file's prior blob).
+//! and `t7-golden-post.jsonl`). M11-T3's cluster-B attach-gate
+//! widening (`pureSmdNet` -> `hasSmdPin`) moved the tail a second
+//! time (396 -> 407 assigns, first divergence at assign ordinal
+//! 389; skip/ripped/route and the terminal state unchanged;
+//! `gates/t3only/`). A Java pre+T3 tree was probed as a donor and
+//! diverges at assign 183 — pre+T3 lacks T9d/T9i, so no Java tree
+//! fits (the T9d conclusion stands). DOOR DISCIPLINE (amended
+//! T3): the rust-side donor dump MUST be taken under the FULL
+//! manifest — the compare runs the fixtures sequentially in one
+//! process and t7's trajectory differs when e1 has not run before
+//! it (measured: first-assign 313469 full-manifest vs 454685
+//! t7-only); a t7-only dump splices a world the full compare can
+//! never reproduce. Two-run byte-identical self-gate asserted
+//! before each write; e1/t9 blocks byte-preserved (both still
+//! aligned). The Java-pre capture is preserved in git history.
 //!
 //! Row normalization contract (the probe's `normalize`): a 5-arg
 //! granular row `"[%s] [%s] %s: %s"` is stored as `operation message`
@@ -1646,12 +1656,14 @@ mod pins {
         }
         // M11-T9d (2026-10-02): the t7 block advanced to the Rust
         // stream (the #931 attach-SMD port moved its maze trajectory;
-        // see the module doc) — 507 -> 407 t7 trace rows, the delta
-        // entirely in the assign kind (496 -> 396).
-        assert_eq!(trace_rows, 3420, "the committed trace-row count");
+        // see the module doc) — 507 -> 407 t7 trace rows. M11-T3
+        // (2026-10-03): cluster B's widened attach gate moves t7's
+        // tail (first divergence at assign ordinal 389) — 407 -> 418
+        // rows, the delta entirely in the assign kind (396 -> 407).
+        assert_eq!(trace_rows, 3431, "the committed trace-row count");
         assert_eq!(
             tally,
-            [3398, 6, 1, 15],
+            [3409, 6, 1, 15],
             "per-kind row census (assign/skip/ripped/route)"
         );
     }
@@ -1675,7 +1687,9 @@ mod pins {
             .collect();
         // M11-T9d (2026-10-02): 3529 -> 3429 (the t7 block's trace
         // rows advanced to the Rust stream — see the module doc).
-        assert_eq!(records.len(), 3429, "the committed capture size");
+        // M11-T3 (2026-10-03): 3429 -> 3440 (t7's assign tail again —
+        // the cluster-B attach gate; see the module doc's PROVENANCE).
+        assert_eq!(records.len(), 3440, "the committed capture size");
 
         // Per-fixture kind census + the run/incompletes witnesses.
         let census = |fixture: &str| -> [usize; 4] {
@@ -1698,9 +1712,13 @@ mod pins {
         // M11-T9d: t7's assign stream 496 -> 396 (the #931 attach-SMD
         // cutout conjunct changes the drill decomposition, hence the
         // maze trajectory; skip/ripped/route counts unchanged).
+        // M11-T3 (2026-10-03): 396 -> 407 (the cluster-B attach-gate
+        // widening; first divergence at assign ordinal 389 — the tail
+        // replans under the relaxed SMD escape, skip/ripped/route
+        // unchanged, terminal state unchanged).
         assert_eq!(
             census("t7_ripup"),
-            [396, 4, 0, 7],
+            [407, 4, 0, 7],
             "t7: assign/skip/ripped/route"
         );
         assert_eq!(

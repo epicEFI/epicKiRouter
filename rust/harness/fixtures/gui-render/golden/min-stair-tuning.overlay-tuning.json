@@ -2,7 +2,7 @@
 # boundary: load (snapshot_with_overlays pre-route; markers carry Parse)
 # snapshot revision: 7
 # snapshot items: traces=2 vias=0 pads=4 areas=0 outline_pts=4 nets=2
-# overlay counts: airlines=0 markers=1 congestion=None tuning=Some(1 infos)
+# overlay counts: airlines=0 markers=0 congestion=None tuning=Some(1 infos)
 # transform: pan=(-1000, -1000) zoom=1/1 (the T4 derivation: 1/1 is the unique
 #   full-bijection px-per-DBU ratio — view.rs's exactness contract; pan = bounds.ll)
 # viewport: the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX)); culled=0

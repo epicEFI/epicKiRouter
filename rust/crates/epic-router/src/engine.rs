@@ -2940,14 +2940,22 @@ mod tests {
             })
             .collect();
         actual.sort();
+        // M11-T3 rotation (2026-10-03, #931 cluster B): the widened SMD
+        // attach relaxation (pureSmdNet -> hasSmdPin + the ViaMask
+        // rebuild) moves the layer-1 leg's terminal ATTACH point on the
+        // target item — via 122 (662957,29188) -> (667957,9800), the
+        // descending corner with it; items 115/117 are byte-unchanged.
+        // Hunk-attributed by probe: with the depths reverted 8 -> 5 the
+        // canon STILL lands on the new attach point, so the depths hunk
+        // is innocent on this world — the attach gate alone moves it.
         assert_eq!(
             actual.join("\n"),
             "115 trace layer=0 (620000,300000) (521250,300000) (521248,300002) \
              (516679,300002) (516664,300017) (490096,300017) (480738,309375)\n\
              117 via center=(480738,309375)\n\
-             121 trace layer=1 (480738,309375) (502752,309375) (662957,149170) (662957,29188)\n\
-             122 via center=(662957,29188)\n\
-             124 trace layer=0 (662957,29188) (663500,28645) (663500,20000)",
+             121 trace layer=1 (480738,309375) (502752,309375) (667957,144170) (667957,9800)\n\
+             122 via center=(667957,9800)\n\
+             124 trace layer=0 (667957,9800) (663500,14257) (663500,20000)",
             "net-94 board canon diverged from the NoPullTight engine verdict. rows:\n{joined}"
         );
         // The anchor is consumed: no net-94 item retains the anchor's
