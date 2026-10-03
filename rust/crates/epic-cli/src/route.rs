@@ -4672,11 +4672,18 @@ mod tests {
         assert_eq!(pts.len(), 4, "the straight run only: no wave landed");
     }
 
-    /// M7-T4 (the AMENDMENT-3 bank): the min_stair input-violation
-    /// PAIR, named. The committed fixture's input board carries ONE
-    /// parse-time clearance violation; this pin holds the exact pair
-    /// (the instrument face of the T3 spec-review MINOR-3 fold) so
-    /// the T7 DRC table can cite it as an INPUT condition.
+    /// M7-T4 (the AMENDMENT-3 bank), re-pinned for #931 cluster G:
+    /// the min_stair input-violation PAIR, named. The committed
+    /// fixture's PB1/PB2 pads overlap — the ONE parse-time clearance
+    /// violation this pin has held world-exactly since M7. #931
+    /// drops the same-component guard on the same-net Pin-Pin
+    /// exemption, and PB1 (CB1) / PB2 (CB2) share net N2 ACROSS
+    /// components: under upstream-post semantics the pair is EXEMPT
+    /// and the input board carries ZERO violations — the parse-level
+    /// #931 witness (a guard-restoring mutant re-blocks the pair and
+    /// dies on the first assert). The knob-off arm walks the frozen
+    /// pre-#925b face, where the historical derivation still holds:
+    /// exactly the named pair returns.
     #[test]
     fn min_stair_tuning_input_violation_pair_is_named() {
         // The pair derivation (world-exact): the N2 pins PB1/PB2 sit
@@ -4697,6 +4704,15 @@ mod tests {
         let mut manager = SearchTreeManager::new();
         manager.reinsert_tree_items(&mut board);
         epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        let (total, _depths) =
+            epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
+        assert_eq!(
+            total, 0,
+            "post-#931: same-net pins ACROSS components (CB1/CB2, net N2) are exempt"
+        );
+        // The frozen face (the P4 corpus law's read): the exemption
+        // family off — the named pair returns, world-exact.
+        board.rules_mut().same_component_pin_exemptions = false;
         let (total, depths) =
             epic_drc::clearance::all_clearance_violation_depths(&mut manager, &mut board);
         println!("PAIR total={total} depths={depths:?}");
@@ -4707,7 +4723,7 @@ mod tests {
                 d.a, d.b, d.layer, d.expected_clearance, d.actual_clearance
             ));
         }
-        assert_eq!(total, 1, "exactly one input violation");
+        assert_eq!(total, 1, "the frozen face names exactly one pair");
         assert_eq!(
             pairs[0], "item 4 vs item 5 (layer 0, expected 2000 / actual 0)",
             "the NAMED pair: the N2 pins PB1/PB2 overlapping pads"

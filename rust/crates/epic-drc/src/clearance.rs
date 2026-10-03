@@ -63,10 +63,13 @@
 //! [`is_obstacle`], so every walk face and every router consumer of
 //! the matrix sees them):
 //!
-//! * **Same-net, same component** (after the Trace check): two pins
-//!   of ONE component that share a net are never obstacles —
-//!   composite pads, thermal vias in pad, internally connected
-//!   footprint pins (`this.getComponentId() > 0 && equal`).
+//! * **Same-net pins** (after the Trace check): two pins that share
+//!   a net are never obstacles — composite pads, thermal vias in
+//!   pad, stitching vias, internally connected pins across
+//!   components (#925b scoped this to ONE component;
+//!   `this.getComponentId() > 0 && equal`; #931 cluster G dropped
+//!   the guard — same-net pins are electrically connected
+//!   regardless of footprint).
 //! * **Netless sub-pads of one logical pad** (inside the
 //!   no-shared-net arm): BOTH pins netless, same component, and
 //!   [`base_pin_name`] equal and non-empty (`PAD@1`/`PAD@2`,
@@ -355,15 +358,18 @@ pub fn is_obstacle(board: &mut Board, receiver: ItemId, other: ItemId) -> bool {
                 || !matches!(other_kind, Some(BoardItemType::Pin))
                 || !pin_drill_allowed(board, other)
         }
-        // Pin.java:353-365 + the #925b exemptions (upstream
-        // 14b28b6ff) — the ObstacleArea BASE class exemption (all
-        // three keepout kinds AND the conduction areas —
-        // ConductionArea extends ObstacleArea), then TWO
-        // same-component Pin-Pin exemptions (gated on
+        // Pin.java:353-380 + the #925b exemptions (upstream
+        // 14b28b6ff) widened by #931 cluster G — the ObstacleArea
+        // BASE class exemption (all three keepout kinds AND the
+        // conduction areas — ConductionArea extends ObstacleArea),
+        // then TWO Pin-Pin exemptions (gated on
         // BoardRules::same_component_pin_exemptions, the P4 corpus
         // law): netless sub-pads of one logical pad inside the
-        // no-shared-net arm, and same-net pins of one component
-        // after the Trace check.
+        // no-shared-net arm, and — post-#931, guardless — ANY
+        // same-net pin pair after the Trace check (#931 dropped the
+        // same-component conjunct: stitching vias and internally
+        // connected pins across components are electrically
+        // connected too).
         BoardItemType::Pin => {
             if receiver == other || is_any_obstacle_area(other_kind) {
                 return false;
@@ -383,10 +389,7 @@ pub fn is_obstacle(board: &mut Board, receiver: ItemId, other: ItemId) -> bool {
             if matches!(other_kind, Some(BoardItemType::Trace)) {
                 return false;
             }
-            if pin_exemptions_on
-                && matches!(other_kind, Some(BoardItemType::Pin))
-                && same_component_pins(board, receiver, other)
-            {
+            if pin_exemptions_on && matches!(other_kind, Some(BoardItemType::Pin)) {
                 return false;
             }
             !pin_drill_allowed(board, receiver) || !matches!(other_kind, Some(BoardItemType::Via))
@@ -927,8 +930,8 @@ mod pins {
     /// frozen walk (the drc-main golden rows are unaffected: the
     /// craft's pin gaps are 20000 µm, far outside the 2000 rule, so
     /// no golden row ever encoded the old matrix cell). The
-    /// different-component same-net contrast lives on the P4 craft
-    /// ([`same_component_pin_exemptions`]).
+    /// different-component same-net widening witness lives on the
+    /// P4 craft ([`same_component_pin_exemptions`]).
     #[test]
     fn via_trace_cells_and_same_net_pin_quirk() {
         let (manager, mut board) = parse(DSN_MAIN);
@@ -950,16 +953,19 @@ mod pins {
         assert!(is_obstacle(&mut board, via, p1), "via vs foreign pin");
         assert!(
             !is_obstacle(&mut board, p1, p2),
-            "SAME-net pins of ONE component are exempt (upstream 14b28b6ff, #925b)"
+            "SAME-net pins are exempt (upstream 14b28b6ff #925b; #931 cluster G dropped the component guard)"
         );
     }
 
-    /// #925b (upstream `14b28b6ff`): the same-component Pin-Pin
-    /// exemptions on the P4 craft — every close pair sits 3000 µm
-    /// apart under the 2000 µm rule, so the MATRIX verdicts and the
-    /// walk rows agree pair-for-pair. Each contrast kills its own
-    /// mutant: a component-blind port exempts the NS2 pair (same
-    /// net, DIFFERENT components), a netless-blind port exempts the
+    /// #925b (upstream `14b28b6ff`) + the #931 cluster-G widening:
+    /// the Pin-Pin exemptions on the P4 craft — every close pair
+    /// sits 3000 µm apart under the 2000 µm rule, so the MATRIX
+    /// verdicts and the walk rows agree pair-for-pair. The NS2 pair
+    /// (same net, DIFFERENT components) WITNESSES the #931 guard
+    /// drop — a guard-restoring mutant re-blocks it and fails the
+    /// 0-row assert; the knob-off control below kills a knob-blind
+    /// port (every exemption flips back together). The contrasts
+    /// each kill their own mutant: a netless-blind port exempts the
     /// CMPE pair (netted vs netless, same base), a name-blind port
     /// exempts the CMPD pair (netless, different bases), and a
     /// deletion mutant of either exemption fails its own 0-row
@@ -1008,9 +1014,10 @@ mod pins {
         // Exemption 2: same component, same net — exempt both ways.
         assert!(!is_obstacle(&mut board, ps1, ps2));
         assert!(!is_obstacle(&mut board, ps2, ps1), "symmetric");
-        // Contrast: same net, DIFFERENT components — still obstacles.
-        assert!(is_obstacle(&mut board, pb_b, pb_b2));
-        assert!(is_obstacle(&mut board, pb_b2, pb_b));
+        // #931 cluster G: same net ACROSS components — exempt (the
+        // guard drop; stitching vias, internally connected pins).
+        assert!(!is_obstacle(&mut board, pb_b, pb_b2));
+        assert!(!is_obstacle(&mut board, pb_b2, pb_b), "symmetric");
         // Exemption 1: netless sub-pads of one logical pad — exempt.
         assert!(!is_obstacle(&mut board, px1, px2));
         assert!(!is_obstacle(&mut board, px2, px1), "symmetric");
@@ -1031,11 +1038,12 @@ mod pins {
         // DIFFER — insertion 2 exempts without ever asking.
         assert!(!same_logical_pad(&board, ps1, ps2));
 
-        // The walk agrees row-for-row: exactly the three contrasting
-        // pairs (shortfall 1000 µm each, far above the 1.0 tolerance).
+        // The walk agrees row-for-row: exactly the two contrasting
+        // pairs (shortfall 1000 µm each, far above the 1.0 tolerance)
+        // — the NS2 pair dropped with the #931 guard.
         let (total, rows) = all_clearance_violations(&mut manager, &mut board);
-        assert_eq!(total, 3, "exactly the three contrasts: {rows:?}");
-        assert_eq!(rows_contain(&rows, pb_b, pb_b2), 1, "NS2 pair");
+        assert_eq!(total, 2, "exactly the two contrasts: {rows:?}");
+        assert_eq!(rows_contain(&rows, pb_b, pb_b2), 0, "NS2 pair (#931)");
         assert_eq!(rows_contain(&rows, py1, pz1), 1, "CMPD pair");
         assert_eq!(rows_contain(&rows, pw1, pw2), 1, "CMPE pair");
         assert_eq!(rows_contain(&rows, ps1, ps2), 0, "exemption 2 drops NS");

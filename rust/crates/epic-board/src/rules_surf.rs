@@ -743,14 +743,16 @@ pub struct BoardRules {
     /// settings override writes it (epic_engine::drc_tolerance).
     pub clearance_tolerance_um: f64,
     /// The upstream `14b28b6ff` (#925b) Pin-Pin exemptions — same-net
-    /// pins of one component, and netless sub-pads of one logical
-    /// pad on one component, are not clearance obstacles (composite
-    /// pads, thermal vias in pad, internally connected footprint
-    /// pins). Upstream ships NO knob for this; the flag exists only
-    /// so the frozen drc corpus can walk the pre-#925b face (P4's
-    /// corpus law, the `clearance_tolerance_um` precedent). Seeded
-    /// `true` (upstream HEAD) at both construction faces; no
-    /// settings override ever writes it.
+    /// pins (originally of one component; #931 cluster G dropped the
+    /// component guard — stitching vias and internally connected
+    /// pins across components too), and netless sub-pads of one
+    /// logical pad on one component, are not clearance obstacles
+    /// (composite pads, thermal vias in pad). Upstream ships NO knob
+    /// for this; the flag exists only so the frozen drc corpus can
+    /// walk the pre-#925b face (P4's corpus law, the
+    /// `clearance_tolerance_um` precedent). Seeded `true` (upstream
+    /// HEAD) at both construction faces; no settings override ever
+    /// writes it.
     pub same_component_pin_exemptions: bool,
 }
 

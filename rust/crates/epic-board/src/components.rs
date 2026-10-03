@@ -998,7 +998,12 @@ pub fn pin_center(
 ///
 /// * everything from the FIRST `@` or `#` (`PAD@1` / `PAD@2` →
 ///   `PAD`; no digit requirement on these suffixes — `@` marks a
-///   sub-pad unconditionally);
+///   sub-pad unconditionally). A separator at position 0 (`@1`,
+///   `#3`) keeps the bare separator as the base (#931 cluster G:
+///   Java's `atIdx > 0` + `atIdx == 0 → "@"` arms — the base stays
+///   NON-EMPTY so such sub-pad pairs still match in
+///   `same_logical_pad`, where the pre-#931 `substring(0, 0)` =
+///   empty base never could);
 /// * the LAST `_` or `-` when the suffix after it is ALL DIGITS and
 ///   the separator is neither the first nor the last character
 ///   (`pad_1_1` → `pad_1`, `1-1` → `1`; `A_B` / `A-B` keep their
@@ -1012,10 +1017,10 @@ pub fn pin_center(
 #[must_use]
 pub fn base_pin_name(pin_name: &str) -> &str {
     if let Some(at) = pin_name.find('@') {
-        return &pin_name[..at];
+        return if at > 0 { &pin_name[..at] } else { "@" };
     }
     if let Some(hash) = pin_name.find('#') {
-        return &pin_name[..hash];
+        return if hash > 0 { &pin_name[..hash] } else { "#" };
     }
     strip_digits_suffixed(pin_name, '_')
         .or_else(|| strip_digits_suffixed(pin_name, '-'))
@@ -2100,9 +2105,15 @@ mod tests {
             ("PAD@10", "PAD"),
             ("PAD@x", "PAD"),
             ("PAD@1@2", "PAD"),
+            // @ at position 0 keeps the bare separator (#931
+            // cluster G) — never the pre-#931 empty base.
+            ("@1", "@"),
+            ("@x", "@"),
+            ("@", "@"),
             // # family: after @, before _.
             ("P#2", "P"),
             ("PAD_1#1", "PAD_1"),
+            ("#3", "#"),
             // _ family: LAST separator, all-digits suffix, not at an edge.
             ("pad_1", "pad"),
             ("pad_1_1", "pad_1"),
