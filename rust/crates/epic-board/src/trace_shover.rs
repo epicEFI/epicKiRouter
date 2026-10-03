@@ -1431,11 +1431,12 @@ pub(crate) fn get_trace_tail(
 /// Java `BasicBoard.removeItems(itemList)` (`BasicBoard.java:637-647`):
 /// removes every removable item; the result is false when at least one
 /// item was deletion-forbidden or user-fixed (those stay).
-pub(crate) fn remove_items(
-    manager: &mut SearchTreeManager,
-    board: &mut Board,
-    items: &[ItemId],
-) -> bool {
+/// Java `RoutingBoard.removeItems(List<Item>)` — the bulk per-item
+/// removal (each deletion-forbidden item is skipped, not removed;
+/// returns whether ALL were removed). Pub for the #933 last-mile
+/// ripup consumer (`epic-router::pipeline::last_mile`); the
+/// pre-existing callers are the shover's own bulk ops.
+pub fn remove_items(manager: &mut SearchTreeManager, board: &mut Board, items: &[ItemId]) -> bool {
     let mut result = true;
     for &id in items {
         let forbidden = match board.get(id) {

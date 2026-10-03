@@ -70,6 +70,7 @@ use crate::pipeline::event_sink::DriverSink;
 use crate::pipeline::fanout::{
     FanoutPassStatus, FanoutProgressListener, fanout_board, smd_pin_connection_counts,
 };
+use crate::pipeline::last_mile;
 use crate::pipeline::pass_runner::{RouterCounters, run_pass};
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,15 @@ pub const STOP_AT_PASS_MODULO: i32 = 4;
 pub const STAGNATION_PASS_LIMIT: i32 = 10;
 /// Java `FANOUT_RECOVERY_STAGNATION_PASSES` (`:67`).
 pub const FANOUT_RECOVERY_STAGNATION_PASSES: i32 = 3;
+/// Java `LAST_MILE_INCOMPLETE_LIMIT` (#933, upstream 339e8bb50) —
+/// upstream-tuned (PCBench), not ours to re-derive.
+pub const LAST_MILE_INCOMPLETE_LIMIT: i32 = 8;
+/// Java `LAST_MILE_STAGNATION_PASSES` (#933, upstream 339e8bb50) —
+/// upstream-tuned, not ours to re-derive.
+pub const LAST_MILE_STAGNATION_PASSES: i32 = 3;
+/// Java `LAST_MILE_MAX_ATTEMPTS` (#933, upstream 339e8bb50) —
+/// upstream-tuned, not ours to re-derive.
+pub const LAST_MILE_MAX_ATTEMPTS: i32 = 2;
 /// Java `PROGRESS_STATISTICS_ITEM_INTERVAL` (`:68`).
 pub const PROGRESS_STATISTICS_ITEM_INTERVAL: i32 = 10;
 /// Java `STAGNATION_SCORE_THRESHOLD` (`:69`).
@@ -866,6 +876,8 @@ impl<'a> BatchDriver<'a> {
 
         let mut current_pass: i32 = 1;
         let mut consecutive_no_improvement_passes: i32 = 0;
+        // Java `lastMileAttempts` (#933, upstream 339e8bb50).
+        let mut last_mile_attempts: i32 = 0;
         let mut last_best_score = f32::NEG_INFINITY;
         let mut global_best_score = f32::NEG_INFINITY;
         let mut pass_of_best_score: i32 = 0;
@@ -1109,6 +1121,41 @@ impl<'a> BatchDriver<'a> {
                              tails/vias). Incompletes: {incompletes_before_recovery} -> \
                              {incompletes_now}."
                         ));
+                    }
+
+                    // Java `:504-527` (#933, upstream 339e8bb50): the
+                    // last-mile blocker ripup — when only a few
+                    // connections remain and the score has stopped
+                    // improving, rip the unfixed foreign traces/vias
+                    // overlapping the remaining airlines' corridors
+                    // (bounded: 2 attempts, 24 items) so the next pass
+                    // can re-route through them. `lastMileAttempts`
+                    // increments on every TRIGGER (even removed == 0,
+                    // the Java face); the alreadyRoutedBoardHashes
+                    // clear() is dead on both sides (the consult block
+                    // is commented out in Java; the port is doc-only).
+                    if incompletes_now > 0
+                        && incompletes_now <= LAST_MILE_INCOMPLETE_LIMIT
+                        && last_mile_attempts < LAST_MILE_MAX_ATTEMPTS
+                        && consecutive_no_improvement_passes >= LAST_MILE_STAGNATION_PASSES
+                    {
+                        let removed = last_mile::rip_blockers(self.manager, self.board);
+                        last_mile_attempts += 1;
+                        if removed > 0 {
+                            board_statistics_after = BoardStatistics::new(self.manager, self.board);
+                            board_score_after = board_statistics_after
+                                .get_router_score(Some(&self.settings.scoring));
+                            last_best_score = board_score_after;
+                            consecutive_no_improvement_passes = 0;
+                            // Java does NOT recompute incompleteNow
+                            // here — the log (and any following stop
+                            // message) reads the PRE-rip count.
+                            sink.info(&format!(
+                                "Last-mile rip-up removed {} blocking trace(s) or via(s) \
+                                 around {} remaining connection(s).",
+                                removed, incompletes_now
+                            ));
+                        }
                     }
 
                     if consecutive_no_improvement_passes >= STAGNATION_PASS_LIMIT {
@@ -1509,7 +1556,7 @@ mod tests {
     use crate::pipeline::board_statistics::RouterSettingsScoring;
     use crate::pipeline::event_sink::CaptureDriverSink;
     use crate::pipeline::pass_runner::RouterCounters;
-    use crate::test_util::parse;
+    use crate::test_util::{net_no, parse};
     use epic_board::tree_manager::SearchTreeManager;
 
     /// The T9/T10c locator-world fixture (2 layers, `unit um`,
@@ -2096,6 +2143,113 @@ mod tests {
         assert_eq!(
             format_score(0.0, 2, 0),
             "0.00 (2 unrouted and 0 violations)"
+        );
+    }
+
+    /// The #933 last-mile trigger through the batch loop (Java
+    /// `:504-527`, upstream 339e8bb50) on the starved world, where
+    /// the score stagnates at a constant. The blocker is a trace
+    /// spanning net 33's OWN pin pair (the airline's endpoints ARE
+    /// the pin centers): both ends anchor to same-net pins — the
+    /// pass-end tail sweep eats any floating trace at pass 1, so a
+    /// both-ends-anchored shape is the only blocker that survives to
+    /// the stagnation window — and while it lives it CONNECTS the
+    /// pair, dropping the pre-rip incompletes to 1 (net 98 only).
+    /// It is own-net for net 33's airline (skipped) but a foreign
+    /// unfixed trace inside net 98's OVERLAPPING corridor (the
+    /// fixture's two corridors share the y=300000 line — net 98's
+    /// margin swallows it), so the rip removes exactly it at the
+    /// 3-no-improvement-pass gate (pass 11), RESETS the local
+    /// counter, and logs the PRE-rip count: "around 1 remaining
+    /// connection(s)" — after the rip the world returns to 2
+    /// incompletes, so a post-rip recompute (the natural "fix")
+    /// would print 2 and fail this pin. Without the reset the LOCAL
+    /// tracker fires at pass 18; with it the counter reads 7 there
+    /// and the GLOBAL tracker (best at pass 8) closes its 10-pass
+    /// window first — the stop-reason flip IS the reset witness.
+    /// Fanout is disabled because the one-time recovery (same
+    /// 3-pass threshold, fires first at pass 11) would reset the
+    /// counter before the rip. Exactly ONE rip row: the pass-14
+    /// re-trigger finds nothing removable (removed == 0 consumes the
+    /// `lastMileAttempts` budget silently, the Java face).
+    #[test]
+    fn t12_driver_last_mile_ripup_trigger() {
+        use epic_board::items::FixedState;
+        use epic_board::trace_ops::insert_trace_without_cleaning;
+        use epic_geometry::int_point::IntPoint;
+        use epic_geometry::point::Point;
+        use epic_geometry::polyline::Polyline;
+
+        let (mut manager, mut board) = parse_fixture();
+        let net_a = net_no(&board, "NET_33");
+        // The blocker: the pair trace, exactly on the airline.
+        let airlines = epic_drc::incompletes::airline_segments(&manager, &mut board);
+        let target = airlines
+            .iter()
+            .find(|airline| airline.net == net_a)
+            .expect("the net-33 airline");
+        let from = (
+            i32::try_from(target.from.0).expect("in i32"),
+            i32::try_from(target.from.1).expect("in i32"),
+        );
+        let to = (
+            i32::try_from(target.to.0).expect("in i32"),
+            i32::try_from(target.to.1).expect("in i32"),
+        );
+        let blocker = insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(IntPoint::new(from.0, from.1)),
+                &Point::Int(IntPoint::new(to.0, to.1)),
+            ),
+            0,
+            500,
+            &[net_a],
+            1,
+            FixedState::Unfixed,
+        )
+        .expect("blocker insert succeeds");
+
+        let mut settings = starved_settings();
+        settings.fanout_enabled = false;
+        let mut sink = CaptureDriverSink::default();
+        let mut driver = BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
+        let outcome = driver.run(&mut sink).expect("run completes");
+        let stop_reason = driver.stop_reason;
+        drop(driver);
+        assert!(!outcome);
+        assert_eq!(
+            stop_reason,
+            Some(StopReason::StagnationGlobal),
+            "the rip's counter reset handed pass 18 to the global tracker: {info}",
+            info = sink.joined("info")
+        );
+        let info = sink.joined("info");
+        let rip_rows = info
+            .lines()
+            .filter(|row| row.contains("Last-mile rip-up removed"))
+            .count();
+        assert_eq!(
+            rip_rows, 1,
+            "one rip row (the re-trigger is silent): {info}"
+        );
+        assert!(
+            info.contains(
+                "Last-mile rip-up removed 1 blocking trace(s) or via(s) around 1 remaining \
+                 connection(s)."
+            ),
+            "the exact Java row (PRE-rip incompletes — the pair trace still connects net 33): \
+             {info}"
+        );
+        assert!(
+            board.get(blocker).is_none_or(|entry| !entry.on_the_board),
+            "the blocker was ripped off the board"
+        );
+        let states_text = sink.joined("task_state");
+        assert!(
+            states_text.contains("task_state state=CANCELLED pass=18 hash="),
+            "the global window closes at 8 + 10: {states_text}"
         );
     }
 }
