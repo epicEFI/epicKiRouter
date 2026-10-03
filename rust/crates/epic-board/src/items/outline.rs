@@ -396,7 +396,14 @@ impl crate::board::Board {
                         continue;
                     };
                     for no in 0..tile.border_line_count() as i32 {
-                        if !contains(tile.corner(no).to_float()) {
+                        // Java: `corner(c)` yields null on the unbounded
+                        // (parallel-line) arm and `contains(null)` answers
+                        // false — a degenerate corner classifies the pin
+                        // OUTSIDE. `corner_is_bounded` is Java's
+                        // `cornerIsBounded` guard for exactly that arm
+                        // (the exact `corner` face panics where Java
+                        // answers null).
+                        if !tile.corner_is_bounded(no) || !contains(tile.corner(no).to_float()) {
                             is_edge_or_outside = true;
                             break 'layers;
                         }
@@ -1037,6 +1044,84 @@ mod tests {
             box_str(&board.bounding_box().expect("grown box")),
             "-2000 -2000 401125 142000",
             "the trace's 400125 drives the union"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // The T6 degenerate-pad pin (the dsn-corpus Issue179 finding,
+    // 2026-10-02): padstack p7 of Issue179-Autorouter_PCB1 declares a
+    // TWO-POINT polygon pad — a zero-width line segment — which the
+    // reader normalizes into a 2-line Simplex (two parallel half-planes,
+    // NO finite corner). Java's corner(c) yields null on that arm and
+    // contains(null) answers false, so the pin classifies OUTSIDE and
+    // its net joins the edge set; the port's exact corner() PANICS there
+    // (the from_ses_board eager recompute crashed the dsn-corpus walk
+    // until corner_is_bounded guarded the arm).
+    // -------------------------------------------------------------------
+
+    /// The degenerate-pad fixture path.
+    const T6_DEGENERATE: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../rust/harness/fixtures/t6/t6-degenerate-pad.dsn"
+    );
+
+    /// **The unbounded-corner pin** — the two-point-polygon pad parses
+    /// into a 2-line Simplex whose every corner is unbounded: the pin's
+    /// CENTER is inside the outline (the center test alone would NOT
+    /// classify it), the guarded corner walk classifies it OUTSIDE
+    /// (Java null-corner semantics), and the parse does not panic —
+    /// the regression face the dsn corpus caught. A port dropping the
+    /// corner_is_bounded guard panics here at parse.
+    #[test]
+    fn t6_degenerate_pad_classifies_outside_without_panicking() {
+        let bytes = std::fs::read(T6_DEGENERATE).expect("degenerate fixture present");
+        let mut ses = epic_dsn::ses_board::SesBoard::new();
+        match read_board(bytes.as_slice(), &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+        // The eager recompute rides the conversion — a panic here is
+        // the regression (unguarded exact corner on the parallel lines).
+        let mut board = Board::from_ses_board(&ses);
+        let n_rect = net_no(&board, "N_RECT");
+        let n_line = net_no(&board, "N_LINE");
+        let line_pin = pin_carrying(&board, n_line);
+        // The discriminator precondition: the LINE pin's center is
+        // INSIDE (the unbounded corner, not the center, decides).
+        let center = board
+            .pin_center(line_pin)
+            .expect("center exists")
+            .to_float();
+        assert!(
+            center.x > 0.0 && center.x < 250_000.0 && center.y > 0.0 && center.y < 140_000.0,
+            "the degenerate pin sits interior (center {center:?})"
+        );
+        assert_eq!(
+            board.edge_pin_nets,
+            [n_line]
+                .into_iter()
+                .collect::<std::collections::BTreeSet<i32>>(),
+            "only the degenerate pad's net joins — the rect pad stays interior"
+        );
+        assert!(!board.edge_pin_nets_dirty);
+        let outline = outline_id(&board);
+        assert!(
+            !board.outline_blocks_nets(outline, &[n_line]),
+            "the degenerate pad's net gains the edge exemption"
+        );
+        assert!(
+            board.outline_blocks_nets(outline, &[n_rect]),
+            "the ordinary interior pad's net stays blocked"
+        );
+        // set_item_nets on the degenerate pin recomputes through the
+        // guarded walk too (the hook path, no panic).
+        board.set_item_nets(line_pin, vec![777]);
+        assert_eq!(
+            board.edge_pin_nets,
+            [777]
+                .into_iter()
+                .collect::<std::collections::BTreeSet<i32>>(),
+            "the re-net tracks the degenerate pin's nets"
         );
     }
 }
