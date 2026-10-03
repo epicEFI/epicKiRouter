@@ -5,6 +5,6 @@
   "flags": [
     "--router.congestion_global=on"
   ],
-  "ses_sha256": "09463e57db274e9a1ef601c2002d75e9935ea198d3bf7d421ffe12c3d1a5d7a2",
-  "manifest_sha256": "00cc873855d18f43f790e22dad679b580855078de07aa93c545513860a835f90"
+  "ses_sha256": "41177388f8c14e1279ffa66940a0552e2af5a3cc45b996dfa834feab0058496c",
+  "manifest_sha256": "4817616ba7361a04e93e9d2675c13dadab2ea67828557adb73f0c994acc98e33"
 }

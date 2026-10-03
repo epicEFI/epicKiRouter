@@ -39,7 +39,13 @@ pub struct RouterSettingsIr {
     /// (default `true`). Out-of-range slots are read as `false` (Java
     /// warns and returns false).
     pub layer_active: Vec<bool>,
-    /// Java `getAutomaticNeckdown()` (`:896-898`, default `false`).
+    /// Java `getAutomaticNeckdown()` (`:896-898`). Default TRUE —
+    /// `DefaultSettings.java:157/:164` seeds `automaticNeckdown =
+    /// true` (verified at the graft baseline e7f9bdf1 AND at
+    /// aa909a345^); `false` is only the GUI Workspace checkbox's
+    /// persisted default. M11-T9i's widened micro-neckdown gate
+    /// (`is_fanout || with_neckdown`) is therefore LIVE at headless
+    /// defaults.
     pub automatic_neckdown: bool,
     /// Java `getStartRipupCosts()` (`RouterSettings.java:540-542`,
     /// default 1) — the minimum ripup cost. `MazeRipupResolver
