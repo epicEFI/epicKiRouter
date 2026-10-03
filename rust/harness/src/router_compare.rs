@@ -3804,10 +3804,15 @@ mod pins {
     /// `epic_board::trace_shover::check_max_length` (bug-187 — the
     /// 0.0 stub had short-circuited every maze shove to ripup-only),
     /// the detail pass's shove decisions changed again: 14/0/19 became
-    /// 25/0/22, re-measured deterministic across runs. Score and
-    /// violations UNCHANGED through both rotations: the Java record
-    /// 991.32 / 0 / 16 still matches (the counts are the buglog-176
-    /// DETERMINISM FINGERPRINT, not a jar anchor). Mutants: a
+    /// 25/0/22, re-measured deterministic across runs. M11-T9i
+    /// rotation: with the micro-neckdown insert gate opened beyond
+    /// fanout (upstream aa909a345, #931 — live at headless defaults),
+    /// this board's neck-finish connections now complete via
+    /// reduced-width taper items: 25/0/22 became 38/0/23, re-measured
+    /// deterministic across runs. Score and violations UNCHANGED
+    /// through all three rotations: the Java record 991.32 / 0 / 16
+    /// still matches (the counts are the buglog-176 DETERMINISM
+    /// FINGERPRINT, not a jar anchor). Mutants: a
     /// machinery that fabricates or swallows the worker result dies
     /// here; a wall that fires early turns this `Ok` into the deadline
     /// `Err` and dies here; a regression of the buglog-176 fix (the CA
@@ -3842,10 +3847,11 @@ mod pins {
         );
         assert_eq!(
             (detail.trace_count, detail.via_count, detail.bend_count),
-            (25, 0, 22),
-            "buglog-176 geometry counts post M4-T6: 25 traces / 0 vias / \
-             22 bends (the wired production shover; was 14/0/19 under the \
-             T4 tightener alone, 15/0/66 pre-T4)"
+            (38, 0, 23),
+            "buglog-176 geometry counts post M11-T9i: 38 traces / 0 vias / \
+             23 bends (the micro-neckdown tapers of aa909a345; was 25/0/22 \
+             under the wired production shover, 14/0/19 under the T4 \
+             tightener alone, 15/0/66 pre-T4)"
         );
     }
 

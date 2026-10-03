@@ -569,7 +569,7 @@ impl<S: PullTightSeam, E: InserterEventSink> FoundConnectionInserter<'_, S, E> {
             }
             if !neckdown_inserted
                 && !reached_last
-                && self.ctrl.is_fanout
+                && (self.ctrl.is_fanout || self.ctrl.with_neckdown)
                 && current_corner_arr.len() == 2
             {
                 micro_neckdown_inserted = self.insert_fanout_micro_neckdown(
@@ -1730,11 +1730,16 @@ mod tests {
     /// F4: the CLOSED side of the neckdown-distance gate, at EXACT
     /// equality — `|pin → M| = 6032 = pin_neck_down_distance`, where
     /// Java's `>=` REFUSES (`None` from `tryNeckDown`, Java `:549`).
-    /// The world is the open-side twin with M one unit higher: the
-    /// verdict flips to FAIL, and NO narrowed trace may exist. The
-    /// `>=` → `>` mutant opens the gate, the narrowed insert lands
-    /// (4000 ≥ 3115) and the test's verdict/trace asserts fail — the
-    /// boundary is the discriminator.
+    /// The world is the open-side twin with M one unit higher. M11-T9i
+    /// (aa909a345) rotated the OBSERVABLE: pre-widening the refused
+    /// regular neckdown sank the whole insert (FAIL + stub cleanup);
+    /// with the micro arm now open (`is_fanout || with_neckdown`) the
+    /// insert still COMPLETES — so the boundary is pinned on the i=2
+    /// ROW (`neckdown=false`: the regular arm refused; the completion
+    /// is the micro arm, whose pin-driven candidate ladder starts at
+    /// the same 499 the regular arm would have used). The
+    /// `>=` → `>` distance mutant opens the regular gate instead
+    /// (`neckdown=true` at i=2) — the row assert flips.
     #[test]
     fn t11_neckdown_distance_gate_boundary_rejects() {
         let (mut manager, mut board) = parse_fixture();
@@ -1776,44 +1781,55 @@ mod tests {
             layer: 0,
         };
         assert!(
-            !instance.insert_trace(&item),
-            "the boundary must refuse the neckdown. rows:\n{}",
+            instance.insert_trace(&item),
+            "the T9i-widened micro arm rescues past the refused regular gate. rows:\n{}",
             sink.rows.join("\n")
         );
         let joined = sink.rows.join("\n");
         assert!(
             joined.contains(
-                "net=94, layer=0, i=2, fromCornerNo=1, decision=FAIL, neckdown=false, \
-                 micro_neckdown=false, okPoint=(663500,26032)"
+                "net=94, layer=0, i=2, fromCornerNo=2, decision=ADVANCE, neckdown=false, \
+                 micro_neckdown=true, okPoint=(663500,26032), first=(663500,26032), \
+                 last=(663500,32000)"
             ),
-            "the i=2 FAIL row missing or wrong:\n{joined}"
+            "the i=2 row must show the regular gate REFUSED (neckdown=false) and the \
+             micro rescue (micro_neckdown=true):\n{joined}"
         );
-        // No narrowed trace anywhere — the mutant's tell.
-        let narrowed = board
+        // The rescue trace is hw 499 — the PIN-DRIVEN neckdown
+        // halfwidth, which the micro ladder tries FIRST (the pin
+        // candidates precede the 3/4-3/5-1/2 fractions); the regular
+        // arm's own 499 path is what the distance gate refuses, so the
+        // ROW assert above (`neckdown=false, micro_neckdown=true`) is
+        // the discriminator — the `>=` → `>` mutant flips it to
+        // neckdown=true (the regular arm landing its own 499).
+        let traces: Vec<(i32, Vec<(i32, i32)>)> = board
             .iter_descending()
             .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
-            .filter(|entry| board.trace_half_width(entry.id) == Some(499))
-            .count();
-        assert_eq!(narrowed, 0, "the refused gate must not narrow");
-        // The faithful stub cleanup: at M the stranded full-width trace
-        // is a tail (its endpoint contacts nothing) and is REMOVED —
-        // the board ends with NO net-94 traces at all.
-        assert!(
-            joined.contains("compare_trace_stub_found net=94, corner_idx=1, corner=(663500,26032)"),
-            "the stub-found row at M missing:\n{joined}"
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        let mut sorted = traces;
+        sorted.sort();
+        assert_eq!(
+            sorted,
+            vec![
+                (499, vec![(663500, 26032), (663500, 32000)]),
+                (1500, vec![(663500, 20000), (663500, 26032)]),
+            ],
+            "full-width to M + the micro arm's pin-width rescue through the shadow"
         );
-        assert!(
-            joined.contains(
-                "[FoundConnectionInserter.insert_trace] [compare_trace_stub_cleanup] \
-                 net=94, layer=0, removed_stubs=1, trace_enabled=true: Net #94"
-            ),
-            "the stranded trace must be cleaned as a stub:\n{joined}"
-        );
-        let net94 = board
-            .iter_descending()
-            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
-            .count();
-        assert_eq!(net94, 0, "the FAIL ate its own progress (stub cleanup)");
     }
 
     /// F4: the fanout MICRO-neckdown candidate ORDER (Java `:455-523`):
@@ -1906,6 +1922,115 @@ mod tests {
             traces,
             vec![(1125, vec![(663500, 20000), (669300, 20000)])],
             "the winning candidate's trace"
+        );
+    }
+
+    /// M11-T9i (upstream aa909a345, FoundConnectionInserter.java:212):
+    /// the micro-neckdown arm's gate widens from fanout-only to
+    /// `is_fanout || with_neckdown` — normal autorouting (neckdown on,
+    /// fanout off) can now finish a segment through a pinch at a
+    /// reduced width. Same world as the fanout ladder test above, but
+    /// the START corner is moved OFF the net-94 pin center (a pin at
+    /// the corner would let the REGULAR 4-segment neckdown complete
+    /// instead — `t11_neckdown_start_pin_narrows_blocked_target...`
+    /// above), so the micro arm is the ONLY completion path. The
+    /// pre-widening mutant (gate = `is_fanout` alone) answers false.
+    #[test]
+    fn t9i_micro_neckdown_gate_opens_without_fanout_when_neckdown_enabled() {
+        let (mut manager, mut board) = parse_fixture();
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(668000, 16258)),
+                &Point::Int(corner(672000, 16258)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        // Anchor at the (off-pin) start corner: without contact at its
+        // head the stub cleanup would faithfully eat the inserted
+        // segment (the t11_get_instance law above). Seeded before the
+        // instance borrows the board.
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(660000, 20000)),
+                &Point::Int(corner(664500, 20000)),
+            ),
+            0,
+            1500,
+            &[94],
+            0,
+            FixedState::Unfixed,
+        )
+        .expect("anchor trace");
+        let layer_count = board.layers().layers.len();
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        // The T9i face: neckdown on, fanout OFF (the opposite of the
+        // fanout ladder test above — no fanout_start_pin_name either).
+        ctrl.with_neckdown = true;
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![corner(664500, 20000), corner(669300, 20000)],
+            layer: 0,
+        };
+        assert!(
+            instance.insert_trace(&item),
+            "the widened gate lets the micro neckdown squeeze through. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "decision=ADVANCE, neckdown=false, micro_neckdown=true, \
+                 okPoint=(664500,20000), first=(664500,20000), last=(669300,20000)"
+            ),
+            "the micro ADVANCE row missing or wrong:\n{joined}"
+        );
+        let traces: Vec<(i32, Vec<(i32, i32)>)> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        // Newest first (iter_descending): the micro winner, then the
+        // seeded anchor it connects to.
+        assert_eq!(
+            traces,
+            vec![
+                (1125, vec![(664500, 20000), (669300, 20000)]),
+                (1500, vec![(660000, 20000), (664500, 20000)]),
+            ],
+            "the winning candidate's trace + the anchor"
         );
     }
 
