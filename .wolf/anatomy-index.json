@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-03T02:32:33.448Z",
-    "fileCount": 750,
+    "lastScanned": "2026-10-03T04:12:47.003Z",
+    "fileCount": 766,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "0ed071f0c13eb7dbf2536e70fb4b2b9732ede2d8c4bd0b8cdf01b5d846c950da",
-    "storeUpdatedAt": "2026-10-03T02:32:33.461Z",
-    "rootHash": "b54ec69184d4e84b"
+    "renderedHash": "cc7f2121469bbd2b0c06fc00331818156554efcdd9d95c8f7bfca489e166772c",
+    "storeUpdatedAt": "2026-10-03T04:12:47.013Z",
+    "rootHash": "2d762d2d329958ba"
   },
   "files": {
     ".dockerignore": {
@@ -6756,11 +6756,11 @@
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 56133,
-      "hash": "b1b76a5ace672955",
-      "size": 210949,
-      "mtimeMs": 1790984583914.749,
-      "updatedAt": "2026-10-02T23:43:04.020Z",
+      "tokens": 56260,
+      "hash": "2a52157f1e8857d4",
+      "size": 211427,
+      "mtimeMs": 1790996785886.7053,
+      "updatedAt": "2026-10-03T03:06:25.994Z",
       "source": "hook",
       "symbols": [
         {
@@ -6970,8 +6970,8 @@
           "name": "exit_code_for",
           "kind": "fn",
           "startLine": 673,
-          "endLine": 4709,
-          "tokens": 51304
+          "endLine": 4718,
+          "tokens": 51440
         }
       ]
     },
@@ -8552,11 +8552,11 @@
     },
     "rust/crates/epic-board/src/items/outline.rs": {
       "description": "Board outline — keepout derivations (M2 Task 4).",
-      "tokens": 7938,
-      "hash": "7f7d69d575d7cef8",
-      "size": 29883,
-      "mtimeMs": 1790931080181.8635,
-      "updatedAt": "2026-10-02T08:51:20.282Z",
+      "tokens": 13353,
+      "hash": "19c2f0543cc4cc0a",
+      "size": 50244,
+      "mtimeMs": 1790999989618.9521,
+      "updatedAt": "2026-10-03T03:59:49.727Z",
       "source": "hook",
       "symbols": [
         {
@@ -8640,18 +8640,18 @@
           "name": "crate",
           "kind": "section",
           "startLine": 265,
-          "endLine": 672,
-          "tokens": 5176
+          "endLine": 1124,
+          "tokens": 10979
         }
       ]
     },
     "rust/crates/epic-engine/src/session.rs": {
       "description": "The headless application session — the M9-T2 `Session` (the Java",
-      "tokens": 15790,
-      "hash": "a0f0e78a189438f3",
-      "size": 59445,
-      "mtimeMs": 1790984213263.0925,
-      "updatedAt": "2026-10-02T23:36:53.362Z",
+      "tokens": 15950,
+      "hash": "bdfeea55f2bb689b",
+      "size": 60049,
+      "mtimeMs": 1790996778618.675,
+      "updatedAt": "2026-10-03T03:06:18.732Z",
       "source": "hook",
       "symbols": [
         {
@@ -8742,42 +8742,42 @@
           "name": "Session",
           "kind": "section",
           "startLine": 529,
-          "endLine": 1105,
-          "tokens": 7922
+          "endLine": 1115,
+          "tokens": 8094
         },
         {
           "name": "project_heatmap",
           "kind": "fn",
-          "startLine": 1106,
-          "endLine": 1139,
+          "startLine": 1116,
+          "endLine": 1149,
           "tokens": 326
         },
         {
           "name": "java_two_decimal",
           "kind": "fn",
-          "startLine": 1140,
-          "endLine": 1169,
+          "startLine": 1150,
+          "endLine": 1179,
           "tokens": 432
         },
         {
           "name": "PassTrackingSink",
           "kind": "class",
-          "startLine": 1170,
-          "endLine": 1173,
+          "startLine": 1180,
+          "endLine": 1183,
           "tokens": 21
         },
         {
           "name": "PassTrackingSink",
           "kind": "section",
-          "startLine": 1174,
-          "endLine": 1181,
+          "startLine": 1184,
+          "endLine": 1191,
           "tokens": 62
         },
         {
           "name": "PassTrackingSink",
           "kind": "section",
-          "startLine": 1182,
-          "endLine": 1269,
+          "startLine": 1192,
+          "endLine": 1279,
           "tokens": 940
         }
       ]
@@ -9173,11 +9173,11 @@
     },
     "rust/crates/epic-board/src/board.rs": {
       "description": "The live board: the item arena, the id generator, and the",
-      "tokens": 31305,
-      "hash": "ff72258dfbfa7199",
-      "size": 117755,
-      "mtimeMs": 1790936721991.0442,
-      "updatedAt": "2026-10-02T10:25:22.089Z",
+      "tokens": 33866,
+      "hash": "77d35b2091f6de3e",
+      "size": 127384,
+      "mtimeMs": 1790996993932.5776,
+      "updatedAt": "2026-10-03T03:09:54.041Z",
       "source": "hook",
       "symbols": [
         {
@@ -9233,64 +9233,64 @@
           "name": "Board",
           "kind": "class",
           "startLine": 172,
-          "endLine": 285,
-          "tokens": 1929
+          "endLine": 309,
+          "tokens": 2343
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 286,
-          "endLine": 1646,
-          "tokens": 16961
+          "startLine": 310,
+          "endLine": 1836,
+          "tokens": 19276
         },
         {
           "name": "convert_item",
           "kind": "fn",
-          "startLine": 1647,
-          "endLine": 1777,
+          "startLine": 1837,
+          "endLine": 1967,
           "tokens": 1575
         },
         {
           "name": "fixed_from_ir",
           "kind": "fn",
-          "startLine": 1778,
-          "endLine": 1791,
+          "startLine": 1968,
+          "endLine": 1981,
           "tokens": 172
         },
         {
           "name": "obstacle_kind_from_ir",
           "kind": "fn",
-          "startLine": 1792,
-          "endLine": 1802,
+          "startLine": 1982,
+          "endLine": 1992,
           "tokens": 140
         },
         {
           "name": "board_shape_from_ir",
           "kind": "fn",
-          "startLine": 1803,
-          "endLine": 1811,
+          "startLine": 1993,
+          "endLine": 2001,
           "tokens": 111
         },
         {
           "name": "area_from_ir",
           "kind": "fn",
-          "startLine": 1812,
-          "endLine": 1818,
+          "startLine": 2002,
+          "endLine": 2008,
           "tokens": 52
         },
         {
           "name": "ItemEntry",
           "kind": "section",
-          "startLine": 1819,
-          "endLine": 1839,
+          "startLine": 2009,
+          "endLine": 2029,
           "tokens": 253
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 1840,
-          "endLine": 2738,
-          "tokens": 10403
+          "startLine": 2030,
+          "endLine": 2931,
+          "tokens": 10417
         }
       ]
     },
@@ -9964,11 +9964,11 @@
     },
     "rust/crates/epic-drc/src/clearance.rs": {
       "description": "The clearance-violation walk — the port of Java",
-      "tokens": 15401,
-      "hash": "5d050e3970fdd9da",
-      "size": 57981,
-      "mtimeMs": 1790956608971.4526,
-      "updatedAt": "2026-10-02T15:56:49.070Z",
+      "tokens": 15896,
+      "hash": "ecb70eade5d96b0a",
+      "size": 59842,
+      "mtimeMs": 1790995979293.4302,
+      "updatedAt": "2026-10-03T02:52:59.418Z",
       "source": "hook",
       "symbols": [
         {
@@ -10045,50 +10045,50 @@
           "name": "is_obstacle",
           "kind": "fn",
           "startLine": 306,
-          "endLine": 449,
-          "tokens": 1700
+          "endLine": 461,
+          "tokens": 1836
         },
         {
           "name": "outline_contains_tile_shape",
           "kind": "fn",
-          "startLine": 450,
-          "endLine": 470,
+          "startLine": 462,
+          "endLine": 482,
           "tokens": 325
         },
         {
           "name": "tie_pin_exemption",
           "kind": "fn",
-          "startLine": 471,
-          "endLine": 500,
+          "startLine": 483,
+          "endLine": 512,
           "tokens": 300
         },
         {
           "name": "item_clearance_violation_records",
           "kind": "fn",
-          "startLine": 501,
-          "endLine": 700,
-          "tokens": 2304
+          "startLine": 513,
+          "endLine": 739,
+          "tokens": 2679
         },
         {
           "name": "item_clearance_violations",
           "kind": "fn",
-          "startLine": 701,
-          "endLine": 717,
+          "startLine": 740,
+          "endLine": 756,
           "tokens": 190
         },
         {
           "name": "all_clearance_violation_depths",
           "kind": "fn",
-          "startLine": 718,
-          "endLine": 753,
+          "startLine": 757,
+          "endLine": 792,
           "tokens": 457
         },
         {
           "name": "all_clearance_violations",
           "kind": "fn",
-          "startLine": 754,
-          "endLine": 1357,
-          "tokens": 7488
+          "startLine": 793,
+          "endLine": 1402,
+          "tokens": 7508
         }
       ]
     },
@@ -12183,6 +12183,368 @@
           "tokens": 4602
         }
       ]
+    },
+    "rust/crates/epic-board/src/undo_facade.rs": {
+      "description": "The board-level undo/redo/snapshot FACADE — Java",
+      "tokens": 6215,
+      "hash": "9ec62f860155bf71",
+      "size": 23391,
+      "mtimeMs": 1790995922551.1765,
+      "updatedAt": "2026-10-03T02:52:02.656Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "UndoOutcome",
+          "kind": "class",
+          "startLine": 101,
+          "endLine": 119,
+          "tokens": 251
+        },
+        {
+          "name": "Board",
+          "kind": "section",
+          "startLine": 120,
+          "endLine": 524,
+          "tokens": 4895
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/trace_shover.rs": {
+      "description": "The shove drivers: can a trace segment be forced into a live board,",
+      "tokens": 26879,
+      "hash": "38293d27a364244b",
+      "size": 100925,
+      "mtimeMs": 1790995952342.3096,
+      "updatedAt": "2026-10-03T02:52:32.458Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "SpringOverResult",
+          "kind": "class",
+          "startLine": 66,
+          "endLine": 79,
+          "tokens": 166
+        },
+        {
+          "name": "check_max_length",
+          "kind": "fn",
+          "startLine": 80,
+          "endLine": 313,
+          "tokens": 2558
+        },
+        {
+          "name": "check",
+          "kind": "fn",
+          "startLine": 314,
+          "endLine": 538,
+          "tokens": 2296
+        },
+        {
+          "name": "insert",
+          "kind": "fn",
+          "startLine": 539,
+          "endLine": 774,
+          "tokens": 2603
+        },
+        {
+          "name": "get_ignore_items_at_tie_pins",
+          "kind": "fn",
+          "startLine": 775,
+          "endLine": 803,
+          "tokens": 309
+        },
+        {
+          "name": "spring_over",
+          "kind": "fn",
+          "startLine": 804,
+          "endLine": 1083,
+          "tokens": 3475
+        },
+        {
+          "name": "spring_over_is_obstacle",
+          "kind": "fn",
+          "startLine": 1084,
+          "endLine": 1143,
+          "tokens": 690
+        },
+        {
+          "name": "spring_over_obstacles",
+          "kind": "fn",
+          "startLine": 1144,
+          "endLine": 1245,
+          "tokens": 1036
+        },
+        {
+          "name": "get_all_contacts_on_layer",
+          "kind": "fn",
+          "startLine": 1246,
+          "endLine": 1304,
+          "tokens": 664
+        },
+        {
+          "name": "item_bounding_box",
+          "kind": "fn",
+          "startLine": 1305,
+          "endLine": 1341,
+          "tokens": 438
+        },
+        {
+          "name": "shape_bounding_box",
+          "kind": "fn",
+          "startLine": 1342,
+          "endLine": 1351,
+          "tokens": 116
+        },
+        {
+          "name": "board_outline_id",
+          "kind": "fn",
+          "startLine": 1352,
+          "endLine": 1361,
+          "tokens": 120
+        },
+        {
+          "name": "contains_trace_tails",
+          "kind": "fn",
+          "startLine": 1362,
+          "endLine": 1386,
+          "tokens": 230
+        },
+        {
+          "name": "get_trace_tail",
+          "kind": "fn",
+          "startLine": 1387,
+          "endLine": 1433,
+          "tokens": 438
+        },
+        {
+          "name": "remove_items",
+          "kind": "fn",
+          "startLine": 1434,
+          "endLine": 1462,
+          "tokens": 266
+        },
+        {
+          "name": "conduction_area_on_signal_layer",
+          "kind": "fn",
+          "startLine": 1463,
+          "endLine": 1477,
+          "tokens": 152
+        },
+        {
+          "name": "combine_traces",
+          "kind": "fn",
+          "startLine": 1478,
+          "endLine": 1511,
+          "tokens": 359
+        },
+        {
+          "name": "piece_compensated_half_width",
+          "kind": "fn",
+          "startLine": 1512,
+          "endLine": 1522,
+          "tokens": 101
+        },
+        {
+          "name": "item_nets",
+          "kind": "fn",
+          "startLine": 1523,
+          "endLine": 2651,
+          "tokens": 11886
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/shape_trace_entries.rs": {
+      "description": "The shove substrate: which obstacles sit in a shape, which trace",
+      "tokens": 29177,
+      "hash": "e3d0e7c9f16fffc7",
+      "size": 109572,
+      "mtimeMs": 1790995957995.335,
+      "updatedAt": "2026-10-03T02:52:38.106Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "EntryPoint",
+          "kind": "class",
+          "startLine": 74,
+          "endLine": 110,
+          "tokens": 480
+        },
+        {
+          "name": "SubstituteTracePiece",
+          "kind": "class",
+          "startLine": 111,
+          "endLine": 131,
+          "tokens": 226
+        },
+        {
+          "name": "ShapeTraceEntries",
+          "kind": "class",
+          "startLine": 132,
+          "endLine": 154,
+          "tokens": 259
+        },
+        {
+          "name": "ShapeTraceEntries",
+          "kind": "section",
+          "startLine": 155,
+          "endLine": 1179,
+          "tokens": 12484
+        },
+        {
+          "name": "net_nos_equal",
+          "kind": "fn",
+          "startLine": 1180,
+          "endLine": 1193,
+          "tokens": 108
+        },
+        {
+          "name": "item_nets",
+          "kind": "fn",
+          "startLine": 1194,
+          "endLine": 1209,
+          "tokens": 210
+        },
+        {
+          "name": "offset_shape",
+          "kind": "fn",
+          "startLine": 1210,
+          "endLine": 2828,
+          "tokens": 16564
+        }
+      ]
+    },
+    "rust/harness/fixtures/t6/t6-edge-pins.dsn": {
+      "description": "Declares signal",
+      "tokens": 206,
+      "hash": "4b4fb53fe3683335",
+      "size": 770,
+      "mtimeMs": 1790996061778.7983,
+      "updatedAt": "2026-10-03T02:54:21.910Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t6-commit-msg.txt": {
+      "description": "",
+      "tokens": 756,
+      "hash": "d06d2c26d949e676",
+      "size": 3046,
+      "mtimeMs": 1790996442114.3071,
+      "updatedAt": "2026-10-03T03:00:43.066Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t2-commit-msg.txt": {
+      "description": "",
+      "tokens": 616,
+      "hash": "b8b96a04c22ae6b1",
+      "size": 2483,
+      "mtimeMs": 1790997494469.7175,
+      "updatedAt": "2026-10-03T03:18:14.577Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t2t6.sh": {
+      "description": "M11-T2+T6 battery — the outline edge-pin-net exemption (T6, 023fb1c8b)",
+      "tokens": 1218,
+      "hash": "711fcb18642c0ef2",
+      "size": 4573,
+      "mtimeMs": 1790997545627.9382,
+      "updatedAt": "2026-10-03T03:19:05.747Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/tests/probe_degenerate.rs": {
+      "description": "SCRATCH PROBE (delete after use) — locate corpus fixtures whose pin",
+      "tokens": 677,
+      "hash": "8390180af943e875",
+      "size": 2539,
+      "mtimeMs": 1790999501448.0164,
+      "updatedAt": "2026-10-03T03:51:41.567Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "probe",
+          "kind": "fn",
+          "startLine": 9,
+          "endLine": 46,
+          "tokens": 391
+        },
+        {
+          "name": "find_degenerate_pad_fixtures",
+          "kind": "fn",
+          "startLine": 47,
+          "endLine": 70,
+          "tokens": 246
+        }
+      ]
+    },
+    "rust/harness/fixtures/t6/t6-degenerate-pad.dsn": {
+      "description": "Declares signal",
+      "tokens": 195,
+      "hash": "bd42a326406b24e1",
+      "size": 728,
+      "mtimeMs": 1790999916339.6584,
+      "updatedAt": "2026-10-03T03:58:37.173Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t6-fix-commit-msg.txt": {
+      "description": "",
+      "tokens": 431,
+      "hash": "0d4bf5fa1e3ddbbf",
+      "size": 1737,
+      "mtimeMs": 1791000017900.0657,
+      "updatedAt": "2026-10-03T04:00:18.023Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/tests/probe_interfu.rs": {
+      "description": "SCRATCH PROBE (delete after use) — interf_u attribution facts: does",
+      "tokens": 427,
+      "hash": "fb66752dc00e1db7",
+      "size": 1601,
+      "mtimeMs": 1791000093624.37,
+      "updatedAt": "2026-10-03T04:01:33.742Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/tests/probe_interfu2.rs": {
+      "description": "SCRATCH PROBE 2 (delete after use) — WHICH item kinds poke out of",
+      "tokens": 390,
+      "hash": "3783833cb5070817",
+      "size": 1464,
+      "mtimeMs": 1791000132745.5276,
+      "updatedAt": "2026-10-03T04:02:12.858Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t6.txt": {
+      "description": "",
+      "tokens": 308,
+      "hash": "fe62704ea3bc60df",
+      "size": 1236,
+      "mtimeMs": 1791000748679.49,
+      "updatedAt": "2026-10-03T04:12:28.791Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t2.txt": {
+      "description": "",
+      "tokens": 330,
+      "hash": "3e96367b45b8ce79",
+      "size": 1326,
+      "mtimeMs": 1791000756018.5146,
+      "updatedAt": "2026-10-03T04:12:36.136Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t6fix.txt": {
+      "description": "",
+      "tokens": 217,
+      "hash": "1c41a3911544bb99",
+      "size": 872,
+      "mtimeMs": 1791000761864.5344,
+      "updatedAt": "2026-10-03T04:12:41.976Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t2rot.txt": {
+      "description": "",
+      "tokens": 160,
+      "hash": "feec9720e29a2a89",
+      "size": 638,
+      "mtimeMs": 1791000766872.5513,
+      "updatedAt": "2026-10-03T04:12:47.002Z",
+      "source": "hook"
     }
   },
   "preamble": [

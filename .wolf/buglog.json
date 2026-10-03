@@ -3944,5 +3944,22 @@
    "commit-f7fcfb60b",
    "m11-t9d"
   ]
+ },
+ {
+  "id": 250,
+  "date": "2026-10-02",
+  "task": "M11-T6+T2 battery (fix 0f6ca8044, export 09a3238b3)",
+  "error_message": "dsn-corpus walk panicked at parse during the T2+T6 battery: 'Simplex.corner: parallel border lines' (simplex.rs:189) via recompute_edge_pin_nets (outline.rs:399) at the from_ses_board tail \u2014 only on the Issue179 fixture.",
+  "root_cause": "Port-vs-Java null-semantics gap surfaced by T6's eager edge-pin recompute: Issue179's padstack p7 declares a TWO-POINT polygon pad (zero-width segment) which normalizes to a 2-line Simplex (two parallel half-planes, no finite corner). Java's tileShape.corner(c) yields null on that arm and BoardOutline.contains(null) answers false, so upstream classifies the pin OUTSIDE; the Rust port's exact corner() face panics where Java answers null ('Java: null corner' contract) \u2014 and nothing walked pad corners before T6 added the eager recompute at parse.",
+  "fix": "corner_is_bounded (Java cornerIsBounded, the determinant-of-adjacent-line-directions guard) short-circuits the corner walk in recompute_edge_pin_nets: an unbounded corner is outside by construction, exactly Java's null-contains-false semantics; bounded corners keep the exact face. Pinned by fixture rust/harness/fixtures/t6/t6-degenerate-pad.dsn (degenerate pad, pin center INSIDE so the corner decides) + t6_degenerate_pad_classifies_outside_without_panicking; dropped-guard mutant panics at parse. A scratch corpus probe (1332 fixtures, both roots, deleted after use) confirmed p7 is the ONLY unbounded-corner pad in the corpus.",
+  "tags": [
+   "null-semantics",
+   "simplex",
+   "BoardOutline",
+   "edge-pins",
+   "T6",
+   "parse-panic",
+   "issue179"
+  ]
  }
 ]
