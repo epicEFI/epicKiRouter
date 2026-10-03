@@ -156,11 +156,24 @@ const DRILLS_ATTACH_FALSE: [(i32, i32, i32, i32, i32, [i32; 4]); 7] = [
 /// produces ZERO rows — its only anchor would be the KB pin center,
 /// which no NET_A room covers (foreign-net pin) and whose completion
 /// dies against the pin's own dilated shape (drill rejected).
-const DRILLS_ATTACH_TRUE: [(i32, i32, i32, i32, i32, [i32; 4]); 4] = [
+/// M11-T9d (2026-10-02, upstream #931): rows 5-6 are the ROTATED face.
+/// The first four rows are the Java-pre capture verbatim — the conjunct
+/// is `attach_smd && ...` so the attach=false set, the keepout page,
+/// and the own-net KA pin's page (8,5) are untouched. Page (8,20) is
+/// the foreign-net KB pin: pre-#931 the relaxation skipped it too, the
+/// page stayed hole-free anchored at the pin center, and the completion
+/// died there (page yields NOTHING). With `pin.containsNet(netNumber)`
+/// the KB pad is a CUTOUT — the page splits into two pieces clear of
+/// the pad, each anchored at its own centre of gravity, and both
+/// completions succeed (rooms [32,4,15,22] / [34,4,15,22], the same
+/// quads the attach=false decomposition produces on this page).
+const DRILLS_ATTACH_TRUE: [(i32, i32, i32, i32, i32, [i32; 4]); 6] = [
     (5, 10, 0, 391570, 205938, [1, 2, 13, 20]),
     (5, 10, 1, 411206, 192938, [27, 2, 13, 20]),
     (5, 10, 2, 399025, 193212, [27, 2, 13, 20]),
     (8, 5, 0, 200000, 330000, [1, 8, 19, 26]),
+    (8, 20, 0, 774265, 318813, [32, 4, 15, 22]),
+    (8, 20, 1, 793535, 304375, [34, 4, 15, 22]),
 ];
 
 /// The pin drill's `drillId` row: `31*(31*Point.getId(200000,330000)
@@ -2202,10 +2215,11 @@ fn candidate_enumeration_zero_set_and_full_pages() {
 /// excludes attach, so the second battery RECOMPUTES): the keepout
 /// page keeps its three gravity-anchored drills, page (8,5) collapses
 /// to one drill anchored at the KA pin center (200000,330000) with
-/// rooms [1,8,19,26] (own-net rooms cover the pin), page (8,20) yields
-/// NOTHING (the KB pin center is foreign-net: no room covers it and
-/// the completion dies against the pin's own dilated shape), and the
-/// pin drill's hash id reproduces the Java `drillId` row.
+/// rooms [1,8,19,26] (own-net rooms cover the pin), and the pin
+/// drill's hash id reproduces the Java `drillId` row. Page (8,20) is
+/// the M11-T9d face: the foreign-net KB pin is a CUTOUT under the
+/// #931 conjunct (see [`DRILLS_ATTACH_TRUE`]), so the page splits into
+/// two pad-clear pieces instead of dying at the pin center.
 #[test]
 fn attach_relaxation_fresh_array_and_pin_drill_id() {
     let mut replay = replay_enumeration();

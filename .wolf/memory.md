@@ -10102,3 +10102,73 @@ description: chronological action log per session, consolidated weekly
 | 15:25 | Created logs/readiness-2026-10-01/run_gates_m11t9i.sh | — | ~726 |
 | 15:25 | Edited logs/readiness-2026-10-01/run_gates_m11t9i.sh | 2→2 lines | ~14 |
 | 15:25 | Created logs/readiness-2026-10-01/m11t9i-commit-msg.txt | — | ~459 |
+| 15:55 | Edited rust/crates/epic-router/src/path/inserter.rs | modified t9i_micro_neckdown_gate_opens_without_fanout_when_neckdown_enabled() | ~1118 |
+| 15:55 | Edited rust/crates/epic-router/src/path/inserter.rs | modified first() | ~647 |
+| 15:56 | Edited rust/crates/epic-router/src/path/inserter.rs | expanded (+18 lines) | ~280 |
+| 15:56 | Edited rust/crates/epic-router/src/path/inserter.rs | removed 21 lines | ~37 |
+| 15:58 | Edited rust/crates/epic-router/src/path/inserter.rs | modified t11_neckdown_distance_gate_boundary_rejects() | ~1114 |
+| 15:59 | Edited rust/crates/epic-router/src/path/inserter.rs | 32→36 lines | ~427 |
+| 15:59 | Edited rust/crates/epic-router/src/path/inserter.rs | 9→10 lines | ~180 |
+| 15:59 | Edited rust/crates/epic-router/src/control.rs | expanded (+6 lines) | ~120 |
+| 15:59 | Edited logs/readiness-2026-10-01/run_gates_m11t9i.sh | 3→4 lines | ~71 |
+| 15:59 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | pin() → corrected() | ~355 |
+| 17:02 | Edited rust/crates/epic-engine/tests/events_stream.rs | modified regen_bm07_event_kinds_golden() | ~294 |
+| 17:07 | Edited rust/crates/epic-engine/tests/goldens/bm07.event-kinds.txt | 5→10 lines | ~172 |
+| 17:07 | Edited rust/crates/epic-engine/tests/events_stream.rs | removed 28 lines | ~19 |
+| 17:12 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | modified LEDGER() | ~595 |
+| 17:12 | Created logs/readiness-2026-10-01/export-msg-m11t9i.txt | — | ~249 |
+| 17:31 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+12 lines) | ~233 |
+| 17:31 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 2→3 lines | ~31 |
+| 17:31 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified as_mut() | ~127 |
+| 17:32 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified of() | ~364 |
+| 17:32 | Edited rust/crates/epic-router/src/pipeline/full.rs | expanded (+12 lines) | ~224 |
+| 17:32 | Edited rust/crates/epic-router/src/pipeline/full.rs | 4→5 lines | ~53 |
+| 17:32 | Edited rust/crates/epic-cli/src/route.rs | 12→13 lines | ~111 |
+| 17:32 | Edited rust/crates/epic-cli/src/route.rs | 3→2 lines | ~30 |
+| 17:32 | Edited rust/crates/epic-cli/src/route.rs | 3→3 lines | ~25 |
+| 17:32 | Edited rust/crates/epic-cli/src/route.rs | counters() → count() | ~63 |
+| 17:32 | Edited rust/crates/epic-cli/src/route.rs | 16→15 lines | ~271 |
+| 17:34 | Edited rust/crates/epic-cli/src/route.rs | modified info() | ~204 |
+| 17:34 | Edited rust/crates/epic-cli/src/route.rs | modified manifest_passes_completed_backfill() | ~1639 |
+| 17:35 | Edited rust/crates/epic-cli/src/route.rs | modified t10_phase_rows_attribution_crossing_cells() | ~139 |
+| 17:35 | Edited rust/crates/epic-cli/src/route.rs | to_string() → alone() | ~154 |
+| 17:35 | Edited rust/crates/epic-cli/src/route.rs | 8→8 lines | ~94 |
+| 17:35 | Edited rust/crates/epic-router/src/pipeline/event_sink.rs | modified row() | ~122 |
+| 17:35 | Edited rust/crates/epic-router/SEAM.md | 4→5 lines | ~77 |
+| 17:36 | Edited rust/crates/epic-router/SEAM.md | expanded (+11 lines) | ~421 |
+| 17:36 | Edited rust/crates/epic-engine/src/session.rs | 6→6 lines | ~48 |
+| 17:36 | Edited rust/crates/epic-engine/src/session.rs | modified mapping() | ~341 |
+| 17:36 | Edited rust/crates/epic-engine/src/session.rs | modified new() | ~420 |
+| 17:36 | Edited rust/crates/epic-engine/src/session.rs | modified board_updated() | ~30 |
+| 17:37 | Edited rust/crates/epic-engine/tests/session_workflow.rs | modified route_summary_passes_is_the_stage_outcome_not_the_last_counters_row() | ~726 |
+| 17:37 | Edited rust/crates/epic-router/src/pipeline/full.rs | modified outcome_autoroute_passes_completed_counts_the_loop() | ~809 |
+| 17:38 | Edited rust/crates/epic-cli/src/route.rs | default() → scoreable_stats() | ~89 |
+| 17:42 | Edited rust/crates/epic-cli/src/route.rs | 6→7 lines | ~118 |
+| 17:43 | Edited rust/crates/epic-cli/src/route.rs | 3→3 lines | ~26 |
+| 17:43 | Edited rust/crates/epic-cli/src/route.rs | 2→2 lines | ~36 |
+| 17:43 | Edited rust/harness/src/router_compare.rs | 3→3 lines | ~50 |
+| 17:44 | Created logs/readiness-2026-10-01/run_gates_seamfix.sh | — | ~845 |
+| 17:46 | Edited logs/readiness-2026-10-01/run_gates_seamfix.sh | modified verify() | ~581 |
+| 17:46 | Edited logs/readiness-2026-10-01/run_gates_seamfix.sh | modified verify() | ~180 |
+| 17:47 | Edited logs/readiness-2026-10-01/run_gates_seamfix.sh | modified run() | ~62 |
+| 17:47 | Edited logs/readiness-2026-10-01/run_gates_seamfix.sh | modified run() | ~78 |
+| 17:47 | Edited logs/readiness-2026-10-01/run_gates_seamfix.sh | 1→2 lines | ~35 |
+| 17:47 | Created logs/readiness-2026-10-01/seamfix-commit-msg.txt | — | ~862 |
+| 18:03 | Edited logs/readiness-2026-10-01/seamfix-commit-msg.txt | modified stay() | ~274 |
+| 18:11 | Created logs/readiness-2026-10-01/export-msg-seamfix.txt | — | ~305 |
+| 18:17 | Created logs/readiness-2026-10-01/run_gates_m11t9i2.sh | — | ~714 |
+| 18:17 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | 3→4 lines | ~68 |
+| 18:17 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | 5→6 lines | ~96 |
+| 18:17 | Edited logs/readiness-2026-10-01/export-msg-m11t9i.txt | 4→4 lines | ~73 |
+| 18:30 | Edited rust/harness/src/router_compare.rs | 5→10 lines | ~173 |
+| 18:30 | Edited rust/harness/src/router_compare.rs | 7→8 lines | ~107 |
+| 18:31 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | expanded (+7 lines) | ~163 |
+| 18:31 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | modified fingerprint() | ~186 |
+| 18:46 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | modified LEDGER() | ~1092 |
+| 18:55 | Created logs/readiness-2026-10-01/run_golden_m11t9i2.sh | — | ~642 |
+| 18:56 | Created logs/readiness-2026-10-01/run_golden_m11t9i2.sh | — | ~719 |
+| 19:01 | Edited logs/readiness-2026-10-01/export-msg-m11t9i.txt | expanded (+6 lines) | ~162 |
+| 19:02 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | modified stable() | ~470 |
+| 19:02 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | 9→13 lines | ~221 |
+| 19:02 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | 4→5 lines | ~80 |
+| 19:18 | Edited logs/readiness-2026-10-01/m11t9i-commit-msg.txt | 4→6 lines | ~86 |

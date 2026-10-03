@@ -177,10 +177,16 @@ impl DrillPage {
                     continue;
                 }
                 // With the attach-SMD relaxation, drill-allowed (SMD)
-                // pins stop being cutout obstacles.
+                // pins of the ROUTING NET stop being cutout obstacles
+                // (M11-T9d, upstream #931: `attachSmd &&
+                // pin.drillAllowed() && pin.containsNet(netNumber)` —
+                // pre-#931 the skip applied to EVERY drill-allowed
+                // pin, so drills could be proposed straight through a
+                // foreign net's SMD pad).
                 if ctx.item_is_pin(entry.object_key)
                     && attach_smd
                     && ctx.pin_drill_allowed(entry.object_key)
+                    && ctx.item_contains_net(entry.object_key, net_number)
                 {
                     continue;
                 }

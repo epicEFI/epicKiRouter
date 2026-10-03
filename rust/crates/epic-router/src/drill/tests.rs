@@ -46,6 +46,11 @@ struct SynthItem {
     is_via: bool,
     drillable: bool,
     pin_drill_allowed: bool,
+    /// The item's net list — the face `Item.containsNet` reads. Empty
+    /// for plain items and vias (the old `item_contains_net` stub was
+    /// a constant `false`; M11-T9d made the drill-page cutout walk
+    /// net-sensitive, so the synth world grew the real field).
+    nets: Vec<i32>,
     /// The scripted STORED center — a via's own or a pin's, mirroring
     /// `Board::drill_center` (the shared field IS the Java
     /// `DrillItem.getCenter` shape: Some for a drill item, None for a
@@ -178,13 +183,23 @@ impl SynthWorld {
             is_via: false,
             drillable: false,
             pin_drill_allowed: false,
+            nets: Vec::new(),
             stored_center: None,
             padstack_no: 0,
             clearance_class: 1,
         });
     }
 
-    fn add_pin(&mut self, id: i32, layer: i32, drill_allowed: bool, center: Option<Point>) {
+    /// `nets` is the pin's net list (`Item.containsNet` reads it);
+    /// M11-T9d's cutout gate asks whether it holds the ROUTING net.
+    fn add_pin(
+        &mut self,
+        id: i32,
+        layer: i32,
+        drill_allowed: bool,
+        center: Option<Point>,
+        nets: &[i32],
+    ) {
         if center.is_some() {
             self.item_overlaps.push((Self::item_key(id), layer));
         }
@@ -195,6 +210,7 @@ impl SynthWorld {
             is_via: false,
             drillable: false,
             pin_drill_allowed: drill_allowed,
+            nets: nets.to_vec(),
             stored_center: center,
             padstack_no: 0,
             clearance_class: 1,
@@ -216,6 +232,7 @@ impl SynthWorld {
             is_via: true,
             drillable: false,
             pin_drill_allowed: false,
+            nets: Vec::new(),
             stored_center: Some(center),
             padstack_no,
             clearance_class,
@@ -341,8 +358,8 @@ impl NeighbourEngine for SynthWorld {
         false
     }
 
-    fn item_contains_net(&self, _object_key: u64, _net_number: i32) -> bool {
-        false
+    fn item_contains_net(&self, object_key: u64, net_number: i32) -> bool {
+        self.item(object_key).nets.contains(&net_number)
     }
 
     fn item_shares_net(&self, _first_key: u64, _second_key: u64) -> bool {
@@ -1100,8 +1117,14 @@ fn get_drills_duplicate_shapes_do_not_duplicate_drills() {
 #[test]
 fn get_drills_attach_smd_pin_center_last_match_wins() {
     let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 2);
-    world.add_pin(5, 0, true, Some(Point::Int(IntPoint::new(2000, 2000))));
-    world.add_pin(3, 0, true, Some(Point::Int(IntPoint::new(800, 900))));
+    world.add_pin(
+        5,
+        0,
+        true,
+        Some(Point::Int(IntPoint::new(2000, 2000))),
+        &[1],
+    );
+    world.add_pin(3, 0, true, Some(Point::Int(IntPoint::new(800, 900))), &[1]);
     // No tree rooms: every layer goes through the completion seam,
     // which hands back ONE room per layer (501 / 502).
     world.complete_room_base = Some(501);
@@ -1122,7 +1145,7 @@ fn get_drills_attach_smd_pin_center_last_match_wins() {
 
     // Fallback: no pin overlaps layer 0 -> the LAST layer is probed.
     let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 2);
-    world.add_pin(7, 1, true, Some(Point::Int(IntPoint::new(400, 400))));
+    world.add_pin(7, 1, true, Some(Point::Int(IntPoint::new(400, 400))), &[1]);
     world.complete_room_base = Some(501);
     let mut array = DrillPageArray::new(&world, 10_000);
     let page = &mut array.pages[0][0];
@@ -1141,7 +1164,8 @@ fn get_drills_attach_smd_pin_center_last_match_wins() {
 /// with `attach = true` returns the STALE drills (same piece count —
 /// a key-includes-attach mutant recomputes into the hole-free single
 /// piece and dies on the count). A NET change DOES recompute (after
-/// `invalidate`, net 2): the hole-free single piece anchors at the
+/// `invalidate`, net 2): pin 3 carries net 2, so the M11-T9d gate's
+/// `containsNet` holds and the hole-free single piece anchors at the
 /// pin center.
 #[test]
 fn get_drills_memoization_ignores_attach_smd_but_not_net() {
@@ -1149,7 +1173,7 @@ fn get_drills_memoization_ignores_attach_smd_but_not_net() {
     // Pin 3 is drill-allowed and overlapping on layer 0; it also
     // carries an obstacle shape that becomes a cutout when
     // attach=false.
-    world.add_pin(3, 0, true, Some(Point::Int(IntPoint::new(800, 900))));
+    world.add_pin(3, 0, true, Some(Point::Int(IntPoint::new(800, 900))), &[2]);
     world.items[0].shapes = vec![box_tile(500, 500, 1100, 1300)];
     world.entries.push((SynthWorld::item_key(3), 0, 0));
     world.complete_result = vec![SynthWorld::room_key(501), SynthWorld::room_key(502)];
@@ -1194,6 +1218,69 @@ fn get_drills_memoization_ignores_attach_smd_but_not_net() {
         fresh[0].location,
         Point::Int(IntPoint::new(800, 900)),
         "a net-number change recomputes (and now attach=true anchors the pin)"
+    );
+}
+
+/// M11-T9d (upstream #931, `DrillPage.java:81`): the attach-SMD
+/// cutout relaxation only skips drill-allowed pins that CONTAIN the
+/// routing net — pre-#931 it skipped EVERY drill-allowed pin, so a
+/// via-drill candidate could be proposed straight through a
+/// FOREIGN net's SMD pad. Two worlds, identical geometry (a
+/// drill-allowed pin with an obstacle shape + tree entry inside the
+/// page), differing only in the pin's nets: routing net 1.
+/// * own-net pin (nets [1]): skipped -> hole-free single piece.
+/// * foreign-net pin (nets [2]): NOT skipped -> the pad is a cutout,
+///   the page splits around it (>= 4 pieces).
+///
+/// A conjunct-revert mutant (no `containsNet`) skips the foreign pin
+/// too and dies on the >= 4 assert; a conjunct-overreach mutant (the
+/// skip gone entirely, e.g. `attach_smd` dropped) re-holes the
+/// own-net world and dies on the == 1 assert.
+#[test]
+fn get_drills_attach_smd_foreign_net_pin_stays_a_cutout() {
+    // The shared world builder: a page-sized board, one drill-allowed
+    // (single-layer, SMD) pin on layer 0 whose obstacle box sits
+    // strictly inside the page, plus its tree entry and the scripted
+    // completion seam (the same recipe as the memoization test).
+    fn build(pin_nets: &[i32]) -> (SynthWorld, DrillPageArray) {
+        let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 2);
+        world.add_pin(
+            3,
+            0,
+            true,
+            Some(Point::Int(IntPoint::new(800, 900))),
+            pin_nets,
+        );
+        world.items[0].shapes = vec![box_tile(500, 500, 1100, 1300)];
+        world.entries.push((SynthWorld::item_key(3), 0, 0));
+        world.complete_result = vec![SynthWorld::room_key(501), SynthWorld::room_key(502)];
+        world.add_room(501, 0, box_tile(0, 0, 3000, 3000));
+        world.add_room(502, 1, box_tile(0, 0, 3000, 3000));
+        let array = DrillPageArray::new(&world, 10_000);
+        (world, array)
+    }
+
+    // Own net: the relaxation applies, no cutout, one convex piece.
+    let (mut own_world, mut own_array) = build(&[1]);
+    let own_page = &mut own_array.pages[0][0];
+    let own = own_page.get_drills(&mut own_world, 1, true);
+    assert_eq!(own.len(), 1, "own-net SMD pin: skipped, hole-free page");
+    assert_eq!(
+        own[0].location,
+        Point::Int(IntPoint::new(800, 900)),
+        "the attach-SMD anchor is the pin center"
+    );
+
+    // Foreign net: the relaxation must NOT apply — the pad stays a
+    // cutout obstacle and the page splits around it.
+    let (mut foreign_world, mut foreign_array) = build(&[2]);
+    let foreign_page = &mut foreign_array.pages[0][0];
+    let foreign = foreign_page.get_drills(&mut foreign_world, 1, true);
+    assert!(
+        foreign.len() >= 4,
+        "foreign-net SMD pin stays a cutout: an interior rectangular hole \
+         needs >= 4 convex pieces (got {})",
+        foreign.len()
     );
 }
 
@@ -2171,8 +2258,14 @@ fn get_drills_contains_skips_still_update_prev_shape() {
 #[test]
 fn get_drills_attach_smd_first_layer_probe_comes_first() {
     let mut world = SynthWorld::new(square_bounds(0, 0, 3000), 2);
-    world.add_pin(7, 0, true, Some(Point::Int(IntPoint::new(400, 400))));
-    world.add_pin(5, 1, true, Some(Point::Int(IntPoint::new(2000, 2000))));
+    world.add_pin(7, 0, true, Some(Point::Int(IntPoint::new(400, 400))), &[1]);
+    world.add_pin(
+        5,
+        1,
+        true,
+        Some(Point::Int(IntPoint::new(2000, 2000))),
+        &[1],
+    );
     world.complete_room_base = Some(501);
 
     let mut array = DrillPageArray::new(&world, 10_000);

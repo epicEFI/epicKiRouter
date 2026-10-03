@@ -21,6 +21,21 @@
 //!   FIELD-level (`key=value, ` grammar). The first divergence names
 //!   the row pair and the FIRST DIFFERING FIELD.
 //!
+//! PROVENANCE (M11-T9d, 2026-10-02): the `t7_ripup` block is a
+//! RUST-SIDE record now. The upstream #931 attach-SMD cutout conjunct
+//! (drill-page: foreign-net SMD pins stay obstacles) moved the Rust
+//! maze trajectory off the committed Java-pre capture (496 -> 396
+//! assign rows, first divergence at 0-based 182) — and Java-POST's
+//! own stream diverges from the Rust engine too (it moves e1_ripup,
+//! which the Rust engine does not; measured,
+//! `logs/readiness-2026-10-01/gates/m11t9d/events-golden-post.jsonl`
+//! and `t7-golden-post.jsonl`). No single Java tree matches the
+//! engine row-for-row any more, so the affected block re-based to
+//! the engine's own stream via the door discipline (two-run
+//! determinism self-gate; e1/t9 blocks byte-preserved as the Java
+//! capture — both still aligned). The Java-pre capture is preserved
+//! in git history (this file's prior blob).
+//!
 //! Row normalization contract (the probe's `normalize`): a 5-arg
 //! granular row `"[%s] [%s] %s: %s"` is stored as `operation message`
 //! — the `[method]` wrapper and the `: <impacted items>` tail are
@@ -1629,10 +1644,14 @@ mod pins {
                 tally[slot] += 1;
             }
         }
-        assert_eq!(trace_rows, 3520, "the committed trace-row count");
+        // M11-T9d (2026-10-02): the t7 block advanced to the Rust
+        // stream (the #931 attach-SMD port moved its maze trajectory;
+        // see the module doc) — 507 -> 407 t7 trace rows, the delta
+        // entirely in the assign kind (496 -> 396).
+        assert_eq!(trace_rows, 3420, "the committed trace-row count");
         assert_eq!(
             tally,
-            [3498, 6, 1, 15],
+            [3398, 6, 1, 15],
             "per-kind row census (assign/skip/ripped/route)"
         );
     }
@@ -1654,7 +1673,9 @@ mod pins {
             .lines()
             .map(|line| serde_json::from_str(line).expect("every golden line parses"))
             .collect();
-        assert_eq!(records.len(), 3529, "the committed capture size");
+        // M11-T9d (2026-10-02): 3529 -> 3429 (the t7 block's trace
+        // rows advanced to the Rust stream — see the module doc).
+        assert_eq!(records.len(), 3429, "the committed capture size");
 
         // Per-fixture kind census + the run/incompletes witnesses.
         let census = |fixture: &str| -> [usize; 4] {
@@ -1674,9 +1695,12 @@ mod pins {
             [331, 1, 1, 4],
             "e1: assign/skip/ripped/route"
         );
+        // M11-T9d: t7's assign stream 496 -> 396 (the #931 attach-SMD
+        // cutout conjunct changes the drill decomposition, hence the
+        // maze trajectory; skip/ripped/route counts unchanged).
         assert_eq!(
             census("t7_ripup"),
-            [496, 4, 0, 7],
+            [396, 4, 0, 7],
             "t7: assign/skip/ripped/route"
         );
         assert_eq!(
@@ -2199,17 +2223,28 @@ mod pins {
                 // 821846.30. The row is byte-identical today and still
                 // carries the golden's needle.
                 "t7_ripup" => {
+                    // M11-T9d (2026-10-02): this fixture's golden block
+                    // is a RUST-SIDE record now (the #931 attach-SMD
+                    // port moved the maze trajectory off the Java-pre
+                    // capture — and off Java-post's own stream, which
+                    // diverges from the Rust engine at e1; see the
+                    // module doc). The equality face is unchanged:
+                    // the committed block vs the live stream.
                     for slot in 0..4 {
                         assert_kind_equal(
                             fixture,
                             slot,
                             &golden_grouped[slot],
                             &rust_grouped[slot],
-                            "t7_ripup post M4-T6: the whole pinned stream is byte-identical \
-                             to the Java golden — the shove-probe stub (bug-187) is wired \
-                             to the production shover",
+                            "t7_ripup post M11-T9d: the whole pinned stream matches the \
+                             committed (Rust-side, dated) t7 record — unintended drift on \
+                             any future change still trips here",
                         );
                     }
+                    // The former-divergence witness survived the
+                    // M11-T9d re-base VERBATIM: the trajectory change
+                    // begins at 0-based 182; ordinal 73 is inside the
+                    // still-identical prefix.
                     assert!(
                         golden_grouped[0][73].contains("expansionValue=62570.28048522717")
                             && golden_grouped[0][73]
@@ -2456,11 +2491,18 @@ mod pins {
                         "t7_ripup route rows: byte-equal post M4-T6 (the former \
                          row-3 id churn is closed with the shover wiring)"
                     );
+                    // M11-T9d (2026-10-02): the t7 golden block is the
+                    // Rust-side re-capture, so this witness anchors the
+                    // NEW stream — netItems survived the #931 port
+                    // verbatim (2->12); maxItemId rotated 107 -> 104
+                    // (foreign-net SMD pads are cutout obstacles now, so
+                    // the routed board tops out three inserted items
+                    // lower).
                     assert!(
                         golden_routes[3].contains("netItems=2->12")
-                            && golden_routes[3].contains("maxItemId=107"),
+                            && golden_routes[3].contains("maxItemId=104"),
                         "t7 former-churn witness: golden route row 3 carries \
-                         netItems=2->12 / maxItemId=107"
+                         netItems=2->12 / maxItemId=104"
                     );
                 }
                 "t9_locator45" => {
