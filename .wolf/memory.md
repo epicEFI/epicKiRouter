@@ -10408,3 +10408,35 @@ description: chronological action log per session, consolidated weekly
 | 06:58 | Created logs/readiness-2026-10-01/rotate_gv_t3only.sh | — | ~609 |
 | 06:59 | Edited logs/readiness-2026-10-01/m11t3-commit-msg.txt | modified port() | ~658 |
 | 06:59 | Created logs/readiness-2026-10-01/export-msg-m11t3.txt | — | ~482 |
+| 07:33 | Edited rust/crates/epic-router/src/engine.rs | modified spent_value() | ~116 |
+| 07:33 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified t4diag_enabled() | ~436 |
+| 07:33 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | 1→2 lines | ~25 |
+| 07:33 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified t4diag_enabled() | ~135 |
+| 07:33 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified occupy_next_element() | ~307 |
+| 07:34 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified t4diag_on() | ~100 |
+| 07:40 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified negotiated_or_linear_ripup_costs() | ~564 |
+| 07:44 | Edited rust/crates/epic-router/src/engine.rs | modified deterministic_for_pass() | ~554 |
+| 07:44 | Edited rust/crates/epic-router/src/engine.rs | 5→6 lines | ~64 |
+| 07:44 | Edited rust/crates/epic-router/src/global/history.rs | 11→16 lines | ~290 |
+| 07:44 | Edited rust/crates/epic-router/src/global/history.rs | modified TUNING() | ~233 |
+| 07:45 | Edited rust/crates/epic-router/src/global/history.rs | pass() → band() | ~148 |
+| 07:47 | Edited rust/crates/epic-router/src/engine.rs | modified t12_deterministic_ladder_carries_the_tick_ceiling() | ~384 |
+| 07:47 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified negotiated_base_floors_the_linear_ladder() | ~478 |
+| 07:51 | Edited rust/crates/epic-router/src/engine.rs | untouched() → budget() | ~132 |
+| 07:51 | Created logs/readiness-2026-10-01/run_gates_m11t4fix.sh | — | ~985 |
+| 07:54 | Edited rust/crates/epic-router/src/maze/search_engine.rs | modified occupy_next_element() | ~153 |
+| 07:54 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | modified route() | ~135 |
+| 07:55 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | reduced (-13 lines) | ~189 |
+| 07:55 | Edited rust/crates/epic-router/src/pipeline/connection_router.rs | removed 10 lines | ~20 |
+| 07:55 | Edited rust/crates/epic-router/src/engine.rs | removed 11 lines | ~17 |
+| 08:00 | Created logs/readiness-2026-10-01/rotate_gv_m11t4fix.sh | — | ~491 |
+| 08:15 | Created rust/crates/epic-engine/tests/dump_bm07_kinds.rs | — | ~852 |
+| 08:15 | Created rust/crates/epic-engine/tests/dump_bm07_kinds.rs | — | ~880 |
+| 08:26 | Created logs/readiness-2026-10-01/run_gates_m11t4fix_final.sh | — | ~371 |
+| 08:26 | Created logs/readiness-2026-10-01/m11t4fix-commit-msg.txt | — | ~930 |
+| 09:23 | Edited rust/crates/epic-router/src/engine.rs | modified face() | ~360 |
+| 09:23 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified of() | ~471 |
+| 09:24 | Created logs/readiness-2026-10-01/run_gates_m11t4fix_r2.sh | — | ~469 |
+| 09:24 | Edited logs/readiness-2026-10-01/m11t4fix-commit-msg.txt | expanded (+9 lines) | ~290 |
+| 09:25 | Edited logs/readiness-2026-10-01/m11t4fix-commit-msg.txt | modified pathfinder() | ~315 |
+| 10:15 | Edited logs/readiness-2026-10-01/m11t4fix-commit-msg.txt | inline fix | ~38 |
