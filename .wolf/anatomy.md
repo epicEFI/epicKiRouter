@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T20:44:24.928Z
-> Files: 806 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T22:17:27.307Z
+> Files: 812 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -781,6 +781,7 @@
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
 - `933s1-commit-msg.txt` (~667 tok)
 - `933s2-commit-msg.txt` (~898 tok)
+- `933s3-commit-msg.txt` (~893 tok)
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
 - `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
 - `dispatch-prompt-fixround.md` — Readiness fix round — implementer dispatch (2026-10-01) (~2379 tok)
@@ -897,8 +898,10 @@
 ## rust/crates/epic-board/src/
 
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
-- `board.rs` — The live board: the item arena, the id generator, and the (~33866 tok)
+- `board.rs` — The live board: the item arena, the id generator, and the (~34990 tok)
 - `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24645 tok)
+- `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~747 tok)
+- `routing_ledger.rs` — Java `NetRoutingLedger` (#933, upstream 339e8bb50 — "Speed up (~3120 tok)
 - `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~18076 tok)
 - `shape_trace_entries.rs` — The shove substrate: which obstacles sit in a shape, which trace (~29177 tok)
 - `trace_shover.rs` — The shove drivers: can a trace segment be forced into a live board, (~26962 tok)
@@ -939,6 +942,8 @@
 ## rust/crates/epic-drc/src/
 
 - `clearance.rs` — The clearance-violation walk — the port of Java (~16064 tok)
+- `lib.rs` — The two counts every M3 quality gate consumes — incomplete (~357 tok)
+- `routing_ledger.rs` — The #933 survivor-3 recount driver (upstream 339e8bb50, Java (~4835 tok)
 - `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~2802 tok)
 
 ## rust/crates/epic-dsn/src/scope/
@@ -1029,7 +1034,8 @@
 
 ## rust/crates/epic-router/src/pipeline/
 
-- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~28160 tok)
+- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~28411 tok)
+- `board_statistics.rs` — Java `core/scoring/BoardStatistics.java` — the board counting walk (~22856 tok)
 - `connection_router.rs` — Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the (~12481 tok)
 - `event_sink.rs` — The driver's log-only output seam: Java scatters `FRLogger.info` / (~2456 tok)
 - `fanout.rs` — Java `autoroute/pipeline/BatchFanout.java` — the fanout stage: the (~30123 tok)
