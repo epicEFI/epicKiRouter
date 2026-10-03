@@ -1,0 +1,36 @@
+(pcb t6-edge-pins.dsn
+
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 250000 140000))
+    (rule (width 250) (clearance 2000))
+  )
+  (placement
+    (component IEDG
+      (place EDGEC 125000 70000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_S
+      (shape (rect F.Cu -5000 -5000 5000 5000))
+    )
+    (image IEDG
+      (pin PAD_S PIN_IN -30000 0)
+      (pin PAD_S PIN_EDGE 122500 0)
+      (pin PAD_S PIN_OUT 200000 0)
+    )
+  )
+  (network
+    (net N_IN (pins EDGEC-PIN_IN))
+    (net N_EDGE (pins EDGEC-PIN_EDGE))
+    (net N_OUT (pins EDGEC-PIN_OUT))
+    (net N_MIX (pins EDGEC-PIN_OUT) (pins EDGEC-PIN_IN))
+  )
+)

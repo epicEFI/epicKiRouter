@@ -320,6 +320,112 @@ impl crate::board::Board {
         }
         result
     }
+
+    /// Java `BasicBoard.getOutline()` — the board's outline item, if
+    /// it has one (a parsed boundary always yields exactly one).
+    #[must_use]
+    pub fn outline_id(&self) -> Option<crate::id::ItemId> {
+        self.iter_descending()
+            .find(|entry| matches!(entry.data, ItemData::BoardOutline { .. }))
+            .map(|entry| entry.id)
+    }
+
+    /// M11-T6 (upstream #931) — Java `BoardOutline.getEdgePinNets`'s
+    /// computation, made EAGER at the Java invalidation seams (see
+    /// [`crate::board::Board::edge_pin_nets`]): every net carried by
+    /// any pin that is an EDGE or OUTSIDE pin. A pin is edge when its
+    /// CENTER is outside every outline shape, or when ANY tile pad
+    /// shape on ANY of its layers has a corner outside every outline
+    /// shape (`BoardOutline.java:94-126`, the `pre-t6` tree): the
+    /// center test is `BoardOutline.contains` (any shape,
+    /// [`shape_contains_point`]), the corner test only samples
+    /// `TileShape` pads (`instanceof TileShape` — polygon and circle
+    /// pads contribute their center verdict only, exactly like Java),
+    /// and the pin's WHOLE net list joins the set.
+    ///
+    /// `&mut self` because the per-pin layer span resolves through
+    /// [`Board::item_first_layer`]/[`Board::item_last_layer`] (the
+    /// same constraint as [`Board::outline_minimum_pin_gap`], whose
+    /// walk this mirrors).
+    pub(crate) fn recompute_edge_pin_nets(&mut self) {
+        let mut set = std::collections::BTreeSet::new();
+        let Some(outline_id) = self.outline_id() else {
+            self.edge_pin_nets = set;
+            self.edge_pin_nets_dirty = false;
+            return;
+        };
+        let outline_shapes: Vec<BoardShape> = match self.get(outline_id).map(|e| &e.data) {
+            Some(ItemData::BoardOutline { shapes, .. }) => shapes.clone(),
+            _ => {
+                self.edge_pin_nets = set;
+                self.edge_pin_nets_dirty = false;
+                return;
+            }
+        };
+        let contains = |point: FloatPoint| {
+            outline_shapes
+                .iter()
+                .any(|shape| shape_contains_point(shape, &point))
+        };
+        let pin_ids: Vec<crate::id::ItemId> = self
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.id)
+            .collect();
+        for pin_id in pin_ids {
+            // Java: a non-null center outside the outline decides
+            // immediately; a null center OR an inside center falls
+            // through to the pad-corner walk.
+            let mut is_edge_or_outside = match self.pin_center(pin_id) {
+                Some(center) => !contains(center.to_float()),
+                None => false,
+            };
+            if !is_edge_or_outside {
+                let (Some(first_layer), Some(last_layer)) =
+                    (self.item_first_layer(pin_id), self.item_last_layer(pin_id))
+                else {
+                    continue;
+                };
+                'layers: for layer in first_layer..=last_layer {
+                    let Some(pad_shape) = self.pin_shape(pin_id, layer - first_layer) else {
+                        continue;
+                    };
+                    // `shape instanceof TileShape` — only tile pads
+                    // sample their corners.
+                    let BoardShape::Tile(tile) = &pad_shape else {
+                        continue;
+                    };
+                    for no in 0..tile.border_line_count() as i32 {
+                        if !contains(tile.corner(no).to_float()) {
+                            is_edge_or_outside = true;
+                            break 'layers;
+                        }
+                    }
+                }
+            }
+            if is_edge_or_outside && let Some(entry) = self.get(pin_id) {
+                set.extend(entry.nets.iter().copied());
+            }
+        }
+        self.edge_pin_nets = set;
+        self.edge_pin_nets_dirty = false;
+    }
+
+    /// Java `BoardOutline.blocksNets(int[])` (M11-T6, upstream #931,
+    /// `BoardOutline.java:149-159`): the outline blocks a net list
+    /// unless EVERY net of the list is an edge-pin net — "a tie trace
+    /// that also carries an ordinary net stays blocked". A null/empty
+    /// list blocks (there is no net to exempt). Non-outline ids keep
+    /// the base net-obstacle verdict (conservative; unreachable
+    /// through the seams, where Java would fail the cast).
+    #[must_use]
+    pub fn outline_blocks_nets(&self, outline_id: crate::id::ItemId, nets: &[i32]) -> bool {
+        if nets.is_empty() {
+            return true;
+        }
+        nets.iter()
+            .any(|&net| self.item_is_trace_obstacle(outline_id, net))
+    }
 }
 
 #[cfg(test)]
@@ -666,6 +772,171 @@ mod tests {
         assert!(
             (corner_gap(&box_tile, &outline) - expected).abs() < 1e-9,
             "box corner (800,800) -> 400/sqrt(2) = {expected}"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // The M11-T6 edge-pin-net pins (upstream #931, cluster A).
+    // World: `harness/fixtures/t6/t6-edge-pins.dsn` — boundary rect
+    // [0,0,250000,140000], one component at (125000,70000) with three
+    // ±5000 rect pads. PIN_IN abs (95000,70000) fully interior;
+    // PIN_EDGE abs (247500,70000) center-INSIDE with the pad corner at
+    // x 252500 protruding past 250000 (the castellated discriminator —
+    // a center-only port misses it); PIN_OUT abs (325000,70000)
+    // center-outside. Nets: N_IN on the interior pin, N_EDGE on the
+    // corner-protruding pin, N_OUT+N_MIX on the center-outside pin,
+    // N_MIX ALSO on the interior pin (a pin carries several nets, and
+    // ALL nets of an EDGE pin join the set — while the same net on an
+    // INTERIOR pin contributes nothing).
+    // -------------------------------------------------------------------
+
+    /// The T6 fixture path.
+    const T6_EDGE_PINS: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../rust/harness/fixtures/t6/t6-edge-pins.dsn"
+    );
+
+    /// Parses the T6 fixture through the epic-dsn reader (the
+    /// `bm08_board` pattern).
+    fn t6_board() -> Board {
+        let bytes = std::fs::read(T6_EDGE_PINS).expect("t6 fixture present");
+        let mut ses = epic_dsn::ses_board::SesBoard::new();
+        match read_board(bytes.as_slice(), &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+        Board::from_ses_board(&ses)
+    }
+
+    /// The net NUMBER for a net name (names are unique in the craft).
+    fn net_no(board: &Board, name: &str) -> i32 {
+        board
+            .rules()
+            .nets
+            .iter()
+            .find(|(_, net)| net.name == name)
+            .map(|(number, _)| number)
+            .unwrap_or_else(|| panic!("net {name} present"))
+    }
+
+    /// The pin whose net list contains `needle` (each of N_IN/N_EDGE/
+    /// N_OUT names exactly one pin; N_MIX names two, so the mixed-pin
+    /// tests resolve pins by their UNIQUE discriminators).
+    fn pin_carrying(board: &Board, needle: i32) -> ItemId {
+        board
+            .iter_descending()
+            .find(|entry| {
+                matches!(entry.data, ItemData::Pin { .. }) && entry.nets.contains(&needle)
+            })
+            .map(|entry| entry.id)
+            .unwrap_or_else(|| panic!("a pin carrying net {needle}"))
+    }
+
+    /// **The classification pin** — the edge set is exactly ⋃ nets of
+    /// the EDGE and OUT pins: the corner-protruding pad (center
+    /// inside, one corner outside) IS an edge pin, the center-outside
+    /// pad IS, the interior pad is NOT, and N_MIX joins through the OUT
+    /// pin while N_IN stays out (the interior pin carries N_MIX too —
+    /// that membership contributes nothing). Kills the center-test-only
+    /// mutant (N_EDGE drops), the corner-walk-dropped mutant (N_EDGE
+    /// drops — its center is inside), and the first-net-only mutant
+    /// (N_MIX drops).
+    #[test]
+    fn t6_edge_pin_set_classifies_center_corner_and_inside_pins() {
+        let board = t6_board();
+        let n_edge = net_no(&board, "N_EDGE");
+        let n_out = net_no(&board, "N_OUT");
+        let n_mix = net_no(&board, "N_MIX");
+        let expected: std::collections::BTreeSet<i32> =
+            [n_edge, n_out, n_mix].into_iter().collect();
+        assert_eq!(
+            board.edge_pin_nets, expected,
+            "exactly the EDGE and OUT pins' nets; N_IN never joins"
+        );
+        assert!(
+            !board.edge_pin_nets_dirty,
+            "from_ses_board filled the cache (no pending recompute)"
+        );
+    }
+
+    /// **The blocksNets / isTraceObstacle semantics pin** — `blocksNets`
+    /// answers `any(isTraceObstacle)` (BLOCKED unless EVERY net is an
+    /// edge-pin net — a tie trace that also carries an ordinary net
+    /// stays blocked), empty blocks, and the net guard: only `net > 0`
+    /// edge-pin membership exempts (net 0 and negatives never do).
+    #[test]
+    fn t6_outline_blocks_nets_and_trace_obstacle_semantics() {
+        let board = t6_board();
+        let outline = outline_id(&board);
+        let n_in = net_no(&board, "N_IN");
+        let n_edge = net_no(&board, "N_EDGE");
+        let n_out = net_no(&board, "N_OUT");
+        let n_mix = net_no(&board, "N_MIX");
+        assert!(
+            board.outline_blocks_nets(outline, &[]),
+            "empty net list blocks"
+        );
+        assert!(!board.outline_blocks_nets(outline, &[n_edge]));
+        assert!(
+            !board.outline_blocks_nets(outline, &[n_out, n_mix]),
+            "an ALL-edge net list passes"
+        );
+        assert!(
+            board.outline_blocks_nets(outline, &[n_in]),
+            "ordinary net blocks"
+        );
+        assert!(
+            board.outline_blocks_nets(outline, &[n_edge, n_in]),
+            "mixed list stays blocked (the any-semantics, not all-of-mine)"
+        );
+        assert!(!board.item_is_trace_obstacle(outline, n_edge));
+        assert!(board.item_is_trace_obstacle(outline, n_in));
+        assert!(
+            board.item_is_trace_obstacle(outline, 0),
+            "net 0 never joins the edge set (the net > 0 guard)"
+        );
+        assert!(
+            board.item_is_trace_obstacle(outline, -1),
+            "negative nets never join either"
+        );
+    }
+
+    /// **The set_item_nets recompute pin** (Java `changeNet` tail,
+    /// `Item.java:1049-1053`): re-netting the CENTER-OUTSIDE pin moves
+    /// its nets out of the edge set and the new net in (a port without
+    /// the hook keeps the stale N_OUT/N_MIX membership); re-netting the
+    /// INTERIOR pin changes nothing (its nets were never in the set).
+    #[test]
+    fn t6_set_item_nets_recomputes_the_edge_pin_set() {
+        let mut board = t6_board();
+        let n_in = net_no(&board, "N_IN");
+        let n_edge = net_no(&board, "N_EDGE");
+        let n_out = net_no(&board, "N_OUT");
+        let n_mix = net_no(&board, "N_MIX");
+        let out_pin = pin_carrying(&board, n_out);
+        let in_pin = pin_carrying(&board, n_in);
+
+        board.set_item_nets(out_pin, vec![999]);
+        assert!(
+            !board.edge_pin_nets.contains(&n_out) && !board.edge_pin_nets.contains(&n_mix),
+            "the re-netted edge pin's old nets left the set"
+        );
+        assert!(board.edge_pin_nets.contains(&999), "the new net joined");
+        assert!(
+            board.edge_pin_nets.contains(&n_edge),
+            "the untouched edge pin keeps its net in the set"
+        );
+        assert!(!board.edge_pin_nets_dirty);
+
+        board.set_item_nets(in_pin, vec![42]);
+        assert!(
+            !board.edge_pin_nets.contains(&42),
+            "an interior pin's nets never join — even after a re-net"
+        );
+        assert_eq!(
+            board.edge_pin_nets,
+            [n_edge, 999].into_iter().collect(),
+            "the interior re-net is a no-op on the set"
         );
     }
 }

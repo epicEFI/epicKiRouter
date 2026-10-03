@@ -889,15 +889,19 @@ pub(crate) fn spring_over(
         return SpringOverResult::Unchanged;
     };
 
-    let found_is_outline = matches!(
+    // M11-T6 (#931, `TraceShover.java:695-698` of the `pre-t6` tree):
+    // the unconditional outline stop now applies only when the
+    // outline actually BLOCKS the shoved net list — an all-edge-pin
+    // net list springs over.
+    let found_is_blocking_outline = matches!(
         board.get(found_obstacle).map(|e| &e.data),
         Some(ItemData::BoardOutline { .. })
-    );
+    ) && board.outline_blocks_nets(found_obstacle, net_numbers);
     let found_is_unfixed_trace = match board.get(found_obstacle).map(|e| &e.data) {
         Some(ItemData::Trace { .. }) => !is_shove_fixed(board, found_obstacle),
         _ => false,
     };
-    if recursion_depth <= 0 || found_is_outline || found_is_unfixed_trace {
+    if recursion_depth <= 0 || found_is_blocking_outline || found_is_unfixed_trace {
         board.set_shove_failing_obstacle(Some(found_obstacle));
         return SpringOverResult::Failed;
     }
@@ -1093,6 +1097,11 @@ fn spring_over_is_obstacle(
             && contact_pins.is_some_and(|pins| !pins.contains(&current_item))
     } else if let ItemData::ConductionArea { is_obstacle, .. } = &entry.data {
         *is_obstacle
+    } else if matches!(entry.data, ItemData::BoardOutline { .. }) {
+        // M11-T6 (#931, `TraceShover.java:641-643` of the `pre-t6`
+        // tree): the outline is a spring-over obstacle only for net
+        // lists it actually blocks.
+        board.outline_blocks_nets(current_item, net_numbers)
     } else if matches!(
         entry.data,
         ItemData::ObstacleArea {

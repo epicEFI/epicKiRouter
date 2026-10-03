@@ -271,6 +271,15 @@ impl ShapeTraceEntries {
             {
                 continue;
             }
+            // M11-T6 (#931, `ShapeTraceEntries.java:186-190` of the
+            // `pre-t6` tree): an outline the net list does not BLOCK
+            // (every own net is an edge-pin net) is not an entry
+            // obstacle — the trace entries may cross it.
+            if matches!(entry.data, ItemData::BoardOutline { .. })
+                && !board.outline_blocks_nets(current_item, &self.own_net_nos)
+            {
+                continue;
+            }
             if is_shove_fixed(board, current_item) && !contains_own_net {
                 self.found_obstacle = Some(current_item);
                 return false;
