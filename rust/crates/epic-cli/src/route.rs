@@ -3628,33 +3628,31 @@ mod tests {
         );
         // The count components are exact on both sides.
         assert_eq!(stats.vias.total_count, 1, "jar: vias 1");
-        // M11-T3 rotation (2026-10-03, #931 cluster B): the widened
-        // SMD attach gate (`pureSmdNet` -> `hasSmdPin` + the ViaMask
-        // rebuild) and the shove depths 5->8 move this board's
-        // optimizer face by exactly one bend (22 vs the jar's 21 —
-        // the jar is pre-#931 and cannot carry the port). The parked
-        // T4 world (cluster F) measured 23 on the same cell with a
-        // ~2.5 mm shorter route; this literal follows the T3-ONLY
-        // routed face and will be superseded when T4 lands.
+        // M11-T4 rotation (buglog 251/252, #931 cluster F): the
+        // unconditional corner-touch door inserts opened diagonal
+        // passages on this board — the route is ~2.5 mm SHORTER with
+        // two more bends (92.43 mm / 23 bends vs the jar's 94.96 /
+        // 21), and the composed optimizer score RISES above the
+        // jar's own face (840.93 vs 823.79 — the relative floor
+        // above still binds, and it is the policy face). The jar
+        // anchors stay the committed bm08-noopt manifest; these two
+        // literals follow the routed T4 face.
         assert_eq!(
-            stats.bends.total_count, 22,
-            "the T3 attach face (jar anchors 21)"
+            stats.bends.total_count, 23,
+            "the T4 diagonal-passage face (jar anchors 21)"
         );
         assert_eq!(
             stats.difficulty.difficulty_d,
             Some(80.0),
             "jar: difficulty D 80"
         );
-        // The length face: same M11-T3 rotation as the bends cell
-        // above — the widened attach gate + depth-8 shoves find a
-        // ~2.4 mm SHORTER route (92.577 mm vs the jar's 94.96; the
-        // parked T4 world measured 92.43). The jar anchor stays the
-        // committed bm08-noopt manifest; this literal follows the
-        // routed T3 face, bounded at 0.1 mm.
+        // The length face: the T4 diagonal passages sit the route
+        // ~2.5 mm UNDER the jar face (94.96) — bound the ROUTED
+        // face at 0.1 mm.
         let length_mm = stats.traces.total_length_mm.expect("length present");
         assert!(
-            (f64::from(length_mm) - 92.577).abs() <= 0.1,
-            "routed trace length within 0.1 mm of the T3 face: {length_mm}"
+            (f64::from(length_mm) - 92.43).abs() <= 0.1,
+            "routed trace length within 0.1 mm of the T4 face: {length_mm}"
         );
         // The score's lower-bound input on this same board is pinned
         // raw-bits-exact at the parse face (bounds module, bm08 pins).
@@ -4557,14 +4555,26 @@ mod tests {
             "the meander kill-switch leaves the deficits standing"
         );
         assert!(man_gate.contains("750000"), "the resolved min");
+        // M11-T4 rotation (#931 cluster F): the new door face routes
+        // N1 slightly longer — the honest deficit re-derives from the
+        // new length (750000 - 701285.72 = -48714.28) — and N2's
+        // route now meets its min NATURALLY, so its honest row is
+        // gone: the gate world has ONE standing row.
         assert!(
-            man_gate.contains("-50000"),
-            "the N1 deficit (world-derived)"
+            man_gate.contains("-48714.28"),
+            "the N1 deficit (world-derived from the T4 route)"
         );
-        assert!(
-            man_gate.contains("-13052"),
-            "the N2 deficit (world-derived)"
+        let gate_rows: serde_json::Value =
+            serde_json::from_str(&man_gate).expect("the manifest parses");
+        let honest_rows = gate_rows["length_report"]
+            .as_array()
+            .expect("the honest rows stand");
+        assert_eq!(
+            honest_rows.len(),
+            1,
+            "one honest row stands — N2 meets its min on the T4 route: {honest_rows:?}"
         );
+        assert_eq!(honest_rows[0]["net_name"], "N1");
         assert_eq!(
             nf(&ses_on),
             nf(&ses_gate),

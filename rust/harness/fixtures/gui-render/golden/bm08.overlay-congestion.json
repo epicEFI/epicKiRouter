@@ -1,8 +1,8 @@
 # fixture: ../scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn
 # boundary: congestion-on (route with SessionLayer.congestion_global = Some(true), then snapshot_with_overlays)
-# snapshot revision: 291
+# snapshot revision: 315
 # snapshot items: traces=63 vias=1 pads=40 areas=0 outline_pts=4 nets=15
-# overlay counts: airlines=0 markers=0 congestion=Some(44 cells) tuning=None
+# overlay counts: airlines=0 markers=0 congestion=Some(46 cells) tuning=None
 # transform: pan=(1381520, -1120380) zoom=1/1 (the T4 derivation: 1/1 is the unique
 #   full-bijection px-per-DBU ratio — view.rs's exactness contract; pan = bounds.ll)
 # viewport: the wide-open IntBox (ll=(i32::MIN,i32::MIN) ur=(i32::MAX,i32::MAX)); culled=0
@@ -1369,29 +1369,6 @@
     },
     {
       "MoveTo": {
-        "x": 76574,
-        "y": 37965
-      }
-    },
-    {
-      "LineTo": {
-        "x": 81574,
-        "y": 37965
-      }
-    },
-    {
-      "SetColor": [
-        200,
-        52,
-        52,
-        255
-      ]
-    },
-    {
-      "SetWidth": 1000.0
-    },
-    {
-      "MoveTo": {
         "x": 81574,
         "y": 47022
       }
@@ -1888,7 +1865,13 @@
     },
     {
       "LineTo": {
-        "x": 109603,
+        "x": 109566,
+        "y": 57812
+      }
+    },
+    {
+      "LineTo": {
+        "x": 107114,
         "y": 60264
       }
     },
@@ -1905,7 +1888,7 @@
     },
     {
       "MoveTo": {
-        "x": 109603,
+        "x": 107114,
         "y": 60264
       }
     },
@@ -2326,6 +2309,29 @@
     },
     {
       "MoveTo": {
+        "x": 76574,
+        "y": 37965
+      }
+    },
+    {
+      "LineTo": {
+        "x": 81574,
+        "y": 37965
+      }
+    },
+    {
+      "SetColor": [
+        200,
+        52,
+        52,
+        255
+      ]
+    },
+    {
+      "SetWidth": 1000.0
+    },
+    {
+      "MoveTo": {
         "x": 113270,
         "y": 25776
       }
@@ -2361,13 +2367,13 @@
     },
     {
       "LineTo": {
-        "x": 133622,
+        "x": 131753,
         "y": 58660
       }
     },
     {
       "LineTo": {
-        "x": 127018,
+        "x": 125149,
         "y": 65264
       }
     },
@@ -2384,7 +2390,7 @@
     },
     {
       "MoveTo": {
-        "x": 127018,
+        "x": 125149,
         "y": 65264
       }
     },
@@ -3377,6 +3383,34 @@
     {
       "FillPolygon": [
         {
+          "x": 122892,
+          "y": 56595
+        },
+        {
+          "x": 124509,
+          "y": 56595
+        },
+        {
+          "x": 124509,
+          "y": 58212
+        },
+        {
+          "x": 122892,
+          "y": 58212
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        255,
+        0,
+        255,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
           "x": 124509,
           "y": 56595
         },
@@ -3587,6 +3621,34 @@
         {
           "x": 135828,
           "y": 58212
+        }
+      ]
+    },
+    {
+      "SetColor": [
+        255,
+        0,
+        255,
+        255
+      ]
+    },
+    {
+      "FillPolygon": [
+        {
+          "x": 122892,
+          "y": 58212
+        },
+        {
+          "x": 124509,
+          "y": 58212
+        },
+        {
+          "x": 124509,
+          "y": 59829
+        },
+        {
+          "x": 122892,
+          "y": 59829
         }
       ]
     },

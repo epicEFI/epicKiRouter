@@ -2549,7 +2549,7 @@ const PROBE_ROWS: [ProbeRow; 12] = [
         10000,
         0,
         1,
-        2,
+        4,
         &[(1, [1350, 1350, 398750, 598650])],
     ),
     (
@@ -2558,7 +2558,7 @@ const PROBE_ROWS: [ProbeRow; 12] = [
         10000,
         1,
         7,
-        4,
+        12,
         &[
             (2, [1350, 1350, 500000, 300000]),
             (4, [500000, 1350, 998650, 549325]),
@@ -2571,7 +2571,7 @@ const PROBE_ROWS: [ProbeRow; 12] = [
         10000,
         2,
         7,
-        6,
+        20,
         &[
             (9, [1350, 1350, 500000, 300000]),
             (11, [500000, 1350, 998650, 549325]),
@@ -2584,7 +2584,7 @@ const PROBE_ROWS: [ProbeRow; 12] = [
         10000,
         3,
         7,
-        8,
+        28,
         &[
             (16, [1350, 1350, 500000, 300000]),
             (18, [500000, 1350, 998650, 549325]),
@@ -2597,18 +2597,24 @@ const PROBE_ROWS: [ProbeRow; 12] = [
         10000,
         0,
         1,
-        10,
+        32,
         &[(23, [398750, 1350, 998650, 198750])],
     ),
-    ("below-keepout", 500000, 10000, 1, 0, 10, &[]),
-    ("below-keepout", 500000, 10000, 2, 0, 10, &[]),
-    ("below-keepout", 500000, 10000, 3, 0, 10, &[]),
-    ("covered", 10000, 500000, 0, 0, 10, &[]),
-    ("covered", 10000, 500000, 1, 0, 10, &[]),
-    ("covered", 10000, 500000, 2, 0, 10, &[]),
-    ("covered", 10000, 500000, 3, 0, 10, &[]),
+    ("below-keepout", 500000, 10000, 1, 0, 32, &[]),
+    ("below-keepout", 500000, 10000, 2, 0, 32, &[]),
+    ("below-keepout", 500000, 10000, 3, 0, 32, &[]),
+    ("covered", 10000, 500000, 0, 0, 32, &[]),
+    ("covered", 10000, 500000, 1, 0, 32, &[]),
+    ("covered", 10000, 500000, 2, 0, 32, &[]),
+    ("covered", 10000, 500000, 3, 0, 32, &[]),
 ];
 
+/// #931 cluster-F rotation (2026-10-03): hunk 1's unconditional
+/// corner-touch insert grows the CUMULATIVE incomplete-room population
+/// per probe row (2/4/6/8 -> 4/12/20/28 — the corner-touch rooms
+/// seed further neighbours on the later probes; the trailing
+/// below-keepout/covered rows then carry 32, no further growth);
+/// burned counts and room lists are unchanged.
 /// Pin 6 — the completion stream: the fresh-engine probe rows pin the
 /// whole first-candidate/recalc structure of
 /// [`Harness::complete_expansion_room`]. The layer-1 row is the

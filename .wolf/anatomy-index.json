@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-03T04:54:07.059Z",
-    "fileCount": 768,
+    "lastScanned": "2026-10-03T12:59:54.094Z",
+    "fileCount": 791,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "26f56114ed07e33571228616e8b2ca7efd7d8f6648df0906e90d67a2fe8dbab4",
-    "storeUpdatedAt": "2026-10-03T04:54:07.076Z",
-    "rootHash": "60f693450e2ac440"
+    "renderedHash": "415fa81f8e2783c39d5f44c7eb3e08b6e09f55b195a4a4d286cca02c0582a93b",
+    "storeUpdatedAt": "2026-10-03T12:59:54.108Z",
+    "rootHash": "a26a9d32d7d140f9"
   },
   "files": {
     ".dockerignore": {
@@ -5497,11 +5497,11 @@
     },
     "rust/harness/src/router_compare.rs": {
       "description": "Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for",
-      "tokens": 51613,
-      "hash": "bcf2ff320343d1cd",
-      "size": 194108,
-      "mtimeMs": 1790987405151.5618,
-      "updatedAt": "2026-10-03T00:30:05.275Z",
+      "tokens": 51671,
+      "hash": "cb522133aca46c21",
+      "size": 194328,
+      "mtimeMs": 1791020367492.6104,
+      "updatedAt": "2026-10-03T09:39:27.604Z",
       "source": "hook",
       "symbols": [
         {
@@ -5711,8 +5711,8 @@
           "name": "failure_name",
           "kind": "fn",
           "startLine": 1075,
-          "endLine": 4491,
-          "tokens": 42186
+          "endLine": 4494,
+          "tokens": 42249
         }
       ]
     },
@@ -6756,11 +6756,11 @@
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 56504,
-      "hash": "7ca0e008d7012b27",
-      "size": 212348,
-      "mtimeMs": 1791003203761.6245,
-      "updatedAt": "2026-10-03T04:53:23.883Z",
+      "tokens": 56724,
+      "hash": "4885e47eb5a4bddf",
+      "size": 213180,
+      "mtimeMs": 1791029202126.4502,
+      "updatedAt": "2026-10-03T12:06:42.311Z",
       "source": "hook",
       "symbols": [
         {
@@ -6970,8 +6970,8 @@
           "name": "exit_code_for",
           "kind": "fn",
           "startLine": 673,
-          "endLine": 4734,
-          "tokens": 51701
+          "endLine": 4746,
+          "tokens": 51938
         }
       ]
     },
@@ -7032,11 +7032,11 @@
     },
     "rust/crates/epic-router/src/pipeline/batch.rs": {
       "description": "Java `autoroute/pipeline/BatchAutorouter.java` +",
-      "tokens": 25938,
-      "hash": "893e42ff92a1716e",
-      "size": 97543,
-      "mtimeMs": 1790983915323.8452,
-      "updatedAt": "2026-10-02T23:31:55.433Z",
+      "tokens": 26150,
+      "hash": "0f66c36a35db330e",
+      "size": 98344,
+      "mtimeMs": 1791009416307.516,
+      "updatedAt": "2026-10-03T06:36:56.423Z",
       "source": "hook",
       "symbols": [
         {
@@ -7183,8 +7183,8 @@
           "name": "describe_item",
           "kind": "fn",
           "startLine": 1471,
-          "endLine": 2087,
-          "tokens": 7788
+          "endLine": 2102,
+          "tokens": 8016
         }
       ]
     },
@@ -7291,11 +7291,11 @@
     },
     "rust/crates/epic-router/src/pipeline/optimizer.rs": {
       "description": "Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute",
-      "tokens": 46048,
-      "hash": "d39fc6ee4d3c8edb",
-      "size": 173124,
-      "mtimeMs": 1790968275895.9414,
-      "updatedAt": "2026-10-02T19:11:16.014Z",
+      "tokens": 46334,
+      "hash": "c49b025ca3685471",
+      "size": 174201,
+      "mtimeMs": 1791008786029.7505,
+      "updatedAt": "2026-10-03T06:26:26.146Z",
       "source": "hook",
       "symbols": [
         {
@@ -7428,22 +7428,22 @@
           "name": "opt_route_item_body",
           "kind": "fn",
           "startLine": 1680,
-          "endLine": 1869,
-          "tokens": 2323
+          "endLine": 1862,
+          "tokens": 2199
         },
         {
           "name": "total_weighted_trace_length",
           "kind": "fn",
-          "startLine": 1870,
-          "endLine": 1902,
+          "startLine": 1863,
+          "endLine": 1895,
           "tokens": 277
         },
         {
           "name": "now_millis",
           "kind": "fn",
-          "startLine": 1903,
-          "endLine": 3899,
-          "tokens": 25457
+          "startLine": 1896,
+          "endLine": 3910,
+          "tokens": 25894
         }
       ]
     },
@@ -7494,11 +7494,11 @@
     },
     "rust/crates/epic-router/src/engine.rs": {
       "description": "Java `autoroute/maze/AutorouteEngine.java` — the per-net routing",
-      "tokens": 50493,
-      "hash": "1161b45d393a3ae7",
-      "size": 189751,
-      "mtimeMs": 1790921193839.14,
-      "updatedAt": "2026-10-02T06:06:33.945Z",
+      "tokens": 50645,
+      "hash": "3ed0db9e388a05c9",
+      "size": 190325,
+      "mtimeMs": 1791031899109.5203,
+      "updatedAt": "2026-10-03T12:51:39.225Z",
       "source": "hook",
       "symbols": [
         {
@@ -7666,8 +7666,8 @@
           "name": "finish_autoroute",
           "kind": "fn",
           "startLine": 2504,
-          "endLine": 4508,
-          "tokens": 24823
+          "endLine": 4516,
+          "tokens": 24986
         }
       ]
     },
@@ -8354,11 +8354,11 @@
     },
     "rust/crates/epic-router/src/control.rs": {
       "description": "Java `autoroute/maze/AutorouteControl.java` — the per-net cost table",
-      "tokens": 13957,
-      "hash": "c41db37b1601cbd0",
-      "size": 52633,
-      "mtimeMs": 1790978375273.873,
-      "updatedAt": "2026-10-02T21:59:35.382Z",
+      "tokens": 14896,
+      "hash": "4cc40f796ed5f64b",
+      "size": 56173,
+      "mtimeMs": 1791031886190.4683,
+      "updatedAt": "2026-10-03T12:51:26.301Z",
       "source": "hook",
       "symbols": [
         {
@@ -8421,15 +8421,15 @@
           "name": "AutorouteControl",
           "kind": "class",
           "startLine": 213,
-          "endLine": 355,
-          "tokens": 1632
+          "endLine": 358,
+          "tokens": 1694
         },
         {
           "name": "AutorouteControl",
           "kind": "section",
-          "startLine": 356,
-          "endLine": 1183,
-          "tokens": 10384
+          "startLine": 359,
+          "endLine": 1262,
+          "tokens": 11328
         }
       ]
     },
@@ -11370,8 +11370,8 @@
       "tokens": 5610,
       "hash": "07418c6ed3454083",
       "size": 21102,
-      "mtimeMs": 1790982442677.5627,
-      "updatedAt": "2026-10-02T23:07:22.776Z",
+      "mtimeMs": 1791015982544.6323,
+      "updatedAt": "2026-10-03T08:26:22.643Z",
       "source": "hook",
       "symbols": [
         {
@@ -11770,187 +11770,187 @@
     },
     "rust/harness/src/route_events.rs": {
       "description": "Route event-stream corpus (M3 Task 16) — the maze-level",
-      "tokens": 32336,
-      "hash": "f8f35bc850f610ae",
-      "size": 121533,
-      "mtimeMs": 1790992959115.8606,
-      "updatedAt": "2026-10-03T02:02:39.494Z",
+      "tokens": 32655,
+      "hash": "623d26da8491a3c0",
+      "size": 122737,
+      "mtimeMs": 1791029712153.0027,
+      "updatedAt": "2026-10-03T12:15:12.271Z",
       "source": "hook",
       "symbols": [
         {
           "name": "kind_of",
           "kind": "fn",
-          "startLine": 69,
-          "endLine": 81,
+          "startLine": 79,
+          "endLine": 91,
           "tokens": 105
         },
         {
           "name": "EventsCommand",
           "kind": "class",
-          "startLine": 82,
-          "endLine": 104,
+          "startLine": 92,
+          "endLine": 114,
           "tokens": 286
         },
         {
           "name": "run",
           "kind": "fn",
-          "startLine": 105,
-          "endLine": 123,
+          "startLine": 115,
+          "endLine": 133,
           "tokens": 276
         },
         {
           "name": "EventsManifestEntry",
           "kind": "class",
-          "startLine": 124,
-          "endLine": 137,
+          "startLine": 134,
+          "endLine": 147,
           "tokens": 157
         },
         {
           "name": "WitnessLayer",
           "kind": "class",
-          "startLine": 138,
-          "endLine": 150,
+          "startLine": 148,
+          "endLine": 160,
           "tokens": 143
         },
         {
           "name": "SettingsWitness",
           "kind": "class",
-          "startLine": 151,
-          "endLine": 174,
+          "startLine": 161,
+          "endLine": 184,
           "tokens": 224
         },
         {
           "name": "TraceRow",
           "kind": "class",
-          "startLine": 175,
-          "endLine": 184,
+          "startLine": 185,
+          "endLine": 194,
           "tokens": 74
         },
         {
           "name": "RunRow",
           "kind": "class",
-          "startLine": 185,
-          "endLine": 195,
+          "startLine": 195,
+          "endLine": 205,
           "tokens": 92
         },
         {
           "name": "IncompletesRow",
           "kind": "class",
-          "startLine": 196,
-          "endLine": 207,
+          "startLine": 206,
+          "endLine": 217,
           "tokens": 109
         },
         {
           "name": "GoldenRow",
           "kind": "class",
-          "startLine": 208,
-          "endLine": 220,
+          "startLine": 218,
+          "endLine": 230,
           "tokens": 139
         },
         {
           "name": "probe_argv",
           "kind": "fn",
-          "startLine": 221,
-          "endLine": 231,
+          "startLine": 231,
+          "endLine": 241,
           "tokens": 110
         },
         {
           "name": "run_probe",
           "kind": "fn",
-          "startLine": 232,
-          "endLine": 291,
+          "startLine": 242,
+          "endLine": 301,
           "tokens": 619
         },
         {
           "name": "golden",
           "kind": "fn",
-          "startLine": 292,
-          "endLine": 434,
+          "startLine": 302,
+          "endLine": 444,
           "tokens": 1556
         },
         {
           "name": "sanity_check",
           "kind": "fn",
-          "startLine": 435,
-          "endLine": 533,
+          "startLine": 445,
+          "endLine": 543,
           "tokens": 1110
         },
         {
           "name": "RustWorld",
           "kind": "class",
-          "startLine": 534,
-          "endLine": 546,
+          "startLine": 544,
+          "endLine": 556,
           "tokens": 134
         },
         {
           "name": "batch_settings_from_witness",
           "kind": "fn",
-          "startLine": 547,
-          "endLine": 663,
+          "startLine": 557,
+          "endLine": 673,
           "tokens": 1433
         },
         {
           "name": "parse_world_board",
           "kind": "fn",
-          "startLine": 664,
-          "endLine": 697,
+          "startLine": 674,
+          "endLine": 707,
           "tokens": 444
         },
         {
           "name": "run_world_with_sink",
           "kind": "fn",
-          "startLine": 698,
-          "endLine": 723,
+          "startLine": 708,
+          "endLine": 733,
           "tokens": 300
         },
         {
           "name": "run_rust_world",
           "kind": "fn",
-          "startLine": 724,
-          "endLine": 744,
+          "startLine": 734,
+          "endLine": 754,
           "tokens": 236
         },
         {
           "name": "field_name_of_segment",
           "kind": "fn",
-          "startLine": 745,
-          "endLine": 763,
+          "startLine": 755,
+          "endLine": 773,
           "tokens": 209
         },
         {
           "name": "first_differing_field",
           "kind": "fn",
-          "startLine": 764,
-          "endLine": 782,
+          "startLine": 774,
+          "endLine": 792,
           "tokens": 323
         },
         {
           "name": "rows_by_kind",
           "kind": "fn",
-          "startLine": 783,
-          "endLine": 808,
+          "startLine": 793,
+          "endLine": 818,
           "tokens": 308
         },
         {
           "name": "diff_kind_streams",
           "kind": "fn",
-          "startLine": 809,
-          "endLine": 860,
+          "startLine": 819,
+          "endLine": 870,
           "tokens": 799
         },
         {
           "name": "check_manifest_entry",
           "kind": "fn",
-          "startLine": 861,
-          "endLine": 890,
+          "startLine": 871,
+          "endLine": 900,
           "tokens": 296
         },
         {
           "name": "compare",
           "kind": "fn",
-          "startLine": 891,
-          "endLine": 2692,
-          "tokens": 24183
+          "startLine": 901,
+          "endLine": 2710,
+          "tokens": 24340
         }
       ]
     },
@@ -12562,6 +12562,976 @@
       "size": 1303,
       "mtimeMs": 1791003246945.8137,
       "updatedAt": "2026-10-03T04:54:07.059Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-router/src/expansion/neighbours_forty_five.rs": {
+      "description": "Java `Sorted45DegreeRoomNeighbours`",
+      "tokens": 14410,
+      "hash": "e579fc8576f64054",
+      "size": 54163,
+      "mtimeMs": 1791004986355.831,
+      "updatedAt": "2026-10-03T05:23:06.582Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "calculate",
+          "kind": "fn",
+          "startLine": 66,
+          "endLine": 101,
+          "tokens": 484
+        },
+        {
+          "name": "calculate_neighbours",
+          "kind": "fn",
+          "startLine": 102,
+          "endLine": 249,
+          "tokens": 1803
+        },
+        {
+          "name": "calculate_target_doors",
+          "kind": "fn",
+          "startLine": 250,
+          "endLine": 291,
+          "tokens": 436
+        },
+        {
+          "name": "remove_not_touching_border_lines",
+          "kind": "fn",
+          "startLine": 292,
+          "endLine": 350,
+          "tokens": 434
+        },
+        {
+          "name": "FortyfiveRoomNeighbours",
+          "kind": "class",
+          "startLine": 351,
+          "endLine": 358,
+          "tokens": 68
+        },
+        {
+          "name": "FortyfiveRoomNeighbours",
+          "kind": "section",
+          "startLine": 359,
+          "endLine": 910,
+          "tokens": 6874
+        },
+        {
+          "name": "insert_incomplete_room",
+          "kind": "fn",
+          "startLine": 911,
+          "endLine": 964,
+          "tokens": 462
+        },
+        {
+          "name": "FortyfiveSortedRoomNeighbour",
+          "kind": "class",
+          "startLine": 965,
+          "endLine": 980,
+          "tokens": 157
+        },
+        {
+          "name": "FortyfiveSortedRoomNeighbour",
+          "kind": "section",
+          "startLine": 981,
+          "endLine": 1203,
+          "tokens": 2699
+        },
+        {
+          "name": "oct_tile",
+          "kind": "fn",
+          "startLine": 1204,
+          "endLine": 1208,
+          "tokens": 53
+        },
+        {
+          "name": "octagon_dimension",
+          "kind": "fn",
+          "startLine": 1209,
+          "endLine": 1213,
+          "tokens": 43
+        },
+        {
+          "name": "octagon_is_empty",
+          "kind": "fn",
+          "startLine": 1214,
+          "endLine": 1300,
+          "tokens": 981
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/path/locator_45.rs": {
+      "description": "Port of Java `app.freerouting.autoroute.path.FoundConnectionLocator45Degree`",
+      "tokens": 4703,
+      "hash": "356f3cff7a37bd37",
+      "size": 17680,
+      "mtimeMs": 1791026801324.673,
+      "updatedAt": "2026-10-03T11:26:41.427Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "signum",
+          "kind": "fn",
+          "startLine": 28,
+          "endLine": 39,
+          "tokens": 71
+        },
+        {
+          "name": "box_width",
+          "kind": "fn",
+          "startLine": 40,
+          "endLine": 43,
+          "tokens": 28
+        },
+        {
+          "name": "box_height",
+          "kind": "fn",
+          "startLine": 44,
+          "endLine": 48,
+          "tokens": 39
+        },
+        {
+          "name": "round_to_integer",
+          "kind": "fn",
+          "startLine": 49,
+          "endLine": 63,
+          "tokens": 228
+        },
+        {
+          "name": "horizontal_first_core",
+          "kind": "fn",
+          "startLine": 64,
+          "endLine": 121,
+          "tokens": 599
+        },
+        {
+          "name": "calc_horizontal_first_from_door",
+          "kind": "fn",
+          "startLine": 122,
+          "endLine": 139,
+          "tokens": 250
+        },
+        {
+          "name": "horizontal_first_to_door_core",
+          "kind": "fn",
+          "startLine": 140,
+          "endLine": 197,
+          "tokens": 606
+        },
+        {
+          "name": "calc_horizontal_first_to_door",
+          "kind": "fn",
+          "startLine": 198,
+          "endLine": 211,
+          "tokens": 175
+        },
+        {
+          "name": "calculate_next_trace_corners",
+          "kind": "fn",
+          "startLine": 212,
+          "endLine": 417,
+          "tokens": 2683
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/maze/pins.rs": {
+      "description": "The T6 jar-capture pins — the maze search CORE replayed against the",
+      "tokens": 44923,
+      "hash": "483532eec7f2334a",
+      "size": 168650,
+      "mtimeMs": 1791031914853.5835,
+      "updatedAt": "2026-10-03T12:51:54.969Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "LegalChecker",
+          "kind": "class",
+          "startLine": 82,
+          "endLine": 83,
+          "tokens": 6
+        },
+        {
+          "name": "LegalChecker",
+          "kind": "section",
+          "startLine": 84,
+          "endLine": 103,
+          "tokens": 168
+        },
+        {
+          "name": "maze_settings_ir",
+          "kind": "fn",
+          "startLine": 104,
+          "endLine": 128,
+          "tokens": 220
+        },
+        {
+          "name": "make_run",
+          "kind": "fn",
+          "startLine": 129,
+          "endLine": 148,
+          "tokens": 198
+        },
+        {
+          "name": "Kind",
+          "kind": "class",
+          "startLine": 149,
+          "endLine": 155,
+          "tokens": 20
+        },
+        {
+          "name": "kind_of",
+          "kind": "fn",
+          "startLine": 156,
+          "endLine": 173,
+          "tokens": 225
+        },
+        {
+          "name": "RawHead",
+          "kind": "class",
+          "startLine": 174,
+          "endLine": 1434,
+          "tokens": 6543
+        },
+        {
+          "name": "assert_ctrl",
+          "kind": "fn",
+          "startLine": 1435,
+          "endLine": 1485,
+          "tokens": 645
+        },
+        {
+          "name": "assert_head",
+          "kind": "fn",
+          "startLine": 1486,
+          "endLine": 1531,
+          "tokens": 523
+        },
+        {
+          "name": "drain",
+          "kind": "fn",
+          "startLine": 1532,
+          "endLine": 1582,
+          "tokens": 522
+        },
+        {
+          "name": "main_phase_protocol_pins",
+          "kind": "fn",
+          "startLine": 1583,
+          "endLine": 1700,
+          "tokens": 1397
+        },
+        {
+          "name": "t8_engine_init_join_row",
+          "kind": "fn",
+          "startLine": 1701,
+          "endLine": 1735,
+          "tokens": 356
+        },
+        {
+          "name": "drill_phase_protocol_pins",
+          "kind": "fn",
+          "startLine": 1736,
+          "endLine": 1772,
+          "tokens": 444
+        },
+        {
+          "name": "bend_cost_contrast_pins",
+          "kind": "fn",
+          "startLine": 1773,
+          "endLine": 1871,
+          "tokens": 1204
+        },
+        {
+          "name": "allocate_sections_resegmentation_contract",
+          "kind": "fn",
+          "startLine": 1872,
+          "endLine": 1917,
+          "tokens": 466
+        },
+        {
+          "name": "expand_to_door_precheck_is_per_section",
+          "kind": "fn",
+          "startLine": 1918,
+          "endLine": 2050,
+          "tokens": 1518
+        },
+        {
+          "name": "raw_row_buffer_reuse_is_invisible",
+          "kind": "fn",
+          "startLine": 2051,
+          "endLine": 2206,
+          "tokens": 1782
+        },
+        {
+          "name": "tie_elem",
+          "kind": "fn",
+          "startLine": 2207,
+          "endLine": 2234,
+          "tokens": 289
+        },
+        {
+          "name": "order_of",
+          "kind": "fn",
+          "startLine": 2235,
+          "endLine": 2246,
+          "tokens": 117
+        },
+        {
+          "name": "front_tie_chain_pins",
+          "kind": "fn",
+          "startLine": 2247,
+          "endLine": 2348,
+          "tokens": 1220
+        },
+        {
+          "name": "T7PopRow",
+          "kind": "class",
+          "startLine": 2349,
+          "endLine": 2596,
+          "tokens": 1975
+        },
+        {
+          "name": "T7Kind",
+          "kind": "class",
+          "startLine": 2597,
+          "endLine": 2604,
+          "tokens": 55
+        },
+        {
+          "name": "T7HarvestRow",
+          "kind": "class",
+          "startLine": 2605,
+          "endLine": 2681,
+          "tokens": 746
+        },
+        {
+          "name": "T7Slot",
+          "kind": "class",
+          "startLine": 2682,
+          "endLine": 2696,
+          "tokens": 95
+        },
+        {
+          "name": "T7TraceRow",
+          "kind": "class",
+          "startLine": 2697,
+          "endLine": 2732,
+          "tokens": 221
+        },
+        {
+          "name": "T7CallRow",
+          "kind": "class",
+          "startLine": 2733,
+          "endLine": 4777,
+          "tokens": 10188
+        },
+        {
+          "name": "T7LeavingRippedRow",
+          "kind": "class",
+          "startLine": 4778,
+          "endLine": 4876,
+          "tokens": 809
+        },
+        {
+          "name": "T7SmallDoorRippedRow",
+          "kind": "class",
+          "startLine": 4877,
+          "endLine": 5042,
+          "tokens": 1414
+        },
+        {
+          "name": "T7ShoveRow",
+          "kind": "class",
+          "startLine": 5043,
+          "endLine": 5169,
+          "tokens": 1263
+        },
+        {
+          "name": "t7_make_run",
+          "kind": "fn",
+          "startLine": 5170,
+          "endLine": 6071,
+          "tokens": 12369
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/path/pins.rs": {
+      "description": "Literal capture pins for the T9 found-connection locator (module",
+      "tokens": 16679,
+      "hash": "5f517302bd950f86",
+      "size": 62677,
+      "mtimeMs": 1791008960620.857,
+      "updatedAt": "2026-10-03T06:29:20.726Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "locator_settings_ir",
+          "kind": "fn",
+          "startLine": 78,
+          "endLine": 104,
+          "tokens": 250
+        },
+        {
+          "name": "LegalChecker",
+          "kind": "class",
+          "startLine": 105,
+          "endLine": 106,
+          "tokens": 6
+        },
+        {
+          "name": "LegalChecker",
+          "kind": "section",
+          "startLine": 107,
+          "endLine": 123,
+          "tokens": 152
+        },
+        {
+          "name": "PhaseExpect",
+          "kind": "class",
+          "startLine": 124,
+          "endLine": 157,
+          "tokens": 316
+        },
+        {
+          "name": "run_phase",
+          "kind": "fn",
+          "startLine": 158,
+          "endLine": 275,
+          "tokens": 1209
+        },
+        {
+          "name": "capture_a45_fortyfive_no_vias",
+          "kind": "fn",
+          "startLine": 276,
+          "endLine": 334,
+          "tokens": 637
+        },
+        {
+          "name": "capture_a45v_fortyfive_vias",
+          "kind": "fn",
+          "startLine": 335,
+          "endLine": 401,
+          "tokens": 661
+        },
+        {
+          "name": "capture_a90_ninety",
+          "kind": "fn",
+          "startLine": 402,
+          "endLine": 448,
+          "tokens": 413
+        },
+        {
+          "name": "capture_afan_fanout_drill_destination",
+          "kind": "fn",
+          "startLine": 449,
+          "endLine": 484,
+          "tokens": 295
+        },
+        {
+          "name": "capture_abt_net98_backtrack",
+          "kind": "fn",
+          "startLine": 485,
+          "endLine": 559,
+          "tokens": 860
+        },
+        {
+          "name": "capture_bany_any_angle",
+          "kind": "fn",
+          "startLine": 560,
+          "endLine": 597,
+          "tokens": 390
+        },
+        {
+          "name": "capture_banyv_any_angle_vias",
+          "kind": "fn",
+          "startLine": 598,
+          "endLine": 640,
+          "tokens": 455
+        },
+        {
+          "name": "capture_bbt_any_angle_net98",
+          "kind": "fn",
+          "startLine": 641,
+          "endLine": 693,
+          "tokens": 546
+        },
+        {
+          "name": "capture_cbt_ripup_vias_no_rip",
+          "kind": "fn",
+          "startLine": 694,
+          "endLine": 762,
+          "tokens": 698
+        },
+        {
+          "name": "capture_cbtr_ripup_harvest",
+          "kind": "fn",
+          "startLine": 763,
+          "endLine": 816,
+          "tokens": 512
+        },
+        {
+          "name": "capture_cbtr2_seed_2_identical",
+          "kind": "fn",
+          "startLine": 817,
+          "endLine": 867,
+          "tokens": 464
+        },
+        {
+          "name": "capture_cbtr10_seed_10_identical",
+          "kind": "fn",
+          "startLine": 868,
+          "endLine": 937,
+          "tokens": 790
+        },
+        {
+          "name": "any_angle_passed_door_alias_continues_trace",
+          "kind": "fn",
+          "startLine": 938,
+          "endLine": 1170,
+          "tokens": 2916
+        },
+        {
+          "name": "synthesis_factory_dispatch_pins",
+          "kind": "fn",
+          "startLine": 1171,
+          "endLine": 1189,
+          "tokens": 176
+        },
+        {
+          "name": "pin_box_shape",
+          "kind": "fn",
+          "startLine": 1190,
+          "endLine": 1195,
+          "tokens": 71
+        },
+        {
+          "name": "pin_octagon",
+          "kind": "fn",
+          "startLine": 1196,
+          "endLine": 1208,
+          "tokens": 175
+        },
+        {
+          "name": "horizontal_first_core_arm_pins",
+          "kind": "fn",
+          "startLine": 1209,
+          "endLine": 1320,
+          "tokens": 1470
+        },
+        {
+          "name": "horizontal_first_to_door_java_tie_pins",
+          "kind": "fn",
+          "startLine": 1321,
+          "endLine": 1437,
+          "tokens": 1563
+        },
+        {
+          "name": "ninety_degree_corner_pins",
+          "kind": "fn",
+          "startLine": 1438,
+          "endLine": 1454,
+          "tokens": 238
+        },
+        {
+          "name": "fortyfive_degree_corner_comparator_pins",
+          "kind": "fn",
+          "startLine": 1455,
+          "endLine": 1531,
+          "tokens": 1157
+        },
+        {
+          "name": "calculate_additional_corner_dispatch_pins",
+          "kind": "fn",
+          "startLine": 1532,
+          "endLine": 1553,
+          "tokens": 200
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/pipeline/pairs.rs": {
+      "description": "M7-T6: the differential-PAIR face — the pair DECLARATION resolution,",
+      "tokens": 13881,
+      "hash": "b48e12b2788c2003",
+      "size": 52203,
+      "mtimeMs": 1791012803020.3665,
+      "updatedAt": "2026-10-03T07:33:23.132Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "PairSpec",
+          "kind": "class",
+          "startLine": 142,
+          "endLine": 152,
+          "tokens": 118
+        },
+        {
+          "name": "CorridorSegment",
+          "kind": "class",
+          "startLine": 153,
+          "endLine": 161,
+          "tokens": 48
+        },
+        {
+          "name": "CorridorSegment",
+          "kind": "section",
+          "startLine": 162,
+          "endLine": 174,
+          "tokens": 136
+        },
+        {
+          "name": "CouplingPreference",
+          "kind": "class",
+          "startLine": 175,
+          "endLine": 180,
+          "tokens": 34
+        },
+        {
+          "name": "CouplingPreference",
+          "kind": "section",
+          "startLine": 181,
+          "endLine": 231,
+          "tokens": 579
+        },
+        {
+          "name": "coupling_preference",
+          "kind": "fn",
+          "startLine": 232,
+          "endLine": 258,
+          "tokens": 210
+        },
+        {
+          "name": "collect_corridor_segments",
+          "kind": "fn",
+          "startLine": 259,
+          "endLine": 292,
+          "tokens": 343
+        },
+        {
+          "name": "as_int",
+          "kind": "fn",
+          "startLine": 293,
+          "endLine": 307,
+          "tokens": 178
+        },
+        {
+          "name": "coupled_length",
+          "kind": "fn",
+          "startLine": 308,
+          "endLine": 359,
+          "tokens": 558
+        },
+        {
+          "name": "PairStageOutcome",
+          "kind": "class",
+          "startLine": 360,
+          "endLine": 389,
+          "tokens": 396
+        },
+        {
+          "name": "run_pair_stage",
+          "kind": "fn",
+          "startLine": 390,
+          "endLine": 478,
+          "tokens": 1010
+        },
+        {
+          "name": "resolve_pairs",
+          "kind": "fn",
+          "startLine": 479,
+          "endLine": 1279,
+          "tokens": 8942
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/pipeline/connection_router.rs": {
+      "description": "Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the",
+      "tokens": 11653,
+      "hash": "e0f9597e0b008d81",
+      "size": 43815,
+      "mtimeMs": 1791012041499.74,
+      "updatedAt": "2026-10-03T07:20:42.968Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "SinkBridge",
+          "kind": "class",
+          "startLine": 68,
+          "endLine": 77,
+          "tokens": 155
+        },
+        {
+          "name": "SinkBridge",
+          "kind": "section",
+          "startLine": 78,
+          "endLine": 103,
+          "tokens": 262
+        },
+        {
+          "name": "plane_connected_gate",
+          "kind": "fn",
+          "startLine": 104,
+          "endLine": 141,
+          "tokens": 429
+        },
+        {
+          "name": "negotiated_or_linear_ripup_costs",
+          "kind": "fn",
+          "startLine": 142,
+          "endLine": 153,
+          "tokens": 122
+        },
+        {
+          "name": "route",
+          "kind": "fn",
+          "startLine": 154,
+          "endLine": 401,
+          "tokens": 2593
+        },
+        {
+          "name": "routed_postlude",
+          "kind": "fn",
+          "startLine": 402,
+          "endLine": 444,
+          "tokens": 434
+        },
+        {
+          "name": "deterministic_limit_for_pass",
+          "kind": "fn",
+          "startLine": 445,
+          "endLine": 453,
+          "tokens": 130
+        },
+        {
+          "name": "retry_connection_necked",
+          "kind": "fn",
+          "startLine": 454,
+          "endLine": 582,
+          "tokens": 1345
+        },
+        {
+          "name": "apply_strict_drc_after_route",
+          "kind": "fn",
+          "startLine": 583,
+          "endLine": 617,
+          "tokens": 390
+        },
+        {
+          "name": "enforce_strict_drc",
+          "kind": "fn",
+          "startLine": 618,
+          "endLine": 1147,
+          "tokens": 5696
+        }
+      ]
+    },
+    "rust/crates/epic-router/src/maze/search_engine.rs": {
+      "description": "Java `autoroute/maze/MazeSearchEngine.java` — the maze search CORE:",
+      "tokens": 19522,
+      "hash": "35fa1c497f6bc496",
+      "size": 73354,
+      "mtimeMs": 1791012051966.78,
+      "updatedAt": "2026-10-03T07:20:52.118Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "point_to_string_into",
+          "kind": "fn",
+          "startLine": 54,
+          "endLine": 71,
+          "tokens": 211
+        },
+        {
+          "name": "int_box_to_string_into",
+          "kind": "fn",
+          "startLine": 72,
+          "endLine": 83,
+          "tokens": 130
+        },
+        {
+          "name": "expandable_simple_name",
+          "kind": "fn",
+          "startLine": 84,
+          "endLine": 97,
+          "tokens": 170
+        },
+        {
+          "name": "adjustment_name",
+          "kind": "fn",
+          "startLine": 98,
+          "endLine": 107,
+          "tokens": 80
+        },
+        {
+          "name": "FindConnectionResult",
+          "kind": "class",
+          "startLine": 108,
+          "endLine": 124,
+          "tokens": 198
+        },
+        {
+          "name": "MazeSearchEngine",
+          "kind": "class",
+          "startLine": 125,
+          "endLine": 218,
+          "tokens": 1652
+        },
+        {
+          "name": "MazeSearchEngine",
+          "kind": "section",
+          "startLine": 219,
+          "endLine": 1592,
+          "tokens": 17706
+        },
+        {
+          "name": "mid_of",
+          "kind": "fn",
+          "startLine": 1593,
+          "endLine": 1596,
+          "tokens": 23
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t4t3.sh": {
+      "description": "M11-T4+T3 battery — #931 cluster F (corner-touch inserts, locator_45",
+      "tokens": 1312,
+      "hash": "3fd276e6e1f0468d",
+      "size": 4923,
+      "mtimeMs": 1791012311406.7854,
+      "updatedAt": "2026-10-03T07:25:11.516Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t4-commit-msg.txt": {
+      "description": "",
+      "tokens": 1391,
+      "hash": "e13cfd6c6ca1f5d8",
+      "size": 5589,
+      "mtimeMs": 1791022517265.159,
+      "updatedAt": "2026-10-03T10:15:17.373Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/m11t3-commit-msg.txt": {
+      "description": "",
+      "tokens": 1498,
+      "hash": "3d45adbd9b82523c",
+      "size": 6027,
+      "mtimeMs": 1791032357483.3037,
+      "updatedAt": "2026-10-03T12:59:17.601Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t4.txt": {
+      "description": "",
+      "tokens": 573,
+      "hash": "9424934ec49347a9",
+      "size": 2300,
+      "mtimeMs": 1791020545146.2612,
+      "updatedAt": "2026-10-03T09:42:25.261Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/export-msg-m11t3.txt": {
+      "description": "",
+      "tokens": 452,
+      "hash": "de4becc48a3cb31f",
+      "size": 1817,
+      "mtimeMs": 1791032393985.442,
+      "updatedAt": "2026-10-03T12:59:54.093Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/gates/m11t4t3/e1-manifest.jsonl": {
+      "description": "",
+      "tokens": 27,
+      "hash": "8792a38c75f567a4",
+      "size": 101,
+      "mtimeMs": 1791013294803.9646,
+      "updatedAt": "2026-10-03T07:41:34.905Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/gates/m11t4t3/e1-oracle-probe.sh": {
+      "description": "M11-T4+T3 e1_ripup events adjudication: which Java tree does the Rust",
+      "tokens": 273,
+      "hash": "53a59b8235729151",
+      "size": 1025,
+      "mtimeMs": 1791013297737.975,
+      "updatedAt": "2026-10-03T07:41:37.834Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t4t3_r2.sh": {
+      "description": "M11-T4+T3 battery ROUND 2 — after the fix cycle: fmt applied, the",
+      "tokens": 1110,
+      "hash": "3cd23fb4b5051eb7",
+      "size": 4166,
+      "mtimeMs": 1791013695709.4177,
+      "updatedAt": "2026-10-03T07:48:15.819Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t4t3_r3.sh": {
+      "description": "M11-T4+T3 battery ROUND 3 — after the r2 fix cycle:",
+      "tokens": 1109,
+      "hash": "f2a3cb8dae716978",
+      "size": 4167,
+      "mtimeMs": 1791016593676.7637,
+      "updatedAt": "2026-10-03T08:36:33.791Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/rotate_gv_m11t4t3.sh": {
+      "description": "M11-T4+T3 gv golden rotations (the five drifted faces; gv-g1 is",
+      "tokens": 581,
+      "hash": "2b58d6e37636e6e1",
+      "size": 2179,
+      "mtimeMs": 1791018542740.7803,
+      "updatedAt": "2026-10-03T09:09:02.853Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t4t3_r4.sh": {
+      "description": "M11-T4+T3 battery, round 4 — the post-rotation confirmation battery.",
+      "tokens": 1007,
+      "hash": "40d198a971cef813",
+      "size": 3775,
+      "mtimeMs": 1791018872582.0322,
+      "updatedAt": "2026-10-03T09:14:32.687Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_m11t4t3_r5.sh": {
+      "description": "M11-T4+T3 battery, round 5 — the LANDING battery at the final tree",
+      "tokens": 956,
+      "hash": "92590a41bde51cae",
+      "size": 3590,
+      "mtimeMs": 1791020381978.6633,
+      "updatedAt": "2026-10-03T09:39:42.085Z",
+      "source": "hook"
+    },
+    "logs/java-oracle-m11/run-interfu-default.sh": {
+      "description": "Probe B: Java pre-#931 vs post-#931, DEFAULT routing on interf_u.",
+      "tokens": 318,
+      "hash": "083e6480632fcf83",
+      "size": 1189,
+      "mtimeMs": 1791024948451.7375,
+      "updatedAt": "2026-10-03T10:55:48.561Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_t3only_landing.sh": {
+      "description": "M11-T3-ONLY landing battery — 2026-10-03.",
+      "tokens": 714,
+      "hash": "ca4ec8d6710aec7b",
+      "size": 2679,
+      "mtimeMs": 1791027006234.3206,
+      "updatedAt": "2026-10-03T11:30:06.336Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_t3only_v2.sh": {
+      "description": "M11-T3-ONLY landing battery v2 — 2026-10-03.",
+      "tokens": 1021,
+      "hash": "c505dc0d8eba4b09",
+      "size": 3830,
+      "mtimeMs": 1791029756120.142,
+      "updatedAt": "2026-10-03T12:15:56.221Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/rotate_gv_t3only.sh": {
+      "description": "M11-T3-ONLY gv golden rotations (the two drifted faces; the other",
+      "tokens": 609,
+      "hash": "8830d9c5f09d1455",
+      "size": 2289,
+      "mtimeMs": 1791032329565.1978,
+      "updatedAt": "2026-10-03T12:58:49.671Z",
       "source": "hook"
     }
   },

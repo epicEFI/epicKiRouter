@@ -297,12 +297,17 @@ fn capture_a45_fortyfive_no_vias() {
             target_layer: 0,
             traces: &[(
                 0,
+                // #931 cluster-F rotation (2026-10-03): 11 -> 12 corners —
+                // the hunk-2 door-centering micro-stair
+                // (502090, 314858), (500950, 315998), (499338, 315998)
+                // replaces the old 2-step diagonal.
                 &[
                     (800000, 300000),
                     (800000, 300002),
-                    (512034, 300002),
-                    (499634, 312402),
-                    (497688, 314348),
+                    (516946, 300002),
+                    (502090, 314858),
+                    (500950, 315998),
+                    (499338, 315998),
                     (490974, 307634),
                     (481616, 307634),
                     (478750, 307634),
@@ -474,7 +479,7 @@ fn capture_afan_fanout_drill_destination() {
 }
 
 /// `searchOpen ABT` — the second net (98) of the same board: a longer
-/// backtrack chain (17-corner trace with the 45-degree staircase
+/// backtrack chain (18-corner trace with the 45-degree staircase
 /// through the mid-board slits).
 #[test]
 fn capture_abt_net98_backtrack() {
@@ -501,22 +506,27 @@ fn capture_abt_net98_backtrack() {
             target_layer: 0,
             traces: &[(
                 0,
+                // #931 cluster-F rotation (2026-10-03): 17 -> 18 corners —
+                // the hunk-2 door-centering micro-stair
+                // (502090, 314858), (500950, 315998), (499338, 315998)
+                // replaces the old 2-step diagonal.
                 &[
                     (850000, 450000),
                     (775998, 450000),
-                    (679793, 450000),
-                    (548543, 318750),
-                    (548543, 315998),
-                    (544947, 312402),
-                    (499634, 312402),
-                    (497688, 314348),
+                    (677041, 450000),
+                    (545791, 318750),
+                    (545791, 315998),
+                    (544651, 314858),
+                    (502090, 314858),
+                    (500950, 315998),
+                    (499338, 315998),
                     (490974, 307634),
                     (481616, 307634),
                     (478750, 307634),
                     (475998, 307634),
-                    (464414, 307634),
-                    (450798, 321250),
-                    (450798, 324002),
+                    (461662, 307634),
+                    (448046, 321250),
+                    (448046, 324002),
                     (275998, 324002),
                     (150000, 450000),
                 ],
@@ -531,7 +541,7 @@ fn capture_abt_net98_backtrack() {
 
 /// `searchOpen BANY` — NONE restriction: the AnyAngle dispatch on the
 /// SAME board+pins as A45 (the pure factory-dispatch discriminator —
-/// 3 corners vs A45's 11).
+/// 3 corners vs A45's 12).
 /// DE-SCOPED (M3-T9): pop 36 (Rust) vs 29 (Java capture) divergence in
 /// the SEARCH, with NO tree-variant sensitivity — the failure is
 /// byte-identical under the FORTYFIVE-variant and GENERIC-variant

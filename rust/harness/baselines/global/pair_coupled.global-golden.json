@@ -5,6 +5,6 @@
   "flags": [
     "--router.tuning.pairs=pa:pb"
   ],
-  "ses_sha256": "bc120e72d2dfb9d22d336f829d8fb5f7043e27e3af3adf607d36c0d20bba37ee",
-  "manifest_sha256": "61b6fb5a6ece376d93a0c219a9eca55443e87d35675db6d8e50e6a164e97b3d9"
+  "ses_sha256": "dcb6e00246031a02a0c7f67b8849809863648b33c9eab209e96bbbde00903bf8",
+  "manifest_sha256": "2e99811f32d62ae43f177343edc0af356e4faadc3e8f39cee06eb8fb62056efb"
 }

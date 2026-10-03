@@ -1,6 +1,6 @@
 # fixture: ../scripts/benchmark/fixtures/DAC2020_boards/DAC2020_bm08.dsn
 # boundary: post-route (route at defaults, then snapshot_with_overlays; markers carry PostRoute)
-# snapshot revision: 291
+# snapshot revision: 315
 # snapshot items: traces=63 vias=1 pads=40 areas=0 outline_pts=4 nets=15
 # overlay counts: airlines=0 markers=0 congestion=None tuning=None
 # transform: pan=(1381520, -1120380) zoom=1/1 (the T4 derivation: 1/1 is the unique
@@ -1369,29 +1369,6 @@
     },
     {
       "MoveTo": {
-        "x": 76574,
-        "y": 37965
-      }
-    },
-    {
-      "LineTo": {
-        "x": 81574,
-        "y": 37965
-      }
-    },
-    {
-      "SetColor": [
-        200,
-        52,
-        52,
-        255
-      ]
-    },
-    {
-      "SetWidth": 1000.0
-    },
-    {
-      "MoveTo": {
         "x": 81574,
         "y": 47022
       }
@@ -1888,7 +1865,13 @@
     },
     {
       "LineTo": {
-        "x": 109603,
+        "x": 109566,
+        "y": 57812
+      }
+    },
+    {
+      "LineTo": {
+        "x": 107114,
         "y": 60264
       }
     },
@@ -1905,7 +1888,7 @@
     },
     {
       "MoveTo": {
-        "x": 109603,
+        "x": 107114,
         "y": 60264
       }
     },
@@ -2326,6 +2309,29 @@
     },
     {
       "MoveTo": {
+        "x": 76574,
+        "y": 37965
+      }
+    },
+    {
+      "LineTo": {
+        "x": 81574,
+        "y": 37965
+      }
+    },
+    {
+      "SetColor": [
+        200,
+        52,
+        52,
+        255
+      ]
+    },
+    {
+      "SetWidth": 1000.0
+    },
+    {
+      "MoveTo": {
         "x": 113270,
         "y": 25776
       }
@@ -2361,13 +2367,13 @@
     },
     {
       "LineTo": {
-        "x": 133622,
+        "x": 131753,
         "y": 58660
       }
     },
     {
       "LineTo": {
-        "x": 127018,
+        "x": 125149,
         "y": 65264
       }
     },
@@ -2384,7 +2390,7 @@
     },
     {
       "MoveTo": {
-        "x": 127018,
+        "x": 125149,
         "y": 65264
       }
     },

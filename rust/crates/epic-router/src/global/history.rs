@@ -3,12 +3,17 @@
 //! :24/:70). The most validated convergence mechanism in the field,
 //! absent from Freerouting, whose linear pass-scaled costs + snapshot
 //! restore are oscillation-prone: WHEN the setting is on, the negotiated
-//! bases REPLACE the linear `start_ripup_costs * pass` ladder at the
-//! batch pass loop's scheduler seam, and the batch loop skips Java's
-//! snapshot-restore arm (the history IS the convergence memory — a
-//! restore would rewind the routes while the history remembers them).
-//! `router.congestion_global.pathfinder`, default OFF — the parity
-//! contract is the default-off byte-identity of the recurring gates.
+//! bases are consumed at the batch pass loop's scheduler seam as a
+//! FLOOR over Java's `start_ripup_costs * pass` ladder (`max(negotiated,
+//! linear)`, M11-T4 fix round 2026-10-03 — the original replace
+//! composition capped every hot net at `2 * start` forever, which
+//! removed the ladder's per-pass price escalation and sustained the
+//! #931-cluster-F near-tie ripup limit cycle on gv-iu, buglog 256), and
+//! the batch loop skips Java's snapshot-restore arm (the history IS the
+//! convergence memory — a restore would rewind the routes while the
+//! history remembers them). `router.congestion_global.pathfinder`,
+//! default OFF — the parity contract is the default-off byte-identity
+//! of the recurring gates.
 //!
 //! ## The model (beyond-Java: no oracle exists)
 //!
@@ -90,12 +95,17 @@ pub(crate) const HISTORY_MIX: i64 = 1;
 /// 2*start] band the relative cap allows.
 pub(crate) const PRESSURE_SCALE: i64 = 100;
 /// The negotiated-base RELATIVE cap, in units of `start_ripup_costs`:
-/// the base never exceeds `2 * start`. TUNING (M6-T8, evidence-backed):
-/// the maze's fanout-protection arm (`maze/ripup.rs`
+/// the negotiated COMPONENT never exceeds `2 * start`. TUNING (M6-T8,
+/// evidence-backed): the maze's fanout-protection arm (`maze/ripup.rs`
 /// `preserve_fanout_protection = ripup_costs <= start * 2`) must stay
-/// ARMED under the negotiated ladder — the un-capped bases ripped
-/// fanout vias from pass 1 and churned interf_u's wall by an order of
-/// magnitude. `RIPUP_CAP` remains the absolute i32-face ceiling.
+/// armed for the negotiated band — the un-capped bases ripped fanout
+/// vias from pass 1 and churned interf_u's wall by an order of
+/// magnitude. M11-T4 fix round (2026-10-03): the seam now floors the
+/// negotiated component over Java's linear ladder, so the CONSUMED
+/// base exceeds `2 * start` from pass 3 on wherever the ladder does —
+/// disarming fanout protection exactly as Java's own late passes
+/// (the ladder is the dampener; the cap governs only the negotiated
+/// component). `RIPUP_CAP` remains the absolute i32-face ceiling.
 pub(crate) const BASE_CAP_FACTOR: i64 = 2;
 /// The absolute negotiated-base ceiling (the maze ripup-arithmetic
 /// saturation face — `maze/ripup.rs` clamps at the same value).
@@ -293,8 +303,11 @@ impl PathFinder {
 /// pins): `min(start + start * pressure / PRESSURE_SCALE,
 /// min(start * BASE_CAP_FACTOR, RIPUP_CAP))` — integer arithmetic,
 /// saturating at the i32 face. The relative cap keeps the maze's
-/// fanout-protection threshold (`ripup_costs <= start * 2`) armed at
-/// every pass (the M6-T8 tuning finding; module docs).
+/// fanout-protection threshold (`ripup_costs <= start * 2`) armed
+/// across the NEGOTIATED band (the M6-T8 tuning finding; module
+/// docs); the consuming seam floors this over Java's linear ladder
+/// (M11-T4 fix round), so the consumed base may exceed the cap
+/// wherever the ladder does.
 pub(crate) fn negotiated_base(pressure: i64, start_ripup_costs: i64) -> i32 {
     let relative_cap = start_ripup_costs
         .saturating_mul(BASE_CAP_FACTOR)

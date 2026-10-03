@@ -3961,5 +3961,126 @@
    "parse-panic",
    "issue179"
   ]
+ },
+ {
+  "id": 251,
+  "date": "2026-10-03",
+  "task": "M11-T4 (cluster F port + adjudication; buglog for the residual + the neckdown-world-rotation law)",
+  "error_message": "Three epic-router lib pins failed after porting #931 cluster F (hunk 1 unconditional corner-touch inserts in neighbours_forty_five.rs; hunk 2 locator_45 door centering section_len<=2.5*trace_halfwidth_add -> middle_point else shrink+nearest; hunk 3 prev-room micro-neckdown gate): batch t12_driver_finishes_with_skip_tally reported Ok(false)/MaxPasses with '1 unrouted and 32 violations' per pass; engine t11 net-94 canon diverged (anchor now SPLICES at its midpoint 610000,300000 surviving as halves 107/108, 7-item canon, id-burn leg 1 watermark 114); path::pins A45/ABT corner counts 11->12 / 17->18.",
+  "root_cause": "FAITHFUL PORT, not a Rust bug \u2014 adjudicated against pre/post-#931 Java jars via CLI-arg probes (priority-70 --key=value args ONLY; DefaultSettings probes are INVALID because persisted user settings override fanout.enabled and skew the face). Dossier: (a) fanout-off + neckdown-OFF now degrades in BOTH engines \u2014 Java-post stagnates 317.33, Rust digit-exact the same \u2014 so NO completion pin can ride the neckdown-OFF face anymore (pre-#931 it routed 951.88); (b) the t12/t9 completion worlds must ride neckdown-ON, where the Rust engine still completes (batch.rs + optimizer.rs settings_ir rotated, with dossier comments); (c) RESIDUAL divergence: fanout-off + neckdown-ON Java-post stagnates while Rust routes 940.52 \u2014 an optimizer-score-face divergence left open (upstream face, Rust better; not a regression); (d) the t11 splice-point face is decided BEFORE the tightener so it is jar-adjudicable against post-#931 Java but was NOT probed in T4 (the adjudication ran on optimizer-score faces) \u2014 the committed jar canon row is PRE-#931 Java; (e) the p1 pairs failure was initially suspected here but is buglog 252 (independent constant).",
+  "fix": "All three hunks landed as the port (FAITHFUL); the test worlds rotated: batch.rs/optimizer.rs settings_ir automatic_neckdown false->true with the dossier comment; t11 canon re-pinned to the 7-item splice world (anchor_halves_present assert replaces the west-stub-absence); path::pins A45/ABT corner lists re-pinned with the shared hunk-2 micro-stair (502090,314858),(500950,315998),(499338,315998). LAW BANKED: any test world on t9_locator45.dsn needing ROUTING must set automatic_neckdown:true. Open follow-up: the (d) splice-face jar probe against logs/java-oracle-m11/post if the canon is ever contested.",
+  "tags": [
+   "#931",
+   "cluster-F",
+   "neckdown",
+   "golden-rotation",
+   "java-oracle",
+   "adjudication",
+   "t9_locator45",
+   "residual-divergence"
+  ]
+ },
+ {
+  "id": 252,
+  "date": "2026-10-03",
+  "task": "M11-T4 lib re-pin tail: pipeline::pairs p1/p1b (the last 2 reds)",
+  "error_message": "p1_pair_world_routes_coupled_and_matched failed 'coupled length 0 over the open span'; p1b_coupling_holds_the_follower_in_the_corridor failed 'ON 0 > OFF 0' \u2014 with the pair declared, the follower routed (480000,300000)->(80000,300000)->45-degree diagonal->(20000,240000) instead of the leader's corridor, and ON was byte-equal to OFF (the discount had zero effect on the outcome).",
+  "root_cause": "COUPLING_DISCOUNT 0.5 sat EXACTLY on the P1 world's cost tie with no derivation (the M7-T6 plan names it bare): corridor route 460000 horizontal + 60000x2.7 vertical = 622000 weighted DBU, corner detour 400000 + (60000 + 60000x2.7) diagonal = 622000 \u2014 a dead heat the discount was supposed to break. Probes (coupling consult eprintln + discount-fire eprintln + bisect stash of each #931 hunk) showed: preference Some with the correct corridor segment, discount firing 378 times, optimizer-off and tail-sweep-skipped still failing \u2014 and reverting ONLY hunk 1 (neighbours_forty_five.rs unconditional corner-touch inserts) restored the corridor. #931's corner-touch doors opened a diagonal door chain through the tie that beats the corridor at door level for any discount <= ~0.515 (measured: 0.51 fails / 0.52 passes). The mechanism is a best-first race the step-level discount only wins with margin; 0.5 had zero margin.",
+  "fix": "Re-derived constant, not a test rotation (pairs is EpicRouter-original M7 \u2014 the pins are the feature's mutation-kill contract): COUPLING_DISCOUNT 0.5 -> 0.75 with the full derivation written into the constant's doc (measured boundary 0.515, >0.2 margin against expansion-order churn \u2014 the exact failure mode that broke 0.5 \u2014 while keeping a quarter of the cost face live in-corridor; 0.9-class values rejected as near-free in-corridor accumulation, unmeasured excursion risk). Full pairs battery green at 0.6/0.75/0.9; epic-router lib 349+9 ignored = 358 green. Diagnosis discipline that cracked it: panic-message harvesting (dump net_traces into the assert), then bisect the working-tree hunks by git-stash per file \u2014 one run each, no rebase risk.",
+  "tags": [
+   "#931",
+   "cluster-F",
+   "hunk-1",
+   "corner-touch",
+   "pairs",
+   "coupling-discount",
+   "constant-derivation",
+   "bisect",
+   "mutation-contract"
+  ]
+ },
+ {
+  "id": 253,
+  "date": "2026-10-03",
+  "task": "M11-T4+T3 events-golden rotation: three blocks, three donors (route_events.rs + corpus/events-golden.jsonl)",
+  "error_message": "post-port `events compare` diverged per fixture: e1 route ordinal 1 maxItemId golden=20 rust=22; t7 assign ordinal 148 (T9d Rust record vs the engine); t9 assign ordinal 543. The FIRST rotation attempt (e1 -> the Java-post donor, chosen because its route row carried maxItemId 22) moved e1's divergence to assign ordinal 58: golden 290000.00000000006 vs rust 469613.0463275057 \u2014 the post donor's 200-assign trajectory did not match the engine's 331-assign trajectory at all.",
+  "root_cause": "The first plausible donor was the wrong donor: the committed golden is ONE stream per fixture, but no single Java tree matches the engine row-for-row across all fixtures. Java-post's e1 flip to 200 assigns is caused by the REJECTED clusters (C/D/T8), which the engine deliberately does not follow \u2014 its route rows matched the engine while its assign trajectory did not. Each block needed its own donor, established by probing the surviving single-cluster oracle trees (jars at logs/java-oracle-m11/<tree>/): pre-t3 = pre byte-identical on all three fixtures (T3 INERT); pre-t4 = pre + exactly the four e1 route rows (maxItemId 20->22) and a hugely moved t9 trajectory (2671->4416 assigns, 1->3 skips).",
+  "fix": "Per-block donor table written into the route_events.rs PROVENANCE doc: e1 + t9 rotate onto the JAVA PRE+T4 captures (real Java trees \u2014 differential meaning preserved; two-run byte-identical at capture); t7 re-bases RUST-SIDE via the EPIC_EVENTS_DUMP triage door with the two-run determinism self-gate (second re-base: 396->468 assigns; no Java tree fits \u2014 post diverges from the engine at t7 assign 410). Pins re-based: 5248 rows / 5239 trace rows, per-kind census [5215, 8, 1, 15]; the route-kind segment pin moved to a scaffold FLOOR (t9's pre+T4 capture carries the corpus's first non-empty route details value \u2014 FAILED-row free text containing ', '). Procedure for the future: single-fixture manifest + `events golden` two-run capture per candidate tree; compare which ORDINAL each candidate fixes before committing a donor; never assume one donor fits all blocks.",
+  "tags": [
+   "events-golden",
+   "golden-rotation",
+   "donor-provenance",
+   "oracle-procedure",
+   "M11-T4",
+   "M11-T3",
+   "931",
+   "epic-events-dump"
+  ]
+ },
+ {
+  "id": 254,
+  "date": "2026-10-03",
+  "task": "M11-T4+T3 r2 battery: all seven gv faces failed on missing golden paths",
+  "error_message": "gv-master/gv-push/gv-g1/gv-iu/gv-pc/gv-ps/gv-bm08 all: error: reading rust/harness/baselines/<name>.json: No such file or directory \u2014 seven faces dead on arrival, zero verification performed.",
+  "root_cause": "The r2 battery script was written from the SESSION SUMMARY's rendering of the original run_gates_m11t4t3.sh gate lines, which recorded '$G = baselines dir' + '--golden \"$G/<name>.json\"' \u2014 eliding that the original script's $G pointed at baselines/global (the goldens live in the global/ subdir; baselines/ itself contains only global/, java/, router-only/). Transcription from a lossy intermediate instead of from the source file \u2014 the buglog-249 family.",
+  "fix": "r3 script points $G at baselines/global and re-runs the seven faces with fresh work-roots (gv-m11t4t3r3-*). Rule: gate invocations are copied from the SOURCE script file (Read it), never from a summary/rendering; on a fresh battery family, ls the referenced baseline dir BEFORE firing (one cheap call vs seven dead faces).",
+  "tags": [
+   "battery",
+   "golden-paths",
+   "transcription",
+   "buglog-249-family",
+   "gv-faces"
+  ]
+ },
+ {
+  "id": 255,
+  "date": "2026-10-03",
+  "error_message": "overlay golden drift adjudicated as regression from a whole-file diff (min-stair-tuning markers=1 -> 0) \u2014 manufactured a phantom 'T4 flips a load-only DRC row' paradox (~40 min)",
+  "root_cause": "Golden comment headers are CAPTURE-ONLY metadata: read_golden (epic-gui/tests/render_goldens.rs:142-147) strips every '#' line, so the verify pins ONLY the JSON body. The tuning case's marker family is flag-OFF (overlay_flags(false,false,false,true)) \u2014 its count exists only in the header, never in any verified face, and could have drifted at any past commit (T7's same-net pin knob the likely mover: PB1/PB2 in the crafted fixture are overlapping same-net pins across components) with no gate able to see it. Bisecting WHOLE-FILE diffs compares door-written metadata at one tree against a verify-checked BODY at another \u2014 a like-for-like mismatch. Cross-checks that dissolved it: load_dsn has zero epic-router calls; the T4 slice has exactly two non-test hunks (neighbours corner-touch, COUPLING_DISCOUNT const), both route-time; epic-router cfg(test) code is not even linked into the epic-gui door binary.",
+  "fix": "Adjudication discipline: classify golden-file drift by FACE first \u2014 diff the body (what read_golden returns) separately from the header (door metadata); header-only drift on a flag-OFF family = metadata refresh, rides the commit, no verification claim. Real rotations here: bm08.overlay-routed + bm08.overlay-congestion bodies (stash-bisect measured T3 moving them: 364->361 ops / 436->453 cells). Hardening banked for Tier-2: parse the '# overlay counts:' line at verify time and assert it equals the snapshot's live counts, closing the metadata gap.",
+  "tags": [
+   "goldens",
+   "overlay",
+   "verify-blind-metadata",
+   "bisect",
+   "like-for-like",
+   "m11-t4t3"
+  ]
+ },
+ {
+  "id": 256,
+  "date": "2026-10-03",
+  "error_message": "gv-iu (interf_u pathfinder global-golden face): settings-ON run timed out after 600s (r1) and 2400s (r5); every historical run of the face completed <=600s (greens at T7/T9d; even drift reds at T2+T6/T9i prove completion)",
+  "root_cause": "NOT a slowdown \u2014 a ripup-retry LIMIT CYCLE plus a single exploding pass. M11-T4 (#931 cluster F) at the full-tree world oscillates scores 927-967 with 5-11 unrouted (T7 golden world: converges 980.10/3 at pass 31) and pass #35 exceeds 6 min (vs 5 s norm). Bisect matrix on the face: HEAD=3 unrouted (golden); hunk1(neighbours door inserts) ALONE=1000.00/0+optimizer (BETTER); locator-only(centering+neckdown)=8; hunk1+neckdown=4 (mild bounded oscillation 4<->5, stall detection stops it); full cluster=oscillate+explode. NON-ADDITIVE: the locator door-point semantics destabilize specifically against hunk1's new corner doors; the centering hunk is required for the explosion (amplifies the neckdown-seeded oscillation). Port is line-faithful (Java pre/post diff hoists the same guard; Java's locator fallback also midpoints the UNSHRUNK section \u2014 the dropped-mutation hypothesis was falsified). Java pre AND post route interf_u default perfectly (1000/0; post FASTER 21.7s vs 32.7s); Rust full-T4 default also perfect (1000/0, 18 passes). => The defect is in the RUST-ORIGINAL congestion-global pathfinder composition (Java has no such subsystem; the golden is the only contract). congestion_global/pathfinder exists solely in epic-router/src/global/.",
+  "fix": "T4 slice PARKED (stash@{0} with the full record) pending a dedicated global-router robustness round: (a) bound the exploding pass (frontier/cost budget per item in the global maze), (b) damp the oscillation; exit = golden face converges >= the 980.10/3 world. Do NOT re-capture the golden at a degraded outcome (laundering a completion regression). t9/tierA law (buglog 251: neckdown-OFF degrades BOTH engines) blocks a hunk1-only landing without tierA re-measurement. Landed M11-T3 alone instead (T3 provably inert on this face by control flow: the runner stops at 3 unrouted and SKIPS the optimizer, the only code T3 touches).",
+  "tags": [
+   "gv-iu",
+   "interf_u",
+   "pathfinder",
+   "global-router",
+   "cluster-F",
+   "#931",
+   "limit-cycle",
+   "pass-explosion",
+   "bisect-matrix",
+   "non-additive",
+   "port-faithful",
+   "composition-defect"
+  ]
+ },
+ {
+  "id": 257,
+  "date": "2026-10-03",
+  "error_message": "events corpus splice rejected at ordinal 1: 'golden msg: ... first_assign 454685 ... rust msg: ... 313469 ...' \u2014 a rust-side t7_ripup donor dump taken under a t7-ONLY manifest diverges from the live full-compare stream at the very first assign row",
+  "root_cause": "harness isolation property, not a splice bug: `events compare` runs every manifest fixture sequentially IN ONE PROCESS and the shared engine state carries across fixtures \u2014 t7_ripup's maze trajectory differs depending on whether e1_ripup ran before it in the same process (measured: t7 first-assign id 313469 under the FULL manifest vs 454685 under a t7-only manifest). A donor dump captured in t7-only mode records a world the full compare can never reproduce; the splice then fails at ordinal 1 with the 313469-vs-454685 witness",
+  "fix": "DOOR DISCIPLINE banked in rust/harness/src/route_events.rs PROVENANCE (M11-T3): every rust-side donor dump for the events corpus MUST be taken under the FULL committed manifest \u2014 same manifest the compare runs \u2014 plus the standing two-run byte-identical self-gate before the splice. Evidence: /tmp/t7-rust-1.txt (wrong mode, kept as the trap witness) vs /tmp/t7-rust-full.txt (correct, byte-identical twice); gates/t3only/",
+  "tags": [
+   "events-corpus",
+   "donor-capture",
+   "manifest-mode",
+   "harness-isolation",
+   "M11-T3",
+   "global-golden-adjacent"
+  ]
  }
 ]

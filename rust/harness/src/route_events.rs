@@ -21,30 +21,34 @@
 //!   FIELD-level (`key=value, ` grammar). The first divergence names
 //!   the row pair and the FIRST DIFFERING FIELD.
 //!
-//! PROVENANCE (M11-T9d 2026-10-02, amended M11-T3 2026-10-03): the
-//! `t7_ripup` block is a RUST-SIDE record now, re-based TWICE. The
-//! upstream #931 attach-SMD cutout conjunct (drill-page: foreign-net
-//! SMD pins stay obstacles) first moved the Rust maze trajectory off
-//! the committed Java-pre capture (496 -> 396 assign rows, first
-//! divergence at 0-based 182) — and Java-POST's own stream diverges
-//! from the Rust engine too (it moves e1_ripup, which the Rust
-//! engine does not; measured,
-//! `logs/readiness-2026-10-01/gates/m11t9d/events-golden-post.jsonl`
-//! and `t7-golden-post.jsonl`). M11-T3's cluster-B attach-gate
-//! widening (`pureSmdNet` -> `hasSmdPin`) moved the tail a second
-//! time (396 -> 407 assigns, first divergence at assign ordinal
-//! 389; skip/ripped/route and the terminal state unchanged;
-//! `gates/t3only/`). A Java pre+T3 tree was probed as a donor and
-//! diverges at assign 183 — pre+T3 lacks T9d/T9i, so no Java tree
-//! fits (the T9d conclusion stands). DOOR DISCIPLINE (amended
-//! T3): the rust-side donor dump MUST be taken under the FULL
-//! manifest — the compare runs the fixtures sequentially in one
-//! process and t7's trajectory differs when e1 has not run before
-//! it (measured: first-assign 313469 full-manifest vs 454685
-//! t7-only); a t7-only dump splices a world the full compare can
-//! never reproduce. Two-run byte-identical self-gate asserted
-//! before each write; e1/t9 blocks byte-preserved (both still
-//! aligned). The Java-pre capture is preserved in git history.
+//! PROVENANCE (M11-T9d 2026-10-02, amended T4+T3 2026-10-03 — the
+//! per-block donor table): the upstream #931 port moves each
+//! fixture's maze/route stream, and each golden block now records
+//! its OWN donor (no single Java tree matches the engine
+//! row-for-row across all fixtures — measured):
+//! * `e1_ripup` = the JAVA PRE+T4 capture. T4 moves exactly the
+//!   four `compare_trace_route_item` rows (`maxItemId` 20 -> 22);
+//!   the 331-row assign trajectory is UNMOVED (Java pre-t3 = pre
+//!   exactly; Java pre-t4 = pre + the same four rows; Rust
+//!   byte-equal to pre-t4). Java-post's own e1 trajectory flip
+//!   (331 -> 200 assigns, diverging at ordinal 58 — the M4-era
+//!   Class B ordinal) comes from the REJECTED clusters (C/D/T8) —
+//!   the engine deliberately does not follow it.
+//! * `t7_ripup` = a RUST-SIDE record (re-based TWICE: T9d for the
+//!   attach-SMD cutout conjunct, T4+T3 for the corner-touch door
+//!   inserts — 396 -> 468 assigns; two-run determinism self-gate
+//!   asserted before each write). Java-post diverges from the
+//!   engine at t7 assign 410 (its tail carries the rejected
+//!   clusters), so no Java tree fits.
+//! * `t9_locator45` = the JAVA PRE+T4 capture. T4 moves the 45°
+//!   locator's trajectory hugely (2671 -> 4416 assigns, 1 -> 3
+//!   skips); the engine is byte-equal to that tree.
+//!
+//! Donor captures: `gates/m11t4t3/e1-golden-pre-t4.jsonl` and
+//! `t9-golden-pre-t4.jsonl` (the pre-t4 oracle tree of
+//! `logs/java-oracle-m11/`, two-run byte-identical at capture);
+//! Java-post's streams at `gates/m11t9d/`. The Java-pre captures
+//! are preserved in git history (the prior blobs).
 //!
 //! Row normalization contract (the probe's `normalize`): a 5-arg
 //! granular row `"[%s] [%s] %s: %s"` is stored as `operation message`
@@ -1634,6 +1638,14 @@ mod pins {
         let golden_path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus/events-golden.jsonl");
         let raw = std::fs::read_to_string(&golden_path).expect("committed events golden");
+        // The per-kind SCAFFOLD segment counts (the `", "` split of the
+        // key=value grammar). M11-T4+T3 (2026-10-03): the t9 pre+T4
+        // capture carries the corpus's FIRST non-empty route `details`
+        // value — a FAILED row whose explanation text itself contains
+        // `, ` — so the route kind's split count is the scaffold AT
+        // MINIMUM (a details value is free text; the field diff pairs
+        // the identically-split golden/rust rows). The other three
+        // kinds carry no free-text value and stay exact.
         let expected_segments = [13usize, 11, 7, 7];
         let mut tally = [0usize; 4];
         let mut trace_rows = 0usize;
@@ -1644,26 +1656,38 @@ mod pins {
                     .iter()
                     .position(|kind| t.msg.starts_with(kind))
                     .expect("every committed trace row classifies");
-                assert_eq!(
-                    t.msg.split(", ").count(),
-                    expected_segments[slot],
-                    "kind {} segment count drifted: {}",
+                let segments = t.msg.split(", ").count();
+                let (floor, exact) = if slot == 3 {
+                    (expected_segments[slot], false)
+                } else {
+                    (expected_segments[slot], true)
+                };
+                assert!(
+                    if exact {
+                        segments == floor
+                    } else {
+                        segments >= floor
+                    },
+                    "kind {} segment count drifted: {} has {} segments (scaffold {floor})",
                     EVENT_KINDS[slot],
-                    crate::corpus_common::truncate(&t.msg)
+                    crate::corpus_common::truncate(&t.msg),
+                    segments
                 );
                 tally[slot] += 1;
             }
         }
         // M11-T9d (2026-10-02): the t7 block advanced to the Rust
         // stream (the #931 attach-SMD port moved its maze trajectory;
-        // see the module doc) — 507 -> 407 t7 trace rows. M11-T3
-        // (2026-10-03): cluster B's widened attach gate moves t7's
-        // tail (first divergence at assign ordinal 389) — 407 -> 418
-        // rows, the delta entirely in the assign kind (396 -> 407).
-        assert_eq!(trace_rows, 3431, "the committed trace-row count");
+        // see the module doc) — 507 -> 407 t7 trace rows. M11-T4+T3
+        // (2026-10-03): t7 advanced again (407 -> 479, the cluster-F
+        // door inserts move the trajectory a second time; Rust-side,
+        // two-run self-gated) and t9 rotated onto the Java pre+T4
+        // capture (2676 -> 4423 rows, T4 moves the t9 trajectory
+        // hugely; Rust byte-equal to that tree).
+        assert_eq!(trace_rows, 5239, "the committed trace-row count");
         assert_eq!(
             tally,
-            [3409, 6, 1, 15],
+            [5215, 8, 1, 15],
             "per-kind row census (assign/skip/ripped/route)"
         );
     }
@@ -1687,9 +1711,9 @@ mod pins {
             .collect();
         // M11-T9d (2026-10-02): 3529 -> 3429 (the t7 block's trace
         // rows advanced to the Rust stream — see the module doc).
-        // M11-T3 (2026-10-03): 3429 -> 3440 (t7's assign tail again —
-        // the cluster-B attach gate; see the module doc's PROVENANCE).
-        assert_eq!(records.len(), 3440, "the committed capture size");
+        // 3429 (Java-pre/T9d) -> 5248 (M11-T4+T3: t7 410 -> 482 rows,
+        // t9 2679 -> 4426; e1 unchanged at 340).
+        assert_eq!(records.len(), 5248, "the committed capture size");
 
         // Per-fixture kind census + the run/incompletes witnesses.
         let census = |fixture: &str| -> [usize; 4] {
@@ -1704,6 +1728,10 @@ mod pins {
             }
             counts
         };
+        // M11-T4+T3 (2026-10-03): e1's assign stream is UNMOVED (331 —
+        // Java pre+T4 keeps the pre trajectory; only the four route
+        // rows move, maxItemId 20 -> 22). Java-post's own 200-assign
+        // e1 flip comes from the REJECTED clusters (C/D/T8), not T4.
         assert_eq!(
             census("e1_ripup"),
             [331, 1, 1, 4],
@@ -1712,18 +1740,23 @@ mod pins {
         // M11-T9d: t7's assign stream 496 -> 396 (the #931 attach-SMD
         // cutout conjunct changes the drill decomposition, hence the
         // maze trajectory; skip/ripped/route counts unchanged).
-        // M11-T3 (2026-10-03): 396 -> 407 (the cluster-B attach-gate
-        // widening; first divergence at assign ordinal 389 — the tail
-        // replans under the relaxed SMD escape, skip/ripped/route
-        // unchanged, terminal state unchanged).
+        // M11-T4+T3 (2026-10-03): t7's assign stream 396 -> 468 — the
+        // cluster-F corner-touch door inserts move the trajectory a
+        // SECOND time (the block is Rust-side since T9d; no Java tree
+        // matches — post diverges from the engine at assign 410).
         assert_eq!(
             census("t7_ripup"),
-            [407, 4, 0, 7],
+            [468, 4, 0, 7],
             "t7: assign/skip/ripped/route"
         );
+        // M11-T4+T3 (2026-10-03): t9's stream 2671 -> 4416 assign + 3
+        // skip — the cluster-F door inserts move the 45° locator's
+        // maze trajectory hugely; the block rotated onto the JAVA
+        // PRE+T4 capture (the engine is byte-equal to that tree —
+        // `gates/m11t4t3/t9-golden-pre-t4.jsonl`, two-run byte-stable).
         assert_eq!(
             census("t9_locator45"),
-            [2671, 1, 0, 4],
+            [4416, 3, 0, 4],
             "t9: assign/skip/ripped/route"
         );
         for (fixture, costs) in [("e1_ripup", 40000), ("t7_ripup", 1), ("t9_locator45", 1)] {
@@ -1785,7 +1818,8 @@ mod pins {
              (983750,238750)]/dim=1/sections=7, door_bounds=[(216250,238750)..(983750,238750)], \
              from_door=TargetItemExpansionDoor/item=7/tree_entry=0/dim=2/sections=1, \
              from_door_bounds=[(583750,103750)..(616250,136250)], net=2",
-            "e1 assign #58 — the golden's door spans the full wall in 7 sections"
+            "e1 assign #58 — the golden's door spans the full wall in 7 sections \
+             (UNMOVED by T4: Java pre+T4 keeps the pre trajectory here)"
         );
         assert_eq!(
             msg("e1_ripup", 2, 0),
@@ -1802,7 +1836,7 @@ mod pins {
              door_bounds=[(536750,298750)..(587250,321250)], \
              from_door=TargetItemExpansionDoor/item=14/tree_entry=0/dim=2/sections=1, \
              from_door_bounds=[(536750,282750)..(559250,321250)], net=2",
-            "t7's single golden skip row"
+            "t7's first skip row (of 4 post-T4; byte-stable across both re-bases)"
         );
         assert_eq!(
             msg("t9_locator45", 3, 0),
@@ -2515,12 +2549,14 @@ mod pins {
                     // verbatim (2->12); maxItemId rotated 107 -> 104
                     // (foreign-net SMD pads are cutout obstacles now, so
                     // the routed board tops out three inserted items
-                    // lower).
+                    // lower). M11-T4+T3 (2026-10-03): second rotation on
+                    // the same witness — the cluster-F door inserts move
+                    // the top id again, 104 -> 102; netItems still 2->12.
                     assert!(
                         golden_routes[3].contains("netItems=2->12")
-                            && golden_routes[3].contains("maxItemId=104"),
+                            && golden_routes[3].contains("maxItemId=102"),
                         "t7 former-churn witness: golden route row 3 carries \
-                         netItems=2->12 / maxItemId=104"
+                         netItems=2->12 / maxItemId=102"
                     );
                 }
                 "t9_locator45" => {
@@ -2630,9 +2666,10 @@ mod pins {
         assert_eq!(
             assigns, 331,
             "RAW_SECTION rows flow unconditionally (the e1 Rust census; the \
-             backend filters, not the call site). M4-T4 rotation 395->331: the \
-             live tightener aligns the Rust trajectory with the Java golden \
-             (which also carries 331) — the stream is byte-identical now"
+             backend filters, not the call site). M4-T4 rotation 395->331 \
+             (tightener); M11-T4+T3 holds 331 — the engine's trajectory \
+             matches Java pre+T4 (which also carries 331; only the route \
+             rows move, maxItemId 20 -> 22) — byte-identical again"
         );
         let ripped = trace_rows
             .iter()

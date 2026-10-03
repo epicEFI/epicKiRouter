@@ -28,7 +28,8 @@
 //! * the occupancy marking — the front-size drops when an occupied
 //!   section is skipped, plus a direct `is_occupied` state pin;
 //! * `doorIsSmall` — the strict `<` boundary at exactly the door
-//!   length (38964.0: false, 38965.0: true);
+//!   length (477400.0: false, 477401.0: true — #931 moved door[0] to
+//!   the corner-touch door);
 //! * the comparator tie chain — sortingValue → expansionValue → door
 //!   id → section, the full-tie set dedup, the NaN fall-through and
 //!   the -0.0 ≡ 0.0 tie (T1-T7).
@@ -1604,14 +1605,21 @@ fn main_phase_protocol_pins() {
         seed.door.id(),
     );
 
-    // The door dump (BEFORE any pop): the start room holds exactly one
-    // door pre-completion; `completeNeighbourRooms` adds door 33 only
-    // when the drain expands the room — the ordering is pinned.
+    // The door dump (BEFORE any pop): #931 cluster-F rotation
+    // (2026-10-03) — hunk 1's unconditional corner-touch insert grows
+    // the pre-completion door population of the start room from ONE
+    // to FIVE (the corner-contact neighbours now complete eagerly);
+    // `completeNeighbourRooms` adds door 33 only when the drain
+    // expands the room — the ordering is pinned.
     let start_room = seed.next_room_key.expect("the seed's room");
     let start_doors = engine.ctx.room_doors(start_room);
-    assert_eq!(start_doors.len(), 1, "door dump: exactly one door");
+    assert_eq!(start_doors.len(), 5, "door dump: exactly five doors (#931)");
     let start_door = &start_doors[0];
-    assert_eq!(start_door.id(), 232558643, "door i=0 id");
+    assert_eq!(
+        start_door.id(),
+        1022386489,
+        "door i=0 id (#931 cluster-F, 2026-10-03)"
+    );
     assert_eq!(start_door.dimension, 1, "door i=0 dim");
     {
         let (first_key, second_key, first_shape, second_shape) = {
@@ -1624,10 +1632,12 @@ fn main_phase_protocol_pins() {
         };
         let _ = (first_key, second_key);
         let shape = ExpansionDoor::shape_between(&first_shape, &second_shape);
+        // #931 cluster-F rotation (2026-10-03): door[0] is now a
+        // corner-touch door, far longer — 38964.0 -> 477400.0.
         assert_eq!(
             shape.bounding_box().max_width(),
-            38964.0,
-            "door i=0 len (IntBox maxWidth)"
+            477400.0,
+            "door i=0 len (IntBox maxWidth) (#931)"
         );
     }
 
@@ -1648,15 +1658,17 @@ fn main_phase_protocol_pins() {
     }
 
     // The `doorIsSmall` boundary: strict `<` at exactly the door
-    // length (38964.0 → NOT small; 38965.0 → small). The harness runs
+    // length (477400.0 → NOT small; 477401.0 → small). The harness runs
     // the 90-degree arm (`bounding_box().max_width()`); the 45-degree
     // engine measures `bounding_octagon().max_width()` instead, which
     // coincides for this axis-aligned door — the boundary pins
-    // transfer.
+    // transfer. #931 cluster-F rotation (2026-10-03): door[0] is now
+    // the corner-touch door, so the boundary moved 38964/38965 →
+    // 477400/477401.
     {
-        for (w, expected_small) in [(38963.0, false), (38964.0, false), (38965.0, true)] {
+        for (w, expected_small) in [(477399.0, false), (477400.0, false), (477401.0, true)] {
             let small = engine.door_is_small(start_door, w);
-            assert_eq!(small, expected_small, "doorIsSmall door 232558643 w={w}");
+            assert_eq!(small, expected_small, "doorIsSmall door 1022386489 w={w}");
         }
     }
 
@@ -1789,9 +1801,17 @@ fn bend_cost_contrast_pins() {
         let seed_target = engine.front.iter().next().expect("the init seed").clone();
         let room_key = seed_target.next_room_key.expect("the seed's room");
         let doors = engine.ctx.room_doors(room_key);
-        assert_eq!(doors.len(), 1, "bendSeed: the pre-pop door set");
-        let door = &doors[0];
-        assert_eq!(door.id(), 232558643, "bendSeed doorId");
+        // #931 cluster-F rotation (2026-10-03): the pre-pop door set
+        // grew 1 -> 5 (hunk 1 corner-touch inserts; door[0] is now the
+        // corner-touch door 1022386489). The bend-contrast SUBJECT is
+        // the cost model, not the population — the seed anchors to the
+        // ORIGINAL 2-section door 232558643 (now doors[1]), so every
+        // bend literal below survives unchanged.
+        assert_eq!(doors.len(), 5, "bendSeed: the pre-pop door set (#931)");
+        let door = doors
+            .iter()
+            .find(|d| d.id() == 232558643)
+            .expect("the original 2-section door survives (#931)");
 
         // allocateSections fires inside getSectionSegments — the
         // production precondition for reading sectionArr
@@ -1818,7 +1838,12 @@ fn bend_cost_contrast_pins() {
             &second_shape,
             seed_half_width,
         );
-        assert_eq!(section_count, 2, "bendSeed sectionCount");
+        // The anchored door keeps its original arity — the bend
+        // contrast needs the 2-section split (see the anchor comment).
+        assert_eq!(
+            section_count, 2,
+            "bendSeed sectionCount (the anchored door)"
+        );
 
         // The entry chord: straight = axis-parallel, diag = 45
         // degrees, both through the door center.
@@ -1928,7 +1953,8 @@ fn expand_to_door_precheck_is_per_section() {
     let seed = engine.front.iter().next().expect("the init seed").clone();
     let from_room = seed.next_room_key.expect("the seed's room");
     let door = engine.ctx.room_doors(from_room)[0].clone();
-    assert_eq!(door.id(), 232558643, "the start door");
+    // #931 cluster-F rotation (2026-10-03): 232558643 -> 1022386489.
+    assert_eq!(door.id(), 1022386489, "the start door (#931)");
     let door_object = ExpandableObject::RoomDoor(door.clone());
 
     // allocateSections fires inside getSectionSegments — the door has
@@ -1954,7 +1980,8 @@ fn expand_to_door_precheck_is_per_section() {
         &second_shape,
         half_width,
     );
-    assert_eq!(section_count, 2, "the start door has two sections");
+    // #931 cluster-F rotation (2026-10-03): 2 -> 18 sections.
+    assert_eq!(section_count, 18, "the start door sections (#931)");
     // Allocate the TRUE count BEFORE marking: a lazy `maze_element_mut`
     // resize would look like a re-segmentation (different count) and
     // reset the state inside `expand_to_door`'s `allocateSections`.
@@ -2016,8 +2043,15 @@ fn expand_to_door_precheck_is_per_section() {
         "the free section 1 produced an element"
     );
 
-    // Both sections occupied → nothing expands.
-    engine.maze_element_mut(&door_object, 1).is_occupied = true;
+    // Every section occupied → nothing expands. #931 cluster-F
+    // rotation (2026-10-03): the door now has 18 sections, so marking
+    // just sections 0 and 1 is no longer the full door — the loop
+    // below occupies them ALL.
+    for s in 0..section_count {
+        engine
+            .maze_element_mut(&door_object, i32::try_from(s).expect("section fits i32"))
+            .is_occupied = true;
+    }
     let size_before = engine.front.len();
     let expanded = engine.expand_to_door(
         door,
@@ -2065,14 +2099,15 @@ fn raw_row_buffer_reuse_is_invisible() {
         assert!(engine.init(&[START_PIN], &[DEST_PIN]), "init ok");
         engine.trace_sink(&mut sink);
 
-        // The precheck world: door 232558643 of the seed's room, two
+        // The precheck world: door 1022386489 of the seed's room
+        // (#931 cluster-F rotation 2026-10-03; was 232558643), two
         // sections. The from element is a HAND-BUILT seed (section
         // fields pinned at 0/0) so the row prefixes are world
         // literals.
         let seed = engine.front.iter().next().expect("the init seed").clone();
         let from_room = seed.next_room_key.expect("the seed's room");
         let door = engine.ctx.room_doors(from_room)[0].clone();
-        assert_eq!(door.id(), 232558643, "the start door");
+        assert_eq!(door.id(), 1022386489, "the start door (#931)");
         let door_object = ExpandableObject::RoomDoor(door.clone());
         let (first_key, second_key, first_shape, second_shape) = {
             let ctx = &*engine.ctx;
@@ -2095,7 +2130,8 @@ fn raw_row_buffer_reuse_is_invisible() {
             &second_shape,
             half_width,
         );
-        assert_eq!(section_count, 2, "the start door has two sections");
+        // #931 cluster-F rotation (2026-10-03): 2 -> 18 sections.
+        assert_eq!(section_count, 18, "the start door sections (#931)");
         engine.allocate_sections(&door_object, section_count);
 
         let c = door_shape.centre_of_gravity();
@@ -5209,9 +5245,11 @@ fn t7_assert_ctrl(ctrl: &AutorouteControl, phase_idx: usize) {
     assert!(!ctrl.vias_allowed, "ctrl viasAllowed");
     assert_eq!(ctrl.trace_clearance_class_index, 1, "ctrl clearanceClass");
     assert_eq!(ctrl.max_shove_trace_recursion_depth, 20, "ctrl maxShove");
-    // M11-T3 rotation (2026-10-03, #931 cluster B): the depths rise
-    // 5 -> 8 upstream; the Java-pre capture carried 5.
-    assert_eq!(ctrl.max_shove_via_recursion_depth, 8, "ctrl maxShoveVia");
+    // #931 maze cluster-B (2026-10-03): 5 -> 8 upstream.
+    assert_eq!(
+        ctrl.max_shove_via_recursion_depth, 8,
+        "ctrl maxShoveVia (#931)"
+    );
     assert_eq!(
         ctrl.compensated_trace_half_width,
         [11250, 11250],
