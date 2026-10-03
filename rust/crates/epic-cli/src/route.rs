@@ -1314,6 +1314,15 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         run_interview(args.interview, &questions, &mut merged);
     }
 
+    // M11-T2 (#931): the board bounding box grows to cover every
+    // item at the route head — the SAME head placement as
+    // `Session::route` (Java `HeadlessBoardManager.startRouting:835`,
+    // before `reduceNetsOfRouteItems()`): edge-connector pins placed
+    // outside the outline leave the parse box too small, and the
+    // outline's outside keepout (built over the bbox) then cuts into
+    // their pads.
+    board.expand_bounding_box_to_include_all_items();
+
     // P3 (#925a) re-apply from the POST-INTERVIEW merged view (the
     // seed-pass apply at 2a-b above governs the pre-existing count;
     // this pass lands an interviewed answer and matches

@@ -939,4 +939,104 @@ mod tests {
             "the interior re-net is a no-op on the set"
         );
     }
+
+    // -------------------------------------------------------------------
+    // The M11-T2 pins (upstream #931): the board bounding box grows
+    // to cover every item at the route head
+    // (`BasicBoard.expandBoundingBoxToIncludeAllItems`,
+    // BasicBoard.java:592-609 of the post tree; the call site is
+    // HeadlessBoardManager.startRouting:835).
+    // -------------------------------------------------------------------
+
+    /// Renders a box like the bm08 pins (`ll.x ll.y ur.x ur.y`).
+    fn box_str(box_: &epic_geometry::int_box::IntBox) -> String {
+        format!("{} {} {} {}", box_.ll.x, box_.ll.y, box_.ur.x, box_.ur.y)
+    }
+
+    /// **The growth + idempotence pin** — on the T6 fixture the parse
+    /// box is the outline ± the 1000 parse margin (T43), which does
+    /// NOT contain the center-outside pin's pad (x up to 330000) or
+    /// the corner-protruding pad (252500): the expand walk unions
+    /// them, then re-applies the 1000 margin. A second expand changes
+    /// nothing (every box contained — an unconditional-offset mutant
+    /// grows the box again and dies here). The outline's own
+    /// `item_bounding_box` is the boundary rect itself (the shapes'
+    /// union, no margin).
+    #[test]
+    fn t2_expand_grows_over_protruding_pins_and_is_idempotent() {
+        let mut board = t6_board();
+        let outline = outline_id(&board);
+        assert_eq!(
+            box_str(&board.bounding_box().expect("parse box")),
+            "-1000 -1000 251000 141000",
+            "the T43 parse box: outline + 1000"
+        );
+        assert_eq!(
+            box_str(&board.item_bounding_box(outline).expect("outline box")),
+            "0 0 250000 140000",
+            "the outline item's own box is the boundary rect"
+        );
+        let edge_set_before = board.edge_pin_nets.clone();
+        board.expand_bounding_box_to_include_all_items();
+        assert_eq!(
+            box_str(&board.bounding_box().expect("grown box")),
+            "-2000 -2000 331000 142000",
+            "union with the OUT pad (330000) then offset(1000)"
+        );
+        assert_eq!(
+            board.edge_pin_nets, edge_set_before,
+            "the change-path recompute lands the same set (the outline did not move)"
+        );
+        assert!(!board.edge_pin_nets_dirty);
+        board.expand_bounding_box_to_include_all_items();
+        assert_eq!(
+            box_str(&board.bounding_box().expect("still the grown box")),
+            "-2000 -2000 331000 142000",
+            "idempotent: the no-change walk does not re-offset"
+        );
+    }
+
+    /// **The trace-arm pin** — a Trace's box is the polyline box
+    /// OFFSET BY THE HALF WIDTH (`PolylineTraceGeometry.java:39-41`):
+    /// a trace to x 400000 at half width 125 grows the box to
+    /// 400125 + the 1000 margin (a mutant dropping the
+    /// `.offset(half_width)` lands on 400000 and dies). The insert of
+    /// a TRACE never dirties the edge-pin cache (the dirty hooks fire
+    /// on Pin/BoardOutline only).
+    #[test]
+    fn t2_trace_boxes_offset_by_the_half_width() {
+        let mut board = t6_board();
+        let trace_id = board.alloc_id();
+        board.insert_item(crate::board::ItemEntry {
+            id: trace_id,
+            data: ItemData::Trace {
+                layer: 0,
+                half_width: 125,
+                lines: epic_geometry::polyline::Polyline::from_two_corners(
+                    &Point::Int(IntPoint::new(0, 0)),
+                    &Point::Int(IntPoint::new(400_000, 0)),
+                ),
+            },
+            nets: vec![net_no(&board, "N_IN")],
+            clearance_class: 1,
+            component_id: 0,
+            fixed: crate::items::FixedState::Unfixed,
+            on_the_board: false,
+        });
+        assert_eq!(
+            box_str(&board.item_bounding_box(trace_id).expect("trace box")),
+            "-125 -125 400125 125",
+            "polyline box [0,0,400000,0] offset by half width 125"
+        );
+        assert!(
+            !board.edge_pin_nets_dirty,
+            "a trace insert never marks the edge-pin cache dirty"
+        );
+        board.expand_bounding_box_to_include_all_items();
+        assert_eq!(
+            box_str(&board.bounding_box().expect("grown box")),
+            "-2000 -2000 401125 142000",
+            "the trace's 400125 drives the union"
+        );
+    }
 }
