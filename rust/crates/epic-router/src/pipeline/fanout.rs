@@ -379,6 +379,15 @@ pub struct FanoutState {
     pub is_timed_out: bool,
     /// Java `deadlineMs` — wall-profile only (see the module banks).
     pub(crate) deadline_ms: Option<i64>,
+    /// Java `failedPinGeneration` (#933, upstream 339e8bb50) — pin item
+    /// id to the component generation observed when that pin last
+    /// failed (recorded in the FAILED and INSERT_ERROR arms). Lives for
+    /// the whole batch fanout, across passes, exactly the Java field.
+    pub(crate) failed_pin_generation: HashMap<ItemId, i32>,
+    /// Java `componentGeneration` (#933) — successful escapes per
+    /// component id, bumped only on ROUTED. A change allows a
+    /// previously failed pin to be retried.
+    pub(crate) component_generation: HashMap<i32, i32>,
 }
 
 /// M6-T8 ordering face / M6-T9 bank (T8 quality Q6): the
@@ -589,6 +598,8 @@ impl FanoutState {
             last_not_routed_count: 0,
             is_timed_out: false,
             deadline_ms: None,
+            failed_pin_generation: HashMap::new(),
+            component_generation: HashMap::new(),
         }
     }
 }
@@ -997,6 +1008,22 @@ fn fanout_pass(
                 continue;
             }
 
+            // Java `:269-274` (#933, upstream 339e8bb50): a pin that
+            // failed is retried only after its OWN component escaped
+            // another pin since — silently skipped otherwise (no trace
+            // row, exactly the Java face).
+            if !retry_fanout(
+                state.failed_pin_generation.get(&pin.item_id).copied(),
+                state
+                    .component_generation
+                    .get(&component.component_id)
+                    .copied()
+                    .unwrap_or(0),
+            ) {
+                pins_to_go -= 1;
+                continue;
+            }
+
             sink.trace(&format!(
                 "pin_start pin={}, net={net_number}, targetCount={target_count}, pass={}",
                 pin.full_name,
@@ -1042,6 +1069,12 @@ fn fanout_pass(
                 AutorouteAttemptState::Routed => {
                     routed_count += 1;
                     state.total_items_fanouted += 1;
+                    // Java `componentGeneration.merge(id, 1, sum)` (#933)
+                    // — the only bump site (successful escapes only).
+                    *state
+                        .component_generation
+                        .entry(component.component_id)
+                        .or_insert(0) += 1;
                     sink.trace(&format!(
                         "pin_routed pin={}, net={net_number}, targetCount={target_count}",
                         pin.full_name
@@ -1058,6 +1091,16 @@ fn fanout_pass(
                 AutorouteAttemptState::Failed => {
                     not_routed_count += 1;
                     state.total_items_fanouted += 1;
+                    // Java `failedPinGeneration.put(pinId, gen)` (#933) —
+                    // the component's generation AT FAILURE TIME.
+                    state.failed_pin_generation.insert(
+                        pin.item_id,
+                        state
+                            .component_generation
+                            .get(&component.component_id)
+                            .copied()
+                            .unwrap_or(0),
+                    );
                     let detail = if current_result.details.is_empty() {
                         "no detail"
                     } else {
@@ -1072,6 +1115,16 @@ fn fanout_pass(
                 AutorouteAttemptState::InsertError => {
                     insert_error_count += 1;
                     state.total_items_fanouted += 1;
+                    // Java `failedPinGeneration.put(pinId, gen)` (#933) —
+                    // INSERT_ERROR failures gate retries the same way.
+                    state.failed_pin_generation.insert(
+                        pin.item_id,
+                        state
+                            .component_generation
+                            .get(&component.component_id)
+                            .copied()
+                            .unwrap_or(0),
+                    );
                     let detail = if current_result.details.is_empty() {
                         "no detail"
                     } else {
@@ -1193,6 +1246,18 @@ fn fanout_pass(
         board,
     );
     routed_count
+}
+
+/// Java `BatchFanout.retryFanout` (`:550-557`, #933 upstream 339e8bb50):
+/// a pin is retried when it has not failed, or when its component has
+/// escaped another pin since that failure. One thread and many threads
+/// take the same decision because the generation is updated only after
+/// a successful escape on the calling thread.
+fn retry_fanout(failed_generation: Option<i32>, current_generation: i32) -> bool {
+    match failed_generation {
+        Some(failed) => failed != current_generation,
+        None => true,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2500,9 +2565,12 @@ mod tests {
     /// count grows by exactly that one). The escape scan counts only
     /// CMP1-P2: the pads' own touching wire (the south pincer) is
     /// itself violating, so it never counts as an escape contact.
-    #[test]
-    fn fanout_board_reverts_violating_escape() {
-        const DRC_DSN: &str = r#"(pcb epic-router-fanout-drc.dsn
+    /// The strict-DRC revert world: CMP1-P1/P2 share SMDNET (P1's
+    /// escape crosses its sibling pad and maze-fails; P2's clean drill
+    /// routes and survives), CMP3-P1's BLOCKNET escape routes but
+    /// violates against the pre-placed pincer wires and is reverted →
+    /// FAILED. Hoisted for the #933 retry-skip witness below.
+    const DRC_DSN: &str = r#"(pcb epic-router-fanout-drc.dsn
   (parser
     (string_quote ")
     (space_in_quoted_tokens on)
@@ -2551,6 +2619,9 @@ mod tests {
   )
 )
 "#;
+
+    #[test]
+    fn fanout_board_reverts_violating_escape() {
         let count_kind = |board: &Board, want: &str| {
             board
                 .iter_ascending()
@@ -2561,8 +2632,10 @@ mod tests {
         };
         let (mut manager, mut board) = parse(DRC_DSN);
         let mut settings = fanout_settings("outer_first");
-        // One pass keeps the revert rows single-count (CMP3-P1 would
-        // re-attempt — and re-revert — in a second pass).
+        // One pass keeps the revert rows single-count (post-#933 a
+        // second pass would SKIP CMP3-P1 — see
+        // [`fanout_skips_failed_pins_until_component_escapes`]; pre-#933
+        // it re-attempted and re-reverted every pass).
         settings.router_settings.fanout.max_passes = 1;
         let smd_net = net_no(&board, "SMDNET");
         let block_net = net_no(&board, "BLOCKNET");
@@ -2655,5 +2728,95 @@ mod tests {
         );
         assert!(!sink.any_contains("Fanout stopped"), "{trace:?}");
         assert!(!sink.any_contains("Max items limit"), "{trace:?}");
+    }
+
+    /// #933 survivor-1 truth table (Java `BatchFanout.retryFanout`
+    /// `:550-557`, upstream 339e8bb50): never-failed pins always retry;
+    /// a failed pin retries only when its component's generation
+    /// MOVED (another pin of the same component escaped since).
+    #[test]
+    fn retry_fanout_truth_table() {
+        assert!(retry_fanout(None, 0), "never failed -> retry");
+        assert!(retry_fanout(None, 7), "never failed at any generation");
+        assert!(
+            !retry_fanout(Some(0), 0),
+            "failed at the unchanged generation -> skip"
+        );
+        assert!(!retry_fanout(Some(3), 3), "same at a later generation");
+        assert!(
+            retry_fanout(Some(0), 1),
+            "the component escaped since -> retry"
+        );
+        assert!(retry_fanout(Some(2), 3));
+        // The table is plain inequality: a backward generation (which
+        // the monotone bump can never produce) still reads as "moved".
+        assert!(retry_fanout(Some(3), 2));
+    }
+
+    /// #933 survivor-1 END-TO-END witness (upstream 339e8bb50): a pin
+    /// whose escape FAILED is skipped in later passes until its own
+    /// component escapes another pin. Measured pass-1 visit order:
+    /// CMP1-P1 fails FIRST (records generation 0), sibling CMP1-P2's
+    /// clean escape then bumps CMP1 to generation 1, CMP3-P1 fails
+    /// last (records 0; its escape was strict-DRC-reverted). Pass 2
+    /// then shows BOTH arms live: CMP1-P1 RETRIES (failed@0 ≠ current
+    /// 1 — its component escaped after its failure) and fails again;
+    /// CMP3-P1 is SKIPPED (0 == 0 — one pin, its generation provably
+    /// never moves): one pin_failed / one fanout_via_reverted row for
+    /// it across BOTH passes, where pre-#933 it re-attempted and
+    /// re-reverted every pass.
+    #[test]
+    fn fanout_skips_failed_pins_until_component_escapes() {
+        let (mut manager, mut board) = parse(DRC_DSN);
+        let mut settings = fanout_settings("outer_first");
+        settings.router_settings.fanout.max_passes = 2;
+        let mut sink = CaptureDriverSink::default();
+        let summary = fanout_board(&mut manager, &mut board, &settings, None, None, &mut sink);
+        let trace = sink.joined("trace");
+        assert_eq!(
+            summary.completed_pass_count, 2,
+            "pass 2 runs; routed=0 ends it"
+        );
+        assert_eq!(trace.matches("pass_start pass=").count(), 2, "{trace}");
+        // Pass 1 is the one-pass face: P2 routes, P1 and CMP3-P1 fail.
+        assert_eq!(
+            trace.matches("pin_routed pin=CMP1-P2").count(),
+            1,
+            "{trace}"
+        );
+        // THE RETRY arm: CMP1's generation moved (P2's escape) after
+        // P1's failure — P1 re-attempts in pass 2 and fails again.
+        assert_eq!(
+            trace.matches("pin_failed pin=CMP1-P1").count(),
+            2,
+            "failed@0, component escaped to 1 -> retried: {trace}"
+        );
+        assert_eq!(
+            trace.matches("pin_start pin=CMP1-P1").count(),
+            2,
+            "the retry is a real re-attempt: {trace}"
+        );
+        // THE SKIP arm: CMP3 never escapes another pin — exactly one
+        // attempt + revert across both passes, NO pass-2 pin_start.
+        assert_eq!(
+            trace.matches("pin_failed pin=CMP3-P1").count(),
+            1,
+            "{trace}"
+        );
+        assert_eq!(trace.matches("pin_start pin=CMP3-P1").count(), 1, "{trace}");
+        assert_eq!(
+            trace.matches("fanout_via_reverted pin=").count(),
+            1,
+            "{trace}"
+        );
+        // Pass 2's pass_end row: the retry failed, the skip vanished,
+        // P2 answered already-connected.
+        assert_eq!(
+            trace
+                .matches("routed=0, notRouted=1, insertErrors=0, alreadyConnected=1")
+                .count(),
+            1,
+            "the pass-2 face: {trace}"
+        );
     }
 }

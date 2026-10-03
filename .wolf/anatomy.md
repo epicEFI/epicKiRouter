@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T12:59:54.094Z
-> Files: 791 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T16:15:09.954Z
+> Files: 798 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -819,6 +819,7 @@
 - `m11t2-commit-msg.txt` (~616 tok)
 - `m11t3-commit-msg.txt` (~1498 tok)
 - `m11t4-commit-msg.txt` (~1391 tok)
+- `m11t4fix-commit-msg.txt` (~1204 tok)
 - `m11t6-commit-msg.txt` (~756 tok)
 - `m11t6-fix-commit-msg.txt` (~431 tok)
 - `m11t7-commit-msg.txt` (~472 tok)
@@ -837,6 +838,7 @@
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
 - `report-fixround2.md` — Readiness fix-round-2 report (2026-10-01) (~1694 tok)
 - `review-fixround.md` — Fresh-eyes review — 2.0.0 hardening diff (2026-10-01) (~2186 tok)
+- `rotate_gv_m11t4fix.sh` — M11-T4 FIX-ROUND gv-iu golden rotation (the one drifted face). (~491 tok)
 - `rotate_gv_m11t4t3.sh` — M11-T4+T3 gv golden rotations (the five drifted faces; gv-g1 is (~581 tok)
 - `rotate_gv_t3only.sh` — M11-T3-ONLY gv golden rotations (the two drifted faces; the other (~609 tok)
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
@@ -844,6 +846,9 @@
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
 - `run_gates_m11t2t6.sh` — M11-T2+T6 battery — the outline edge-pin-net exemption (T6, 023fb1c8b) (~1218 tok)
+- `run_gates_m11t4fix_final.sh` — M11-T4 fix landing battery — FINAL LEG: the corpus-family compares, (~371 tok)
+- `run_gates_m11t4fix_r2.sh` — M11-T4 fix landing battery — ROUND 2 (the 30-min background limit (~469 tok)
+- `run_gates_m11t4fix.sh` — M11-T4 FIX-ROUND landing battery (2026-10-03) — the C1 floor (~985 tok)
 - `run_gates_m11t4t3_r2.sh` — M11-T4+T3 battery ROUND 2 — after the fix cycle: fmt applied, the (~1110 tok)
 - `run_gates_m11t4t3_r3.sh` — M11-T4+T3 battery ROUND 3 — after the r2 fix cycle: (~1109 tok)
 - `run_gates_m11t4t3_r4.sh` — M11-T4+T3 battery, round 4 — the post-rotation confirmation battery. (~1007 tok)
@@ -948,6 +953,7 @@
 
 ## rust/crates/epic-engine/tests/
 
+- `dump_bm07_kinds.rs` — TEMPORARY re-capture helper (M11-T4 fix round, 2026-10-03) — NOT (~880 tok)
 - `events_stream.rs` — M9-T3: the event-stream pins (the dispatch's charter for (~5610 tok)
 - `overlays.rs` — M9-T5: the overlay DATA faces' engine pins: (~5156 tok)
 - `session_workflow.rs` — M9-T2: the `Session` workflow pins (the dispatch's charter for (~6336 tok)
@@ -986,7 +992,7 @@
 ## rust/crates/epic-router/src/
 
 - `control.rs` — Java `autoroute/maze/AutorouteControl.java` — the per-net cost table (~14896 tok)
-- `engine.rs` — Java `autoroute/maze/AutorouteEngine.java` — the per-net routing (~50645 tok)
+- `engine.rs` — Java `autoroute/maze/AutorouteEngine.java` — the per-net routing (~52076 tok)
 
 ## rust/crates/epic-router/src/drill/
 
@@ -1000,6 +1006,7 @@
 
 ## rust/crates/epic-router/src/global/
 
+- `history.rs` — The PathFinder negotiated-congestion scheduler (M6-T8) — per-resource (~4047 tok)
 - `map.rs` — The coarse-grid congestion map (M6-T7) — an occupancy/overflow (~6193 tok)
 - `pattern.rs` — The pattern router (M6-T7) — L/Z 1-2-bend routes inside guides for (~2294 tok)
 - `tests.rs` — The M6-T7 pin bank (charter: pins in `global/tests.rs`). (~8761 tok)
@@ -1018,13 +1025,13 @@
 ## rust/crates/epic-router/src/pipeline/
 
 - `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~26150 tok)
-- `connection_router.rs` — Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the (~11653 tok)
+- `connection_router.rs` — Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the (~12481 tok)
 - `event_sink.rs` — The driver's log-only output seam: Java scatters `FRLogger.info` / (~2456 tok)
 - `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~14569 tok)
 - `java_random.rs` — `java.util.Random` + `java.util.Collections.shuffle` — the EXACT (~1533 tok)
 - `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~46334 tok)
 - `pairs.rs` — M7-T6: the differential-PAIR face — the pair DECLARATION resolution, (~13881 tok)
-- `pass_runner.rs` — Java `autoroute/pipeline/AutoroutePassRunner.java` — the (~27683 tok)
+- `pass_runner.rs` — Java `autoroute/pipeline/AutoroutePassRunner.java` — the (~20918 tok)
 
 ## rust/harness/
 
