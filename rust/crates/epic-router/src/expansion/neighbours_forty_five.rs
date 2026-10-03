@@ -715,38 +715,30 @@ impl FortyfiveRoomNeighbours {
             } else {
                 self.sorted_neighbours.get(index - 1)
             };
-            let insert_room = if ctx.room_is_obstacle(self.completed_room) && count == 2 {
-                // check, if this site is touching or open.
-                let intersection = next_neighbour
-                    .intersection
-                    .intersection(&prev_neighbour.intersection);
-                if octagon_is_empty(&intersection) {
-                    true
-                } else if octagon_dimension(&intersection) >= 1 {
+            // #931 cluster F: the corner-touch analysis is now
+            // UNCONDITIONAL — pre, only an obstacle completed room
+            // with exactly 2 neighbours took it and every other
+            // pair fell to a plain intersects gate. Post, the same
+            // geometry decides every pair: staggered pads touching
+            // at a corner are a legitimate diagonal passage when
+            // the touch is along one side or on adjacent sides.
+            let intersection = next_neighbour
+                .intersection
+                .intersection(&prev_neighbour.intersection);
+            let insert_room = if octagon_is_empty(&intersection) {
+                true
+            } else if octagon_dimension(&intersection) >= 1 {
+                false
+            } else {
+                // Point contact (dimension == 0): touch at a corner
+                // of the room shape.
+                if prev_neighbour.last_touching_side == next_neighbour.first_touching_side {
+                    // touch along the side of the room shape
                     false
                 } else {
-                    // touch at a corner of the room shape
-                    if prev_neighbour.last_touching_side == next_neighbour.first_touching_side {
-                        // touch along the side of the room shape
-                        false
-                    } else {
-                        prev_neighbour.last_touching_side
-                            != (next_neighbour.first_touching_side + 1) % 8
-                    }
+                    prev_neighbour.last_touching_side
+                        != (next_neighbour.first_touching_side + 1) % 8
                 }
-            } else {
-                // the 2 neighbours do not touch. (Capture note, F2
-                // final walk: the four-entry sorted list produces four
-                // pairs — keepout(4,1)->tile(1,2) and pad(3,4)->
-                // keepout(4,1) insert (rows 1002583643 / -1219568412);
-                // tile(1,2)->room3(1,4) and room3->pad are rejected
-                // right here by the intersects gate, their overlaps
-                // touching at an edge and a corner. The room3 (1,4)
-                // entry is what dissolves the old tile->pad wedge-pair
-                // phantom — no extra pair gate exists.)
-                !next_neighbour
-                    .intersection
-                    .intersects(&prev_neighbour.intersection)
             };
 
             if !insert_room {

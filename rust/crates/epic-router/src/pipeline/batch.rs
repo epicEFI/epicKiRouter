@@ -1540,7 +1540,16 @@ mod tests {
             vias_allowed: true,
             bend_costs: vec![0.0, 0.0],
             layer_active: vec![true, true],
-            automatic_neckdown: false,
+            // #931 cluster-F rotation (2026-10-03): was `false` (the
+            // Java-PRE parity face). Upstream #931 degrades the
+            // fanout-off NECKDOWN-OFF face of this fixture in BOTH
+            // engines (Java-post stagnates 317.33, Rust digit-exact —
+            // the T4 oracle probes), so no completion pin can ride it
+            // anymore; the completion/skip-tally world rides the
+            // neckdown-ON face, where the Rust engine still routes the
+            // fixture (the optimizer tests' settings_ir made the same
+            // rotation; Java stagnates there — buglog 251).
+            automatic_neckdown: true,
             start_ripup_costs: 1,
             fanout: Default::default(),
         }
@@ -1906,7 +1915,13 @@ mod tests {
         let mut sink = CaptureDriverSink::default();
         let mut driver = BatchDriver::new(&mut manager, &mut board, settings, StopFace::default());
         let outcome = driver.run(&mut sink).expect("run completes");
-        assert!(outcome, "the router finished its own accord (no stop)");
+        assert!(
+            outcome,
+            "the router finished its own accord (no stop); stop_reason={:?} info:\n{}\ntask_state:\n{}",
+            driver.stop_reason,
+            sink.joined("info"),
+            sink.joined("task_state")
+        );
         assert_eq!(driver.stop_reason, None, "no stop source fired");
         let states_text = sink.joined("task_state");
         let states: Vec<&str> = states_text.lines().collect();

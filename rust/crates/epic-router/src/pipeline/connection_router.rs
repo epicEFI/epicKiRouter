@@ -139,18 +139,46 @@ fn plane_connected_gate(
 /// pass's per-net negotiated base when the PathFinder stage is on and
 /// the net carries a guide entry, else Java's linear
 /// `start_ripup_costs * pass` ladder.
+///
+/// M11-T4 fix round (2026-10-03): the negotiated base now FLOORS the
+/// linear ladder (`max(negotiated, start * pass)`) instead of
+/// replacing it. The replace composition (M6-T8) capped every hot
+/// net at `2 * start` for the whole run, which removed Java's ladder
+/// as a de-facto oscillation dampener — under #931 cluster F's
+/// near-tie corner-door routes the maze kept pricing contested ripups
+/// at `2 * start` forever and two fighting nets never resolved (the
+/// gv-iu limit cycle, buglog 256: scores cycling 927-967 with 5-11
+/// unrouted, best 966.83/5 vs the golden's 980.10/3, while the SAME
+/// detail router at default settings — Java's ladder intact — routes
+/// the board 1000/0 in 18 passes). With the floor, negotiation can
+/// only ESCALATE beyond Java's own per-pass pricing, never undercut
+/// it; the negotiated component keeps its relative `2 * start` cap
+/// and the ladder keeps its Java semantics (uncapped below the
+/// absolute `RIPUP_CAP`, and disarming the maze's
+/// `start * 2` fanout-protection threshold from pass 3 on — exactly
+/// Java's late-pass behavior). Measured on gv-iu: the floor world
+/// converges (the wander is gone); see the M11-T4 fix-round report.
 fn negotiated_or_linear_ripup_costs(
     pathfinder: Option<&crate::global::history::PathfinderPass>,
     route_net_no: i32,
     settings: &BatchSettings,
     ripup_pass_no: i32,
 ) -> i32 {
-    pathfinder
-        .and_then(|pass| pass.bases.get(&route_net_no).copied())
-        .unwrap_or_else(|| settings.start_ripup_costs.wrapping_mul(ripup_pass_no))
+    let linear = settings
+        .start_ripup_costs
+        .saturating_mul(ripup_pass_no.max(1))
+        .min(
+            crate::global::history::RIPUP_CAP
+                .try_into()
+                .unwrap_or(i32::MAX),
+        );
+    match pathfinder.and_then(|pass| pass.bases.get(&route_net_no).copied()) {
+        Some(negotiated) => negotiated.max(linear),
+        None => linear,
+    }
 }
 
-#[allow(clippy::too_many_arguments)] // the Java signature, kept 1:1
+#[allow(clippy::too_many_arguments)] // the Java seam's face
 pub fn route(
     manager: &mut SearchTreeManager,
     board: &mut Board,
@@ -733,6 +761,44 @@ mod tests {
             FixedState::Unfixed,
         )
         .expect("insert succeeds")
+    }
+
+    /// M11-T4 fix round (2026-10-03): the negotiated base FLOORS
+    /// Java's linear ladder at the scheduler seam —
+    /// `max(negotiated, start * pass)`. Four arms, each killing its
+    /// own mutant: (1) a base ABOVE the ladder (early pass, high
+    /// pressure) is consumed as-is — the max must not collapse to the
+    /// linear face; (2) a base BELOW the ladder (the capped hot net at
+    /// a late pass — the OLD replace composition that sustained the
+    /// #931 cluster-F ripup limit cycle on gv-iu, buglog 256) lets the
+    /// LADDER win; (3) a net with no guide entry falls to the linear
+    /// face; (4) no scheduler at all = the linear face alone.
+    #[test]
+    fn negotiated_base_floors_the_linear_ladder() {
+        let settings = settings(); // start_ripup_costs = 1
+        let mut pass = crate::global::history::PathfinderPass::default();
+        pass.bases.insert(7, 30); // above the pass-1 ladder (1)
+        pass.bases.insert(9, 2); // the relative cap, below the pass-12 ladder (12)
+        assert_eq!(
+            negotiated_or_linear_ripup_costs(Some(&pass), 7, &settings, 1),
+            30,
+            "negotiated above the ladder wins"
+        );
+        assert_eq!(
+            negotiated_or_linear_ripup_costs(Some(&pass), 9, &settings, 12),
+            12,
+            "the ladder floors the capped base (replace would answer 2)"
+        );
+        assert_eq!(
+            negotiated_or_linear_ripup_costs(Some(&pass), 11, &settings, 12),
+            12,
+            "no guide entry: the linear face"
+        );
+        assert_eq!(
+            negotiated_or_linear_ripup_costs(None, 7, &settings, 12),
+            12,
+            "no scheduler: the linear face"
+        );
     }
 
     /// Java `BatchAutorouter.enforceStrictDrc` (`:305-329`): the id

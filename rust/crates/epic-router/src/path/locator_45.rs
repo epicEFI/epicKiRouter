@@ -345,11 +345,23 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
             return result;
         }
         let current_line_section = &line_sections[current_to_info.section_no_of_door as usize];
-        let mut point = current_line_section.nearest_segment_point(
-            st.current_from_point
-                .as_ref()
-                .expect("the trace loop runs with the from point set"),
-        );
+        // #931 cluster F (door centering): a degenerate-short door
+        // section takes the midpoint outright — shrinkSegment would
+        // invert it; otherwise shrink by trace_halfwidth_add first
+        // so the door point keeps the trace's width clear of the
+        // section ends.
+        let section_len = current_line_section.b.distance(&current_line_section.a);
+        let mut point = if section_len <= 2.5 * f64::from(trace_halfwidth_add) {
+            current_line_section.a.middle_point(&current_line_section.b)
+        } else {
+            let safe_line_section =
+                current_line_section.shrink_segment(f64::from(trace_halfwidth_add));
+            safe_line_section.nearest_segment_point(
+                st.current_from_point
+                    .as_ref()
+                    .expect("the trace loop runs with the from point set"),
+            )
+        };
 
         let mut nearest_to_door_point_ok = true;
         if let Some(to_next_room_key) = current_to_info.next_room {
@@ -361,6 +373,17 @@ pub(crate) fn calculate_next_trace_corners<A: LocatorAccess>(
             if nearest_points.len() >= 2 {
                 nearest_to_door_point_ok =
                     nearest_points[1].distance(&point) >= f64::from(trace_halfwidth_add);
+            }
+        }
+        // #931 cluster F (micro-neckdown): the PREV room gets the
+        // same gate — if its second nearest border point sits inside
+        // trace_halfwidth_add, the corridor is a too-narrow neck.
+        if nearest_to_door_point_ok && let Some(from_next_room_key) = current_from_info.next_room {
+            let prev_room_shape = access.engine().room_shape(from_next_room_key).to_simplex();
+            let prev_nearest_points = prev_room_shape.nearest_border_points_approx(&point, 2);
+            if prev_nearest_points.len() >= 2 {
+                nearest_to_door_point_ok =
+                    prev_nearest_points[1].distance(&point) >= f64::from(trace_halfwidth_add);
             }
         }
         if !nearest_to_door_point_ok {

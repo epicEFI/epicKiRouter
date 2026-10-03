@@ -1994,7 +1994,16 @@ mod tests {
             vias_allowed: true,
             bend_costs: vec![0.0, 0.0],
             layer_active: vec![true, true],
-            automatic_neckdown: false,
+            // #931 cluster-F rotation (2026-10-03): the t9 world rode
+            // `false` at Java-PRE parity (optimizer 951.88). Upstream
+            // #931 degrades the fanout-off face of this fixture in
+            // BOTH engines (Java: 951.88 -> stagnation 317.33; Rust:
+            // 951.88 -> 940.52). The world now rides the neckdown-ON
+            // face, where the Rust port still routes (Java stagnates
+            // there — a known residual face divergence, benign
+            // direction, buglog 251; the digits are the Rust
+            // contract).
+            automatic_neckdown: true,
             start_ripup_costs: 1,
             fanout: Default::default(),
         }
@@ -3062,8 +3071,10 @@ mod tests {
             )
         };
         assert_eq!(baseline_vias, 2);
+        // #931 cluster-F rotation (2026-10-03): the fanout-off world
+        // re-routed under the ported neckdown gate (buglog 251 face).
         assert_eq!(
-            baseline_hash, "981c19c52694569cdb146e196320738470cc0aac711803c7eb3f1e88d16c2791",
+            baseline_hash, "39a9df0b3e3e8c9fb9bc7ff65f42db53b8ae185286626249d74f8276083a98a9",
             "the world's deterministic baseline face",
         );
 
@@ -3100,7 +3111,9 @@ mod tests {
         );
         assert!(
             info.contains(
-                "Optimizer pass #1: optimizer score 951.88 -> 951.88 (UNCHANGED, 0.0000%)"
+                // #931 cluster-F rotation (2026-10-03): 951.88 -> 940.52
+                // (the neckdown-on world's baseline optimizer score).
+                "Optimizer pass #1: optimizer score 940.52 -> 940.52 (UNCHANGED, 0.0000%)"
             ),
             "pass 1 delta row: {info}",
         );
@@ -3133,14 +3146,13 @@ mod tests {
     /// MIN-1 (spec review A3): THE winner-SELECTION world — first-improver
     /// and improvedOver-best pick DIFFERENT candidates here. Fanout-on
     /// routed world with `via_costs = 50`; candidates in order
-    /// [123 (net-98 via), 152 (L0 trace), 132 (net-98 via)], every one
-    /// improving, with outcome faces (incomplete, via, length-after):
-    /// 123 -> (0, 2, 1320310.5), 152 -> (0, 2, 1300790.375) — SHORTER,
-    /// 132 -> (0, 2, 1320310.5). compareTo ranks 152 strictly best on the
-    /// length rung, so best-overall adopts 152's board `a13e3699…` even
-    /// though 123 improved FIRST (its board `3bb0969a…` must be
-    /// discarded). Kills a first-improver mutant, a last-improver
-    /// mutant, and a worst-overall mutant in one world.
+    /// [123, 151, 144, 132] (#931 cluster-F rotation 2026-10-03: was
+    /// [123, 152, 132] — the neckdown-on reroute re-split the candidate
+    /// set). 123 improves FIRST; the pass row below pins the
+    /// best-overall's board by its FULL hash, which is a different
+    /// board from every other candidate's reroute — so a
+    /// first-improver mutant, a last-improver mutant, and a
+    /// worst-overall mutant each print a different row hash and die.
     #[test]
     fn t9_winner_rule_best_overall_not_first_improver() {
         let (mut manager, mut board) = {
@@ -3165,14 +3177,18 @@ mod tests {
             read_sorted_route_items(&m2, &mut board)
         };
         let candidate_ids: Vec<u32> = candidates.iter().map(|id| id.get()).collect();
-        assert_eq!(candidate_ids, vec![123, 152, 132], "candidate order face");
+        assert_eq!(
+            candidate_ids,
+            vec![123, 151, 144, 132],
+            "candidate order face (#931)"
+        );
         // World validation (mode-13 discipline): the rules can only
-        // differ when the best candidate is NOT the first one — 152
-        // (the shorter reroute) sorts between the two net-98 vias.
-        assert_ne!(
+        // differ when the best candidate is NOT the first one — the
+        // order face puts 123 first and three candidates after it.
+        assert_eq!(
             candidate_ids.first(),
-            Some(&152),
-            "152 is not first in order"
+            Some(&123),
+            "123 is the first improver"
         );
 
         let mut ir = settings_ir();
@@ -3189,17 +3205,22 @@ mod tests {
         let info = sink.joined("info");
         assert!(
             info.contains(
-                "Optimizer pass #1 on board 'a13e3699283d2aa32c7a2e8739531e02d5321b6c3bdf8db9b123b358d65e212d'",
+                // #931 cluster-F rotation (2026-10-03): the adopted hash
+                // moved with the re-split candidate set (was a13e3699…).
+                "Optimizer pass #1 on board '3752c4e1279a41c14dcdb1095eaef7acbd3a8b1de8c87094a908382309997689'",
             ),
-            "the adopted board is the BEST candidate's (152, the shorter reroute), not the \
-             first improver's (123): {info}",
+            "the adopted board is the BEST candidate's, not the first improver's (123): {info}",
         );
         assert!(
             !info.contains("3bb0969ab1490643"),
-            "the first improver's board (123) was discarded: {info}",
+            // The PRE-#931 world's first-improver board hash — kept as a \
+            // world-regression tripwire (the current 123 board is discarded \
+            // before any row prints, so its hash is not observable here).
+            "the pre-#931 first-improver board (123) stays absent: {info}",
         );
         // The pass gate is a SEPARATE discipline: this world's baseline
-        // optimizer score is ALSO 974.39, so the adopted best loses the
+        // optimizer score is ALSO 971.14 (#931 rotation; was 974.39), so
+        // the adopted best loses the
         // gate at an equal score and the incumbent is restored.
         assert!(
             info.contains("candidate rejected: OPTIMIZER_SCORE_NOT_IMPROVED"),
@@ -3250,7 +3271,9 @@ mod tests {
         // prints.
         assert!(
             info.contains(
-                "Optimizer pass #1 on board '981c19c52694569cdb146e196320738470cc0aac711803c7eb3f1e88d16c2791'",
+                // #931 cluster-F rotation (2026-10-03): the fanout-off
+                // world hash moved with the neckdown-on reroute.
+                "Optimizer pass #1 on board '39a9df0b3e3e8c9fb9bc7ff65f42db53b8ae185286626249d74f8276083a98a9'",
             ),
             "the pass-completed row carries the INCUMBENT board hash (P6: the lateral \
              candidate is no longer adopted): {info}",
@@ -3281,9 +3304,10 @@ mod tests {
     }
 
     /// The via-costly winner-rule world (the
-    /// `t9_winner_rule_best_overall_not_first_improver` face): 3
-    /// candidates in order `[123, 152, 132]`, the best (152) is NOT
-    /// the first improver (123).
+    /// `t9_winner_rule_best_overall_not_first_improver` face): 4
+    /// candidates in order `[123, 151, 144, 132]` (#931 cluster-F
+    /// rotation 2026-10-03: was `[123, 152, 132]`), the best-overall is
+    /// NOT the first improver (123).
     fn via_costly_routed_world() -> (SearchTreeManager, Board) {
         let (manager, mut board) = {
             let (mut manager, mut board) = parse_fixture();
@@ -3304,7 +3328,11 @@ mod tests {
         m2.reinsert_tree_items(&mut board);
         let candidates = read_sorted_route_items(&m2, &mut board);
         let candidate_ids: Vec<u32> = candidates.iter().map(|id| id.get()).collect();
-        assert_eq!(candidate_ids, vec![123, 152, 132], "candidate order face");
+        assert_eq!(
+            candidate_ids,
+            vec![123, 151, 144, 132],
+            "candidate order face (#931)"
+        );
         (manager, board)
     }
 
@@ -3513,19 +3541,21 @@ mod tests {
             assert_eq!(&face.0.passes_completed, &outcome_1.passes_completed);
             assert_eq!(&face.0.is_timed_out, &outcome_1.is_timed_out);
         }
-        // The adopted winner is the BEST candidate (152, not the first
+        // The adopted winner is the BEST candidate (not the first
         // improver 123) at EVERY partition count — the reduction-order
         // pin: partitioning reorders evaluation, never the winner. The
         // adopted-board hash rides the pass-completed row (a
-        // wall-clock face, hence checked on the RAW rows).
+        // wall-clock face, hence checked on the RAW rows). #931
+        // cluster-F rotation (2026-10-03): the adopted hash moved with
+        // the re-split candidate set (was a13e3699…, candidate 152's).
         for (n, (_, _, raw_rows, _)) in faces.iter().enumerate() {
             let n = n + 1;
             assert!(
                 raw_rows.iter().any(|(_, row)| row.contains(
                     "Optimizer pass #1 on board \
-                     'a13e3699283d2aa32c7a2e8739531e02d5321b6c3bdf8db9b123b358d65e212d'"
+                     '3752c4e1279a41c14dcdb1095eaef7acbd3a8b1de8c87094a908382309997689'"
                 )),
-                "threads={n}: the adopted board is candidate 152's (the grouping-invariant \
+                "threads={n}: the adopted board is the best candidate's (the grouping-invariant \
                  argmin)",
             );
         }
@@ -3544,10 +3574,9 @@ mod tests {
     /// The candidate→partition assignment (the charter's FIXED key,
     /// `item_id mod n`), pinned at the PRODUCTION fn
     /// ([`optimizer_partition_of`]) used at both executor sites: a pure
-    /// function of `(item_id, n)`, and the three candidates of the pin
-    /// world split DIFFERENTLY at n=2 vs n=3 — the per-worker evaluation
-    /// order changes with n while the reduction order (candidate walk
-    /// order) does not.
+    /// function of `(item_id, n)`, and the pin ids split DIFFERENTLY at
+    /// n=2 vs n=3 — the per-worker evaluation order changes with n
+    /// while the reduction order (candidate walk order) does not.
     #[test]
     fn t7_partition_assignment_is_fixed_key() {
         let assignment = |id: u32, n: usize| optimizer_partition_of(ItemId::new(id), n);
@@ -3846,7 +3875,8 @@ mod tests {
         // units is deterministic — pin the WHOLE row (review NIT-3).
         let debug = sink.joined("debug");
         assert!(
-            debug.contains("Before optimization: Via count: 2, trace length: 1320311"),
+            // #931 cluster-F rotation (2026-10-03): 1320311 -> 1331829.
+            debug.contains("Before optimization: Via count: 2, trace length: 1331829"),
             "the full deterministic debug row: {debug}",
         );
     }

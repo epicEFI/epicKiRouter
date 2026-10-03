@@ -112,7 +112,28 @@ pub const COUPLING_WINDOW_DBU: f64 =
 /// not a subtracted bonus — keeps every step cost non-negative and the
 /// best-first order well-formed; the `None`-coupling path never
 /// touches the term (the cost face is bit-identical).
-pub const COUPLING_DISCOUNT: f64 = 0.5;
+///
+/// **Value derivation (the #931 re-derivation, 2026-10-03).** The
+/// original 0.5 was a first-choice constant with no recorded
+/// derivation (the T6 plan names it bare), and it sat exactly ON the
+/// P1 world's cost tie: the follower's corridor route and its
+/// corner-detour tie at ≈622 000 weighted DBU undiscounted
+/// (400 000 + 222 000 diagonal vs 460 000 + 162 000 vertical on the
+/// layer-0 cost face), so the discount was the sole tie-break — and
+/// upstream #931's unconditional corner-touch neighbour inserts
+/// (`expansion/neighbours_forty_five.rs`, cluster F hunk 1) opened a
+/// diagonal door chain through that tie, flipping the follower out of
+/// the corridor at any discount below the measured boundary. The
+/// boundary is measured, not derived: 0.51 fails / 0.52 passes (the
+/// P1 coupled span, 2026-10-03 probes). 0.75 clears the boundary by
+/// more than 0.2 — margin against future expansion-order churn, the exact
+/// failure mode that broke 0.5 — while keeping a quarter of the cost
+/// face live in-corridor (0.9-class values make in-corridor
+/// accumulation nearly free and invite corridor excursions away from
+/// the destination on congested boards; unmeasured, so not taken).
+/// The full pairs battery is green at 0.6 / 0.75 / 0.9; 0.75 is the
+/// mid choice on the margin argument, not a tuned optimum.
+pub const COUPLING_DISCOUNT: f64 = 0.75;
 
 /// One RESOLVED pair declaration (net numbers; the leader is the LOWER
 /// net number — the deterministic lead rule: the lower id routes

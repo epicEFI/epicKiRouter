@@ -266,12 +266,41 @@ pub enum RouteBudget {
 }
 
 impl RouteBudget {
+    /// M11-T4 fix round (2026-10-03): the deterministic profile's
+    /// per-search tick CEILING — `min(ladder, CEILING)`.
+    ///
+    /// Java's `TimeLimit` ladder saturates at `Integer.MAX_VALUE` ms
+    /// (~24 days), so in Java the ladder only ever bounds a search in
+    /// wall time it can actually exceed — an early pass's 100 s. The
+    /// deterministic profile spends the SAME ladder as call ticks,
+    /// where `Integer.MAX_VALUE` is UNREACHABLE work, not unreachable
+    /// time: measured on gv-iu (EPIC_T4DIAG tick rows, 2026-10-03),
+    /// the largest HEALTHY search on the face is 44,181 ticks while
+    /// the #931-cluster-F pass-35 explosion (net 70, item 230, a
+    /// re-attempt after two same-pass rips) ran >16.7M frontier pops
+    /// — >380x healthy — without approaching the ladder, at ~84% of
+    /// one core. The ceiling bounds every deterministic search
+    /// regardless of pass: 2^22 = 4,194,304 ticks = 95x the measured
+    /// healthy max (margin against a larger healthy max on some
+    /// unmeasured board of the 1332-fixture corpus), and at the
+    /// explosion's measured ~100k pops/s it trips in ~40 s. The
+    /// [`RouteBudget::Wall`] face consumes the SAME capped value as
+    /// its millisecond budget (pass >= 7: ~70 min instead of Java's
+    /// ~107-min rung — beyond any healthy single search; a real
+    /// clock needs no further ceiling). A tripped search stops
+    /// exactly as Java's expired
+    /// `TimeLimit` — the attempt fails, the item re-queues; see the
+    /// fix-round report for the pass-wall measurement at the fixed
+    /// world.
+    pub(crate) const SEARCH_TICK_CEILING: u64 = 1 << 22;
+
     /// Java `AutorouteConnectionRouter.route` (`:72-74`):
     /// `double maxMilliseconds = 100000 * Math.pow(2, ripupPassNo - 1);
     /// maxMilliseconds = Math.min(maxMilliseconds, Integer.MAX_VALUE);
     /// new TimeLimit((int) maxMilliseconds)`. The limit VALUE is
     /// Java-exact; only the consumption units differ (see the type
-    /// docs).
+    /// docs). The deterministic variant additionally carries the
+    /// [`SEARCH_TICK_CEILING`] backstop (`min` of the ladder).
     #[must_use]
     pub fn deterministic_for_pass(ripup_pass_no: i32) -> RouteBudget {
         let mut max_milliseconds = 100_000.0f64 * (2.0f64).powi(ripup_pass_no - 1);
@@ -279,8 +308,11 @@ impl RouteBudget {
         // Java's (int) cast of an in-range double truncates; every
         // value on this ladder is integral, so the cast is exact.
         let limit = i64::from(max_milliseconds as i32);
+        let limit = u64::try_from(limit)
+            .unwrap_or(0)
+            .min(Self::SEARCH_TICK_CEILING);
         RouteBudget::Deterministic {
-            limit: u64::try_from(limit).unwrap_or(0),
+            limit,
             spent: Cell::new(0),
         }
     }
@@ -2627,6 +2659,38 @@ mod tests {
         assert_eq!(engine.net_number(), 94);
     }
 
+    /// M11-T4 fix round (2026-10-03): the deterministic ladder carries
+    /// the [`RouteBudget::SEARCH_TICK_CEILING`] backstop —
+    /// `min(ladder, 2^22)`. Boundary derivation: the ladder
+    /// `100000 * 2^(N-1)` crosses `2^22 = 4,194,304` between N=6
+    /// (3,200,000 — the ladder face survives) and N=7 (6,400,000 —
+    /// the ceiling face); every later pass including the i32
+    /// saturation region pins the ceiling (the gv-iu pass-35
+    /// explosion measured an INT_MAX ladder — buglog 256).
+    #[test]
+    fn t12_deterministic_ladder_carries_the_tick_ceiling() {
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(1).limit_value(),
+            100_000,
+            "pass 1: the Java ladder value, below the ceiling"
+        );
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(6).limit_value(),
+            3_200_000,
+            "pass 6: the LAST uncapped ladder rung (boundary - 1)"
+        );
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(7).limit_value(),
+            RouteBudget::SEARCH_TICK_CEILING,
+            "pass 7: the FIRST ceiling rung (boundary)"
+        );
+        assert_eq!(
+            RouteBudget::deterministic_for_pass(35).limit_value(),
+            RouteBudget::SEARCH_TICK_CEILING,
+            "pass 35: the old INT_MAX saturation now the ceiling"
+        );
+    }
+
     /// The stop faces: no flag/limit → false; an already-exceeded time
     /// limit → true; a raised stoppable flag → true; the deterministic
     /// budget answers true strictly AFTER its limit-th tick (the `>`
@@ -2655,8 +2719,12 @@ mod tests {
         // wall-clock `TimeLimit` becomes a call-tick budget): limit 2
         // → ticks 1 and 2 answer false, tick 3 answers true (the
         // strict `>`); construction mirrors the Java
-        // `(int) min(100000 * 2^(pass-1), Integer.MAX_VALUE)` ladder.
-        // The flag is cleared FIRST — Java still consults it while the
+        // `(int) min(100000 * 2^(pass-1), Integer.MAX_VALUE)` ladder
+        // — then min's [`RouteBudget::SEARCH_TICK_CEILING`] (buglog
+        // 256: Java's i32::MAX rung left late deterministic passes
+        // effectively unbudgeted; the ceiling, 4,194,304 < i32::MAX,
+        // makes the Java cap unreachable through it). The flag is
+        // cleared FIRST — Java still consults it while the
         // budget says not-stop (`:295-296`), so a raised flag would
         // answer true under a live budget.
         flag.store(false, Ordering::Relaxed);
@@ -2672,8 +2740,8 @@ mod tests {
         );
         assert_eq!(
             RouteBudget::deterministic_for_pass(30).limit_value(),
-            i32::MAX as u64,
-            "the ladder caps at Integer.MAX_VALUE"
+            RouteBudget::SEARCH_TICK_CEILING,
+            "the ladder caps at the search-tick ceiling (i32::MAX only beneath it)"
         );
         engine.budget = Some(RouteBudget::Deterministic {
             limit: 2,
@@ -2844,34 +2912,42 @@ mod tests {
             "ROUTED + empty details + closed gate. rows:\n{joined}"
         );
         // The id-burn row FIELDS at discriminating values (quality
-        // OBS-Q5): the delta is not constant — the three forced inserts
-        // burn 5/1/0 — and the maxItemId watermark CHAINS across rows
-        // (105 → 110 → 111 → 111), so a constant-delta or
-        // before/after-swap mutant cannot satisfy all three literals.
+        // OBS-Q5): the delta is not constant — the first three forced
+        // inserts of the route's FIRST leg burn 3/1/1 — and the
+        // maxItemId watermark CHAINS across rows (105 → 108 → 109 →
+        // 110; the leg itself runs 7 segments to watermark 114, then
+        // the two junction via inserts + further legs continue past
+        // it), so a constant-delta or before/after-swap mutant cannot
+        // satisfy all three literals. #931 cluster-F rotation
+        // (2026-10-03): the old world's first leg ran 3 segments
+        // (5/1/0, watermark 105 → 110 → 111 → 111) — the ported
+        // door-centering walks a different room chain, so leg 1 now
+        // burns 3 then 1s across seven segments.
         assert!(
             joined.contains(
                 "compare_trace_insert_segment_ids net=94, i=1, \
-                 maxItemIdBefore=105, maxItemIdAfter=110, delta=5"
+                 maxItemIdBefore=105, maxItemIdAfter=108, delta=3"
             ),
             "i=1 id-burn row. rows:\n{joined}"
         );
         assert!(
             joined.contains(
                 "compare_trace_insert_segment_ids net=94, i=2, \
-                 maxItemIdBefore=110, maxItemIdAfter=111, delta=1"
+                 maxItemIdBefore=108, maxItemIdAfter=109, delta=1"
             ),
             "i=2 id-burn row. rows:\n{joined}"
         );
         assert!(
             joined.contains(
                 "compare_trace_insert_segment_ids net=94, i=3, \
-                 maxItemIdBefore=111, maxItemIdAfter=111, delta=0"
+                 maxItemIdBefore=109, maxItemIdAfter=110, delta=1"
             ),
             "i=3 id-burn row. rows:\n{joined}"
         );
-        // The route landed on the anchor: some net-94 trace now has a
-        // corner at the anchor's end point (the target splice +
-        // normalize).
+        // The route reached the anchor: the anchor's seeded east end
+        // (620000,300000) survives on its split east half (108) — the
+        // splice itself lands at the anchor midpoint (#931 rotation,
+        // see the canon block below).
         let anchor_end_reached = board.iter_descending().any(|entry| {
             entry.nets.contains(&94)
                 && matches!(entry.data, ItemData::Trace { .. })
@@ -2904,10 +2980,27 @@ mod tests {
         // produce those reshapes, so the surviving delta is uniquely
         // the un-ported tightener. Pinned here: the structure (ids,
         // kinds, layers), the row-verbatim geometry (the layer-1
-        // corners are literally the leg's own i=1..4 okPoints; the
-        // layer-0 head/tail corners are the anchor end and the i=6
-        // okPoint), the jar-exact pin leg (no staircase to tighten),
-        // and the anchor absorption.
+        // corners are literally the leg's own okPoints; the layer-0
+        // head/tail corners are the splice point on the anchor and
+        // the far okPoint), the jar-exact pin leg (no staircase to
+        // tighten), and the anchor SPLIT at the splice point.
+        //
+        // #931 cluster-F rotation (2026-10-03): the hunk-2
+        // door-section point rule (locator_45
+        // `calculate_next_trace_corners` — degenerate-short section
+        // takes the midpoint; long sections shrink by
+        // trace_halfwidth_add before the nearest-point pick) moved the
+        // route's root on the anchor from its EAST END (620000,300000)
+        // to the anchor MIDPOINT (610000,300000). The anchor now
+        // SPLICES at its middle and survives as its two collinear
+        // halves (107 west, 108 east); the pre-rotation world re-rooted
+        // at the anchor's far corner and the west stub was dropped. The
+        // jar capture above is PRE-#931 Java; the splice-point face is
+        // decided BEFORE the tightener, so it is jar-adjudicable
+        // against post-#931 Java (the bisect tree survives at
+        // logs/java-oracle-m11/post) — not probed in T4, whose
+        // adjudication ran on optimizer-score faces (buglog 251
+        // dossier).
         let mut actual: Vec<String> = board
             .iter_descending()
             .filter(|entry| entry.nets.contains(&94) && !matches!(entry.data, ItemData::Pin { .. }))
@@ -2940,29 +3033,27 @@ mod tests {
             })
             .collect();
         actual.sort();
-        // M11-T3 rotation (2026-10-03, #931 cluster B): the widened SMD
-        // attach relaxation (pureSmdNet -> hasSmdPin + the ViaMask
-        // rebuild) moves the layer-1 leg's terminal ATTACH point on the
-        // target item — via 122 (662957,29188) -> (667957,9800), the
-        // descending corner with it; items 115/117 are byte-unchanged.
-        // Hunk-attributed by probe: with the depths reverted 8 -> 5 the
-        // canon STILL lands on the new attach point, so the depths hunk
-        // is innocent on this world — the attach gate alone moves it.
         assert_eq!(
             actual.join("\n"),
-            "115 trace layer=0 (620000,300000) (521250,300000) (521248,300002) \
-             (516679,300002) (516664,300017) (490096,300017) (480738,309375)\n\
-             117 via center=(480738,309375)\n\
-             121 trace layer=1 (480738,309375) (502752,309375) (667957,144170) (667957,9800)\n\
-             122 via center=(667957,9800)\n\
-             124 trace layer=0 (667957,9800) (663500,14257) (663500,20000)",
+            "107 trace layer=0 (600000,300000) (610000,300000)\n\
+             108 trace layer=0 (610000,300000) (620000,300000)\n\
+             114 trace layer=0 (610000,300000) (607248,302752) (521250,302752) (521248,302754) \
+             (487359,302754) (480738,309375)\n\
+             115 via center=(480738,309375)\n\
+             119 trace layer=1 (480738,309375) (502752,309375) (667957,144170) (667957,9800)\n\
+             120 via center=(667957,9800)\n\
+             122 trace layer=0 (667957,9800) (663500,14257) (663500,20000)",
             "net-94 board canon diverged from the NoPullTight engine verdict. rows:\n{joined}"
         );
-        // The anchor is consumed: no net-94 item retains the anchor's
-        // west stub corner (the jar canon drops it the same way — the
-        // route re-roots at the anchor's far corner (620000,300000),
-        // which trace 115 above still carries).
-        let west_stub_present = board.iter_descending().any(|entry| {
+        // The anchor SPLITS at the splice point (#931 rotation; was:
+        // "consumed" — no net-94 item retained the anchor's west stub
+        // corner). The route roots at the anchor midpoint
+        // (610000,300000), so BOTH collinear halves survive — 107 west
+        // (still carrying the anchor's seeded west corner 600000,300000)
+        // and 108 east (carrying the seeded east corner 620000,300000);
+        // a normalize step that dropped or merged either half would
+        // move this pin.
+        let anchor_halves_present = board.iter_descending().any(|entry| {
             entry.nets.contains(&94)
                 && matches!(entry.data, ItemData::Trace { .. })
                 && board.trace_polyline(entry.id).is_some_and(|polyline| {
@@ -2970,8 +3061,19 @@ mod tests {
                         .corners()
                         .contains(&Point::Int(corner(600000, 300000)))
                 })
+        }) && board.iter_descending().any(|entry| {
+            entry.nets.contains(&94)
+                && matches!(entry.data, ItemData::Trace { .. })
+                && board.trace_polyline(entry.id).is_some_and(|polyline| {
+                    polyline
+                        .corners()
+                        .contains(&Point::Int(corner(620000, 300000)))
+                })
         });
-        assert!(!west_stub_present, "the anchor west stub must be absorbed");
+        assert!(
+            anchor_halves_present,
+            "both anchor halves survive the midpoint splice. rows:\n{joined}"
+        );
         // The search populated the room registry (maintained database
         // survives the reset_all_doors cleanup).
         assert!(

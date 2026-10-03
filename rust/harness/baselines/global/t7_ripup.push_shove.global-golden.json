@@ -5,6 +5,6 @@
   "flags": [
     "--router.push_shove=on"
   ],
-  "ses_sha256": "65248a3a4a6e2ea8917aa54c2a023af1e44d00daac8d37f4b64231b6ebeda8a1",
-  "manifest_sha256": "0f4e4e9ff42aaaa263b6066b8b2957c47636275419d1a0f8aa7edff5526c2329"
+  "ses_sha256": "0680472631de1f32329b798b5b1412274b9852d50897901f80df627f4bd27700",
+  "manifest_sha256": "84f45b9f9e2c0588da5b74eb7a9e89f41ccc7dcd0e939eff2d5b3ac5b7e75e16"
 }

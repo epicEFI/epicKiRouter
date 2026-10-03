@@ -1884,29 +1884,37 @@ mod tests {
     /// budget instance is created per attempt inside the unit body
     /// (`route` → `init_autoroute`), so no thread state can move a
     /// limit. Pinned at the ladder's faces: doubling passes, the
-    /// `i32::MAX` saturation, and the exact boundary pass where the
-    /// ladder saturates (pass 16 = 100000·2^15 = 3_276_800_000 >
-    /// i32::MAX — the first saturated rung).
+    /// last uncapped rung, and the cap boundary — amended M11-T4
+    /// (buglog 256): the ladder now min's
+    /// `RouteBudget::SEARCH_TICK_CEILING` (4,194,304 = 95x the
+    /// measured healthy search max) ABOVE Java's own i32::MAX clamp,
+    /// so the first capped rung is pass 7 (100000·2^6 = 6,400,000 >
+    /// the ceiling; the old i32::MAX saturation at pass 16 is
+    /// unreachable through the ceiling).
     #[test]
     fn t7_deterministic_budget_ladder_thread_invariant() {
         use crate::pipeline::connection_router::deterministic_limit_for_pass;
         assert_eq!(deterministic_limit_for_pass(1), 100_000);
         assert_eq!(deterministic_limit_for_pass(2), 200_000);
-        assert_eq!(deterministic_limit_for_pass(11), 102_400_000);
         assert_eq!(
-            deterministic_limit_for_pass(15),
-            1_638_400_000,
-            "last unsaturated rung (100000·2^14)"
+            deterministic_limit_for_pass(6),
+            3_200_000,
+            "the last uncapped rung (100000·2^5)"
         );
         assert_eq!(
-            deterministic_limit_for_pass(16),
-            2_147_483_647,
-            "the i32::MAX saturation face"
+            deterministic_limit_for_pass(7),
+            4_194_304,
+            "the first ceiling rung (100000·2^6 = 6,400,000 > the ceiling)"
+        );
+        assert_eq!(
+            deterministic_limit_for_pass(11),
+            4_194_304,
+            "the ceiling face (100000·2^10 = 102,400,000 clamped)"
         );
         assert_eq!(
             deterministic_limit_for_pass(32),
-            2_147_483_647,
-            "saturation holds for deep passes"
+            4_194_304,
+            "the ceiling holds for deep passes (i32::MAX only beneath it)"
         );
     }
 
