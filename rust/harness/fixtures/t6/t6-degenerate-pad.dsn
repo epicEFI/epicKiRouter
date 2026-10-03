@@ -1,0 +1,36 @@
+(pcb t6-degenerate-pad.dsn
+
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 250000 140000))
+    (rule (width 250) (clearance 2000))
+  )
+  (placement
+    (component IDEG
+      (place DEGC 125000 70000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_S
+      (shape (rect F.Cu -5000 -5000 5000 5000))
+    )
+    (padstack PAD_LINE
+      (shape (polygon F.Cu 1 0 -50000 0 50000))
+    )
+    (image IDEG
+      (pin PAD_S PIN_RECT -30000 0)
+      (pin PAD_LINE PIN_LINE 30000 0)
+    )
+  )
+  (network
+    (net N_RECT (pins DEGC-PIN_RECT))
+    (net N_LINE (pins DEGC-PIN_LINE))
+  )
+)
