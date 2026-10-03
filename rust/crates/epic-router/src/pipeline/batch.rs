@@ -622,6 +622,18 @@ pub struct BatchDriver<'a> {
     pub total_items_routed: i32,
     /// Java `router.progressItemsSinceStatistics`.
     pub progress_items_since_statistics: i32,
+    /// The AUTOROUTE stage's completed pass count — the loop's own
+    /// `current_pass` after each pass that RAN (port-added
+    /// observability; Java's manifest reads its stage outcomes the
+    /// same way — `AutorouteBatchLoop.java:231-246` never consults the
+    /// counters stream). 0 when no pass ran (router disabled,
+    /// fanout-only's `max_passes=0` first-iteration break, or a stop
+    /// before pass 1). The event stream cannot carry this face: the
+    /// optimizer's per-item reroutes ride the same pass tail stamping
+    /// `phase="autoroute"` (`pass_runner`'s shared `finish_pass`), so
+    /// the LAST `phase="autoroute"` counters row is the optimizer's
+    /// pass 1 after any multi-pass autoroute + optimizer run.
+    pub passes_completed: i32,
     /// Why the run stopped (port-added observability; see [`StopReason`]).
     pub stop_reason: Option<StopReason>,
     /// Java `router.fanoutRecoveryApplied` — the one-time recovery
@@ -687,6 +699,7 @@ impl<'a> BatchDriver<'a> {
             stop,
             total_items_routed: 0,
             progress_items_since_statistics: 0,
+            passes_completed: 0,
             stop_reason: None,
             fanout_recovery_applied: false,
             fanout_timed_out: false,
@@ -917,6 +930,12 @@ impl<'a> BatchDriver<'a> {
             if let Some(scheduler) = self.pathfinder.as_mut() {
                 scheduler.end_pass(self.board);
             }
+            // Every pass that RUNS records itself (the loop-START
+            // max-passes break never reaches here, so a capped run
+            // keeps the LAST executed pass's number — `max_passes=1`
+            // leaves 1, matching the counters face the capped pins
+            // observe).
+            self.passes_completed = current_pass;
             if sink.is_trace_enabled() {
                 sink.trace(&format!(
                     "BatchAutorouter.autoroute_pass #{current_pass} on board '{current_board_hash}'"

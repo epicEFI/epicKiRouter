@@ -504,8 +504,9 @@ bytes (kept for the fixture hash) → `SesBoard` parse → `Board::from_ses_boar
 + `SearchTreeManager` + `normalize_all_traces` (bug-131) → the load-time
 violation seed (F3, below) → resolver: `merge` → `validate` →
 `apply_board_specific_optimizations` → `BatchSettings::new` + pub-field
-overrides → `BatchDriver::run` with a stderr-echoing `CliDriverSink` (last
-`RouterCounters` kept) → `BoardStatistics` → projection → SES write →
+overrides → `BatchDriver::run` with a stateless stderr-echoing
+`CliDriverSink` (the manifest's pass counts read the pipeline outcome, not
+the sink) → `BoardStatistics` → projection → SES write →
 manifest → exit code.
 
 **Mutant ledger (round 1, M1-M12 all killed; round 2 M13-M19 all killed).**
@@ -1083,13 +1084,24 @@ explicit bypass `0` at `:309-313`), never from counters. The T13-bank concern
 then surfaced for real: the CLI sink kept ONE last-counters slot, so once the
 optimizer emitted counters LAST, the autorouter backfill filter discarded the
 legitimate autoroute counters and `phases.autorouter.passes_completed` went
-absent (caught by the flow pin before landing). `CliDriverSink` now keeps
-last counters PER PHASE (`last_counters_by_phase`). Java's own manifest
-backfill (`RoutingResultManifest.java:206-208`, `job.getCurrentPass()`) stays
-phase-BLIND by contrast — it would attribute an optimizer pass to
-`phases.autorouter` in a router-disabled world; the port deliberately filters
-(a divergence-from-Java recorded here; fanout never sets `currentPass`, so
-the fanout leak Java cannot have is also pinned dead).
+absent (caught by the flow pin before landing). The per-phase map
+(`last_counters_by_phase`) fixed THAT leak but kept the stream seam — and the
+optimizer's per-item reroutes stamp `phase="autoroute"` counters rows through
+the same shared pass tail, so after any multi-pass autoroute + optimizer run
+the last such row was the OPTIMIZER's pass 1 (t7_ripup at
+`--router.congestion_global=on`: a 2-pass autoroute reported 1; unmasked at
+scale by M11-T9i, which made multi-pass-completing boards common). The seam
+is now RETIRED: `BatchDriver` carries `passes_completed` (the loop's own
+count), surfaced as `PipelineOutcome::autoroute_passes_completed`, and BOTH
+consumers (the CLI manifest row, the session's `RouteSummary::passes`) read
+the outcome — Java's per-stage layering (`AutorouteBatchLoop.java:231-246`
+fanout never sets `passesCompleted`; `BatchOptimizer.java:523` reads its own
+outcome) is the model; Java's own manifest backfill
+(`RoutingResultManifest.java:206-208`, `job.getCurrentPass()`) is
+phase-BLIND by contrast and would attribute an optimizer pass to
+`phases.autorouter` in a router-disabled world — a Java bug the port no
+longer shares (recorded divergence; fanout never sets `currentPass`, so the
+fanout leak Java cannot have is also pinned dead).
 
 **Manifest per-phase fill (the T10 recorded rotation; fix-round corrected).**
 Snapshot rows are Java's deterministic subset: `board_statistics` (connections,

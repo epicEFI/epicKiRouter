@@ -6,5 +6,5 @@
     "--router.congestion_global=on"
   ],
   "ses_sha256": "09463e57db274e9a1ef601c2002d75e9935ea198d3bf7d421ffe12c3d1a5d7a2",
-  "manifest_sha256": "08f294ec47ba1250988fe46638a51a8ea09e62af9f94e7f8f76290428753d5d3"
+  "manifest_sha256": "00cc873855d18f43f790e22dad679b580855078de07aa93c545513860a835f90"
 }

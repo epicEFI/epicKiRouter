@@ -1484,7 +1484,7 @@ fn route_detail_inner(dsn: &Path, profile: CompareProfile) -> Result<RustDetail,
     let batch = build_batch_settings(&resolved);
 
     // The batch driver (the same face as the subprocess).
-    let mut sink = CliDriverSink::default();
+    let mut sink = CliDriverSink;
     let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
     let run_result = driver.run(&mut sink);
     drop(driver);

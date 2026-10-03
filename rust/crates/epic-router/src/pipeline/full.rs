@@ -156,6 +156,18 @@ pub struct PipelineOutcome {
     pub routing: Result<bool, BatchLoopError>,
     /// Java `router.stop_reason` (port-added observability).
     pub stop_reason: Option<StopReason>,
+    /// The AUTOROUTE stage's completed pass count (the driver's loop
+    /// count — [`BatchDriver::passes_completed`]). The consumers that
+    /// need this face (the CLI manifest's
+    /// `phases.autorouter.passes_completed`, the session's
+    /// [`RouteSummary`](epic_engine::session::RouteSummary) `passes`)
+    /// read THIS field, never the counters stream: the optimizer's
+    /// per-item reroutes stamp `phase="autoroute"` rows through the
+    /// same shared pass tail, so the last-stream-row reading reports
+    /// the optimizer's pass 1 after any multi-pass autoroute + optimizer
+    /// run (t7_ripup at `--router.congestion_global=on`: a 2-pass
+    /// autoroute reported 1).
+    pub autoroute_passes_completed: i32,
     /// The driver's post-routing AUTO_ROUTER_ONLY stop face (Java
     /// `isStopAutoRouterRequested()`, true for ANY stop — internal
     /// stagnation/pass-exhaustion raises included). Port-added
@@ -277,6 +289,11 @@ pub struct RoutingStageResult {
     pub stop_full: bool,
     /// The stage-boundary captures.
     pub boundaries: StageBoundaries,
+    /// The autoroute stage's completed pass count (the driver's loop
+    /// count; 0 when no pass ran — see
+    /// [`BatchDriver::passes_completed`] for why the counters stream
+    /// cannot carry this face).
+    pub autoroute_passes_completed: i32,
     /// M6-T7: the driver's global plan (default-OFF stage — `Some`
     /// only when `congestion_global` is ON).
     pub global_plan: Option<crate::global::plan::GlobalPlan>,
@@ -290,6 +307,7 @@ impl RoutingStageResult {
             stop_requested: driver.stop.is_requested(),
             stop_full: driver.stop.is_full_stop_requested(),
             boundaries: std::mem::take(&mut driver.phase_boundaries),
+            autoroute_passes_completed: driver.passes_completed,
             global_plan: driver.global_plan.take(),
         }
     }
@@ -301,6 +319,7 @@ impl RoutingStageResult {
             stop_requested,
             stop_full,
             boundaries: StageBoundaries::default(),
+            autoroute_passes_completed: 0,
             global_plan: None,
         }
     }
@@ -539,6 +558,7 @@ pub fn run(
     PipelineOutcome {
         routing,
         stop_reason: stage.stop_reason,
+        autoroute_passes_completed: stage.autoroute_passes_completed,
         stop_after_routing: stage.stop_requested,
         boundaries: stage.boundaries,
         optimizer,
@@ -927,6 +947,70 @@ mod tests {
             "the natural-completion summary, not the interrupted one"
         );
         assert!(!sink.any_contains("Optimization stage interrupted:"));
+    }
+
+    /// THE AUTOROUTE PASS-COUNT WIRING PIN (2026-10-02, the seam-fix
+    /// commit): `PipelineOutcome::autoroute_passes_completed` is the
+    /// batch loop's OWN count, surfaced stage-locally — the
+    /// counters-stream seam it replaces reported the OPTIMIZER's pass
+    /// 1 after any multi-pass autoroute (the optimizer's per-item
+    /// reroutes stamp `phase="autoroute"` rows through the same shared
+    /// pass tail; the t7_ripup golden run reported
+    /// `passes_completed: 1` over a log-verified 2-pass autoroute).
+    /// The completed world (router + optimizer both run) must carry
+    /// the AUTOROUTE count even with the optimizer stage running
+    /// after it; the router-disabled face (fanout-only's
+    /// `max_passes=0` first-iteration break) carries 0. A mutant that
+    /// never wires the field (always 0) dies on the first assert; a
+    /// mutant that wires it to the last counters row dies on the
+    /// disabled face only under a clobber world — the t7_ripup
+    /// session pin (epic-engine) owns that discrimination.
+    #[test]
+    fn outcome_autoroute_passes_completed_counts_the_loop() {
+        // World 1: the completed world — the batch loop ran its pass
+        // AND the optimizer stage followed (the clobber world).
+        let (mut manager, mut board, settings, optimizer) = completed_world();
+        let mut sink = CaptureDriverSink::default();
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            StopFace::default(),
+            &mut sink,
+        );
+        assert!(
+            outcome.optimizer.is_some(),
+            "the premise: the optimizer stage ran after the autoroute"
+        );
+        assert!(
+            outcome.autoroute_passes_completed >= 1,
+            "the batch loop's own count is surfaced (got {})",
+            outcome.autoroute_passes_completed
+        );
+
+        // World 2: the router disabled — the fanout-only branch runs
+        // the loop with the `max_passes=0` override, which breaks
+        // before pass 1: no autoroute pass ever ran, so the face is
+        // the explicit 0 (Java's fanout phase never sets
+        // `passesCompleted`, AutorouteBatchLoop.java:231-246).
+        let (mut manager, mut board, mut settings, optimizer) = completed_world();
+        settings.run_router = false;
+        let mut sink = CaptureDriverSink::default();
+        let outcome = run(
+            &mut manager,
+            &mut board,
+            settings,
+            optimizer,
+            true,
+            StopFace::default(),
+            &mut sink,
+        );
+        assert_eq!(
+            outcome.autoroute_passes_completed, 0,
+            "no autoroute pass ran in the fanout-only face"
+        );
     }
 
     /// THE STOP-REQUEST SHORT-CIRCUIT PIN (T1b two-face form): a FULL
