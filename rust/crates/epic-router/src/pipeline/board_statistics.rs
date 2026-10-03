@@ -68,7 +68,6 @@ use epic_board::board::Board;
 use epic_board::items::ItemData;
 use epic_board::tree_manager::SearchTreeManager;
 use epic_drc::clearance::all_clearance_violation_depths;
-use epic_drc::incompletes::all_incompletes;
 use epic_dsn::state::Unit;
 
 // ---------------------------------------------------------------------------
@@ -490,14 +489,21 @@ impl BoardStatistics {
         // module docs for the memoization note).
         stats.bounds = crate::pipeline::board_statistics_bounds::calculate(board);
 
-        // Connections (the incompletes pass).
+        // Connections (the incompletes pass). #933 survivor 3
+        // (upstream 339e8bb50, Java `BoardStatistics.java:297`): both
+        // values read the incremental ledger instead of a fresh full
+        // scan. READ ORDER is Java-faithful — `maximumConnections`
+        // FIRST (it does NOT flush), `incompleteCount` second (it
+        // flushes) — so a just-noted pin/pour change yields a STALE
+        // maximum beside a FRESH count in one statistics object,
+        // exactly the upstream face (pinned in
+        // epic-drc::routing_ledger::tests).
         if include_connections {
-            let (max_connections, rows) = all_incompletes(manager, board);
-            stats.connections.maximum_count =
-                Some(i32::try_from(max_connections).expect("max connections fits i32"));
-            let incomplete: usize = rows.iter().map(|row| row.incomplete_count).sum();
+            stats.connections.maximum_count = Some(epic_drc::routing_ledger::maximum_connections(
+                manager, board,
+            ));
             stats.connections.incomplete_count =
-                Some(i32::try_from(incomplete).expect("incomplete count fits i32"));
+                Some(epic_drc::routing_ledger::incomplete_count(manager, board));
         }
 
         // Bends: `cornerCount >= 3` → `cornerCount - 2` bends,

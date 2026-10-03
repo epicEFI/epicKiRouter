@@ -305,6 +305,19 @@ pub struct Board {
     /// so a future pin-mutating flow that misses a seam fails loudly
     /// in tests instead of answering stale.
     pub(crate) edge_pin_nets_dirty: bool,
+    /// #933 survivor 3 (upstream 339e8bb50): Java
+    /// `BasicBoard.routingLedger` — the incremental
+    /// incomplete-connections ledger ([`crate::routing_ledger`]).
+    /// Privately owned like Java's lazy field; the note hooks fire in
+    /// [`Board::insert_item`]/[`Board::remove_item`]/
+    /// [`Board::set_item_nets`], the recount driver is
+    /// `epic_drc::routing_ledger` (via [`Board::take_routing_ledger`]
+    /// /[`Board::restore_routing_ledger`]), and
+    /// [`Board::reset_transient_after_restore`] invalidates. Carried
+    /// by clones/snapshots as plain data (Java drops it on
+    /// serialization; a restore invalidates here, so the difference
+    /// is memory only).
+    routing_ledger: crate::routing_ledger::RoutingLedgerCore,
 }
 
 impl Board {
@@ -414,6 +427,15 @@ impl Board {
         entry.on_the_board = true;
         let key = Reverse(entry.id);
         self.items.insert(key, entry.clone());
+        // #933 survivor 3: the ledger note (Java
+        // `BoardItemRepository.insertItem` → `noteInserted` after the
+        // map insert — the port places it here, while `entry` is still
+        // in hand; the note touches only ledger lists, never the
+        // arena, so the position relative to the revision bump and
+        // the undo-list insert is inert). No-op until the first
+        // build.
+        self.routing_ledger
+            .note_inserted(entry.board_item_type(), entry.id, &entry.nets);
         self.item_undo.insert(key, entry);
         self.revision += 1;
         if touches_edge_pin_nets {
@@ -461,6 +483,14 @@ impl Board {
             self.shape_precalc.remove(&id);
             self.item_undo.delete(&Reverse(id));
             self.revision += 1;
+            // #933 survivor 3: the ledger note (Java
+            // `BoardItemRepository.removeItem` → `noteRemoved` behind
+            // the successful-removal branch, after the revision
+            // bump) — no-op until the first build. `removed` is a
+            // local (the arena copy already left the map), so the
+            // core borrow is free.
+            self.routing_ledger
+                .note_removed(entry.board_item_type(), id, &entry.nets);
             if touches_edge_pin_nets {
                 self.edge_pin_nets_dirty = true;
             }
@@ -591,6 +621,37 @@ impl Board {
         self.changed_area = None;
         self.shove_failing_obstacle = None;
         self.shove_failing_layer = None;
+        // #933 survivor 3: the ledger is Java-transient (a serialized
+        // board rebuilds it lazily); the restored clone carries the
+        // SNAPSHOT's core, which a whole-board rollback must not
+        // keep answering from — drop it (Java `invalidate()`; its own
+        // caller `deleteAllTracksAndVias` has no port face).
+        self.routing_ledger.invalidate();
+    }
+
+    /// #933 survivor 3: hands the ledger core to the
+    /// `epic_drc::routing_ledger` driver for a build/flush (the
+    /// recount needs `(manager, board)` simultaneously with the
+    /// core's lists, so the core LEAVES the board — `mem::take`,
+    /// leaving an unbuilt default behind; the driver puts it back
+    /// with [`Board::restore_routing_ledger`]). If the driver were to
+    /// panic mid-recount the board answers from the empty core —
+    /// a rebuild, never a wrong count.
+    pub fn take_routing_ledger(&mut self) -> crate::routing_ledger::RoutingLedgerCore {
+        std::mem::take(&mut self.routing_ledger)
+    }
+
+    /// #933 survivor 3: the driver's return path for
+    /// [`Board::take_routing_ledger`].
+    pub fn restore_routing_ledger(&mut self, core: crate::routing_ledger::RoutingLedgerCore) {
+        self.routing_ledger = core;
+    }
+
+    /// #933 survivor 3: the read-only view (tests and inspection; the
+    /// driver owns the writes through take/restore).
+    #[must_use]
+    pub fn routing_ledger(&self) -> &crate::routing_ledger::RoutingLedgerCore {
+        &self.routing_ledger
     }
 
     /// Java `RoutingBoardOperations.startMarkingChangedArea`
@@ -1051,10 +1112,31 @@ impl Board {
         // (`Item.java:1049-1053` — the edge-pin set carries the pin's
         // nets, so a re-netted pin changes it); the eager recompute is
         // the `&self`-reader equivalent of Java's lazy recompute.
+        // #933 survivor 3: a re-net MOVES the item between the
+        // ledger's per-net lists — the Removed(old)/Inserted(new)
+        // pair below. Rust-only hook (no Java counterpart; the
+        // routing_ledger module docs carry the divergence): every
+        // current caller runs pre-route with the ledger unbuilt, so
+        // both notes are no-ops today — the hook exists so a future
+        // built-ledger caller stays correct.
+        let ledger_old = self
+            .routing_ledger
+            .is_built()
+            .then(|| {
+                self.get(id)
+                    .map(|entry| (entry.board_item_type(), entry.nets.clone()))
+            })
+            .flatten();
         let mut pin_touched = false;
         if let Some(entry) = self.items.get_mut(&Reverse(id)) {
             pin_touched = matches!(entry.data, ItemData::Pin { .. });
             entry.nets = nets;
+        }
+        if let Some((kind, old_nets)) = ledger_old
+            && let Some(entry) = self.items.get(&Reverse(id))
+        {
+            self.routing_ledger.note_removed(kind, id, &old_nets);
+            self.routing_ledger.note_inserted(kind, id, &entry.nets);
         }
         self.mirror_node(id);
         if pin_touched {
