@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T02:32:33.448Z
-> Files: 750 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T04:12:47.003Z
+> Files: 766 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -788,6 +788,10 @@
 - `export-msg-ca0e785cc.txt` (~429 tok)
 - `export-msg-d93cb388a.txt` — Declares synthesis (~229 tok)
 - `export-msg-f4.txt` — Declares width (~494 tok)
+- `export-msg-m11t2.txt` (~330 tok)
+- `export-msg-m11t2rot.txt` (~160 tok)
+- `export-msg-m11t6.txt` (~308 tok)
+- `export-msg-m11t6fix.txt` (~217 tok)
 - `export-msg-m11t9d.txt` (~373 tok)
 - `export-msg-m11t9i.txt` (~317 tok)
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
@@ -808,6 +812,9 @@
 - `M11-931.md` — M11 — the #931 Tier-B completion campaign (upstream `aa909a345`) (~5292 tok)
 - `m11cd-commit-msg.txt` (~1009 tok)
 - `m11t1-commit-msg.txt` (~615 tok)
+- `m11t2-commit-msg.txt` (~616 tok)
+- `m11t6-commit-msg.txt` (~756 tok)
+- `m11t6-fix-commit-msg.txt` (~431 tok)
 - `m11t9d-commit-msg.txt` (~1782 tok)
 - `m11t9i-commit-msg.txt` (~2236 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
@@ -827,6 +834,7 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
+- `run_gates_m11t2t6.sh` — M11-T2+T6 battery — the outline edge-pin-net exemption (T6, 023fb1c8b) (~1218 tok)
 - `run_gates_m11t9d.sh` — M11-T9d battery — the DrillPage containsNet conjunct (upstream #931, (~1169 tok)
 - `run_gates_m11t9i.sh` — M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown (~731 tok)
 - `run_gates_m11t9i2.sh` — M11-T9i battery, ROUND 2 — on the COMBINED tree (T9i working set + (~714 tok)
@@ -858,13 +866,22 @@
 ## rust/crates/epic-board/src/
 
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
-- `board.rs` — The live board: the item arena, the id generator, and the (~31305 tok)
+- `board.rs` — The live board: the item arena, the id generator, and the (~33866 tok)
 - `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24487 tok)
 - `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~18048 tok)
+- `shape_trace_entries.rs` — The shove substrate: which obstacles sit in a shape, which trace (~29177 tok)
+- `trace_shover.rs` — The shove drivers: can a trace segment be forced into a live board, (~26879 tok)
+- `undo_facade.rs` — The board-level undo/redo/snapshot FACADE — Java (~6215 tok)
 
 ## rust/crates/epic-board/src/items/
 
-- `outline.rs` — Board outline — keepout derivations (M2 Task 4). (~7938 tok)
+- `outline.rs` — Board outline — keepout derivations (M2 Task 4). (~13353 tok)
+
+## rust/crates/epic-board/tests/
+
+- `probe_degenerate.rs` — SCRATCH PROBE (delete after use) — locate corpus fixtures whose pin (~677 tok)
+- `probe_interfu.rs` — SCRATCH PROBE (delete after use) — interf_u attribution facts: does (~427 tok)
+- `probe_interfu2.rs` — SCRATCH PROBE 2 (delete after use) — WHICH item kinds poke out of (~390 tok)
 
 ## rust/crates/epic-cli/
 
@@ -877,7 +894,7 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2327 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56133 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56260 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -890,7 +907,7 @@
 
 ## rust/crates/epic-drc/src/
 
-- `clearance.rs` — The clearance-violation walk — the port of Java (~15401 tok)
+- `clearance.rs` — The clearance-violation walk — the port of Java (~15896 tok)
 - `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~2802 tok)
 
 ## rust/crates/epic-dsn/src/scope/
@@ -905,7 +922,7 @@
 - `lib.rs` — The headless application core: jobs, the layered settings (~754 tok)
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
 - `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15790 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15950 tok)
 - `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~63469 tok)
 
 ## rust/crates/epic-engine/tests/
@@ -990,6 +1007,11 @@
 ## rust/harness/fixtures/p4/
 
 - `p4-pins.dsn` — Declares signal (~332 tok)
+
+## rust/harness/fixtures/t6/
+
+- `t6-degenerate-pad.dsn` — Declares signal (~195 tok)
+- `t6-edge-pins.dsn` — Declares signal (~206 tok)
 
 ## rust/harness/src/
 

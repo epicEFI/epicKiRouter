@@ -10189,3 +10189,59 @@ description: chronological action log per session, consolidated weekly
 | 20:12 | Edited logs/readiness-2026-10-01/m11t9d-commit-msg.txt | modified ROTATION() | ~464 |
 | 20:12 | Edited logs/readiness-2026-10-01/export-msg-m11t9d.txt | 3→7 lines | ~121 |
 | 20:32 | Edited logs/readiness-2026-10-01/m11t9d-commit-msg.txt | expanded (+8 lines) | ~151 |
+| 20:50 | Edited rust/crates/epic-board/src/board.rs | expanded (+24 lines) | ~452 |
+| 20:50 | Edited rust/crates/epic-board/src/board.rs | modified insert_item() | ~263 |
+| 20:50 | Edited rust/crates/epic-board/src/board.rs | modified remove_item() | ~356 |
+| 20:51 | Edited rust/crates/epic-board/src/board.rs | modified set_item_nets() | ~196 |
+| 20:51 | Edited rust/crates/epic-board/src/board.rs | modified item_is_trace_obstacle() | ~454 |
+| 20:51 | Edited rust/crates/epic-board/src/board.rs | modified T6() | ~143 |
+| 20:51 | Edited rust/crates/epic-board/src/items/outline.rs | modified outline_id() | ~1495 |
+| 20:52 | Edited rust/crates/epic-board/src/undo_facade.rs | modified T6() | ~188 |
+| 20:52 | Edited rust/crates/epic-drc/src/clearance.rs | modified T6() | ~243 |
+| 20:52 | Edited rust/crates/epic-drc/src/clearance.rs | modified TRACES() | ~363 |
+| 20:52 | Edited rust/crates/epic-board/src/trace_shover.rs | modified T6() | ~191 |
+| 20:52 | Edited rust/crates/epic-board/src/trace_shover.rs | modified T6() | ~114 |
+| 20:52 | Edited rust/crates/epic-board/src/shape_trace_entries.rs | modified T6() | ~215 |
+| 20:52 | Edited rust/crates/epic-drc/src/clearance.rs | 1→4 lines | ~46 |
+| 20:52 | Edited rust/crates/epic-drc/src/clearance.rs | 3→4 lines | ~48 |
+| 20:54 | Created rust/harness/fixtures/t6/t6-edge-pins.dsn | — | ~211 |
+| 20:54 | Edited rust/harness/fixtures/t6/t6-edge-pins.dsn | inline fix | ~10 |
+| 20:57 | Edited rust/crates/epic-board/src/items/outline.rs | modified corner_gap_samples_tile_corners_through_the_polyline_branch() | ~2129 |
+| 20:57 | Edited rust/crates/epic-board/src/items/outline.rs | "/../../../harness/fixture" → "/../../../rust/harness/fi" | ~17 |
+| 20:57 | Edited rust/crates/epic-board/src/items/outline.rs | modified t6_edge_pin_set_classifies_center_corner_and_inside_pins() | ~39 |
+| 20:58 | Edited rust/crates/epic-board/src/items/outline.rs | inline fix | ~20 |
+| 20:58 | Edited rust/crates/epic-board/src/items/outline.rs | inline fix | ~18 |
+| 20:58 | Edited rust/crates/epic-board/src/board.rs | inline fix | ~23 |
+| 20:58 | Edited rust/crates/epic-board/src/board.rs | inline fix | ~21 |
+| 20:58 | Edited rust/crates/epic-board/src/board.rs | 3→3 lines | ~24 |
+| 20:58 | Edited rust/crates/epic-board/src/board.rs | 3→3 lines | ~21 |
+| 20:59 | Edited rust/crates/epic-board/src/items/outline.rs | any() → all() | ~24 |
+| 20:59 | Edited rust/crates/epic-board/src/items/outline.rs | all() → any() | ~24 |
+| 21:00 | Created logs/readiness-2026-10-01/m11t6-commit-msg.txt | — | ~807 |
+| 21:05 | Edited rust/crates/epic-board/src/board.rs | added optional chaining | ~1477 |
+| 21:06 | Edited rust/crates/epic-board/src/board.rs | 8→11 lines | ~124 |
+| 21:06 | Edited rust/crates/epic-engine/src/session.rs | modified T2() | ~180 |
+| 21:06 | Edited rust/crates/epic-cli/src/route.rs | modified T2() | ~145 |
+| 21:07 | Edited rust/crates/epic-board/src/items/outline.rs | modified box_str() | ~1267 |
+| 21:09 | Edited rust/crates/epic-board/src/board.rs | 2→2 lines | ~21 |
+| 21:09 | Edited rust/crates/epic-board/src/board.rs | 2→2 lines | ~22 |
+| 21:09 | Edited rust/crates/epic-board/src/board.rs | inline fix | ~13 |
+| 21:09 | Edited rust/crates/epic-board/src/board.rs | inline fix | ~21 |
+| 21:18 | Created logs/readiness-2026-10-01/m11t2-commit-msg.txt | — | ~657 |
+| 21:19 | Created logs/readiness-2026-10-01/run_gates_m11t2t6.sh | — | ~1218 |
+| 21:44 | Edited rust/crates/epic-board/src/items/outline.rs | expanded (+7 lines) | ~210 |
+| 21:51 | Created rust/crates/epic-board/tests/probe_degenerate.rs | — | ~666 |
+| 21:51 | Edited rust/crates/epic-board/tests/probe_degenerate.rs | 7→8 lines | ~93 |
+| 21:58 | Created rust/harness/fixtures/t6/t6-degenerate-pad.dsn | — | ~195 |
+| 21:59 | Edited rust/crates/epic-board/src/items/outline.rs | modified t6_degenerate_pad_classifies_outside_without_panicking() | ~1017 |
+| 21:59 | Edited rust/crates/epic-board/src/items/outline.rs | 7→10 lines | ~119 |
+| 21:59 | Edited rust/crates/epic-board/src/items/outline.rs | inline fix | ~18 |
+| 21:59 | Edited rust/crates/epic-board/src/items/outline.rs | inline fix | ~26 |
+| 22:00 | Created logs/readiness-2026-10-01/m11t6-fix-commit-msg.txt | — | ~459 |
+| 22:01 | Created rust/crates/epic-board/tests/probe_interfu.rs | — | ~341 |
+| 22:01 | Edited rust/crates/epic-board/tests/probe_interfu.rs | expanded (+8 lines) | ~129 |
+| 22:02 | Created rust/crates/epic-board/tests/probe_interfu2.rs | — | ~390 |
+| 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t6.txt | — | ~329 |
+| 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t2.txt | — | ~352 |
+| 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t6fix.txt | — | ~232 |
+| 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t2rot.txt | — | ~171 |
