@@ -10022,3 +10022,83 @@ description: chronological action log per session, consolidated weekly
 | 10:44 | Created logs/readiness-2026-10-01/run_gates_p5.sh | — | ~586 |
 | 10:45 | Created logs/readiness-2026-10-01/p5-commit-msg.txt | — | ~659 |
 | 10:45 | Created logs/readiness-2026-10-01/export-msg-p5.txt | — | ~123 |
+| 10:59 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+14 lines) | ~256 |
+| 10:59 | Edited logs/readiness-2026-10-01/TASKS.md | 2→2 lines | ~35 |
+| 11:08 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified t9_candidate_metrics_are_weighted_both_sides_with_zero_fallback() | ~1176 |
+| 11:08 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified a39ad0efd() | ~236 |
+| 11:08 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | expanded (+8 lines) | ~277 |
+| 11:09 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | 13→14 lines | ~224 |
+| 11:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~328 |
+| 11:10 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified passed() | ~346 |
+| 11:11 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified row() | ~76 |
+| 11:11 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified rotation() | ~163 |
+| 11:13 | Created logs/readiness-2026-10-01/p6-commit-msg.txt | — | ~855 |
+| 11:13 | Created logs/readiness-2026-10-01/export-msg-p6.txt | — | ~130 |
+| 11:32 | Edited logs/readiness-2026-10-01/p6-commit-msg.txt | 9→10 lines | ~174 |
+| 11:32 | Edited logs/readiness-2026-10-01/p6-commit-msg.txt | modified notes() | ~571 |
+| 11:32 | Edited logs/readiness-2026-10-01/export-msg-p6.txt | modified door() | ~99 |
+| 11:37 | Edited logs/readiness-2026-10-01/TASKS.md | modified e986721b6() | ~267 |
+| 12:12 | Created logs/readiness-2026-10-01/M11-931.md | — | ~1687 |
+| 12:14 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~19 |
+| 12:14 | Edited logs/readiness-2026-10-01/TASKS.md | expanded (+11 lines) | ~249 |
+| 12:14 | Edited logs/readiness-2026-10-01/TASKS.md | 2→2 lines | ~32 |
+| 12:18 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified pr_stagnant_ripup_filter_is_java_verbatim() | ~1368 |
+| 12:18 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified rip_stagnant_net_items() | ~469 |
+| 12:18 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 4→4 lines | ~41 |
+| 12:18 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | inline fix | ~16 |
+| 12:19 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified pr_probe_anchor_fate() | ~279 |
+| 12:20 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified pr_stagnant_net_ripup_fires_at_two_failures() | ~693 |
+| 12:20 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified 931() | ~158 |
+| 12:32 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~167 |
+| 12:32 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~227 |
+| 12:33 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~496 |
+| 12:34 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~332 |
+| 12:34 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~228 |
+| 12:35 | Edited logs/readiness-2026-10-01/M11-931.md | "+33" → ":620" | ~330 |
+| 12:35 | Edited logs/readiness-2026-10-01/M11-931.md | "+31" → ":isObstacle" | ~251 |
+| 12:35 | Edited logs/readiness-2026-10-01/M11-931.md | inline fix | ~178 |
+| 12:36 | Created logs/readiness-2026-10-01/run_gates_m11t1.sh | — | ~600 |
+| 12:36 | Created logs/readiness-2026-10-01/m11t1-commit-msg.txt | — | ~656 |
+| 13:07 | Created rust/crates/epic-router/src/pipeline/java_random.rs | — | ~1533 |
+| 13:08 | Edited rust/crates/epic-geometry/src/java_random.rs | modified shuffle_permutation_matches_spec_replica() | ~320 |
+| 13:08 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | added 1 import(s) | ~106 |
+| 13:09 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified default() | ~1934 |
+| 13:09 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified begin_pass() | ~309 |
+| 13:09 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified finish_pass() | ~111 |
+| 13:09 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified 931() | ~351 |
+| 13:09 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified run_single_thread() | ~171 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 18→19 lines | ~128 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified run_partitioned() | ~178 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified entry() | ~85 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified run_pass() | ~309 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 4→4 lines | ~56 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified calculate_incomplete_count() | ~332 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | expanded (+7 lines) | ~205 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 8→9 lines | ~91 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified 931() | ~143 |
+| 13:10 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified 931() | ~224 |
+| 13:11 | Edited rust/crates/epic-router/src/pipeline/batch.rs | 11→12 lines | ~114 |
+| 13:11 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | modified SCOPE() | ~313 |
+| 13:11 | Edited rust/crates/epic-router/src/pipeline/optimizer.rs | inline fix | ~25 |
+| 13:11 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 5→6 lines | ~49 |
+| 13:11 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 5→6 lines | ~42 |
+| 13:11 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 5→6 lines | ~42 |
+| 13:13 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified pr_is_plane_item_is_any_contains_plane_net() | ~2448 |
+| 13:13 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified t5_driver_run_start_resets_anti_oscillation() | ~488 |
+| 13:14 | Edited rust/crates/epic-router/src/pipeline/batch.rs | modified t5_driver_run_start_resets_anti_oscillation() | ~452 |
+| 13:14 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | 12→13 lines | ~112 |
+| 13:16 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | insert() → from() | ~280 |
+| 13:16 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified pr_stagnation_tracker_arithmetic() | ~93 |
+| 13:16 | Edited rust/crates/epic-router/src/pipeline/pass_runner.rs | modified pr_stagnation_tracker_arithmetic() | ~27 |
+| 13:17 | Created logs/readiness-2026-10-01/run_gates_m11cd.sh | — | ~680 |
+| 13:20 | Edited logs/readiness-2026-10-01/M11-931.md | modified Diagnosis() | ~739 |
+| 13:21 | Edited logs/readiness-2026-10-01/run_gates_m11cd.sh | 6→11 lines | ~189 |
+| 13:21 | Edited logs/readiness-2026-10-01/M11-931.md | modified protocol() | ~259 |
+| 13:22 | Created logs/readiness-2026-10-01/m11cd-commit-msg.txt | — | ~1076 |
+| 13:44 | Edited logs/readiness-2026-10-01/M11-931.md | added 1 condition(s) | ~897 |
+| 14:10 | Created logs/java-oracle-m11/run-adjudication.sh | — | ~357 |
+| 14:37 | Edited logs/readiness-2026-10-01/M11-931.md | modified is() | ~1148 |
+| 15:23 | Edited logs/readiness-2026-10-01/M11-931.md | modified CONSEQUENCE() | ~1082 |
+| 15:25 | Created logs/readiness-2026-10-01/run_gates_m11t9i.sh | — | ~726 |
+| 15:25 | Edited logs/readiness-2026-10-01/run_gates_m11t9i.sh | 2→2 lines | ~14 |
+| 15:25 | Created logs/readiness-2026-10-01/m11t9i-commit-msg.txt | — | ~459 |

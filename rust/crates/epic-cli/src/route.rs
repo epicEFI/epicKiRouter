@@ -39,7 +39,6 @@ use epic_router::pipeline::batch::{StopFace, final_state_for};
 use epic_router::pipeline::board_statistics::{BoardStatistics, RouterSettingsScoring};
 use epic_router::pipeline::event_sink::DriverSink;
 use epic_router::pipeline::full::{PipelineOutcome, PipelinePhases};
-use epic_router::pipeline::pass_runner::RouterCounters;
 use serde::Serialize;
 use sha2::Digest;
 use std::sync::Arc;
@@ -58,17 +57,15 @@ use epic_engine::settings::{
 // ---------------------------------------------------------------------------
 
 /// The CLI's driver sink: log rows echo to stderr (the headless host's
-/// FRLogger backend), and the LAST `board_updated` counters are kept
-/// PER PHASE — the manifest's phase-attributed pass-count sources (T12
-/// quality MINOR-2: typed counters, never row parsing; T10: with all
-/// stages live, the LAST event overall may be a fanout or optimizer
-/// one, so a single slot mis-attributes — exactly the T13 bank's
-/// concern).
+/// FRLogger backend). The sink carries NO state: the manifest's
+/// per-stage pass counts read the pipeline OUTCOME
+/// (`PipelineOutcome::autoroute_passes_completed`, the optimizer's
+/// `OptimizerStageFaces.outcome`) — the old last-counters-per-phase map
+/// mis-attributed after a multi-pass autoroute, because the
+/// optimizer's per-item reroutes stamp `phase="autoroute"` counters
+/// rows through the same shared pass tail.
 #[derive(Debug, Default)]
-pub struct CliDriverSink {
-    /// The last counters per phase (keyed by `counters.phase`).
-    pub last_counters_by_phase: std::collections::BTreeMap<String, RouterCounters>,
-}
+pub struct CliDriverSink;
 
 impl DriverSink for CliDriverSink {
     fn info(&mut self, message: &str) {
@@ -76,10 +73,6 @@ impl DriverSink for CliDriverSink {
     }
     fn warn(&mut self, message: &str) {
         eprintln!("Warning: {message}");
-    }
-    fn board_updated(&mut self, counters: &RouterCounters) {
-        self.last_counters_by_phase
-            .insert(counters.phase.clone(), counters.clone());
     }
 }
 
@@ -616,8 +609,10 @@ pub struct RouteManifest<'a> {
 pub struct RouteTelemetry {
     /// The final-state face (`final_state_for` / TERMINATED).
     pub final_state: String,
-    /// The last progress counters (the pass-count backfill source).
-    pub last_counters: Option<RouterCounters>,
+    /// The AUTOROUTE stage's completed pass count (the pipeline
+    /// outcome's face — `PipelineOutcome::autoroute_passes_completed`;
+    /// 0 = no pass ran, which renders as an absent row).
+    pub autoroute_passes_completed: i32,
     /// Post-route connections (`None` = the stop face).
     pub connections: Option<ManifestConnections>,
     /// Post-route clearance violations (`None` = the skip face).
@@ -827,22 +822,21 @@ pub fn render_manifest(
     fixture: ManifestFixture<'_>,
 ) -> String {
     let mut phases = ManifestPhases::default();
-    // The pass-count backfill: the LAST progress event's pass number,
-    // only when the pass runner actually counted a pass (> 0). The
-    // filter is the autorouter phase's face — the fanout stage's
-    // counters (`phase="fanout"`) must not leak into it: Java's fanout
-    // phase never sets `passesCompleted` (AutorouteBatchLoop.java
-    // `:231-246` writes only the before/after snapshots, duration and
-    // cpu into `resultPhaseMetrics.fanout`). The OPTIMIZER row never
-    // reads the counters either — its pass count comes from the stage
-    // outcome (Java `BatchOptimizer.java:523`).
-    phases.autorouter.passes_completed = telemetry
-        .last_counters
-        .as_ref()
-        .filter(|counters| counters.phase == "autoroute")
-        .map(|counters| counters.pass_count)
-        .filter(|pass_count| *pass_count > 0)
-        .map(i64::from);
+    // The pass-count fill: the AUTOROUTE STAGE's own completed count
+    // (the pipeline outcome — `PipelineOutcome::autoroute_passes_
+    // completed`), only when a pass actually ran (> 0). Java's faces
+    // are per-stage the same way: the fanout phase never sets
+    // `passesCompleted` (AutorouteBatchLoop.java `:231-246` writes only
+    // the before/after snapshots into `resultPhaseMetrics.fanout`), and
+    // the OPTIMIZER row reads its own stage outcome (Java
+    // `BatchOptimizer.java:523`). The OLD seam — the LAST
+    // `phase="autoroute"` counters row — clobbers after a multi-pass
+    // autoroute: the optimizer's per-item reroutes ride the same pass
+    // tail stamping `phase="autoroute"` (pass_runner's shared
+    // `finish_pass`), so t7_ripup at `--router.congestion_global=on`
+    // reported 1 after a 2-pass autoroute + optimizer.
+    phases.autorouter.passes_completed = (telemetry.autoroute_passes_completed > 0)
+        .then(|| i64::from(telemetry.autoroute_passes_completed));
     // The T10 per-phase fill (Java `RoutingResultManifest.java:87-159`
     // + the three stage fill sites): the phases the pipeline captured,
     // each with its own score flavor.
@@ -1300,7 +1294,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // large board were a UX gap, not a diagnostic. The duration is a
     // local Instant (stderr-only; never the manifest — the
     // non-determinism omission stands).
-    let mut sink = CliDriverSink::default();
+    let mut sink = CliDriverSink;
     sink.info(&board_loaded_row(
         board.item_count(),
         board.rules().nets.iter().count(),
@@ -1586,7 +1580,6 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     } else {
         pair_report_rows(&mut board, &pair_specs, &outcome.pair_stage)
     };
-    let last_counters = sink.last_counters_by_phase.get("autoroute").cloned();
     // The pipeline's per-phase faces (the render builds the snapshot
     // rows from the raw boundary pairs).
     let PipelineOutcome {
@@ -1596,6 +1589,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         flow_report,
         via_place_report,
         teardrops_report,
+        autoroute_passes_completed,
         ..
     } = outcome;
     let phases = PipelinePhases {
@@ -1708,7 +1702,7 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         .unwrap_or_default();
     let telemetry = RouteTelemetry {
         final_state,
-        last_counters,
+        autoroute_passes_completed,
         connections,
         clearance_violations,
         normalized_score,
@@ -2113,27 +2107,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The counters' pass-count backfill: the LAST counters' passCount
-    /// when > 0 AND the phase is the autorouter's (`"autoroute"` — the
-    /// production `RouterCounters.phase`); absent when there were no
-    /// events or the count is 0. The phase filter is the M4-T7
-    /// phase-attribution face: the fanout stage's counters (`"fanout"`,
-    /// emitted LAST when the stage ran) must not leak into
-    /// `phases.autorouter.passesCompleted` — Java's fanout phase never
-    /// sets `passesCompleted` (AutorouteBatchLoop.java:231-246).
+    /// The pass-count fill: the AUTOROUTE stage's own completed count
+    /// (`RouteTelemetry::autoroute_passes_completed`, the pipeline
+    /// outcome's face), rendered only when a pass ran (> 0). A 0 face
+    /// (no pass ran — router disabled, fanout-only, or a stop before
+    /// the first pass) renders an absent row, matching Java's fanout
+    /// phase which never sets `passesCompleted`
+    /// (AutorouteBatchLoop.java:231-246).
     #[test]
     fn manifest_passes_completed_backfill() {
-        let counters = RouterCounters {
-            phase: "autoroute".to_string(),
-            pass_count: 7,
-            queued_to_be_routed_count: 0,
-            skipped_count: 0,
-            ripped_count: 0,
-            failed_to_be_routed_count: 0,
-            routed_count: 0,
-            incomplete_count: 0,
-            fanout_extra_vias_count: 0,
-        };
         let mut telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
@@ -2147,7 +2129,7 @@ mod tests {
             pour_synthesis_rows: Vec::new(),
             pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
-            last_counters: Some(counters),
+            autoroute_passes_completed: 7,
             ..RouteTelemetry::default()
         };
         let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
@@ -2160,21 +2142,7 @@ mod tests {
         );
 
         // A zero pass count (no pass ran) stays absent.
-        telemetry
-            .last_counters
-            .as_mut()
-            .expect("counters")
-            .pass_count = 0;
-        let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
-        let value: serde_json::Value = serde_json::from_str(&json).expect("json");
-        assert!(
-            value
-                .pointer("/phases/autorouter/passes_completed")
-                .is_none()
-        );
-
-        // No counters at all: absent too.
-        telemetry.last_counters = None;
+        telemetry.autoroute_passes_completed = 0;
         let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
         let value: serde_json::Value = serde_json::from_str(&json).expect("json");
         assert!(
@@ -2184,28 +2152,15 @@ mod tests {
         );
     }
 
-    /// The M4-T7 phase-attribution pin: a fanout-stage counters event
-    /// (the LAST event when the stage ran — `phase="fanout"`, 1-based
-    /// pass, fanout via tally) must NOT backfill
-    /// `phases.autorouter.passes_completed`, and the fanout phase slot
-    /// itself stays the empty `{}` projection (Java's fanout phase
-    /// metrics carry only before/after snapshots + duration + cpu,
-    /// AutorouteBatchLoop.java:231-246 — all in the manifest's
-    /// non-determinism omission family). The dropped-filter mutant (or
-    /// a `phase.contains("route")` laxity) fails the first assert.
+    /// The fanout-only face: when no autoroute pass ran
+    /// (`autoroute_passes_completed == 0` — the fanout-only mode's
+    /// `max_passes=0` first-iteration break), the pass row is absent
+    /// and the fanout phase slot itself stays the empty `{}`
+    /// projection (Java's fanout phase metrics carry only before/after
+    /// snapshots + duration + cpu, AutorouteBatchLoop.java:231-246 —
+    /// all in the manifest's non-determinism omission family).
     #[test]
-    fn manifest_fanout_counters_do_not_backfill_autorouter_passes() {
-        let fanout_counters = RouterCounters {
-            phase: "fanout".to_string(),
-            pass_count: 1,
-            queued_to_be_routed_count: 4,
-            skipped_count: 0,
-            ripped_count: 0,
-            failed_to_be_routed_count: 4,
-            routed_count: 0,
-            incomplete_count: 2,
-            fanout_extra_vias_count: 0,
-        };
+    fn manifest_fanout_only_run_reports_no_autorouter_passes() {
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
@@ -2219,7 +2174,7 @@ mod tests {
             pour_synthesis_rows: Vec::new(),
             pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
-            last_counters: Some(fanout_counters),
+            autoroute_passes_completed: 0,
             ..RouteTelemetry::default()
         };
         let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
@@ -2228,7 +2183,7 @@ mod tests {
             value
                 .pointer("/phases/autorouter/passes_completed")
                 .is_none(),
-            "fanout counters must not backfill the autorouter pass count: {json}"
+            "a run with no autoroute pass must not report one: {json}"
         );
         assert_eq!(
             value["phases"]["fanout"],
@@ -2237,16 +2192,28 @@ mod tests {
         );
     }
 
-    /// The M4-T9 phase-attribution face: optimizer-stage counters
-    /// (`phase="optimizer"`) must not backfill
-    /// `phases.autorouter.passes_completed` either — the backfill
-    /// filter is the autorouter's phase, full stop.
+    /// The stage-attribution witness (the run-1 face of the seam bug
+    /// this fixed): after a 2-pass autoroute the OPTIMIZER stage runs
+    /// more passes of its own, and BOTH rows report their OWN stage's
+    /// count — `phases.autorouter.passes_completed == 2` (the stage
+    /// outcome) while `phases.optimizer.passes_completed == 3` (its
+    /// own outcome, Java `BatchOptimizer.java:523`). The old seam (the
+    /// LAST `phase="autoroute"` counters row) reported 1 here — the
+    /// optimizer's per-item reroutes stamp `phase="autoroute"` rows
+    /// through the same shared pass tail.
     #[test]
-    fn t9_optimizer_counters_do_not_backfill_autorouter_passes() {
-        let optimizer_counters = RouterCounters {
-            phase: "optimizer".to_string(),
-            pass_count: 4,
-            ..RouterCounters::default()
+    fn both_stage_rows_report_their_own_passes_after_an_optimizer_stage() {
+        let optimizer_faces = epic_router::pipeline::full::OptimizerStageFaces {
+            before: scoreable_stats(),
+            after: scoreable_stats(),
+            outcome: epic_router::pipeline::optimizer::OptimizerOutcome {
+                passes_completed: 3,
+                is_timed_out: false,
+            },
+        };
+        let phases = PipelinePhases {
+            optimizer: Some(optimizer_faces),
+            ..PipelinePhases::default()
         };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
@@ -2261,16 +2228,25 @@ mod tests {
             pour_synthesis_rows: Vec::new(),
             pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
-            last_counters: Some(optimizer_counters),
+            autoroute_passes_completed: 2,
+            phases,
             ..RouteTelemetry::default()
         };
         let json = render_manifest(&telemetry, "0.1.0", "deadbeef", fixture("b.dsn", "aa"));
         let value: serde_json::Value = serde_json::from_str(&json).expect("json");
-        assert!(
+        assert_eq!(
             value
                 .pointer("/phases/autorouter/passes_completed")
-                .is_none(),
-            "optimizer counters must not backfill the autorouter pass count: {json}"
+                .and_then(serde_json::Value::as_i64),
+            Some(2),
+            "the AUTOROUTE row reports its own stage's count: {json}"
+        );
+        assert_eq!(
+            value
+                .pointer("/phases/optimizer/passes_completed")
+                .and_then(serde_json::Value::as_i64),
+            Some(3),
+            "the OPTIMIZER row reports its own stage outcome: {json}"
         );
     }
 
@@ -2429,7 +2405,7 @@ mod tests {
             pour_synthesis_rows: Vec::new(),
             pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
-            last_counters: None,
+            autoroute_passes_completed: 0,
             connections: Some(ManifestConnections {
                 incomplete_count: 0,
                 maximum_count: 5,
@@ -2508,23 +2484,11 @@ mod tests {
     /// THE T10 PER-PHASE ATTRIBUTION PIN: each phase carries ITS OWN
     /// source. Fanout snapshots: `score_source not_applicable`, NO
     /// score rows, NO `passes_completed` (Java AutorouteBatchLoop.java:
-    /// 231-246); the autorouter row backfills from autoroute counters
-    /// only; the OPTIMIZER row's pass count comes from the stage
-    /// outcome — a fanout counters event (pass 1) must not backfill it
-    /// (the T13-bank crossing: a counters-sourced mutant emits 1 here).
+    /// 231-246); the autorouter row reads the stage outcome (absent
+    /// here — no autoroute pass ran); the OPTIMIZER row's pass count
+    /// comes from the stage outcome (0), not any counters event.
     #[test]
     fn t10_phase_rows_attribution_crossing_cells() {
-        let fanout_counters = RouterCounters {
-            phase: "fanout".to_string(),
-            pass_count: 1,
-            queued_to_be_routed_count: 4,
-            skipped_count: 0,
-            ripped_count: 0,
-            failed_to_be_routed_count: 4,
-            routed_count: 0,
-            incomplete_count: 2,
-            fanout_extra_vias_count: 0,
-        };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
@@ -2538,7 +2502,7 @@ mod tests {
             pour_synthesis_rows: Vec::new(),
             pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
-            last_counters: Some(fanout_counters),
+            autoroute_passes_completed: 0,
             connections: Some(ManifestConnections {
                 incomplete_count: 2,
                 maximum_count: 6,
@@ -2773,20 +2737,11 @@ mod tests {
     /// family: the emitted bytes contain NONE of generated_at /
     /// duration / cpu / memory / resource_usage / settings_snapshot /
     /// bounds / optimizer_score, even as keys, while every mirror-
-    /// required member is present (schema v1).
+    /// required member is present (schema v1). The autoroute pass row
+    /// renders from the stage face alone (2) — no counters text can
+    /// leak because none is carried.
     #[test]
     fn manifest_omits_non_determinism_family_and_keeps_required() {
-        let counters = RouterCounters {
-            phase: "AUTOROUTE".to_string(),
-            pass_count: 2,
-            queued_to_be_routed_count: 3,
-            skipped_count: 0,
-            ripped_count: 1,
-            failed_to_be_routed_count: 0,
-            routed_count: 2,
-            incomplete_count: 1,
-            fanout_extra_vias_count: 0,
-        };
         let telemetry = RouteTelemetry {
             final_state: "COMPLETED".to_string(),
             pour_islands: Vec::new(),
@@ -2800,7 +2755,7 @@ mod tests {
             pour_synthesis_rows: Vec::new(),
             pour_synthesis_unresolved: Vec::new(),
             global_plan: None,
-            last_counters: Some(counters),
+            autoroute_passes_completed: 2,
             connections: Some(ManifestConnections {
                 incomplete_count: 1,
                 maximum_count: 3,
@@ -3624,7 +3579,7 @@ mod tests {
         let resolved = ResolvedRouteSettings::resolve(&merged, None);
         let batch = build_batch_settings(&resolved);
 
-        let mut sink = CliDriverSink::default();
+        let mut sink = CliDriverSink;
         let mut driver = BatchDriver::new(&mut manager, &mut board, batch, StopFace::default());
         let run_result = driver.run(&mut sink);
         drop(driver);

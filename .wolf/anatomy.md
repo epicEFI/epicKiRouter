@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T16:45:10.263Z
-> Files: 721 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-02T21:25:32.710Z
+> Files: 734 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -771,6 +771,10 @@
 - `dispatch-prompt-t8.md` — M10-T8 DISPATCH — the terminal milestone adjudication (fresh adjudicator) (~2002 tok)
 - `report-t8.md` — M10-T8 — the terminal milestone adjudication (materialized verbatim by the coordinator) (~3558 tok)
 
+## logs/java-oracle-m11/
+
+- `run-adjudication.sh` — M11 adjudication: upstream Java pre-#931 (aa909a345^) vs post-#931 (aa909a345) (~357 tok)
+
 ## logs/readiness-2026-10-01/
 
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
@@ -787,6 +791,7 @@
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
 - `export-msg-p4.txt` (~243 tok)
 - `export-msg-p5.txt` (~115 tok)
+- `export-msg-p6.txt` (~191 tok)
 - `f1b-commit-msg.txt` — Declares placements (~747 tok)
 - `f2a-commit-msg.txt` — Declares synthesis (~450 tok)
 - `f2b-commit-msg.txt` — Declares cloned (~771 tok)
@@ -797,6 +802,10 @@
 - `f4c-commit-msg.txt` — Declares width (~739 tok)
 - `fix-round-charter.md` — Readiness fix round — 2.0.1 hardening charter (2026-10-01) (~787 tok)
 - `fixa-commit-msg.txt` (~344 tok)
+- `M11-931.md` — M11 — the #931 Tier-B completion campaign (upstream `aa909a345`) (~5292 tok)
+- `m11cd-commit-msg.txt` (~1009 tok)
+- `m11t1-commit-msg.txt` (~615 tok)
+- `m11t9i-commit-msg.txt` (~431 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
 - `p2-commit-msg.txt` (~988 tok)
 - `p3-commit-msg.txt` — Declares cell (~1737 tok)
@@ -804,6 +813,7 @@
 - `p3extract.py` — grab (~152 tok)
 - `p4-commit-msg.txt` — Declares as (~846 tok)
 - `p5-commit-msg.txt` (~618 tok)
+- `p6-commit-msg.txt` (~1176 tok)
 - `probe_sigint.new.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~1037 tok)
 - `probe_sigint.sh` — Live SIGINT probe (readiness-fix M5 coordinator evidence): route a slow (~576 tok)
 - `report-fixround.md` — Readiness fix-round report (2026-10-01) (~2421 tok)
@@ -811,12 +821,15 @@
 - `review-fixround.md` — Fresh-eyes review — 2.0.0 hardening diff (2026-10-01) (~2186 tok)
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
+- `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
+- `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
+- `run_gates_m11t9i.sh` — M11-T9i (upstream aa909a345 FoundConnectionInserter.java:212 neckdown (~715 tok)
 - `run_gates_p3.sh` — P3 (#925a clearance-tolerance) gate battery: fmt + clippy both faces + (~582 tok)
 - `run_gates_p4.sh` — P4 (#925b same-component Pin-Pin exemptions) gate battery: fmt + clippy (~590 tok)
 - `run_gates_p5.sh` — P5 (upstream 8fb76a61b convex-split stop guard) gate battery: fmt + (~586 tok)
 - `run_gates_rerun.sh` — Gate re-run after the tripwire-retirement fix: census + fresh release (~238 tok)
 - `run_gates.sh` — R2 gate battery — current re-proof of every standing face. Serial; every command (~371 tok)
-- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3262 tok)
+- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3857 tok)
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
 
@@ -890,6 +903,10 @@
 
 - `overlays.rs` — M9-T5: the overlay DATA faces' engine pins: (~5156 tok)
 
+## rust/crates/epic-geometry/src/
+
+- `java_random.rs` — Port of the JDK `java.util.Random` 48-bit linear congruential generator. (~2451 tok)
+
 ## rust/crates/epic-gui/src/
 
 - `shell.rs` — The M9-T6 desktop-shell PROTOCOL module — deliberately UNGATED (~13443 tok)
@@ -931,9 +948,11 @@
 
 ## rust/crates/epic-router/src/pipeline/
 
-- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~25620 tok)
+- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~26655 tok)
 - `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~13513 tok)
-- `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~44251 tok)
+- `java_random.rs` — `java.util.Random` + `java.util.Collections.shuffle` — the EXACT (~1533 tok)
+- `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~46048 tok)
+- `pass_runner.rs` — Java `autoroute/pipeline/AutoroutePassRunner.java` — the (~27683 tok)
 
 ## rust/harness/
 

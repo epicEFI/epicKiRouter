@@ -391,11 +391,15 @@ impl std::fmt::Display for RouteError {
 impl std::error::Error for RouteError {}
 
 /// One route run's summary (the dispatch shape). `passes` is the
-/// AUTOROUTE phase's final pass count — the last
-/// `board_updated` counters row whose `phase == "autoroute"`
-/// (route.rs:1078's face; 0 when the phase emitted no row — an
-/// external stop before pass 1, a router-disabled run, or the
-/// all-layers-disabled abort).
+/// AUTOROUTE stage's completed pass count — the pipeline outcome's
+/// face (`PipelineOutcome::autoroute_passes_completed`, the batch
+/// driver's own loop count; 0 when no pass ran — an external stop
+/// before pass 1, a router-disabled run, or the all-layers-disabled
+/// abort). The OLD seam (the last `board_updated` counters row whose
+/// `phase == "autoroute"`) is retired: the optimizer's per-item
+/// reroutes stamp `phase="autoroute"` rows through the same shared
+/// pass tail, so after a multi-pass autoroute + optimizer run that
+/// reading reported the optimizer's pass 1.
 #[derive(Debug, Clone)]
 pub struct RouteSummary {
     /// The final-state mapping (`route.rs:1015-1019`): TERMINATED on a
@@ -408,7 +412,8 @@ pub struct RouteSummary {
     pub incomplete_count: i64,
     /// `stats.clearance_violations.total_count` (0 when `None`).
     pub violations_total: i64,
-    /// The autoroute phase's last pass count (see the struct docs).
+    /// The autoroute stage's completed pass count (see the struct
+    /// docs).
     pub passes: i32,
 }
 
@@ -822,7 +827,7 @@ impl Session {
             final_state,
             incomplete_count,
             violations_total,
-            passes: pass_sink.last_autoroute_pass(),
+            passes: outcome.autoroute_passes_completed,
         })
     }
 
@@ -1144,14 +1149,16 @@ fn java_two_decimal(value: f32) -> f64 {
 /// The route-time sink wrapper: forwards EVERY row to the caller's
 /// sink UNCHANGED (the tee-sink forwarding law, event_sink.rs
 /// `:140-141`/`:164-177` precedent — `is_trace_enabled` mirrors the
-/// inner sink exactly) and additionally keeps the last
-/// `board_updated` counters row whose phase is `autoroute` — the
-/// pass-count source of [`RouteSummary::passes`] (route.rs:1078's
-/// face, which the CLI reads off its OWN sink; a `&mut dyn
-/// DriverSink` exposes no counters, so the session observes them at
-/// the same seam). The M9-T3 snapshot hook is forwarded too — a tee
-/// handed to [`Session::route`] as the sink sits INSIDE this wrapper,
-/// and without the forward its snapshots would never fire.
+/// inner sink exactly). The pass-COUNT tracking this wrapper once
+/// carried is RETIRED: [`RouteSummary::passes`] reads the pipeline
+/// outcome's stage face (`PipelineOutcome::autoroute_passes_completed`)
+/// — the counters-stream seam it observed here reported the
+/// OPTIMIZER's pass 1 after any multi-pass autoroute, because the
+/// optimizer's per-item reroutes stamp `phase="autoroute"` rows
+/// through the same shared pass tail. The M9-T3 snapshot hook is
+/// forwarded too — a tee handed to [`Session::route`] as the sink sits
+/// INSIDE this wrapper, and without the forward its snapshots would
+/// never fire.
 ///
 /// `pub` (not crate-private) ONLY so the forwarding-exhaustion guard
 /// pin (`events_stream.rs`) can drive ALL
@@ -1162,24 +1169,13 @@ fn java_two_decimal(value: f32) -> f64 {
 /// unchanged; the CLI never touches this type.
 pub struct PassTrackingSink<'a> {
     inner: &'a mut dyn DriverSink,
-    last_autoroute_pass: i32,
 }
 
 impl<'a> PassTrackingSink<'a> {
     /// The wrapper face ([`Session::route`] uses it; the guard pin
     /// constructs directly).
     pub fn new(inner: &'a mut dyn DriverSink) -> Self {
-        Self {
-            inner,
-            last_autoroute_pass: 0,
-        }
-    }
-
-    /// The last `board_updated` counters row's pass count whose phase
-    /// was `autoroute` (0 when none fired — see [`RouteSummary::passes`]).
-    #[must_use]
-    pub fn last_autoroute_pass(&self) -> i32 {
-        self.last_autoroute_pass
+        Self { inner }
     }
 }
 
@@ -1203,9 +1199,6 @@ impl DriverSink for PassTrackingSink<'_> {
         self.inner.task_state(state, pass, hash);
     }
     fn board_updated(&mut self, counters: &RouterCounters) {
-        if counters.phase == "autoroute" {
-            self.last_autoroute_pass = counters.pass_count;
-        }
         self.inner.board_updated(counters);
     }
     fn board_snapshot(&mut self, board: &Board) {

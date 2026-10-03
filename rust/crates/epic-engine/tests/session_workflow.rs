@@ -422,6 +422,63 @@ fn session_layer_max_passes_override_is_output_observable() {
     );
 }
 
+/// (d) THE PASS-COUNT SEAM PIN (the t7_ripup witness, 2026-10-02): a
+/// multi-pass autoroute followed by the OPTIMIZER stage is the world
+/// where the retired seam lied — the optimizer's per-item reroutes
+/// stamp `phase="autoroute"` counters rows through the same shared
+/// pass tail, so the LAST-such-row reading reported the optimizer's
+/// pass 1 (the golden-run artifact `runs/global-golden/run1`: the log
+/// shows Auto-routing passes #1 AND #2, the manifest said
+/// `passes_completed: 1`). `RouteSummary::passes` reads the pipeline
+/// outcome's stage face (`PipelineOutcome::autoroute_passes_completed`)
+/// — the fixture's true count must survive the optimizer stage that
+/// follows. The recording sink guards the premise: the pin is dead if
+/// the optimizer ever stops running in this world (no clobber source,
+/// no witness).
+#[test]
+fn route_summary_passes_is_the_stage_outcome_not_the_last_counters_row() {
+    // Counts the optimizer's own pass rows (the premise witness).
+    struct OptimizerRowCountingSink {
+        optimizer_pass_rows: usize,
+    }
+    impl DriverSink for OptimizerRowCountingSink {
+        fn info(&mut self, message: &str) {
+            if message.contains("Optimizer pass #") {
+                self.optimizer_pass_rows += 1;
+            }
+        }
+    }
+
+    let bytes =
+        fs::read(fixture("harness/fixtures/maze-spike/t7_ripup.dsn")).expect("t7_ripup reads");
+    let mut session =
+        Session::load_dsn(&bytes, SessionLayer::default()).expect("t7_ripup loads clean");
+    let mut sink = OptimizerRowCountingSink {
+        optimizer_pass_rows: 0,
+    };
+    // The golden face's own flags (`t7_ripup.global-golden.json`):
+    // `--router.congestion_global=on`.
+    let cli = CliLayer {
+        congestion_global: Some(true),
+        ..CliLayer::default()
+    };
+    let summary = session.route(&cli, &mut sink).expect("route succeeds");
+    assert_eq!(
+        summary.final_state, "COMPLETED",
+        "the witness world: t7_ripup completes at congestion_global=on (the golden-run face)"
+    );
+    assert!(
+        sink.optimizer_pass_rows > 0,
+        "the premise: the OPTIMIZER stage ran its own passes after the autoroute (the clobber \
+         source — without it this pin witnesses nothing)"
+    );
+    assert_eq!(
+        summary.passes, 2,
+        "the AUTOROUTE stage's own completed count (log-verified 2026-10-02: passes #1 and #2 \
+         ran on this face; the old last-counters-row seam reported the optimizer's 1 here)"
+    );
+}
+
 /// (f) M10-T2, the Q6 product decision PIN: re-route stays DISABLED —
 /// ONE route per session; a second call returns the clean documented
 /// error ([`RouteError::AlreadyRouted`]) and NOTHING moves: the guard

@@ -140,8 +140,9 @@ impl DriverSink for CaptureDriverSink {
 /// (`task_state` args, `board_updated` counters) are kept structured so
 /// a flush can re-emit them through the real sink's typed methods — a
 /// rendered-string buffer (the [`CaptureDriverSink`] shape) cannot
-/// replay `CliDriverSink.last_counters_by_phase` (the manifest's
-/// phase-counter source).
+/// replay the typed `board_updated` face (the manifest's per-stage
+/// pass counts no longer ride the counters at all — they read the
+/// pipeline outcome's stage faces).
 #[derive(Debug, Clone)]
 pub enum BufferedSinkRow {
     /// [`DriverSink::info`].
