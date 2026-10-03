@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T04:12:47.003Z
-> Files: 766 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T04:54:07.059Z
+> Files: 768 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -792,6 +792,7 @@
 - `export-msg-m11t2rot.txt` (~160 tok)
 - `export-msg-m11t6.txt` (~308 tok)
 - `export-msg-m11t6fix.txt` (~217 tok)
+- `export-msg-m11t7.txt` (~325 tok)
 - `export-msg-m11t9d.txt` (~373 tok)
 - `export-msg-m11t9i.txt` (~317 tok)
 - `export-msg-p3.txt` — Declares promotion (~488 tok)
@@ -815,6 +816,7 @@
 - `m11t2-commit-msg.txt` (~616 tok)
 - `m11t6-commit-msg.txt` (~756 tok)
 - `m11t6-fix-commit-msg.txt` (~431 tok)
+- `m11t7-commit-msg.txt` (~472 tok)
 - `m11t9d-commit-msg.txt` (~1782 tok)
 - `m11t9i-commit-msg.txt` (~2236 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
@@ -867,8 +869,8 @@
 
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
 - `board.rs` — The live board: the item arena, the id generator, and the (~33866 tok)
-- `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24487 tok)
-- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~18048 tok)
+- `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24645 tok)
+- `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~18076 tok)
 - `shape_trace_entries.rs` — The shove substrate: which obstacles sit in a shape, which trace (~29177 tok)
 - `trace_shover.rs` — The shove drivers: can a trace segment be forced into a live board, (~26879 tok)
 - `undo_facade.rs` — The board-level undo/redo/snapshot FACADE — Java (~6215 tok)
@@ -894,7 +896,7 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2327 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56260 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56504 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -907,7 +909,7 @@
 
 ## rust/crates/epic-drc/src/
 
-- `clearance.rs` — The clearance-violation walk — the port of Java (~15896 tok)
+- `clearance.rs` — The clearance-violation walk — the port of Java (~16064 tok)
 - `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~2802 tok)
 
 ## rust/crates/epic-dsn/src/scope/

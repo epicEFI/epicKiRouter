@@ -254,7 +254,7 @@ pub struct AutorouteControl {
     pub vias_allowed: bool,
 
     /// Java `attachSmdAllowed` — true if any via of the rule may drill
-    /// to an SMD pad (or the pure-SMD relaxation forced it).
+    /// to an SMD pad (or the #931 SMD relaxation forced it).
     pub attach_smd_allowed: bool,
 
     /// Java `minNormalViaCost` — `viaCosts * max(max(maxViaRadius, 1), ×0.1 pure SMD)`.
@@ -333,10 +333,13 @@ pub struct AutorouteControl {
     /// Java `maxShoveTraceRecursionDepth` — ctor 20 (`:171`).
     pub max_shove_trace_recursion_depth: i32,
 
-    /// Java `maxShoveViaRecursionDepth` — ctor 5 (`:172`).
+    /// Java `maxShoveViaRecursionDepth` — 5 at the graft baseline
+    /// (`:172`), 8 after upstream #931 (maze cluster-B): the deeper
+    /// via-shove recursion widens the push-and-shove envelope.
     pub max_shove_via_recursion_depth: i32,
 
-    /// Java `maxSpringOverRecursionDepth` — ctor 5 (`:173`).
+    /// Java `maxSpringOverRecursionDepth` — 5 at the graft baseline
+    /// (`:173`), 8 after upstream #931 (same hunk as the via depth).
     pub max_spring_over_recursion_depth: i32,
 
     /// Java `minCheapViaCost` — `0.8 * min_normal_via_cost`.
@@ -393,8 +396,8 @@ impl AutorouteControl {
             tidy_region_width: i32::MAX,
             pull_tight_accuracy: 500,
             max_shove_trace_recursion_depth: 20,
-            max_shove_via_recursion_depth: 5,
-            max_spring_over_recursion_depth: 5,
+            max_shove_via_recursion_depth: 8,
+            max_spring_over_recursion_depth: 8,
             min_cheap_via_cost: 0.0,
             coupling: None,
         };
@@ -565,6 +568,27 @@ impl AutorouteControl {
         true
     }
 
+    /// Java `hasSmdPin(board, netNumber)` — upstream #931 cluster-B
+    /// (no graft-baseline counterpart): ANY connectable item of the
+    /// net is a single-layer Pin. The weaker sibling of
+    /// [`Self::is_pure_smd_net`] — a mixed SMD+TH net qualifies here
+    /// and not there, and non-Pin items are SKIPPED, not
+    /// disqualifying (a routed net with SMD pins still qualifies).
+    fn has_smd_pin(board: &mut Board, net_number: i32) -> bool {
+        for id in board.get_connectable_items(net_number) {
+            let is_pin = board
+                .get(id)
+                .is_some_and(|entry| entry.board_item_type() == BoardItemType::Pin);
+            if is_pin {
+                let first = board.drill_first_layer(id);
+                if first.is_some() && first == board.drill_last_layer(id) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Java `rebuildViaInfo(board, viaCosts, netNumber)` (`:234-284`).
     /// Also the re-entry point for the driver's ripup passes (T12) —
     /// the via radii accumulate by max across calls, exactly like
@@ -635,17 +659,23 @@ impl AutorouteControl {
         }
         // The rules borrow ended with the loop above (NLL); the
         // pure-SMD test below needs `&mut`.
-        // Java (`:263-269`): THE PURE-SMD RELAXATION. THREE conditions
-        // (`!attachSmdAllowed && layerCount > 1 && pureSmdNet`), ONE
-        // effect here (attach forced true). It relaxes the same-net
-        // escape gate only; cross-net DRC remains governed by the
-        // padstack/via-info attach flag. The SECOND effect — the cost
-        // ×0.1 below — is guarded by `pureSmdNet` ALONE (`:277-281`),
-        // so a rule that already allows attach still gets the cheap
-        // escape (pinned).
+        // Java (`:263-269`): THE SMD ATTACH RELAXATION — upstream #931
+        // cluster-B WIDENED the gate from `pureSmdNet` to `hasSmd`
+        // (mixed SMD+TH nets now relax too) and added a SECOND effect:
+        // every via mask is rebuilt with attach forced
+        // (`new ViaMask(fromLayer, toLayer, true)` row-per-row), so the
+        // rule's own flags no longer cap same-net attach once the gate
+        // fires. The baseline's `pureSmdNet` survives ONLY as the ×0.1
+        // cost-arm guard below (`:277-281`). The relaxation loosens the
+        // same-net escape gate only; cross-net DRC remains governed by
+        // the padstack/via-info attach flag.
         let pure_smd_net = Self::is_pure_smd_net(board, net_number);
-        if !self.attach_smd_allowed && self.layer_count > 1 && pure_smd_net {
+        let has_smd = Self::has_smd_pin(board, net_number);
+        if !self.attach_smd_allowed && self.layer_count > 1 && has_smd {
             self.attach_smd_allowed = true;
+            for mask in &mut self.via_infos {
+                mask.attach_smd_allowed = true;
+            }
         }
         // Java (`:271-283`): the radii floor at the trace half width,
         // the max sweep, the cost factor and the ×0.1 PURE-SMD arm.
@@ -684,6 +714,10 @@ mod tests {
     /// * class `ATTACHCLS` on net ATTACHNET — pure SMD AND rule via
     ///   `R2` (attach) → the ISOLATION arm: attach was already allowed,
     ///   yet the ×0.1 STILL fires (its guard is `pureSmdNet` alone).
+    /// * class `MIXCLS` on net MIXNET (#931 cluster-B) — CMP4-P1 is a
+    ///   single-layer PAD_SMD, CMP4-P2 a 2-layer PAD_TH → `hasSmd`
+    ///   true while NOT pure: the WIDENED gate relaxes attach (and
+    ///   rebuilds the masks true) but the ×0.1 stays off.
     /// * net MINE also carries one F.Cu trace (a non-Pin item on a
     ///   routed net — the second not-pure flavor).
     /// * nets NET_A / NET_B re-declare CMP1-P1 → the multi-net pin for
@@ -720,6 +754,9 @@ mod tests {
     (component CMP3\n\
       (place CMP3 90000 40000 front 0)\n\
     )\n\
+    (component CMP4\n\
+      (place CMP4 20000 10000 front 0)\n\
+    )\n\
   )\n\
   (library\n\
     (padstack PAD_SMD\n\
@@ -745,6 +782,10 @@ mod tests {
       (pin PAD_SMD P1 0 0)\n\
       (pin PAD_SMD P2 20000 0)\n\
     )\n\
+    (image CMP4\n\
+      (pin PAD_SMD P1 0 0)\n\
+      (pin PAD_TH P2 20000 0)\n\
+    )\n\
   )\n\
   (network\n\
     (via V1 PAD_VIA default)\n\
@@ -760,6 +801,7 @@ mod tests {
     (net SMDNET (pins CMP1-P1 CMP1-P2))\n\
     (net THNET (pins CMP2-P1 CMP2-P2))\n\
     (net ATTACHNET (pins CMP3-P1 CMP3-P2))\n\
+    (net MIXNET (pins CMP4-P1 CMP4-P2))\n\
     (net NET_A (pins CMP1-P1))\n\
     (net NET_B (pins CMP1-P1))\n\
     (net THICKNET)\n\
@@ -790,6 +832,11 @@ mod tests {
     (class ATTACHCLS ATTACHNET\n\
       (clearance_class default)\n\
       (via_rule R2)\n\
+      (rule (width 200))\n\
+    )\n\
+    (class MIXCLS MIXNET\n\
+      (clearance_class default)\n\
+      (via_rule R1)\n\
       (rule (width 200))\n\
     )\n\
     (class THICKCLS THICKNET\n\
@@ -871,8 +918,10 @@ mod tests {
         assert_eq!(control.tidy_region_width, i32::MAX);
         assert_eq!(control.pull_tight_accuracy, 500);
         assert_eq!(control.max_shove_trace_recursion_depth, 20);
-        assert_eq!(control.max_shove_via_recursion_depth, 5);
-        assert_eq!(control.max_spring_over_recursion_depth, 5);
+        // #931 (2026-10-02): both recursion depths widened 5 → 8
+        // upstream (maze cluster-B).
+        assert_eq!(control.max_shove_via_recursion_depth, 8);
+        assert_eq!(control.max_spring_over_recursion_depth, 8);
         assert_eq!(control.via_lower_bound, 0);
         assert_eq!(control.via_upper_bound, 3);
         assert_eq!(control.add_via_costs.len(), 3);
@@ -977,13 +1026,16 @@ mod tests {
 
     /// THE PURE-SMD RELAXATION, force arm (SMDNET): the rule's only
     /// via `V1` carries no attach, so `attachSmdAllowed` starts false;
-    /// every net item is a single-layer pin → the three conditions
-    /// (`!attach && layerCount > 1 && pureSmdNet`) hold and attach is
+    /// every net item is a single-layer pin → the conditions
+    /// (`!attach && layerCount > 1 && hasSmd`) hold and attach is
     /// FORCED true (`AutorouteControl.java:263-269`), while the cost
     /// gets the ×0.1 (`:277-281`): factor `max(800, 1) × 0.1 = 80`.
     /// The via radii: PAD_VIA's F.Cu/B.Cu circles give 800.0 on layers
     /// 0-1; the GND slot has no shape and floors at the trace half
-    /// width 100 (`:271-274`). The masks: one `ViaMask{0, 1, false}`.
+    /// width 100 (`:271-274`). The masks: `ViaMask{0, 1, true}` — the
+    /// #931 (2026-10-02) rebuild loop forces the attach flag into
+    /// every row (the rule's V1 declares none; pre-#931 this was
+    /// `{0, 1, false}`).
     #[test]
     fn pure_smd_net_forces_attach_and_halves_cost() {
         let (_manager, mut board) = parse(CONTROL_DSN);
@@ -999,7 +1051,7 @@ mod tests {
             vec![ViaMask {
                 from_layer: 0,
                 to_layer: 1,
-                attach_smd_allowed: false
+                attach_smd_allowed: true
             }]
         );
     }
@@ -1030,6 +1082,33 @@ mod tests {
         );
         assert_eq!(control.min_normal_via_cost, 40.0);
         assert_eq!(control.min_cheap_via_cost, 32.0);
+    }
+
+    /// #931 cluster-B: THE MIXED-NET ARM (MIXNET — CMP4-P1 single-layer
+    /// PAD_SMD, CMP4-P2 2-layer PAD_TH): `hasSmdPin` true while
+    /// `isPureSmdNet` false. The WIDENED gate forces attach (and the
+    /// rebuild loop forces the mask flag — the rule's V1 declares
+    /// none), but the ×0.1 stays OFF (its guard is still `pureSmdNet`
+    /// ALONE): full factor `max(400, 1)` → 400. Kills a keep-the-old-
+    /// pureSmdNet-gate mutant (attach AND mask stay false) and a
+    /// tie-×0.1-to-hasSmd mutant (cost 40.0) in one board.
+    #[test]
+    fn mixed_smd_net_relaxes_attach_but_keeps_full_cost() {
+        let (_manager, mut board) = parse(CONTROL_DSN);
+        let mix = net_no(&board, "MIXNET");
+        let control = control_for(&mut board, mix, vec![true, true, true]);
+        assert!(control.attach_smd_allowed, "the widened hasSmd gate");
+        assert_eq!(
+            control.via_infos,
+            vec![ViaMask {
+                from_layer: 0,
+                to_layer: 1,
+                attach_smd_allowed: true
+            }],
+            "the mask rebuild loop"
+        );
+        assert_eq!(control.min_normal_via_cost, 400.0);
+        assert_eq!(control.min_cheap_via_cost, 320.0);
     }
 
     /// THE NOT-PURE ARMS: MINE carries a TRACE (a non-Pin item) and

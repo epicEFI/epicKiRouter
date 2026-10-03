@@ -5209,7 +5209,9 @@ fn t7_assert_ctrl(ctrl: &AutorouteControl, phase_idx: usize) {
     assert!(!ctrl.vias_allowed, "ctrl viasAllowed");
     assert_eq!(ctrl.trace_clearance_class_index, 1, "ctrl clearanceClass");
     assert_eq!(ctrl.max_shove_trace_recursion_depth, 20, "ctrl maxShove");
-    assert_eq!(ctrl.max_shove_via_recursion_depth, 5, "ctrl maxShoveVia");
+    // M11-T3 rotation (2026-10-03, #931 cluster B): the depths rise
+    // 5 -> 8 upstream; the Java-pre capture carried 5.
+    assert_eq!(ctrl.max_shove_via_recursion_depth, 8, "ctrl maxShoveVia");
     assert_eq!(
         ctrl.compensated_trace_half_width,
         [11250, 11250],

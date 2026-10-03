@@ -10245,3 +10245,18 @@ description: chronological action log per session, consolidated weekly
 | 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t2.txt | — | ~352 |
 | 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t6fix.txt | — | ~232 |
 | 22:12 | Created logs/readiness-2026-10-01/export-msg-m11t2rot.txt | — | ~171 |
+| 22:27 | Edited rust/crates/epic-drc/src/clearance.rs | modified exemptions() | ~465 |
+| 22:27 | Edited rust/crates/epic-drc/src/clearance.rs | pins() → components() | ~187 |
+| 22:28 | Edited rust/crates/epic-drc/src/clearance.rs | 10→13 lines | ~218 |
+| 22:28 | Edited rust/crates/epic-drc/src/clearance.rs | 3→4 lines | ~70 |
+| 22:28 | Edited rust/crates/epic-drc/src/clearance.rs | 5→6 lines | ~112 |
+| 22:28 | Edited rust/crates/epic-drc/src/clearance.rs | 2→2 lines | ~32 |
+| 22:28 | Edited rust/crates/epic-drc/src/clearance.rs | "SAME-net pins of ONE comp" → "SAME-net pins are exempt " | ~30 |
+| 22:28 | Edited rust/crates/epic-board/src/components.rs | modified base_pin_name() | ~359 |
+| 22:28 | Edited rust/crates/epic-board/src/components.rs | expanded (+6 lines) | ~137 |
+| 22:28 | Edited rust/crates/epic-board/src/rules_surf.rs | obstacles() → pins() | ~195 |
+| 22:30 | Created logs/readiness-2026-10-01/m11t7-commit-msg.txt | — | ~366 |
+| 22:30 | Created logs/readiness-2026-10-01/export-msg-m11t7.txt | — | ~291 |
+| 22:53 | Edited rust/crates/epic-cli/src/route.rs | modified min_stair_tuning_input_violation_pair_is_named() | ~831 |
+| 22:54 | Edited logs/readiness-2026-10-01/m11t7-commit-msg.txt | expanded (+8 lines) | ~238 |
+| 22:54 | Edited logs/readiness-2026-10-01/export-msg-m11t7.txt | 5→9 lines | ~119 |

@@ -3628,18 +3628,33 @@ mod tests {
         );
         // The count components are exact on both sides.
         assert_eq!(stats.vias.total_count, 1, "jar: vias 1");
-        assert_eq!(stats.bends.total_count, 21, "jar: bends 21");
+        // M11-T3 rotation (2026-10-03, #931 cluster B): the widened
+        // SMD attach gate (`pureSmdNet` -> `hasSmdPin` + the ViaMask
+        // rebuild) and the shove depths 5->8 move this board's
+        // optimizer face by exactly one bend (22 vs the jar's 21 —
+        // the jar is pre-#931 and cannot carry the port). The parked
+        // T4 world (cluster F) measured 23 on the same cell with a
+        // ~2.5 mm shorter route; this literal follows the T3-ONLY
+        // routed face and will be superseded when T4 lands.
+        assert_eq!(
+            stats.bends.total_count, 22,
+            "the T3 attach face (jar anchors 21)"
+        );
         assert_eq!(
             stats.difficulty.difficulty_d,
             Some(80.0),
             "jar: difficulty D 80"
         );
-        // The length face drifts by the routed-geometry delta (jar
-        // renders 94.96); bound it at 0.1 mm.
+        // The length face: same M11-T3 rotation as the bends cell
+        // above — the widened attach gate + depth-8 shoves find a
+        // ~2.4 mm SHORTER route (92.577 mm vs the jar's 94.96; the
+        // parked T4 world measured 92.43). The jar anchor stays the
+        // committed bm08-noopt manifest; this literal follows the
+        // routed T3 face, bounded at 0.1 mm.
         let length_mm = stats.traces.total_length_mm.expect("length present");
         assert!(
-            (f64::from(length_mm) - 94.96).abs() <= 0.1,
-            "routed trace length within 0.1 mm of the jar face: {length_mm}"
+            (f64::from(length_mm) - 92.577).abs() <= 0.1,
+            "routed trace length within 0.1 mm of the T3 face: {length_mm}"
         );
         // The score's lower-bound input on this same board is pinned
         // raw-bits-exact at the parse face (bounds module, bm08 pins).
