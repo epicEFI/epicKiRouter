@@ -4086,5 +4086,21 @@
    "M11-T3",
    "global-golden-adjacent"
   ]
+ },
+ {
+  "id": 258,
+  "date": "2026-10-03",
+  "error_message": "#933 survivor-1 port (fanout retry-skip, upstream 339e8bb50): failed fanout pins were re-attempted EVERY pass even when nothing in their component had changed since the failure \u2014 deterministic maze re-fail churn (the pre-port DRC-world witness: a reverted escape re-attempted and re-reverted every pass; on bm06 the churn held the board at 1/986.39)",
+  "root_cause": "Java BatchFanout pre-#933 semantics: no failure memory across passes. Upstream added failedPinGeneration (pin -> component escape count AT FAILURE TIME, recorded on FAILED/INSERT_ERROR) + componentGeneration (escapes, bumped only on ROUTED); retryFanout = failedGen == null || failedGen != currentGen \u2014 a failed pin retries only after its OWN component escaped another pin since (the local world changed).",
+  "fix": "LANDED 2026-10-03 (epic/main 6d7d8a6c6, export 6c21b52d8): the two maps in FanoutState (cross-pass, the Java fields), the silent skip arm between the via gate and pin_start (--pins_to_go; continue, no trace row), bumps/records in ROUTED/FAILED/INSERT_ERROR, retry_fanout pure fn 1:1. Pins: truth table + end-to-end BOTH-ARMS witness (CMP1-P1 retried after sibling escape; CMP3-P1 one-pin component skipped). Battery: census 42/1781/0/19 EXACT (declared projection; 1779+2), 8 compares green, 7 gv faces byte-stable (incl. bm08 fanout face + iu pathfinder) \u2014 ZERO rotations; tierA 11/0 794.1s with bm06 IMPROVED 1/986.39 -> 0/1000.00 (8 passes), attributed by tree delta; det1/threads/fmt/clippy green.",
+  "tags": [
+   "upstream-port",
+   "#933",
+   "fanout",
+   "retry-skip",
+   "generation-maps",
+   "tier2",
+   "landed"
+  ]
  }
 ]
