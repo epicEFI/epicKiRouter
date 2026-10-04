@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T14:02:56.524Z",
-    "fileCount": 836,
+    "lastScanned": "2026-10-04T16:15:41.331Z",
+    "fileCount": 844,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "a50ccee132dcb6e7d72a39cfd559cb9f4c51f1eabb407b17a664241e804c9b5e",
-    "storeUpdatedAt": "2026-10-04T14:02:56.533Z",
-    "rootHash": "f09c303d8f6ebe4a"
+    "renderedHash": "0e07c413926018bb24ca4a0b7d6c7727e3dfa868e8496c11f437c357a7de149e",
+    "storeUpdatedAt": "2026-10-04T16:15:41.340Z",
+    "rootHash": "562eafbee7c331a8"
   },
   "files": {
     ".dockerignore": {
@@ -6756,11 +6756,11 @@
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 61015,
-      "hash": "2fbd13a4d8cb2aa7",
-      "size": 229307,
-      "mtimeMs": 1791119214708.1504,
-      "updatedAt": "2026-10-04T13:06:54.819Z",
+      "tokens": 61239,
+      "hash": "c7a8825b96c9880e",
+      "size": 230151,
+      "mtimeMs": 1791127282908.0361,
+      "updatedAt": "2026-10-04T15:21:23.020Z",
       "source": "hook",
       "symbols": [
         {
@@ -6970,8 +6970,8 @@
           "name": "ManifestCurrentWidth",
           "kind": "class",
           "startLine": 720,
-          "endLine": 5117,
-          "tokens": 56542
+          "endLine": 5134,
+          "tokens": 56782
         }
       ]
     },
@@ -14622,54 +14622,68 @@
     },
     "rust/crates/epic-drc/src/zone_islands.rs": {
       "description": "The 152-G zone-island DRC face (upstream `3011e6e60` +",
-      "tokens": 4196,
-      "hash": "bd2862fc60304fe3",
-      "size": 15808,
-      "mtimeMs": 1791119199941.0906,
-      "updatedAt": "2026-10-04T13:06:40.048Z",
+      "tokens": 7024,
+      "hash": "826c06adef1a30bf",
+      "size": 26438,
+      "mtimeMs": 1791127237436.812,
+      "updatedAt": "2026-10-04T15:20:37.545Z",
       "source": "hook",
       "symbols": [
         {
           "name": "ZoneIslandKind",
           "kind": "class",
-          "startLine": 51,
-          "endLine": 57,
-          "tokens": 64
+          "startLine": 77,
+          "endLine": 88,
+          "tokens": 141
         },
         {
           "name": "ZoneIslandKind",
           "kind": "section",
-          "startLine": 58,
-          "endLine": 69,
-          "tokens": 118
+          "startLine": 89,
+          "endLine": 101,
+          "tokens": 114
         },
         {
           "name": "ZoneIslandViolation",
           "kind": "class",
-          "startLine": 70,
-          "endLine": 100,
-          "tokens": 391
+          "startLine": 102,
+          "endLine": 135,
+          "tokens": 413
         },
         {
           "name": "zone_island_violations",
           "kind": "fn",
-          "startLine": 101,
-          "endLine": 136,
-          "tokens": 400
+          "startLine": 136,
+          "endLine": 191,
+          "tokens": 706
+        },
+        {
+          "name": "zone_island_unconnected_violations",
+          "kind": "fn",
+          "startLine": 192,
+          "endLine": 253,
+          "tokens": 676
         },
         {
           "name": "layer_name",
           "kind": "fn",
-          "startLine": 137,
-          "endLine": 149,
+          "startLine": 254,
+          "endLine": 266,
           "tokens": 136
         },
         {
           "name": "format_dead_copper_warning",
           "kind": "fn",
-          "startLine": 150,
-          "endLine": 375,
-          "tokens": 2630
+          "startLine": 267,
+          "endLine": 299,
+          "tokens": 381
+        },
+        {
+          "name": "format_unconnected_warning",
+          "kind": "fn",
+          "startLine": 300,
+          "endLine": 616,
+          "tokens": 3808
         }
       ]
     },
@@ -14698,6 +14712,299 @@
       "size": 2243,
       "mtimeMs": 1791122576415.959,
       "updatedAt": "2026-10-04T14:02:56.523Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/152h-recon.md": {
+      "description": "152-H — the `isolated_island_unconnected` arm (closing 152-G's documented divergence)",
+      "tokens": 1366,
+      "hash": "c57fe76853f9f919",
+      "size": 5520,
+      "mtimeMs": 1791127307030.1553,
+      "updatedAt": "2026-10-04T15:21:47.135Z",
+      "source": "hook"
+    },
+    "rust/harness/fixtures/island-spike/t11_island_severed.dsn": {
+      "description": "Declares signal",
+      "tokens": 394,
+      "hash": "bc6212227a86a272",
+      "size": 1477,
+      "mtimeMs": 1791126846590.7815,
+      "updatedAt": "2026-10-04T15:14:06.696Z",
+      "source": "hook"
+    },
+    "rust/harness/fixtures/island-spike/t11_island_bridged.dsn": {
+      "description": "Declares signal",
+      "tokens": 423,
+      "hash": "698155f2b38c34e8",
+      "size": 1584,
+      "mtimeMs": 1791126850252.8008,
+      "updatedAt": "2026-10-04T15:14:10.355Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/islands.rs": {
+      "description": "Pour-island detection — the M6-T6 BEYOND-JAVA advisory face (design",
+      "tokens": 15801,
+      "hash": "1072529655bb7015",
+      "size": 59338,
+      "mtimeMs": 1791127369642.4644,
+      "updatedAt": "2026-10-04T15:22:49.750Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "Island",
+          "kind": "class",
+          "startLine": 88,
+          "endLine": 109,
+          "tokens": 233
+        },
+        {
+          "name": "RegionSeeds",
+          "kind": "class",
+          "startLine": 110,
+          "endLine": 126,
+          "tokens": 158
+        },
+        {
+          "name": "PourIslands",
+          "kind": "class",
+          "startLine": 127,
+          "endLine": 159,
+          "tokens": 412
+        },
+        {
+          "name": "int_box_row_interval",
+          "kind": "fn",
+          "startLine": 160,
+          "endLine": 170,
+          "tokens": 128
+        },
+        {
+          "name": "int_octagon_row_interval",
+          "kind": "fn",
+          "startLine": 171,
+          "endLine": 197,
+          "tokens": 346
+        },
+        {
+          "name": "Corner",
+          "kind": "class",
+          "startLine": 198,
+          "endLine": 205,
+          "tokens": 25
+        },
+        {
+          "name": "flatten_corner",
+          "kind": "fn",
+          "startLine": 206,
+          "endLine": 230,
+          "tokens": 201
+        },
+        {
+          "name": "Rational",
+          "kind": "class",
+          "startLine": 231,
+          "endLine": 235,
+          "tokens": 15
+        },
+        {
+          "name": "Rational",
+          "kind": "section",
+          "startLine": 236,
+          "endLine": 261,
+          "tokens": 338
+        },
+        {
+          "name": "polygon_row_intervals",
+          "kind": "fn",
+          "startLine": 262,
+          "endLine": 339,
+          "tokens": 805
+        },
+        {
+          "name": "polygon_shape_row_intervals",
+          "kind": "fn",
+          "startLine": 340,
+          "endLine": 351,
+          "tokens": 129
+        },
+        {
+          "name": "simplex_row_intervals",
+          "kind": "fn",
+          "startLine": 352,
+          "endLine": 363,
+          "tokens": 134
+        },
+        {
+          "name": "circle_row_interval",
+          "kind": "fn",
+          "startLine": 364,
+          "endLine": 375,
+          "tokens": 121
+        },
+        {
+          "name": "shape_row_intervals",
+          "kind": "fn",
+          "startLine": 376,
+          "endLine": 394,
+          "tokens": 281
+        },
+        {
+          "name": "area_row_intervals",
+          "kind": "fn",
+          "startLine": 395,
+          "endLine": 410,
+          "tokens": 161
+        },
+        {
+          "name": "subtract_interval",
+          "kind": "fn",
+          "startLine": 411,
+          "endLine": 429,
+          "tokens": 147
+        },
+        {
+          "name": "subtract_intervals",
+          "kind": "fn",
+          "startLine": 430,
+          "endLine": 441,
+          "tokens": 132
+        },
+        {
+          "name": "trace_row_intervals",
+          "kind": "fn",
+          "startLine": 442,
+          "endLine": 484,
+          "tokens": 520
+        },
+        {
+          "name": "CopperSource",
+          "kind": "class",
+          "startLine": 485,
+          "endLine": 502,
+          "tokens": 174
+        },
+        {
+          "name": "SourceShapes",
+          "kind": "class",
+          "startLine": 503,
+          "endLine": 515,
+          "tokens": 83
+        },
+        {
+          "name": "CopperSource",
+          "kind": "section",
+          "startLine": 516,
+          "endLine": 538,
+          "tokens": 197
+        },
+        {
+          "name": "shape_bbox",
+          "kind": "fn",
+          "startLine": 539,
+          "endLine": 555,
+          "tokens": 196
+        },
+        {
+          "name": "drill_shapes_on_layer",
+          "kind": "fn",
+          "startLine": 556,
+          "endLine": 574,
+          "tokens": 171
+        },
+        {
+          "name": "is_same_net",
+          "kind": "fn",
+          "startLine": 575,
+          "endLine": 585,
+          "tokens": 160
+        },
+        {
+          "name": "copper_sources",
+          "kind": "fn",
+          "startLine": 586,
+          "endLine": 653,
+          "tokens": 665
+        },
+        {
+          "name": "trace_source",
+          "kind": "fn",
+          "startLine": 654,
+          "endLine": 681,
+          "tokens": 270
+        },
+        {
+          "name": "area_source",
+          "kind": "fn",
+          "startLine": 682,
+          "endLine": 686,
+          "tokens": 54
+        },
+        {
+          "name": "drill_source",
+          "kind": "fn",
+          "startLine": 687,
+          "endLine": 691,
+          "tokens": 54
+        },
+        {
+          "name": "build_source",
+          "kind": "fn",
+          "startLine": 692,
+          "endLine": 732,
+          "tokens": 374
+        },
+        {
+          "name": "Uf",
+          "kind": "class",
+          "startLine": 733,
+          "endLine": 1574,
+          "tokens": 8892
+        }
+      ]
+    },
+    "rust/harness/src/islands_face.rs": {
+      "description": "The M6-T6 pour-island detector face (advisory, java-free): parse the",
+      "tokens": 755,
+      "hash": "e2eb15bb4b81d883",
+      "size": 2833,
+      "mtimeMs": 1791127298748.1143,
+      "updatedAt": "2026-10-04T15:21:38.851Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "run",
+          "kind": "fn",
+          "startLine": 17,
+          "endLine": 81,
+          "tokens": 625
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/run_gates_152h.sh": {
+      "description": "152-H isolated_island_unconnected landing battery (2026-10-04)",
+      "tokens": 1603,
+      "hash": "12af362dc5ab853f",
+      "size": 6013,
+      "mtimeMs": 1791127408416.656,
+      "updatedAt": "2026-10-04T15:23:28.524Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/buglog268.py": {
+      "description": "Declares not",
+      "tokens": 1026,
+      "hash": "cafb92022b567c38",
+      "size": 3608,
+      "mtimeMs": 1791130541230.938,
+      "updatedAt": "2026-10-04T16:15:41.331Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/152h-commit-msg.txt": {
+      "description": "Declares zone",
+      "tokens": 556,
+      "hash": "7a20bdf0f0b52f84",
+      "size": 2236,
+      "mtimeMs": 1791127464094.9316,
+      "updatedAt": "2026-10-04T15:24:24.200Z",
       "source": "hook"
     }
   },

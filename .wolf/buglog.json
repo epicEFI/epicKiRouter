@@ -4262,5 +4262,23 @@
       "zero-golden-exposure",
       "intake-S-add-on"
     ]
+  },
+  {
+    "id": 268,
+    "date": "2026-10-04",
+    "error_message": "152-H isolated_island_unconnected ERROR class not ported: a seeded region of a fragmented pour severed from the primary region through EVERY layer (only vias/traces could bridge, pours severed) never surfaced as a violation \u2014 the divergence 152-G documented as 'needs Java's per-item getConnectedSet walk'",
+    "root_cause": "Upstream 3011e6e60's unconnected arm walks the primary island's representative through getConnectedSet(net, stopAtPlane=TRUE) \u2014 component-less conduction areas severed by the walk \u2014 and reports every other seeded island whose items ALL fall outside that set (severity error; d0d876e30 renders the sentence and folds net numbers into the KiCad-report summary count). 152-G called it not portable at S scope because our detector had no per-region item attribution; recon proved every primitive exists (epic_board::contacts::item_connected_set_stopping_at_plane = the exact 2-arg overload; the M6-T6 seed machinery) \u2014 only the attribution face was missing.",
+    "fix": "epic-board islands: CopperSource.item attribution \u2014 merged per-row seed_cuts lose per-source identity, recovered by intersecting each seed source's raw covered(y) intervals with the FINAL obstacle-carved seed nodes, then mapping uf roots to per-region BTreeSet<u32>; PourIslands.net_number + region_seeds (every METAL region in canonical scan order, items ascending/dedup, items-nonempty iff seeded). digest_input UNTOUCHED (geometry rows only \u2014 every existing pour digest byte-stable, corpus/events compares the witnesses). epic-drc zone_islands: ZoneIslandKind::Unconnected + ZoneIslandViolation.items + zone_island_unconnected_violations (first-max primary in scan order, rep = primary's first item, ONE walk per pour) + format_unconnected_warning (upstream sentence verbatim, 'Design Error:' header). CLI: second stderr block at the hoisted pour-telemetry site \u2014 the dead-copper warning String materialized BEFORE the &mut board walk (borrow order). Divergences documented in-module: lattice-union region claiming vs upstream center mapping (fires strictly less often; a firing is a severance real in ANY same-layer topology \u2014 never a center-mapping false positive), ascending-id representative (deterministic; upstream getItems() walk order), reporting-only wiring (no score/count face reads it). Fixtures t11_island_severed/t11_island_bridged: IDENTICAL F.Cu partitions + attribution (same digest), the control's through-hole pads + B.Cu PLANE wire visible ONLY to the walk \u2014 the stop-at-plane control. Pins +5 (2 epic-board world incl. net_number lookup + items-empty==island_count invariant, 3 epic-drc), 5/5 first-try green. Commit 4de7509da, export 8e5e81e5a (parent b2e75dcad) pushed. Battery 26/26 exit=0; census 42/1827/0/19 = declared projection reconciled per-component (epic-board 394->396, epic-drc 37->40); tierA law exact (bm06 0/1000.00, bm11 1/991.67, bm07 0/1000); 7 gv faces byte-stable ZERO rotations.",
+    "tags": [
+      "152-H",
+      "3011e6e60",
+      "d0d876e30",
+      "zone-islands",
+      "isolated-island-unconnected",
+      "stop-at-plane",
+      "attribution",
+      "derive-then-pin",
+      "zero-golden-exposure"
+    ]
   }
 ]

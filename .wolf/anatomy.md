@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T14:02:56.524Z
-> Files: 836 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T16:15:41.331Z
+> Files: 844 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -782,6 +782,8 @@
 - `152b-commit-msg.txt` (~1141 tok)
 - `152g-commit-msg.txt` — Declares is (~989 tok)
 - `152g-recon.md` — 152-G recon — zone-island DRC surfacing (2026-10-04) (~736 tok)
+- `152h-commit-msg.txt` — Declares zone (~556 tok)
+- `152h-recon.md` — 152-H — the `isolated_island_unconnected` arm (closing 152-G's documented divergence) (~1366 tok)
 - `885-commit-msg.txt` (~1397 tok)
 - `930-commit-msg.txt` — Declares fidelity (~882 tok)
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
@@ -790,6 +792,7 @@
 - `933s3-commit-msg.txt` (~893 tok)
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
 - `buglog267.py` — Declares needs (~640 tok)
+- `buglog268.py` — Declares not (~1026 tok)
 - `cgrid-commit-msg.txt` (~1153 tok)
 - `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
 - `congestion-grid-recon.md` — Congestion-grid outline-interior recouple — RECON (2026-10-03, post-#885) (~1096 tok)
@@ -860,6 +863,7 @@
 - `run_gates_152a.sh` — #152 COMMIT A landing battery (2026-10-03) — heuristic relaxation (~1459 tok)
 - `run_gates_152b.sh` — #152 COMMIT B landing battery (2026-10-03) — the d0d876e30 (~1490 tok)
 - `run_gates_152g.sh` — 152-G zone-island DRC surfacing landing battery (2026-10-04) (~1433 tok)
+- `run_gates_152h.sh` — 152-H isolated_island_unconnected landing battery (2026-10-04) (~1603 tok)
 - `run_gates_885.sh` — #885 per-layer costs landing battery (2026-10-03) — upstream c32625e0f, (~1452 tok)
 - `run_gates_930.sh` — #930 unfixable/category DRC reporting landing battery (2026-10-04) (~1436 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
@@ -916,6 +920,7 @@
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
 - `board.rs` — The live board: the item arena, the id generator, and the (~35805 tok)
 - `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24645 tok)
+- `islands.rs` — Pour-island detection — the M6-T6 BEYOND-JAVA advisory face (design (~15801 tok)
 - `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~753 tok)
 - `plane_obstacle.rs` — Upstream #152 (PR #889): the `planeAsObstacle` board face. (~1901 tok)
 - `routing_ledger.rs` — Java `NetRoutingLedger` (#933, upstream 339e8bb50 — "Speed up (~3120 tok)
@@ -945,7 +950,7 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2346 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~61015 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~61239 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -963,7 +968,7 @@
 - `lib.rs` — The two counts every M3 quality gate consumes — incomplete (~416 tok)
 - `routing_ledger.rs` — The #933 survivor-3 recount driver (upstream 339e8bb50, Java (~4835 tok)
 - `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~3090 tok)
-- `zone_islands.rs` — The 152-G zone-island DRC face (upstream `3011e6e60` + (~4196 tok)
+- `zone_islands.rs` — The 152-G zone-island DRC face (upstream `3011e6e60` + (~7024 tok)
 
 ## rust/crates/epic-dsn/src/
 
@@ -1085,6 +1090,11 @@
 - `g1_far_keepout.dsn` — Declares signal (~357 tok)
 - `g5_mixedlayer.dsn` — Declares signal (~377 tok)
 
+## rust/harness/fixtures/island-spike/
+
+- `t11_island_bridged.dsn` — Declares signal (~423 tok)
+- `t11_island_severed.dsn` — Declares signal (~394 tok)
+
 ## rust/harness/fixtures/p3/
 
 - `p3-pinpair.dsn` — Declares signal (~164 tok)
@@ -1105,6 +1115,7 @@
 - `drc_corpus.rs` — DRC parity corpus (M3 Task 2): the two counts every M3 quality gate (~11685 tok)
 - `dsn_corpus.rs` — /*.dsn` lexicographic; dedup by path across the two (~18880 tok)
 - `global_golden.rs` — The M6-T7 settings-ON golden face (`epic-harness global-golden`) — (~4460 tok)
+- `islands_face.rs` — The M6-T6 pour-island detector face (advisory, java-free): parse the (~755 tok)
 - `oracle.rs` — `, the corpus dirs, events-golden, (~8438 tok)
 - `route_events.rs` — Route event-stream corpus (M3 Task 16) — the maze-level (~32655 tok)
 - `router_compare.rs` — Router quality scoreboard (M3 Task 15): DIRECTIONAL compare gates for (~51671 tok)
