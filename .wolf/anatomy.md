@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-03T22:17:27.307Z
-> Files: 812 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T00:34:24.770Z
+> Files: 818 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -778,6 +778,7 @@
 
 ## logs/readiness-2026-10-01/
 
+- `152a-commit-msg.txt` (~1131 tok)
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
 - `933s1-commit-msg.txt` (~667 tok)
 - `933s2-commit-msg.txt` (~898 tok)
@@ -847,6 +848,7 @@
 - `rotate_gv_t3only.sh` — M11-T3-ONLY gv golden rotations (the two drifted faces; the other (~609 tok)
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
+- `run_gates_152a.sh` — #152 COMMIT A landing battery (2026-10-03) — heuristic relaxation (~1459 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
 - `run_gates_933s2.sh` — #933 SURVIVOR-2 landing battery (2026-10-03) — the last-mile (~1212 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
@@ -900,7 +902,8 @@
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
 - `board.rs` — The live board: the item arena, the id generator, and the (~34990 tok)
 - `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24645 tok)
-- `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~747 tok)
+- `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~753 tok)
+- `plane_obstacle.rs` — Upstream #152 (PR #889): the `planeAsObstacle` board face. (~1901 tok)
 - `routing_ledger.rs` — Java `NetRoutingLedger` (#933, upstream 339e8bb50 — "Speed up (~3120 tok)
 - `rules_surf.rs` — The rules READ surface (M2 Task 3): the clearance matrix, the net (~18076 tok)
 - `shape_trace_entries.rs` — The shove substrate: which obstacles sit in a shape, which trace (~29177 tok)
@@ -927,8 +930,8 @@
 
 ## rust/crates/epic-cli/src/
 
-- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2327 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~56724 tok)
+- `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2346 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~57079 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -946,20 +949,26 @@
 - `routing_ledger.rs` — The #933 survivor-3 recount driver (upstream 339e8bb50, Java (~4835 tok)
 - `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~2802 tok)
 
+## rust/crates/epic-dsn/src/
+
+- `reader.rs` — Port of `io.specctra.DsnReader` (`DsnReader.java`) — the read (~11995 tok)
+- `ses_board.rs` — The parse-derivable mini board model (plan decision D9): (~26601 tok)
+
 ## rust/crates/epic-dsn/src/scope/
 
-- `structure.rs` — The `(structure ...)` scope reader: the port of (~31657 tok)
+- `structure.rs` — The `(structure ...)` scope reader: the port of (~33376 tok)
 
 ## rust/crates/epic-engine/src/
 
 - `current_width.rs` — The F2 current-driven trace-width core: the IPC-2221B closed-form (~7142 tok)
 - `drc_tolerance.rs` — The #925a DRC clearance-tolerance apply face (upstream (~848 tok)
 - `interview.rs` — F4: the pre-route interview — constraint inference from the board (~4966 tok)
-- `lib.rs` — The headless application core: jobs, the layered settings (~754 tok)
+- `lib.rs` — The headless application core: jobs, the layered settings (~759 tok)
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
+- `plane_nets.rs` — Upstream #152 (PR #889, d9694ab82): the `planeNets` override. (~1644 tok)
 - `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~15950 tok)
-- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~63469 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~16231 tok)
+- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~65091 tok)
 
 ## rust/crates/epic-engine/tests/
 

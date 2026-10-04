@@ -1145,9 +1145,11 @@ mod tests {
             "without the plane flag the CA qualifies: {plain_queue:?}"
         );
         let debug = sink.joined("debug");
+        // #152 commit B rotation (2026-10-03, upstream d0d876e30):
+        // the queue row gained the `plane: false` field.
         assert!(
             debug.contains(
-                "Queuing item for routing: ConductionArea on net 'N093' (connected: 2/3)"
+                "Queuing item for routing: ConductionArea on net 'N093' (connected: 2/3, plane: false)"
             ),
             "the CA queue row (CA + pin of 3 connectables): {debug}"
         );
