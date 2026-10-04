@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-03T20:44:24.928Z",
-    "fileCount": 806,
+    "lastScanned": "2026-10-03T22:17:27.307Z",
+    "fileCount": 812,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "04b16585a679e3d85cdb439e200ecaf2b2faea6db95058ea6e2f4ea240bce5d5",
-    "storeUpdatedAt": "2026-10-03T20:44:24.939Z",
-    "rootHash": "53f90a989b7ea6f7"
+    "renderedHash": "a71d635f8c7c714de16ab63c38ffb964825ecfd357438e4182bfb419aac12e58",
+    "storeUpdatedAt": "2026-10-03T22:17:27.325Z",
+    "rootHash": "24288a851cab5ea5"
   },
   "files": {
     ".dockerignore": {
@@ -7032,11 +7032,11 @@
     },
     "rust/crates/epic-router/src/pipeline/batch.rs": {
       "description": "Java `autoroute/pipeline/BatchAutorouter.java` +",
-      "tokens": 28160,
-      "hash": "76e6312eb455439b",
-      "size": 105902,
-      "mtimeMs": 1791060165162.9155,
-      "updatedAt": "2026-10-03T20:42:45.286Z",
+      "tokens": 28411,
+      "hash": "9fc3e5f1495d56ad",
+      "size": 106845,
+      "mtimeMs": 1791065581323.944,
+      "updatedAt": "2026-10-03T22:13:01.431Z",
       "source": "hook",
       "symbols": [
         {
@@ -7134,57 +7134,57 @@
           "name": "BatchDriver",
           "kind": "section",
           "startLine": 694,
-          "endLine": 1299,
-          "tokens": 8707
+          "endLine": 1302,
+          "tokens": 8765
         },
         {
           "name": "calculate_incomplete_count",
           "kind": "fn",
-          "startLine": 1300,
-          "endLine": 1320,
-          "tokens": 339
+          "startLine": 1303,
+          "endLine": 1321,
+          "tokens": 303
         },
         {
           "name": "remove_tails",
           "kind": "fn",
-          "startLine": 1321,
-          "endLine": 1356,
+          "startLine": 1322,
+          "endLine": 1357,
           "tokens": 324
         },
         {
           "name": "format_score",
           "kind": "fn",
-          "startLine": 1357,
-          "endLine": 1374,
+          "startLine": 1358,
+          "endLine": 1375,
           "tokens": 261
         },
         {
           "name": "get_autoroute_items",
           "kind": "fn",
-          "startLine": 1375,
-          "endLine": 1465,
+          "startLine": 1376,
+          "endLine": 1466,
           "tokens": 1057
         },
         {
           "name": "java_simple_name",
           "kind": "fn",
-          "startLine": 1466,
-          "endLine": 1479,
+          "startLine": 1467,
+          "endLine": 1480,
           "tokens": 167
         },
         {
           "name": "build_unrouted_connections_report",
           "kind": "fn",
-          "startLine": 1480,
-          "endLine": 1517,
+          "startLine": 1481,
+          "endLine": 1518,
           "tokens": 396
         },
         {
           "name": "describe_item",
           "kind": "fn",
-          "startLine": 1518,
-          "endLine": 2253,
-          "tokens": 9370
+          "startLine": 1519,
+          "endLine": 2275,
+          "tokens": 9616
         }
       ]
     },
@@ -9173,11 +9173,11 @@
     },
     "rust/crates/epic-board/src/board.rs": {
       "description": "The live board: the item arena, the id generator, and the",
-      "tokens": 33866,
-      "hash": "77d35b2091f6de3e",
-      "size": 127384,
-      "mtimeMs": 1790996993932.5776,
-      "updatedAt": "2026-10-03T03:09:54.041Z",
+      "tokens": 34990,
+      "hash": "5861926578f45ad4",
+      "size": 131619,
+      "mtimeMs": 1791065662836.2808,
+      "updatedAt": "2026-10-03T22:14:22.948Z",
       "source": "hook",
       "symbols": [
         {
@@ -9233,63 +9233,63 @@
           "name": "Board",
           "kind": "class",
           "startLine": 172,
-          "endLine": 309,
-          "tokens": 2343
+          "endLine": 322,
+          "tokens": 2560
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 310,
-          "endLine": 1836,
-          "tokens": 19276
+          "startLine": 323,
+          "endLine": 1918,
+          "tokens": 20263
         },
         {
           "name": "convert_item",
           "kind": "fn",
-          "startLine": 1837,
-          "endLine": 1967,
+          "startLine": 1919,
+          "endLine": 2049,
           "tokens": 1575
         },
         {
           "name": "fixed_from_ir",
           "kind": "fn",
-          "startLine": 1968,
-          "endLine": 1981,
+          "startLine": 2050,
+          "endLine": 2063,
           "tokens": 172
         },
         {
           "name": "obstacle_kind_from_ir",
           "kind": "fn",
-          "startLine": 1982,
-          "endLine": 1992,
+          "startLine": 2064,
+          "endLine": 2074,
           "tokens": 140
         },
         {
           "name": "board_shape_from_ir",
           "kind": "fn",
-          "startLine": 1993,
-          "endLine": 2001,
+          "startLine": 2075,
+          "endLine": 2083,
           "tokens": 111
         },
         {
           "name": "area_from_ir",
           "kind": "fn",
-          "startLine": 2002,
-          "endLine": 2008,
+          "startLine": 2084,
+          "endLine": 2090,
           "tokens": 52
         },
         {
           "name": "ItemEntry",
           "kind": "section",
-          "startLine": 2009,
-          "endLine": 2029,
+          "startLine": 2091,
+          "endLine": 2111,
           "tokens": 253
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 2030,
-          "endLine": 2931,
+          "startLine": 2112,
+          "endLine": 3013,
           "tokens": 10417
         }
       ]
@@ -13948,6 +13948,276 @@
       "size": 3616,
       "mtimeMs": 1791060264817.2515,
       "updatedAt": "2026-10-03T20:44:24.928Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-board/src/routing_ledger.rs": {
+      "description": "Java `NetRoutingLedger` (#933, upstream 339e8bb50 — \"Speed up",
+      "tokens": 3120,
+      "hash": "9552d566a5ac0669",
+      "size": 11752,
+      "mtimeMs": 1791065183068.3066,
+      "updatedAt": "2026-10-03T22:06:23.173Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "RoutingLedgerCore",
+          "kind": "class",
+          "startLine": 56,
+          "endLine": 88,
+          "tokens": 442
+        },
+        {
+          "name": "RoutingLedgerCore",
+          "kind": "section",
+          "startLine": 89,
+          "endLine": 172,
+          "tokens": 861
+        },
+        {
+          "name": "is_ledger_kind",
+          "kind": "fn",
+          "startLine": 173,
+          "endLine": 183,
+          "tokens": 120
+        },
+        {
+          "name": "net_in_bounds",
+          "kind": "fn",
+          "startLine": 184,
+          "endLine": 291,
+          "tokens": 1090
+        }
+      ]
+    },
+    "rust/crates/epic-board/src/lib.rs": {
+      "description": "Board model: items, ids, undo, rules, layers, components (M2). The",
+      "tokens": 747,
+      "hash": "ad4d7b1c59b28a45",
+      "size": 2812,
+      "mtimeMs": 1791065172138.262,
+      "updatedAt": "2026-10-03T22:06:12.232Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-drc/src/routing_ledger.rs": {
+      "description": "The #933 survivor-3 recount driver (upstream 339e8bb50, Java",
+      "tokens": 4835,
+      "hash": "b52ab9fec56a3ef6",
+      "size": 18172,
+      "mtimeMs": 1791065759489.6807,
+      "updatedAt": "2026-10-03T22:15:59.586Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "incomplete_count",
+          "kind": "fn",
+          "startLine": 45,
+          "endLine": 53,
+          "tokens": 99
+        },
+        {
+          "name": "incomplete_net_numbers",
+          "kind": "fn",
+          "startLine": 54,
+          "endLine": 63,
+          "tokens": 122
+        },
+        {
+          "name": "maximum_connections",
+          "kind": "fn",
+          "startLine": 64,
+          "endLine": 74,
+          "tokens": 129
+        },
+        {
+          "name": "with_core",
+          "kind": "fn",
+          "startLine": 75,
+          "endLine": 88,
+          "tokens": 144
+        },
+        {
+          "name": "ensure_built",
+          "kind": "fn",
+          "startLine": 89,
+          "endLine": 115,
+          "tokens": 292
+        },
+        {
+          "name": "flush",
+          "kind": "fn",
+          "startLine": 116,
+          "endLine": 138,
+          "tokens": 285
+        },
+        {
+          "name": "recount",
+          "kind": "fn",
+          "startLine": 139,
+          "endLine": 153,
+          "tokens": 107
+        },
+        {
+          "name": "max_i32",
+          "kind": "fn",
+          "startLine": 154,
+          "endLine": 445,
+          "tokens": 3392
+        }
+      ]
+    },
+    "rust/crates/epic-drc/src/lib.rs": {
+      "description": "The two counts every M3 quality gate consumes — incomplete",
+      "tokens": 357,
+      "hash": "44d7f7879659e085",
+      "size": 1354,
+      "mtimeMs": 1791065394854.1755,
+      "updatedAt": "2026-10-03T22:09:54.952Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-router/src/pipeline/board_statistics.rs": {
+      "description": "Java `core/scoring/BoardStatistics.java` — the board counting walk",
+      "tokens": 22856,
+      "hash": "0e52efe431914556",
+      "size": 85958,
+      "mtimeMs": 1791065573196.9106,
+      "updatedAt": "2026-10-03T22:12:53.304Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "RouterScoringVersion",
+          "kind": "class",
+          "startLine": 79,
+          "endLine": 88,
+          "tokens": 107
+        },
+        {
+          "name": "RoutingCostSettings",
+          "kind": "class",
+          "startLine": 89,
+          "endLine": 115,
+          "tokens": 310
+        },
+        {
+          "name": "RouterScoreSettings",
+          "kind": "class",
+          "startLine": 116,
+          "endLine": 137,
+          "tokens": 291
+        },
+        {
+          "name": "RouterSettingsScoring",
+          "kind": "class",
+          "startLine": 138,
+          "endLine": 154,
+          "tokens": 236
+        },
+        {
+          "name": "default_routing_cost_settings",
+          "kind": "fn",
+          "startLine": 155,
+          "endLine": 170,
+          "tokens": 168
+        },
+        {
+          "name": "value_or_default",
+          "kind": "fn",
+          "startLine": 171,
+          "endLine": 183,
+          "tokens": 182
+        },
+        {
+          "name": "OptimizerScoringVersion",
+          "kind": "class",
+          "startLine": 184,
+          "endLine": 198,
+          "tokens": 174
+        },
+        {
+          "name": "OptimizerScoreSettings",
+          "kind": "class",
+          "startLine": 199,
+          "endLine": 219,
+          "tokens": 232
+        },
+        {
+          "name": "ItemsCounts",
+          "kind": "class",
+          "startLine": 220,
+          "endLine": 241,
+          "tokens": 209
+        },
+        {
+          "name": "ConnectionsCounts",
+          "kind": "class",
+          "startLine": 242,
+          "endLine": 254,
+          "tokens": 162
+        },
+        {
+          "name": "TracesCounts",
+          "kind": "class",
+          "startLine": 255,
+          "endLine": 268,
+          "tokens": 136
+        },
+        {
+          "name": "BendsCounts",
+          "kind": "class",
+          "startLine": 269,
+          "endLine": 282,
+          "tokens": 133
+        },
+        {
+          "name": "ViasCounts",
+          "kind": "class",
+          "startLine": 283,
+          "endLine": 295,
+          "tokens": 124
+        },
+        {
+          "name": "ClearanceViolationsStats",
+          "kind": "class",
+          "startLine": 296,
+          "endLine": 315,
+          "tokens": 202
+        },
+        {
+          "name": "DifficultyStats",
+          "kind": "class",
+          "startLine": 316,
+          "endLine": 330,
+          "tokens": 171
+        },
+        {
+          "name": "BoardStatistics",
+          "kind": "class",
+          "startLine": 331,
+          "endLine": 366,
+          "tokens": 381
+        },
+        {
+          "name": "BoardStatistics",
+          "kind": "section",
+          "startLine": 367,
+          "endLine": 815,
+          "tokens": 5794
+        },
+        {
+          "name": "BoardStatistics",
+          "kind": "section",
+          "startLine": 816,
+          "endLine": 1931,
+          "tokens": 14300
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/933s3-commit-msg.txt": {
+      "description": "",
+      "tokens": 893,
+      "hash": "6209124d6cbed3ba",
+      "size": 3593,
+      "mtimeMs": 1791065845841.9722,
+      "updatedAt": "2026-10-03T22:17:27.307Z",
       "source": "hook"
     }
   },

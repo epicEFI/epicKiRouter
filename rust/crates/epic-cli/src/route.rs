@@ -1419,6 +1419,21 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             candidate.net_name, candidate.pin_count, candidate.net_name
         );
     }
+    // #152 (upstream d9694ab82/d0d876e30, PR #889): the plane-routing
+    // overrides — same head placement as `Session::route` (after the
+    // pour faces, before the geometry pass). `plane.nets` promotes
+    // resolved nets to plane routing (notes warn through the sink);
+    // `plane.as_obstacle` flips every SIGNAL-layer pour's obstacle
+    // flag (a change-request: absent = never called, default runs
+    // byte-stable).
+    if let Some(names) = merged.plane_nets.clone() {
+        for note in epic_engine::plane_nets::apply_plane_nets(&mut board, &names) {
+            sink.warn(&note);
+        }
+    }
+    if let Some(value) = merged.plane_as_obstacle {
+        epic_board::plane_obstacle::change_plane_as_obstacle(&mut board, &mut manager, value);
+    }
     // 3. The unconditional geometry pass (bug-compat fact 1; Java
     //    `applyRouterSettingsForLoadedBoard` `:749`, which runs after
     //    the `:346` override — the pass reads only the board's

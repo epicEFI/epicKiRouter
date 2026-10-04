@@ -210,6 +210,23 @@ pub struct CliLayer {
     /// every `pour.nets` request; absent = the LAST signal layer, the
     /// bottom copper of classic 2-layer practice).
     pub pour_layer: Option<String>,
+    /// `router.plane.nets` — the #152 plane-routing override list
+    /// (upstream d9694ab82, `applyPlaneNetsOverride`): comma-separated
+    /// net names (`GND,AGND`) — each resolved net gets
+    /// `contains_plane = true` flipped (exact-then-ci resolution,
+    /// epic_engine::plane_nets), pulling the router's existing plane
+    /// handling (via costs, completion gating) with ZERO router edits.
+    /// `None` (the default) = the face is off; no net is promoted.
+    pub plane_nets: Option<Vec<String>>,
+    /// `router.plane.as_obstacle` — the #152 pour-obstacle flip
+    /// (upstream d9694ab82/d0d876e30, `changePlaneAsObstacle`):
+    /// `on`/`off` sets the `is_obstacle` flag of every SIGNAL-layer
+    /// conduction area (the foreign-net trace-blocking gate,
+    /// epic_board::plane_obstacle). A CHANGE-request flag, not a
+    /// state flag: `None` (the default) = the flip never fires — every
+    /// parse-time/F3 pour already carries `false`, so the absent face
+    /// is byte-identical to Java's seeded-`false` call.
+    pub plane_as_obstacle: Option<bool>,
     /// `router.drc.clearance_tolerance_um` — the #925a DRC
     /// clearance-violation shortfall tolerance in micrometres
     /// (upstream `14b28b6ff`): shortfalls ≤ this are floating-point
@@ -878,6 +895,14 @@ fn apply_router_setting(layer: &mut CliLayer, property: &str, value: &str) {
         "pour.layer" => {
             layer.pour_layer = Some(value.to_string());
         }
+        "plane.nets" => match parse_ref_list(value) {
+            Some(v) => layer.plane_nets = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
+        "plane.as_obstacle" => match parse_on_off(value) {
+            Some(v) => layer.plane_as_obstacle = Some(v),
+            None => warn_bad_value(layer, property, value),
+        },
         "drc.clearance_tolerance_um" => match value.parse::<f64>() {
             Ok(v) => layer.drc_clearance_tolerance_um = Some(v),
             Err(_) => warn_bad_value(layer, property, value),
@@ -1350,6 +1375,14 @@ pub struct MergedSettings {
     /// `router.pour.layer` — the F3 pour layer (absent = the last
     /// signal layer; CLI/session-only, Default seed `None`).
     pub pour_layer: Option<String>,
+    /// `router.plane.nets` — the #152 plane-routing override list
+    /// (absent = no net is promoted; CLI/session-only — no DSN/
+    /// default source writes it, Default seed `None`).
+    pub plane_nets: Option<Vec<String>>,
+    /// `router.plane.as_obstacle` — the #152 pour-obstacle flip
+    /// (absent = the flip never fires; CLI/session-only, Default
+    /// seed `None`).
+    pub plane_as_obstacle: Option<bool>,
     /// `router.drc.clearance_tolerance_um` — the #925a DRC shortfall
     /// tolerance (µm; absent = the board rules' 1.0 seed; CLI/
     /// session-only, Default seed `None` — the apply face rejects
@@ -1489,6 +1522,8 @@ impl Default for MergedSettings {
             current_temp_rise_c: None,
             pour_nets: None,
             pour_layer: None,
+            plane_nets: None,
+            plane_as_obstacle: None,
             drc_clearance_tolerance_um: None,
             gloss_bus: None,
             gloss_flow: None,
@@ -1667,6 +1702,12 @@ pub fn merge(defaults: &MergedSettings, dsn: &DsnLayer, cli: &CliLayer) -> Merge
     }
     if let Some(v) = cli.pour_layer.clone() {
         merged.pour_layer = Some(v);
+    }
+    if let Some(v) = cli.plane_nets.clone() {
+        merged.plane_nets = Some(v);
+    }
+    if let Some(v) = cli.plane_as_obstacle {
+        merged.plane_as_obstacle = Some(v);
     }
     if let Some(v) = cli.drc_clearance_tolerance_um {
         merged.drc_clearance_tolerance_um = Some(v);
@@ -2090,6 +2131,13 @@ pub struct ResolvedRouteSettings {
     /// CLI twin: [`CliLayer::pour_layer`] — the F3 pour layer (absent
     /// = the last signal layer).
     pub pour_layer: Option<String>,
+    /// CLI twin: [`CliLayer::plane_nets`] — the #152 plane-routing
+    /// override list; `None` (the default) = no net is promoted.
+    pub plane_nets: Option<Vec<String>>,
+    /// CLI twin: [`CliLayer::plane_as_obstacle`] — the #152
+    /// pour-obstacle flip; `None` (the default) = the flip never
+    /// fires (a change-request flag, not a state flag).
+    pub plane_as_obstacle: Option<bool>,
     /// CLI twin: [`CliLayer::drc_clearance_tolerance_um`] — the #925a
     /// DRC shortfall tolerance (µm; absent = the board rules' 1.0
     /// seed).
@@ -2230,6 +2278,8 @@ impl ResolvedRouteSettings {
             current_temp_rise_c: merged.current_temp_rise_c,
             pour_nets: merged.pour_nets.clone(),
             pour_layer: merged.pour_layer.clone(),
+            plane_nets: merged.plane_nets.clone(),
+            plane_as_obstacle: merged.plane_as_obstacle,
             drc_clearance_tolerance_um: merged.drc_clearance_tolerance_um,
             gloss_bus: merged.gloss_bus.unwrap_or(false),
             gloss_flow: merged.gloss_flow.unwrap_or(false),
@@ -2528,6 +2578,12 @@ pub struct SessionLayer {
     pub pour_nets: Option<Vec<String>>,
     /// CLI twin: [`CliLayer::pour_layer`] — the F3 pour layer.
     pub pour_layer: Option<String>,
+    /// CLI twin: [`CliLayer::plane_nets`] — the #152 plane-routing
+    /// override list (`GND, AGND, ...`).
+    pub plane_nets: Option<Vec<String>>,
+    /// CLI twin: [`CliLayer::plane_as_obstacle`] — the #152
+    /// pour-obstacle flip.
+    pub plane_as_obstacle: Option<bool>,
     /// CLI twin: [`CliLayer::drc_clearance_tolerance_um`] — the #925a
     /// DRC shortfall tolerance (µm).
     pub drc_clearance_tolerance_um: Option<f64>,
@@ -2639,6 +2695,12 @@ pub fn merge_session(merged: &mut MergedSettings, session: &SessionLayer) {
     }
     if let Some(v) = session.pour_layer.clone() {
         merged.pour_layer = Some(v);
+    }
+    if let Some(v) = session.plane_nets.clone() {
+        merged.plane_nets = Some(v);
+    }
+    if let Some(v) = session.plane_as_obstacle {
+        merged.plane_as_obstacle = Some(v);
     }
     if let Some(v) = session.drc_clearance_tolerance_um {
         merged.drc_clearance_tolerance_um = Some(v);
@@ -3673,6 +3735,8 @@ mod tests {
             current_temp_rise_c: None,
             pour_nets: None,
             pour_layer: None,
+            plane_nets: None,
+            plane_as_obstacle: None,
             drc_clearance_tolerance_um: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
@@ -4956,6 +5020,8 @@ mod tests {
             current_temp_rise_c: None,
             pour_nets: None,
             pour_layer: None,
+            plane_nets: None,
+            plane_as_obstacle: None,
             drc_clearance_tolerance_um: None,
             gloss_bus: Some(true),
             gloss_flow: Some(true),
@@ -5231,6 +5297,73 @@ mod tests {
         merge_session(&mut none_layer, &SessionLayer::default());
         assert_eq!(none_layer.pour_nets, None, "None never overwrites");
         assert_eq!(none_layer.pour_layer, None);
+    }
+
+    /// #152: the `plane_*` plumbing end to end — the list parses
+    /// through the ref-list grammar, the bool through `on`/`off` (a
+    /// non-boolean warns and lands `None`), `merge`/`resolve` carry
+    /// both VERBATIM, the session layer wins over the CLI, and `None`
+    /// never overwrites. The bool is a CHANGE-request: the default
+    /// seed stays `None` (never `Some(false)`) so an unset face never
+    /// fires the obstacle flip.
+    #[test]
+    fn plane_settings_grammar_and_lifecycle() {
+        let mut layer = CliLayer::default();
+        apply_router_setting(&mut layer, "plane.nets", "GND, AGND");
+        assert_eq!(
+            layer.plane_nets,
+            Some(vec!["GND".to_string(), "AGND".to_string()])
+        );
+        apply_router_setting(&mut layer, "plane.as_obstacle", "on");
+        assert_eq!(layer.plane_as_obstacle, Some(true));
+        apply_router_setting(&mut layer, "plane.as_obstacle", "off");
+        assert_eq!(layer.plane_as_obstacle, Some(false));
+
+        // A non-boolean warns and lands None (the on_off law — the
+        // flip must never fire off a typo).
+        let mut bad = CliLayer::default();
+        apply_router_setting(&mut bad, "plane.as_obstacle", "maybe");
+        assert_eq!(bad.plane_as_obstacle, None, "'maybe' must be rejected");
+        assert!(
+            bad.warnings
+                .last()
+                .is_some_and(|w| w.contains("plane.as_obstacle")),
+            "the warning names the property: {:?}",
+            bad.warnings
+        );
+
+        let cli = CliLayer {
+            plane_nets: Some(vec!["GND".to_string()]),
+            plane_as_obstacle: Some(true),
+            ..CliLayer::default()
+        };
+        let mut merged = merge(&MergedSettings::default(), &DsnLayer::default(), &cli);
+        assert_eq!(merged.plane_nets, Some(vec!["GND".to_string()]));
+        assert_eq!(merged.plane_as_obstacle, Some(true));
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(resolved.plane_nets, Some(vec!["GND".to_string()]));
+        assert_eq!(resolved.plane_as_obstacle, Some(true));
+
+        let session = SessionLayer {
+            plane_nets: Some(vec!["GND".to_string(), "AGND".to_string()]),
+            plane_as_obstacle: Some(false),
+            ..SessionLayer::default()
+        };
+        merge_session(&mut merged, &session);
+        assert_eq!(
+            merged.plane_nets.as_ref().map_or(0, Vec::len),
+            2,
+            "session wins"
+        );
+        assert_eq!(merged.plane_as_obstacle, Some(false));
+
+        let mut none_layer = MergedSettings::default();
+        merge_session(&mut none_layer, &SessionLayer::default());
+        assert_eq!(none_layer.plane_nets, None, "None never overwrites");
+        assert_eq!(
+            none_layer.plane_as_obstacle, None,
+            "the default seed is None — the flip never fires unset"
+        );
     }
 
     /// #925a: the `drc.clearance_tolerance_um` plumbing end to end —

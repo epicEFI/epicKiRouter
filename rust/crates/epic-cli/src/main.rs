@@ -56,6 +56,8 @@ warns; maps to autorouter.enabled)
   router.current.temp_rise_c=<float>
   router.pour.nets=<NET[,NET...]>
   router.pour.layer=<layer name>
+  router.plane.nets=<NET[,NET...]>
+  router.plane.as_obstacle=<on|off>
   router.drc.clearance_tolerance_um=<float>
   router.gloss.bus=<on|off>
   router.gloss.flow=<on|off>

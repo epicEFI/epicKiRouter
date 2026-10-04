@@ -47,6 +47,7 @@ pub mod islands;
 pub mod items;
 pub mod layers;
 pub mod normalize_all;
+pub mod plane_obstacle;
 pub mod routing_board_insert;
 pub mod routing_board_search;
 pub mod routing_ledger;

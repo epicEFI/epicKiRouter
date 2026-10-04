@@ -910,10 +910,14 @@ mod tests {
         }
         assert!(board.nets[0].contains_plane);
 
-        // NOFIRE2: the extra In1.Cu TRACE (a small area would not count)
-        // means the In1.Cu area is not >50% of the board's layer-1 area
-        // coverage for the heuristic — area stays UNFIXED,
-        // contains_plane false (jar CASE t37nofire2, GEN 3).
+        // NOFIRE2: jar CASE t37nofire2 (GEN 3) pinned the PRE-#152
+        // heuristic — the extra In1.Cu trace vetoed the promotion (area
+        // UNFIXED, contains_plane false) despite the 64% pour. UPSTREAM
+        // #152 (d9694ab82) DROPPED the wires-on-layer veto — the same
+        // board now promotes (this is upstream's own
+        // testHeuristicPlaneDetectionWithExistingTraces): area
+        // USER_FIXED, contains_plane true. The stored items are
+        // unchanged (GEN 3; the promotion mutates, never inserts).
         let (result, board) = run(T37NOFIRE2_DSN);
         assert!(matches!(
             result,
@@ -922,7 +926,7 @@ mod tests {
         assert_eq!(board.items.len(), 3);
         match &board.items[1] {
             ItemIr::ConductionArea { area, .. } => {
-                assert_eq!(area.fixed, crate::sink::FixedStateIr::Unfixed);
+                assert_eq!(area.fixed, crate::sink::FixedStateIr::UserFixed);
             }
             other => panic!("expected ConductionArea, got {other:?}"),
         }
@@ -939,7 +943,7 @@ mod tests {
             }
             other => panic!("expected Trace, got {other:?}"),
         }
-        assert!(!board.nets[0].contains_plane);
+        assert!(board.nets[0].contains_plane);
 
         // FIRE2GATE: the multi-line scope INSIDE structure CLOSES the gate
         // -> area stays UNFIXED, contains_plane false (jar CASE

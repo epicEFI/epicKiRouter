@@ -411,13 +411,28 @@ impl SesBoard {
         }
     }
 
-    /// Java `DsnFile.adjustPlaneAutorouteSettings` (`DsnFile.java:32-114`),
-    /// called from `DsnReader.readBoard` when the DSN has no
-    /// `(autoroute_settings ...)` scope (the Task 9 assembly owns that
-    /// gate). Promotes interior-layer conduction areas covering >= half
-    /// the board to power planes: their nets gain `contains_plane` and
-    /// areas below USER_FIXED are promoted to USER_FIXED. Returns whether
-    /// anything changed (Java `!nothingChanged`).
+    /// Java `DsnFile.adjustPlaneAutorouteSettings` (`DsnFile.java:32-114`
+    /// at the port baseline, RELAXED by upstream #152 / d9694ab82 +
+    /// d0d876e30, PR #889), called from `DsnReader.readBoard` when the
+    /// DSN has no `(autoroute_settings ...)` scope (the Task 9 assembly
+    /// owns that gate). Promotes conduction areas covering >= 30% of
+    /// the board on ANY signal layer to power planes: their nets gain
+    /// `contains_plane` and areas below USER_FIXED are promoted to
+    /// USER_FIXED. Returns whether anything changed (Java
+    /// `!nothingChanged`).
+    ///
+    /// The upstream #152 relaxation (2026-09-14), all four deltas:
+    /// the `<= 2` layer veto became `< 1` (2-layer boards with
+    /// outer-layer pours now qualify — sub-issue 152-E), the
+    /// wires-on-layer veto was DROPPED, the interior-layer-only veto
+    /// (layer 0 / last) was DROPPED, and the share gate went 50% ->
+    /// 30%. Upstream's own javadoc still says "at least 50%" — the
+    /// CODE is the port target. Two hardening guards ride along: a
+    /// non-positive board area returns false (with area 0 every pour
+    /// trivially passes the share gate), and a conduction area whose
+    /// convex split fails SKIPS the area (upstream
+    /// `convexPieces == null -> continue`) instead of failing the
+    /// whole heuristic.
     ///
     /// FRLogger INFO per changed layer is log-only — no Rust counterpart.
     /// Divergence (documented): Java sums `PolylineArea.splitToConvex`
@@ -426,45 +441,40 @@ impl SesBoard {
     /// non-overlapping, border-contained polygon windows every exporter
     /// produces (circle windows never reach a conduction area —
     /// `transform_area_to_board` rejects them). A split failure
-    /// (`PolygonShape::split_to_convex` -> `None`, Java null pieces -> NPE
-    /// at `DsnFile.java:88`) returns `false` here.
+    /// skips the individual area (upstream `:65-67`).
     pub fn adjust_plane_autoroute_settings(&mut self) -> bool {
         let Some(layer_structure) = &self.layers else {
             return false; // Java `routingBoard == null` (`:33-35`)
         };
         let layer_count = layer_structure.layers.len();
-        if layer_count <= 2 {
-            // `:38-40`: a plane needs interior layers to exist at all
+        if layer_count < 1 {
+            // Upstream d9694ab82 (`:36-38`): the `<= 2` veto RELAXED to
+            // `< 1` — an empty layer structure is the only remaining
+            // early exit; 2-layer boards with outer pours now qualify
+            // (Issue #152 sub-issue 152-E).
             return false;
         }
         if layer_structure.layers.iter().any(|layer| !layer.is_signal) {
             // `:41-45`: any non-signal layer disables the heuristic
             return false;
         }
-        let mut layer_contains_wires = vec![false; layer_count];
         let mut conduction_indices: Vec<usize> = Vec::new();
         for (index, item) in self.items.iter().enumerate() {
-            match item {
-                ItemIr::Trace { trace, .. } => {
-                    let layer = trace.layer_no;
-                    // Java `layerContainsWiresArr[currentLayer] = true` —
-                    // an out-of-range trace layer would AIOOBE (unreachable:
-                    // traces only insert on board layers); guarded skip.
-                    if let Ok(slot) = usize::try_from(layer)
-                        && slot < layer_count
-                    {
-                        layer_contains_wires[slot] = true;
-                    }
-                }
-                ItemIr::ConductionArea { .. } => conduction_indices.push(index),
-                _ => {}
+            // Upstream d9694ab82 deleted the `layerContainsWiresArr`
+            // collection (the wires-on-layer veto is gone); only the
+            // conduction-area indices are gathered.
+            if let ItemIr::ConductionArea { .. } = item {
+                conduction_indices.push(index);
             }
         }
         let mut nothing_changed = true;
 
         // board area (`:64-73`): the sum over the outline's convex pieces;
         // a null piece split (PolygonShape that cannot split) is SKIPPED
-        // (`:68-72` — the one split-failure Java tolerates).
+        // (`:68-72` — the one split-failure Java tolerates). Upstream's
+        // `boardOutline != null` guard is the item walk itself here (a
+        // board without an outline sums 0 — caught by the area gate
+        // below).
         let mut board_area = 0.0f64;
         for item in &self.items {
             if let ItemIr::BoardOutline { outline, .. } = item {
@@ -477,34 +487,45 @@ impl SesBoard {
                 }
             }
         }
+        if board_area <= 0.0 {
+            // Upstream d9694ab82 (`:70-74`): with a non-positive board
+            // area every pour trivially passes the share gate — bail.
+            return false;
+        }
         for index in conduction_indices {
             let ItemIr::ConductionArea { area, .. } = &self.items[index] else {
                 unreachable!("collected indices point at conduction areas");
             };
             let layer_index = area.layer_no;
-            // Java `layerContainsWiresArr[layerIndex]` would AIOOBE out of
-            // range (unreachable: conduction areas insert on board layers);
-            // guarded skip.
+            // Java `layerIndex < 0 || >= layers.length` guarded skip
+            // (upstream `:57-59`; unreachable: conduction areas insert on
+            // board layers).
             let Ok(layer_slot) = usize::try_from(layer_index) else {
                 continue;
             };
-            if layer_slot >= layer_count || layer_contains_wires[layer_slot] {
-                // `:76-78`: wires on the plane layer veto the promotion
+            if layer_slot >= layer_count {
                 continue;
             }
             let layer_is_signal =
                 self.layers.as_ref().expect("checked above").layers[layer_slot].is_signal;
-            if !layer_is_signal || layer_slot == 0 || layer_slot == layer_count - 1 {
-                // `:81-85`: only INTERIOR signal layers promote
+            if !layer_is_signal {
+                // `:60-62`: only signal layers promote. The OLD port also
+                // vetoed the OUTER layers (slot 0 / last) — upstream
+                // d9694ab82 DROPPED that veto (outer-layer pours now
+                // qualify; sub-issue 152-E).
                 continue;
             }
             let Some(current_area) = convex_area(&area.area) else {
-                // Java null convex pieces -> NPE at `:88` (parse dies);
-                // the port degrades to "no change".
-                return false;
+                // Upstream d9694ab82 (`:65-67`): a failed convex split
+                // SKIPS the area — the baseline's whole-heuristic
+                // `return false` mirrored the pre-fix Java NPE site.
+                continue;
             };
-            if current_area < 0.5 * board_area {
-                // `:91-93`: the >= half-board-area gate
+            if current_area < 0.3 * board_area {
+                // Upstream d9694ab82 (`:76-78`): the share gate RELAXED
+                // from >= 50% to >= 30% of the board area (outer-layer
+                // pours on 2-layer boards cover less; upstream's javadoc
+                // still says 50% — the code is the port target).
                 continue;
             }
             for net_no in &area.nets {
