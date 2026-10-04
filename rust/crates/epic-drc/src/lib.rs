@@ -17,11 +17,15 @@
 //! * [`clearance`] — the violation walk: the per-kind `isObstacle`
 //!   matrix, the enlarged-intersection gate, the tie-pin and
 //!   outline-contains exemptions, and the A-B/B-A dedup.
+//! * [`zone_islands`] — the 152-G dead-copper face: the M6-T6
+//!   pour-island detector surfaced as DRC violations (upstream
+//!   `3011e6e60`, the zero-items/dead-copper arm).
 
 pub mod category;
 pub mod clearance;
 pub mod incompletes;
 pub mod routing_ledger;
+pub mod zone_islands;
 
 #[cfg(test)]
 pub(crate) mod test_util;
