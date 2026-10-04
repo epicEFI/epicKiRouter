@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T00:34:24.770Z",
-    "fileCount": 818,
+    "lastScanned": "2026-10-04T01:40:04.302Z",
+    "fileCount": 820,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "9e02786f8210125a350716c8052883e046298f6a48e0046098ed72e5af092bc4",
-    "storeUpdatedAt": "2026-10-04T00:34:24.780Z",
-    "rootHash": "bebb07aee0c4a928"
+    "renderedHash": "2c178f6d32d104e4fddb9f48c8271705c4bf5a5dff963ad837b871054a2a4f1d",
+    "storeUpdatedAt": "2026-10-04T01:40:04.311Z",
+    "rootHash": "a79ef13c1509e586"
   },
   "files": {
     ".dockerignore": {
@@ -7032,11 +7032,11 @@
     },
     "rust/crates/epic-router/src/pipeline/batch.rs": {
       "description": "Java `autoroute/pipeline/BatchAutorouter.java` +",
-      "tokens": 28411,
-      "hash": "9fc3e5f1495d56ad",
-      "size": 106845,
-      "mtimeMs": 1791065581323.944,
-      "updatedAt": "2026-10-03T22:13:01.431Z",
+      "tokens": 31786,
+      "hash": "459d04a845f48f9a",
+      "size": 119534,
+      "mtimeMs": 1791075343035.1987,
+      "updatedAt": "2026-10-04T00:55:43.148Z",
       "source": "hook",
       "symbols": [
         {
@@ -7155,36 +7155,36 @@
           "name": "format_score",
           "kind": "fn",
           "startLine": 1358,
-          "endLine": 1375,
-          "tokens": 261
+          "endLine": 1381,
+          "tokens": 377
         },
         {
           "name": "get_autoroute_items",
           "kind": "fn",
-          "startLine": 1376,
-          "endLine": 1466,
-          "tokens": 1057
+          "startLine": 1382,
+          "endLine": 1508,
+          "tokens": 1531
         },
         {
           "name": "java_simple_name",
           "kind": "fn",
-          "startLine": 1467,
-          "endLine": 1480,
+          "startLine": 1509,
+          "endLine": 1522,
           "tokens": 167
         },
         {
           "name": "build_unrouted_connections_report",
           "kind": "fn",
-          "startLine": 1481,
-          "endLine": 1518,
+          "startLine": 1523,
+          "endLine": 1560,
           "tokens": 396
         },
         {
           "name": "describe_item",
           "kind": "fn",
-          "startLine": 1519,
-          "endLine": 2275,
-          "tokens": 9616
+          "startLine": 1561,
+          "endLine": 2572,
+          "tokens": 12642
         }
       ]
     },
@@ -11026,11 +11026,11 @@
     },
     "rust/crates/epic-router/src/pipeline/pass_runner.rs": {
       "description": "Java `autoroute/pipeline/AutoroutePassRunner.java` — the",
-      "tokens": 20918,
-      "hash": "3d3bc65dd98cab5b",
-      "size": 78666,
-      "mtimeMs": 1791041023471.8423,
-      "updatedAt": "2026-10-03T15:23:43.582Z",
+      "tokens": 20958,
+      "hash": "28153ca350f7e307",
+      "size": 78816,
+      "mtimeMs": 1791075258407.8674,
+      "updatedAt": "2026-10-04T00:54:18.532Z",
       "source": "hook",
       "symbols": [
         {
@@ -11198,8 +11198,8 @@
           "name": "update_progress",
           "kind": "fn",
           "startLine": 1079,
-          "endLine": 1975,
-          "tokens": 10141
+          "endLine": 1977,
+          "tokens": 10184
         }
       ]
     },
@@ -13202,11 +13202,11 @@
     },
     "rust/crates/epic-router/src/pipeline/connection_router.rs": {
       "description": "Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the",
-      "tokens": 12481,
-      "hash": "aded962be12e1382",
-      "size": 46932,
-      "mtimeMs": 1791035712642.6704,
-      "updatedAt": "2026-10-03T13:55:12.761Z",
+      "tokens": 12533,
+      "hash": "62fc4dfc48077f89",
+      "size": 47129,
+      "mtimeMs": 1791075257409.8635,
+      "updatedAt": "2026-10-04T00:54:17.525Z",
       "source": "hook",
       "symbols": [
         {
@@ -13234,50 +13234,50 @@
           "name": "negotiated_or_linear_ripup_costs",
           "kind": "fn",
           "startLine": 161,
-          "endLine": 177,
-          "tokens": 170
+          "endLine": 181,
+          "tokens": 186
         },
         {
           "name": "route",
           "kind": "fn",
-          "startLine": 178,
-          "endLine": 425,
+          "startLine": 182,
+          "endLine": 429,
           "tokens": 2593
         },
         {
           "name": "routed_postlude",
           "kind": "fn",
-          "startLine": 426,
-          "endLine": 468,
+          "startLine": 430,
+          "endLine": 472,
           "tokens": 434
         },
         {
           "name": "deterministic_limit_for_pass",
           "kind": "fn",
-          "startLine": 469,
-          "endLine": 477,
+          "startLine": 473,
+          "endLine": 481,
           "tokens": 130
         },
         {
           "name": "retry_connection_necked",
           "kind": "fn",
-          "startLine": 478,
-          "endLine": 606,
+          "startLine": 482,
+          "endLine": 610,
           "tokens": 1345
         },
         {
           "name": "apply_strict_drc_after_route",
           "kind": "fn",
-          "startLine": 607,
-          "endLine": 641,
+          "startLine": 611,
+          "endLine": 645,
           "tokens": 390
         },
         {
           "name": "enforce_strict_drc",
           "kind": "fn",
-          "startLine": 642,
-          "endLine": 1209,
-          "tokens": 6189
+          "startLine": 646,
+          "endLine": 1215,
+          "tokens": 6229
         }
       ]
     },
@@ -14420,6 +14420,24 @@
       "size": 4548,
       "mtimeMs": 1791074064662.3518,
       "updatedAt": "2026-10-04T00:34:24.770Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_152b.sh": {
+      "description": "#152 COMMIT B landing battery (2026-10-03) — the d0d876e30",
+      "tokens": 1490,
+      "hash": "4df05a887d98a250",
+      "size": 5597,
+      "mtimeMs": 1791075428418.5334,
+      "updatedAt": "2026-10-04T00:57:08.521Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/152b-commit-msg.txt": {
+      "description": "",
+      "tokens": 1141,
+      "hash": "5c84e7d47b573e7b",
+      "size": 4595,
+      "mtimeMs": 1791078004196.021,
+      "updatedAt": "2026-10-04T01:40:04.301Z",
       "source": "hook"
     }
   },
