@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T01:40:04.302Z
-> Files: 820 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T03:38:03.863Z
+> Files: 822 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -780,6 +780,7 @@
 
 - `152a-commit-msg.txt` (~1131 tok)
 - `152b-commit-msg.txt` (~1141 tok)
+- `885-commit-msg.txt` (~1397 tok)
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
 - `933s1-commit-msg.txt` (~667 tok)
 - `933s2-commit-msg.txt` (~898 tok)
@@ -851,6 +852,7 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_152a.sh` — #152 COMMIT A landing battery (2026-10-03) — heuristic relaxation (~1459 tok)
 - `run_gates_152b.sh` — #152 COMMIT B landing battery (2026-10-03) — the d0d876e30 (~1490 tok)
+- `run_gates_885.sh` — #885 per-layer costs landing battery (2026-10-03) — upstream c32625e0f, (~1452 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
 - `run_gates_933s2.sh` — #933 SURVIVOR-2 landing battery (2026-10-03) — the last-mile (~1212 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
@@ -970,7 +972,7 @@
 - `plane_nets.rs` — Upstream #152 (PR #889, d9694ab82): the `planeNets` override. (~1644 tok)
 - `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
 - `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~16231 tok)
-- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~65091 tok)
+- `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~67232 tok)
 
 ## rust/crates/epic-engine/tests/
 

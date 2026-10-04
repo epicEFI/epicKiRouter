@@ -4173,5 +4173,23 @@
    "e0596-reborrow",
    "walk-order-vs-queue-order"
   ]
+ },
+ {
+  "id": 263,
+  "date": "2026-10-03",
+  "error_message": "#885 per-layer costs port (upstream c32625e0f, the sanctioned face only): (1) clippy::field_reassign_with_default at the new preserve-explicit pin \u2014 `let mut merged = MergedSettings::default(); merged.layers = vec![...]` (first-level field assignment right after Default construction); (2) first battery-script draft risked re-tripping it in test 2 until construction shapes were audited; (3) the census gate's tail-5 window shows only a doc-test tail \u2014 the 42-suite arithmetic is invisible in the battery stdout.",
+  "root_cause": "(1) The lint fires on FIRST-LEVEL `struct.field = v` immediately after a Default::default() binding (the lint's view: you could have written a struct literal); nested paths (`merged.scoring.x = None`) and method calls do NOT fire \u2014 only test 1's direct `merged.layers = vec![...]` triggered. (2) Same lint class scanned across both new tests. (3) `cargo test --workspace` prints 42 `test result:` lines; the run() helper's tail -5 keeps only the last.",
+  "fix": "(1) Hoist the layers Vec to a local, mutate the local, construct once via struct-update: `let mut layers = vec![MergedLayerSlot::default(); 4]; layers[0].preferred... = Some(0.25); let mut merged = MergedSettings { layers, ..MergedSettings::default() };` \u2014 clippy x2 green, settings 51/51. (2) Test 2 needs no fix (no first-level assignment). (3) Reconcile census arithmetic from the full gate log (gates/885/census.log): grep 'test result:' \u2192 42 suites / 1807 passed / 0 FAILED / 19 ignored \u2014 the declared projection 42/1807/0/19 EXACT. PORT LANDED f75222bf0 (settings.rs only; MergedLayerSlot +2 Option<f64> fields, geometry pass preserves explicit rows, conditional outer surcharge, back-sync idempotence; +2 pins, 2 canary literal fixes; battery run_gates_885.sh 23/23, ZERO golden rotations \u2014 structural immunity adjudicated: merged.layers slots read only inside settings.rs, resolve reads the arrays, no source can set a slot Some on golden worlds; DSN drop stays Java-parity post-#885 \u2014 upstream metadata parser has NO writer for the new LayerSettings fields). Export ec7b79eea pushed (parent 5bd18fcda).",
+  "tags": [
+   "#885",
+   "per-layer-trace-costs",
+   "upstream-c32625e0f",
+   "settings",
+   "clippy-field-reassign-with-default",
+   "struct-update-idiom",
+   "census-reconcile-from-gate-log",
+   "export-ec7b79eea",
+   "zero-rotations"
+  ]
  }
 ]

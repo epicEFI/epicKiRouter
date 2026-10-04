@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T01:40:04.302Z",
-    "fileCount": 820,
+    "lastScanned": "2026-10-04T03:38:03.863Z",
+    "fileCount": 822,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "2c178f6d32d104e4fddb9f48c8271705c4bf5a5dff963ad837b871054a2a4f1d",
-    "storeUpdatedAt": "2026-10-04T01:40:04.311Z",
-    "rootHash": "a79ef13c1509e586"
+    "renderedHash": "330a02785038d44283f29affdd00e3ffbd74a43a58bcfae83070a0d8d62c425a",
+    "storeUpdatedAt": "2026-10-04T03:38:03.873Z",
+    "rootHash": "e5a2ea5893911bdb"
   },
   "files": {
     ".dockerignore": {
@@ -6535,11 +6535,11 @@
     },
     "rust/crates/epic-engine/src/settings.rs": {
       "description": "The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings`",
-      "tokens": 65091,
-      "hash": "fe05bcb9ba413fc5",
-      "size": 244724,
-      "mtimeMs": 1791071319119.1963,
-      "updatedAt": "2026-10-03T23:48:39.276Z",
+      "tokens": 67232,
+      "hash": "454a6b8543739678",
+      "size": 252777,
+      "mtimeMs": 1791082509546.3645,
+      "updatedAt": "2026-10-04T02:55:09.663Z",
       "source": "hook",
       "symbols": [
         {
@@ -6672,85 +6672,85 @@
           "name": "DsnLayer",
           "kind": "section",
           "startLine": 1230,
-          "endLine": 1284,
-          "tokens": 655
+          "endLine": 1290,
+          "tokens": 764
         },
         {
           "name": "MergedLayerSlot",
           "kind": "class",
-          "startLine": 1285,
-          "endLine": 1293,
-          "tokens": 76
+          "startLine": 1291,
+          "endLine": 1308,
+          "tokens": 239
         },
         {
           "name": "MergedLayerSlot",
           "kind": "section",
-          "startLine": 1294,
-          "endLine": 1314,
-          "tokens": 259
+          "startLine": 1309,
+          "endLine": 1334,
+          "tokens": 348
         },
         {
           "name": "MergedSettings",
           "kind": "class",
-          "startLine": 1315,
-          "endLine": 1497,
+          "startLine": 1335,
+          "endLine": 1517,
           "tokens": 2718
         },
         {
           "name": "MergedSettings",
           "kind": "section",
-          "startLine": 1498,
-          "endLine": 1588,
+          "startLine": 1518,
+          "endLine": 1608,
           "tokens": 1215
         },
         {
           "name": "default_router_score_settings",
           "kind": "fn",
-          "startLine": 1589,
-          "endLine": 1604,
+          "startLine": 1609,
+          "endLine": 1624,
           "tokens": 192
         },
         {
           "name": "default_optimizer_score_settings",
           "kind": "fn",
-          "startLine": 1605,
-          "endLine": 1619,
+          "startLine": 1625,
+          "endLine": 1639,
           "tokens": 172
         },
         {
           "name": "merge",
           "kind": "fn",
-          "startLine": 1620,
-          "endLine": 1855,
+          "startLine": 1640,
+          "endLine": 1875,
           "tokens": 2422
         },
         {
           "name": "validate",
           "kind": "fn",
-          "startLine": 1856,
-          "endLine": 1919,
-          "tokens": 727
+          "startLine": 1876,
+          "endLine": 1943,
+          "tokens": 814
         },
         {
           "name": "apply_board_specific_optimizations",
           "kind": "fn",
-          "startLine": 1920,
-          "endLine": 2033,
-          "tokens": 1445
+          "startLine": 1944,
+          "endLine": 2091,
+          "tokens": 1882
         },
         {
           "name": "java_math_round",
           "kind": "fn",
-          "startLine": 2034,
-          "endLine": 2048,
+          "startLine": 2092,
+          "endLine": 2106,
           "tokens": 208
         },
         {
           "name": "ResolvedRouteSettings",
           "kind": "class",
-          "startLine": 2049,
-          "endLine": 5505,
-          "tokens": 42405
+          "startLine": 2107,
+          "endLine": 5666,
+          "tokens": 43814
         }
       ]
     },
@@ -14438,6 +14438,24 @@
       "size": 4595,
       "mtimeMs": 1791078004196.021,
       "updatedAt": "2026-10-04T01:40:04.301Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_885.sh": {
+      "description": "#885 per-layer costs landing battery (2026-10-03) — upstream c32625e0f,",
+      "tokens": 1452,
+      "hash": "325387070485ab35",
+      "size": 5454,
+      "mtimeMs": 1791082577642.831,
+      "updatedAt": "2026-10-04T02:56:17.837Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/885-commit-msg.txt": {
+      "description": "",
+      "tokens": 1397,
+      "hash": "7f91d96a5b893e10",
+      "size": 5635,
+      "mtimeMs": 1791085083759.7942,
+      "updatedAt": "2026-10-04T03:38:03.863Z",
       "source": "hook"
     }
   },
