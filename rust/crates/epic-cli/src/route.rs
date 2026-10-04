@@ -1821,10 +1821,29 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     // manifest stays untouched — its bytes are canary-pinned).
     let dead_copper =
         epic_drc::zone_islands::zone_island_violations(board.communication(), &board, &pour_faces);
-    if !dead_copper.is_empty() {
-        sink.warn(&epic_drc::zone_islands::format_dead_copper_warning(
-            &dead_copper,
-            board.communication(),
+    // The formatted block BEFORE the &mut board walk below (the walk's
+    // mutable borrow must not overlap this face's `&board` reads).
+    let dead_copper_warning = if dead_copper.is_empty() {
+        String::new()
+    } else {
+        epic_drc::zone_islands::format_dead_copper_warning(&dead_copper, board.communication())
+    };
+    // The 152-H DRC surfacing (upstream `3011e6e60`, the ERROR arm): a
+    // seeded region of a fragmented pour severed from the primary
+    // region through EVERY layer, with pours skipped (the exact
+    // `stopAtPlane = true` overload) — reporting-only, the same
+    // parity-warnings law as the dead-copper block above.
+    let unconnected = epic_drc::zone_islands::zone_island_unconnected_violations(
+        &manager,
+        &mut board,
+        &pour_faces,
+    );
+    if !dead_copper_warning.is_empty() {
+        sink.warn(&dead_copper_warning);
+    }
+    if !unconnected.is_empty() {
+        sink.warn(&epic_drc::zone_islands::format_unconnected_warning(
+            &unconnected,
         ));
     }
     let pour_islands: Vec<ManifestPourIslands> = pour_faces
