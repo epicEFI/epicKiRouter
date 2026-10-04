@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T16:15:41.331Z
-> Files: 844 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T17:20:15.199Z
+> Files: 845 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -895,6 +895,7 @@
 - `seamfix-commit-msg.txt` (~938 tok)
 - `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3758 tok)
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
+- `upstream-sweep-2026-10-04.md` — Post-baseline upstream sweep — full disposition (~1280 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
 
 ## logs/readiness-2026-10-01/f2-smoke/

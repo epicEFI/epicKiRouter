@@ -1,49 +1,87 @@
 # STATUS — session handoff
 
-Last updated: 2026-09-22 (M3 complete)
+Last updated: 2026-10-04 (152-H landed; post-baseline upstream sweep closed)
 
 ## ✅ Done
 
-- **M0–M2** (unchanged — see git history and `docs/architecture.md`): 9-crate scaffold, tier matrix, oracle runner; M1a geometry pure-ports 5000/5000; M1b DSN read/SES write parity; M2 searchtree + index/undo corpora.
-- **M3 — Detail routing core + epic-cli: COMPLETE (2026-09-22, verdict `M3_EXIT_WITH_DEVIATIONS`).**
-  - Plan `77dcaedb`, tasks **#42–#60** (19) all closed under the two-stage review protocol (spec → quality → fix rounds by original implementer → scoped re-review).
-  - Final chain through **`c4bcf69ad`** (epic/main, never pushed). Landmarks: T11 autoroute E2E (`d9b216905`), T12 batch pipeline (`c1b66070f`), T13 `epic-cli route` (`f7f4b7db8`), T16 events corpus (`d283f4210`, golden sha `cc50216c…`), T17a panic fixes 169/170 (`91440a937`), T17b bugs 176/177 (`d2f35e228`), T17c battery truth + CI tripwire pins (`cc275b5a5`…`a4c072430`), T17d docs close (`f8f8734e8`, `c4bcf69ad`).
-  - **Adjudication** (`logs/M3-T17/milestone-review-m3.md`): criterion 1 MET_WITH_DEVIATIONS (kernel pin suites + E2E captures + events corpus; deviation = events divergence #61), criterion 2 NOT_MET 8/11 (all three reds root-caused non-parity: bm06 TUNING buglog 181, bm01 WALL-LIMITED buglog 175, bm11 red-by-1-at-truth), criterion 3 MET (zero regressions on all six M2 compares). Deviations table red→root cause→M4 lever embedded in design §6 M3 note.
-  - **Gates at HEAD**: fmt/clippy clean; bare suite **1305 / 0 / 15** (15 ignored = 9 capture replays + 6 harness slow/e2e); **seven compares** green — corpus 5000/5000, dsn 1332, ses 20, ses-snap 5, index 33, undo 33, drc 17; determinism digests `96ba7300…`/`16714d5e…` byte-identical; battery **8 PASS / 3 RED** (every red root-caused, zero router-introduced violations on all 11); `events compare` exit 1 honest-red (#61).
-  - **CI flip = HOLD** (adjudicated): flip is ONE commit when 11/11 battery AND wall-resolved profile (Σ tier ≈5160s vs 30-min CI step) — drop `--report-only`, update both `ci_tripwire.rs` pins same-commit, refresh the three prose posture sites (rust/README.md:19 status block, :159 gates comment, design doc:158 CI paragraph).
+- **M0–M11 ALL COMPLETE; M10-T4 sunset the Java tree** (git history +
+  grafted `origin/master` at `e7f9bdf1` keep it reachable). The parity
+  record post-sunset = the committed goldens (`rust/harness/baselines/`,
+  corpus dirs, `tiers.yaml`) + the digest literals in AMENDMENT 3 of the
+  M10 sunset plan.
+- **Readiness campaign verdict READY** (2026-10-02,
+  `logs/readiness-2026-10-01/verdict.md`): E2E batches closed, live
+  SIGINT probe 5/5 graceful, crash family 2-found/2-fixed/2-live-verified.
+- **Tier-1 ports landed**: P1 #935a `58ae2f5c0`+`96492284c`, P2 #935b
+  `ca0e785cc`, P3 #925a `7453ec611`, P4 #925b `e61998820`, P5
+  `f0fdb120d`, P6 #811 `e986721b6`.
+- **Tier-2 landed**: #931 (all 9 clusters, M11), #933 s1/s2/s3,
+  #152 A `156ecbfa8` / B `1ad3a8f5e` / G `51e6b895d` / H `4de7509da`
+  (the zone-island DRC family COMPLETE), #885 `f75222bf0`, #930
+  `e1f7d173f`, cgrid `dbe1f1caa`, bug-255 `1a0a6ce92`.
+- **Post-baseline upstream sweep CLOSED 2026-10-04**
+  (`logs/readiness-2026-10-01/upstream-sweep-2026-10-04.md`): all 117
+  commits in `e7f9bdf1..upstream/master` dispositioned — every engine
+  commit landed, rest N/A with code-level reasons. Ride-along law: if
+  worker-board reuse (#19) ever lands, upstream 8dcd4cd68's maze-state
+  clearing MUST ride.
+- **Census law: 42/1827/0/19** (152-H battery, per-component
+  reconciled). Buglog through id 268. Export chain tip `8e5e81e5a`
+  (epicki/main).
 
 ## 🚀 Next quest
 
-**Goal:** M4 — Full pipeline: fanout + detail + optimizer (design §6 M4 row). Exit criterion: **zero-regression moment** — all fixtures ≥ Java on completion/violations/score.
-First step: write the M4 plan (writing-plans skill, from design §5/§6 M4 + recon of the Java `autoroute.pipeline` fanout/optimizer orchestration and `board.optimize`).
-**M4 carry-forwards (from the M3 adjudication, priority order):**
-1. **#61 events-divergence close FIRST** (task #61; Classes A/B/C, buglog 172–174; exit = `events compare` exits 0). Class B door-slicing first — hypothesized causal ancestor of the bm06/bm11 victim-choice drift (reasoning in design §6 M3 note bm06 lever cell).
-2. The three completion reds are M4's own exit criteria: bm06/bm11 tuning levers (buglog 181), bm01 per-pass search cost (natural end ≈8.5–13.4h must shrink; M5 arena/parallelism as backstop).
-3. CI flip at M4's moment, per the one-commit protocol above; stale rust-check.yml compare-step comment (pre-adjudication bm11 framing) refreshed at the FIRST workflow-touching M4 commit.
-4. M2 leftovers still open: the four cut pub items return with their first consumer, pinned then.
-5. Banked inert mutants (hoist-if-third-copy `item_is_drillable` twins; QR-2/QR-3b/QR-7/Q2/Q3/Q7, MIN-3, buglog 178, ViaOptimizer POINTS sites) — revisit opportunistically; chore(wolf) banked commit (cerebrum consolidation, buglog ids >95 unstaged) when convenient.
-### Acceptance criteria (M4, from design §6)
-1. Full pipeline (fanout + detail + optimizer) runs on the fixture set.
-2. All fixtures ≥ Java on completion / violations / score — the zero-regression moment.
-3. Gates green; zero regressions on all M2/M3 compares.
-### Open decisions
-- None blocking; optimizer decomposition (pull-tight → shove → via opt staging) resolved during planning from the Java pass structure.
+**Standing /loop verification-and-hardening campaign** (runs until
+Tyler says stop): gates/tests (every cargo capped
+`systemd-run --user --scope -p MemoryMax=6G`; census arithmetic
+declared before runs, reconciled against constituents), hunt
+bugs/gaps/holes with tests, land ranked improvements, export-push
+every landing.
+**Open queue (all user-gated or conditional):**
+1. #8 large-files strip (13 × >50MB in epicki) — Tyler's decision.
+2. B1 mixed trace widths — blocked on Tyler's .dsn.
+3. #19 worker-board reuse — only if memory pressure justifies (then
+   the 8dcd4cd68 ride-along applies).
+4. global-router-robustness round — optional; T4 stash@{1} C+D WIP
+   parked.
+5. Any new upstream fetch → extend the sweep table BEFORE touching
+   code.
 
 ## 📁 Active architecture
 
-- `rust/` workspace (run cargo from `rust/`): `epic-geometry`, `epic-dsn`, `epic-board`, `epic-rules`, `epic-drc`, `epic-search`, `epic-router` (maze/expansion/drill/path/ripup + SEAM.md), `epic-engine` (13-line M4 scaffold), `epic-cli`, `harness` (epic-harness: corpus/compare/battery/determinism/events/tripwire).
-- Oracle: Java tree frozen at `e7f9bdf1` (`src/` read-only), jar run via JDK 25 `~/.jdks/jdk-25.0.4.1+1/bin/java`; `EPIC_SKIP_GRADLE=1` for compares.
-- Committed artifacts never modified: `rust/harness/baselines/**`, corpus dirs, events-golden (`cc50216c…`), `tiers.yaml`.
-- CI: `.github/workflows/rust-check.yml` (fmt + clippy `-D warnings` + tests + java-free corpus compare `--report-only`); flip guarded by `rust/harness/src/ci_tripwire.rs` pins.
-- Records: `rust/crates/epic-router/SEAM.md` (differential ledger + milestone-criterion map), `.wolf/buglog.json` (181 entries; committed file tops out at id 95 — working tree is authoritative), `logs/M3-T17/` (T17 review chain + milestone adjudication + bm06/bm01/bm11 evidence).
+- `rust/` workspace (run cargo from `rust/`): `epic-geometry`,
+  `epic-index`, `epic-board`, `epic-dsn`, `epic-drc`, `epic-router`,
+  `epic-engine`, `epic-cli`, `epic-gui`, `epic-harness` (harness/).
+- Runtime: DSN → epic-dsn → epic-board → epic-router (fanout → batch
+  passes → optimizer) → epic-drc → SES. GUI egui, CLI headless.
+- The engine is SINGLE-THREADED per run (no routing thread spawns);
+  epic-index's only atomic is an id counter — upstream #798's
+  search-tree race is N/A by architecture.
+- Goldens immutable; new goldens only via sanctioned capture doors.
+- GitHub CI RETIRED for the standalone era — the authoritative gate
+  battery is LOCAL (fmt + clippy `-D warnings` + census + compares +
+  tierA + gv faces via `logs/readiness-2026-10-01/run_gates_*.sh`).
+- Export law: epic/main product commits → epicki orphan snapshots
+  (`git rev-parse <sha>^{tree}` → read-tree/write-tree MATCH assert →
+  `commit-tree -p <prev-export>` → bare `git push epicki`); chore(wolf)
+  never exported; no version bump.
 
 ## ⚠️ External blockers
 
-- None. (Watchdog: never kill/modify processes that are not ours — another Claude instance runs on this machine.)
+- None. (Never touch other Claude sessions; defer heavy runs while
+  the other instance loads the CPU.)
 
 ## 🔧 Useful commands
 
-- Gates (from `rust/`): `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace` → **1305/0/15**.
-- Compares (repo root, harness bin, `EPIC_SKIP_GRADLE=1`, explicit command lines, real exit codes — never pipe a gate in fish): corpus / dsn / ses / ses-snap / index / undo / drc; `router determinism` digests; `events compare` (currently exit 1 = #61).
-- Battery: release profile, CHEAP subset only for probes (bm08, ecc83-pp, ecc83-pp_v2); NEVER bm01/bm11 unbounded, never bm06 in debug; never re-run the one-off captures (evidence on disk in `logs/M3-T17/`).
-- JDK 25 for oracles; `cd` every Bash call (fish); commits end with `Co-Authored-By: Claude Code <noreply@anthropic.com>`; never push (no remote on epic/main).
+- Gates: clone the newest `logs/readiness-2026-10-01/run_gates_*.sh`
+  (26 gates: both-profile cleans, fmt, clippy ×2, census, det1,
+  threads, 8 compares, tierA, 7 gv faces). Audit per-gate `exit=`
+  lines — the scripts are NOT fail-fast.
+- Census: `cargo test --workspace` → **42/1827/0/19** (declare
+  arithmetic before running; reconcile per-crate after).
+- Staleness law (buglog 265): after tests-only edits, `cargo clean -p
+  epic-cli` BOTH profiles or the census tripwire sees a stale bin.
+- fish traps: no `===` separators; heredocs/python → script files.
+- Commits end with `Co-Authored-By: Claude Code <noreply@anthropic.com>`;
+  the `git push epicki` jail carve-out wants the push as its OWN
+  command (compounds blocked).

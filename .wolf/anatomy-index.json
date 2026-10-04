@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T16:15:41.331Z",
-    "fileCount": 844,
+    "lastScanned": "2026-10-04T17:20:15.199Z",
+    "fileCount": 845,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "0e07c413926018bb24ca4a0b7d6c7727e3dfa868e8496c11f437c357a7de149e",
-    "storeUpdatedAt": "2026-10-04T16:15:41.340Z",
-    "rootHash": "562eafbee7c331a8"
+    "renderedHash": "c1d966f9b96e699116929ae78ec86836cd18279555d8b2229b2c76dc2d271bf3",
+    "storeUpdatedAt": "2026-10-04T17:20:15.212Z",
+    "rootHash": "b5e0fcdca794198d"
   },
   "files": {
     ".dockerignore": {
@@ -15005,6 +15005,15 @@
       "size": 2236,
       "mtimeMs": 1791127464094.9316,
       "updatedAt": "2026-10-04T15:24:24.200Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/upstream-sweep-2026-10-04.md": {
+      "description": "Post-baseline upstream sweep — full disposition",
+      "tokens": 1280,
+      "hash": "fcfc424d457a567e",
+      "size": 5141,
+      "mtimeMs": 1791134415100.4866,
+      "updatedAt": "2026-10-04T17:20:15.198Z",
       "source": "hook"
     }
   },
