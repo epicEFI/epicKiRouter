@@ -1,0 +1,48 @@
+(pcb 930-categories.dsn
+
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+  )
+  (resolution um 1)
+  (unit um)
+  (structure
+    (layer F.Cu (type signal))
+    (layer B.Cu (type signal))
+    (boundary (rect pcb 0 0 100000 120000))
+    (rule (width 250) (clearance 2000))
+  )
+  (placement
+    (component CMP1
+      (place CMP1 10000 10000 front 0)
+    )
+  )
+  (library
+    (padstack PAD_R
+      (shape (rect F.Cu -1000 -1000 1000 1000))
+    )
+    (image CMP1
+      (pin PAD_R P1 15000 20000)
+      (pin PAD_R P2 18000 20000)
+      (pin PAD_R P3 21000 20000)
+      (pin PAD_R P4 24000 20000)
+      (pin PAD_R P5 27000 20000)
+      (pin PAD_R P6 30000 20000)
+      (pin PAD_R P7 33000 20000)
+    )
+  )
+  (network
+    (net NA (pins CMP1-P1 CMP1-P3 CMP1-P5 CMP1-P7))
+    (net NB (pins CMP1-P2 CMP1-P4 CMP1-P6))
+    (net TA)
+    (net TB)
+    (net TC)
+    (net TD)
+  )
+  (wiring
+    (wire (path F.Cu 250  50000 20000  60000 20000) (net TA) (type fix))
+    (wire (path F.Cu 250  53000 22000  63000 22000) (net TB) (type fix))
+    (wire (path F.Cu 250  50000 40000  60000 40000) (net TC))
+    (wire (path F.Cu 250  53000 42000  63000 42000) (net TD))
+  )
+)

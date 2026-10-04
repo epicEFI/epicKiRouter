@@ -300,6 +300,12 @@ pub struct ClearanceViolationsStats {
     pub pre_existing_count: i32,
     /// Java `routerIntroducedCount` — `max(0, total - preExisting)`.
     pub router_introduced_count: i32,
+    /// Java #930 `unfixableCount` — the pre-existing violations
+    /// where neither item is routable. IN-MEMORY ONLY: this struct
+    /// carries no serde derives, and the serialized faces (the CLI
+    /// manifest block, the harness manifest) are NOT extended — the
+    /// committed golden digests stay byte-identical by construction.
+    pub unfixable_count: i32,
     /// Java `totalViolationUm` — the shortfall sum in micrometres
     /// (the V2 depth input).
     pub total_violation_um: Option<f64>,
@@ -603,10 +609,12 @@ impl BoardStatistics {
                 stats.clearance_violations.total_count.unwrap_or(0)
                     - board.pre_existing_clearance_violations_count,
             );
+            stats.clearance_violations.unfixable_count = board.unfixable_clearance_violations_count;
         } else {
             stats.clearance_violations.total_count = Some(0);
             stats.clearance_violations.pre_existing_count = 0;
             stats.clearance_violations.router_introduced_count = 0;
+            stats.clearance_violations.unfixable_count = 0;
             stats.clearance_violations.total_violation_um = Some(0.0);
             stats.clearance_violations.min_violation_um = Some(0.0);
             stats.clearance_violations.max_violation_um = Some(0.0);
@@ -639,6 +647,7 @@ impl BoardStatistics {
                 total_count: None,
                 pre_existing_count: 0,
                 router_introduced_count: 0,
+                unfixable_count: 0,
                 total_violation_um: None,
                 min_violation_um: None,
                 max_violation_um: None,
