@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T03:38:03.863Z",
-    "fileCount": 822,
+    "lastScanned": "2026-10-04T07:33:50.087Z",
+    "fileCount": 826,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "330a02785038d44283f29affdd00e3ffbd74a43a58bcfae83070a0d8d62c425a",
-    "storeUpdatedAt": "2026-10-04T03:38:03.873Z",
-    "rootHash": "e5a2ea5893911bdb"
+    "renderedHash": "a21d3b783383d9830b3f23dddd4a5d5f3434633512d541c8c754e6cc22b50716",
+    "storeUpdatedAt": "2026-10-04T07:33:50.099Z",
+    "rootHash": "1b55e89bc7d08b6f"
   },
   "files": {
     ".dockerignore": {
@@ -8474,61 +8474,61 @@
     },
     "rust/crates/epic-router/src/global/map.rs": {
       "description": "The coarse-grid congestion map (M6-T7) — an occupancy/overflow",
-      "tokens": 6193,
-      "hash": "5edc4173e8034b10",
-      "size": 23257,
-      "mtimeMs": 1790925835483.0918,
-      "updatedAt": "2026-10-02T07:23:55.590Z",
+      "tokens": 6630,
+      "hash": "39f159eda2437fdc",
+      "size": 24906,
+      "mtimeMs": 1791089161552.949,
+      "updatedAt": "2026-10-04T04:46:01.672Z",
       "source": "hook",
       "symbols": [
         {
           "name": "Occupant",
           "kind": "class",
-          "startLine": 52,
-          "endLine": 64,
+          "startLine": 58,
+          "endLine": 70,
           "tokens": 118
         },
         {
           "name": "CongestionMap",
           "kind": "class",
-          "startLine": 65,
-          "endLine": 83,
+          "startLine": 71,
+          "endLine": 89,
           "tokens": 182
         },
         {
           "name": "shape_bbox",
           "kind": "fn",
-          "startLine": 84,
-          "endLine": 94,
+          "startLine": 90,
+          "endLine": 100,
           "tokens": 135
         },
         {
           "name": "polyline_bbox",
           "kind": "fn",
-          "startLine": 95,
-          "endLine": 127,
+          "startLine": 101,
+          "endLine": 133,
           "tokens": 273
         },
         {
           "name": "widen",
           "kind": "fn",
-          "startLine": 128,
-          "endLine": 146,
+          "startLine": 134,
+          "endLine": 152,
           "tokens": 201
         },
         {
           "name": "area_bbox",
           "kind": "fn",
-          "startLine": 147,
-          "endLine": 196,
+          "startLine": 153,
+          "endLine": 202,
           "tokens": 540
         },
         {
           "name": "CongestionMap",
           "kind": "section",
-          "startLine": 197,
-          "endLine": 618,
-          "tokens": 4446
+          "startLine": 203,
+          "endLine": 646,
+          "tokens": 4804
         }
       ]
     },
@@ -9173,11 +9173,11 @@
     },
     "rust/crates/epic-board/src/board.rs": {
       "description": "The live board: the item arena, the id generator, and the",
-      "tokens": 34990,
-      "hash": "5861926578f45ad4",
-      "size": 131619,
-      "mtimeMs": 1791065662836.2808,
-      "updatedAt": "2026-10-03T22:14:22.948Z",
+      "tokens": 35324,
+      "hash": "8338bfaa9c34da9e",
+      "size": 132879,
+      "mtimeMs": 1791089105216.7568,
+      "updatedAt": "2026-10-04T04:45:05.322Z",
       "source": "hook",
       "symbols": [
         {
@@ -9233,63 +9233,63 @@
           "name": "Board",
           "kind": "class",
           "startLine": 172,
-          "endLine": 322,
-          "tokens": 2560
+          "endLine": 332,
+          "tokens": 2731
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 323,
-          "endLine": 1918,
-          "tokens": 20263
+          "startLine": 333,
+          "endLine": 1942,
+          "tokens": 20449
         },
         {
           "name": "convert_item",
           "kind": "fn",
-          "startLine": 1919,
-          "endLine": 2049,
+          "startLine": 1943,
+          "endLine": 2073,
           "tokens": 1575
         },
         {
           "name": "fixed_from_ir",
           "kind": "fn",
-          "startLine": 2050,
-          "endLine": 2063,
+          "startLine": 2074,
+          "endLine": 2087,
           "tokens": 172
         },
         {
           "name": "obstacle_kind_from_ir",
           "kind": "fn",
-          "startLine": 2064,
-          "endLine": 2074,
+          "startLine": 2088,
+          "endLine": 2098,
           "tokens": 140
         },
         {
           "name": "board_shape_from_ir",
           "kind": "fn",
-          "startLine": 2075,
-          "endLine": 2083,
+          "startLine": 2099,
+          "endLine": 2107,
           "tokens": 111
         },
         {
           "name": "area_from_ir",
           "kind": "fn",
-          "startLine": 2084,
-          "endLine": 2090,
+          "startLine": 2108,
+          "endLine": 2114,
           "tokens": 52
         },
         {
           "name": "ItemEntry",
           "kind": "section",
-          "startLine": 2091,
-          "endLine": 2111,
+          "startLine": 2115,
+          "endLine": 2135,
           "tokens": 253
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 2112,
-          "endLine": 3013,
+          "startLine": 2136,
+          "endLine": 3037,
           "tokens": 10417
         }
       ]
@@ -14456,6 +14456,42 @@
       "size": 5635,
       "mtimeMs": 1791085083759.7942,
       "updatedAt": "2026-10-04T03:38:03.863Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/congestion-grid-recon.md": {
+      "description": "Congestion-grid outline-interior recouple — RECON (2026-10-03, post-#885)",
+      "tokens": 1096,
+      "hash": "9533b6487a05023e",
+      "size": 4434,
+      "mtimeMs": 1791085365193.1426,
+      "updatedAt": "2026-10-04T03:42:45.290Z",
+      "source": "hook"
+    },
+    "rust/harness/fixtures/global-spike/g1_far_keepout.dsn": {
+      "description": "Declares signal",
+      "tokens": 357,
+      "hash": "3a07a2e26a7a65e6",
+      "size": 1338,
+      "mtimeMs": 1791089234220.2004,
+      "updatedAt": "2026-10-04T04:47:14.325Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/run_gates_cgrid.sh": {
+      "description": "Congestion-grid outline-interior recouple landing battery (2026-10-03)",
+      "tokens": 1514,
+      "hash": "007e5f035b3cd523",
+      "size": 5687,
+      "mtimeMs": 1791089954065.8218,
+      "updatedAt": "2026-10-04T04:59:14.171Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/cgrid-commit-msg.txt": {
+      "description": "",
+      "tokens": 1153,
+      "hash": "0874d1a140c390c8",
+      "size": 4647,
+      "mtimeMs": 1791099229984.0354,
+      "updatedAt": "2026-10-04T07:33:50.087Z",
       "source": "hook"
     }
   },
