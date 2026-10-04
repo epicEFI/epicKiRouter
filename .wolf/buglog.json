@@ -4153,5 +4153,25 @@
    "test-reachability",
    "152"
   ]
+ },
+ {
+  "id": 262,
+  "date": "2026-10-03",
+  "error_message": "#152 Commit B port (upstream d0d876e30 getAutorouteItems rework): (1) first clippy round E0596 in the new test helper \u2014 `manager.insert(&mut board, ca_id)` where `board` is ALREADY a `&mut Board` param (the copied precedent reborrowed a LOCAL board); (2) initial test design nearly asserted the plane-first ORDER on the DEBUG ROWS, which fire in WALK order (descending id), not queue order.",
+  "root_cause": "(1) The construction idiom was copied from a caller-shaped site (connection_router's t12_plane_world destructures `let (mut manager, mut board) = parse_fixture()`) into a helper that RECEIVES the reference \u2014 reborrowing a reference binding needs no `&mut`. (2) get_autoroute_items emits rows inside the seed walk but the plane-first concatenation happens at RETURN \u2014 two different orderings by construction.",
+  "fix": "Landed 1ad3a8f5e (export 5bd18fcda, parent 9fc8aa9d4): per-item needs_routing/has_plane_net verdict + first-queued stats, ONE enqueue per item (was one per qualifying net), plane list concatenated AHEAD of signal, pour-connected plane nets skip WITHOUT the plane flag, single debug row with `, plane: {bool}`. MT clone/shuffle hunk + isPlaneItem NOT ported (disposition in commit message: Rust net-partitioned MT walks the shared queue in order; isPlaneItem has no consumer and is weaker than hasPlaneNet). Helper passes `board` directly; the plane-first pin asserts on the returned Vec<ItemId> classified by net, never the rows. 3 new pins + 2 rotations (connection_router CA row, pass_runner starved row) + SEAM.md queue-walk/plane-world parity rows rotated (upstream-superseded).",
+  "tags": [
+   "152",
+   "commit-b",
+   "get_autoroute_items",
+   "queue-rework",
+   "plane-first",
+   "dedup",
+   "port",
+   "epic-router",
+   "export-5bd18fcda",
+   "e0596-reborrow",
+   "walk-order-vs-queue-order"
+  ]
  }
 ]

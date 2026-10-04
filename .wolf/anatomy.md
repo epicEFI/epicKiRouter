@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T00:34:24.770Z
-> Files: 818 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T01:40:04.302Z
+> Files: 820 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -779,6 +779,7 @@
 ## logs/readiness-2026-10-01/
 
 - `152a-commit-msg.txt` (~1131 tok)
+- `152b-commit-msg.txt` (~1141 tok)
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
 - `933s1-commit-msg.txt` (~667 tok)
 - `933s2-commit-msg.txt` (~898 tok)
@@ -849,6 +850,7 @@
 - `run_batch_ext.sh` — Extended-cap E2E runner: same as run_batch.sh but 2400s wall and e2e-ext/ output. (~204 tok)
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_152a.sh` — #152 COMMIT A landing battery (2026-10-03) — heuristic relaxation (~1459 tok)
+- `run_gates_152b.sh` — #152 COMMIT B landing battery (2026-10-03) — the d0d876e30 (~1490 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
 - `run_gates_933s2.sh` — #933 SURVIVOR-2 landing battery (2026-10-03) — the last-mile (~1212 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
@@ -1043,9 +1045,9 @@
 
 ## rust/crates/epic-router/src/pipeline/
 
-- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~28411 tok)
+- `batch.rs` — Java `autoroute/pipeline/BatchAutorouter.java` + (~31786 tok)
 - `board_statistics.rs` — Java `core/scoring/BoardStatistics.java` — the board counting walk (~22856 tok)
-- `connection_router.rs` — Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the (~12481 tok)
+- `connection_router.rs` — Java `autoroute/pipeline/AutorouteConnectionRouter.java` — the (~12533 tok)
 - `event_sink.rs` — The driver's log-only output seam: Java scatters `FRLogger.info` / (~2456 tok)
 - `fanout.rs` — Java `autoroute/pipeline/BatchFanout.java` — the fanout stage: the (~30123 tok)
 - `full.rs` — The full-pipeline assembly (M4-T10): the port of Java (~14569 tok)
@@ -1054,7 +1056,7 @@
 - `mod.rs` — The batch-autoroute pipeline (M3-T12): the multi-pass driver over (~192 tok)
 - `optimizer.rs` — Java `autoroute/pipeline/BatchOptimizer.java` — the rip-and-reroute (~46334 tok)
 - `pairs.rs` — M7-T6: the differential-PAIR face — the pair DECLARATION resolution, (~13881 tok)
-- `pass_runner.rs` — Java `autoroute/pipeline/AutoroutePassRunner.java` — the (~20918 tok)
+- `pass_runner.rs` — Java `autoroute/pipeline/AutoroutePassRunner.java` — the (~20958 tok)
 
 ## rust/harness/
 
