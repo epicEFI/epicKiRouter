@@ -1270,7 +1270,13 @@ impl DsnLayer {
                 })
                 .collect();
             // The parsed per-layer trace costs are dropped HERE (bug-compat
-            // fact 1): the geometry pass re-derives every row unconditionally.
+            // fact 1): the geometry pass re-derives every row unless a
+            // source made it explicit. STILL Java-parity post-#885
+            // (2026-10-03): upstream's metadata parser has NO writer for
+            // the new LayerSettings cost fields either (the grep over
+            // c32625e0f's main tree — the only writers are the
+            // GUI/API/Gson setters) — the DSN path never carried
+            // per-layer costs on either side.
         }
         layer
     }
@@ -1289,6 +1295,15 @@ pub struct MergedLayerSlot {
     pub preferred_direction_is_horizontal: Option<bool>,
     /// Java `bendCost`.
     pub bend_cost: Option<f64>,
+    /// Java `preferredDirectionTraceCost` (upstream #885, c32625e0f):
+    /// an explicit per-layer preferred-direction trace cost. `None`
+    /// means "use the computed board default" — the geometry pass
+    /// derives it and back-syncs the effective value here.
+    pub preferred_direction_trace_cost: Option<f64>,
+    /// Java `undesiredDirectionTraceCost` (upstream #885, c32625e0f):
+    /// an explicit against-preferred-direction cost; `None` = the
+    /// computed default (plus the aspect-ratio penalty).
+    pub undesired_direction_trace_cost: Option<f64>,
 }
 
 impl From<DsnLayerSlot> for MergedLayerSlot {
@@ -1297,6 +1312,11 @@ impl From<DsnLayerSlot> for MergedLayerSlot {
             routable: slot.routable,
             preferred_direction_is_horizontal: slot.preferred_direction_is_horizontal,
             bend_cost: slot.bend_cost,
+            // The DSN source never carries per-layer trace costs (the
+            // parse-side drop below — still Java-parity post-#885: no
+            // Java metadata writer sets the LayerSettings fields).
+            preferred_direction_trace_cost: None,
+            undesired_direction_trace_cost: None,
         }
     }
 }
@@ -1911,7 +1931,11 @@ pub fn validate(merged: &mut MergedSettings) -> Vec<String> {
 /// headless flow this runs UNCONDITIONALLY on the merged settings
 /// (bug-compat fact 1: the applied flag is private transient and never
 /// survives the merge), so the port carries no flag and always
-/// initializes the per-layer trace costs.
+/// initializes the per-layer trace costs — EXCEPT rows a source made
+/// explicit (upstream #885, c32625e0f: the pre-fix unconditional
+/// overwrite was the "settings initialization loss"; explicit rows are
+/// preserved, the outer-layer surcharge skips them, and the final
+/// values back-sync into the slots so repeat passes are idempotent).
 ///
 /// `board.layers()` supplies the layer count + the signal flags; the
 /// bounding box supplies the aspect ratio (Java reads
@@ -1998,24 +2022,58 @@ pub fn apply_board_specific_optimizations(
         if slot.preferred_direction_is_horizontal.is_none() {
             slot.preferred_direction_is_horizontal = Some(current_preferred_horizontal);
         }
-        // `:183-191`: ALWAYS initialize in the headless flow.
-        preferred_costs[index] = default_preferred;
-        undesired_costs[index] = default_undesired
-            + if current_preferred_horizontal {
-                horizontal_add
-            } else {
-                vertical_add
-            };
+        // `:183-191` + upstream #885 (c32625e0f): an EXPLICIT per-layer
+        // cost is PRESERVED (the pre-#885 unconditional overwrite was
+        // the "settings initialization loss" the issue names — a
+        // settings source's explicit row was silently replaced by the
+        // computed default on every pass); `None` rows still compute
+        // from the default (+ the aspect penalty on the undesired
+        // array).
+        preferred_costs[index] = slot
+            .preferred_direction_trace_cost
+            .unwrap_or(default_preferred);
+        undesired_costs[index] = slot.undesired_direction_trace_cost.unwrap_or(
+            default_undesired
+                + if current_preferred_horizontal {
+                    horizontal_add
+                } else {
+                    vertical_add
+                },
+        );
     }
-    // Outer-layer surcharge on >2-signal-layer boards (`:193-204`).
+    // Outer-layer surcharge on >2-signal-layer boards (`:193-204` +
+    // #885): only the rows whose slot value was NOT explicit — the
+    // explicit rows are the user's, the surcharge is ours.
     let signal_layer_count = layer_structure.signal_layer_count();
     if signal_layer_count > 2 {
         let outer_add = 0.2 * f64::from(signal_layer_count);
         let last = layer_count - 1;
-        preferred_costs[0] += outer_add;
-        preferred_costs[last] += outer_add;
-        undesired_costs[0] += outer_add;
-        undesired_costs[last] += outer_add;
+        if settings.layers[0].preferred_direction_trace_cost.is_none() {
+            preferred_costs[0] += outer_add;
+        }
+        if settings.layers[last]
+            .preferred_direction_trace_cost
+            .is_none()
+        {
+            preferred_costs[last] += outer_add;
+        }
+        if settings.layers[0].undesired_direction_trace_cost.is_none() {
+            undesired_costs[0] += outer_add;
+        }
+        if settings.layers[last]
+            .undesired_direction_trace_cost
+            .is_none()
+        {
+            undesired_costs[last] += outer_add;
+        }
+    }
+    // The #885 back-sync: keep the layer slots carrying the FINAL
+    // scoring values, so a second pass over the same model is
+    // idempotent (every now-explicit row preserves what the first
+    // pass computed).
+    for (index, slot) in settings.layers.iter_mut().enumerate() {
+        slot.preferred_direction_trace_cost = Some(preferred_costs[index]);
+        slot.undesired_direction_trace_cost = Some(undesired_costs[index]);
     }
     settings.preferred_trace_costs = preferred_costs;
     settings.undesired_trace_costs = undesired_costs;
@@ -3300,6 +3358,105 @@ mod tests {
         );
     }
 
+    /// Upstream #885 (c32625e0f,
+    /// `applyBoardSpecificOptimizationsPreservesExplicitLayerTraceCosts`):
+    /// an explicit per-layer cost survives the geometry pass — the
+    /// pre-fix unconditional overwrite (0.25 → 1.0+0.8, 0.50 →
+    /// 1.0+2.0+0.8 on this board) was the "settings initialization
+    /// loss". The explicit rows also SKIP the outer surcharge (the
+    /// user's rows are not ours to surcharge), the computed rows keep
+    /// the canary test's exact values, and the back-sync writes the
+    /// FINAL values into the slots (explicit row keeps its own, the
+    /// computed row gains the effective value). `resolve` reads the
+    /// preserved row through to the router's cost table.
+    #[test]
+    fn geometry_pass_preserves_explicit_per_layer_trace_costs() {
+        let board = four_layer_board();
+        let mut layers = vec![MergedLayerSlot::default(); 4];
+        layers[0].preferred_direction_trace_cost = Some(0.25);
+        layers[0].undesired_direction_trace_cost = Some(0.50);
+        let mut merged = MergedSettings {
+            layers,
+            ..MergedSettings::default()
+        };
+        apply_board_specific_optimizations(&mut merged, &board);
+
+        // The explicit row: preserved verbatim, NO aspect penalty, NO
+        // outer surcharge (the reverted overwrite reads 1.8 / 3.8).
+        assert_eq!(merged.preferred_trace_costs[0], 0.25);
+        assert_eq!(merged.undesired_trace_costs[0], 0.50);
+        // The computed rows keep the canary table (hAdd=2.0, vAdd=0.5,
+        // surcharge 0.8 on [0]/[3]): L1 vertical-pref (1.0, 1.5), L2
+        // horizontal (1.0, 3.0), L3 vertical-pref + surcharge
+        // (1.8, 2.3) — L0's own surcharge was skipped, L3's still rides.
+        assert_eq!(merged.preferred_trace_costs[1], 1.0);
+        assert_eq!(merged.undesired_trace_costs[1], 1.5);
+        assert_eq!(merged.preferred_trace_costs[2], 1.0);
+        assert_eq!(merged.undesired_trace_costs[2], 3.0);
+        assert_eq!(merged.preferred_trace_costs[3], 1.8);
+        assert_eq!(merged.undesired_trace_costs[3], 2.3);
+        // The back-sync: every slot now carries the final value.
+        assert_eq!(
+            merged.layers[0].preferred_direction_trace_cost,
+            Some(0.25),
+            "the explicit row's own value"
+        );
+        assert_eq!(merged.layers[0].undesired_direction_trace_cost, Some(0.50));
+        assert_eq!(
+            merged.layers[1].undesired_direction_trace_cost,
+            Some(1.5),
+            "the computed row's effective value"
+        );
+        // resolve reads the preserved row through (L0 prefers
+        // horizontal → (preferred, undesired)).
+        let resolved = ResolvedRouteSettings::resolve(&merged, None);
+        assert_eq!(
+            (
+                resolved.router_settings.trace_costs[0].horizontal,
+                resolved.router_settings.trace_costs[0].vertical
+            ),
+            (0.25, 0.50)
+        );
+    }
+
+    /// The #885 back-sync's design consequence: a SECOND pass over the
+    /// same model is IDEMPOTENT — after the first pass every slot is
+    /// explicit (the back-sync), so the second pass preserves exactly
+    /// what the first computed; without the explicit-check the
+    /// unconditional surcharge arm would double 0.8 onto rows [0]/[3]
+    /// and the aspect penalty would ride twice. The arrays after pass 1
+    /// and pass 2 are the canary table verbatim.
+    #[test]
+    fn geometry_pass_back_sync_makes_second_pass_idempotent() {
+        let board = four_layer_board();
+        let mut merged = MergedSettings::default();
+        apply_board_specific_optimizations(&mut merged, &board);
+        let after_first = (
+            merged.preferred_trace_costs.clone(),
+            merged.undesired_trace_costs.clone(),
+        );
+        assert!(
+            merged
+                .layers
+                .iter()
+                .all(|slot| slot.preferred_direction_trace_cost.is_some()
+                    && slot.undesired_direction_trace_cost.is_some()),
+            "the back-sync made every row explicit"
+        );
+        apply_board_specific_optimizations(&mut merged, &board);
+        assert_eq!(
+            merged.preferred_trace_costs, after_first.0,
+            "second pass preserves (no double surcharge)"
+        );
+        assert_eq!(merged.undesired_trace_costs, after_first.1);
+        // And the values are the canary table (L0 horiz +surcharge,
+        // L3 vert-pref +surcharge).
+        assert_eq!(merged.preferred_trace_costs[0], 1.8);
+        assert_eq!(merged.undesired_trace_costs[0], 3.8);
+        assert_eq!(merged.preferred_trace_costs[3], 1.8);
+        assert_eq!(merged.undesired_trace_costs[3], 2.3);
+    }
+
     /// The DSN-set per-layer opinions SURVIVE the geometry pass (it
     /// fills only null slots): an `(active off)` slot stays inactive
     /// even on a signal layer, and a set preferred direction is kept
@@ -3358,11 +3515,15 @@ mod tests {
                 routable: None,
                 preferred_direction_is_horizontal: Some(true),
                 bend_cost: Some(12.0), // SET slot: RAW
+                preferred_direction_trace_cost: None,
+                undesired_direction_trace_cost: None,
             },
             MergedLayerSlot {
                 routable: Some(false),
                 preferred_direction_is_horizontal: Some(false),
                 bend_cost: None, // default fallback: CLAMPED
+                preferred_direction_trace_cost: None,
+                undesired_direction_trace_cost: None,
             },
         ];
         merged.preferred_trace_costs = vec![1.0, 1.0];
