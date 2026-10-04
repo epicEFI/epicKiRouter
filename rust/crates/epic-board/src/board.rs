@@ -130,6 +130,15 @@ impl BoardCommunication {
         DsnUnit::scale(f64::from(self.resolution), DsnUnit::Mil, self.unit)
     }
 
+    /// Java `Communication.getResolution(Unit.MM)`: the resolution
+    /// converted to millimeters — the INTERNAL UNITS PER MM. The
+    /// 152-G dead-copper threshold reads this (`1 mm²` in board
+    /// units² = this value squared; upstream `3011e6e60`).
+    #[must_use]
+    pub fn resolution_mm(&self) -> f64 {
+        DsnUnit::scale(f64::from(self.resolution), DsnUnit::Mm, self.unit)
+    }
+
     /// Java `Communication.hostCadExists()`: true iff a host CAD was
     /// recorded.
     #[must_use]
@@ -3041,5 +3050,25 @@ mod tests {
         // Unknown id: the net-less foreign verdict `true` the pre-fix
         // arm produced (`!nets.contains` on no nets).
         assert!(board.item_is_trace_obstacle(ItemId::new(999_999), 6));
+    }
+
+    /// `resolution_mm` — the INTERNAL UNITS PER MM (Java
+    /// `Communication.getResolution(Unit.MM)`, the 152-G dead-copper
+    /// threshold face). Derivation: `Unit.scale(resolution, MM, unit)`
+    /// — for `(resolution um 10)` one internal unit is 0.1 um, so a
+    /// millimeter is 10000 units; the Mil default (Java's no-arg
+    /// `Communication()`) gives the NON-ROUND 1000/25.4 that
+    /// discriminates the scale direction (an inverted scale would
+    /// read 0.0254 here).
+    #[test]
+    fn resolution_mm_reads_internal_units_per_millimeter() {
+        let um10 = BoardCommunication {
+            unit: DsnUnit::Um,
+            resolution: 10,
+            host_cad: None,
+        };
+        assert_eq!(um10.resolution_mm(), 10_000.0);
+        let mil_default = BoardCommunication::default();
+        assert_eq!(mil_default.resolution_mm(), 1_000.0 / 25.4);
     }
 }

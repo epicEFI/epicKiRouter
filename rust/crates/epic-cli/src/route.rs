@@ -1810,8 +1810,24 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     ));
     // The M6-T6 advisory detector face: pure post-route analysis (no
     // board mutation, no route effect at any setting). Emitted into the
-    // manifest ONLY when the board carries a filled pour.
-    let pour_islands: Vec<ManifestPourIslands> = epic_board::islands::detect_pour_islands(&board)
+    // manifest ONLY when the board carries a filled pour. The walk is
+    // HOISTED: the 152-G dead-copper surfacing below reads the same
+    // faces — one detect walk serves both consumers.
+    let pour_faces = epic_board::islands::detect_pour_islands(&board);
+    // The 152-G DRC surfacing (upstream `3011e6e60`, the dead-copper
+    // arm): floating regions of a fragmented pour at/over 1 mm² warn
+    // on stderr — reporting-only, the same parity-warnings law as the
+    // #930 load-time block (comment faces, not auto-pinned; the
+    // manifest stays untouched — its bytes are canary-pinned).
+    let dead_copper =
+        epic_drc::zone_islands::zone_island_violations(board.communication(), &board, &pour_faces);
+    if !dead_copper.is_empty() {
+        sink.warn(&epic_drc::zone_islands::format_dead_copper_warning(
+            &dead_copper,
+            board.communication(),
+        ));
+    }
+    let pour_islands: Vec<ManifestPourIslands> = pour_faces
         .into_iter()
         .map(|pour| ManifestPourIslands {
             item_id: pour.pour_item_id,
