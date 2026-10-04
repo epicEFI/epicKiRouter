@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T03:38:03.863Z
-> Files: 822 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T07:33:50.087Z
+> Files: 826 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -786,7 +786,9 @@
 - `933s2-commit-msg.txt` (~898 tok)
 - `933s3-commit-msg.txt` (~893 tok)
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
+- `cgrid-commit-msg.txt` (~1153 tok)
 - `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
+- `congestion-grid-recon.md` — Congestion-grid outline-interior recouple — RECON (2026-10-03, post-#885) (~1096 tok)
 - `dispatch-prompt-fixround.md` — Readiness fix round — implementer dispatch (2026-10-01) (~2379 tok)
 - `e2e-REVIEW.md` — E2E review — regular 600s sweep (2026-10-01, final release bin, post-454334bdc tree) (~1340 tok)
 - `export-msg-405709959.txt` — Declares placements (~649 tok)
@@ -855,6 +857,7 @@
 - `run_gates_885.sh` — #885 per-layer costs landing battery (2026-10-03) — upstream c32625e0f, (~1452 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
 - `run_gates_933s2.sh` — #933 SURVIVOR-2 landing battery (2026-10-03) — the last-mile (~1212 tok)
+- `run_gates_cgrid.sh` — Congestion-grid outline-interior recouple landing battery (2026-10-03) (~1514 tok)
 - `run_gates_m11cd.sh` — M11-T1+T5 (upstream #931 clusters C+D: the stagnant-net ripup AND (~783 tok)
 - `run_gates_m11t1.sh` — M11-T1 (upstream #931 cluster C: failure-triggered stagnant-net ripup) (~600 tok)
 - `run_gates_m11t2t6.sh` — M11-T2+T6 battery — the outline edge-pin-net exemption (T6, 023fb1c8b) (~1218 tok)
@@ -904,7 +907,7 @@
 ## rust/crates/epic-board/src/
 
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
-- `board.rs` — The live board: the item arena, the id generator, and the (~34990 tok)
+- `board.rs` — The live board: the item arena, the id generator, and the (~35324 tok)
 - `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24645 tok)
 - `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~753 tok)
 - `plane_obstacle.rs` — Upstream #152 (PR #889): the `planeAsObstacle` board face. (~1901 tok)
@@ -1030,7 +1033,7 @@
 ## rust/crates/epic-router/src/global/
 
 - `history.rs` — The PathFinder negotiated-congestion scheduler (M6-T8) — per-resource (~4047 tok)
-- `map.rs` — The coarse-grid congestion map (M6-T7) — an occupancy/overflow (~6193 tok)
+- `map.rs` — The coarse-grid congestion map (M6-T7) — an occupancy/overflow (~6630 tok)
 - `pattern.rs` — The pattern router (M6-T7) — L/Z 1-2-bend routes inside guides for (~2294 tok)
 - `tests.rs` — The M6-T7 pin bank (charter: pins in `global/tests.rs`). (~8761 tok)
 
@@ -1066,6 +1069,7 @@
 
 ## rust/harness/fixtures/global-spike/
 
+- `g1_far_keepout.dsn` — Declares signal (~357 tok)
 - `g5_mixedlayer.dsn` — Declares signal (~377 tok)
 
 ## rust/harness/fixtures/p3/

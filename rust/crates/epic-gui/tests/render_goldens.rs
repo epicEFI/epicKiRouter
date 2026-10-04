@@ -147,6 +147,65 @@ fn read_golden(rel: &str) -> String {
     body.trim_end().to_string()
 }
 
+/// Reads one value line out of a committed golden's `#` header (the
+/// capture-only metadata `read_golden` strips): the first line starting
+/// with `marker`, minus the marker, trimmed. `None` when no such line
+/// exists (the bug-255 verify arms demand `Some` — a golden of the
+/// overlay family without its counts line is malformed, not exempt).
+fn golden_header_value(rel: &str, marker: &str) -> Option<String> {
+    let text = fs::read_to_string(
+        repo_root()
+            .join("harness/fixtures/gui-render/golden")
+            .join(rel),
+    )
+    .unwrap_or_else(|error| panic!("golden {rel} is readable: {error}"));
+    text.lines()
+        .find_map(|line| line.strip_prefix(marker))
+        .map(str::trim)
+        .map(str::to_string)
+}
+
+/// The `snapshot items` counts line (header metadata): the single
+/// format shared by both capture doors and the bug-255 verify arms, so
+/// the door-written and verify-derived lines cannot drift apart.
+fn snapshot_items_line(snapshot: &BoardSnapshot) -> String {
+    format!(
+        "traces={} vias={} pads={} areas={} outline_pts={} nets={}",
+        snapshot.traces.len(),
+        snapshot.vias.len(),
+        snapshot.pads.len(),
+        snapshot.areas.len(),
+        snapshot.outline.len(),
+        snapshot.nets.len(),
+    )
+}
+
+/// The `overlay counts` line (header metadata): per-family live counts
+/// off the snapshot — the same single format for the capture door and
+/// the bug-255 verify arms. For a flag-OFF family these counts exist
+/// ONLY here (the body carries no ops for an OFF family), which is
+/// exactly the verify-blind gap the assertions close.
+fn overlay_counts_line(snapshot: &BoardSnapshot) -> String {
+    format!(
+        "airlines={} markers={} congestion={} tuning={}",
+        snapshot.overlays.airlines.len(),
+        snapshot.overlays.violation_markers.len(),
+        snapshot
+            .overlays
+            .congestion
+            .as_ref()
+            .map(|heatmap| heatmap.cells.len())
+            .map(|cells| format!("Some({cells} cells)"))
+            .unwrap_or_else(|| "None".to_string()),
+        snapshot
+            .overlays
+            .tuning
+            .as_ref()
+            .map(|infos| format!("Some({} infos)", infos.len()))
+            .unwrap_or_else(|| "None".to_string()),
+    )
+}
+
 /// The shared golden-verify body (determinism double-derivation +
 /// byte-compare against the committed file).
 fn assert_golden_matches(fixture_rel: &str, golden_rel: &str) {
@@ -1374,6 +1433,29 @@ fn overlay_goldens_verify_in_process() {
             "{}: the re-derivation is byte-identical to the committed golden",
             case.golden
         );
+        // bug-255 hardening: the header counts are metadata `read_golden`
+        // strips, so a drifting count was verify-blind — for a flag-OFF
+        // family (e.g. markers on this tuning golden) the count existed
+        // ONLY in the header and could move with no gate able to see it
+        // (the T4/T3 phantom-paradox adjudication). The header lines are
+        // now verify-checked against the LIVE snapshot through the same
+        // helpers the capture door writes them with.
+        let golden_counts = golden_header_value(case.golden, "# overlay counts: ")
+            .unwrap_or_else(|| panic!("{}: carries the `# overlay counts:` header line (a golden of this family without it is malformed — regenerate through capture_overlay_goldens)", case.golden));
+        assert_eq!(
+            overlay_counts_line(&snapshot),
+            golden_counts,
+            "{}: the golden header's overlay counts equal the live snapshot's",
+            case.golden
+        );
+        let golden_items = golden_header_value(case.golden, "# snapshot items: ")
+            .unwrap_or_else(|| panic!("{}: carries the `# snapshot items:` header line (a golden of this family without it is malformed — regenerate through capture_overlay_goldens)", case.golden));
+        assert_eq!(
+            snapshot_items_line(&snapshot),
+            golden_items,
+            "{}: the golden header's snapshot items equal the live snapshot's",
+            case.golden
+        );
         match case.golden {
             "bm08.overlay-culled.json" => {
                 assert!(run_one.culled > 0, "the restricted viewport CULLS");
@@ -1419,10 +1501,12 @@ fn capture_render_goldens() {
         let snapshot = load_snapshot(fixture_rel);
         let view = golden_view(&snapshot);
         let list = project(&snapshot, &view, full_viewport());
+        // The bug-255 shared helper (same format the verify arms read).
+        let items_line = snapshot_items_line(&snapshot);
         let header = format!(
             "# fixture: {fixture_rel}\n\
              # snapshot revision: {rev}\n\
-             # snapshot items: traces={traces} vias={vias} pads={pads} areas={areas} outline_pts={outline} nets={nets}\n\
+             # snapshot items: {items_line}\n\
              # transform: pan=({px}, {py}) zoom=1/1\n\
              # transform derivation: pan = snapshot.bounds.ll (the fixture's lower-left anchored at\n\
              #   the screen origin); zoom 1/1 is the unique px-per-DBU ratio whose world<->screen map\n\
@@ -1435,12 +1519,6 @@ fn capture_render_goldens() {
              # format: serde_json::to_string_pretty of the RenderList; RenderOp externally tagged with\n\
              #   Rust variant spelling; points {{\"x\":i32,\"y\":i32}}; colors [r,g,b,a] u8; SetWidth f32 px.\n",
             rev = snapshot.revision,
-            traces = snapshot.traces.len(),
-            vias = snapshot.vias.len(),
-            pads = snapshot.pads.len(),
-            areas = snapshot.areas.len(),
-            outline = snapshot.outline.len(),
-            nets = snapshot.nets.len(),
             px = snapshot.bounds.ll_x,
             py = snapshot.bounds.ll_y,
         );
@@ -1467,24 +1545,11 @@ fn capture_render_goldens() {
 fn capture_overlay_goldens() {
     for case in &OVERLAY_GOLDEN_CASES {
         let (list, snapshot) = project_overlay_case(case);
-        let overlay_counts = format!(
-            "airlines={} markers={} congestion={} tuning={}",
-            snapshot.overlays.airlines.len(),
-            snapshot.overlays.violation_markers.len(),
-            snapshot
-                .overlays
-                .congestion
-                .as_ref()
-                .map(|heatmap| heatmap.cells.len())
-                .map(|cells| format!("Some({cells} cells)",))
-                .unwrap_or_else(|| "None".to_string()),
-            snapshot
-                .overlays
-                .tuning
-                .as_ref()
-                .map(|infos| format!("Some({} infos)", infos.len()))
-                .unwrap_or_else(|| "None".to_string()),
-        );
+        // The bug-255 shared helpers — the door and the verify arms
+        // derive the header lines from ONE format, byte-identical by
+        // construction.
+        let overlay_counts = overlay_counts_line(&snapshot);
+        let items_line = snapshot_items_line(&snapshot);
         let (viewport_desc, culled_desc) = if case.restricted_viewport {
             let viewport = restricted_viewport(&snapshot);
             (
@@ -1504,7 +1569,7 @@ fn capture_overlay_goldens() {
             "# fixture: {fixture}\n\
              # boundary: {boundary}\n\
              # snapshot revision: {rev}\n\
-             # snapshot items: traces={traces} vias={vias} pads={pads} areas={areas} outline_pts={outline} nets={nets}\n\
+             # snapshot items: {items_line}\n\
              # overlay counts: {overlay_counts}\n\
              # transform: pan=({px}, {py}) zoom=1/1 (the T4 derivation: 1/1 is the unique\n\
              #   full-bijection px-per-DBU ratio — view.rs's exactness contract; pan = bounds.ll)\n\
@@ -1522,12 +1587,6 @@ fn capture_overlay_goldens() {
                     "congestion-on (route with SessionLayer.congestion_global = Some(true), then snapshot_with_overlays)",
             },
             rev = snapshot.revision,
-            traces = snapshot.traces.len(),
-            vias = snapshot.vias.len(),
-            pads = snapshot.pads.len(),
-            areas = snapshot.areas.len(),
-            outline = snapshot.outline.len(),
-            nets = snapshot.nets.len(),
             px = snapshot.bounds.ll_x,
             py = snapshot.bounds.ll_y,
             viewport_desc = viewport_desc,
