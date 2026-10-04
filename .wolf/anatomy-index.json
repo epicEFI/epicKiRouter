@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T07:33:50.087Z",
-    "fileCount": 826,
+    "lastScanned": "2026-10-04T09:11:09.084Z",
+    "fileCount": 827,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "a21d3b783383d9830b3f23dddd4a5d5f3434633512d541c8c754e6cc22b50716",
-    "storeUpdatedAt": "2026-10-04T07:33:50.099Z",
-    "rootHash": "1b55e89bc7d08b6f"
+    "renderedHash": "236c29b13c578f841b8a854938ef83a74ddcaf779a1343029ef22b33cf0ff5ec",
+    "storeUpdatedAt": "2026-10-04T09:11:09.095Z",
+    "rootHash": "23a4bfe876743eb9"
   },
   "files": {
     ".dockerignore": {
@@ -8793,11 +8793,11 @@
     },
     "rust/crates/epic-gui/tests/render_goldens.rs": {
       "description": "M9-T4: the render-golden pins (the dispatch charter for",
-      "tokens": 16171,
-      "hash": "b3bde8e03759699c",
-      "size": 60800,
-      "mtimeMs": 1790952043812.3574,
-      "updatedAt": "2026-10-02T14:40:44.157Z",
+      "tokens": 17059,
+      "hash": "23b6ff11cce7f2bc",
+      "size": 64144,
+      "mtimeMs": 1791103153042.36,
+      "updatedAt": "2026-10-04T08:39:13.157Z",
       "source": "hook",
       "symbols": [
         {
@@ -8853,162 +8853,162 @@
           "name": "read_golden",
           "kind": "fn",
           "startLine": 135,
-          "endLine": 151,
-          "tokens": 156
+          "endLine": 154,
+          "tokens": 224
+        },
+        {
+          "name": "golden_header_value",
+          "kind": "fn",
+          "startLine": 155,
+          "endLine": 170,
+          "tokens": 175
+        },
+        {
+          "name": "snapshot_items_line",
+          "kind": "fn",
+          "startLine": 171,
+          "endLine": 187,
+          "tokens": 191
+        },
+        {
+          "name": "overlay_counts_line",
+          "kind": "fn",
+          "startLine": 188,
+          "endLine": 210,
+          "tokens": 225
         },
         {
           "name": "assert_golden_matches",
           "kind": "fn",
-          "startLine": 152,
-          "endLine": 176,
+          "startLine": 211,
+          "endLine": 235,
           "tokens": 242
         },
         {
           "name": "bm08_golden_matches_in_process_rederivation",
           "kind": "fn",
-          "startLine": 177,
-          "endLine": 181,
+          "startLine": 236,
+          "endLine": 240,
           "tokens": 33
         },
         {
           "name": "kit2_led_cube_golden_matches_in_process_rederivation",
           "kind": "fn",
-          "startLine": 182,
-          "endLine": 186,
+          "startLine": 241,
+          "endLine": 245,
           "tokens": 41
         },
         {
           "name": "e1_ripup_golden_matches_in_process_rederivation",
           "kind": "fn",
-          "startLine": 187,
-          "endLine": 197,
+          "startLine": 246,
+          "endLine": 256,
           "tokens": 136
         },
         {
           "name": "two_layer_snapshot",
           "kind": "fn",
-          "startLine": 198,
-          "endLine": 242,
+          "startLine": 257,
+          "endLine": 301,
           "tokens": 398
         },
         {
           "name": "crafted_view",
           "kind": "fn",
-          "startLine": 243,
-          "endLine": 249,
+          "startLine": 302,
+          "endLine": 308,
           "tokens": 63
         },
         {
           "name": "layer_visibility_exclusion_by_construction",
           "kind": "fn",
-          "startLine": 250,
-          "endLine": 323,
+          "startLine": 309,
+          "endLine": 382,
           "tokens": 896
         },
         {
           "name": "trace_color_per_layer_override_face",
           "kind": "fn",
-          "startLine": 324,
-          "endLine": 374,
+          "startLine": 383,
+          "endLine": 433,
           "tokens": 476
         },
         {
           "name": "cull_boundary_plus_minus_one_dbu",
           "kind": "fn",
-          "startLine": 375,
-          "endLine": 457,
+          "startLine": 434,
+          "endLine": 516,
           "tokens": 896
         },
         {
           "name": "one_via_snapshot",
           "kind": "fn",
-          "startLine": 458,
-          "endLine": 509,
+          "startLine": 517,
+          "endLine": 568,
           "tokens": 525
         },
         {
           "name": "via_mapping_ops_match_the_doc_table",
           "kind": "fn",
-          "startLine": 510,
-          "endLine": 622,
+          "startLine": 569,
+          "endLine": 681,
           "tokens": 1386
         },
         {
           "name": "trace_half_width_expansion_cull_face",
           "kind": "fn",
-          "startLine": 623,
-          "endLine": 689,
+          "startLine": 682,
+          "endLine": 748,
           "tokens": 768
         },
         {
           "name": "populated_overlay_snapshot",
           "kind": "fn",
-          "startLine": 690,
-          "endLine": 744,
+          "startLine": 749,
+          "endLine": 803,
           "tokens": 482
         },
         {
           "name": "overlay_flags_off_is_inert_and_each_flag_adds_its_own_family",
           "kind": "fn",
-          "startLine": 745,
-          "endLine": 903,
+          "startLine": 804,
+          "endLine": 962,
           "tokens": 1854
         },
         {
           "name": "overlay_flags_round_trip_through_the_view_model",
           "kind": "fn",
-          "startLine": 904,
-          "endLine": 948,
+          "startLine": 963,
+          "endLine": 1007,
           "tokens": 486
         },
         {
           "name": "sample_world_points",
           "kind": "fn",
-          "startLine": 949,
-          "endLine": 970,
+          "startLine": 1008,
+          "endLine": 1029,
           "tokens": 182
         },
         {
           "name": "world_round_trip_exact_at_the_i64_faces",
           "kind": "fn",
-          "startLine": 971,
-          "endLine": 1023,
+          "startLine": 1030,
+          "endLine": 1082,
           "tokens": 549
         },
         {
           "name": "screen_round_trip_exact_at_the_i32_faces",
           "kind": "fn",
-          "startLine": 1024,
-          "endLine": 1093,
+          "startLine": 1083,
+          "endLine": 1152,
           "tokens": 752
         },
         {
           "name": "narrowing_saturates_at_the_i32_faces",
           "kind": "fn",
-          "startLine": 1094,
-          "endLine": 1122,
-          "tokens": 373
-        },
-        {
-          "name": "overlay_airline_cull_participation_both_directions",
-          "kind": "fn",
-          "startLine": 1123,
-          "endLine": 1197,
-          "tokens": 709
-        },
-        {
-          "name": "SilentSink",
-          "kind": "class",
-          "startLine": 1198,
-          "endLine": 1199,
-          "tokens": 6
-        },
-        {
-          "name": "SilentSink",
-          "kind": "section",
-          "startLine": 1200,
-          "endLine": 1549,
-          "tokens": 4362
+          "startLine": 1153,
+          "endLine": 1620,
+          "tokens": 5742
         }
       ]
     },
@@ -14492,6 +14492,15 @@
       "size": 4647,
       "mtimeMs": 1791099229984.0354,
       "updatedAt": "2026-10-04T07:33:50.087Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/ovh-commit-msg.txt": {
+      "description": "/*.rs mtime) but cargo's staleness check is",
+      "tokens": 868,
+      "hash": "980565e9dbbfc6ae",
+      "size": 3486,
+      "mtimeMs": 1791105068977.3735,
+      "updatedAt": "2026-10-04T09:11:09.084Z",
       "source": "hook"
     }
   },
