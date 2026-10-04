@@ -1541,7 +1541,9 @@ mod tests {
         assert_eq!(queue.len(), 7, "seven queue rows: {debug}");
         assert!(
             queue[0].contains("Queuing item for routing: ConductionArea")
-                && queue[0].contains("(connected: 1/2)"),
+                // #152 commit B rotation (2026-10-03, upstream
+                // d0d876e30): the row gained the `plane: false` field.
+                && queue[0].contains("(connected: 1/2, plane: false)"),
             "the newest id seeds first, lone CA set vs net population: {queue:?}"
         );
         assert_eq!(

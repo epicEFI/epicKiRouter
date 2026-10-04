@@ -1363,22 +1363,29 @@ pub fn format_score(score: f32, incomplete: i32, violations: i32) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// the item queue (BatchAutorouter.getAutorouteItems, :345-409)
+// the item queue (BatchAutorouter.getAutorouteItems, :347-433)
 // ---------------------------------------------------------------------------
 
-/// Java `BatchAutorouter.getAutorouteItems` (`:345-409`): walk the
-/// item list (descending id — the `itemList.startReadObject` order),
-/// queue every NON-routable CONNECTABLE (a pin, a conduction area, or
-/// a fixed/netless trace/via) once per net whose connected set does
-/// not cover the net's connectable population. The same item may
-/// queue once per qualifying net; single-net items already reached as
-/// connected company are `handled` and never seed.
+/// Java `BatchAutorouter.getAutorouteItems` (`:347-433`, upstream #152
+/// d0d876e30 shape): walk the item list (descending id — the
+/// `itemList.startReadObject` order) and queue every NON-routable
+/// CONNECTABLE (a pin, a conduction area, or a fixed/netless
+/// trace/via) EXACTLY ONCE when any of its nets is incomplete — the
+/// pre-review shape enqueued the same item once per qualifying net.
+/// Every net is still WALKED per item (the handled-marks and the
+/// completeness gates stay per-net). An item with a PLANE net that
+/// still needs routing files under the plane list, concatenated
+/// AHEAD of the signal list; a plane net already connected to a pour
+/// skips that net WITHOUT setting the plane flag. The single debug
+/// row carries the FIRST queuing net's stats. Single-net items
+/// already reached as connected company are `handled` and never seed.
 pub fn get_autoroute_items(
     manager: &mut SearchTreeManager,
     board: &mut Board,
     sink: &mut dyn DriverSink,
 ) -> Vec<ItemId> {
-    let mut autoroute_item_list: Vec<ItemId> = Vec::new();
+    let mut plane_item_list: Vec<ItemId> = Vec::new();
+    let mut signal_item_list: Vec<ItemId> = Vec::new();
     let mut handled_items: std::collections::BTreeSet<ItemId> = std::collections::BTreeSet::new();
     // The Java walk reads the live `itemList` (on-board items only —
     // removals leave the undo list); collect the seeds first so the
@@ -1415,6 +1422,13 @@ pub fn get_autoroute_items(
             }
             entry.nets.clone()
         };
+        // Upstream #152 d0d876e30: the per-item verdict. Every net is
+        // still walked, but the enqueue decision is collected into
+        // per-item flags so the item enters ONE list exactly once,
+        // with the FIRST queuing net's stats in its single debug row.
+        let mut needs_routing = false;
+        let mut has_plane_net = false;
+        let mut queued: Option<(String, usize, usize)> = None;
         for current_net_number in nets {
             let connected_set = item_connected_set(manager, board, id, current_net_number);
             for connected_item in &connected_set {
@@ -1432,10 +1446,13 @@ pub fn get_autoroute_items(
                 continue;
             }
             let net = board.rules().nets.get(current_net_number);
+            let is_plane = net.is_some_and(|n| n.contains_plane);
             // The plane-net skip: items already connected to the pour
             // would answer CONNECTED_TO_PLANE immediately (Java
-            // `:383-389`).
-            let already_connected_to_plane = net.is_some_and(|n| n.contains_plane)
+            // `:383-389`). The net is skipped WITHOUT setting the
+            // plane flag — an item whose plane nets all sit on pours
+            // files under the SIGNAL list on its remaining nets.
+            let already_connected_to_plane = is_plane
                 && connected_set.iter().any(|cid| {
                     board
                         .get(cid.0)
@@ -1444,19 +1461,44 @@ pub fn get_autoroute_items(
             if already_connected_to_plane {
                 continue;
             }
-            autoroute_item_list.push(id);
-            let net_name =
-                net.map_or_else(|| format!("net#{current_net_number}"), |n| n.name.clone());
-            sink.debug(&format!(
-                "Queuing item for routing: {} on net '{}' (connected: {}/{})",
-                java_simple_name(board, id),
-                net_name,
-                connected_set.len(),
-                net_item_count
-            ));
+            if is_plane {
+                has_plane_net = true;
+            }
+            needs_routing = true;
+            if queued.is_none() {
+                queued = Some((
+                    net.map_or_else(|| format!("net#{current_net_number}"), |n| n.name.clone()),
+                    connected_set.len(),
+                    net_item_count,
+                ));
+            }
+        }
+        if needs_routing {
+            if has_plane_net {
+                plane_item_list.push(id);
+            } else {
+                signal_item_list.push(id);
+            }
+            // `queued` is Some by construction — the same arm that
+            // sets needs_routing stores the first stats; Java logs
+            // unconditionally.
+            if let Some((net_name, connected, total)) = queued.as_ref() {
+                sink.debug(&format!(
+                    "Queuing item for routing: {} on net '{}' (connected: {}/{}, plane: {})",
+                    java_simple_name(board, id),
+                    net_name,
+                    connected,
+                    total,
+                    has_plane_net
+                ));
+            }
         }
     }
-    autoroute_item_list
+    // Route power plane-nets first: placing short stubs and vias early
+    // leaves escape corridors open around pads and prevents signal
+    // traces from blocking via placement (upstream #152, 71da79663).
+    plane_item_list.extend(signal_item_list);
+    plane_item_list
 }
 
 /// Java `getClass().getSimpleName()` for the queue/dump rows: the
@@ -1558,7 +1600,15 @@ mod tests {
     use crate::pipeline::event_sink::CaptureDriverSink;
     use crate::pipeline::pass_runner::RouterCounters;
     use crate::test_util::{net_no, parse};
+    use epic_board::board::ItemEntry;
+    use epic_board::items::{Area, BoardShape, FixedState};
+    use epic_board::rules_surf::Nets;
     use epic_board::tree_manager::SearchTreeManager;
+    use epic_dsn::sink::NetIr;
+    use epic_geometry::int_box::IntBox;
+    use epic_geometry::int_point::IntPoint;
+    use epic_geometry::regular_tile_shape::RegularTileShape;
+    use epic_geometry::tile_shape::TileShape;
 
     /// The T9/T10c locator-world fixture (2 layers, `unit um`,
     /// resolution 10). Its own nets 33 and 98 are pin PAIRS (components
@@ -2197,9 +2247,7 @@ mod tests {
     /// `lastMileAttempts` budget silently, the Java face).
     #[test]
     fn t12_driver_last_mile_ripup_trigger() {
-        use epic_board::items::FixedState;
         use epic_board::trace_ops::insert_trace_without_cleaning;
-        use epic_geometry::int_point::IntPoint;
         use epic_geometry::point::Point;
         use epic_geometry::polyline::Polyline;
 
@@ -2273,6 +2321,251 @@ mod tests {
         assert!(
             states_text.contains("task_state state=CANCELLED pass=18 hash="),
             "the global window closes at 8 + 10: {states_text}"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // #152 commit B (upstream d0d876e30): the queue rework pins
+    // -----------------------------------------------------------------
+
+    /// A far-away conduction area carrying `nets` — far enough that it
+    /// overlaps NOTHING (its connected set on every net is the CA
+    /// alone), component-attached so the connected-set walk enters it
+    /// (the t12 plane-world precedent's idiom).
+    fn insert_far_ca(manager: &mut SearchTreeManager, board: &mut Board, nets: &[i32]) -> ItemId {
+        let component_id = board
+            .iter_ascending()
+            .find(|entry| matches!(entry.data, ItemData::Pin { .. }))
+            .map(|entry| entry.component_id)
+            .expect("fixture has pins");
+        let ca_id = board.alloc_id();
+        board.insert_item(ItemEntry {
+            id: ca_id,
+            data: ItemData::ConductionArea {
+                layer: 0,
+                area: Area::simple(BoardShape::Tile(TileShape::RegularTileShape(
+                    RegularTileShape::IntBox(IntBox::new(
+                        IntPoint::new(900_000, 900_000),
+                        IntPoint::new(910_000, 910_000),
+                    )),
+                ))),
+                is_obstacle: false,
+                is_filled: true,
+            },
+            nets: nets.to_vec(),
+            clearance_class: 1,
+            component_id,
+            fixed: FixedState::Unfixed,
+            on_the_board: false,
+        });
+        manager.insert(board, ca_id);
+        ca_id
+    }
+
+    /// Rebuild the net table with `target`'s contains_plane flag set to
+    /// `value`, every other net preserved verbatim (positions ARE the
+    /// numbering — the t12 plane-world precedent's idiom).
+    fn set_contains_plane(board: &mut Board, target: i32, value: bool) {
+        let max_net = board.rules().nets.max_net_number();
+        let ir: Vec<NetIr> = (1..=max_net)
+            .map(|no| {
+                let net = board.rules().nets.get(no).expect("existing net");
+                NetIr {
+                    name: net.name.clone(),
+                    subnet_number: net.subnet_number,
+                    contains_plane: if no == target {
+                        value
+                    } else {
+                        net.contains_plane
+                    },
+                    net_class: net.net_class,
+                }
+            })
+            .collect();
+        board.rules_mut().nets = Nets::from_ir(&ir);
+    }
+
+    /// #152 commit B: the queue enqueues each item EXACTLY ONCE even
+    /// when SEVERAL of its nets qualify — the pre-#152 shape pushed
+    /// the item once per qualifying net (a far 2-net CA made 7
+    /// entries; the post shape makes 6). The single debug row carries
+    /// the FIRST queuing net's stats (NET_33 leads the nets vec), and
+    /// the CA's presence grows net 94's population so the fixture's
+    /// lone N093 pin queues alongside it.
+    #[test]
+    fn autoroute_queue_one_entry_per_item_first_net_stats() {
+        let (mut manager, mut board) = parse_fixture();
+        let net_33 = net_no(&board, "NET_33");
+        let net_94 = net_no(&board, "N093");
+        let ca_id = insert_far_ca(&mut manager, &mut board, &[net_33, net_94]);
+        let mut sink = CaptureDriverSink::default();
+        let queue = get_autoroute_items(&mut manager, &mut board, &mut sink);
+        assert_eq!(
+            queue.len(),
+            6,
+            "4 fixture pins + the N093 pin + the CA ONCE (pre-#152: 7 — the CA twice): {queue:?}"
+        );
+        assert_eq!(
+            queue.iter().filter(|&&id| id == ca_id).count(),
+            1,
+            "the 2-net CA enters the queue exactly once"
+        );
+        let debug = sink.joined("debug");
+        let ca_rows: Vec<&str> = debug
+            .lines()
+            .filter(|row| row.contains("Queuing item for routing: ConductionArea"))
+            .collect();
+        assert_eq!(ca_rows.len(), 1, "one CA row, not one per net: {debug}");
+        assert!(
+            ca_rows[0].contains(
+                "Queuing item for routing: ConductionArea on net 'NET_33' \
+                 (connected: 1/3, plane: false)"
+            ),
+            "the FIRST queuing net's stats — lone CA vs net-33 population 3: {}",
+            ca_rows[0]
+        );
+        assert!(
+            !ca_rows[0].contains("net 'N093'"),
+            "the second queuing net's row never fires: {}",
+            ca_rows[0]
+        );
+        assert!(
+            debug.contains(
+                "Queuing item for routing: Pin on net 'N093' (connected: 1/2, plane: false)"
+            ),
+            "the CA grew net 94's population — the lone pin now qualifies: {debug}"
+        );
+    }
+
+    /// #152 commit B: plane-net items lead the queue. The fixture's
+    /// own NET_33/NET_98 pin pairs walk in descending id order (the
+    /// 98 pins carry the higher ids — the pre-#152 flat queue LED with
+    /// them); flipping NET_33 to a plane net concatenates BOTH 33 pins
+    /// ahead of the signal list. The QUEUE order is the witness — the
+    /// debug rows still fire in walk order.
+    #[test]
+    fn autoroute_queue_routes_plane_items_first() {
+        let (mut manager, mut board) = parse_fixture();
+        let net_33 = net_no(&board, "NET_33");
+        let net_98 = net_no(&board, "NET_98");
+        set_contains_plane(&mut board, net_33, true);
+        let mut sink = CaptureDriverSink::default();
+        let queue = get_autoroute_items(&mut manager, &mut board, &mut sink);
+        assert_eq!(queue.len(), 4, "the bare fixture's four pins: {queue:?}");
+        let queue_nets: Vec<i32> = queue
+            .iter()
+            .map(|&id| {
+                *board
+                    .get(id)
+                    .expect("queued item")
+                    .nets
+                    .first()
+                    .expect("pins are single-net")
+            })
+            .collect();
+        assert_eq!(
+            queue_nets,
+            vec![net_33, net_33, net_98, net_98],
+            "plane-net items concatenated AHEAD of the signal list (pre-#152 flat order led with the 98s)"
+        );
+        let debug = sink.joined("debug");
+        let plane_true = debug
+            .lines()
+            .filter(|row| row.contains("Queuing item for routing:") && row.contains("plane: true"))
+            .count();
+        assert_eq!(
+            plane_true, 2,
+            "both NET_33 rows carry the plane flag: {debug}"
+        );
+        assert!(
+            debug
+                .lines()
+                .filter(|row| row.contains("net 'NET_98'"))
+                .all(|row| row.contains("plane: false")),
+            "the signal pair stays signal-classed: {debug}"
+        );
+    }
+
+    /// #152 commit B: a pour-connected plane net is skipped WITHOUT
+    /// setting the item's plane flag (Java `:383-389` — the net files
+    /// nothing; an item whose plane nets all sit on pours files under
+    /// the SIGNAL list on its remaining nets). World 1: a far 2-net CA
+    /// [N093, NET_33] where N093 is a plane net — the CA's net-94 walk
+    /// answers already-connected-to-plane through ITSELF (a lone CA is
+    /// its own pour), so the CA files SIGNAL on net 33 while the
+    /// fixture's lone N093 PIN (its connected set holds no CA) leads
+    /// the queue as the only plane item. World 2: a CA on N093 ALONE
+    /// never queues at all (its only net is self-pour-connected,
+    /// `needs_routing` stays false) — and the pin still leads.
+    #[test]
+    fn autoroute_queue_pour_connected_plane_net_stays_signal_class() {
+        let (mut manager, mut board) = parse_fixture();
+        let net_33 = net_no(&board, "NET_33");
+        let net_94 = net_no(&board, "N093");
+        set_contains_plane(&mut board, net_94, true);
+        let _ca_id = insert_far_ca(&mut manager, &mut board, &[net_94, net_33]);
+        let pin_94 = board
+            .iter_ascending()
+            .find(|entry| {
+                entry.nets.contains(&net_94) && matches!(entry.data, ItemData::Pin { .. })
+            })
+            .map(|entry| entry.id)
+            .expect("the N093 pin");
+        let mut sink = CaptureDriverSink::default();
+        let queue = get_autoroute_items(&mut manager, &mut board, &mut sink);
+        assert_eq!(
+            queue.first(),
+            Some(&pin_94),
+            "the only plane item leads: {queue:?}"
+        );
+        assert_eq!(
+            queue.len(),
+            6,
+            "pin + CA + the four fixture pins: {queue:?}"
+        );
+        let debug = sink.joined("debug");
+        assert!(
+            debug.contains(
+                "Queuing item for routing: ConductionArea on net 'NET_33' \
+                 (connected: 1/3, plane: false)"
+            ),
+            "the self-pour-connected skip leaves the CA signal-classed: {debug}"
+        );
+        assert!(
+            debug.contains(
+                "Queuing item for routing: Pin on net 'N093' (connected: 1/2, plane: true)"
+            ),
+            "the pin's plane net needs routing — flagged plane: {debug}"
+        );
+
+        // World 2: the CA on the plane net ALONE — never queued.
+        let (mut manager, mut board) = parse_fixture();
+        let net_94 = net_no(&board, "N093");
+        set_contains_plane(&mut board, net_94, true);
+        let _ca_id = insert_far_ca(&mut manager, &mut board, &[net_94]);
+        let pin_94 = board
+            .iter_ascending()
+            .find(|entry| {
+                entry.nets.contains(&net_94) && matches!(entry.data, ItemData::Pin { .. })
+            })
+            .map(|entry| entry.id)
+            .expect("the N093 pin");
+        let mut sink = CaptureDriverSink::default();
+        let queue = get_autoroute_items(&mut manager, &mut board, &mut sink);
+        assert_eq!(
+            queue.first(),
+            Some(&pin_94),
+            "the pin still leads: {queue:?}"
+        );
+        assert_eq!(
+            queue.len(),
+            5,
+            "pin + four fixture pins — the CA never queues: {queue:?}"
+        );
+        let debug = sink.joined("debug");
+        assert!(
+            !debug.contains("Queuing item for routing: ConductionArea"),
+            "the lone plane-net CA is fully pour-connected: {debug}"
         );
     }
 }
