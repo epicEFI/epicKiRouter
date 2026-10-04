@@ -57,7 +57,7 @@
 //! same board always yields the same digest bytes regardless of thread
 //! count or item iteration order (the manifest-canary face).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use epic_geometry::circle::Circle;
 use epic_geometry::int_box::IntBox;
@@ -98,6 +98,29 @@ pub struct Island {
     pub cells: i64,
 }
 
+/// One METAL region's seed attribution — the 152-H
+/// `isolated_island_unconnected` face's input: which same-net items'
+/// copper claims the region. Upstream (`3011e6e60`) maps items onto
+/// AWT islands by CENTER containment; this port maps by LATTICE
+/// overlap (a seed item's copper unioned into a region claims it),
+/// so a region here is a maximal same-layer same-net copper union —
+/// a region severed under this model is severed in any same-layer
+/// topology (see the `zone_islands` module docs).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegionSeeds {
+    /// Inclusive lattice bbox, x0.
+    pub x0: i64,
+    /// Inclusive lattice bbox, y0.
+    pub y0: i64,
+    /// Inclusive lattice bbox, x1.
+    pub x1: i64,
+    /// Inclusive lattice bbox, y1.
+    pub y1: i64,
+    /// The claiming seed item ids, ascending, deduplicated. Empty =
+    /// a floating region (the dead-copper arm's subject).
+    pub items: Vec<u32>,
+}
+
 /// One pour's island face: the region partition summary + the floating
 /// islands + the deterministic geometry digest.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,6 +129,9 @@ pub struct PourIslands {
     pub pour_item_id: u32,
     /// The pour's first net's name (empty when the net row is absent).
     pub net: String,
+    /// The pour's first net NUMBER (0 when the pour carries no net —
+    /// upstream `ca.netCount() > 0 ? ca.getNetNumber(0) : 0`).
+    pub net_number: i32,
     /// The pour's 0-based layer.
     pub layer: i32,
     /// Number of metal regions (0 = the pour is fully covered).
@@ -114,6 +140,11 @@ pub struct PourIslands {
     pub island_count: usize,
     /// The floating islands, in canonical region order.
     pub islands: Vec<Island>,
+    /// Every METAL region's seed attribution, canonical scan order
+    /// (the same enumeration the digest's `R{idx}` rows use, seed-only
+    /// components skipped). For a metal region, `items` is non-empty
+    /// iff the region is seeded (the `has_seed` invariant — pinned).
+    pub region_seeds: Vec<RegionSeeds>,
     /// SHA-256 hex over the canonical per-region rows (module docs).
     pub digest: String,
 }
@@ -463,6 +494,10 @@ struct CopperSource {
     /// True = same-net seed copper (marks regions reachable), false =
     /// foreign copper (carves).
     seed: bool,
+    /// The contributing item (seed sources only — the 152-H
+    /// unconnected-island face's attribution input; obstacles carry
+    /// `None`).
+    item: Option<ItemId>,
 }
 
 enum SourceShapes {
@@ -569,7 +604,10 @@ fn copper_sources(
                 if same_net && !in_seed_filter {
                     continue;
                 }
-                if let Some(source) = trace_source(board, entry, layer, same_net) {
+                if let Some(mut source) = trace_source(board, entry, layer, same_net) {
+                    if same_net {
+                        source.item = Some(entry.id);
+                    }
                     sources.push(source);
                 }
             }
@@ -599,7 +637,11 @@ fn copper_sources(
                 }
                 let shapes = drill_shapes_on_layer(board, entry.id, layer);
                 if !shapes.is_empty() {
-                    sources.push(drill_source(shapes, same_net));
+                    let mut source = drill_source(shapes, same_net);
+                    if same_net {
+                        source.item = Some(entry.id);
+                    }
+                    sources.push(source);
                 }
             }
             _ => {}
@@ -682,6 +724,7 @@ fn build_source(shapes: SourceShapes, seed: bool) -> CopperSource {
         y_hi,
         shapes,
         seed,
+        item: None,
     }
 }
 
@@ -875,6 +918,13 @@ fn detect_pour_islands_for(
     let mut uf = Uf::new();
     let mut prev_row: Vec<RowNode> = Vec::new();
     let mut nodes_meta: Vec<(Interval, bool, i64)> = Vec::new();
+    // Seed-node attribution (152-H): (uf index, contributing item) per
+    // final seed node. `seed_cuts` merges all sources' intervals per
+    // row, losing per-source identity; intersecting each source's raw
+    // intervals with the final (obstacle-carved) nodes recovers it
+    // exactly — a source's copper cell either lands in a seed node or
+    // was carved away.
+    let mut seed_item_nodes: Vec<(usize, ItemId)> = Vec::new();
     for y in y_min..=y_max {
         let mut obstacle_cuts: Vec<Interval> = Vec::new();
         let mut seed_cuts: Vec<Interval> = Vec::new();
@@ -912,6 +962,19 @@ fn detect_pour_islands_for(
                 seed: true,
                 uf_idx,
             });
+            for source in &ordered {
+                let Some(item) = source.item else { continue };
+                if !source.covers_row(y) {
+                    continue;
+                }
+                let touches = source
+                    .covered(y)
+                    .iter()
+                    .any(|&(slo, shi)| slo.max(lo) <= shi.min(hi));
+                if touches {
+                    seed_item_nodes.push((uf_idx, item));
+                }
+            }
         }
         union_row_seeds(&mut uf, &cur_row);
         bridge_rows(&mut uf, &prev_row, &cur_row);
@@ -921,7 +984,13 @@ fn detect_pour_islands_for(
         prev_row = cur_row;
     }
     Some(classify_and_digest(
-        pour_id, &net_name, layer, &mut uf, nodes_meta,
+        pour_id,
+        &net_name,
+        pour_nets.first().copied().unwrap_or(0),
+        layer,
+        &mut uf,
+        nodes_meta,
+        seed_item_nodes,
     ))
 }
 
@@ -934,6 +1003,9 @@ struct RegionAcc {
     cells: i64,
     has_metal: bool,
     has_seed: bool,
+    /// Seed item attribution (152-H) — `has_seed` carries the copper
+    /// truth, this carries WHO.
+    items: BTreeSet<u32>,
 }
 
 /// Classifies the union-find into regions and builds the canonical
@@ -943,13 +1015,16 @@ struct RegionAcc {
 /// (E-11: the version token — verified rotation-free for the gate set
 /// at M6-T8: both gate fixtures' manifests carry an EMPTY pour_islands
 /// face, and no committed baseline or events-golden carries any islands
-/// digest).
+/// digest). `seed_item_nodes` is folded into `region_seeds` (the
+/// digest stays geometry-only — attribution NEVER touches it).
 fn classify_and_digest(
     pour_id: ItemId,
     net_name: &str,
+    net_number: i32,
     layer: i32,
     uf: &mut Uf,
     nodes_meta: Vec<(Interval, bool, i64)>,
+    seed_item_nodes: Vec<(usize, ItemId)>,
 ) -> (PourIslands, usize) {
     let mut root_to_region: BTreeMap<usize, usize> = BTreeMap::new();
     let mut regions: Vec<RegionAcc> = Vec::new();
@@ -964,6 +1039,7 @@ fn classify_and_digest(
                 cells: 0,
                 has_metal: false,
                 has_seed: false,
+                items: BTreeSet::new(),
             });
             regions.len() - 1
         });
@@ -979,6 +1055,11 @@ fn classify_and_digest(
             acc.cells += interval.1 - interval.0 + 1;
         }
     }
+    for (uf_idx, item) in seed_item_nodes {
+        if let Some(&region) = root_to_region.get(&uf.find(uf_idx)) {
+            regions[region].items.insert(item.get());
+        }
+    }
     let region_count = regions.iter().filter(|r| r.has_metal).count();
     let islands: Vec<Island> = regions
         .iter()
@@ -989,6 +1070,17 @@ fn classify_and_digest(
             x1: r.x1,
             y1: r.y1,
             cells: r.cells,
+        })
+        .collect();
+    let region_seeds: Vec<RegionSeeds> = regions
+        .iter()
+        .filter(|r| r.has_metal)
+        .map(|r| RegionSeeds {
+            x0: r.x0,
+            y0: r.y0,
+            x1: r.x1,
+            y1: r.y1,
+            items: r.items.iter().copied().collect(),
         })
         .collect();
     let mut digest_input = format!(
@@ -1007,10 +1099,12 @@ fn classify_and_digest(
         PourIslands {
             pour_item_id: pour_id.get(),
             net: net_name.to_string(),
+            net_number,
             layer,
             region_count,
             island_count: islands.len(),
             islands,
+            region_seeds,
             digest,
         },
         seeded_regions,
@@ -1401,5 +1495,79 @@ mod world_tests {
             .find(|entry| matches!(entry.data, ItemData::Pin { .. }))
             .map(|entry| entry.id)
             .expect("covered world has a pin")
+    }
+
+    /// The severed world's TWO net-PLANE pins by center y (lower
+    /// first; the HOT pin sits on another net and is excluded).
+    /// Relative-id discipline: found by net membership + geometry,
+    /// never by raw id.
+    fn plane_pins_by_y(board: &Board, net_number: i32) -> (ItemId, ItemId) {
+        let mut pins: Vec<(i64, ItemId)> = Vec::new();
+        for entry in board.iter_ascending() {
+            if matches!(entry.data, ItemData::Pin { .. }) && entry.nets.contains(&net_number) {
+                let shapes = drill_shapes_on_layer(board, entry.id, 0);
+                let (_, y0, _, y1) =
+                    shape_bbox(shapes.first().expect("F.Cu pad has shapes on layer 0"));
+                pins.push(((y0 + y1) / 2, entry.id));
+            }
+        }
+        assert_eq!(
+            pins.len(),
+            2,
+            "the severed world carries exactly two PLANE pins"
+        );
+        pins.sort_by_key(|&(y, _)| y);
+        (pins[0].1, pins[1].1)
+    }
+
+    /// 152-H per-region seed attribution on the severed world: the
+    /// two metal regions each carry EXACTLY their own pin (the sweep
+    /// runs y-ascending, so scan-order region 0 is the LOWER slab),
+    /// `net_number` resolves to the net row the face's name carries,
+    /// and the face invariant holds — `region_seeds` enumerates every
+    /// metal region (`region_count`) with the empty-item count equal
+    /// to the floating-island count (items-nonempty ⟺ seeded).
+    #[test]
+    fn severed_world_attributes_each_region_its_own_pin() {
+        let (board, face) = fixture("t11_island_severed.dsn");
+        let pour = &face[0];
+        assert_eq!(pour.region_count, 2, "the carve splits the pour in two");
+        assert_eq!(pour.region_seeds.len(), pour.region_count);
+        assert_eq!(pour.net, "PLANE");
+        let net = board
+            .rules()
+            .nets
+            .get(pour.net_number)
+            .expect("net_number resolves to a net row");
+        assert_eq!(net.name, "PLANE");
+        let (lower_pin, upper_pin) = plane_pins_by_y(&board, pour.net_number);
+        assert_eq!(pour.region_seeds[0].items, vec![lower_pin.get()]);
+        assert_eq!(pour.region_seeds[1].items, vec![upper_pin.get()]);
+        // Scan order: region 0 is the lower slab, the carve sits
+        // strictly between the two regions' bboxes.
+        assert!(pour.region_seeds[0].y1 < pour.region_seeds[1].y0);
+        // Invariant: floating metal regions == empty-item regions.
+        let empty = pour
+            .region_seeds
+            .iter()
+            .filter(|region| region.items.is_empty())
+            .count();
+        assert_eq!(empty, pour.island_count);
+        assert_eq!(pour.island_count, 0, "both halves are seeded");
+    }
+
+    /// 152-H control: the bridged world's F.Cu partition is IDENTICAL
+    /// to the severed one (the B.Cu PLANE wire is not a source for the
+    /// F.Cu scan — wrong layer), so the attribution is byte-identical
+    /// too; only the connectivity walk downstream differs.
+    #[test]
+    fn bridged_world_keeps_the_severed_partition() {
+        let (board, severed) = fixture("t11_island_severed.dsn");
+        let (_bridged_board, bridged) = fixture("t11_island_bridged.dsn");
+        assert_eq!(bridged[0].region_seeds, severed[0].region_seeds);
+        assert_eq!(bridged[0].digest, severed[0].digest);
+        let (lower_pin, upper_pin) = plane_pins_by_y(&board, severed[0].net_number);
+        assert_eq!(bridged[0].region_seeds[0].items, vec![lower_pin.get()]);
+        assert_eq!(bridged[0].region_seeds[1].items, vec![upper_pin.get()]);
     }
 }

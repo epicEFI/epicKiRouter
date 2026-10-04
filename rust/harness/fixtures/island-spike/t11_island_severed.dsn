@@ -1,0 +1,75 @@
+(PCB t11_island_severed.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (case_sensitive off)
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  0 0  30000 0  30000 15000  0 15000  0 0)
+    )
+    (plane PLANE (polygon F.Cu 0  0 0  20000 0  20000 10000  0 10000  0 0))
+  )
+  (placement
+    (component "CP"
+      (place "KP" 5000 2500 Front 0.000000)
+    )
+    (component "CP2"
+      (place "KP2" 5000 7500 Front 0.000000)
+    )
+    (component "CH"
+      (place "KH" 50000 50000 Front 0.000000)
+    )
+  )
+  (library
+    (image "CP"
+      (pin "PADP" "PP" 0 0)
+    )
+    (image "CP2"
+      (pin "PADP" "PP" 0 0)
+    )
+    (image "CH"
+      (pin "PADH" "PH" 0 0)
+    )
+    (padstack "PADP"
+      (shape (circle F.Cu 800 0 0))
+      (attach off)
+    )
+    (padstack "PADH"
+      (shape (circle F.Cu 800 0 0))
+      (attach off)
+    )
+    (padstack "VIA_T"
+      (shape (circle F.Cu 800 0 0))
+      (shape (circle B.Cu 800 0 0))
+      (attach off)
+    )
+  )
+  (network
+    (via VT VIA_T kicad_default)
+    (net "PLANE"
+      (pins "KP"-"PP" "KP2"-"PP")
+    )
+    (net "HOT"
+      (pins "KH"-"PH")
+    )
+  )
+  (wiring
+    (wire (path F.Cu 10  0 5000  9000 5000)(net HOT)(type route))
+    (wire (path F.Cu 10  9010.1 5000  20000 5000)(net HOT)(type route))
+  )
+)

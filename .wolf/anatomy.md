@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T11:51:00.885Z
-> Files: 831 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T14:02:56.524Z
+> Files: 836 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -780,6 +780,8 @@
 
 - `152a-commit-msg.txt` (~1131 tok)
 - `152b-commit-msg.txt` (~1141 tok)
+- `152g-commit-msg.txt` — Declares is (~989 tok)
+- `152g-recon.md` — 152-G recon — zone-island DRC surfacing (2026-10-04) (~736 tok)
 - `885-commit-msg.txt` (~1397 tok)
 - `930-commit-msg.txt` — Declares fidelity (~882 tok)
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
@@ -787,6 +789,7 @@
 - `933s2-commit-msg.txt` (~898 tok)
 - `933s3-commit-msg.txt` (~893 tok)
 - `audit-code-quality.md` — EpicRouter 2.0.0 — code-quality / product-readiness audit (2026-10-01) (~4008 tok)
+- `buglog267.py` — Declares needs (~640 tok)
 - `cgrid-commit-msg.txt` (~1153 tok)
 - `charter.md` — Post-2.0 readiness campaign — 2026-10-01 (~465 tok)
 - `congestion-grid-recon.md` — Congestion-grid outline-interior recouple — RECON (2026-10-03, post-#885) (~1096 tok)
@@ -856,6 +859,7 @@
 - `run_batch.sh` — Readiness E2E runner: routes unseen real boards through the product CLI face. (~246 tok)
 - `run_gates_152a.sh` — #152 COMMIT A landing battery (2026-10-03) — heuristic relaxation (~1459 tok)
 - `run_gates_152b.sh` — #152 COMMIT B landing battery (2026-10-03) — the d0d876e30 (~1490 tok)
+- `run_gates_152g.sh` — 152-G zone-island DRC surfacing landing battery (2026-10-04) (~1433 tok)
 - `run_gates_885.sh` — #885 per-layer costs landing battery (2026-10-03) — upstream c32625e0f, (~1452 tok)
 - `run_gates_930.sh` — #930 unfixable/category DRC reporting landing battery (2026-10-04) (~1436 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
@@ -885,7 +889,7 @@
 - `run_t3only_landing.sh` — M11-T3-ONLY landing battery — 2026-10-03. (~714 tok)
 - `run_t3only_v2.sh` — M11-T3-ONLY landing battery v2 — 2026-10-03. (~1021 tok)
 - `seamfix-commit-msg.txt` (~938 tok)
-- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3857 tok)
+- `TASKS.md` — Campaign task list (living) — 2026-10-01 (~3758 tok)
 - `upstream-intake.md` — Upstream Freerouting intake — commits since baseline e7f9bdf1a (2026-10-01) (~1734 tok)
 - `verdict.md` — EpicRouter 2.0.0 readiness verdict — 2026-10-01 (~1598 tok)
 
@@ -910,7 +914,7 @@
 ## rust/crates/epic-board/src/
 
 - `aesthetics.rs` — The M8 aesthetics measurer (design :86 — the four metrics): ONE (~11338 tok)
-- `board.rs` — The live board: the item arena, the id generator, and the (~35324 tok)
+- `board.rs` — The live board: the item arena, the id generator, and the (~35805 tok)
 - `components.rs` — Components, the board-side library mirror, and PIN PLACEMENT (~24645 tok)
 - `lib.rs` — Board model: items, ids, undo, rules, layers, components (M2). The (~753 tok)
 - `plane_obstacle.rs` — Upstream #152 (PR #889): the `planeAsObstacle` board face. (~1901 tok)
@@ -941,7 +945,7 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2346 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~60763 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~61015 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -956,9 +960,10 @@
 
 - `category.rs` — Upstream #930 (`be56b5a0f`, `ClearanceViolation.java`): the (~5025 tok)
 - `clearance.rs` — The clearance-violation walk — the port of Java (~16064 tok)
-- `lib.rs` — The two counts every M3 quality gate consumes — incomplete (~357 tok)
+- `lib.rs` — The two counts every M3 quality gate consumes — incomplete (~416 tok)
 - `routing_ledger.rs` — The #933 survivor-3 recount driver (upstream 339e8bb50, Java (~4835 tok)
 - `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~3090 tok)
+- `zone_islands.rs` — The 152-G zone-island DRC face (upstream `3011e6e60` + (~4196 tok)
 
 ## rust/crates/epic-dsn/src/
 

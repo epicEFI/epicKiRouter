@@ -1,13 +1,13 @@
 {
   "version": 1,
   "meta": {
-    "lastScanned": "2026-10-04T11:51:00.885Z",
-    "fileCount": 831,
+    "lastScanned": "2026-10-04T14:02:56.524Z",
+    "fileCount": 836,
     "hits": 0,
     "misses": 0,
-    "renderedHash": "60d1d140bbb6d9b74db8429a5c70e70fe42653fe93a5ffeae5e3490131b1a0e3",
-    "storeUpdatedAt": "2026-10-04T11:51:00.895Z",
-    "rootHash": "a4a06afc78da2f6e"
+    "renderedHash": "a50ccee132dcb6e7d72a39cfd559cb9f4c51f1eabb407b17a664241e804c9b5e",
+    "storeUpdatedAt": "2026-10-04T14:02:56.533Z",
+    "rootHash": "f09c303d8f6ebe4a"
   },
   "files": {
     ".dockerignore": {
@@ -6756,222 +6756,222 @@
     },
     "rust/crates/epic-cli/src/route.rs": {
       "description": "The `route` flow (M3-T13): DSN read -> board build + trace",
-      "tokens": 60763,
-      "hash": "1a1c662247aea037",
-      "size": 228356,
-      "mtimeMs": 1791111331031.525,
-      "updatedAt": "2026-10-04T10:55:31.142Z",
+      "tokens": 61015,
+      "hash": "2fbd13a4d8cb2aa7",
+      "size": 229307,
+      "mtimeMs": 1791119214708.1504,
+      "updatedAt": "2026-10-04T13:06:54.819Z",
       "source": "hook",
       "symbols": [
         {
           "name": "CliDriverSink",
           "kind": "class",
-          "startLine": 71,
-          "endLine": 72,
+          "startLine": 73,
+          "endLine": 74,
           "tokens": 8
         },
         {
           "name": "CliDriverSink",
           "kind": "section",
-          "startLine": 73,
-          "endLine": 102,
+          "startLine": 75,
+          "endLine": 104,
           "tokens": 362
         },
         {
           "name": "preflight_output_path",
           "kind": "fn",
-          "startLine": 103,
-          "endLine": 157,
+          "startLine": 105,
+          "endLine": 159,
           "tokens": 732
         },
         {
           "name": "clear_stop_signal_slot",
           "kind": "fn",
-          "startLine": 158,
-          "endLine": 166,
+          "startLine": 160,
+          "endLine": 168,
           "tokens": 137
         },
         {
           "name": "install_stop_signal_handlers",
           "kind": "fn",
-          "startLine": 167,
-          "endLine": 192,
+          "startLine": 169,
+          "endLine": 194,
           "tokens": 362
         },
         {
           "name": "cli_stop_face",
           "kind": "fn",
-          "startLine": 193,
-          "endLine": 200,
+          "startLine": 195,
+          "endLine": 202,
           "tokens": 112
         },
         {
           "name": "result_summary_row",
           "kind": "fn",
-          "startLine": 201,
-          "endLine": 209,
+          "startLine": 203,
+          "endLine": 211,
           "tokens": 124
         },
         {
           "name": "board_loaded_row",
           "kind": "fn",
-          "startLine": 210,
-          "endLine": 229,
+          "startLine": 212,
+          "endLine": 231,
           "tokens": 283
         },
         {
           "name": "format_pre_existing_clearance_violations_warning",
           "kind": "fn",
-          "startLine": 230,
-          "endLine": 311,
-          "tokens": 957
+          "startLine": 232,
+          "endLine": 316,
+          "tokens": 969
         },
         {
           "name": "append_category_violations",
           "kind": "fn",
-          "startLine": 312,
-          "endLine": 331,
-          "tokens": 179
+          "startLine": 317,
+          "endLine": 338,
+          "tokens": 185
         },
         {
           "name": "append_violation_list",
           "kind": "fn",
-          "startLine": 332,
-          "endLine": 358,
+          "startLine": 339,
+          "endLine": 365,
           "tokens": 305
         },
         {
           "name": "describe_violation_item",
           "kind": "fn",
-          "startLine": 359,
-          "endLine": 434,
+          "startLine": 366,
+          "endLine": 441,
           "tokens": 824
         },
         {
           "name": "ManifestPhaseDetail",
           "kind": "class",
-          "startLine": 435,
-          "endLine": 458,
+          "startLine": 442,
+          "endLine": 465,
           "tokens": 338
         },
         {
           "name": "ManifestPhaseSnapshot",
           "kind": "class",
-          "startLine": 459,
-          "endLine": 487,
+          "startLine": 466,
+          "endLine": 494,
           "tokens": 446
         },
         {
           "name": "ManifestPhaseStats",
           "kind": "class",
-          "startLine": 488,
-          "endLine": 505,
+          "startLine": 495,
+          "endLine": 512,
           "tokens": 215
         },
         {
           "name": "ManifestViasTotal",
           "kind": "class",
-          "startLine": 506,
-          "endLine": 512,
+          "startLine": 513,
+          "endLine": 519,
           "tokens": 55
         },
         {
           "name": "ManifestTracesLength",
           "kind": "class",
-          "startLine": 513,
-          "endLine": 520,
+          "startLine": 520,
+          "endLine": 527,
           "tokens": 74
         },
         {
           "name": "ManifestPhases",
           "kind": "class",
-          "startLine": 521,
-          "endLine": 538,
+          "startLine": 528,
+          "endLine": 545,
           "tokens": 220
         },
         {
           "name": "ManifestFixture",
           "kind": "class",
-          "startLine": 539,
-          "endLine": 547,
+          "startLine": 546,
+          "endLine": 554,
           "tokens": 84
         },
         {
           "name": "ManifestBoardStats",
           "kind": "class",
-          "startLine": 548,
-          "endLine": 558,
+          "startLine": 555,
+          "endLine": 565,
           "tokens": 130
         },
         {
           "name": "ManifestConnections",
           "kind": "class",
-          "startLine": 559,
-          "endLine": 569,
+          "startLine": 566,
+          "endLine": 576,
           "tokens": 141
         },
         {
           "name": "ManifestClearanceViolations",
           "kind": "class",
-          "startLine": 570,
-          "endLine": 583,
+          "startLine": 577,
+          "endLine": 590,
           "tokens": 199
         },
         {
           "name": "ManifestPourIslands",
           "kind": "class",
-          "startLine": 584,
-          "endLine": 602,
+          "startLine": 591,
+          "endLine": 609,
           "tokens": 196
         },
         {
           "name": "ManifestGlobalPlan",
           "kind": "class",
-          "startLine": 603,
-          "endLine": 627,
+          "startLine": 610,
+          "endLine": 634,
           "tokens": 297
         },
         {
           "name": "ManifestLengthNeed",
           "kind": "class",
-          "startLine": 628,
-          "endLine": 649,
+          "startLine": 635,
+          "endLine": 656,
           "tokens": 299
         },
         {
           "name": "ManifestPairRow",
           "kind": "class",
-          "startLine": 650,
-          "endLine": 677,
+          "startLine": 657,
+          "endLine": 684,
           "tokens": 299
         },
         {
           "name": "ManifestPairUnresolved",
           "kind": "class",
-          "startLine": 678,
-          "endLine": 686,
+          "startLine": 685,
+          "endLine": 693,
           "tokens": 92
         },
         {
           "name": "ManifestPinSwap",
           "kind": "class",
-          "startLine": 687,
-          "endLine": 701,
+          "startLine": 694,
+          "endLine": 708,
           "tokens": 146
         },
         {
           "name": "ManifestWidthLayer",
           "kind": "class",
-          "startLine": 702,
-          "endLine": 712,
+          "startLine": 709,
+          "endLine": 719,
           "tokens": 107
         },
         {
           "name": "ManifestCurrentWidth",
           "kind": "class",
-          "startLine": 713,
-          "endLine": 5089,
-          "tokens": 56292
+          "startLine": 720,
+          "endLine": 5117,
+          "tokens": 56542
         }
       ]
     },
@@ -7476,11 +7476,11 @@
     },
     "logs/readiness-2026-10-01/TASKS.md": {
       "description": "Campaign task list (living) — 2026-10-01",
-      "tokens": 3857,
-      "hash": "68167f951ab766e3",
-      "size": 15601,
-      "mtimeMs": 1790964850254.6936,
-      "updatedAt": "2026-10-02T18:14:10.358Z",
+      "tokens": 3758,
+      "hash": "4c3b8dde2ab42d26",
+      "size": 15220,
+      "mtimeMs": 1791119427268.022,
+      "updatedAt": "2026-10-04T13:10:27.474Z",
       "source": "hook"
     },
     ".claude/rules/discord-untrusted-input.md": {
@@ -9173,11 +9173,11 @@
     },
     "rust/crates/epic-board/src/board.rs": {
       "description": "The live board: the item arena, the id generator, and the",
-      "tokens": 35324,
-      "hash": "8338bfaa9c34da9e",
-      "size": 132879,
-      "mtimeMs": 1791089105216.7568,
-      "updatedAt": "2026-10-04T04:45:05.322Z",
+      "tokens": 35805,
+      "hash": "27a823411d21c519",
+      "size": 134696,
+      "mtimeMs": 1791119011312.3228,
+      "updatedAt": "2026-10-04T13:03:31.427Z",
       "source": "hook",
       "symbols": [
         {
@@ -9212,85 +9212,85 @@
           "name": "BoardCommunication",
           "kind": "section",
           "startLine": 123,
-          "endLine": 151,
-          "tokens": 345
+          "endLine": 160,
+          "tokens": 458
         },
         {
           "name": "TraceHalfWidthRange",
           "kind": "class",
-          "startLine": 152,
-          "endLine": 158,
+          "startLine": 161,
+          "endLine": 167,
           "tokens": 68
         },
         {
           "name": "TraceHalfWidthRange",
           "kind": "section",
-          "startLine": 159,
-          "endLine": 171,
+          "startLine": 168,
+          "endLine": 180,
           "tokens": 115
         },
         {
           "name": "Board",
           "kind": "class",
-          "startLine": 172,
-          "endLine": 332,
-          "tokens": 2731
+          "startLine": 181,
+          "endLine": 350,
+          "tokens": 2881
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 333,
-          "endLine": 1942,
+          "startLine": 351,
+          "endLine": 1960,
           "tokens": 20449
         },
         {
           "name": "convert_item",
           "kind": "fn",
-          "startLine": 1943,
-          "endLine": 2073,
+          "startLine": 1961,
+          "endLine": 2091,
           "tokens": 1575
         },
         {
           "name": "fixed_from_ir",
           "kind": "fn",
-          "startLine": 2074,
-          "endLine": 2087,
+          "startLine": 2092,
+          "endLine": 2105,
           "tokens": 172
         },
         {
           "name": "obstacle_kind_from_ir",
           "kind": "fn",
-          "startLine": 2088,
-          "endLine": 2098,
+          "startLine": 2106,
+          "endLine": 2116,
           "tokens": 140
         },
         {
           "name": "board_shape_from_ir",
           "kind": "fn",
-          "startLine": 2099,
-          "endLine": 2107,
+          "startLine": 2117,
+          "endLine": 2125,
           "tokens": 111
         },
         {
           "name": "area_from_ir",
           "kind": "fn",
-          "startLine": 2108,
-          "endLine": 2114,
+          "startLine": 2126,
+          "endLine": 2132,
           "tokens": 52
         },
         {
           "name": "ItemEntry",
           "kind": "section",
-          "startLine": 2115,
-          "endLine": 2135,
+          "startLine": 2133,
+          "endLine": 2153,
           "tokens": 253
         },
         {
           "name": "Board",
           "kind": "section",
-          "startLine": 2136,
-          "endLine": 3037,
-          "tokens": 10417
+          "startLine": 2154,
+          "endLine": 3075,
+          "tokens": 10670
         }
       ]
     },
@@ -14067,11 +14067,11 @@
     },
     "rust/crates/epic-drc/src/lib.rs": {
       "description": "The two counts every M3 quality gate consumes — incomplete",
-      "tokens": 357,
-      "hash": "44d7f7879659e085",
-      "size": 1354,
-      "mtimeMs": 1791065394854.1755,
-      "updatedAt": "2026-10-03T22:09:54.952Z",
+      "tokens": 416,
+      "hash": "b6d8592fbefa6e8e",
+      "size": 1575,
+      "mtimeMs": 1791119137843.8413,
+      "updatedAt": "2026-10-04T13:05:37.948Z",
       "source": "hook"
     },
     "rust/crates/epic-router/src/pipeline/board_statistics.rs": {
@@ -14609,6 +14609,95 @@
       "size": 3545,
       "mtimeMs": 1791114660782.4165,
       "updatedAt": "2026-10-04T11:51:00.885Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/152g-recon.md": {
+      "description": "152-G recon — zone-island DRC surfacing (2026-10-04)",
+      "tokens": 736,
+      "hash": "fa6a84e4f18671eb",
+      "size": 2981,
+      "mtimeMs": 1791118961570.1003,
+      "updatedAt": "2026-10-04T13:02:41.676Z",
+      "source": "hook"
+    },
+    "rust/crates/epic-drc/src/zone_islands.rs": {
+      "description": "The 152-G zone-island DRC face (upstream `3011e6e60` +",
+      "tokens": 4196,
+      "hash": "bd2862fc60304fe3",
+      "size": 15808,
+      "mtimeMs": 1791119199941.0906,
+      "updatedAt": "2026-10-04T13:06:40.048Z",
+      "source": "hook",
+      "symbols": [
+        {
+          "name": "ZoneIslandKind",
+          "kind": "class",
+          "startLine": 51,
+          "endLine": 57,
+          "tokens": 64
+        },
+        {
+          "name": "ZoneIslandKind",
+          "kind": "section",
+          "startLine": 58,
+          "endLine": 69,
+          "tokens": 118
+        },
+        {
+          "name": "ZoneIslandViolation",
+          "kind": "class",
+          "startLine": 70,
+          "endLine": 100,
+          "tokens": 391
+        },
+        {
+          "name": "zone_island_violations",
+          "kind": "fn",
+          "startLine": 101,
+          "endLine": 136,
+          "tokens": 400
+        },
+        {
+          "name": "layer_name",
+          "kind": "fn",
+          "startLine": 137,
+          "endLine": 149,
+          "tokens": 136
+        },
+        {
+          "name": "format_dead_copper_warning",
+          "kind": "fn",
+          "startLine": 150,
+          "endLine": 375,
+          "tokens": 2630
+        }
+      ]
+    },
+    "logs/readiness-2026-10-01/run_gates_152g.sh": {
+      "description": "152-G zone-island DRC surfacing landing battery (2026-10-04)",
+      "tokens": 1433,
+      "hash": "d90af4ec849e03a0",
+      "size": 5374,
+      "mtimeMs": 1791119282341.425,
+      "updatedAt": "2026-10-04T13:08:02.447Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/152g-commit-msg.txt": {
+      "description": "Declares is",
+      "tokens": 989,
+      "hash": "6c28952d268ea5ee",
+      "size": 3982,
+      "mtimeMs": 1791119321707.5862,
+      "updatedAt": "2026-10-04T13:08:41.836Z",
+      "source": "hook"
+    },
+    "logs/readiness-2026-10-01/buglog267.py": {
+      "description": "Declares needs",
+      "tokens": 640,
+      "hash": "cdb0c2c98ca5734e",
+      "size": 2243,
+      "mtimeMs": 1791122576415.959,
+      "updatedAt": "2026-10-04T14:02:56.523Z",
       "source": "hook"
     }
   },

@@ -38,14 +38,32 @@ pub fn run(dsn: &Path) -> Result<()> {
     }
     for face in &faces {
         println!(
-            "POUR net={} layer={} item={} regions={} islands={} digest={}",
+            "POUR net={} net_number={} layer={} item={} regions={} islands={} digest={}",
             face.net,
+            face.net_number,
             face.layer,
             face.pour_item_id,
             face.region_count,
             face.island_count,
             face.digest
         );
+        // The 152-H attribution face: every METAL region in canonical
+        // scan order with its claiming seed item ids (empty = floating).
+        for region in &face.region_seeds {
+            println!(
+                "  REGION bbox=({},{})-({},{}) items={}",
+                region.x0,
+                region.y0,
+                region.x1,
+                region.y1,
+                region
+                    .items
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
         for island in &face.islands {
             println!(
                 "  ISLAND bbox=({},{})-({},{}) cells={}",
