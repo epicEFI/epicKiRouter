@@ -38,6 +38,7 @@ pub mod events;
 pub mod export;
 pub mod interview;
 pub mod pin_assign;
+pub mod plane_nets;
 pub mod pour;
 pub mod session;
 pub mod settings;

@@ -760,6 +760,28 @@ impl Session {
             }
             self.last_pour_report = Some(report);
         }
+        // #152 (upstream d9694ab82/d0d876e30, PR #889): the two
+        // plane-routing overrides — same head placement as the CLI
+        // (Java HeadlessBoardManager applies both after pour
+        // handling, before the batch build). `plane.nets` promotes
+        // resolved nets to plane routing (contains_plane flips —
+        // notes warn through the sink, never fail the run);
+        // `plane.as_obstacle` flips every SIGNAL-layer pour's
+        // obstacle flag (a change-request: absent = the call never
+        // fires, so default runs stay byte-stable). Both are inert
+        // when unset.
+        if let Some(names) = merged.plane_nets.clone() {
+            for note in crate::plane_nets::apply_plane_nets(&mut self.board, &names) {
+                sink.warn(&note);
+            }
+        }
+        if let Some(value) = merged.plane_as_obstacle {
+            epic_board::plane_obstacle::change_plane_as_obstacle(
+                &mut self.board,
+                &mut self.manager,
+                value,
+            );
+        }
         // 3. The unconditional geometry pass (route.rs:938-939).
         apply_board_specific_optimizations(&mut merged, &self.board);
         let resolved = ResolvedRouteSettings::resolve(&merged, Some(self.deterministic_budgets));

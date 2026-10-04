@@ -2666,13 +2666,22 @@ mod tests {
     }
 
     /// Jar FILE `/tmp/epic-t6-t37-fire.dsn` (T37, seed mirrors the jar
-    /// wiring order): only the IN1 plane fires — interior signal layer,
-    /// no wires, 5.525E9 >= 0.5 * 8.0E9 board area — promoting its net to
-    /// `contains_plane` and the area to USER_FIXED; the IN2 area is vetoed
-    /// by the trace on its layer, IN3 by the area gate (2.25E8), F.Cu and
-    /// B.Cu by the exterior/last-layer gate. Jar: NET 1 cp=true, INFO
-    /// "Layer 'IN1' has been automatically configured ...", conduction
-    /// id 6 fixed=USER_FIXED, ids 8-11 UNFIXED.
+    /// wiring order): the jar pinned the PRE-#152 heuristic — only the
+    /// IN1 plane fired (interior signal layer, no wires, 5.525E9 >=
+    /// 0.5 * 8.0E9 board area; jar: NET 1 cp=true, INFO "Layer 'IN1'
+    /// has been automatically configured ...", conduction id 6
+    /// fixed=USER_FIXED, ids 8-11 UNFIXED; IN2 vetoed by the trace on
+    /// its layer, IN3 by the area gate, F.Cu/B.Cu by the outer-layer
+    /// gate).
+    ///
+    /// ROTATED for the upstream #152 relaxation (d9694ab82, 2026-10-03
+    /// port): the wires-on-layer and outer-layer vetoes are GONE and the
+    /// share gate is 30% — the `big` areas (5.525E9 = 69% of the 8.0E9
+    /// board) on IN2 (trace present), F.Cu (slot 0) and B.Cu (last) now
+    /// ALL promote their nets and go USER_FIXED. IN3 stays gated by area
+    /// (2.25E8 = 2.8% < 30%). Mirrors upstream's own post-fix tests
+    /// (testHeuristicPlaneDetectionWithExistingTraces /
+    /// ...On2LayerBoard).
     #[test]
     fn adjust_plane_autoroute_settings_jar_probe() {
         let (ok, _state, mut board) = run_structure(
@@ -2730,9 +2739,18 @@ mod tests {
         plane(&mut board, 4, vec![4], &big);
         assert!(board.adjust_plane_autoroute_settings());
         assert!(board.nets[0].contains_plane, "PERFECT promoted");
-        assert!(!board.nets[1].contains_plane);
-        assert!(!board.nets[2].contains_plane);
-        assert!(!board.nets[3].contains_plane);
+        assert!(
+            board.nets[1].contains_plane,
+            "NET2 promoted (wires veto dropped)"
+        );
+        assert!(
+            !board.nets[2].contains_plane,
+            "NET3 stays area-gated (2.8% < 30%)"
+        );
+        assert!(
+            board.nets[3].contains_plane,
+            "NET4 promoted (outer veto dropped)"
+        );
         let fixed_by_layer: Vec<(i32, FixedStateIr)> = board
             .items
             .iter()
@@ -2747,17 +2765,22 @@ mod tests {
             fixed_by_layer,
             [
                 (1, FixedStateIr::UserFixed),
-                (2, FixedStateIr::Unfixed),
+                (2, FixedStateIr::UserFixed),
                 (3, FixedStateIr::Unfixed),
-                (0, FixedStateIr::Unfixed),
-                (4, FixedStateIr::Unfixed),
+                (0, FixedStateIr::UserFixed),
+                (4, FixedStateIr::UserFixed),
             ]
         );
     }
 
-    /// The heuristic early gates (code-read `DsnFile.java:33-45`): no
-    /// board at all (Java `routingBoard == null`), <= 2 layers, and any
-    /// non-signal layer all return false before scanning items.
+    /// The heuristic early gates (code-read `DsnFile.java:33-45`, as
+    /// relaxed by upstream #152 / d9694ab82): no board at all (Java
+    /// `routingBoard == null`), an EMPTY layer structure (the old `<= 2`
+    /// veto became `< 1` — sub-issue 152-E), and any non-signal layer
+    /// all return false before scanning items. The 2-layer board is the
+    /// POSITIVE face now: a >= 30% outer pour promotes (mirrors
+    /// upstream testHeuristicPlaneDetectionOn2LayerBoard, whose pour
+    /// was 40% on layer 0).
     #[test]
     fn adjust_plane_autoroute_settings_early_gates() {
         let mut board = SesBoard::new();
@@ -2769,7 +2792,36 @@ mod tests {
              (boundary (rect pcb 0 0 10000 8000))",
         );
         assert!(ok);
-        assert!(!two_layer.adjust_plane_autoroute_settings(), "2 layers");
+        // 152-E: 2 signal layers qualify; a 4.0E9 DBU pour = 50% of the
+        // 8.0E9 board (boundary 10000x8000 file units x10) on slot 0
+        // promotes its net and goes USER_FIXED.
+        two_layer.append_net(NetIr {
+            name: "GND".to_string(),
+            subnet_number: 1,
+            contains_plane: false,
+            net_class: 0,
+        });
+        two_layer.insert_conduction_area(ConductionAreaIr {
+            layer_no: 0,
+            area: AreaIr::simple(box_shape(IntBox::new(
+                IntPoint::new(0, 0),
+                IntPoint::new(100_000, 40_000),
+            ))),
+            nets: vec![1],
+            clearance_class: 1,
+            fixed: FixedStateIr::Unfixed,
+        });
+        assert!(
+            two_layer.adjust_plane_autoroute_settings(),
+            "2 layers with a >=30% outer pour now FIRE (#152 152-E)"
+        );
+        assert!(two_layer.nets[0].contains_plane, "GND promoted");
+        match two_layer.items.last() {
+            Some(crate::ses_board::ItemIr::ConductionArea { area, .. }) => {
+                assert_eq!(area.fixed, FixedStateIr::UserFixed);
+            }
+            other => panic!("expected ConductionArea, got {other:?}"),
+        }
 
         let (ok, _state, mut power_layer) = run_structure(
             "(layer F.Cu (type signal))\
@@ -2787,6 +2839,117 @@ mod tests {
         assert!(
             !power_layer.adjust_plane_autoroute_settings(),
             "non-signal layer"
+        );
+    }
+
+    /// #152 d9694ab82 `:70-74`: a board whose outline sums ZERO area
+    /// must bail BEFORE the share gate — the old code would pass every
+    /// pour through the trivially true `>= 50% * 0` comparison and
+    /// promote any net with an area. (A parse-time no-boundary
+    /// structure never reaches the heuristic — `read_board` fires it
+    /// only on `read_ok`, and a missing outline fails the read — so
+    /// the reachable face is a successfully parsed board whose
+    /// outline item is gone: the direct pub call the pins exercise.)
+    #[test]
+    fn adjust_plane_autoroute_settings_zero_board_area_guard() {
+        let (ok, _state, mut board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))",
+        );
+        assert!(ok, "the structure itself parses");
+        board.append_net(NetIr {
+            name: "GND".to_string(),
+            subnet_number: 1,
+            contains_plane: false,
+            net_class: 0,
+        });
+        // A pour covering the whole (former) board, then the outline
+        // itself removed — no outline, no area, and the guard must
+        // refuse the trivial pass.
+        board.insert_conduction_area(ConductionAreaIr {
+            layer_no: 0,
+            area: AreaIr::simple(box_shape(IntBox::new(
+                IntPoint::new(0, 0),
+                IntPoint::new(100_000, 80_000),
+            ))),
+            nets: vec![1],
+            clearance_class: 1,
+            fixed: FixedStateIr::Unfixed,
+        });
+        board
+            .items
+            .retain(|item| !matches!(item, crate::ses_board::ItemIr::BoardOutline { .. }));
+        assert!(
+            !board.adjust_plane_autoroute_settings(),
+            "zero board area bails before the share gate"
+        );
+        assert!(!board.nets[0].contains_plane, "nothing promoted");
+        match board.items.last() {
+            Some(crate::ses_board::ItemIr::ConductionArea { area, .. }) => {
+                assert_eq!(area.fixed, FixedStateIr::Unfixed, "nothing promoted");
+            }
+            other => panic!("expected ConductionArea, got {other:?}"),
+        }
+    }
+
+    /// #152 d9694ab82 `:76-78`: the share-gate band is (30%, 100%] —
+    /// a 40% pour (inside the NEW band, OUTSIDE the old 50% one, the
+    /// exact territory the relaxation opened; upstream's own 2-layer
+    /// test pour was 40%) fires, and an exactly-30% pour passes the
+    /// STRICT-`<` gate (the boundary itself promotes — `current_area
+    /// < 0.3 * board_area` is false at equality). Both on the 8.0E9
+    /// DBU two-layer board.
+    #[test]
+    fn adjust_plane_autoroute_settings_share_gate_band() {
+        let (ok, _state, mut board) = run_structure(
+            "(layer F.Cu (type signal))\
+             (layer B.Cu (type signal))\
+             (boundary (rect pcb 0 0 10000 8000))",
+        );
+        assert!(ok);
+        board.append_net(NetIr {
+            name: "N40".to_string(),
+            subnet_number: 1,
+            contains_plane: false,
+            net_class: 0,
+        });
+        board.append_net(NetIr {
+            name: "N30".to_string(),
+            subnet_number: 1,
+            contains_plane: false,
+            net_class: 0,
+        });
+        // 40% of 8.0E9: 100_000 x 32_000.
+        board.insert_conduction_area(ConductionAreaIr {
+            layer_no: 0,
+            area: AreaIr::simple(box_shape(IntBox::new(
+                IntPoint::new(0, 0),
+                IntPoint::new(100_000, 32_000),
+            ))),
+            nets: vec![1],
+            clearance_class: 1,
+            fixed: FixedStateIr::Unfixed,
+        });
+        // Exactly 30%: 100_000 x 24_000 = 2.4E9 = 0.3 * 8.0E9.
+        board.insert_conduction_area(ConductionAreaIr {
+            layer_no: 1,
+            area: AreaIr::simple(box_shape(IntBox::new(
+                IntPoint::new(0, 0),
+                IntPoint::new(100_000, 24_000),
+            ))),
+            nets: vec![2],
+            clearance_class: 1,
+            fixed: FixedStateIr::Unfixed,
+        });
+        assert!(
+            board.adjust_plane_autoroute_settings(),
+            "both pours sit in the >=30% band"
+        );
+        assert!(board.nets[0].contains_plane, "N40 (40%) promoted");
+        assert!(
+            board.nets[1].contains_plane,
+            "N30 at exactly 0.3*board_area passes the strict-< gate"
         );
     }
 }
