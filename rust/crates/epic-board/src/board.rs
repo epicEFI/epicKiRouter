@@ -205,6 +205,16 @@ pub struct Board {
     /// before `create_board`. Consumed by the outline keepout-area
     /// derivation ([`crate::items::outline`]).
     bounding_box: Option<IntBox>,
+    /// The parse-time copy of [`Self::bounding_box`] — the
+    /// outline-derived board box BEFORE
+    /// [`Self::expand_bounding_box_to_include_all_items`] (M11-T2)
+    /// grows the field. The Rust-original congestion grid derives its
+    /// extent from THIS box so netless fab items far outside the
+    /// outline cannot recalibrate the routing grid (the T2 finding:
+    /// 16 netless ComponentOutlines moved interf_u's grid cell
+    /// 9045→9596 and degraded the pathfinder — a routing-relevant
+    /// constant owned by items that route nothing).
+    parse_bounding_box: Option<IntBox>,
     /// The `DrillItem` precalculated triple, memoized per pin/via id
     /// ([`crate::items::drill::DrillPrecalc`] — the Java field trio of
     /// `DrillItem.java:34-46` lives Board-side because the arena's
@@ -800,6 +810,17 @@ impl Board {
     #[must_use]
     pub fn bounding_box(&self) -> Option<IntBox> {
         self.bounding_box
+    }
+
+    /// The parse-time outline-derived box — [`Self::bounding_box`]
+    /// as the parse computed it, immune to
+    /// [`Self::expand_bounding_box_to_include_all_items`]. The
+    /// congestion grid's extent source (the T2 finding — see the
+    /// field docs); `None` only where [`Self::bounding_box`] itself
+    /// is (never after a successful parse).
+    #[must_use]
+    pub fn parse_bounding_box(&self) -> Option<IntBox> {
+        self.parse_bounding_box
     }
 
     /// Java `Item.boundingBox()` per kind (M11-T2, upstream #931) —
@@ -1903,8 +1924,11 @@ impl Board {
         };
         // The outline-derived bounding box (T43) — set by create_board
         // before any item is inserted; None only on a board without a
-        // boundary (Java leaves the field null there).
+        // boundary (Java leaves the field null there). The parse-time
+        // copy (the congestion grid's extent source, T2 finding) is
+        // the same value: this IS the parse.
         board.bounding_box = ses.bounding_box;
+        board.parse_bounding_box = ses.bounding_box;
         // M11-T6 (#931): the edge-pin net cache's first fill — Java's
         // lazy field computes on first read after parse; the eager
         // port computes once here (every insert_item above only

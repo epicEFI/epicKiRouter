@@ -878,3 +878,61 @@ fn fanout_congestion_rank_sort_keeps_java_order_on_ties() {
         "ascending by rank, MAX (absent plan) last"
     );
 }
+
+/// The T2-finding world: G1 verbatim plus ONE netless keepout
+/// rectangle FAR outside the boundary (internal 4,000,000..4,100,000
+/// x 200,000..300,000 — ~2.9M units beyond the parse box's right
+/// edge). The keepout is a RASTERIZING item (a `Netless` occupant),
+/// so any leak from the extent change OR from border clamping lands
+/// in the digest.
+const G1_FAR: &str = include_str!("../../../../harness/fixtures/global-spike/g1_far_keepout.dsn");
+
+/// The grid extent is the PARSE box: the far keepout grows
+/// `bounding_box` (T2's expand, material here) but the grid keeps
+/// G1's exact cell/dims/digest — the outside item recalibrates
+/// nothing (the interf_u 9045→9596 defect class).
+#[test]
+fn congestion_map_extent_is_the_parse_box_not_the_grown_box() {
+    let (_m, mut board) = parse(G1_FAR);
+    let before = crate::global::map::CongestionMap::build(&mut board);
+    // The parse box is G1's (same boundary): cell 10015, grid 129x65,
+    // and the far keepout contributed NOTHING — the digest is G1's
+    // verbatim literal.
+    assert_eq!(before.cell_size(), CELL);
+    assert_eq!(before.grid_dims(), (129, 65));
+    assert_eq!(
+        before.occupancy_digest(),
+        "de28810d09216d8f5cb7c63065c0fbe88328ca528a89c32b40a7a26f000f031d"
+    );
+    // Growth IS material on this world (the precondition that makes
+    // this pin discriminate): the grown box now covers the keepout.
+    board.expand_bounding_box_to_include_all_items();
+    assert_ne!(
+        board.bounding_box(),
+        board.parse_bounding_box(),
+        "growth precondition: the far keepout must have grown the box"
+    );
+    // Immunity: same grid after the growth.
+    let after = crate::global::map::CongestionMap::build(&mut board);
+    assert_eq!(after.cell_size(), CELL);
+    assert_eq!(after.grid_dims(), (129, 65));
+    assert_eq!(after.occupancy_digest(), before.occupancy_digest());
+}
+
+/// Items entirely outside the extent occupy NO cells: the far
+/// keepout's clamp targets (rightmost column 128, rows 20..=30 for
+/// its y span) read EMPTY — the clamp-only mutant would smear a
+/// `Netless` occupant onto the border.
+#[test]
+fn congestion_map_items_outside_the_extent_occupy_no_cells() {
+    let (_m, mut board) = parse(G1_FAR);
+    let map = crate::global::map::CongestionMap::build(&mut board);
+    for row in [20, 25, 30] {
+        assert_eq!(
+            map.occupancy(128, row, 0, None),
+            0,
+            "border cell (128, {row}) must stay empty — outside items clamp to nothing"
+        );
+    }
+    assert_eq!(map.total_overflow(), &[0, 0]);
+}

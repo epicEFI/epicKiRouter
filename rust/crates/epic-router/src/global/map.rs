@@ -11,7 +11,13 @@
 //! per signal layer it spans, as a DISTINCT-NET occupant set (a net
 //! whose copper crosses a cell occupies one routing track through it;
 //! netless copper and keepouts occupy one track as the `Netless`
-//! occupant). Cell capacity on a signal layer is the estimated track
+//! occupant). The extent is the PARSE box
+//! ([`Board::parse_bounding_box`], the outline-derived board box) —
+//! NOT the route-head-grown bounding box (M11-T2): items entirely
+//! outside the grid extent occupy NO cells (the far-outside netless
+//! outlines the grown box covers route nothing and must not
+//! recalibrate the cell size or the border occupancy — the T2
+//! finding on interf_u). Cell capacity on a signal layer is the estimated track
 //! count `cap = max(1, cell / pitch)` with
 //! `pitch = 2 * max_trace_half_width + max_clearance` — the densest
 //! legal packing of the board's widest net-class trace at the layer's
@@ -200,7 +206,16 @@ impl CongestionMap {
     /// clear).
     #[must_use]
     pub fn build(board: &mut Board) -> Self {
-        let Some(bbox) = board.bounding_box() else {
+        // The PARSE box, not the grown box: `expand_bounding_box_`
+        // `to_include_all_items` (M11-T2, both route heads) grows
+        // `bounding_box` to cover every item — including netless
+        // ComponentOutlines (fab slivers) far outside the outline,
+        // whose growth recalibrated this grid's cell size on interf_u
+        // (9045→9596) and degraded the pathfinder. The grid derives
+        // from where routing happens — the outline interior (the T2
+        // finding). Fallback = the live box for hand-built worlds
+        // that never carried a parse box.
+        let Some(bbox) = board.parse_bounding_box().or_else(|| board.bounding_box()) else {
             return Self::empty();
         };
         let signal_layer_count = board.layers().signal_layer_count().max(0) as usize;
@@ -208,8 +223,8 @@ impl CongestionMap {
             return Self::empty();
         }
 
-        // The square cell side: the dominant bbox axis over a 128-cell
-        // target resolution (module docs).
+        // The square cell side: the dominant extent axis (the parse
+        // box above) over a 128-cell target resolution (module docs).
         let width = i64::from(bbox.ur.x) - i64::from(bbox.ll.x);
         let height = i64::from(bbox.ur.y) - i64::from(bbox.ll.y);
         let cell = (width.max(height) / 128).max(1);
@@ -259,6 +274,16 @@ impl CongestionMap {
             };
             let nets = entry.nets.clone();
             let mut push_bbox = |signal_no: usize, item_bbox: &IntBox| {
+                // Outside the grid extent: NO cells. `cell_range`
+                // clamps out-of-range coordinates onto the border
+                // cells (the right semantics for point queries), so
+                // an explicit disjointness gate is needed before the
+                // walk — without it the far-outside netless outlines
+                // the parse-box extent excludes would smear onto the
+                // border as phantom occupancy.
+                if item_bbox.intersection(&bbox).is_empty() {
+                    return;
+                }
                 let (ix0, ix1, iy0, iy1) = Self::cell_range(item_bbox, &bbox, cell, nx, ny);
                 for iy in iy0..=iy1 {
                     for ix in ix0..=ix1 {
