@@ -594,10 +594,18 @@ impl Session {
                 "ignoring router.drc.clearance_tolerance_um (must be finite and >= 0): {bad}"
             ));
         }
-        // 5. The load-time violation seed (route.rs:930-931).
-        let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
+        // 5. The load-time violation seed (route.rs:930-931), plus the
+        //    #930 unfixable sub-count over the SAME rows (no second
+        //    walk): the rows the seed walk already returned are
+        //    bucketed by participant fixability — Java
+        //    `BasicBoard.unfixableClearanceViolationsCount`.
+        let (pre_total, pre_rows) = all_clearance_violation_depths(&mut manager, &mut board);
         board.pre_existing_clearance_violations_count =
             i32::try_from(pre_total).unwrap_or(i32::MAX);
+        board.unfixable_clearance_violations_count = i32::try_from(
+            epic_drc::category::categorize_depth_rows(&board, &pre_rows).total_unfixable(),
+        )
+        .unwrap_or(i32::MAX);
         let pre_existing = board.pre_existing_clearance_violations_count;
         let session = Session {
             board,

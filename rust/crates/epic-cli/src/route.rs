@@ -30,8 +30,13 @@
 //!    default).
 
 use epic_board::board::Board;
+use epic_board::id::ItemId;
+use epic_board::items::ItemData;
 use epic_board::tree_manager::SearchTreeManager;
-use epic_drc::clearance::all_clearance_violation_depths;
+use epic_drc::category::{
+    ViolationCategory, categorize_depth_rows, depth_row_ids, violation_category,
+};
+use epic_drc::clearance::{DepthRow, all_clearance_violation_depths};
 use epic_dsn::reader::{DsnReadResult, read_board};
 use epic_dsn::ses::writer::write_session;
 use epic_dsn::ses_board::SesBoard;
@@ -208,6 +213,220 @@ fn board_loaded_row(items: usize, nets: usize, pre_existing: i64, seconds: f64) 
     format!(
         "board loaded: {items} items, {nets} nets, {pre_existing} pre-existing violations, {seconds:.1}s"
     )
+}
+
+// ---------------------------------------------------------------------------
+// #930: the categorized pre-existing-violation warning
+// (`be56b5a0f`, HeadlessBoardManager.
+// formatPreExistingClearanceViolationsWarning) — stderr-only, never
+// the manifest
+// ---------------------------------------------------------------------------
+
+/// The warning text over the seed walk's rows: unfixable (pin-to-pin /
+/// pin-to-keepout / fixed route / other) vs potentially fixable, ≤5
+/// pairs per bucket with the `... and {k} more` overflow line. Pure
+/// (board + rows in, text out) so the format pin drives it without a
+/// sink. Upstream's `%n` line breaks are `\n` here. Cosmetic
+/// divergence: upstream's "Freerouting" self-name reads "the router"
+/// in this port.
+fn format_pre_existing_clearance_violations_warning(board: &Board, rows: &[DepthRow]) -> String {
+    // (first, second) id pairs per category, walk order preserved.
+    let mut pin_to_pin: Vec<(ItemId, ItemId)> = Vec::new();
+    let mut pin_to_outline: Vec<(ItemId, ItemId)> = Vec::new();
+    let mut fixed_route: Vec<(ItemId, ItemId)> = Vec::new();
+    let mut other_unfixable: Vec<(ItemId, ItemId)> = Vec::new();
+    let mut potentially_fixable: Vec<(ItemId, ItemId)> = Vec::new();
+    for row in rows {
+        let ids @ (first, second) = depth_row_ids(row);
+        let bucket = match violation_category(board, first, second) {
+            ViolationCategory::PinToPin => &mut pin_to_pin,
+            ViolationCategory::PinToOutlineOrKeepout => &mut pin_to_outline,
+            ViolationCategory::FixedRoute => &mut fixed_route,
+            ViolationCategory::OtherUnfixable => &mut other_unfixable,
+            ViolationCategory::PotentiallyFixable => &mut potentially_fixable,
+        };
+        bucket.push(ids);
+    }
+    let total_unfixable =
+        pin_to_pin.len() + pin_to_outline.len() + fixed_route.len() + other_unfixable.len();
+
+    let mut out = format!(
+        "Design Warning: Board has {total} pre-existing clearance violation(s) in the loaded design (before routing):\n",
+        total = rows.len()
+    );
+    if total_unfixable > 0 {
+        out.push_str(&format!(
+            "  - {total_unfixable} unfixable violation(s) (cannot be resolved by the router):\n"
+        ));
+        append_category_violations(
+            &mut out,
+            board,
+            "pin-to-pin clearance violations",
+            &pin_to_pin,
+        );
+        append_category_violations(
+            &mut out,
+            board,
+            "pin-to-keepout / board-outline clearance violations",
+            &pin_to_outline,
+        );
+        append_category_violations(
+            &mut out,
+            board,
+            "fixed trace/via clearance violations",
+            &fixed_route,
+        );
+        append_category_violations(
+            &mut out,
+            board,
+            "other unfixable clearance violations",
+            &other_unfixable,
+        );
+    } else {
+        out.push_str("  - 0 unfixable violation(s)\n");
+    }
+
+    if potentially_fixable.is_empty() {
+        out.push_str("  - 0 potentially fixable violations\n");
+    } else {
+        let count = potentially_fixable.len();
+        let suffix = if count > 5 { ", first 5 shown" } else { "" };
+        out.push_str(&format!(
+            "  - {count} potentially fixable violation(s) (involving unfixed traces/vias{suffix}):\n"
+        ));
+        append_violation_list(&mut out, board, &potentially_fixable, "      ");
+    }
+
+    if total_unfixable > 0 {
+        out.push_str(&format!(
+            "Notice: the router does not modify component placement, board outlines, or fixed items.\n\
+             Resolving these {total_unfixable} unfixable violation(s) is the responsibility of \
+             the board author in their EDA tool (e.g. KiCad)."
+        ));
+    } else {
+        out.push_str(
+            "Notice: the router will attempt to resolve potentially fixable violations by ripping \
+             up and rerouting traces/vias.",
+        );
+    }
+    out
+}
+
+/// Upstream `appendCategoryViolations`: one bucket's title line (with
+/// the `(first 5 shown)` suffix past 5) + its pair list.
+fn append_category_violations(
+    out: &mut String,
+    board: &Board,
+    category_title: &str,
+    category_violations: &[(ItemId, ItemId)],
+) {
+    if category_violations.is_empty() {
+        return;
+    }
+    let count = category_violations.len();
+    if count <= 5 {
+        out.push_str(&format!("      * {count} {category_title}:\n"));
+    } else {
+        out.push_str(&format!(
+            "      * {count} {category_title} (first 5 shown):\n"
+        ));
+    }
+    append_violation_list(out, board, category_violations, "          ");
+}
+
+/// Upstream `appendViolationList`: the first ≤5 `a <-> b` pair lines
+/// and the overflow count.
+fn append_violation_list(
+    out: &mut String,
+    board: &Board,
+    violations: &[(ItemId, ItemId)],
+    indent: &str,
+) {
+    for (first, second) in violations.iter().take(5) {
+        out.push_str(&format!(
+            "{indent}- {} <-> {}\n",
+            describe_violation_item(board, *first),
+            describe_violation_item(board, *second)
+        ));
+    }
+    if violations.len() > 5 {
+        out.push_str(&format!("{indent}... and {} more\n", violations.len() - 5));
+    }
+}
+
+/// Upstream `describeViolationItem`: the human-readable descriptor for
+/// one violation side — pin `COMP.PIN_NAME` (the pin's INDEX when the
+/// package pin name is unresolvable), `BoardOutline`,
+/// `ComponentOutline(COMP)`, `ObstacleArea#id` (a CONDUCTION AREA
+/// prints under the parent tag — Java's `instanceof ObstacleArea` sees
+/// the subclass; deliberate), `FixedTrace#`/`Trace#` and
+/// `FixedVia#`/`Via#` by user-fixed state, `other#id` for the rest —
+/// plus the first non-blank net name as ` [net NAME]`. A dead id is
+/// Java's `item == null` arm: `(none)`.
+fn describe_violation_item(board: &Board, id: ItemId) -> String {
+    let Some(entry) = board.get(id) else {
+        return "(none)".to_string();
+    };
+    let component_id = u32::try_from(entry.component_id).unwrap_or(0);
+    let component = if component_id >= 1 {
+        board.components().get(component_id)
+    } else {
+        None
+    };
+    let name = match &entry.data {
+        ItemData::Pin { pin_index, .. } => {
+            let comp_name = component.map_or_else(|| "?".to_string(), |c| c.name.clone());
+            let pin = epic_board::components::pin_name(
+                board.components(),
+                board.library(),
+                component_id,
+                *pin_index,
+            )
+            .map_or_else(|| pin_index.to_string(), str::to_string);
+            format!("{comp_name}.{pin}")
+        }
+        ItemData::BoardOutline { .. } => "BoardOutline".to_string(),
+        ItemData::ComponentOutline { .. } => format!(
+            "ComponentOutline({})",
+            component.map_or_else(|| "?".to_string(), |c| c.name.clone())
+        ),
+        // Java's instanceof ObstacleArea catches ConductionArea (the
+        // subclass) — both print under the parent tag.
+        ItemData::ObstacleArea { .. } | ItemData::ConductionArea { .. } => {
+            format!("ObstacleArea#{}", id.get())
+        }
+        ItemData::Trace { .. } => format!(
+            "{}#{}",
+            if epic_board::trace_ops::is_user_fixed(entry) {
+                "FixedTrace"
+            } else {
+                "Trace"
+            },
+            id.get()
+        ),
+        ItemData::Via { .. } => format!(
+            "{}#{}",
+            if epic_board::trace_ops::is_user_fixed(entry) {
+                "FixedVia"
+            } else {
+                "Via"
+            },
+            id.get()
+        ),
+        ItemData::Other => format!("other#{}", id.get()),
+    };
+    // The FIRST net whose looked-up name is non-blank (Java keeps
+    // scanning past blank names, `isBlank()`).
+    let net_name = entry
+        .nets
+        .iter()
+        .filter_map(|net_no| board.rules().nets.get(*net_no))
+        .map(|net| net.name.trim())
+        .find(|name| !name.is_empty());
+    match net_name {
+        Some(net_name) => format!("{name} [net {net_name}]"),
+        None => name,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1285,8 +1504,14 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
     //     after the override above — the manifest's pre-existing vs
     //     router-introduced split measures the promoted-outline board
     //     exactly as Java's does.
-    let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
+    let (pre_total, pre_rows) = all_clearance_violation_depths(&mut manager, &mut board);
     board.pre_existing_clearance_violations_count = i32::try_from(pre_total).unwrap_or(i32::MAX);
+    // The #930 unfixable sub-count over the SAME rows (no second walk):
+    // Java seeds `unfixableClearanceViolationsCount` in the same
+    // deferred post-load block that seeds the total.
+    board.unfixable_clearance_violations_count =
+        i32::try_from(categorize_depth_rows(&board, &pre_rows).total_unfixable())
+            .unwrap_or(i32::MAX);
 
     // The driver sink moves UP here (the readiness-fix E2 emit point):
     // ONE stderr Info line after the load phase (parse -> board build
@@ -1301,6 +1526,18 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
         pre_total,
         load_started.elapsed().as_secs_f64(),
     ));
+
+    // #930 (`be56b5a0f`, `HeadlessBoardManager`'s deferred post-load
+    // block): the categorized pre-existing-violation WARNING, emitted
+    // iff the walk found any — unfixable pairs (pins, outlines,
+    // keepouts, fixed routing) vs potentially fixable (unfixed
+    // traces/vias), ≤5 pairs per bucket with the overflow line. The
+    // text is a pure fn so the format pin drives it without a sink.
+    if !pre_rows.is_empty() {
+        sink.warn(&format_pre_existing_clearance_violations_warning(
+            &board, &pre_rows,
+        ));
+    }
 
     // F4 (Rust-only): the pre-route interview — the board-derived
     // questions, shown (`--interview=show`) or asked on a terminal
@@ -3583,9 +3820,15 @@ mod tests {
         let mut manager = SearchTreeManager::new();
         manager.reinsert_tree_items(&mut board);
         epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
-        let (pre_total, _) = all_clearance_violation_depths(&mut manager, &mut board);
+        let (pre_total, pre_rows) = all_clearance_violation_depths(&mut manager, &mut board);
         board.pre_existing_clearance_violations_count =
             i32::try_from(pre_total).unwrap_or(i32::MAX);
+        // The #930 sub-count, same as the production seed in run_route
+        // (this test's BoardStatistics reads the field if ever
+        // extended).
+        board.unfixable_clearance_violations_count =
+            i32::try_from(categorize_depth_rows(&board, &pre_rows).total_unfixable())
+                .unwrap_or(i32::MAX);
 
         let dsn_layer = DsnLayer::from_metadata(
             ses.metadata.autoroute_settings.as_ref(),
@@ -3676,6 +3919,90 @@ mod tests {
             Some(15),
             "the routed board keeps the load-time bounds capture"
         );
+    }
+
+    /// #930 (`be56b5a0f`): the categorized pre-existing-violation
+    /// WARNING text, driven through the pure formatter over the SAME
+    /// load walk the CLI seed uses (read -> board build -> tree fill
+    /// -> normalize -> depth walk) on the #930 witness fixture. The
+    /// fixture trips every arm: 8 rows; 7 unfixable — 6 pin-to-pin
+    /// (the >5 overflow arm: `(first 5 shown)` + `... and 1 more`)
+    /// and 1 fixed-route from the `(type fix)` pair (SystemFixed >=
+    /// UserFixed prints `FixedTrace#`); 1 potentially fixable (the
+    /// plain-wire pair, the count<=5 no-suffix arm); the unfixable
+    /// Notice close. Trace ids are derived at RUNTIME by net
+    /// membership (the no-absolute-ids pin law); every other byte is
+    /// the literal text. The EMIT site itself (`sink.warn` iff rows
+    /// are non-empty) is reporting-only and rides the same
+    /// parity-warnings law as the copper-to-edge warnings — comment
+    /// faces, not auto-pinned.
+    #[test]
+    fn warning_text_buckets_and_overflow_arms_on_the_930_witness() {
+        let dsn_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../harness/fixtures/drc930/930-categories.dsn"
+        );
+        let bytes = std::fs::read(dsn_path).expect("930 fixture present");
+        let mut ses = SesBoard::new();
+        match read_board(&bytes, &mut ses) {
+            DsnReadResult::Success { .. } => {}
+            other => panic!("expected Success, got {other:?}"),
+        }
+        let mut board = Board::from_ses_board(&ses);
+        let mut manager = SearchTreeManager::new();
+        manager.reinsert_tree_items(&mut board);
+        epic_board::normalize_all::normalize_all_traces(&mut manager, &mut board);
+        let (pre_total, pre_rows) = all_clearance_violation_depths(&mut manager, &mut board);
+        assert_eq!(pre_total, 8, "the witness's eight-row law");
+        let text = format_pre_existing_clearance_violations_warning(&board, &pre_rows);
+
+        // The two trace-pair rows' ids by net name (a wire's trace is
+        // the item carrying that net; one trace per empty net here).
+        let trace_on = |name: &str| -> u32 {
+            let net_no = (1..=board.rules().nets.max_net_number())
+                .find(|&n| {
+                    board
+                        .rules()
+                        .nets
+                        .get(n)
+                        .is_some_and(|net| net.name == name)
+                })
+                .unwrap_or_else(|| panic!("net {name} absent"));
+            board
+                .iter_ascending()
+                .find(|entry| {
+                    matches!(entry.data, ItemData::Trace { .. }) && entry.nets.contains(&net_no)
+                })
+                .expect("a trace on the net")
+                .id
+                .get()
+        };
+        let (ta, tb, tc, td) = (
+            trace_on("TA"),
+            trace_on("TB"),
+            trace_on("TC"),
+            trace_on("TD"),
+        );
+
+        let expected: String = [
+            "Design Warning: Board has 8 pre-existing clearance violation(s) in the loaded design (before routing):",
+            "  - 7 unfixable violation(s) (cannot be resolved by the router):",
+            "      * 6 pin-to-pin clearance violations (first 5 shown):",
+            "          - CMP1.P1 [net NA] <-> CMP1.P2 [net NB]",
+            "          - CMP1.P2 [net NB] <-> CMP1.P3 [net NA]",
+            "          - CMP1.P3 [net NA] <-> CMP1.P4 [net NB]",
+            "          - CMP1.P4 [net NB] <-> CMP1.P5 [net NA]",
+            "          - CMP1.P5 [net NA] <-> CMP1.P6 [net NB]",
+            "          ... and 1 more",
+            "      * 1 fixed trace/via clearance violations:",
+            &format!("          - FixedTrace#{ta} [net TA] <-> FixedTrace#{tb} [net TB]"),
+            "  - 1 potentially fixable violation(s) (involving unfixed traces/vias):",
+            &format!("      - Trace#{tc} [net TC] <-> Trace#{td} [net TD]"),
+            "Notice: the router does not modify component placement, board outlines, or fixed items.",
+            "Resolving these 7 unfixable violation(s) is the responsibility of the board author in their EDA tool (e.g. KiCad).",
+        ]
+        .join("\n");
+        assert_eq!(text, expected, "the #930 warning text, byte-for-byte");
     }
     // -------------------------------------------------------------------
     // The copper-to-edge override pins (M5-T3, buglog 189). The measured

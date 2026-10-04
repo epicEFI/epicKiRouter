@@ -4208,5 +4208,22 @@
       "sanctioned-capture",
       "census-42-1809"
     ]
+  },
+  {
+    "id": 265,
+    "date": "2026-10-04",
+    "error_message": "bug-255: golden '#' comment headers are capture-only metadata \u2014 read_golden strips every '#' line, so verify pinned only the JSON body. For a flag-OFF overlay family the per-family counts (airlines/markers/congestion/tuning) exist ONLY in the header (the body has no ops for an OFF family): a drifting count was invisible to every gate (min-stair markers 1->0 manufactured the ~40-min T4/T3 phantom-paradox before like-for-like classification dissolved it). Round-2 census trap: after an epic-gui TESTS-ONLY edit, building BOTH epic-cli profiles did NOT satisfy the session-parity stale-bin tripwire \u2014 census RED twice with 'no fresh epic-cli binary found' (session_parity_pin.rs:121).",
+    "root_cause": "verify-blind metadata: the overlay counts and snapshot-items lines were written by the capture doors and read by nobody. The round-2 trap root cause: the tripwire's freshness walk is WORKSPACE-WIDE (any rust/crates/**/*.rs + Cargo.toml + Cargo.lock mtime) but cargo's staleness check is DEPENDENCY-GRAPH-LOCAL \u2014 an epic-gui integration-test edit is OUTSIDE epic-cli's dep graph, so 'cargo build -p epic-cli' sees every target up-to-date, SKIPS the relink, and the bin mtime never moves. After an out-of-graph edit no number of plain rebuilds can satisfy the tripwire; only 'cargo clean -p epic-cli' (per profile \u2014 dev AND --release) forces the relink (buglog-236/240 amendment: plain build after out-of-graph edit is a no-op, not a fix).",
+    "fix": "1a0a6ce92 test(gui): verify-time overlay-header count assertion (export e1c683216, parent 6d5ba1693). Three faces in rust/crates/epic-gui/tests/render_goldens.rs: (1) overlay_counts_line + snapshot_items_line extracted as the SINGLE format shared by both capture doors (doors WRITE through them) and the verify arms; (2) golden_header_value reads one value line out of the stripped header; (3) overlay_goldens_verify_in_process gains two arms per case \u2014 '# overlay counts:' and '# snapshot items:' must be PRESENT (absent = malformed golden, not exempt) and EQUAL the live snapshot's lines. Both mutant classes witnessed RED then reverted: value drift (min-stair tuning Some(1)->Some(2)) and missing line (drc-craft counts line deleted). Round 3 = clean BOTH profiles -> rebuild -> census 42/1809/0/19 EXACT (bindev3 log shows the forced relink: 'Compiling epic-cli ... Finished dev in 0.63s'). Zero product code touched \u2014 compares/tierA/gv inert by construction.",
+    "tags": [
+      "golden-metadata",
+      "verify-blind-drift",
+      "overlay-goldens",
+      "stale-bin-tripwire",
+      "cargo-skip-relink",
+      "graph-local-staleness",
+      "test-infra",
+      "capture-door"
+    ]
   }
 ]

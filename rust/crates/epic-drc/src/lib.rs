@@ -18,6 +18,7 @@
 //!   matrix, the enlarged-intersection gate, the tie-pin and
 //!   outline-contains exemptions, and the A-B/B-A dedup.
 
+pub mod category;
 pub mod clearance;
 pub mod incompletes;
 pub mod routing_ledger;

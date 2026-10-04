@@ -279,6 +279,15 @@ pub struct Board {
     /// router-introduced against it. A plain field gives the identical
     /// snapshot/restore semantics as Java's non-transient member.
     pub pre_existing_clearance_violations_count: i32,
+    /// Upstream #930 (`be56b5a0f`): `BasicBoard.
+    /// unfixableClearanceViolationsCount` — the pre-existing
+    /// violations where NEITHER item is routable (pins, outlines,
+    /// keepouts, fixed routing — nothing the router can rip up).
+    /// Seeded at the same load-time walks as
+    /// [`Self::pre_existing_clearance_violations_count`];
+    /// reporting-only (the warning text + the in-memory
+    /// `BoardStatistics` count read it; no route decision does).
+    pub unfixable_clearance_violations_count: i32,
     /// M7-T3 (beyond-Java — no Java counterpart): the tuning-regime
     /// flag. The pipeline resolves it once from
     /// `BatchSettings::tuning_active` (the input-driven activation — a

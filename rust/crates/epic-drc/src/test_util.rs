@@ -128,12 +128,30 @@ pub(crate) const DSN_TIE_CONTRAST: &str =
 ///   component, same base, but exemption 1 requires BOTH netless →
 ///   still an obstacle.
 ///
-/// Expected walk: exactly THREE rows — the NS2 pair, the CMPD pair,
-/// the CMPE pair; no others (all cross-component distances ≥ 25000).
-/// Pin names use the `@` sub-pad form (the parser accepts `@`/`#`
-/// and mid-word `_`/`-` as plain word characters; the net pin-ref
-/// split takes the component at the FIRST `-`).
+/// Expected walk: exactly TWO rows — the CMPD pair and the CMPE pair
+/// (clearance.rs:1045; the NS2 pair joined the exempt set when #931
+/// cluster G dropped exemption 2's component guard); no others (all
+/// cross-component distances ≥ 25000). Pin names use the `@` sub-pad
+/// form (the parser accepts `@`/`#` and mid-word `_`/`-` as plain
+/// word characters; the net pin-ref split takes the component at the
+/// FIRST `-`).
 pub(crate) const DSN_P4: &str = include_str!("../../../harness/fixtures/p4/p4-pins.dsn");
+
+/// The #930 categorization witness (upstream `be56b5a0f`): one
+/// component CMP1 with SEVEN pins P1..P7 on one row at 3000 µm pitch
+/// (PAD_R ±1000 → adjacent pad-edge gap 1000 < the 2000 rule;
+/// non-adjacent gap 4000 → clean), nets ALTERNATING NA/NB — the P4
+/// exemption lattice leaves every ADJACENT pair an obstacle
+/// (cross-net; exemption 2 needs same net), so the walk carries
+/// exactly SIX pin-to-pin rows. Two `(type fix)` trace pairs (TA/TB
+/// and TC/TD, centers 2000 apart vertically → edge gap 1750 < 2000):
+/// the FIRST pair typed `fix` (SystemFixed → fixed route), the second
+/// plain (Unfixed → routable). Expected buckets over the depth walk:
+/// pin_to_pin 6, fixed_route 1, potentially_fixable 1, everything
+/// else 0 — total_unfixable 7 (also the #930 warning-text fixture:
+/// 6 > 5 trips the `(first 5 shown)` + `... and 1 more` arms).
+pub(crate) const DSN_930: &str =
+    include_str!("../../../harness/fixtures/drc930/930-categories.dsn");
 
 /// Parse a crafted DSN through the SAME reader + board build + tree
 /// fill the corpus harness (`evaluate_rust`) parity-verifies.

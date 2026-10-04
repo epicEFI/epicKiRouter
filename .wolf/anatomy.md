@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T07:33:50.087Z
-> Files: 826 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T09:11:09.084Z
+> Files: 827 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -834,6 +834,7 @@
 - `m11t7-commit-msg.txt` (~472 tok)
 - `m11t9d-commit-msg.txt` (~1782 tok)
 - `m11t9i-commit-msg.txt` (~2236 tok)
+- `ovh-commit-msg.txt` — /*.rs mtime) but cargo's staleness check is (~868 tok)
 - `p1-commit-msg.txt` — Declares power (~595 tok)
 - `p2-commit-msg.txt` (~988 tok)
 - `p3-commit-msg.txt` — Declares cell (~1737 tok)
@@ -1008,7 +1009,7 @@
 
 ## rust/crates/epic-gui/tests/
 
-- `render_goldens.rs` — M9-T4: the render-golden pins (the dispatch charter for (~16171 tok)
+- `render_goldens.rs` — M9-T4: the render-golden pins (the dispatch charter for (~17059 tok)
 - `version_pin.rs` — The M10-T6 fix-round Q1 pin: the built `epic-gui` bin, spawned with (~704 tok)
 
 ## rust/crates/epic-router/
