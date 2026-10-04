@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T09:11:09.084Z
-> Files: 827 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-10-04T11:51:00.885Z
+> Files: 831 tracked | Anatomy hits: 0 | Misses: 0
 
 > Project structure index. Auto-maintained by OpenWolf hooks and daemon.
 > Run `openwolf scan` to generate, or wait for the first Claude Code session.
@@ -781,6 +781,7 @@
 - `152a-commit-msg.txt` (~1131 tok)
 - `152b-commit-msg.txt` (~1141 tok)
 - `885-commit-msg.txt` (~1397 tok)
+- `930-commit-msg.txt` — Declares fidelity (~882 tok)
 - `933-survivors-intake.md` — #933 survivors — upstream intake + port map (2026-10-03) (~1747 tok)
 - `933s1-commit-msg.txt` (~667 tok)
 - `933s2-commit-msg.txt` (~898 tok)
@@ -856,6 +857,7 @@
 - `run_gates_152a.sh` — #152 COMMIT A landing battery (2026-10-03) — heuristic relaxation (~1459 tok)
 - `run_gates_152b.sh` — #152 COMMIT B landing battery (2026-10-03) — the d0d876e30 (~1490 tok)
 - `run_gates_885.sh` — #885 per-layer costs landing battery (2026-10-03) — upstream c32625e0f, (~1452 tok)
+- `run_gates_930.sh` — #930 unfixable/category DRC reporting landing battery (2026-10-04) (~1436 tok)
 - `run_gates_933s1.sh` — #933 SURVIVOR-1 landing battery (2026-10-03) — the fanout (~1189 tok)
 - `run_gates_933s2.sh` — #933 SURVIVOR-2 landing battery (2026-10-03) — the last-mile (~1212 tok)
 - `run_gates_cgrid.sh` — Congestion-grid outline-interior recouple landing battery (2026-10-03) (~1514 tok)
@@ -939,7 +941,7 @@
 ## rust/crates/epic-cli/src/
 
 - `main.rs` — `epic-cli` — the EpicRouter headless command-line binary (M3-T13). (~2346 tok)
-- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~57079 tok)
+- `route.rs` — The `route` flow (M3-T13): DSN read -> board build + trace (~60763 tok)
 
 ## rust/crates/epic-cli/tests/
 
@@ -952,10 +954,11 @@
 
 ## rust/crates/epic-drc/src/
 
+- `category.rs` — Upstream #930 (`be56b5a0f`, `ClearanceViolation.java`): the (~5025 tok)
 - `clearance.rs` — The clearance-violation walk — the port of Java (~16064 tok)
 - `lib.rs` — The two counts every M3 quality gate consumes — incomplete (~357 tok)
 - `routing_ledger.rs` — The #933 survivor-3 recount driver (upstream 339e8bb50, Java (~4835 tok)
-- `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~2802 tok)
+- `test_util.rs` — Crafted DSN boards + parse/lookup helpers for the epic-drc pin (~3090 tok)
 
 ## rust/crates/epic-dsn/src/
 
@@ -975,7 +978,7 @@
 - `pin_assign.rs` — The F1 pin auto-assignment core: a self-contained min-cost (~7713 tok)
 - `plane_nets.rs` — Upstream #152 (PR #889, d9694ab82): the `planeNets` override. (~1644 tok)
 - `pour.rs` — F3 (Rust-only, no Java counterpart): the ground-pour ask. (~5746 tok)
-- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~16231 tok)
+- `session.rs` — The headless application session — the M9-T2 `Session` (the Java (~16356 tok)
 - `settings.rs` — The T13 settings subset resolver (Java `SettingsMerger` + `CliSettings` (~67232 tok)
 
 ## rust/crates/epic-engine/tests/
@@ -1067,6 +1070,10 @@
 ## rust/harness/
 
 - `run-gate.sh` — M6-T7 (rider: exit-printing by construction) — run a gate/instrument (~250 tok)
+
+## rust/harness/fixtures/drc930/
+
+- `930-categories.dsn` — Declares signal (~310 tok)
 
 ## rust/harness/fixtures/global-spike/
 
