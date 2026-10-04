@@ -4138,5 +4138,20 @@
    "no-flush-max-quirk",
    "equivalence-by-construction"
   ]
+ },
+ {
+  "id": 261,
+  "date": "2026-10-03",
+  "error_message": "#152 Commit A port, two craft-fixture traps: (1) a hand-crafted `(plane ...)` DSN failed with ParseError 'DSN structure parsing failed' at the header \u2014 the scope syntax was written INVERTED as `(plane F.Cu (polygon GND ...))`; (2) the zero-board-area guard pin failed its first form ('a board with layers but no boundary') because run_structure returns ok=false for a no-boundary structure \u2014 the board is never created.",
+  "root_cause": "(1) DSN plane-scope grammar: the scope NAME is the NET NAME and the polygon's first token names the LAYER \u2014 `(plane GND (polygon F.Cu 0 x1 y1 x2 y2 ...))` (T37 fixtures pin this; the inversion reads as a plane on a nonexistent net-named layer and the structure read fails). (2) The heuristic fires ONLY on read_ok in read_board (reader.rs:219-221) and a missing outline fails the read \u2014 so board_area==0 is unreachable through the parse path; the guard's reachable face is a MUTATED board (direct pub call on a board whose BoardOutline item was removed via items.retain).",
+  "fix": "(1) Craft plane fixtures with net-named scopes: `(plane GND (polygon F.Cu 0 ...))`. (2) Re-pinned the guard on a successfully-parsed two-layer board with the outline item retained-away \u2014 the honest direct-call face; documented in the pin's doc comment. Landed as 156ecbfa8 (export 9fc8aa9d4); battery 42/1802/0/19 census-exact, dsn compare 0 mismatches (no corpus fixture reaches the relaxed heuristic).",
+  "tags": [
+   "dsn",
+   "plane-scope",
+   "craft-fixture",
+   "heuristic",
+   "test-reachability",
+   "152"
+  ]
  }
 ]
