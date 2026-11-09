@@ -76,9 +76,20 @@ pub fn read_library_scope(
     let Some(layer_structure) = state.layer_structure.clone() else {
         // Java dereferences `layerStructure` unguarded — an NPE there is
         // parse death; the library scope only runs after create_board.
+        state.note_parse_failure(
+            "(library) scope read before any (structure) scope defined the \
+             layer stack — Specctra requires (structure) with (layer ...) \
+             entries and a (boundary (path pcb ...)) outline to precede \
+             (library); KiCad/Specctra exporters always emit it",
+        );
         return false;
     };
     let Some(coordinate_transform) = state.coordinate_transform else {
+        state.note_parse_failure(
+            "(library) scope read before (structure) created the board \
+             geometry (no coordinate transform) — a (structure) scope with a \
+             valid (boundary) must precede (library)",
+        );
         return false;
     };
     let mut package_list: Vec<ParserImage> = Vec::new();

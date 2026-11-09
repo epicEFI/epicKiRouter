@@ -462,6 +462,15 @@ pub struct ParseState {
     /// Java `boardOutlineOk` (`:75`) — default true; set false by the
     /// structure reader when the outline is absent.
     pub board_outline_ok: bool,
+    /// Real-world-diagnostics face (2026-11-09): the first child-reader
+    /// failure reason captured during the pcb-scope walk. Java surfaces
+    /// only a generic "structure parsing failed"; this port keeps the
+    /// legacy string as the fallback detail but prefers a scope-named
+    /// reason (e.g. "(library) read before (structure) defined layers")
+    /// when a reader recorded one. First writer wins — the earliest
+    /// failure is the root cause; later cascade failures must not
+    /// overwrite it.
+    pub parse_failure: Option<String>,
     /// Java `writeResolution` (`:77`).
     pub write_resolution: Option<WriteResolution>,
     /// Java `coordinateTransform` (`:80`) — set when the structure scope
@@ -498,10 +507,22 @@ impl Default for ParseState {
             host_version: None,
             dsn_file_generated_by_host: true,
             board_outline_ok: true,
+            parse_failure: None,
             write_resolution: None,
             coordinate_transform: None,
             layer_structure: None,
             autoroute_settings: None,
+        }
+    }
+}
+
+impl ParseState {
+    /// First-wins capture for [`Self::parse_failure`] — the earliest
+    /// failure reason is the root cause; cascade failures must not
+    /// overwrite it.
+    pub fn note_parse_failure(&mut self, detail: impl Into<String>) {
+        if self.parse_failure.is_none() {
+            self.parse_failure = Some(detail.into());
         }
     }
 }

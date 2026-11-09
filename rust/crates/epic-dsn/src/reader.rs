@@ -229,7 +229,10 @@ pub fn read_board(input: &[u8], sink: &mut dyn BoardSink) -> DsnReadResult {
     } else {
         DsnReadResult::ParseError {
             location: "(pcb".to_string(),
-            detail: "DSN structure parsing failed".to_string(),
+            detail: state
+                .parse_failure
+                .clone()
+                .unwrap_or_else(|| "DSN structure parsing failed".to_string()),
         }
     }
 }
@@ -299,6 +302,9 @@ fn read_pcb_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
             };
         }
         if !read_ok {
+            if let Token::Keyword(keyword) = &next_token {
+                state.note_parse_failure(format!("({}) scope parsing failed", keyword.name()));
+            }
             return false;
         }
         prev_token = Some(next_token);
