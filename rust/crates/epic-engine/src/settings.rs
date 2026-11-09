@@ -1945,16 +1945,24 @@ pub fn validate(merged: &mut MergedSettings) -> Vec<String> {
 /// `board.layers()` supplies the layer count + the signal flags; the
 /// bounding box supplies the aspect ratio (Java reads
 /// `board.boundingBox.width()/height()` directly — a built board always
-/// has one).
+/// has one). An OUTLINE-LESS board (0 items, no boundary — e.g. a
+/// header-only or structureless DSN that the reader tolerates) has NO
+/// bounding box: Java NPEs there; this port warns and skips the
+/// geometry-derived pass instead (2026-11-09 — a panic on a board the
+/// CLI already warned about is a crash, not parity worth keeping).
 pub fn apply_board_specific_optimizations(
     settings: &mut MergedSettings,
     board: &epic_board::board::Board,
 ) {
     let layer_structure = board.layers();
     let layer_count = layer_structure.layers.len();
-    let bounds = board
-        .bounding_box()
-        .expect("a built board always has a bounding box (Java would NPE)");
+    let Some(bounds) = board.bounding_box() else {
+        eprintln!(
+            "Warning: board has no bounding box (no outline items); skipping the \
+             aspect-ratio trace-cost pass"
+        );
+        return;
+    };
     let horizontal_width = f64::from(bounds.width());
     let vertical_width = f64::from(bounds.height());
 
