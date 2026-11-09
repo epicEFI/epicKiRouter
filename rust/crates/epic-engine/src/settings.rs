@@ -611,7 +611,12 @@ pub fn parse_route_args(args: &[String]) -> Result<ParsedRouteArgs, String> {
                 }
                 // The short-flag map (`CliSettings.java:166-178`).
                 "mp" => {
-                    apply_router_setting(&mut parsed.layer, "router.max_passes", &value);
+                    // The help text (epic-cli main.rs) advertises
+                    // `-mp -> router.autorouter.max_passes`; routing the
+                    // short flag through the deprecated flat path made
+                    // every documented use print a deprecation warning
+                    // (2026-11-09).
+                    apply_router_setting(&mut parsed.layer, "router.autorouter.max_passes", &value);
                 }
                 "mt" => {
                     apply_router_setting(&mut parsed.layer, "router.max_threads", &value);
