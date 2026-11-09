@@ -10686,3 +10686,5 @@ description: chronological action log per session, consolidated weekly
 | 09:24 | Created logs/readiness-2026-10-01/152h-commit-msg.txt | — | ~593 |
 | 10:15 | Edited logs/readiness-2026-10-01/buglog268.py | inline fix | ~18 |
 | 11:20 | Created logs/readiness-2026-10-01/upstream-sweep-2026-10-04.md | — | ~1366 |
+<!-- session:ZXBpY3JvdXRlci1maXg -->
+| 2026-11-09T08:47:16.374Z | Real-world DSN robustness: 4 parse/CLI defects fixed (branch fix/dsn-realworld-parse-diagnostics, d2396dc3a+4622004ef+bb3975a8e+a5b916282) + dropbear adapter routed 41/41 with clean SES import |  | external dropbear lane hit generic 'DSN structure parsing failed' on a structureless hand-DSN; fixed: scope-named parse diagnostics, grammar-legal minimal (place X Y)/(mirror) acceptance (explicit-side-requires-rotation parity kept), -mp deprecated-path mapping, outline-less-board panic. Suites green. Route: neckdown OFF (default neckdown emits 0.19/0.127mm below board min — backlog), 41/41 nets 0 violations, SES imports (349 tracks + 14 vias, DRC route-clean). |
