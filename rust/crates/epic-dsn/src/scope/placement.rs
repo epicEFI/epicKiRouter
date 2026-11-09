@@ -106,6 +106,10 @@ pub(crate) fn read_component_scope(
 ) -> bool {
     let Token::Str(component_name) = scanner.next_token() else {
         // Java warns "component name expected" -> null -> wrapper false
+        state.note_parse_failure(
+            "(component ...) scope: component image name expected after the \
+             component keyword",
+        );
         return false;
     };
     let mut placement = ComponentPlacement {
@@ -135,7 +139,14 @@ pub(crate) fn read_component_scope(
                     });
                     placement.locations.push(location);
                 }
-                None => return false,
+                None => {
+                    state.note_parse_failure(format!(
+                        "(place ...) scope inside (component \"{}\"): malformed — expected \
+                         (place <refdes> <x> <y> [<front|back> <rotation>] [<inner scopes>])",
+                        placement.lib_name
+                    ));
+                    return false;
+                }
             }
         }
         prev_token = next_token;
@@ -182,9 +193,29 @@ fn read_place_scope(scanner: &mut Scanner) -> Option<ComponentLocation> {
         }
     }
     let mut is_front = true;
-    match scanner.next_token() {
-        Token::Keyword(Keyword::Back) => is_front = false,
-        Token::Keyword(Keyword::Front) => {}
+    let mut rotation = 0.0;
+    // Side + rotation. The Specctra grammar marks BOTH optional after the
+    // coordinates; Java consumes whatever token follows as the side
+    // (warn-only) and then requires a rotation — so the grammar-legal
+    // minimal `(place R X Y)` and `(place R X Y <inner-scope> ...)` forms
+    // died at the rotation read ("number expected"). Divergence
+    // (2026-11-09): a token that is neither `front`/`back` nor a number
+    // is now handled by shape — Close ends the placement (front, rotation
+    // 0), Open flows into the inner-scope loop below, a number IS the
+    // rotation. An EXPLICIT side keyword still requires a rotation token
+    // (the t7-place-bad `(place ... front .5)` jar pin stays fatal), and
+    // a side-token Error stays parse death.
+    let mut next_token = scanner.next_token();
+    match next_token {
+        Token::Keyword(Keyword::Back) => {
+            is_front = false;
+            rotation = read_place_rotation(scanner)?;
+            next_token = scanner.next_token();
+        }
+        Token::Keyword(Keyword::Front) => {
+            rotation = read_place_rotation(scanner)?;
+            next_token = scanner.next_token();
+        }
         Token::Error(_) => {
             // The side token is LEXED before the warn-only front fallback
             // can apply: the scanner's NumberFormatException escapes every
@@ -194,28 +225,33 @@ fn read_place_scope(scanner: &mut Scanner) -> Option<ComponentLocation> {
             // an uncaught NumberFormatException).
             return None;
         }
-        // ANY other token warns "Keyword.FRONT expected" and CONTINUES with
-        // front (`readPlacementSide` warn-only flavor, inline here)
-        _ => {}
-    }
-    let rotation = match scanner.next_token() {
-        Token::Double(value) => value,
-        Token::Int(value) => f64::from(value),
-        Token::Error(_) => return None,
-        _ => {
-            // Java warns "number expected" — the t7-place-bad jar pin:
-            // `.5` scans as a STRING token (no leading digit), so
-            // `(place ... front .5)` dies HERE (warn + ParseError).
-            return None;
+        Token::Double(value) => {
+            rotation = value;
+            next_token = scanner.next_token();
         }
-    };
+        Token::Int(value) => {
+            rotation = f64::from(value);
+            next_token = scanner.next_token();
+        }
+        // Close (minimal `(place R X Y)`) and Open (an inner scope such
+        // as `(mirror)`) keep the front/rotation-0 defaults; the loop
+        // below consumes them.
+        Token::Close | Token::Open => {}
+        _ => {
+            // Java warns "Keyword.FRONT expected" and CONTINUES with
+            // front (`readPlacementSide` warn-only flavor) — but still
+            // reads a rotation right after, which stays fatal on garbage
+            // (t7-place-bad parity).
+            rotation = read_place_rotation(scanner)?;
+            next_token = scanner.next_token();
+        }
+    }
     let mut position_fixed = false;
     let mut part_number: Option<String> = None;
     let mut pin_infos = BTreeMap::new();
     let mut keepout_infos = BTreeMap::new();
     let mut via_keepout_infos = BTreeMap::new();
     let mut place_keepout_infos = BTreeMap::new();
-    let mut next_token = scanner.next_token();
     while next_token == Token::Open {
         let inner = scanner.next_token();
         if matches!(inner, Token::Error(_)) {
@@ -247,6 +283,15 @@ fn read_place_scope(scanner: &mut Scanner) -> Option<ComponentLocation> {
             Token::Str(ref s) if s.eq_ignore_ascii_case("pn") => {
                 part_number = Some(read_string_scope(scanner));
             }
+            // Hand-authored DSNs mark bottom-side parts with `(mirror)`
+            // (KiCad's exporter spells the same intent as the `back` side
+            // keyword). No keyword-table entry exists (Task 1 sweep), so
+            // like `pn` it arrives as a string; the scope body carries
+            // nothing else, so it is skipped after flipping the side.
+            Token::Str(ref s) if s.eq_ignore_ascii_case("mirror") => {
+                is_front = false;
+                skip_scope(scanner);
+            }
             _ => {
                 skip_scope(scanner);
             }
@@ -269,6 +314,18 @@ fn read_place_scope(scanner: &mut Scanner) -> Option<ComponentLocation> {
         place_keepout_infos,
         part_number,
     })
+}
+
+/// The rotation read after an EXPLICIT side keyword (or a garbage side
+/// token that still owes one). Java warns "number expected" on anything
+/// but a number — the t7-place-bad `(place ... front .5)` pin (`.5`
+/// scans as a STRING token, no leading digit) stays fatal here.
+fn read_place_rotation(scanner: &mut Scanner) -> Option<f64> {
+    match scanner.next_token() {
+        Token::Double(value) => Some(value),
+        Token::Int(value) => Some(f64::from(value)),
+        _ => None,
+    }
 }
 
 /// Java `Component.readItemClearanceInfo` (`Component.java:311-350`).
@@ -621,5 +678,64 @@ mod tests {
         assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
         assert!(state.placement_list[0].locations[0].is_front);
         assert_eq!(state.placement_list[0].locations[0].rotation, 0.0);
+    }
+
+    /// Real-world DSN tolerance (2026-11-09): the Specctra grammar marks
+    /// side and rotation OPTIONAL after the coordinates. Java consumed
+    /// the place-closing paren as the side token and died at the
+    /// rotation read; the divergence accepts the minimal forms. The
+    /// dropbear adapter DSN (hand-authored) shipped exactly these.
+    #[test]
+    fn minimal_place_without_side_or_rotation_parses_front_up() {
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner = scanner_after_placement_keyword(
+            b"(component PA (place T1 10000 20000) (place T2 30000 40000 90)))",
+        );
+        assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
+        let group = &state.placement_list[0];
+        assert_eq!(group.locations.len(), 2);
+        let t1 = &group.locations[0];
+        assert_eq!(t1.name, "T1");
+        assert_eq!(t1.coor, Some([10000.0, 20000.0]));
+        assert!(t1.is_front, "minimal form defaults to front");
+        assert_eq!(t1.rotation, 0.0, "minimal form defaults to rotation 0");
+        let t2 = &group.locations[1];
+        assert_eq!(t2.rotation, 90.0, "bare rotation without a side keyword");
+        assert!(t2.is_front);
+    }
+
+    /// Real-world DSN tolerance (2026-11-09): hand-authored DSNs mark
+    /// bottom-side parts with `(mirror)` (KiCad's exporter spells the
+    /// same intent as the `back` side keyword).
+    #[test]
+    fn place_mirror_scope_flips_the_side_to_back() {
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        let mut scanner =
+            scanner_after_placement_keyword(b"(component TP (place V1 0 0 (mirror))))");
+        assert!(read_placement_scope(&mut scanner, &mut state, &mut board));
+        let v1 = &state.placement_list[0].locations[0];
+        assert!(!v1.is_front, "(mirror) means the bottom side");
+        assert_eq!(v1.rotation, 0.0);
+    }
+
+    /// The diagnostics face (2026-11-09): a malformed `(place ...)` now
+    /// records WHICH component and the expected shape, instead of the
+    /// generic "DSN structure parsing failed".
+    #[test]
+    fn malformed_place_records_component_named_detail() {
+        let mut state = ParseState::default();
+        let mut board = SesBoard::new();
+        // Explicit side keyword then a NON-number rotation (t7-place-bad
+        // parity) — still fatal, now with a named reason.
+        let mut scanner =
+            scanner_after_placement_keyword(b"(component IMG (place P1 100 200 front .5)))");
+        assert!(!read_placement_scope(&mut scanner, &mut state, &mut board));
+        let detail = state.parse_failure.as_deref().unwrap_or_default();
+        assert!(
+            detail.contains("(component \"IMG\")") && detail.contains("(place"),
+            "detail names the component and the scope: {detail}"
+        );
     }
 }
