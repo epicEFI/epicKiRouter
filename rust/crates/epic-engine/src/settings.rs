@@ -4957,6 +4957,7 @@ mod tests {
             min_trace_length: min,
             max_trace_length: max,
             nets: Vec::new(),
+            trace_width_declared: false,
         };
         let default = NetClassIr {
             name: "default".to_string(),
@@ -4966,6 +4967,7 @@ mod tests {
             clearance: epic_dsn::sink::ClearanceIr::default_instance(1),
             trace_angle_restriction: epic_dsn::state::AngleRestriction::FortyfiveDegree,
             default_trace_half_widths: vec![1500],
+            default_trace_width_declared: false,
             min_trace_half_width: 1500,
             max_trace_half_width: 1500,
             pin_edge_to_turn_dist: 0.0,

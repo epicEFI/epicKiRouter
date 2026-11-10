@@ -2771,6 +2771,7 @@ mod tests {
                 clearance: clearance_matrix_2layer(2000),
                 trace_angle_restriction: epic_dsn::state::AngleRestriction::NinetyDegree,
                 default_trace_half_widths: vec![1000],
+                default_trace_width_declared: false,
                 min_trace_half_width: 1000,
                 max_trace_half_width: 1000,
                 pin_edge_to_turn_dist: 0.0,
@@ -2791,6 +2792,7 @@ mod tests {
                 min_trace_length: 0.0,
                 max_trace_length: 0.0,
                 nets: Vec::new(),
+                trace_width_declared: false,
             });
         }
         ses
@@ -3576,6 +3578,7 @@ mod tests {
                 clearance: clearance_matrix_2layer(2000),
                 trace_angle_restriction: DsnAngleRestriction::FortyfiveDegree,
                 default_trace_half_widths: vec![1000],
+                default_trace_width_declared: false,
                 min_trace_half_width: 1000,
                 max_trace_half_width: 1000,
                 pin_edge_to_turn_dist: 0.0,
@@ -3596,6 +3599,7 @@ mod tests {
                 min_trace_length: 0.0,
                 max_trace_length: 0.0,
                 nets: Vec::new(),
+                trace_width_declared: false,
             });
         }
         ses

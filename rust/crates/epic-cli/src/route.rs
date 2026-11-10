@@ -3921,31 +3921,32 @@ mod tests {
         );
         // The count components are exact on both sides.
         assert_eq!(stats.vias.total_count, 1, "jar: vias 1");
-        // M11-T4 rotation (buglog 251/252, #931 cluster F): the
-        // unconditional corner-touch door inserts opened diagonal
-        // passages on this board — the route is ~2.5 mm SHORTER with
-        // two more bends (92.43 mm / 23 bends vs the jar's 94.96 /
-        // 21), and the composed optimizer score RISES above the
-        // jar's own face (840.93 vs 823.79 — the relative floor
-        // above still binds, and it is the policy face). The jar
-        // anchors stay the committed bm08-noopt manifest; these two
-        // literals follow the routed T4 face.
+        // M11-T4 rotation (buglog 251/252, #931 cluster F), then the
+        // wave1 neckdown clamp rotation: the T4 corner-touch door's
+        // two extra diagonal passages rode SUB-FLOOR neckdown widths
+        // (bm08 declares its widths — the board-min clamp now refuses
+        // them), so the routed face returns to the jar's own counts
+        // (21 bends; the length back at the jar's 94.96 mm anchor).
+        // The relative-score floor above still binds; the jar anchors
+        // stay the committed bm08-noopt manifest.
         assert_eq!(
-            stats.bends.total_count, 23,
-            "the T4 diagonal-passage face (jar anchors 21)"
+            stats.bends.total_count, 21,
+            "the post-clamp face is the jar's own 21-bend anchor"
         );
         assert_eq!(
             stats.difficulty.difficulty_d,
             Some(80.0),
             "jar: difficulty D 80"
         );
-        // The length face: the T4 diagonal passages sit the route
-        // ~2.5 mm UNDER the jar face (94.96) — bound the ROUTED
-        // face at 0.1 mm.
+        // The length face: the clamp re-shapes this board's route a
+        // THIRD way — the jar's 21-bend count with a 91.56 mm length
+        // (the jar's own 94.96 rode neckdown-widened detours the
+        // clamp now refuses; the T4 92.43/23 face rode sub-floor
+        // neckdowns) — bound the ROUTED face at 0.1 mm.
         let length_mm = stats.traces.total_length_mm.expect("length present");
         assert!(
-            (f64::from(length_mm) - 92.43).abs() <= 0.1,
-            "routed trace length within 0.1 mm of the T4 face: {length_mm}"
+            (f64::from(length_mm) - 91.56).abs() <= 0.1,
+            "routed trace length within 0.1 mm of the post-clamp face: {length_mm}"
         );
         // The score's lower-bound input on this same board is pinned
         // raw-bits-exact at the parse face (bounds module, bm08 pins).
@@ -4602,6 +4603,7 @@ mod tests {
             shove_fixed: false,
             min_trace_length: min,
             max_trace_length: max,
+            trace_width_declared: false,
             nets: Vec::new(),
         };
         let mut ses = two_layer_ses();

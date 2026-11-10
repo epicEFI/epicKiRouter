@@ -413,6 +413,17 @@ pub struct NetClassIr {
     /// the DSN read (an earlier "setClass appends" note here was wrong —
     /// the membership is derivable from [`NetIr::net_class`]).
     pub nets: Vec<i32>,
+    /// BEYOND-JAVA port flag (no Java counterpart): true iff a DSN
+    /// width rule actually WROTE this class's widths — a class rule
+    /// `(rule (width ...))`, a per-layer rule, a per-net fast rule, or
+    /// inheritance from a structure-declared default width. The
+    /// parse-seeded 1500 defaults (no width rule anywhere) stay
+    /// `false`. The neckdown clamp floor
+    /// (`BoardRules::min_trace_half_width`) counts only DECLARED
+    /// widths, so synthetic/no-width boards keep the upstream
+    /// unclamped neckdown while real boards (KiCad always declares)
+    /// clamp at their narrowest class.
+    pub trace_width_declared: bool,
 }
 
 /// Java `ViaInfo` (`rules/ViaInfo.java` fields: name, padstack,
@@ -922,6 +933,13 @@ pub struct BoardRulesIr {
     /// every layer (`BoardRules.java:206-208`, jar
     /// `/tmp/epic-t5-probe.out`: rule-less layers read DEFAULT_HW 1500).
     pub default_trace_half_widths: Vec<i32>,
+    /// BEYOND-JAVA port flag: true iff a DSN width rule wrote the
+    /// default widths (a structure-scope `(rule (width ...))` /
+    /// per-layer variant) — as opposed to the parse-seeded 1500s.
+    /// Feeds [`NetClassIr::trace_width_declared`] for the default
+    /// class and its width clones (the neckdown clamp floor counts
+    /// only DECLARED widths).
+    pub default_trace_width_declared: bool,
     /// Java `minTraceHalfWidth` (`:37`, ctor 100000): monotonically
     /// lowered by the width setters; feeds the pin-edge fallback.
     pub min_trace_half_width: i32,
@@ -954,6 +972,7 @@ impl BoardRulesIr {
     pub fn new(layer_count: usize) -> Self {
         Self {
             default_trace_half_widths: vec![1500; layer_count],
+            default_trace_width_declared: false,
             min_trace_half_width: 100_000,
             max_trace_half_width: 100,
             pin_edge_to_turn_dist: 0.0,
@@ -980,6 +999,9 @@ impl BoardRulesIr {
             return;
         };
         *slot = value;
+        // BEYOND-JAVA: a DSN write marks the default width DECLARED
+        // (both setter paths flow through here).
+        self.default_trace_width_declared = true;
         self.min_trace_half_width = self.min_trace_half_width.min(value);
         self.max_trace_half_width = self.max_trace_half_width.max(value);
     }

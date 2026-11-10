@@ -813,6 +813,7 @@ fn test_ctrl(via_upper_bound: i32, via_infos: Vec<ViaMask>) -> AutorouteControl 
         layer_count,
         trace_half_width: vec![50; layer_count],
         compensated_trace_half_width: vec![50; layer_count],
+        min_trace_half_width: vec![0; layer_count],
         via_radii: vec![0.0; layer_count],
         add_via_costs: cost_rows
             .iter()

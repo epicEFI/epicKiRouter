@@ -555,6 +555,13 @@ pub struct NetClass {
     pub max_trace_length: f64,
     /// Java `ignoreCyclesWithAreas` (`NetClass.java:35`, ctor false).
     pub ignore_cycles_with_areas: bool,
+    /// BEYOND-JAVA port flag (no Java counterpart; see the IR twin's
+    /// doc): true iff a DSN width rule wrote this class's widths (or
+    /// they were cloned from a declared default). The neckdown clamp
+    /// floor ([`BoardRules::min_trace_half_width`]) counts only
+    /// DECLARED widths — parse-seeded 1500 defaults leave the floor
+    /// absent and the upstream unclamped neckdown in place.
+    pub trace_width_declared: bool,
 }
 
 impl NetClass {
@@ -643,6 +650,7 @@ impl NetClass {
             // The ctor default (`NetClass.java:35`): the parse IR has
             // no column for the flag.
             ignore_cycles_with_areas: false,
+            trace_width_declared: class.trace_width_declared,
         }
     }
 }
@@ -790,6 +798,30 @@ impl BoardRules {
             .map_or(0, |class| class.trace_half_width(layer))
     }
 
+    /// The board's MINIMUM DECLARED trace half width on `layer`: the
+    /// smallest positive width over classes whose widths a DSN rule
+    /// actually WROTE ([`NetClass::trace_width_declared`]) — the
+    /// narrowest trace the design itself declares manufacturable.
+    /// The neckdown clamp consumes it (a pin/micro neckdown may
+    /// narrow a route only down to this floor, never below — the
+    /// real-world campaign's 0.19/0.127 mm paths on 0.254/0.2 mm
+    /// class boards). `0` when NO class declares a positive width on
+    /// the layer (synthetic/no-width-rule boards — the parse-seeded
+    /// 1500 defaults do NOT count — no clamp, upstream parity).
+    ///
+    /// Beyond-Java by design (upstream's neckdown ladders clamp at
+    /// nothing); the emit-time clamp lives in the router's inserter.
+    #[must_use]
+    pub fn min_trace_half_width(&self, layer: i32) -> i32 {
+        self.net_classes
+            .iter()
+            .filter(|class| class.trace_width_declared)
+            .map(|class| class.trace_half_width(layer))
+            .filter(|width| *width > 0)
+            .min()
+            .unwrap_or(0)
+    }
+
     /// Java has no named lookup — `NetClass.getViaRule()` returns the
     /// rule OBJECT (`NetClass.java:124-130`, a live reference into
     /// `BoardRules.viaRules`). The Rust class stores the rule's
@@ -905,7 +937,7 @@ impl BoardRules {
         via_infos: &[ViaInfoIr],
         via_rules: &[ViaRuleIr],
     ) -> Self {
-        Self {
+        let mut result = Self {
             clearance: ClearanceMatrix::from_ir(&rules.clearance),
             nets: Nets::from_ir(nets),
             net_classes: net_classes.iter().map(NetClass::from_ir).collect(),
@@ -920,7 +952,17 @@ impl BoardRules {
             default_item_clearance_classes: rules.default_item_clearance_classes,
             clearance_tolerance_um: 1.0,
             same_component_pin_exemptions: true,
+        };
+        // BEYOND-JAVA: the default class's widths ARE the default
+        // widths — declared iff a structure-scope width rule wrote
+        // them (update_board_rules runs AFTER create_board built the
+        // class IR, so the flag could not be read at creation time).
+        if rules.default_trace_width_declared
+            && let Some(default_class) = result.net_classes.first_mut()
+        {
+            default_class.trace_width_declared = true;
         }
+        result
     }
 }
 
@@ -1316,6 +1358,7 @@ mod tests {
             min_trace_length: 0.0,
             max_trace_length: 0.0,
             ignore_cycles_with_areas: false,
+            trace_width_declared: false,
         };
         assert!(class.is_active_routing_layer(0), "in-range true entry");
         assert!(!class.is_active_routing_layer(1), "in-range false entry");
@@ -1395,6 +1438,7 @@ mod tests {
             min_trace_length: 0.0,
             max_trace_length: 0.0,
             ignore_cycles_with_areas: false,
+            trace_width_declared: false,
         });
         rules.net_classes.push(NetClass {
             name: "constrained".to_string(),
@@ -1408,6 +1452,7 @@ mod tests {
             min_trace_length: 10.0,
             max_trace_length: 20.0,
             ignore_cycles_with_areas: false,
+            trace_width_declared: false,
         });
         rules.nets = Nets::from_ir(&[
             NetIr {
@@ -1502,6 +1547,7 @@ mod tests {
             min_trace_length: 0.0,
             max_trace_length: 0.0,
             ignore_cycles_with_areas: false,
+            trace_width_declared: false,
         });
         plain.nets = Nets::from_ir(&[NetIr {
             name: "plain".to_string(),

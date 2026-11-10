@@ -816,7 +816,20 @@ impl<S: PullTightSeam, E: InserterEventSink> FoundConnectionInserter<'_, S, E> {
             return None;
         }
 
-        let neck_down_halfwidth = self.board.pin_trace_neckdown_halfwidth(pin, layer);
+        let mut neck_down_halfwidth = self.board.pin_trace_neckdown_halfwidth(pin, layer);
+        // The board-min floor (beyond-Java): the pin-derived neckdown
+        // may not emit below the board's narrowest declared class
+        // width. Clamped UP, never silently — one row per clamped
+        // neckdown. A clamped width reaching the trace's own width is
+        // refused by the existing gate right below (no neckdown).
+        let board_min_half_width = self.ctrl.min_trace_half_width[layer as usize];
+        if board_min_half_width > 0 && neck_down_halfwidth < board_min_half_width {
+            self.sink.warn(&format!(
+                "FoundConnectionInserter: pin neckdown width {neck_down_halfwidth} clamped up \
+                 to the board minimum trace half width {board_min_half_width} (layer {layer})"
+            ));
+            neck_down_halfwidth = board_min_half_width;
+        }
         if neck_down_halfwidth >= self.ctrl.trace_half_width[layer as usize] {
             return None;
         }
@@ -986,22 +999,31 @@ impl<S: PullTightSeam, E: InserterEventSink> FoundConnectionInserter<'_, S, E> {
             return false;
         }
         let base_half_width = self.ctrl.trace_half_width[layer as usize];
+        // The board-min floor (beyond-Java): every candidate is
+        // clamped UP to the board's minimum declared trace half width
+        // — the real-world campaign's fanout emitted 3/4- and 1/2-of-
+        // base paths (0.19/0.127 mm) below the 0.2 mm class minimum.
+        // A clamped-up candidate that reaches the base width is
+        // filtered by the ladder's own `>= base` skip below.
+        let board_min_half_width = self.ctrl.min_trace_half_width[layer as usize];
+        let clamp_to_board_min = |width: i32| {
+            if board_min_half_width > 0 {
+                width.max(board_min_half_width)
+            } else {
+                width
+            }
+        };
+        let mut clamped_candidates = 0usize;
         // Java `LinkedHashSet<Integer>` — insertion order, dedup.
         let mut candidate_half_widths: Vec<i32> = Vec::new();
-        if let Some(pin) = start_pin
-            && self.board.pin_is_on_layer(pin, layer)
-        {
-            let width = self.board.pin_trace_neckdown_halfwidth(pin, layer);
-            if !candidate_half_widths.contains(&width) {
-                candidate_half_widths.push(width);
-            }
-        }
-        if let Some(pin) = end_pin
-            && self.board.pin_is_on_layer(pin, layer)
-        {
-            let width = self.board.pin_trace_neckdown_halfwidth(pin, layer);
-            if !candidate_half_widths.contains(&width) {
-                candidate_half_widths.push(width);
+        for pin in [start_pin, end_pin].into_iter().flatten() {
+            if self.board.pin_is_on_layer(pin, layer) {
+                let raw = self.board.pin_trace_neckdown_halfwidth(pin, layer);
+                let width = clamp_to_board_min(raw);
+                clamped_candidates += usize::from(width != raw);
+                if !candidate_half_widths.contains(&width) {
+                    candidate_half_widths.push(width);
+                }
             }
         }
         for fraction in [
@@ -1009,10 +1031,21 @@ impl<S: PullTightSeam, E: InserterEventSink> FoundConnectionInserter<'_, S, E> {
             (base_half_width * 3) / 5,
             base_half_width / 2,
         ] {
-            let width = 1.max(fraction);
+            let raw = 1.max(fraction);
+            let width = clamp_to_board_min(raw);
+            clamped_candidates += usize::from(width != raw);
             if !candidate_half_widths.contains(&width) {
                 candidate_half_widths.push(width);
             }
+        }
+        if clamped_candidates > 0 {
+            // Never silent: one row per clamped ladder, not per
+            // candidate (fanout can fire this on every pin).
+            self.sink.warn(&format!(
+                "FoundConnectionInserter: {clamped_candidates} micro-neckdown candidate \
+                 width(s) clamped up to the board minimum trace half width \
+                 {board_min_half_width} (layer {layer}, base {base_half_width})"
+            ));
         }
 
         for &candidate_half_width in &candidate_half_widths {
@@ -1922,6 +1955,197 @@ mod tests {
             traces,
             vec![(1125, vec![(663500, 20000), (669300, 20000)])],
             "the winning candidate's trace"
+        );
+    }
+
+    /// The neckdown CLAMP (real-world campaign backlog #1): the
+    /// pin-neckdown emit may never land below the board's minimum
+    /// declared class width. Same world as
+    /// `t11_neckdown_start_pin_narrows_blocked_target_to_pin_halfwidth`
+    /// (pin pad 1000 → pin halfwidth 499, pinch admits hw ≤ 1039), but
+    /// the board declares a 900 halfwidth class: the 499 emit is
+    /// clamped UP to 900, the clamped width still fits the pinch, and
+    /// a WARN row names the clamp (never silent). The no-clamp mutant
+    /// lands the 499 trace; the clamp-to-trace-width mutant (900 →
+    /// 1500) refuses the neckdown and fails the insert.
+    #[test]
+    fn neckdown_pin_emit_clamped_to_board_min_class_width() {
+        let (mut manager, mut board) = parse_fixture();
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(668000, 16384)),
+                &Point::Int(corner(672000, 16384)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        // The board's declared minimum: every class claims 900 on
+        // layer 0 (before the control reads it).
+        let layer_count = board.layers().layers.len();
+        for class in board.rules_mut().net_classes.iter_mut() {
+            if class.trace_half_widths.is_empty() {
+                class.trace_half_widths.resize(layer_count, 0);
+            }
+            class.trace_half_widths[0] = 900;
+            class.trace_width_declared = true;
+        }
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        ctrl.with_neckdown = true;
+        assert_eq!(
+            ctrl.min_trace_half_width[0], 900,
+            "the floor rides the control"
+        );
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![corner(663500, 20000), corner(667000, 20000)],
+            layer: 0,
+        };
+        assert!(
+            instance.insert_trace(&item),
+            "the clamped neckdown still fits the pinch. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "WARN FoundConnectionInserter: pin neckdown width 499 clamped up to the \
+                 board minimum trace half width 900 (layer 0)"
+            ),
+            "the clamp must not be silent:\n{joined}"
+        );
+        let traces: Vec<(i32, Vec<(i32, i32)>)> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        assert_eq!(
+            traces,
+            vec![(900, vec![(667000, 20000), (663500, 20000)])],
+            "the narrowed trace at the CLAMPED halfwidth (499 refused, floor 900)"
+        );
+    }
+
+    /// The micro-neckdown CLAMP, refusal face (backlog #1's observed
+    /// defect: the fanout ladder's fraction candidates emitted
+    /// 0.19/0.127 mm paths below a 0.2 mm class minimum). The
+    /// candidate-order world verbatim (gap 3642, need = hw + 2516 —
+    /// the pinned t11 world where 1125 passes with 1 unit to spare),
+    /// with a declared 1200 floor ABOVE every candidate that fits:
+    /// all three fractions clamp to 1200 (need 3716 — the doc's own
+    /// pinned refusand), the ladder exhausts, and the insert FAILS
+    /// landing NOTHING. The no-clamp mutant wins at 1125 and lands a
+    /// sub-floor trace — killed by the empty trace list; the warn row
+    /// kills the silent-variant mutant.
+    #[test]
+    fn fanout_micro_neckdown_refuses_sub_floor_widths() {
+        let (mut manager, mut board) = parse_fixture();
+        epic_board::trace_ops::insert_trace_without_cleaning(
+            &mut manager,
+            &mut board,
+            Polyline::from_two_corners(
+                &Point::Int(corner(668000, 16258)),
+                &Point::Int(corner(672000, 16258)),
+            ),
+            0,
+            100,
+            &[2],
+            1,
+            FixedState::UserFixed,
+        )
+        .expect("pinch");
+        let layer_count = board.layers().layers.len();
+        for class in board.rules_mut().net_classes.iter_mut() {
+            if class.trace_half_widths.is_empty() {
+                class.trace_half_widths.resize(layer_count, 0);
+            }
+            class.trace_half_widths[0] = 1200;
+            class.trace_width_declared = true;
+        }
+        let mut ctrl = AutorouteControl::new(&mut board, 94, &settings_ir(layer_count));
+        ctrl.trace_half_width[0] = 1500;
+        ctrl.is_fanout = true;
+        ctrl.fanout_start_pin_name = Some("U27-P1".to_string());
+        let mut seam = NoPullTight;
+        let mut sink = CaptureSink::default();
+        let mut instance = FoundConnectionInserter {
+            manager: &mut manager,
+            board: &mut board,
+            seam: &mut seam,
+            ctrl: &ctrl,
+            sink: &mut sink,
+            last_corner: None,
+            first_corner: None,
+        };
+        let item = ResultItem {
+            corners: vec![corner(663500, 20000), corner(669300, 20000)],
+            layer: 0,
+        };
+        assert!(
+            !instance.insert_trace(&item),
+            "the clamped-up candidates (1200) no longer fit the 3642 gap — the ladder \
+             must fail. rows:\n{}",
+            sink.rows.join("\n")
+        );
+        let joined = sink.rows.join("\n");
+        assert!(
+            joined.contains(
+                "WARN FoundConnectionInserter: 3 micro-neckdown candidate width(s) clamped \
+                 up to the board minimum trace half width 1200 (layer 0, base 1500)"
+            ),
+            "the clamp must not be silent (1125, 900 and 750 all clamp):\n{joined}"
+        );
+        let traces: Vec<(i32, Vec<(i32, i32)>)> = board
+            .iter_descending()
+            .filter(|entry| matches!(entry.data, ItemData::Trace { .. }) && entry.nets == [94])
+            .map(|entry| {
+                let hw = board.trace_half_width(entry.id).expect("trace hw");
+                let corners = board
+                    .trace_polyline(entry.id)
+                    .expect("trace polyline")
+                    .corners()
+                    .iter()
+                    .map(|c| match c {
+                        Point::Int(ip) => (ip.x, ip.y),
+                        Point::Rational(_) => unreachable!("integer fixture"),
+                    })
+                    .collect();
+                (hw, corners)
+            })
+            .collect();
+        assert!(
+            traces.is_empty(),
+            "nothing below the 1200 floor may land (the no-clamp mutant would insert \
+             the 1125 sub-floor trace): {traces:?}"
         );
     }
 

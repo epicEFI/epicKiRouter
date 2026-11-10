@@ -814,11 +814,14 @@ fn read_net_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
                         found.unwrap_or_else(|| sink.append_generated_net_class() as usize);
                     // `netRule.setTraceHalfWidth(traceHalfwidth)` — the
                     // ALL-layers setter.
-                    for width in sink.net_classes_mut()[net_rule_idx]
-                        .trace_half_widths
-                        .iter_mut()
                     {
-                        *width = trace_half_width;
+                        let net_rule = &mut sink.net_classes_mut()[net_rule_idx];
+                        for width in net_rule.trace_half_widths.iter_mut() {
+                            *width = trace_half_width;
+                        }
+                        // BEYOND-JAVA: a DSN width write marks the
+                        // class DECLARED (the neckdown clamp floor).
+                        net_rule.trace_width_declared = true;
                     }
                     sink.nets_mut()[(board_net_no - 1) as usize].net_class = net_rule_idx as i32;
                 } else {
@@ -1043,11 +1046,14 @@ fn insert_net_class(class: &DsnNetClass, state: &ParseState, sink: &mut dyn Boar
                 // every layer.
                 let trace_half_width =
                     java_round(coordinate_transform.dsn_to_board_value(value / 2.0)) as i32;
-                for width in sink.net_classes_mut()[board_class_idx]
-                    .trace_half_widths
-                    .iter_mut()
                 {
-                    *width = trace_half_width;
+                    let class_slot = &mut sink.net_classes_mut()[board_class_idx];
+                    for width in class_slot.trace_half_widths.iter_mut() {
+                        *width = trace_half_width;
+                    }
+                    // BEYOND-JAVA: a DSN width write marks the class
+                    // DECLARED (the neckdown clamp floor).
+                    class_slot.trace_width_declared = true;
                 }
             }
             Rule::Clearance { value, pairs } => {
@@ -1091,6 +1097,9 @@ fn insert_net_class(class: &DsnNetClass, state: &ParseState, sink: &mut dyn Boar
                         let net_class = &mut sink.net_classes_mut()[board_class_idx];
                         if layer < net_class.trace_half_widths.len() {
                             net_class.trace_half_widths[layer] = trace_half_width;
+                            // BEYOND-JAVA: a DSN width write marks the
+                            // class DECLARED (the neckdown clamp floor).
+                            net_class.trace_width_declared = true;
                         }
                     }
                     Rule::Clearance { value, pairs } => {

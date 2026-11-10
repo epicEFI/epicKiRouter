@@ -615,6 +615,7 @@ impl BoardSink for SesBoard {
             name: "default".to_string(),
             trace_clearance_class: 1,
             trace_half_widths: self.rules.default_trace_half_widths.clone(),
+            trace_width_declared: self.rules.default_trace_width_declared,
             active_routing_layers: layer_structure
                 .layers
                 .iter()
@@ -800,6 +801,9 @@ impl BoardSink for SesBoard {
             name: name.to_string(),
             trace_clearance_class: default.trace_clearance_class,
             trace_half_widths: vec![hw0; layer_count],
+            // Width-clone propagation: hw0 came from the default —
+            // declared iff the default's width was DSN-declared.
+            trace_width_declared: default.trace_width_declared,
             active_routing_layers: self.fresh_active_routing_layers(layer_count),
             default_item_clearance_classes: default.default_item_clearance_classes,
             via_rule: default.via_rule,
@@ -835,6 +839,7 @@ impl BoardSink for SesBoard {
             name,
             trace_clearance_class: default.trace_clearance_class,
             trace_half_widths: vec![hw0; layer_count],
+            trace_width_declared: default.trace_width_declared,
             active_routing_layers: self.fresh_active_routing_layers(layer_count),
             // Fresh DefaultItemClearanceClasses() = new int[6] + setAll(1)
             // with setAll starting at i=1 -> [0,1,1,1,1,1] (the never-read

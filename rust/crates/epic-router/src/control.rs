@@ -239,6 +239,15 @@ pub struct AutorouteControl {
     /// clearance-compensation value of [`Self::trace_clearance_class_index`].
     pub compensated_trace_half_width: Vec<i32>,
 
+    /// The board's minimum declared trace half width per layer
+    /// ([`epic_board`'s `BoardRules::min_trace_half_width`] — the
+    /// narrowest width any net class declares; 0 when no class
+    /// declares one). The neckdown emit clamp reads it: a pin or
+    /// micro neckdown may narrow a route only down to this floor.
+    /// Beyond-Java (upstream clamps at nothing — the real-world
+    /// campaign's sub-minimum neckdown paths).
+    pub min_trace_half_width: Vec<i32>,
+
     /// Java `viaRadii` — persists ACROSS `rebuild_via_info` calls
     /// (Java never zeroes it there; the per-via radii accumulate by
     /// max). Mirrors that exactly.
@@ -367,10 +376,11 @@ impl AutorouteControl {
             trace_costs: settings.trace_costs.clone(),
             bend_costs: vec![0.0; layer_count],
             with_neckdown: settings.automatic_neckdown,
-            layer_active: vec![false; layer_count],
-            layer_count,
             trace_half_width: vec![0; layer_count],
             compensated_trace_half_width: vec![0; layer_count],
+            min_trace_half_width: vec![0; layer_count],
+            layer_active: vec![false; layer_count],
+            layer_count,
             via_radii: vec![0.0; layer_count],
             add_via_costs: Vec::with_capacity(layer_count),
             trace_clearance_class_index: 0,
@@ -535,6 +545,9 @@ impl AutorouteControl {
                 + rules
                     .clearance
                     .clearance_compensation_value(self.trace_clearance_class_index, i);
+            // The board-min floor for the neckdown emit clamp
+            // (beyond-Java; see the field doc).
+            self.min_trace_half_width[i as usize] = rules.min_trace_half_width(i);
             // Java (`:226-228`): the M2-cut
             // `NetClass::is_active_routing_layer` consumer — a net
             // class that marks a layer inactive force-disables it.

@@ -3847,14 +3847,13 @@ mod pins {
         );
         assert_eq!(
             (detail.trace_count, detail.via_count, detail.bend_count),
-            (38, 0, 24),
-            "buglog-176 geometry counts post M11-T4+T3: 38 traces / 0 vias / \
-             24 bends (M11-T4 cluster F's unconditional corner-touch doors \
-             add one bend on this face — stash-bisected: the T4-only tree \
-             already carries 24, T3 inert here; was 38/0/23 post M11-T9i's \
-             micro-neckdown tapers of aa909a345; 25/0/22 under the wired \
-             production shover, 14/0/19 under the old T4 tightener alone, \
-             15/0/66 pre-T4)"
+            (25, 0, 23),
+            "buglog-176 geometry counts post wave1 neckdown clamp: 25 traces / 0 vias / \
+             23 bends (the clamp refuses this fixture's sub-floor neckdown tapers — \
+             the M11-T9i/M11-T4 faces that rode them collapse back to the shover-era \
+             25-trace family; was 38/0/24 post M11-T4+T3, 38/0/23 post M11-T9i, \
+             25/0/22 under the wired production shover, 14/0/19 under the old T4 \
+             tightener alone, 15/0/66 pre-T4)"
         );
     }
 
