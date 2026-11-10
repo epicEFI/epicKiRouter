@@ -106,10 +106,11 @@ pub(crate) fn read_component_scope(
 ) -> bool {
     let Token::Str(component_name) = scanner.next_token() else {
         // Java warns "component name expected" -> null -> wrapper false
-        state.note_parse_failure(
+        let (line, column) = scanner.token_position();
+        state.note_parse_failure(format!(
             "(component ...) scope: component image name expected after the \
-             component keyword",
-        );
+             component keyword (at line {line}, column {column})"
+        ));
         return false;
     };
     let mut placement = ComponentPlacement {
@@ -140,9 +141,11 @@ pub(crate) fn read_component_scope(
                     placement.locations.push(location);
                 }
                 None => {
+                    let (line, column) = scanner.token_position();
                     state.note_parse_failure(format!(
                         "(place ...) scope inside (component \"{}\"): malformed — expected \
-                         (place <refdes> <x> <y> [<front|back> <rotation>] [<inner scopes>])",
+                         (place <refdes> <x> <y> [<front|back> <rotation>] [<inner scopes>]) \
+                         (at line {line}, column {column})",
                         placement.lib_name
                     ));
                     return false;

@@ -1535,8 +1535,12 @@ mod tests {
             crate::reader::DsnReadResult::ParseError { location, detail } => {
                 assert_eq!(location, "(pcb");
                 // The 2026-11-09 diagnostics face: the generic "DSN
-                // structure parsing failed" now names the failing scope.
-                assert_eq!(detail, "(wiring) scope parsing failed");
+                // structure parsing failed" now names the failing scope;
+                // the wave1 follow-up pins the scope's (line, column).
+                assert!(
+                    detail.starts_with("(wiring) scope parsing failed (at line "),
+                    "positioned detail: {detail}"
+                );
             }
             other => panic!("expected ParseError, got {other:?}"),
         }
@@ -1558,8 +1562,12 @@ mod tests {
             crate::reader::DsnReadResult::ParseError { location, detail } => {
                 assert_eq!(location, "(pcb");
                 // The 2026-11-09 diagnostics face: the generic "DSN
-                // structure parsing failed" now names the failing scope.
-                assert_eq!(detail, "(wiring) scope parsing failed");
+                // structure parsing failed" now names the failing scope;
+                // the wave1 follow-up pins the scope's (line, column).
+                assert!(
+                    detail.starts_with("(wiring) scope parsing failed (at line "),
+                    "positioned detail: {detail}"
+                );
             }
             other => panic!("expected ParseError, got {other:?}"),
         }

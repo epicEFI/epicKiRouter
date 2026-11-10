@@ -195,19 +195,22 @@ pub fn read_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
     // when the structure scope ran, which also materialized the default
     // net class (class 0) and the coordinate transform.
     if state.coordinate_transform.is_none() || state.layer_structure.is_none() {
-        state.note_parse_failure(
+        let (line, column) = scanner.token_position();
+        state.note_parse_failure(format!(
             "(network) scope read before (structure) created the board — the \
              layer stack and (boundary) outline must precede (network); a DSN \
              without a (structure) section cannot be routed (KiCad/Specctra \
-             exporters always emit one)",
-        );
+             exporters always emit one) (at line {line}, column {column})"
+        ));
         return false;
     }
     if sink.net_classes().is_empty() {
-        state.note_parse_failure(
+        let (line, column) = scanner.token_position();
+        state.note_parse_failure(format!(
             "(network) scope read with no net classes defined — a (structure) \
-             section carrying the class list must precede (network)",
-        );
+             section carrying the class list must precede (network) \
+             (at line {line}, column {column})"
+        ));
         return false;
     }
 

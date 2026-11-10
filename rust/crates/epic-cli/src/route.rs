@@ -1424,7 +1424,10 @@ pub fn run_route(args: &ParsedRouteArgs) -> Result<i32, String> {
             }
         }
         DsnReadResult::ParseError { location, detail } => {
-            return Err(format!("parse error at {location}: {detail}"));
+            return Err(format!(
+                "parse error in {} at {location}: {detail}",
+                dsn_path.display()
+            ));
         }
         DsnReadResult::IoError => {
             return Err(format!("I/O error reading {}", dsn_path.display()));

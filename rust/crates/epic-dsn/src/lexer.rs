@@ -130,6 +130,9 @@ pub enum Token {
 pub struct Scanner<'a> {
     input: &'a [u8],
     cursor: usize,
+    /// BEYOND-JAVA: byte offset of the START of the most recently
+    /// returned token (parse diagnostics; see [`Scanner::token_position`]).
+    token_start: usize,
     state: LexicalState,
     /// Scratch buffer for quoted-string content (Java `stringBuffer`).
     string_buf: Vec<u8>,
@@ -146,6 +149,10 @@ impl<'a> Scanner<'a> {
         Scanner {
             input,
             cursor: 0,
+            // BEYOND-JAVA: byte offset of the START of the most
+            // recently returned token (parse diagnostics; see
+            // [`Scanner::token_position`]).
+            token_start: 0,
             state: LexicalState::YyInitial,
             string_buf: Vec::new(),
             scope_identifier: String::new(),
@@ -167,6 +174,28 @@ impl<'a> Scanner<'a> {
         self.state
     }
 
+    /// BEYOND-JAVA (improvement backlog #2): the (line, column) — both
+    /// 1-based — of the START of the most recently returned token.
+    /// Computed lazily by walking the consumed prefix (diagnostics are
+    /// rare; no per-byte bookkeeping in the scan hot loop). Column is
+    /// the byte offset since the last line break, matching how a text
+    /// editor counts a DSN's ASCII content.
+    #[must_use]
+    pub fn token_position(&self) -> (usize, usize) {
+        let start = self.token_start.min(self.input.len());
+        let mut line = 1usize;
+        let mut column = 1usize;
+        for &b in &self.input[..start] {
+            if b == b'\n' {
+                line += 1;
+                column = 1;
+            } else {
+                column += 1;
+            }
+        }
+        (line, column)
+    }
+
     /// Switch the lexical state (Java `yybegin(int)`); used by the reader's
     /// header hand-scan (`DsnReader.java:96`) and by [`skip_scope`].
     pub fn set_lexical_state(&mut self, state: LexicalState) {
@@ -186,8 +215,11 @@ impl<'a> Scanner<'a> {
                 self.cursor += 1;
             }
             let Some(&b) = self.input.get(self.cursor) else {
+                self.token_start = self.cursor;
                 return Token::Eof;
             };
+            // The token's first byte — the diagnostics anchor.
+            self.token_start = self.cursor;
 
             // SPEC_CHAR has no keyword table: one byte per call — the `-`
             // scans as the String "-", anything else as Java `null` (the

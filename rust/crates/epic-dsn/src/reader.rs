@@ -162,9 +162,13 @@ fn scan_pcb_header(scanner: &mut Scanner) -> Result<Option<String>, (String, Str
             }
         };
         if !ok {
+            let (line, column) = scanner.token_position();
             return Err((
                 "(pcb".to_string(),
-                "Not a Specctra DSN file: expected '(pcb <name>' header".to_string(),
+                format!(
+                    "Not a Specctra DSN file: expected '(pcb <name>' header \
+                     (at line {line}, column {column})"
+                ),
             ));
         }
     }
@@ -264,6 +268,10 @@ fn read_pcb_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
             break;
         }
         let mut read_ok = true;
+        // The scope keyword's own (line, column) — captured BEFORE the
+        // child reader consumes tokens, so the failure note pinpoints
+        // where the failing scope STARTS.
+        let scope_position = scanner.token_position();
         if prev_token == Some(Token::Open) {
             read_ok = match next_token {
                 Token::Keyword(Keyword::Component) => {
@@ -303,7 +311,11 @@ fn read_pcb_scope(scanner: &mut Scanner, state: &mut ParseState, sink: &mut dyn 
         }
         if !read_ok {
             if let Token::Keyword(keyword) = &next_token {
-                state.note_parse_failure(format!("({}) scope parsing failed", keyword.name()));
+                let (line, column) = scope_position;
+                state.note_parse_failure(format!(
+                    "({}) scope parsing failed (at line {line}, column {column})",
+                    keyword.name()
+                ));
             }
             return false;
         }
@@ -746,9 +758,12 @@ mod tests {
         match result {
             crate::reader::DsnReadResult::ParseError { location, detail } => {
                 assert_eq!(location, "(pcb");
+                // The wave1 position face: the header failure pins the
+                // offending token's (line, column) — "garbage" at 1:1.
                 assert_eq!(
                     detail,
-                    "Not a Specctra DSN file: expected '(pcb <name>' header"
+                    "Not a Specctra DSN file: expected '(pcb <name>' header \
+                     (at line 1, column 1)"
                 );
             }
             other => panic!("expected ParseError, got {other:?}"),
@@ -1161,7 +1176,9 @@ mod tests {
             result,
             crate::reader::MetadataReadResult::ParseError {
                 location: "(pcb".to_string(),
-                detail: "Not a Specctra DSN file: expected '(pcb <name>' header".to_string(),
+                detail:
+                    "Not a Specctra DSN file: expected '(pcb <name>' header (at line 1, column 1)"
+                        .to_string(),
             }
         );
     }
